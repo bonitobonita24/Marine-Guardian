@@ -39,3 +39,5 @@ skills-lock.json
 # ─── Automation Handoff Docs (consumed by framework, not committed) ───
 n8n-handoff.md
 openclaw-handoff.md
+deploy-v31.sh
+docs/
