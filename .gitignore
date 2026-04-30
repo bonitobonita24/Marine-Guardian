@@ -1,7 +1,12 @@
-.specstory/
-.vscode/
+# ─── Dependencies ───
+node_modules/
+.pnpm-store/
 
-# ─── Build + TypeScript cache (Spec-Driven V31) ───
+# ─── Build outputs ───
+.next/
+.turbo/
+dist/
+build/
 *.tsbuildinfo
 
 # ─── Environment files — NEVER commit real credentials ───
@@ -19,6 +24,7 @@ CLAUDE.md
 AI/
 .clinerules
 .cline/
+.specstory/
 project.memory.md
 .code-review-graph/
 .socraticodecontextartifacts.json
@@ -40,4 +46,11 @@ skills-lock.json
 n8n-handoff.md
 openclaw-handoff.md
 deploy-v31.sh
+
+# ─── Docs (user preference: all AI-related files untracked) ───
 docs/
+
+# ─── Editor + OS ───
+.DS_Store
+*.log
+.vscode/
