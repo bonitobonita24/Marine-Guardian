@@ -1,0 +1,34 @@
+
+# ─── Build + TypeScript cache (Spec-Driven V31) ───
+*.tsbuildinfo
+
+# ─── Environment files — NEVER commit real credentials ───
+.env
+.env.*
+!.env.example
+
+# ─── Credentials master list ───
+CREDENTIALS.md
+
+# ─── AI Artifacts: Machine-Local Only (never commit) ───
+.specstory/
+project.memory.md
+.code-review-graph/
+.socraticodecontextartifacts.json
+.github/skills/**/node_modules/
+skills-lock.json
+
+# ─── Third-Party AI Tool Artifacts (safety net) ───
+.agents/
+.cursor/
+.windsurf/
+.aider*
+.copilot/
+.continue/
+.tabby/
+.augment/
+.roo/
+
+# ─── Automation Handoff Docs (consumed by framework, not committed) ───
+n8n-handoff.md
+openclaw-handoff.md
