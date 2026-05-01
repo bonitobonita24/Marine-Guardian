@@ -28,7 +28,7 @@ AI/
 project.memory.md
 .code-review-graph/
 .socraticodecontextartifacts.json
-.github/skills/
+.github/skills
 .github/skills/**/node_modules/
 skills-lock.json
 
