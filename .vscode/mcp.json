@@ -1,0 +1,16 @@
+{
+  "servers": {
+    "socraticode": {
+      "command": "npx",
+      "args": ["-y", "socraticode"]
+    },
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp@latest"]
+    },
+    "shadcn": {
+      "command": "npx",
+      "args": ["-y", "shadcn@latest", "mcp"]
+    }
+  }
+}
