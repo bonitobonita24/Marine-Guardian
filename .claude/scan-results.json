@@ -86,6 +86,12 @@
       "category": "Development & DevOps",
       "tier": "T4",
       "reason": "Complements V31 strict workflow discipline"
+    },
+    {
+      "name": "ui-ux-pro-max",
+      "category": "Design & UI",
+      "tier": "T1",
+      "reason": "Design system generation for Phase 2.6, Meta Dark Mode aesthetic, 161 industry rules"
     }
   ],
   "excludedGlobals": [
