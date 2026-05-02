@@ -54,6 +54,8 @@
 - [x] .cline/STATE.md
 - [x] .cline/memory/lessons.md
 - [x] .cline/memory/agent-log.md
+- [x] .claude/scan-results.json (scan-project output — tech stack + 12 installed skills)
+- [x] .claude/skills/ (12 project skills: vercel-agent-skills, test-driven-development, frontend-design, awesome-design-md, postgres, defense-in-depth, webapp-testing, systematic-debugging, using-git-worktrees, planning-with-files, spartan-ai-toolkit, ui-ux-pro-max)
 
 ### Notes
 - packages/storage NOT generated (v1 decision — no file uploads, ER hosts files)
