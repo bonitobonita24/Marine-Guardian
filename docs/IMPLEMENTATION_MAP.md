@@ -2,13 +2,27 @@
 # Current build state. Rewritten after every feature update.
 # ---
 
-## Status: Phase 0 — Bootstrap
+## Status: Phase 4 Part 1 complete — Root Config Files
 
 ### Root Config
-- [ ] pnpm-workspace.yaml
-- [ ] turbo.json
-- [ ] tsconfig.base.json
-- [ ] .editorconfig, .prettierrc, .eslintrc.js
+- [x] pnpm-workspace.yaml
+- [x] turbo.json
+- [x] tsconfig.base.json
+- [x] .editorconfig, .prettierrc, eslint.config.mjs (ESLint 9.x flat config)
+- [x] .gitignore (final)
+- [x] .nvmrc (Node 22)
+- [x] package.json (turbo scripts + devDependencies)
+- [x] pnpm-lock.yaml (111 packages)
+
+### Spec Files (Phase 3)
+- [x] inputs.yml (version 3 — 18 entities, 19 modules, 4 roles)
+- [x] inputs.schema.json
+- [x] .env.dev (gitignored — generated credentials)
+- [x] .env.staging (gitignored — generated credentials)
+- [x] .env.prod (gitignored — generated credentials)
+- [x] .env.example (committed — placeholder template)
+- [x] scripts/sync-credentials-to-env.sh
+- [x] CREDENTIALS.md (gitignored — master credential file)
 
 ### Packages
 - [ ] packages/shared (types + schemas)
@@ -16,7 +30,6 @@
 - [ ] packages/db (Prisma schema + migrations)
 - [ ] packages/ui (shadcn/ui)
 - [ ] packages/jobs (BullMQ)
-- [ ] packages/storage (MinIO)
 
 ### Apps
 - [ ] apps/web (Next.js — Command Center)
@@ -33,8 +46,16 @@
 - [x] .claude/rules/ (6 files)
 - [x] docs/PRODUCT.md (complete)
 - [x] docs/DESIGN.md (Meta Dark Mode)
-- [x] .gitignore
+- [x] .gitignore (final)
 - [x] .vscode/mcp.json
-- [ ] inputs.yml
-- [ ] .env files
-- [ ] CREDENTIALS.md
+- [x] docs/DECISIONS_LOG.md (13 locked decisions)
+- [x] docs/CHANGELOG_AI.md (Phase 3 + Part 1 entries)
+- [x] project.memory.md
+- [x] .cline/STATE.md
+- [x] .cline/memory/lessons.md
+- [x] .cline/memory/agent-log.md
+
+### Notes
+- packages/storage NOT generated (v1 decision — no file uploads, ER hosts files)
+- Turnstile disabled (internal tool, no public forms)
+- File storage toggle: disabled for v1
