@@ -2,7 +2,7 @@
 # Current build state. Rewritten after every feature update.
 # ---
 
-## Status: Phase 4 Part 1 complete — Root Config Files
+## Status: Phase 4 Part 2 complete — packages/shared + packages/api-client
 
 ### Root Config
 - [x] pnpm-workspace.yaml
@@ -25,8 +25,8 @@
 - [x] CREDENTIALS.md (gitignored — master credential file)
 
 ### Packages
-- [ ] packages/shared (types + schemas)
-- [ ] packages/api-client
+- [x] packages/shared (18 TypeScript interfaces + 18 Zod schemas with create/update variants)
+- [x] packages/api-client (typed tRPC client factory with superjson transformer)
 - [ ] packages/db (Prisma schema + migrations)
 - [ ] packages/ui (shadcn/ui)
 - [ ] packages/jobs (BullMQ)
@@ -49,7 +49,7 @@
 - [x] .gitignore (final)
 - [x] .vscode/mcp.json
 - [x] docs/DECISIONS_LOG.md (13 locked decisions)
-- [x] docs/CHANGELOG_AI.md (Phase 3 + Part 1 entries)
+- [x] docs/CHANGELOG_AI.md (Phase 3 + Part 1 + Part 2 entries)
 - [x] project.memory.md
 - [x] .cline/STATE.md
 - [x] .cline/memory/lessons.md
