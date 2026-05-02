@@ -1,0 +1,133 @@
+{
+  "scannedAt": "2026-05-02",
+  "techStack": [
+    "TypeScript",
+    "Next.js 15",
+    "tRPC",
+    "Prisma",
+    "PostgreSQL",
+    "PgBouncer",
+    "Valkey",
+    "BullMQ",
+    "Docker Compose",
+    "MapLibre GL (mapcn)",
+    "Auth.js v5",
+    "shadcn/ui",
+    "WebSocket",
+    "pnpm monorepo",
+    "Turborepo",
+    "ESLint 9.x",
+    "Prettier"
+  ],
+  "projectType": "full-stack",
+  "installedSkills": [
+    {
+      "name": "vercel-agent-skills",
+      "category": "Development & DevOps",
+      "tier": "T1",
+      "reason": "Matches Next.js 15 App Router, next.config.ts, React/TSX components"
+    },
+    {
+      "name": "test-driven-development",
+      "category": "Development & DevOps",
+      "tier": "T1",
+      "reason": "Matches Rule 25 TDD enforcement (RED→GREEN→refactor)"
+    },
+    {
+      "name": "frontend-design",
+      "category": "Design & UI",
+      "tier": "T1",
+      "reason": "Matches .tsx files, shadcn/ui components, Meta Dark Mode aesthetic"
+    },
+    {
+      "name": "awesome-design-md",
+      "category": "Design & UI",
+      "tier": "T1",
+      "reason": "Matches docs/DESIGN.md already exists in project (Meta Dark Mode)"
+    },
+    {
+      "name": "postgres",
+      "category": "Data & Analytics",
+      "tier": "T2",
+      "reason": "Matches PostgreSQL + PgBouncer + RLS policies in stack"
+    },
+    {
+      "name": "defense-in-depth",
+      "category": "Security & Testing",
+      "tier": "T2",
+      "reason": "Matches 6 security layers (L1-L6), multi-tenant isolation, AES-256-GCM"
+    },
+    {
+      "name": "webapp-testing",
+      "category": "Security & Testing",
+      "tier": "T2",
+      "reason": "Matches Next.js web app with localhost dev server, E2E testing needs"
+    },
+    {
+      "name": "systematic-debugging",
+      "category": "Development & DevOps",
+      "tier": "T4",
+      "reason": "Matches complex full-stack monorepo, Docker Compose, multi-layer architecture"
+    },
+    {
+      "name": "using-git-worktrees",
+      "category": "Development & DevOps",
+      "tier": "T4",
+      "reason": "Matches git.use_worktrees: true in inputs.yml"
+    },
+    {
+      "name": "planning-with-files",
+      "category": "Development & DevOps",
+      "tier": "T4",
+      "reason": "Matches 8-phase build process, governance docs, complex multi-step implementation"
+    },
+    {
+      "name": "spartan-ai-toolkit",
+      "category": "Development & DevOps",
+      "tier": "T4",
+      "reason": "Complements V31 strict workflow discipline"
+    }
+  ],
+  "excludedGlobals": [
+    {
+      "name": "article-extractor",
+      "reason": "Content extraction — not relevant to marine conservation SaaS"
+    },
+    {
+      "name": "content-research-writer",
+      "reason": "Content marketing — not relevant to technical build phases"
+    },
+    {
+      "name": "csv-data-summarizer-claude-skill",
+      "reason": "CSV summarization — not a core workflow"
+    },
+    {
+      "name": "deep-research",
+      "reason": "General research — not needed during scaffold/build phases"
+    },
+    {
+      "name": "google-workspace-skills",
+      "reason": "Google Workspace — not part of this project's stack"
+    },
+    {
+      "name": "image-enhancer",
+      "reason": "Image processing — not a core feature of v1"
+    },
+    {
+      "name": "imagen",
+      "reason": "Image generation — not relevant"
+    },
+    {
+      "name": "youtube-transcript",
+      "reason": "YouTube — not relevant"
+    }
+  ],
+  "recommendedPlugins": [],
+  "skippedOptional": [
+    {
+      "name": "accesslint-contrast-checker",
+      "category": "Design & UI",
+      "reason": "MEDIUM confidence — already installed globally, useful if WCAG requirement added"
+    }
+  ]
+}
