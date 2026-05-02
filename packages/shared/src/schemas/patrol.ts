@@ -1,0 +1,19 @@
+import { z } from "zod";
+import { patrolStateSchema, patrolTypeSchema } from "./enums";
+
+export const patrolSchema = z.object({
+  id: z.string().cuid(),
+  tenantId: z.string().cuid(),
+  erPatrolId: z.string().min(1),
+  serialNumber: z.string().nullable(),
+  title: z.string().max(500).nullable(),
+  patrolType: patrolTypeSchema,
+  state: patrolStateSchema,
+  startTime: z.coerce.date().nullable(),
+  endTime: z.coerce.date().nullable(),
+  totalDistanceKm: z.number().min(0).nullable(),
+  totalHours: z.number().min(0).nullable(),
+  syncedAt: z.coerce.date(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+});

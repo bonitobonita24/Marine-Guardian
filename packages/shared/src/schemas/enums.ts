@@ -1,0 +1,51 @@
+import { z } from "zod";
+
+export const userRoleSchema = z.enum([
+  "super_admin",
+  "site_admin",
+  "field_coordinator",
+  "operator",
+]);
+
+export const languageSchema = z.enum(["en", "id", "ms"]);
+
+export const patrolTypeSchema = z.enum(["foot", "seabourn"]);
+
+export const patrolStateSchema = z.enum(["open", "done", "cancelled"]);
+
+export const eventStateSchema = z.enum(["new", "active", "resolved"]);
+
+export const eventPrioritySchema = z.union([
+  z.literal(0),
+  z.literal(100),
+  z.literal(200),
+  z.literal(300),
+]);
+
+export const syncTypeSchema = z.enum([
+  "events",
+  "subjects",
+  "patrols",
+  "observations",
+  "event_types",
+]);
+
+export const syncStatusSchema = z.enum(["success", "failed", "partial"]);
+
+export const notificationTypeSchema = z.enum([
+  "critical",
+  "warning",
+  "info",
+  "system",
+]);
+
+export const notificationChannelSchema = z.enum(["in_app", "email"]);
+
+export const rangerTypeSchema = z.enum(["registered", "freetext"]);
+
+export const accompanyingEntityTypeSchema = z.enum(["event", "patrol"]);
+
+export const knownRangerSourceSchema = z.enum([
+  "earthranger_sync",
+  "manual_entry",
+]);
