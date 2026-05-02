@@ -1,6 +1,32 @@
 {
   "name": "marine-guardian",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@10.0.0"
+  "packageManager": "pnpm@10.0.0",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:migrate": "pnpm --filter @marine-guardian/db migrate",
+    "db:generate": "pnpm --filter @marine-guardian/db generate",
+    "db:seed": "pnpm --filter @marine-guardian/db seed",
+    "db:reset": "pnpm --filter @marine-guardian/db reset",
+    "db:studio": "pnpm --filter @marine-guardian/db studio",
+    "tools:validate-inputs": "node tools/validate-inputs.mjs",
+    "tools:check-env": "node tools/check-env.mjs",
+    "tools:check-product-sync": "node tools/check-product-sync.mjs",
+    "tools:hydration-lint": "node tools/hydration-lint.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.18.0",
+    "eslint": "^9.18.0",
+    "prettier": "^3.4.2",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.20.0"
+  }
 }

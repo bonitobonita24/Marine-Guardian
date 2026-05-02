@@ -52,3 +52,4 @@ openclaw-handoff.md
 # Editor + OS
 .DS_Store
 *.log
+coverage/

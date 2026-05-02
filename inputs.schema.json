@@ -1,0 +1,296 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Spec-Driven Platform V31 — inputs.yml schema",
+  "type": "object",
+  "required": ["app", "apps", "tenancy", "auth", "roles", "entities", "modules", "ports", "docker", "git", "models"],
+  "properties": {
+    "app": {
+      "type": "object",
+      "required": ["name", "slug"],
+      "properties": {
+        "name": { "type": "string" },
+        "slug": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+        "tagline": { "type": "string" },
+        "industry": { "type": "string" },
+        "version": { "type": "string" }
+      }
+    },
+    "apps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "framework", "port"],
+        "properties": {
+          "name": { "type": "string" },
+          "framework": { "enum": ["next", "expo"] },
+          "port": { "type": "integer", "minimum": 1024, "maximum": 65535 },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "tenancy": {
+      "type": "object",
+      "required": ["mode"],
+      "properties": {
+        "mode": { "enum": ["single", "multi"] },
+        "routing": { "enum": ["subdirectory", "subdomain"] },
+        "shared_global_data": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "auth": {
+      "type": "object",
+      "required": ["provider", "strategy"],
+      "properties": {
+        "provider": { "type": "string" },
+        "strategy": { "type": "string" },
+        "session_type": { "enum": ["jwt", "database"] },
+        "jwt_fields": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "roles": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" }
+    },
+    "entities": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" },
+          "synced_from": { "type": "string" },
+          "native": { "type": "boolean" },
+          "encrypted_fields": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "modules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "integrations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "type"],
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "type": "string" },
+          "auth": { "type": "string" },
+          "sync": { "type": "string" },
+          "websocket": { "type": "string" },
+          "per_tenant": { "type": "boolean" },
+          "credentials_encrypted": { "type": "boolean" },
+          "encryption": { "type": "string" },
+          "status": { "type": "string" },
+          "active": { "type": "boolean" },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "jobs": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "provider": { "type": "string" },
+        "queues": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string" },
+              "description": { "type": "string" },
+              "default_frequency_seconds": { "type": "integer" }
+            }
+          }
+        }
+      }
+    },
+    "storage": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "maps": {
+      "type": "object",
+      "properties": {
+        "library": { "type": "string" },
+        "engine": { "type": "string" },
+        "features": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "charts": {
+      "type": "object",
+      "properties": {
+        "library": { "type": "string" },
+        "via": { "type": "string" },
+        "types": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "complex_components": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "i18n": {
+      "type": "object",
+      "properties": {
+        "library": { "type": "string" },
+        "languages": { "type": "array", "items": { "type": "string" } },
+        "default": { "type": "string" }
+      }
+    },
+    "security": {
+      "type": "object",
+      "properties": {
+        "encryption": {
+          "type": "object",
+          "properties": {
+            "algorithm": { "type": "string" },
+            "key_env_var": { "type": "string" }
+          }
+        },
+        "rate_limiting": {
+          "type": "object",
+          "properties": {
+            "public": { "type": "integer" },
+            "auth": { "type": "integer" },
+            "api": { "type": "integer" },
+            "upload": { "type": "integer" }
+          }
+        },
+        "cors": {
+          "type": "object",
+          "properties": {
+            "dev": { "type": "string" },
+            "staging": { "type": "string" },
+            "prod": { "type": "string" }
+          }
+        },
+        "turnstile": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" }
+          }
+        },
+        "layers": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "realtime": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "ports": {
+      "type": "object",
+      "required": ["dev"],
+      "properties": {
+        "dev": {
+          "type": "object",
+          "required": ["base", "db", "pgbouncer", "redis", "app"],
+          "properties": {
+            "base": { "type": "integer", "minimum": 40000, "maximum": 49999 },
+            "db": { "type": "integer" },
+            "pgbouncer": { "type": "integer" },
+            "redis": { "type": "integer" },
+            "minio": { "type": "integer" },
+            "minio_console": { "type": "integer" },
+            "mailhog_smtp": { "type": "integer" },
+            "mailhog_ui": { "type": "integer" },
+            "pgadmin": { "type": "integer" },
+            "app": { "type": "integer" },
+            "worker": { "type": "integer" },
+            "prisma_studio": { "type": "integer" }
+          }
+        }
+      }
+    },
+    "domains": {
+      "type": "object",
+      "properties": {
+        "staging": { "type": "string" },
+        "prod": { "type": "string" }
+      }
+    },
+    "docker": {
+      "type": "object",
+      "required": ["publish"],
+      "properties": {
+        "publish": { "type": "boolean" },
+        "registry": { "type": "string" },
+        "hub_repo": { "type": "string" },
+        "image_name": { "type": "string" },
+        "platforms": { "type": "array", "items": { "type": "string" } },
+        "build_on_push_to": { "type": "string" },
+        "dev_build": { "type": "boolean" }
+      }
+    },
+    "git": {
+      "type": "object",
+      "required": ["default_branch"],
+      "properties": {
+        "default_branch": { "type": "string" },
+        "branch_pattern": { "type": "string" },
+        "commit_style": { "enum": ["conventional"] },
+        "squash_merge": { "type": "boolean" },
+        "use_worktrees": { "type": "boolean" }
+      }
+    },
+    "models": {
+      "type": "object",
+      "properties": {
+        "planning": { "type": "string" },
+        "execution": { "type": "string" },
+        "governance": { "type": "string" }
+      }
+    },
+    "vibe_test": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "context7": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "accessibility": {
+      "type": "object",
+      "properties": {
+        "level": { "enum": ["none", "wcag_aa", "wcag_aaa"] }
+      }
+    },
+    "deploy": {
+      "type": "object",
+      "properties": {
+        "k8s": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "nfr": {
+      "type": "object",
+      "properties": {
+        "api_response_ms": { "type": "integer" },
+        "concurrent_users_per_tenant": { "type": "integer" },
+        "uptime_sla": { "type": "string" },
+        "data_retention": { "type": "object" }
+      }
+    }
+  }
+}

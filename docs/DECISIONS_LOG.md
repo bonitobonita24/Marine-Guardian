@@ -71,3 +71,30 @@ Rationale: PRODUCT.md declares advanced map features — live tracking, heatmaps
 polygons, drawing tools, fly-to animations. These require vector tiles and GL rendering,
 which exceeds Leaflet.js capabilities. mapcn is MIT, zero API key, auto-themes with shadcn dark mode.
 Locked: yes — decision logged per ui-rules.md Rule 6 requirement.
+
+## Dev Port Strategy
+Decision: Random base port 45194 with fixed offsets (Rule 22)
+Port assignments:
+  PostgreSQL: 45194, PgBouncer: 45195, Valkey: 45196,
+  MinIO API: 45197, MinIO Console: 45198, MailHog SMTP: 45199,
+  MailHog UI: 45200, pgAdmin: 45201, App: 45204, Worker: 45205,
+  Prisma Studio: 45214
+Rationale: Non-standard ports prevent conflicts with other projects on the same dev machine.
+Staging and production use standard ports (5432, 6379, 9000, 3000, etc.).
+Locked: yes
+
+## Docker Image Publishing
+Decision: Enabled — bonitobonita24/marine-guardian on Docker Hub
+Registry: docker.io (Docker Hub)
+Repository: bonitobonita24/marine-guardian
+Image name: marine-guardian
+Tags: latest (main branch), staging-latest (staging auto-update), sha-{short} (every push)
+Platforms: linux/amd64, linux/arm64
+Trigger: push to main only (Rule 23 squash-merge guarantees clean main)
+GitHub Secrets: DOCKERHUB_USERNAME + DOCKERHUB_TOKEN
+Locked: yes
+
+## Spec Stress-Test (Phase 2.7)
+Decision: Enabled — vibe_test.enabled: true
+Result: Passed with 0 gaps on 2026-05-02
+Locked: yes
