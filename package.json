@@ -21,6 +21,15 @@
     "tools:check-product-sync": "node tools/check-product-sync.mjs",
     "tools:hydration-lint": "node tools/hydration-lint.mjs"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma",
+      "bcrypt",
+      "esbuild"
+    ]
+  },
   "devDependencies": {
     "@eslint/js": "^9.18.0",
     "eslint": "^9.18.0",
