@@ -1,0 +1,36 @@
+{
+  "common": {
+    "appName": "Marine Guardian",
+    "loading": "Memuat...",
+    "save": "Simpan",
+    "cancel": "Batal",
+    "delete": "Hapus",
+    "edit": "Ubah",
+    "create": "Buat",
+    "search": "Cari...",
+    "noResults": "Tidak ada hasil",
+    "confirm": "Konfirmasi",
+    "back": "Kembali"
+  },
+  "nav": {
+    "dashboard": "Pusat Komando",
+    "map": "Peta Langsung",
+    "events": "Kejadian",
+    "patrols": "Patroli",
+    "subjects": "Subjek",
+    "patrolAreas": "Area Patroli",
+    "observations": "Observasi",
+    "alerts": "Aturan Peringatan",
+    "notifications": "Notifikasi",
+    "sync": "Status Sinkronisasi",
+    "users": "Pengguna",
+    "settings": "Pengaturan"
+  },
+  "auth": {
+    "signIn": "Masuk",
+    "signOut": "Keluar",
+    "email": "Email",
+    "password": "Kata Sandi",
+    "invalidCredentials": "Kredensial tidak valid."
+  }
+}

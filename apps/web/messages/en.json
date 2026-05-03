@@ -1,0 +1,36 @@
+{
+  "common": {
+    "appName": "Marine Guardian",
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "search": "Search...",
+    "noResults": "No results found",
+    "confirm": "Confirm",
+    "back": "Back"
+  },
+  "nav": {
+    "dashboard": "Command Center",
+    "map": "Live Map",
+    "events": "Events",
+    "patrols": "Patrols",
+    "subjects": "Subjects",
+    "patrolAreas": "Patrol Areas",
+    "observations": "Observations",
+    "alerts": "Alert Rules",
+    "notifications": "Notifications",
+    "sync": "Sync Status",
+    "users": "Users",
+    "settings": "Settings"
+  },
+  "auth": {
+    "signIn": "Sign In",
+    "signOut": "Sign Out",
+    "email": "Email",
+    "password": "Password",
+    "invalidCredentials": "Invalid credentials."
+  }
+}

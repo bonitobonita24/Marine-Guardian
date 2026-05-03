@@ -1,0 +1,28 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "plugins": [{ "name": "next" }],
+    "paths": {
+      "@/*": ["./src/*"],
+      "@marine-guardian/shared": ["../../packages/shared/src"],
+      "@marine-guardian/shared/*": ["../../packages/shared/src/*"],
+      "@marine-guardian/db": ["../../packages/db/src"],
+      "@marine-guardian/db/*": ["../../packages/db/src/*"],
+      "@marine-guardian/ui": ["../../packages/ui/src"],
+      "@marine-guardian/ui/*": ["../../packages/ui/src/*"],
+      "@marine-guardian/jobs": ["../../packages/jobs/src"],
+      "@marine-guardian/jobs/*": ["../../packages/jobs/src/*"]
+    },
+    "incremental": true,
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": ["node_modules", ".next"]
+}

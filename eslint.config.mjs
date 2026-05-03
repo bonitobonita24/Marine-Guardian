@@ -22,6 +22,6 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['**/node_modules/**', '**/dist/**', '**/.next/**', '**/.turbo/**', '*.mjs'],
+    ignores: ['**/node_modules/**', '**/dist/**', '**/.next/**', '**/.turbo/**', '*.mjs', '**/*.js'],
   },
 );

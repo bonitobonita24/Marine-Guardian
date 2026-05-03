@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Meta Dark Mode — from docs/DESIGN.md */
+    --background: 220 7% 10%;
+    --foreground: 220 9% 94%;
+    --card: 220 6% 14%;
+    --card-foreground: 220 9% 94%;
+    --popover: 220 6% 14%;
+    --popover-foreground: 220 9% 94%;
+    --primary: 214 100% 51%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 5% 23%;
+    --secondary-foreground: 220 9% 94%;
+    --muted: 220 5% 23%;
+    --muted-foreground: 220 5% 64%;
+    --accent: 220 5% 23%;
+    --accent-foreground: 220 9% 94%;
+    --destructive: 350 91% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 4% 25%;
+    --input: 220 6% 14%;
+    --ring: 214 100% 51%;
+    --radius: 0.5rem;
+
+    /* Semantic colors */
+    --success: 145 54% 41%;
+    --warning: 25 80% 54%;
+    --caution: 44 92% 60%;
+    --info: 183 100% 43%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+}
