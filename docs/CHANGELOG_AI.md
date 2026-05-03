@@ -73,6 +73,17 @@
 - Errors encountered:  (1) check-product-sync.mjs used exact section header strings that did not match PRODUCT.md's actual headings (e.g. "## App Name" vs "## App Identity"), (2) check-product-sync.mjs .env.dev gitignore check looked for literal ".env.dev" but .gitignore uses ".env.*" wildcard, (3) hydration-lint.mjs flagged new Date() in apps/web/src/app/api/health/route.ts as hydration risk (false positive — API Route Handlers are server-only)
 - Errors resolved:     (1) Switched check-product-sync.mjs section checks to regex patterns matching multiple heading variants, added inline field match for "Primary users:", (2) Added wildcard pattern check — accepts ".env.*" as covering ".env.dev", (3) Added route.ts/route.tsx skip rule in hydration-lint.mjs walkDir function
 
+## 2026-05-03 — Phase 4 Part 8: CI + governance docs + MANIFEST.txt
+- Agent:               CLAUDE_CODE
+- Why:                 Generate all Part 8 deliverables — GitHub Actions CI pipeline, Docker Hub publish workflow, complete file manifest, implementation map rewrite, STATE.md update — Part 8 of 8 Phase 4 scaffold (FINAL PART)
+- Files added:         .github/workflows/ci.yml, .github/workflows/docker-publish.yml, MANIFEST.txt
+- Files modified:      docs/IMPLEMENTATION_MAP.md (complete Phase 4 snapshot — all 8 Parts), .cline/STATE.md (Phase 4 complete — all 8 Parts done), docs/CHANGELOG_AI.md (this entry)
+- Files deleted:       none
+- Schema/migrations:   none
+- Errors encountered:  Pre-tool-use security hook fired on both workflow files (GitHub Actions injection warning — confirmed safe: ci.yml uses only matrix.task and github.* context values, docker-publish.yml uses only secrets.* and steps.meta.outputs.* — no user-controlled input in run: commands)
+- Errors resolved:     Confirmed both workflows safe after hook review. Proceeded with writes.
+- Notes:               SocratiCode initial index (codebase_index → codebase_status → codebase_context_index) requires Docker + SocratiCode MCP running — must be triggered manually after Phase 5 passes by saying "Index this codebase" in Claude Code with Docker running.
+
 ## 2026-05-03 — Phase 4 Part 4: packages/ui + packages/jobs (storage skipped)
 - Agent:               CLAUDE_CODE
 - Why:                 Scaffold shared UI package (shadcn/ui foundation) and BullMQ job queue system — Part 4 of 8 Phase 4 scaffold
