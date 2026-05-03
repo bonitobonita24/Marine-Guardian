@@ -1,7 +1,7 @@
 import type { Queue } from "bullmq";
-import { getQueue } from "./queue-factory.js";
-import type { ErSyncJobPayload } from "./types.js";
-import { QUEUE_NAMES } from "./types.js";
+import { getQueue } from "./queue-factory";
+import type { ErSyncJobPayload } from "./types";
+import { QUEUE_NAMES } from "./types";
 
 export function getErSyncQueue(): Queue<ErSyncJobPayload> {
   return getQueue(QUEUE_NAMES.ER_SYNC);
@@ -12,7 +12,7 @@ export async function enqueueErSync(
 ): Promise<string> {
   const queue = getErSyncQueue();
   const job = await queue.add(`er-sync:${payload.syncType}`, payload, {
-    jobId: `er-sync:${payload.tenantId}:${payload.syncType}:${Date.now()}`,
+    jobId: `er-sync:${payload.tenantId}:${payload.syncType}:${String(Date.now())}`,
   });
   return job.id ?? "";
 }

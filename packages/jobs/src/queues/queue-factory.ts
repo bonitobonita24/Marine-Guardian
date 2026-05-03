@@ -1,6 +1,6 @@
 import { Queue } from "bullmq";
-import { getConnection } from "../connection.js";
-import type { JobPayloadMap, QueueName } from "./types.js";
+import { getConnection } from "../connection";
+import type { JobPayloadMap, QueueName } from "./types";
 
 const queues = new Map<string, Queue>();
 

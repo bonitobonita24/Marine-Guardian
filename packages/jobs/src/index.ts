@@ -1,4 +1,4 @@
-export { getConnection } from "./connection.js";
+export { getConnection } from "./connection";
 
 export {
   getQueue,
@@ -21,10 +21,10 @@ export {
   type AlertJobPayload,
   type EmailJobPayload,
   type MaintenanceJobPayload,
-} from "./queues/index.js";
+} from "./queues/index";
 
 export {
   createWorker,
   validateTenantContext,
   type WorkerOptions,
-} from "./workers/index.js";
+} from "./workers/index";

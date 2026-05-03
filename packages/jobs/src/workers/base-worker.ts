@@ -1,6 +1,6 @@
 import { Worker, type Job, type Processor } from "bullmq";
-import { getConnection } from "../connection.js";
-import type { BaseJobPayload, QueueName } from "../queues/types.js";
+import { getConnection } from "../connection";
+import type { BaseJobPayload, QueueName } from "../queues/types";
 
 export interface WorkerOptions {
   concurrency?: number;

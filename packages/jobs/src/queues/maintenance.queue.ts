@@ -1,7 +1,7 @@
 import type { Queue } from "bullmq";
-import { getQueue } from "./queue-factory.js";
-import type { MaintenanceJobPayload } from "./types.js";
-import { QUEUE_NAMES } from "./types.js";
+import { getQueue } from "./queue-factory";
+import type { MaintenanceJobPayload } from "./types";
+import { QUEUE_NAMES } from "./types";
 
 export function getMaintenanceQueue(): Queue<MaintenanceJobPayload> {
   return getQueue(QUEUE_NAMES.MAINTENANCE);
@@ -12,7 +12,7 @@ export async function enqueueMaintenance(
 ): Promise<string> {
   const queue = getMaintenanceQueue();
   const job = await queue.add(`maintenance:${payload.task}`, payload, {
-    jobId: `maintenance:${payload.tenantId}:${payload.task}:${Date.now()}`,
+    jobId: `maintenance:${payload.tenantId}:${payload.task}:${String(Date.now())}`,
   });
   return job.id ?? "";
 }

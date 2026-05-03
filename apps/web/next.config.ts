@@ -33,12 +33,35 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Prevent webpack from bundling native Node.js modules (bcrypt uses node-pre-gyp)
+  serverExternalPackages: ["bcrypt"],
   transpilePackages: [
     "@marine-guardian/shared",
     "@marine-guardian/db",
     "@marine-guardian/ui",
     "@marine-guardian/jobs",
   ],
+  webpack(config, { isServer }: { isServer: boolean }) {
+    if (isServer) {
+      // Rewrite `node:X` URI scheme imports as plain `require('X')` so webpack
+      // doesn't hit UnhandledSchemeError when bundling server code.
+      const prev = config.externals;
+      const nodeSchemeExternal = (
+        { request }: { request?: string },
+        callback: (err?: Error | null, result?: string) => void,
+      ) => {
+        if (request?.startsWith("node:")) {
+          return callback(null, `commonjs ${request.slice(5)}`);
+        }
+        callback();
+      };
+      config.externals = [
+        nodeSchemeExternal,
+        ...(Array.isArray(prev) ? prev : prev ? [prev] : []),
+      ];
+    }
+    return config;
+  },
   // eslint-disable-next-line @typescript-eslint/require-await
   async headers() {
     return [

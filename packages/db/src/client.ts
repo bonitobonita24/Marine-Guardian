@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
-import { tenantGuardExtension } from "./middleware/tenant-guard.js";
-import { encryptionExtension } from "./middleware/encryption.js";
+import { tenantGuardExtension } from "./middleware/tenant-guard";
+import { encryptionExtension } from "./middleware/encryption";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;

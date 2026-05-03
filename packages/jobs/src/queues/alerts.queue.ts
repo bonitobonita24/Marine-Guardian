@@ -1,7 +1,7 @@
 import type { Queue } from "bullmq";
-import { getQueue } from "./queue-factory.js";
-import type { AlertJobPayload } from "./types.js";
-import { QUEUE_NAMES } from "./types.js";
+import { getQueue } from "./queue-factory";
+import type { AlertJobPayload } from "./types";
+import { QUEUE_NAMES } from "./types";
 
 export function getAlertsQueue(): Queue<AlertJobPayload> {
   return getQueue(QUEUE_NAMES.ALERTS);

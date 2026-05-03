@@ -1,7 +1,11 @@
-import { auth } from "@/server/auth";
+import NextAuth from "next-auth";
+import { edgeAuthConfig } from "@/server/auth/auth.config";
 import createMiddleware from "next-intl/middleware";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+
+// Edge-compatible auth instance — no bcrypt, no prisma, no node:crypto
+const { auth } = NextAuth(edgeAuthConfig);
 
 const intlMiddleware = createMiddleware({
   locales: ["en", "id", "ms"],

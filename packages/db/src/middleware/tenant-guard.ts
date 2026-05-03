@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { getCurrentTenantId } from "../helpers/rls.js";
+import { getCurrentTenantId } from "../helpers/rls";
 
 const SYSTEM_MODELS = new Set(["AuditLog", "Tenant"]);
 

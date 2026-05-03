@@ -1,13 +1,13 @@
 import {
   createTRPCClient,
   httpBatchLink,
-  type CreateTRPCClient,
+  type TRPCClient,
   type TRPCLink,
 } from "@trpc/client";
 import type { AnyRouter } from "@trpc/server";
 import superjson from "superjson";
 
-export type { CreateTRPCClient } from "@trpc/client";
+export type { TRPCClient } from "@trpc/client";
 export type { AnyRouter } from "@trpc/server";
 
 export interface CreateClientOptions {
@@ -17,7 +17,7 @@ export interface CreateClientOptions {
 
 export function createApiClient<TRouter extends AnyRouter>(
   options: CreateClientOptions,
-): CreateTRPCClient<TRouter> {
+): TRPCClient<TRouter> {
   const link: TRPCLink<TRouter> = (httpBatchLink as (opts: unknown) => TRPCLink<TRouter>)({
     url: options.url,
     headers: options.headers,
