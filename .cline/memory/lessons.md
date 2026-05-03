@@ -92,3 +92,29 @@
   strict TypeScript tailwind.config.ts causes TS2307 "Cannot find module". Fix: create
   an ambient module declaration file `declare module "tailwindcss-animate";` and ensure
   the types directory is included in tsconfig.json.
+
+## 2026-05-03 — 🟤 GitHub Actions security hook fires on ALL .github/workflows/ writes — approve both
+- Type:      🟤 decision
+- Phase:     Phase 4 Part 8
+- Files:     .github/workflows/ci.yml, .github/workflows/docker-publish.yml
+- Concepts:  github-actions, security-hook, injection, ci, workflow
+- Narrative: The project pre-tool-use security hook fires a GitHub Actions injection warning
+  whenever Claude Code writes to .github/workflows/. This is EXPECTED BEHAVIOR — the hook
+  correctly audits workflows for injection vectors. Both Part 8 workflow files are safe:
+  ci.yml uses only matrix.task (static enum: lint/typecheck/test/build), github.ref_name,
+  github.sha — no user-controlled values in run: commands.
+  docker-publish.yml uses only secrets.DOCKERHUB_USERNAME, secrets.DOCKERHUB_TOKEN,
+  steps.meta.outputs.tags, steps.meta.outputs.labels — no user-controlled values in run: commands.
+  Decision: approve both workflow writes after confirming no injection vectors. The hook is
+  working correctly — review it on each future workflow write, but these two files are safe.
+
+## 2026-05-03 — 🟡 squash-merge requires git branch -D (force delete)
+- Type:      🟡 fix
+- Phase:     Phase 4 Part 8 (also applies to all scaffold/part-N branches)
+- Files:     none (git operation)
+- Concepts:  git, squash-merge, branch-delete
+- Narrative: After squash-merging a feature branch to main, `git branch -d` refuses to delete
+  the branch because squash merge does not register as a fully merged commit in git's tracking
+  (the branch commit is not an ancestor of main after a squash). Fix: always use
+  `git branch -D` (force delete) after squash-merging. This is expected behavior for all
+  scaffold/part-N branches and feat/{slug} branches in this project.
