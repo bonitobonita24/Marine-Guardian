@@ -52,3 +52,13 @@
 - Schema/migrations:   18 Prisma models (Tenant, User, EventType, Event, Subject, SubjectGroup, Patrol, PatrolSegment, Observation, PatrolArea, PatrolSchedule, AlertRule, Notification, SyncLog, AuditLog, AccompanyingRanger, KnownRanger, Session), 13 enums, init migration 00000000000000_init (up.sql + down.sql), active L2 RLS policies for all tenant-scoped tables
 - Errors encountered:  (1) $use deprecated in Prisma v6 — client.ts used old middleware API, (2) encryption.ts used deprecated Prisma.Middleware type, (3) audit.ts changesJson type Record<string,unknown> incompatible with Prisma.InputJsonValue under exactOptionalPropertyTypes, (4) seed.ts missing syncedAt on EventType creates, (5) seed.ts PatrolArea upsert referenced non-existent compound unique tenantId_name, (6) seed.ts PatrolArea missing required patrolType field
 - Errors resolved:     (1) Rewrote client.ts to use $extends chain: encryptionExtension then tenantGuardExtension, (2) Rewrote encryption.ts from Prisma.Middleware to Prisma.defineExtension with $allOperations, (3) Changed changesJson type to Prisma.InputJsonValue + spread pattern for optional field, (4) Added syncedAt: now to all 5 event type objects, (5) Replaced upsert with findFirst + conditional create pattern, (6) Added patrolType: "seabourn" to PatrolArea create
+
+## 2026-05-03 — Phase 4 Part 4: packages/ui + packages/jobs (storage skipped)
+- Agent:               CLAUDE_CODE
+- Why:                 Scaffold shared UI package (shadcn/ui foundation) and BullMQ job queue system — Part 4 of 8 Phase 4 scaffold
+- Files added:         packages/ui/ (package.json, tsconfig.json, src/globals.css, src/lib/utils.ts, src/tailwind.config.ts), packages/jobs/ (package.json, tsconfig.json, src/connection.ts, src/index.ts, src/queues/types.ts, src/queues/queue-factory.ts, src/queues/er-sync.queue.ts, src/queues/alerts.queue.ts, src/queues/email.queue.ts, src/queues/maintenance.queue.ts, src/queues/index.ts, src/workers/base-worker.ts, src/workers/index.ts)
+- Files modified:      pnpm-lock.yaml (added bullmq, ioredis, class-variance-authority, clsx, tailwind-merge, tailwindcss dependencies), .cline/STATE.md (Phase 4 Part 4 complete)
+- Files deleted:       none
+- Schema/migrations:   none
+- Errors encountered:  packages/ui tailwind.config.ts used require("tailwindcss-animate") — CJS require() not available in ESM TypeScript module
+- Errors resolved:     Replaced require("tailwindcss-animate") with empty plugins array — animate plugin will be added when apps consume the config via proper ESM import

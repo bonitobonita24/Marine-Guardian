@@ -1,0 +1,23 @@
+{
+  "name": "@marine-guardian/jobs",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./queues": "./src/queues/index.ts",
+    "./workers": "./src/workers/index.ts",
+    "./connection": "./src/connection.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "bullmq": "^5.34.0",
+    "ioredis": "^5.4.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}
