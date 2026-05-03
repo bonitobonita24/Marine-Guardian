@@ -51,6 +51,16 @@
   `Prisma.InputJsonValue` — not `Record<string, unknown>` (which contains `unknown` values
   that Prisma's JSON type system rejects).
 
+## 2026-05-03 — 🔴 CJS require() fails in ESM TypeScript modules
+- Type:      🔴 gotcha
+- Phase:     Phase 4 Part 4
+- Files:     packages/ui/src/tailwind.config.ts
+- Concepts:  esm, cjs, require, tailwindcss, plugins, type module
+- Narrative: With "type": "module" in package.json, CJS require() is not available. The tailwind
+  config used `plugins: [require("tailwindcss-animate")]` which fails with TS2580. Fix: use an
+  empty plugins array and let consuming apps add the animate plugin via proper ESM import.
+  This applies to ALL packages in the monorepo — never use require() in any .ts file.
+
 ## 2026-05-03 — 🟡 Seed script upsert requires schema-defined unique constraint
 - Type:      🟡 fix
 - Phase:     Phase 4 Part 3

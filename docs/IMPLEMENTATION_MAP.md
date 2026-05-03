@@ -2,7 +2,7 @@
 # Current build state. Rewritten after every feature update.
 # ---
 
-## Status: Phase 4 Part 3 complete — packages/db (PAUSED before Part 4)
+## Status: Phase 4 Part 4 complete — PAUSED (packages/ui + packages/jobs done)
 
 ### Root Config
 - [x] pnpm-workspace.yaml
@@ -28,8 +28,8 @@
 - [x] packages/shared (18 TypeScript interfaces + 18 Zod schemas with create/update variants)
 - [x] packages/api-client (typed tRPC client factory with superjson transformer)
 - [x] packages/db (18 Prisma models, 13 enums, init migration up+down, seed script, L2 RLS active, L5 AuditLog, L6 tenant-guard, AES-256-GCM encryption extension)
-- [ ] packages/ui (shadcn/ui)
-- [ ] packages/jobs (BullMQ)
+- [x] packages/ui (shadcn/ui foundation — globals.css, cn() utility, tailwind config with CSS variable theming)
+- [x] packages/jobs (BullMQ + ioredis — 4 queues: er-sync, alerts, email, maintenance; worker factory with tenant validation; queue singleton factory)
 
 ### Apps
 - [ ] apps/web (Next.js — Command Center)
@@ -49,7 +49,7 @@
 - [x] .gitignore (final)
 - [x] .vscode/mcp.json
 - [x] docs/DECISIONS_LOG.md (13 locked decisions)
-- [x] docs/CHANGELOG_AI.md (Phase 3 + Part 1 + Part 2 + Part 3 entries)
+- [x] docs/CHANGELOG_AI.md (Phase 3 + Part 1 + Part 2 + Part 3 + Part 4 entries)
 - [x] project.memory.md
 - [x] .cline/STATE.md
 - [x] .cline/memory/lessons.md
