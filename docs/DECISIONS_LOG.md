@@ -98,3 +98,13 @@ Locked: yes
 Decision: Enabled — vibe_test.enabled: true
 Result: Passed with 0 gaps on 2026-05-02
 Locked: yes
+
+## pnpm CVE Override Strategy (Phase 5)
+Decision: Use pnpm.overrides in root package.json to force patched transitive dependency versions
+Rationale: bcrypt@5.1.1 → @mapbox/node-pre-gyp@1.0.11 → tar@6.2.1 chain has 6 HIGH CVEs.
+tar@6.x cannot be directly upgraded (locked by node-pre-gyp). pnpm overrides force tar ≥ 7.5.11
+across the entire monorepo without modifying third-party packages. pnpm audit --fix wrote 10 overrides;
+pnpm install (non-frozen) regenerated the lockfile. Re-audit confirmed 0 vulnerabilities.
+Additional overrides: esbuild, vite, postcss, next-intl (minor CVEs, same mechanism).
+Process: pnpm audit --fix → pnpm install → pnpm install --frozen-lockfile (CI will now pass).
+Locked: yes — do not remove overrides; update version bounds when packages publish fixes.

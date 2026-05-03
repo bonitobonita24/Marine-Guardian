@@ -108,6 +108,47 @@
   Decision: approve both workflow writes after confirming no injection vectors. The hook is
   working correctly — review it on each future workflow write, but these two files are safe.
 
+## 2026-05-03 — 🔴 pnpm audit --fix writes overrides but lockfile must be regenerated before --frozen-lockfile works
+- Type:      🔴 gotcha
+- Phase:     Phase 5
+- Files:     package.json (root), pnpm-lock.yaml
+- Concepts:  pnpm, audit, overrides, lockfile, frozen-lockfile, CVE
+- Narrative: Running `pnpm audit --fix` writes pnpm.overrides entries to root package.json
+  but does NOT regenerate pnpm-lock.yaml. The next `pnpm install --frozen-lockfile` then
+  fails with ERR_PNPM_LOCKFILE_CONFIG_MISMATCH because the lockfile doesn't reflect the
+  new overrides. Fix: run bare `pnpm install` (without --frozen-lockfile) immediately after
+  `pnpm audit --fix` to regenerate the lockfile. Commit the updated lockfile alongside the
+  package.json overrides. After that, `pnpm install --frozen-lockfile` (CI) will pass.
+  This session: bcrypt > @mapbox/node-pre-gyp > tar@6.2.1 chain had 6 HIGH CVEs.
+  10 pnpm overrides applied; 0 vulnerabilities after re-audit.
+
+## 2026-05-03 — 🔴 bcrypt native binary missing after clean install — must pre-download before pnpm build
+- Type:      🔴 gotcha
+- Phase:     Phase 5
+- Files:     node_modules/bcrypt/
+- Concepts:  bcrypt, native-addon, node-pre-gyp, node_modules, build
+- Narrative: bcrypt's native C++ addon (bcrypt_lib.node) is not included in the npm package.
+  It must be compiled or downloaded from GitHub releases via node-pre-gyp. After a fresh
+  `pnpm install`, the binary is absent and `pnpm build` fails with a module-not-found error
+  at runtime (Next.js standalone build tries to require the native module).
+  Fix: `cd node_modules/bcrypt && npx @mapbox/node-pre-gyp install --fallback-to-build`
+  This downloads the prebuilt binary for the current platform, falling back to compilation
+  if no prebuilt exists. Must be re-run on any new machine or after `rm -rf node_modules`.
+  The committed pnpm-lock.yaml does NOT preserve this binary — it is machine-local.
+
+## 2026-05-03 — 🔴 useSearchParams() in Next.js App Router requires Suspense boundary on static pages
+- Type:      🔴 gotcha
+- Phase:     Phase 5
+- Files:     apps/web/src/app/login/page.tsx
+- Concepts:  nextjs, app-router, useSearchParams, suspense, static-rendering, prerender
+- Narrative: Any component that calls `useSearchParams()` must be wrapped in a `<Suspense>`
+  boundary. If the page component itself calls useSearchParams(), Next.js cannot statically
+  prerender the page shell and throws a build error. Fix: extract the useSearchParams consumer
+  into a separate module-level component (e.g. `LoginForm`), then make the page export a thin
+  `<Suspense><LoginForm /></Suspense>` wrapper. The page component itself must not call any
+  hook that requires client-side rendering. This applies to ALL App Router pages that read
+  URL search params.
+
 ## 2026-05-03 — 🟡 squash-merge requires git branch -D (force delete)
 - Type:      🟡 fix
 - Phase:     Phase 4 Part 8 (also applies to all scaffold/part-N branches)

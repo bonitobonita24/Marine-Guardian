@@ -1,9 +1,9 @@
 # Implementation Map — Marine Guardian Command Center
 # Current build state. Rewritten after every feature update.
-# Last updated: 2026-05-03 — Phase 4 ALL 8 PARTS COMPLETE
+# Last updated: 2026-05-03 — Phase 5 COMPLETE (PAUSED — ready for Phase 6)
 # ---
 
-## Status: Phase 4 complete — all 8 Parts merged to main. Ready for Phase 5.
+## Status: Phase 5 complete — all 9 validation commands pass. Ready for Phase 6.
 
 ---
 
@@ -66,10 +66,12 @@
 - [x] Workers index barrel (src/workers/index.ts)
 
 ### apps/web (Part 5 — Next.js 15, App Router)
-- [x] next.config.ts (output: standalone, 7 HTTP security headers, Content-Security-Policy)
+- [x] next.config.ts (output: standalone, 7 HTTP security headers, Content-Security-Policy,
+      serverExternalPackages: ["bcrypt"], node: URI scheme webpack external handler)
 - [x] tailwind.config.ts + postcss.config.js
 - [x] apps/web/src/env.ts (Zod-validated env vars, server + client split)
 - [x] Auth.js v5 config (Credentials provider + bcrypt), session with roles + tenantId
+- [x] apps/web/src/server/auth/auth.config.ts (edge-compatible auth — JWT only, no bcrypt/prisma)
 - [x] tRPC handler at /api/trpc/[trpc]
 - [x] Health endpoint at /api/health (returns 200 + build metadata)
 - [x] src/middleware.ts (tenant resolution + auth guard + rate limiting)
@@ -193,5 +195,7 @@
 ---
 
 ### Next Step
-Phase 5 validation — say "Start Phase 5" in a new Claude Code session.
-Run: pnpm install && pnpm tools:validate-inputs && pnpm typecheck && pnpm test && pnpm build
+Phase 6 — say "Start Phase 6" in a new Claude Code session.
+Prerequisites: Docker Desktop running on Windows (verify: docker ps).
+Run: bash deploy/compose/start.sh dev up -d → pnpm db:migrate → pnpm db:seed
+Then Visual QA at http://localhost:45204 per Rule 16.
