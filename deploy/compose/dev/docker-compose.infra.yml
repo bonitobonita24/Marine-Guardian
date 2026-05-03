@@ -1,0 +1,15 @@
+networks:
+  app_network:
+    name: ${COMPOSE_PROJECT_NAME}_network
+    external: true
+
+services:
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: ${COMPOSE_PROJECT_NAME}_mailhog
+    hostname: ${COMPOSE_PROJECT_NAME}_mailhog
+    ports:
+      - "${SMTP_PORT}:1025"
+      - "${SMTP_UI_PORT}:8025"
+    networks: [app_network]
+    restart: unless-stopped

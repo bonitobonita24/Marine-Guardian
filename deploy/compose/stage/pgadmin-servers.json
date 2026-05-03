@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "marine-guardian staging",
+      "Group": "Spec-Driven",
+      "Host": "marine-guardian_staging_postgres",
+      "Port": 5432,
+      "MaintenanceDB": "marine-guardian_staging",
+      "Username": "marine-guardian_staging",
+      "SSLMode": "prefer",
+      "PassFile": "/pgpassfile"
+    }
+  }
+}

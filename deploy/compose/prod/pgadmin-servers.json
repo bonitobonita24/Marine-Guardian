@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "marine-guardian prod",
+      "Group": "Spec-Driven",
+      "Host": "marine-guardian_prod_postgres",
+      "Port": 5432,
+      "MaintenanceDB": "marine-guardian_prod",
+      "Username": "marine-guardian_prod",
+      "SSLMode": "prefer",
+      "PassFile": "/pgpassfile"
+    }
+  }
+}

@@ -1,0 +1,27 @@
+networks:
+  app_network:
+    name: ${COMPOSE_PROJECT_NAME}_network
+    external: true
+
+volumes:
+  valkey_data:
+    name: ${COMPOSE_PROJECT_NAME}_valkey_data
+
+services:
+  valkey:
+    image: valkey/valkey:7-alpine
+    container_name: ${COMPOSE_PROJECT_NAME}_valkey
+    hostname: ${COMPOSE_PROJECT_NAME}_valkey
+    env_file: ../../../.env.dev
+    command: valkey-server --requirepass ${REDIS_PASSWORD} --appendonly yes
+    volumes:
+      - valkey_data:/data
+    ports:
+      - "${REDIS_PORT}:6379"
+    networks: [app_network]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "valkey-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
