@@ -93,3 +93,13 @@
 - Schema/migrations:   none
 - Errors encountered:  packages/ui tailwind.config.ts used require("tailwindcss-animate") — CJS require() not available in ESM TypeScript module
 - Errors resolved:     Replaced require("tailwindcss-animate") with empty plugins array — animate plugin will be added when apps consume the config via proper ESM import
+
+## 2026-05-03 — Phase 5: Validation — all 9 commands pass
+- Agent:               CLAUDE_CODE
+- Why:                 Run all 9 Phase 5 validation commands and resolve all failures so the build gate is clean before Phase 6 Docker startup
+- Files added:         apps/web/src/server/auth/auth.config.ts (edge-compatible NextAuth config for middleware — no bcrypt/prisma/node:crypto)
+- Files modified:      apps/web/next.config.ts (removed orphaned webpack Configuration type annotation; added serverExternalPackages: ["bcrypt"]; added node: URI scheme webpack external handler), apps/web/src/app/login/page.tsx (extracted LoginForm component with useSearchParams, wrapped in <Suspense> in LoginPage to satisfy Next.js SSG prerender requirement), apps/web/src/middleware.ts (use edgeAuthConfig instead of full auth config), package.json (pnpm overrides: esbuild, tar, vite, postcss, next-intl — resolves 6 HIGH CVEs in tar@6.x via bcrypt→@mapbox/node-pre-gyp chain), pnpm-lock.yaml (updated lockfile after overrides applied), apps/web/tsconfig.json + apps/web/package.json + packages/* (typecheck fixes from prior sessions — tracked here for completeness), .cline/STATE.md (Phase 5 complete)
+- Files deleted:       none
+- Schema/migrations:   none
+- Errors encountered:  (1) TypeScript: "Cannot find module 'webpack'" — orphaned Configuration type annotation in next.config.ts webpack function parameter after prior session removed the import. (2) Runtime: bcrypt_lib.node native addon not found — ran npx @mapbox/node-pre-gyp install --fallback-to-build from bcrypt package dir to download prebuilt binary. (3) Next.js SSG: "useSearchParams() should be wrapped in a suspense boundary at page /login" — entire LoginPage was the useSearchParams consumer. (4) Audit: 6 HIGH CVEs in tar@6.2.1 via bcrypt>@mapbox/node-pre-gyp chain.
+- Errors resolved:     (1) Removed ": Configuration" from webpack function parameter — TypeScript infers type from NextConfig.webpack signature. (2) Downloaded bcrypt native binary via node-pre-gyp. (3) Extracted LoginForm as separate module-level component with useSearchParams, made LoginPage a <Suspense> wrapper. (4) pnpm audit --fix added overrides; pnpm install applied them; re-audit confirms 0 vulnerabilities.
