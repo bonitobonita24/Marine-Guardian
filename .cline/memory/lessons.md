@@ -69,3 +69,26 @@
 - Narrative: Prisma upsert's `where` clause only accepts fields with @unique or @@unique
   constraints. If no compound unique exists (e.g. PatrolArea has no @@unique([tenantId, name])),
   use findFirst + conditional create pattern instead of upsert for idempotent seeding.
+
+## 2026-05-03 — 🔴 exactOptionalPropertyTypes breaks next-auth module augmentation
+- Type:      🔴 gotcha
+- Phase:     Phase 4 Part 5
+- Files:     apps/web/src/server/auth/types.ts, apps/web/src/server/auth/config.ts
+- Concepts:  typescript, exactOptionalPropertyTypes, next-auth, module-augmentation
+- Narrative: With exactOptionalPropertyTypes: true, declaring `userId?: string` in a
+  module-augmented interface means the property can be omitted but CANNOT be explicitly
+  set to undefined. Since next-auth's base User type has `id?: string` (which resolves
+  to string | undefined at usage), assigning `token.userId = user.id` triggers TS2412.
+  Fix: declare all optional JWT properties as `key?: Type | undefined` to allow explicit
+  undefined assignment. This pattern is needed for ANY module augmentation where the base
+  library types use plain optional syntax.
+
+## 2026-05-03 — 🟡 tailwindcss-animate has no type declarations
+- Type:      🟡 fix
+- Phase:     Phase 4 Part 5
+- Files:     apps/web/src/types/tailwindcss-animate.d.ts, apps/web/tailwind.config.ts
+- Concepts:  typescript, tailwind, ambient-module-declaration
+- Narrative: tailwindcss-animate ships no TypeScript declarations. Importing it in a
+  strict TypeScript tailwind.config.ts causes TS2307 "Cannot find module". Fix: create
+  an ambient module declaration file `declare module "tailwindcss-animate";` and ensure
+  the types directory is included in tsconfig.json.

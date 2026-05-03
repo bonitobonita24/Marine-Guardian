@@ -2,7 +2,7 @@
 # Current build state. Rewritten after every feature update.
 # ---
 
-## Status: Phase 4 Part 4 complete — PAUSED (packages/ui + packages/jobs done)
+## Status: Phase 4 Part 5 complete — PAUSED (apps/web Next.js scaffold done)
 
 ### Root Config
 - [x] pnpm-workspace.yaml
@@ -32,7 +32,7 @@
 - [x] packages/jobs (BullMQ + ioredis — 4 queues: er-sync, alerts, email, maintenance; worker factory with tenant validation; queue singleton factory)
 
 ### Apps
-- [ ] apps/web (Next.js — Command Center)
+- [x] apps/web (Next.js 15 — Command Center: App Router, Auth.js v5, tRPC 18 routers, rate limiter, sanitizer, i18n, Dockerfile, shadcn/ui, security headers, health endpoint)
 
 ### Deploy
 - [ ] deploy/compose/dev/
@@ -49,7 +49,7 @@
 - [x] .gitignore (final)
 - [x] .vscode/mcp.json
 - [x] docs/DECISIONS_LOG.md (13 locked decisions)
-- [x] docs/CHANGELOG_AI.md (Phase 3 + Part 1 + Part 2 + Part 3 + Part 4 entries)
+- [x] docs/CHANGELOG_AI.md (Phase 3 + Part 1 + Part 2 + Part 3 + Part 4 + Part 5 entries)
 - [x] project.memory.md
 - [x] .cline/STATE.md
 - [x] .cline/memory/lessons.md
