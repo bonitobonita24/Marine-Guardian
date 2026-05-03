@@ -2,7 +2,7 @@
 # Current build state. Rewritten after every feature update.
 # ---
 
-## Status: Phase 4 Part 2 complete — packages/shared + packages/api-client
+## Status: Phase 4 Part 3 complete — packages/db (PAUSED before Part 4)
 
 ### Root Config
 - [x] pnpm-workspace.yaml
@@ -27,7 +27,7 @@
 ### Packages
 - [x] packages/shared (18 TypeScript interfaces + 18 Zod schemas with create/update variants)
 - [x] packages/api-client (typed tRPC client factory with superjson transformer)
-- [ ] packages/db (Prisma schema + migrations)
+- [x] packages/db (18 Prisma models, 13 enums, init migration up+down, seed script, L2 RLS active, L5 AuditLog, L6 tenant-guard, AES-256-GCM encryption extension)
 - [ ] packages/ui (shadcn/ui)
 - [ ] packages/jobs (BullMQ)
 
@@ -49,7 +49,7 @@
 - [x] .gitignore (final)
 - [x] .vscode/mcp.json
 - [x] docs/DECISIONS_LOG.md (13 locked decisions)
-- [x] docs/CHANGELOG_AI.md (Phase 3 + Part 1 + Part 2 entries)
+- [x] docs/CHANGELOG_AI.md (Phase 3 + Part 1 + Part 2 + Part 3 entries)
 - [x] project.memory.md
 - [x] .cline/STATE.md
 - [x] .cline/memory/lessons.md
