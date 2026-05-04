@@ -26,7 +26,7 @@ enum Language {
 
 enum PatrolType {
   foot
-  seabourn
+  seaborne
 }
 
 enum PatrolState {
@@ -105,6 +105,7 @@ model Tenant {
   earthrangerPassword   String?  @map("earthranger_password")
   earthrangerDasToken   String?  @map("earthranger_das_token")
   earthrangerTrackToken String?  @map("earthranger_track_token")
+  currency              String   @default("IDR")
   createdAt             DateTime @default(now()) @map("created_at")
   updatedAt             DateTime @updatedAt @map("updated_at")
 
@@ -122,6 +123,7 @@ model Tenant {
   auditLogs        AuditLog[]
   accompanyingRangers AccompanyingRanger[]
   knownRangers     KnownRanger[]
+  patrolSchedules  PatrolSchedule[]
 
   @@map("tenants")
 }
@@ -260,6 +262,7 @@ model Patrol {
   title           String?
   patrolType      PatrolType  @map("patrol_type")
   state           PatrolState @default(open)
+  boatName        String?     @map("boat_name")
   startTime       DateTime?   @map("start_time")
   endTime         DateTime?   @map("end_time")
   totalDistanceKm Float?      @map("total_distance_km")
@@ -341,6 +344,7 @@ model PatrolArea {
 
 model PatrolSchedule {
   id             String   @id @default(cuid())
+  tenantId       String   @map("tenant_id")
   patrolAreaId   String   @map("patrol_area_id")
   rangerUserId   String?  @map("ranger_user_id")
   rangerName     String   @map("ranger_name")
@@ -351,10 +355,12 @@ model PatrolSchedule {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
+  tenant         Tenant     @relation(fields: [tenantId], references: [id])
   patrolArea     PatrolArea @relation(fields: [patrolAreaId], references: [id], onDelete: Cascade)
   ranger         User?      @relation("PatrolScheduleRanger", fields: [rangerUserId], references: [id])
   creator        User       @relation("PatrolScheduleCreatedBy", fields: [createdBy], references: [id])
 
+  @@index([tenantId])
   @@index([patrolAreaId])
   @@index([rangerUserId])
   @@map("patrol_schedules")

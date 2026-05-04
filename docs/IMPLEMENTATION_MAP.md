@@ -1,9 +1,17 @@
 # Implementation Map — Marine Guardian Command Center
 # Current build state. Rewritten after every feature update.
-# Last updated: 2026-05-03 — Phase 5 COMPLETE (PAUSED — ready for Phase 6)
+# Last updated: 2026-05-04 — Schema delta fixes merged. Ready for Phase 6.
 # ---
 
-## Status: Phase 5 complete — all 9 validation commands pass. Ready for Phase 6.
+## Status: Schema delta fixes applied post-Phase 5. All 9 validation commands re-verified pass. Ready for Phase 6.
+
+### Schema Delta Fixes (feat/schema-delta-fixes — merged to main)
+- [x] PatrolType enum: seabourn → seaborne (Prisma, shared types/schemas, seed, tRPC routers)
+- [x] Patrol.boatName: nullable String field added
+- [x] Tenant.currency: String(3) with default 'IDR' added
+- [x] PatrolSchedule.tenantId: direct tenant_id column added, tRPC router uses direct scoping
+- [x] Migration: 20260504162834_schema_delta_fixes (manual SQL — rename enum, add columns, add FK)
+- [x] ESLint: next-env.d.ts ignored, webpack externals scoped eslint-disable
 
 ---
 

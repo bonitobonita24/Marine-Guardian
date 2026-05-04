@@ -1,5 +1,6 @@
 export interface PatrolSchedule {
   id: string;
+  tenantId: string;
   patrolAreaId: string;
   rangerUserId: string | null;
   rangerName: string;

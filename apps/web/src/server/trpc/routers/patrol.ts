@@ -10,7 +10,7 @@ export const patrolRouter = router({
         cursor: z.string().optional(),
         limit: z.number().int().min(1).max(200).default(50),
         state: z.enum(["open", "done", "cancelled"]).optional(),
-        patrolType: z.enum(["foot", "seabourn"]).optional(),
+        patrolType: z.enum(["foot", "seaborne"]).optional(),
       })
     )
     .query(async ({ ctx, input }) => {

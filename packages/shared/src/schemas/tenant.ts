@@ -13,6 +13,7 @@ export const tenantSchema = z.object({
   description: z.string().max(1000).nullable(),
   isActive: z.boolean().default(true),
   syncFrequencySeconds: z.number().int().min(60).max(86400).default(300),
+  currency: z.string().length(3).default("IDR"),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 });

@@ -11,6 +11,7 @@ export interface Tenant {
   description: string | null;
   isActive: boolean;
   syncFrequencySeconds: number;
+  currency: string;
   createdAt: Date;
   updatedAt: Date;
 }

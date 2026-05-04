@@ -8,6 +8,7 @@ export interface Patrol {
   title: string | null;
   patrolType: PatrolType;
   state: PatrolState;
+  boatName: string | null;
   startTime: Date | null;
   endTime: Date | null;
   totalDistanceKm: number | null;

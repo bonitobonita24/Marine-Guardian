@@ -9,7 +9,7 @@ export const userRoleSchema = z.enum([
 
 export const languageSchema = z.enum(["en", "id", "ms"]);
 
-export const patrolTypeSchema = z.enum(["foot", "seabourn"]);
+export const patrolTypeSchema = z.enum(["foot", "seaborne"]);
 
 export const patrolStateSchema = z.enum(["open", "done", "cancelled"]);
 

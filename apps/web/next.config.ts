@@ -45,6 +45,8 @@ const nextConfig: NextConfig = {
     if (isServer) {
       // Rewrite `node:X` URI scheme imports as plain `require('X')` so webpack
       // doesn't hit UnhandledSchemeError when bundling server code.
+      // Next.js webpack config types expose `any` — no safe alternative exists.
+      /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/strict-boolean-expressions, @typescript-eslint/no-confusing-void-expression */
       const prev = config.externals;
       const nodeSchemeExternal = (
         { request }: { request?: string },
@@ -59,7 +61,9 @@ const nextConfig: NextConfig = {
         nodeSchemeExternal,
         ...(Array.isArray(prev) ? prev : prev ? [prev] : []),
       ];
+      /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/strict-boolean-expressions, @typescript-eslint/no-confusing-void-expression */
     }
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return config;
   },
   // eslint-disable-next-line @typescript-eslint/require-await

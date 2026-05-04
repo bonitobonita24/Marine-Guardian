@@ -19,7 +19,7 @@ export const patrolScheduleRouter = router({
     .query(async ({ ctx, input }) => {
       const items = await prisma.patrolSchedule.findMany({
         where: {
-          patrolArea: { tenantId: ctx.tenantId },
+          tenantId: ctx.tenantId,
           ...(input.patrolAreaId !== undefined ? { patrolAreaId: input.patrolAreaId } : {}),
           ...(input.rangerUserId !== undefined ? { rangerUserId: input.rangerUserId } : {}),
           ...(input.from !== undefined ? { scheduledStart: { gte: input.from } } : {}),
@@ -55,6 +55,7 @@ export const patrolScheduleRouter = router({
     .mutation(async ({ ctx, input }) => {
       return prisma.patrolSchedule.create({
         data: {
+          tenantId: ctx.tenantId,
           patrolAreaId: input.patrolAreaId,
           ...(input.rangerUserId !== undefined ? { rangerUserId: input.rangerUserId } : {}),
           rangerName: input.rangerName,
@@ -83,10 +84,9 @@ export const patrolScheduleRouter = router({
         Object.entries(rest).filter(([, v]) => v !== undefined)
       );
       const schedule = await prisma.patrolSchedule.findFirst({
-        where: { id },
-        include: { patrolArea: { select: { tenantId: true } } },
+        where: { id, tenantId: ctx.tenantId },
       });
-      if (!schedule || schedule.patrolArea.tenantId !== ctx.tenantId) {
+      if (!schedule) {
         throw new Error("Not found");
       }
       return prisma.patrolSchedule.update({ where: { id }, data });
@@ -96,10 +96,9 @@ export const patrolScheduleRouter = router({
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const schedule = await prisma.patrolSchedule.findFirst({
-        where: { id: input.id },
-        include: { patrolArea: { select: { tenantId: true } } },
+        where: { id: input.id, tenantId: ctx.tenantId },
       });
-      if (!schedule || schedule.patrolArea.tenantId !== ctx.tenantId) {
+      if (!schedule) {
         throw new Error("Not found");
       }
       return prisma.patrolSchedule.delete({ where: { id: input.id } });

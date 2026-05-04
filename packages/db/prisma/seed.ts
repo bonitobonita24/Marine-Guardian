@@ -120,7 +120,7 @@ async function main() {
     data: {
       tenantId: tenant.id,
       name: "Demo Patrol Zone Alpha",
-      patrolType: "seabourn",
+      patrolType: "seaborne",
       polygonGeojson: {
         type: "Polygon",
         coordinates: [

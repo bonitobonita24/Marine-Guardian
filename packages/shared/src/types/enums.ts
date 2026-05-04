@@ -15,7 +15,7 @@ export type Language = (typeof Language)[keyof typeof Language];
 
 export const PatrolType = {
   FOOT: "foot",
-  SEABOURN: "seabourn",
+  SEABORNE: "seaborne",
 } as const;
 export type PatrolType = (typeof PatrolType)[keyof typeof PatrolType];
 

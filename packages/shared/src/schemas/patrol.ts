@@ -9,6 +9,7 @@ export const patrolSchema = z.object({
   title: z.string().max(500).nullable(),
   patrolType: patrolTypeSchema,
   state: patrolStateSchema,
+  boatName: z.string().max(255).nullable(),
   startTime: z.coerce.date().nullable(),
   endTime: z.coerce.date().nullable(),
   totalDistanceKm: z.number().min(0).nullable(),

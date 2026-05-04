@@ -10,7 +10,7 @@ export const patrolAreaRouter = router({
       z.object({
         cursor: z.string().optional(),
         limit: z.number().int().min(1).max(200).default(50),
-        patrolType: z.enum(["foot", "seabourn"]).optional(),
+        patrolType: z.enum(["foot", "seaborne"]).optional(),
         isActive: z.boolean().optional(),
       })
     )
@@ -55,7 +55,7 @@ export const patrolAreaRouter = router({
       z.object({
         name: z.string().min(1).max(200),
         description: z.string().max(2000).optional(),
-        patrolType: z.enum(["foot", "seabourn"]),
+        patrolType: z.enum(["foot", "seaborne"]),
         polygonGeojson: z.record(z.unknown()),
         colorHex: z.string().regex(/^#[0-9a-fA-F]{6}$/),
       })
