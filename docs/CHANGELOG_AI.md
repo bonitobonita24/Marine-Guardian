@@ -113,3 +113,13 @@
 - Schema/migrations:   20260504162834_schema_delta_fixes — rename PatrolType.seabourn→seaborne, add Patrol.boat_name, add Tenant.currency, add PatrolSchedule.tenant_id + FK
 - Errors encountered:  (1) next-env.d.ts lint error from strictTypeChecked, (2) webpack externals `any`-related lint errors in next.config.ts, (3) 4 typecheck errors in tRPC routers from stale enum values and missing tenantId
 - Errors resolved:     (1) Added next-env.d.ts to eslint ignores, (2) Scoped eslint-disable block around webpack externals + single-line disable for return, (3) Updated all Zod enums to seaborne and added tenantId to patrolSchedule create mutation
+
+## 2026-05-05 — Schema Delta Fixes Squash-Merge + Session Pause
+- Agent:               CLAUDE_CODE
+- Why:                 Complete squash-merge of feat/schema-delta-fixes to main (9b33fc1), write handoff for Phase 6 resume
+- Files added:         .cline/handoffs/2026-05-05-schema-merge-complete-pause.md
+- Files modified:      .cline/STATE.md (PAUSED status, branch field updated), docs/CHANGELOG_AI.md (this entry)
+- Files deleted:       none (feat/schema-delta-fixes branch deleted after squash-merge)
+- Schema/migrations:   none (migration already committed in prior session)
+- Errors encountered:  none
+- Errors resolved:     none
