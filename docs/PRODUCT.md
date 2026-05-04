@@ -14,9 +14,9 @@ EarthRanger is an excellent field data collection platform but provides no repor
 
 2. **Field Coordinator monitors patrols and reviews completed operations:** Patrollers create patrols and report events from EarthRanger mobile app in the field → Command Center pulls patrol data via scheduled API sync → Coordinator monitors active patrols on War Room map and Patrol Monitor screen (elapsed time, distance, current position) → after patrol ends, Coordinator reviews patrol track, coverage vs planned patrol area polygons, and linked events → Coordinator fills in missing event details or corrects data via Kanban board. Error: GPS data gap detected → last known position shown with staleness indicator badge and timestamp.
 
-3. **Coordinator or Admin generates analytics reports:** User selects date range and area filters → views per-area event breakdowns (law enforcement + monitoring categories as bar charts), patrol summary KPIs (foot vs seabourn: count, km, hours), event heatmaps overlaid on map, and ranger performance matrix → drills down into detailed event tables with all fields (report ID, reporter, date, notes, municipality, type, vessel, offender, action taken, photo reference) → exports report as PDF or CSV. Error: insufficient data for selected range → empty state with message "No records found for this period" and suggestion to expand date range.
+3. **Coordinator or Admin generates analytics reports:** User selects date range and area filters → views per-area event breakdowns (law enforcement + monitoring categories as bar charts), patrol summary KPIs (foot vs seaborne: count, km, hours), event heatmaps overlaid on map, and ranger performance matrix → drills down into detailed event tables with all fields (report ID, reporter, date, notes, municipality, type, vessel, offender, action taken, photo reference) → exports report as PDF or CSV. Error: insufficient data for selected range → empty state with message "No records found for this period" and suggestion to expand date range.
 
-4. **Patrol Manager plans patrol areas and schedules:** Manager opens patrol area map editor → draws polygon zones on the map defining estimated patrol coverage areas (not strict boundaries — as long as rangers are inside the shaded area) → names each zone and assigns it to a patrol type (foot or seabourn) → opens Gantt chart view → schedules ranger assignments to patrol areas across days/weeks → drag-and-resize schedule blocks on the Gantt timeline → rangers see their assignments. Error: overlapping polygon drawn → system warns but allows (polygons are estimated areas, not strict boundaries).
+4. **Patrol Manager plans patrol areas and schedules:** Manager opens patrol area map editor → draws polygon zones on the map defining estimated patrol coverage areas (not strict boundaries — as long as rangers are inside the shaded area) → names each zone and assigns it to a patrol type (foot or seaborne) → opens Gantt chart view → schedules ranger assignments to patrol areas across days/weeks → drag-and-resize schedule blocks on the Gantt timeline → rangers see their assignments. Error: overlapping polygon drawn → system warns but allows (polygons are estimated areas, not strict boundaries).
 
 5. **Operator manages incidents via Kanban board:** Operator opens Kanban view → sees events in columns by state (New → Active → Resolved) → drags event card to update state → clicks into event card to fill in missing details (offender name, vessel info, action taken) that field patrollers left incomplete → resolved events accumulate as monthly accomplishment data. Error: concurrent edit by two operators → last-write-wins with conflict notification.
 
@@ -51,7 +51,7 @@ EarthRanger is an excellent field data collection platform but provides no repor
 - Full-screen MapLibre GL map with larger canvas for detailed analysis
 - Real-time subject positions (patrol boats, rangers, tracked marine animals) via WebSocket
 - Event markers with category-specific icons and priority color-coding
-- Patrol track overlays showing active and recent patrol routes (foot vs seabourn colors)
+- Patrol track overlays showing active and recent patrol routes (foot vs seaborne colors)
 - Heatmap layer toggle for event density visualization
 - Heatmap layer toggle for patrol coverage density
 - Patrol area polygon overlay showing planned coverage zones
@@ -86,14 +86,15 @@ EarthRanger is an excellent field data collection platform but provides no repor
 - Active patrol tracks rendered on map
 - Completed patrols list with summary stats (duration, distance, events encountered, completion date)
 - Patrol detail view: map with full track overlay, linked events along route, patrol segment info
-- Foot patrol vs seabourn patrol type distinction throughout
+- **Boat name** displayed on seaborne patrols (synced from EarthRanger patrol data — the boat used for each patrol)
+- Foot patrol vs seaborne patrol type distinction throughout
 - Patrol KPI summary: number of patrols, total km, total hours — split by type and area
 - **Accompanying Rangers on Patrols:** Any Command Center user can tag additional rangers who participated in a patrol alongside the patrol leader. Same dual-mode input as events: select from system users OR type free-text name. All accompanying rangers receive equal performance credit as the patrol leader.
 
 ### Patrol Area Planning
 - Map-based polygon drawing tool for defining estimated patrol coverage zones
 - Zones are estimated areas — not strict boundaries; rangers should be inside the shaded area
-- Name, describe, and assign patrol type (foot/seabourn) to each zone
+- Name, describe, and assign patrol type (foot/seaborne) to each zone
 - Color-coded zone list with assigned ranger count
 - Edit, delete, and manage active/inactive zones
 - View scheduled vs actual coverage comparison (planned polygon vs actual patrol tracks)
@@ -107,14 +108,34 @@ EarthRanger is an excellent field data collection platform but provides no repor
 - Add assignment button with ranger and zone selection
 - Bi-weekly or monthly view toggles
 
+### Fuel Logging
+- **Purpose:** Track fuel received per municipal area to calculate average fuel consumption rate against seaborne patrol kilometers. Actual per-boat consumption cannot be measured — this tracks bulk fuel allocations.
+- **Fuel entry form:** Any Command Center user can log a fuel receipt with fields:
+  - Area/municipality (select from tenant's areas)
+  - Date received
+  - Total liters received
+  - Total price (in tenant's configured currency)
+  - Receipt photo upload (camera capture or file select)
+  - Notes (optional — supplier name, delivery details)
+- **Fuel log list:** Chronological table of all fuel entries, filterable by area, date range
+- **Fuel consumption analytics:**
+  - Average fuel consumption rate = total liters received ÷ total seaborne patrol kilometers for the same area and period
+  - Displayed as: liters per km (e.g., 0.235 L/km)
+  - Period selectors: daily, weekly, monthly, quarterly, annually — based on the frequency of fuel log entries within the selected period
+  - Per-area breakdown: each area shows its own consumption rate
+  - Trend chart: fuel consumption rate over time (line chart) to spot increases/decreases
+  - Summary KPIs: total liters, total cost, total seaborne km, average L/km for selected period
+- **Note:** Fuel is shared across all boats in an area — not tracked per individual boat. The boat name is recorded on each patrol (see Patrol Monitoring) but fuel allocation is at the area level.
+
 ### Reports — Per Area
 - Area selector (e.g., A5, A6, A7, Area 12, L806 for Banggai)
 - Date range picker (default: current month)
 - Law enforcement event breakdown: horizontal bar chart by violation type — **dynamically populated from synced event types** under the law enforcement category (not hardcoded; new types added in EarthRanger appear automatically)
 - Monitoring event breakdown: horizontal bar chart by type — **dynamically populated from synced event types** under the monitoring category
 - Event location heatmap on map for selected area and category
-- Patrol summary cards: foot patrol (count, km, hours) and seabourn patrol (count, km, hours)
+- Patrol summary cards: foot patrol (count, km, hours) and seaborne patrol (count, km, hours)
 - Patrol track heatmap on map for selected area
+- **Fuel consumption card:** total liters received, total cost, average L/km for selected area and date range
 - Export to PDF button
 
 ### Reports — Consolidated
@@ -124,6 +145,7 @@ EarthRanger is an excellent field data collection platform but provides no repor
 - Foot patrol consolidated table: rows = areas, columns = count/km/hours, with subtotal
 - Seabourn patrol consolidated table: same structure
 - Bar charts comparing patrol metrics across areas
+- **Fuel consumption consolidated table:** rows = areas, columns = liters received / total cost / seaborne km / average L/km, with subtotal row
 - Export to PDF button
 
 ### Reports — Detailed Event Log
@@ -139,7 +161,7 @@ EarthRanger is an excellent field data collection platform but provides no repor
 - Ranger × event type matrix: rows = rangers (including credit from accompanying), columns = dynamically populated from synced event types per category, cells = count, with subtotal column and row
 - Performance credit includes: events where ranger is the reporter + events where ranger is tagged as accompanying + patrols where ranger is the leader + patrols where ranger is tagged as accompanying
 - Bar chart of total events per ranger (stacked by category)
-- Ranger patrol performance table: rows = rangers, columns = foot patrol (count/km/hours) + seabourn patrol (count/km/hours) — includes patrols where ranger accompanied
+- Ranger patrol performance table: rows = rangers, columns = foot patrol (count/km/hours) + seaborne patrol (count/km/hours) — includes patrols where ranger accompanied
 - Bar chart comparing patrol distance/hours per ranger
 - Click ranger name to drill-down to individual ranger detail page
 - Export to CSV button
@@ -181,7 +203,7 @@ EarthRanger is an excellent field data collection platform but provides no repor
 - Connection health status indicator (connected/disconnected with last sync time)
 - Data sync frequency configuration (default 30 seconds)
 - Sync status table: data type × last sync × records synced × status
-- Tenant profile (MPA site name, slug, description, timezone)
+- Tenant profile (MPA site name, slug, description, timezone, **currency** — e.g., IDR, PHP, MYR)
 - Save and update buttons
 - Password and token fields masked by default with show/hide toggle
 
@@ -205,10 +227,10 @@ EarthRanger is an excellent field data collection platform but provides no repor
 | Super Admin | Create/manage tenants, assign Site Admins, view platform health, access any tenant for support, manage platform-level settings | Cannot operate within a tenant as a regular user without being explicitly added; cannot modify EarthRanger configurations |
 | Site Admin | Configure EarthRanger connection, manage users within own tenant, configure alert rules, view all reports, perform all Operator and Coordinator actions within own tenant | Cannot create or manage other tenants; cannot access other tenants' data; cannot modify platform-level settings |
 | Field Coordinator | Plan patrol areas (draw polygons), schedule ranger assignments (Gantt), monitor patrols, review and edit event details, view all reports, export reports, manage Kanban board | Cannot manage users; cannot configure EarthRanger connection or alert rules; cannot access tenant settings |
-| Command Center Operator | Monitor War Room and live map, monitor event feed, update event states (new→active→resolved), acknowledge alerts, escalate critical events, fill in event details via Kanban, view dashboards and reports | Cannot plan patrol areas; cannot schedule rangers; cannot manage users; cannot configure tenant settings or alert rules; cannot export reports |
+| Command Center Operator | Monitor War Room and live map, monitor event feed, update event states (new→active→resolved), acknowledge alerts, escalate critical events, fill in event details via Kanban, log fuel entries, view dashboards and reports | Cannot plan patrol areas; cannot schedule rangers; cannot manage users; cannot configure tenant settings or alert rules; cannot export reports |
 
 ## Data Entities
-**Tenant:** id, name, slug (subdirectory), earthranger_url (encrypted), earthranger_username (encrypted), earthranger_password (encrypted), earthranger_das_token (encrypted — Bearer token for REST API), earthranger_track_token (encrypted — Bearer token for SocketIO WebSocket), timezone, description, is_active, sync_frequency_seconds, created_at, updated_at
+**Tenant:** id, name, slug (subdirectory), earthranger_url (encrypted), earthranger_username (encrypted), earthranger_password (encrypted), earthranger_das_token (encrypted — Bearer token for REST API), earthranger_track_token (encrypted — Bearer token for SocketIO WebSocket), timezone, currency (e.g., IDR, PHP, MYR — configurable per tenant), description, is_active, sync_frequency_seconds, created_at, updated_at
 
 **User:** id, tenant_id (nullable for Super Admin), email, name, password_hash, role (super_admin | site_admin | field_coordinator | operator), language_preference (en | id | ms), is_active, last_login_at, created_at, updated_at
 
@@ -219,7 +241,8 @@ EarthRanger is an excellent field data collection platform but provides no repor
 **EventType (synced from ER):** id, tenant_id, er_eventtype_id, value, display, category, default_priority, icon_id, is_active, schema_json, synced_at
 — IMPORTANT: Event types are dynamic. Categories include Law Enforcement (with sub-types like Unreg Illegal Fishing, Fishing in Prohibited Area, Taking of Prohibited Species, Use of Prohibited Gears, Compressor Fishing, Others, Destructive Practices) and Monitoring, Patrolling & Surveillance (with sub-types like Marine Wildlife Sightings, Infrastructure and Assets, Research and Studies, Community Support, Threats on Habitat). Patrol types include Foot Patrol and Seaborne Patrol. New event types can be added at any time in EarthRanger Admin and must be automatically picked up by the next event type sync. All reports, charts, and performance tracking must dynamically adapt to whatever event types exist — never hardcode event type lists.
 
-**Patrol (synced from ER):** id, tenant_id, er_patrol_id, serial_number, title, patrol_type (foot | seabourn), state, start_time, end_time, total_distance_km, total_hours, synced_at, created_at, updated_at
+**Patrol (synced from ER):** id, tenant_id, er_patrol_id, serial_number, title, patrol_type (foot | seaborne), boat_name (nullable — for seaborne patrols, synced from ER patrol data), state, start_time, end_time, total_distance_km, total_hours, synced_at, created_at, updated_at
+— Note: EarthRanger's UI displays "SEABOURN PATROL" but the canonical spelling in this codebase is "seaborne". The UI display label should match EarthRanger's spelling ("Seabourn") for user familiarity; the code/database uses "seaborne".
 
 **PatrolSegment (synced from ER):** id, patrol_id, er_segment_id, scheduled_start, scheduled_end, actual_start, actual_end, leader_name, leader_er_id, synced_at
 
@@ -227,9 +250,9 @@ EarthRanger is an excellent field data collection platform but provides no repor
 
 **SubjectGroup (synced from ER):** id, tenant_id, er_group_id, name, parent_id, subject_count, is_visible, synced_at
 
-**PatrolArea (Command Center native):** id, tenant_id, name, description, patrol_type (foot | seabourn), polygon_geojson, color_hex, created_by, is_active, created_at, updated_at
+**PatrolArea (Command Center native):** id, tenant_id, name, description, patrol_type (foot | seaborne), polygon_geojson, color_hex, created_by, is_active, created_at, updated_at
 
-**PatrolSchedule (Command Center native):** id, patrol_area_id, ranger_user_id, ranger_name, scheduled_start, scheduled_end, notes, created_by, created_at, updated_at
+**PatrolSchedule (Command Center native):** id, tenant_id, patrol_area_id, ranger_user_id, ranger_name, scheduled_start, scheduled_end, notes, created_by, created_at, updated_at
 
 **AlertRule (Command Center native):** id, tenant_id, name, condition_json (event_type, priority_threshold, category), notification_channels (in_app, email), is_active, created_by, created_at, updated_at
 
@@ -240,6 +263,9 @@ EarthRanger is an excellent field data collection platform but provides no repor
 **AuditLog (Command Center native):** id, tenant_id, user_id, action, entity_type, entity_id, changes_json, ip_address, created_at
 
 **AccompanyingRanger (Command Center native):** id, tenant_id, entity_type (event | patrol), entity_id (references event or patrol), ranger_type (registered | freetext), registered_user_id (nullable — references User if ranger_type=registered), known_ranger_id (nullable — references KnownRanger if previously used freetext name), freetext_name (nullable — for unregistered rangers), added_by_user_id, created_at
+
+**FuelEntry (Command Center native):** id, tenant_id, area_name, date_received, liters, total_price, currency (inherited from tenant on creation, stored for historical accuracy), receipt_photo_url (nullable), notes (nullable), logged_by_user_id, created_at, updated_at
+— Purpose: Tracks bulk fuel allocations per area. Fuel is shared across all boats in an area, not tracked per individual boat. Average consumption rate is calculated by dividing total liters by total seaborne patrol km for the same area and period.
 
 **KnownRanger (Command Center native):** id, tenant_id, name, source (earthranger_sync | manual_entry), er_subject_id (nullable — if synced from ER subjects of type "person"/"ranger"), is_active, created_at, updated_at
 — Purpose: maintains a registry of all known rangers for the autocomplete dropdown. Populated from three sources: (1) synced from EarthRanger subjects with subject_type="person", (2) users registered in the Command Center, (3) free-text names previously entered as accompanying rangers (promoted to known rangers for future autocomplete).
@@ -276,16 +302,17 @@ Docker Hub:   enabled — hub_repo: bonitobonita24/marine-guardian
 | 7 | Patrol Monitor | Mobile Ready | Active patrol tracking with map + table — desktop primary |
 | 8 | Patrol Area Map Editor | Mobile Ready | Drawing polygons on map — needs precision, desktop primary |
 | 9 | Patrol Schedule (Gantt) | Mobile Ready | Gantt chart — desktop only workflow |
-| 10 | Reports — Per Area Summary | Mobile Ready | Bar charts + tables — desktop reporting |
-| 11 | Reports — Consolidated | Mobile Ready | Cross-area comparison tables + charts — wide data tables |
-| 12 | Reports — Detailed Event Log | Mobile Ready | Multi-column detailed tables — desktop |
-| 13 | Reports — Ranger Performance | Mobile Ready | Performance matrix + patrol stats per ranger — wide table |
-| 14 | Ranger Performance Detail | Mobile First | Single ranger's stats — reviewable on phone by field coordinator |
-| 15 | Alert Rules Configuration | Mobile Ready | Admin sets up alert conditions — infrequent, desktop |
-| 16 | Notification Center | Mobile First | In-app alerts list — operators check from any device |
-| 17 | User Management | Mobile Ready | Admin manages users/roles — settings panel |
-| 18 | Tenant Settings (ER Connection) | Mobile Ready | Admin configures EarthRanger API — rare, desktop |
-| 19 | Super Admin — Tenant Management | Mobile Ready | Platform admin onboards new MPA sites — rare, desktop |
+| 10 | Fuel Logging | Mobile First | Rangers log fuel receipts in the field from phone — camera capture for receipt photos |
+| 11 | Reports — Per Area Summary | Mobile Ready | Bar charts + tables — desktop reporting |
+| 12 | Reports — Consolidated | Mobile Ready | Cross-area comparison tables + charts — wide data tables |
+| 13 | Reports — Detailed Event Log | Mobile Ready | Multi-column detailed tables — desktop |
+| 14 | Reports — Ranger Performance | Mobile Ready | Performance matrix + patrol stats per ranger — wide table |
+| 15 | Ranger Performance Detail | Mobile First | Single ranger's stats — reviewable on phone by field coordinator |
+| 16 | Alert Rules Configuration | Mobile Ready | Admin sets up alert conditions — infrequent, desktop |
+| 17 | Notification Center | Mobile First | In-app alerts list — operators check from any device |
+| 18 | User Management | Mobile Ready | Admin manages users/roles — settings panel |
+| 19 | Tenant Settings (ER Connection) | Mobile Ready | Admin configures EarthRanger API — rare, desktop |
+| 20 | Super Admin — Tenant Management | Mobile Ready | Platform admin onboards new MPA sites — rare, desktop |
 
 ## Non-functional Requirements
 Performance:    <500ms API response for dashboard and report queries at 50 concurrent users per tenant
@@ -311,6 +338,7 @@ DB isolation exception: none — all tenant data isolated by tenant_id foreign k
 /[tenant]/patrols/[id]              Patrol detail with track map
 /[tenant]/patrol-areas              Patrol area map editor
 /[tenant]/patrol-schedule           Gantt chart patrol scheduling
+/[tenant]/fuel                      Fuel logging and consumption analytics
 /[tenant]/reports/area              Per-area report
 /[tenant]/reports/consolidated      Consolidated cross-area report
 /[tenant]/reports/detailed          Detailed event log
@@ -325,7 +353,7 @@ DB isolation exception: none — all tenant data isolated by tenant_id foreign k
 
 ## Access Control
 Public routes:    / (login page only)
-Protected routes: /[tenant]/* (require login + tenant membership)
+Protected routes: /[tenant]/* (require login + tenant membership) — includes /[tenant]/fuel (all authenticated users can log fuel entries)
 Admin-only:       /[tenant]/settings, /[tenant]/users, /[tenant]/alerts (Site Admin+)
 Coordinator+:     /[tenant]/patrol-areas, /[tenant]/patrol-schedule, /[tenant]/reports/* export actions (Field Coordinator+)
 Super Admin only: /admin/*
@@ -334,7 +362,7 @@ Super Admin only: /admin/*
 PII stored:       yes — user email addresses, user names, ranger names (synced from ER)
 Financial data:   no
 Health data:      no
-Audit required:   event state changes, event detail edits, user login/logout, tenant configuration changes, alert rule changes, patrol area creation/modification
+Audit required:   event state changes, event detail edits, user login/logout, tenant configuration changes, alert rule changes, patrol area creation/modification, fuel entry creation/edits/deletion (involves financial amounts)
 GDPR/compliance:  none required for v1
 
 ## Security Requirements
@@ -449,7 +477,7 @@ Auth provider:             Auth.js v5
 Auth strategy:             authjs
 Primary database:          PostgreSQL
 Cache / queue:             Valkey + BullMQ
-File storage:              none (v1 — files hosted in EarthRanger)
+File storage:              Local disk (Docker volume) — fuel receipt photos only. Future: S3-compatible storage.
 UI component library:      shadcn/ui + Tailwind CSS (locked — no alternatives)
 Chart library:             shadcn/ui Chart (Recharts)
 Map library:               mapcn (MapLibre GL)

@@ -246,9 +246,9 @@ const PatrolMonitor = () => (
   <div><Mb s="Mobile Ready" /><PT>Patrol Monitor</PT>
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
       <Card><ST>Active Patrols (6)</ST>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}><thead><TR h><TD h>Ranger</TD><TD h>Type</TD><TD h>Area</TD><TD h a="right">Time</TD><TD h a="right">KM</TD></TR></thead><tbody>
-          {[{ r: "Adrianto", t: "🚶 Foot", a: "A6", e: "4h23m", k: "18.4" }, { r: "PKM Togong", t: "🚶 Foot", a: "A7", e: "3h05m", k: "12.1" }, { r: "Pottoli Tobin 2", t: "🚤 Sea", a: "A12a", e: "6h12m", k: "87.3" }, { r: "Saldi", t: "🚤 Sea", a: "A7", e: "1h33m", k: "23.5" }].map((p, i) => (
-            <TR key={i}><TD><span style={{ color: T.blue, fontSize: 10 }}>{p.r}</span></TD><TD>{p.t}</TD><TD>{p.a}</TD><TD a="right">{p.e}</TD><TD a="right">{p.k}</TD></TR>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}><thead><TR h><TD h>Ranger</TD><TD h>Type</TD><TD h>Boat</TD><TD h>Area</TD><TD h a="right">Time</TD><TD h a="right">KM</TD></TR></thead><tbody>
+          {[{ r: "Adrianto", t: "🚶 Foot", b: "—", a: "A6", e: "4h23m", k: "18.4" }, { r: "PKM Togong", t: "🚶 Foot", b: "—", a: "A7", e: "3h05m", k: "12.1" }, { r: "Pottoli Tobin 2", t: "🚤 Sea", b: "Ang Pangarap", a: "A12a", e: "6h12m", k: "87.3" }, { r: "Saldi", t: "🚤 Sea", b: "San Pedro II", a: "A7", e: "1h33m", k: "23.5" }].map((p, i) => (
+            <TR key={i}><TD><span style={{ color: T.blue, fontSize: 10 }}>{p.r}</span></TD><TD>{p.t}</TD><TD><span style={{ fontSize: 10, color: p.b === "—" ? T.textMuted : T.text }}>{p.b}</span></TD><TD>{p.a}</TD><TD a="right">{p.e}</TD><TD a="right">{p.k}</TD></TR>
           ))}
         </tbody></table>
       </Card>
@@ -456,9 +456,69 @@ const Notifications = () => (<div><Mb s="Mobile First" /><PT right={<Btn small>M
 
 const UserMgmt = () => (<div><Mb s="Mobile Ready" /><PT right={<Btn primary>+ Add User</Btn>}>User Management</PT><Card style={{ padding: 0, overflow: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><TR h><TD h>Name</TD><TD h>Email</TD><TD h>Role</TD><TD h>Last Login</TD><TD h>Status</TD><TD h>Actions</TD></TR></thead><tbody>{[{ n: "Ahmad", e: "ahmad@banggai.org", r: "Coordinator", l: "2h ago", s: true }, { n: "Siti", e: "siti@banggai.org", r: "Operator", l: "30m ago", s: true }, { n: "Budi", e: "budi@banggai.org", r: "Site Admin", l: "1d ago", s: true }].map((u, i) => <TR key={i}><TD><span style={{ fontWeight: 500 }}>{u.n}</span></TD><TD>{u.e}</TD><TD><Badge color={u.r === "Site Admin" ? "red" : u.r === "Coordinator" ? "orange" : "blue"}>{u.r}</Badge></TD><TD>{u.l}</TD><TD><Badge color="green">Active</Badge></TD><TD><Btn small>Edit</Btn></TD></TR>)}</tbody></table></Card></div>);
 
-const TenantSettings = () => (<div><Mb s="Mobile Ready" /><PT>Tenant Settings — Banggai MPA</PT><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}><Card><ST>EarthRanger Connection</ST><Input label="Server URL" value="https://banggai.pamdas.org" /><Input label="Username" value="service_account_banggai" /><Input label="Password" value="••••••••" type="password" /><Input label="DAS Web Token (REST API)" value="••••••••••••••••" type="password" /><Input label="ER Track Token (WebSocket)" value="••••••••••••••••" type="password" /><div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, padding: "8px 10px", background: T.greenBg, borderRadius: 6 }}><div style={{ width: 6, height: 6, borderRadius: "50%", background: T.green }} /><span style={{ fontSize: 10, color: T.green, fontWeight: 600 }}>Connected — Last sync 5s ago</span></div><div style={{ display: "flex", gap: 6, marginTop: 10 }}><Btn primary>Save</Btn><Btn>Test</Btn></div></Card><Card><ST>Tenant Profile</ST><Input label="MPA Site Name" value="Banggai Marine Protected Area" /><Input label="Slug" value="banggai" /><Input label="Timezone" value="Asia/Makassar (WITA)" /><Btn primary>Update</Btn></Card></div></div>);
+const TenantSettings = () => (<div><Mb s="Mobile Ready" /><PT>Tenant Settings — Banggai MPA</PT><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}><Card><ST>EarthRanger Connection</ST><Input label="Server URL" value="https://banggai.pamdas.org" /><Input label="Username" value="service_account_banggai" /><Input label="Password" value="••••••••" type="password" /><Input label="DAS Web Token (REST API)" value="••••••••••••••••" type="password" /><Input label="ER Track Token (WebSocket)" value="••••••••••••••••" type="password" /><div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, padding: "8px 10px", background: T.greenBg, borderRadius: 6 }}><div style={{ width: 6, height: 6, borderRadius: "50%", background: T.green }} /><span style={{ fontSize: 10, color: T.green, fontWeight: 600 }}>Connected — Last sync 5s ago</span></div><div style={{ display: "flex", gap: 6, marginTop: 10 }}><Btn primary>Save</Btn><Btn>Test</Btn></div></Card><Card><ST>Tenant Profile</ST><Input label="MPA Site Name" value="Banggai Marine Protected Area" /><Input label="Slug" value="banggai" /><Input label="Timezone" value="Asia/Makassar (WITA)" /><div style={{ marginBottom: 12 }}><label style={{ fontSize: 10, fontWeight: 500, color: T.textSecondary, display: "block", marginBottom: 4 }}>Currency</label><select style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.bg, color: T.text, fontSize: 12, boxSizing: "border-box" }}><option value="IDR">IDR — Indonesian Rupiah (Rp)</option><option value="PHP">PHP — Philippine Peso (₱)</option><option value="MYR">MYR — Malaysian Ringgit (RM)</option></select></div><Btn primary>Update</Btn></Card></div></div>);
 
 const SuperAdmin = () => (<div><Mb s="Mobile Ready" /><PT right={<Btn primary>+ Onboard MPA</Btn>}>Super Admin — Tenants</PT><Card style={{ padding: 0, overflow: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse" }}><thead><TR h><TD h>MPA Site</TD><TD h>Slug</TD><TD h a="center">Users</TD><TD h a="center">Events</TD><TD h>Last Sync</TD><TD h>Status</TD><TD h>Actions</TD></TR></thead><tbody>{[{ n: "Banggai MPA", s: "/banggai", u: 5, ev: 47, ls: "5s ago" }, { n: "Mindoro MPA", s: "/mindoro", u: 8, ev: 32, ls: "12s ago" }, { n: "Pecca MPA", s: "/pecca", u: 3, ev: 12, ls: "3m ago" }].map((t, i) => <TR key={i}><TD><strong>{t.n}</strong></TD><TD><code style={{ fontSize: 10, color: T.blue }}>{t.s}</code></TD><TD a="center">{t.u}</TD><TD a="center">{t.ev}</TD><TD>{t.ls}</TD><TD><Badge color="green">Active</Badge></TD><TD><Btn small>Manage</Btn></TD></TR>)}</tbody></table></Card><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 12 }}>{[["Tenants", "3"], ["Users", "16"], ["Events (30d)", "91"]].map(([l, v], i) => <Card key={i} style={{ padding: 10, textAlign: "center" }}><div style={{ fontSize: 9, color: T.textMuted }}>{l}</div><div style={{ fontSize: 20, fontWeight: 700, color: T.text }}>{v}</div></Card>)}</div></div>);
+
+const FuelLogging = () => (<div><Mb s="Mobile First" /><PT right={<Btn primary>+ Log Fuel Receipt</Btn>}>Fuel Logging & Consumption — Banggai MPA</PT>
+  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+    {[{ l: "TOTAL LITERS (DEC)", v: "2,450 L", c: T.blue }, { l: "TOTAL COST (DEC)", v: "Rp 12,740,000", c: T.orange }, { l: "SEABORNE KM (DEC)", v: "2,907 km", c: T.cyan }, { l: "AVG CONSUMPTION", v: "0.843 L/km", c: T.green }].map((k, i) => (
+      <Card key={i} style={{ flex: 1, minWidth: 140, padding: 14 }}><div style={{ fontSize: 8, fontWeight: 700, color: T.textMuted, letterSpacing: 0.5 }}>{k.l}</div><div style={{ fontSize: 20, fontWeight: 800, color: k.c, marginTop: 4, fontVariantNumeric: "tabular-nums" }}>{k.v}</div></Card>
+    ))}
+  </div>
+  <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
+    <Card><ST>Fuel Log Entries</ST>
+      <div style={{ display: "flex", gap: 6, marginBottom: 10 }}><Sel><option>All Areas</option><option>A5</option><option>A6</option><option>A7</option><option>Area 12</option><option>L806</option></Sel><Sel><option>December 2025</option><option>November 2025</option></Sel></div>
+      <table style={{ width: "100%", borderCollapse: "collapse" }}><thead><TR h><TD h>Date</TD><TD h>Area</TD><TD h a="right">Liters</TD><TD h a="right">Cost (IDR)</TD><TD h>Logged By</TD><TD h>Receipt</TD><TD h>Notes</TD></TR></thead><tbody>
+        {[
+          { d: "Dec 28", a: "Area 12", l: "500", c: "Rp 2,600,000", by: "Saldi", r: true, n: "Pertamina diesel" },
+          { d: "Dec 22", a: "A6", l: "350", c: "Rp 1,820,000", by: "Sri", r: true, n: "Monthly allocation" },
+          { d: "Dec 20", a: "Area 12", l: "400", c: "Rp 2,080,000", by: "Pottoli Tobin 4", r: false, n: "Emergency top-up" },
+          { d: "Dec 15", a: "A7", l: "300", c: "Rp 1,560,000", by: "PKM Togong", r: true, n: "Bi-weekly supply" },
+          { d: "Dec 10", a: "A6", l: "450", c: "Rp 2,340,000", by: "Adrianto", r: true, n: "Monthly allocation" },
+          { d: "Dec 5", a: "Area 12", l: "250", c: "Rp 1,300,000", by: "Adhi Zulfikri", r: false, n: "Patrol supply" },
+          { d: "Dec 1", a: "A7", l: "200", c: "Rp 1,040,000", by: "Saldi", r: true, n: "Start of month" },
+        ].map((e, i) => <TR key={i}><TD>{e.d}</TD><TD>{e.a}</TD><TD a="right"><strong>{e.l}</strong></TD><TD a="right">{e.c}</TD><TD><span style={{ color: T.blue, fontSize: 10 }}>{e.by}</span></TD><TD>{e.r ? <Badge color="green">📷</Badge> : <span style={{ color: T.textMuted }}>—</span>}</TD><TD><span style={{ fontSize: 10, color: T.textSecondary }}>{e.n}</span></TD></TR>)}
+      </tbody></table>
+    </Card>
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <Card><ST>Consumption by Area</ST>
+        {[{ a: "Area 12", l: 1150, km: 2127, rate: "0.541" }, { a: "A6", l: 800, km: 520, rate: "1.538" }, { a: "A7", l: 500, km: 260, rate: "1.923" }].map((r, i) => (
+          <div key={i} style={{ padding: "8px 0", borderBottom: `1px solid ${T.border}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 11, fontWeight: 600, color: T.text }}>{r.a}</span><span style={{ fontSize: 11, fontWeight: 700, color: T.cyan }}>{r.rate} L/km</span></div>
+            <div style={{ fontSize: 9, color: T.textMuted }}>{r.l}L received · {r.km} km patrolled</div>
+          </div>
+        ))}
+      </Card>
+      <Card><ST>Trend — Avg L/km (Monthly)</ST>
+        <div style={{ display: "flex", alignItems: "end", gap: 6, height: 80, padding: "8px 0" }}>
+          {[{ m: "Sep", v: 0.92 }, { m: "Oct", v: 0.87 }, { m: "Nov", v: 0.78 }, { m: "Dec", v: 0.84 }].map((b, i) => (
+            <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+              <span style={{ fontSize: 8, color: T.cyan, fontWeight: 600 }}>{b.v}</span>
+              <div style={{ width: "100%", height: `${b.v * 70}px`, background: T.cyan + "40", borderRadius: "3px 3px 0 0", border: `1px solid ${T.cyan}60` }} />
+              <span style={{ fontSize: 8, color: T.textMuted }}>{b.m}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+      <Card style={{ padding: 14 }}><ST>📤 New Fuel Entry</ST>
+        <div style={{ fontSize: 10, color: T.textSecondary, marginBottom: 8 }}>Quick-log form for field use</div>
+        <Input label="Area" placeholder="Select area..." />
+        <Input label="Liters Received" placeholder="e.g., 500" />
+        <Input label="Total Cost (Rp)" placeholder="e.g., 2600000" />
+        <div style={{ marginBottom: 10 }}>
+          <label style={{ fontSize: 10, fontWeight: 500, color: T.textSecondary, display: "block", marginBottom: 4 }}>Receipt Photo</label>
+          <div style={{ border: `2px dashed ${T.border}`, borderRadius: 8, padding: "14px 10px", textAlign: "center", cursor: "pointer" }}>
+            <div style={{ fontSize: 18, marginBottom: 4 }}>📷</div>
+            <div style={{ fontSize: 10, color: T.textMuted }}>Tap to capture or upload receipt</div>
+          </div>
+        </div>
+        <Input label="Notes" placeholder="Supplier, details..." />
+        <Btn primary>Submit Fuel Entry</Btn>
+      </Card>
+    </div>
+  </div>
+</div>);
 
 // ──── MAIN APP ────
 const allScreens = [
@@ -466,7 +526,8 @@ const allScreens = [
   { id: "dashboard", label: "Dashboard" }, { id: "map", label: "Live Map" },
   { id: "events", label: "Events (Kanban)" }, { id: "event-detail", label: "Event Detail ★" },
   { id: "patrol-monitor", label: "Patrol Monitor ★" }, { id: "patrol-areas", label: "Patrol Areas" },
-  { id: "patrol-schedule", label: "Patrol Schedule" }, { id: "report-area", label: "Per Area Report" },
+  { id: "patrol-schedule", label: "Patrol Schedule" }, { id: "fuel", label: "⛽ Fuel Logging ★" },
+  { id: "report-area", label: "Per Area Report" },
   { id: "report-consolidated", label: "Consolidated" }, { id: "report-detailed", label: "Detailed Log ★" },
   { id: "report-rangers", label: "Rangers Perf ★" }, { id: "ranger-detail", label: "Ranger Detail ★" },
   { id: "alerts", label: "Alert Rules" }, { id: "notifications", label: "Notifications" },
@@ -477,18 +538,19 @@ const navGroups = [
   { label: "COMMAND", items: ["warroom", "dashboard", "map"] },
   { label: "OPERATIONS", items: ["events", "event-detail", "notifications"] },
   { label: "PATROLS", items: ["patrol-monitor", "patrol-areas", "patrol-schedule"] },
+  { label: "LOGISTICS", items: ["fuel"] },
   { label: "REPORTS", items: ["report-area", "report-consolidated", "report-detailed", "report-rangers", "ranger-detail"] },
   { label: "ADMIN", items: ["alerts", "users", "settings", "admin-tenants"] },
 ];
-const R = { login: LoginScreen, warroom: WarRoom, dashboard: Dashboard, map: LiveMap, events: EventKanban, "event-detail": EventDetail, "patrol-monitor": PatrolMonitor, "patrol-areas": PatrolAreas, "patrol-schedule": PatrolSchedule, "report-area": ReportArea, "report-consolidated": ReportConsolidated, "report-detailed": ReportDetailed, "report-rangers": ReportRangers, "ranger-detail": RangerDetail, alerts: AlertRules, notifications: Notifications, users: UserMgmt, settings: TenantSettings, "admin-tenants": SuperAdmin };
+const R = { login: LoginScreen, warroom: WarRoom, dashboard: Dashboard, map: LiveMap, events: EventKanban, "event-detail": EventDetail, "patrol-monitor": PatrolMonitor, "patrol-areas": PatrolAreas, "patrol-schedule": PatrolSchedule, fuel: FuelLogging, "report-area": ReportArea, "report-consolidated": ReportConsolidated, "report-detailed": ReportDetailed, "report-rangers": ReportRangers, "ranger-detail": RangerDetail, alerts: AlertRules, notifications: Notifications, users: UserMgmt, settings: TenantSettings, "admin-tenants": SuperAdmin };
 
 export default function App() {
-  const [screen, setScreen] = useState("event-detail");
+  const [screen, setScreen] = useState("fuel");
   const [nav, setNav] = useState(true);
   const Screen = R[screen] || WarRoom;
   return (
     <div style={{ fontFamily: T.font, background: T.bg, color: T.text, minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      <div style={{ background: "#F7D154", color: "#18191A", padding: "4px 20px", fontSize: 9, fontWeight: 600, textAlign: "center" }}>📐 PHASE 2.8 v4 — ALL 19 SCREENS + ★ ACCOMPANYING RANGERS + PERFORMANCE ALGORITHM — Visual alignment check</div>
+      <div style={{ background: "#F7D154", color: "#18191A", padding: "4px 20px", fontSize: 9, fontWeight: 600, textAlign: "center" }}>📐 PHASE 2.8 v5 — ALL 20 SCREENS + ⛽ FUEL LOGGING + ★ ACCOMPANYING RANGERS + PERFORMANCE ALGORITHM</div>
       <div style={{ background: T.surface, borderBottom: `1px solid ${T.border}`, padding: "0 12px", height: 42, display: "flex", alignItems: "center", gap: 8 }}>
         <button onClick={() => setNav(!nav)} style={{ background: "none", border: "none", color: T.textSecondary, fontSize: 14, cursor: "pointer" }}>☰</button>
         <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>🌊 Marine Guardian</span>

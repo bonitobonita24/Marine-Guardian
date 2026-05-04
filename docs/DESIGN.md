@@ -137,6 +137,20 @@ components:
     backgroundColor: "rgba(24,25,26,0.85)"
     rounded: "{rounded.md}"
     backdropFilter: "blur(8px)"
+  file-upload-dropzone:
+    backgroundColor: "{colors.background}"
+    border: "2px dashed {colors.border}"
+    borderRadius: "{rounded.lg}"
+    padding: "{spacing.xl}"
+    hoverBorder: "2px dashed {colors.primary}"
+    activeBackground: "{colors.primary-light}"
+    fontSize: "12px"
+    iconSize: "24px"
+  currency-display:
+    fontVariantNumeric: "tabular-nums"
+    fontWeight: 600
+    format: "locale-aware — IDR uses dot thousands (Rp 3.200.000), PHP uses comma thousands (₱45,000), MYR uses comma thousands (RM 12,500)"
+    note: "Currency symbol and format derived from tenant.currency field at render time. Stored as raw number in database."
 ---
 
 ## Overview
@@ -158,7 +172,7 @@ The palette is built on three surface tiers with a single accent.
 - **Danger (#F0284A):** Critical alerts, unacknowledged events, destructive actions. The alert panel uses `danger-bg` (15% opacity) with a subtle red border.
 - **Warning (#E8912D):** High priority events, stale data indicators, pending states.
 - **Caution (#F7D154):** Medium priority, mockup banners, attention-needed-but-not-urgent.
-- **Info (#00C9DB):** Patrol tracks (seabourn), secondary data accent, informational highlights.
+- **Info (#00C9DB):** Patrol tracks (seaborne), secondary data accent, informational highlights.
 
 ### Rules
 - Never use more than one accent color per interactive element.
@@ -266,8 +280,16 @@ The War Room uses a fixed layout optimized for 16:9 large displays:
 | Subject marker: Wildlife | success | Map dot |
 | Subject marker: Event | danger/warning | Map dot |
 | Patrol track: Foot | primary | Map polyline |
-| Patrol track: Seabourn | info | Map polyline |
+| Patrol track: Seaborne | info | Map polyline |
 | Patrol area polygon | primary | Map polygon fill (6% opacity) + stroke (30% opacity) |
+| Fuel consumption rate | info | KPI value, trend chart line |
+| Fuel entry receipt | success | Photo indicator badge |
+| Accompanying ranger: Registered | primary | Chip background (primary-light), text |
+| Accompanying ranger: Free-text | muted (elevated bg) | Chip background, text-primary |
+| Performance: Reported | success | Column text, legend dot |
+| Performance: Accompanied | warning | Column text, legend dot |
+| Performance: Total credit | info | Column text (bold), summary value |
+| Currency amount | text-primary | Tabular-nums, locale-formatted |
 
 ## Don'ts
 - Never use gradients on buttons or cards — solid fills only.
