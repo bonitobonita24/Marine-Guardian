@@ -123,3 +123,13 @@
 - Schema/migrations:   none (migration already committed in prior session)
 - Errors encountered:  none
 - Errors resolved:     none
+
+## 2026-05-05 — Phase 6 — Docker Services Startup + Visual QA
+- Agent:               CLAUDE_CODE
+- Why:                 Start all Docker dev services, run migrations + seed, perform Visual QA, complete Phase 6 Output Contract
+- Files added:         none
+- Files modified:      deploy/compose/dev/docker-compose.app.yml (healthcheck localhost→127.0.0.1 for Alpine IPv6), deploy/compose/dev/docker-compose.db.yml (PgBouncer: removed env_file, added individual env vars to avoid password-with-slash URL parsing), apps/web/Dockerfile (added Prisma engine binary copy step for Alpine standalone), .env.dev (URL-encoded special chars in DATABASE_URL and PGBOUNCER_DATABASE_URL passwords), .cline/STATE.md (Phase 6 complete)
+- Files deleted:       none
+- Schema/migrations:   Ran existing migrations (init + schema_delta_fixes) via pnpm db:migrate. Seed data populated (tenant, webmaster admin, event types, patrol area).
+- Errors encountered:  (1) PgBouncer crash — env_file injected DATABASE_URL with `/` in password breaking URL parsing, (2) Prisma engine binary missing in Alpine standalone — query_engine .so.node not copied to runner stage, (3) App healthcheck failing — Alpine resolves `localhost` to IPv6 `::1` but Next.js binds IPv4 only, (4) Prisma CLI migrate fails — DATABASE_URL password `/` parsed as path separator, (5) Worker container restarts — worker.js not in Next.js standalone output (non-blocking)
+- Errors resolved:     (1) Removed env_file from PgBouncer, added explicit DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME env vars, (2) Added find+cp step in Dockerfile builder stage to collect libquery_engine-linux-musl-openssl-3.0.x.so.node into /prisma-engines/, copied to runner .prisma/client/ and .next/server/, (3) Changed healthcheck URL to http://127.0.0.1:3000/api/health, (4) URL-encoded passwords in .env.dev: `/`→`%2F`, `+`→`%2B`, (5) Worker issue deferred to Phase 7 — non-blocking

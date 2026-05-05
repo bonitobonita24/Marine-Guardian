@@ -159,3 +159,66 @@
   (the branch commit is not an ancestor of main after a squash). Fix: always use
   `git branch -D` (force delete) after squash-merging. This is expected behavior for all
   scaffold/part-N branches and feat/{slug} branches in this project.
+
+## 2026-05-05 — 🔴 Alpine Linux resolves localhost to IPv6 — use 127.0.0.1 in Docker healthchecks
+- Type:      🔴 gotcha
+- Phase:     Phase 6
+- Files:     deploy/compose/dev/docker-compose.app.yml
+- Concepts:  docker, alpine, ipv6, healthcheck, localhost, wget
+- Narrative: Alpine Linux's /etc/hosts maps `localhost` to `::1` (IPv6 loopback). When Next.js
+  starts with HOSTNAME="0.0.0.0", it binds to IPv4 only. A healthcheck using
+  `wget -qO- http://localhost:3000/api/health` resolves to ::1 and gets "Connection refused"
+  even though the app is running fine on 0.0.0.0:3000. Fix: always use `http://127.0.0.1:3000`
+  in Docker healthcheck commands for Alpine-based images. This applies to ALL node:*-alpine
+  images used in this project.
+
+## 2026-05-05 — 🔴 Passwords with special characters in DATABASE_URL must be URL-encoded
+- Type:      🔴 gotcha
+- Phase:     Phase 6
+- Files:     .env.dev
+- Concepts:  postgresql, database-url, url-encoding, prisma, password, pgbouncer
+- Narrative: If an auto-generated password contains `/` or `+`, the DATABASE_URL connection
+  string breaks because `/` is parsed as a path separator and `+` as a space. Prisma reports
+  "invalid port number" (P1013) because it reads the portion after the slash as part of the
+  host:port. Fix: URL-encode special characters in the password portion of connection strings:
+  `/` → `%2F`, `+` → `%2B`, `@` → `%40`, `#` → `%23`. The raw DB_PASSWORD env var keeps
+  the original characters — only the composed URL fields (DATABASE_URL, PGBOUNCER_DATABASE_URL)
+  need encoding. Phase 3 credential generation should URL-encode passwords when composing URLs.
+
+## 2026-05-05 — 🔴 PgBouncer env_file must not include DATABASE_URL — use individual env vars
+- Type:      🔴 gotcha
+- Phase:     Phase 6
+- Files:     deploy/compose/dev/docker-compose.db.yml
+- Concepts:  pgbouncer, docker-compose, env_file, database-url, password
+- Narrative: The edoburu/pgbouncer Docker image reads DB_HOST, DB_PORT, DB_USER, DB_PASSWORD,
+  DB_NAME as individual environment variables to construct its internal connection. When
+  env_file includes the full .env.dev file, PgBouncer also receives DATABASE_URL which it
+  tries to parse separately — and if the password contains `/`, the URL is malformed causing
+  PgBouncer to crash on startup. Fix: remove env_file from the pgbouncer service and set
+  only the individual variables (DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, POOL_MODE,
+  MAX_CLIENT_CONN, DEFAULT_POOL_SIZE, AUTH_TYPE) directly in the environment: block.
+
+## 2026-05-05 — 🔴 Prisma engine binary must be explicitly copied in Alpine standalone Dockerfile
+- Type:      🔴 gotcha
+- Phase:     Phase 6
+- Files:     apps/web/Dockerfile
+- Concepts:  prisma, alpine, standalone, query-engine, dockerfile, binary
+- Narrative: Next.js standalone output does not include Prisma's native query engine binary
+  (libquery_engine-linux-musl-openssl-3.0.x.so.node). The app container starts but every
+  database query fails with "Query engine library not found". Fix: in the Dockerfile builder
+  stage, after `pnpm build`, add a step to find and copy the engine binary:
+  `RUN mkdir -p /prisma-engines && find /app -name "libquery_engine-linux-musl-openssl-3.0.x.so.node" -exec cp {} /prisma-engines/ \;`
+  Then in the runner stage, copy to both locations Prisma checks:
+  `COPY --from=builder /prisma-engines/ ./node_modules/.prisma/client/`
+  `COPY --from=builder /prisma-engines/ ./apps/web/.next/server/`
+
+## 2026-05-05 — 🟡 Prisma CLI on host requires sourcing .env.dev for DATABASE_URL
+- Type:      🟡 fix
+- Phase:     Phase 6
+- Files:     .env.dev
+- Concepts:  prisma, env-vars, database-url, source, shell
+- Narrative: Prisma CLI (pnpm db:migrate, pnpm db:seed) runs on the host machine, not inside
+  Docker containers. It needs DATABASE_URL from .env.dev but pnpm scripts don't auto-load
+  env files. Fix: prefix Prisma commands with `set -a && source .env.dev && set +a &&` to
+  export all variables from .env.dev into the current shell session before running Prisma.
+  Alternative: add dotenv-cli as a dev dependency and prefix scripts with `dotenv -e .env.dev --`.

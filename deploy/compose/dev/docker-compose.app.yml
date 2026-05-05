@@ -19,21 +19,13 @@ services:
       - "${APP_PORT}:3000"
     networks: [app_network]
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-      valkey:
-        condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
 
   worker:
-    build:
-      context: ../../..
-      dockerfile: apps/web/Dockerfile
     image: ${DOCKERHUB_USERNAME:-bonitobonita24}/marine-guardian:dev-latest
     container_name: ${COMPOSE_PROJECT_NAME}_worker
     hostname: ${COMPOSE_PROJECT_NAME}_worker
@@ -44,8 +36,3 @@ services:
     command: ["node", "worker.js"]
     networks: [app_network]
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-      valkey:
-        condition: service_healthy

@@ -9,6 +9,7 @@ set -e
 ENV=${1:-dev}
 CMD=${@:2}
 BASE=deploy/compose/$ENV
+ENV_FILE=".env.${ENV}"
 
 if [ ! -d "$BASE" ]; then
   echo "❌ Environment '$ENV' not found at $BASE"
@@ -16,21 +17,28 @@ if [ ! -d "$BASE" ]; then
   exit 1
 fi
 
-# DB always first — it creates the shared Docker network
-docker compose -f $BASE/docker-compose.db.yml $CMD
+if [ ! -f "$ENV_FILE" ]; then
+  echo "❌ Environment file '$ENV_FILE' not found"
+  exit 1
+fi
 
-docker compose -f $BASE/docker-compose.cache.yml $CMD
-docker compose -f $BASE/docker-compose.pgadmin.yml $CMD
+COMPOSE="docker compose --env-file $ENV_FILE -f"
+
+# DB always first — it creates the shared Docker network
+$COMPOSE $BASE/docker-compose.db.yml $CMD
+
+$COMPOSE $BASE/docker-compose.cache.yml $CMD
+$COMPOSE $BASE/docker-compose.pgadmin.yml $CMD
 
 # MailHog dev-only email catcher
 if [ "$ENV" = "dev" ]; then
-  docker compose -f $BASE/docker-compose.infra.yml $CMD
+  $COMPOSE $BASE/docker-compose.infra.yml $CMD
 fi
 
 # Dev: --build forces rebuild from source on every up
 # Stage/Prod: pull pre-built image, no rebuild
 if [ "$ENV" = "dev" ] && [[ "$CMD" == *"up"* ]]; then
-  docker compose -f $BASE/docker-compose.app.yml up --build -d
+  docker compose --env-file $ENV_FILE -f $BASE/docker-compose.app.yml up --build -d
 else
-  docker compose -f $BASE/docker-compose.app.yml $CMD
+  $COMPOSE $BASE/docker-compose.app.yml $CMD
 fi

@@ -1,9 +1,9 @@
 # Implementation Map — Marine Guardian Command Center
 # Current build state. Rewritten after every feature update.
-# Last updated: 2026-05-04 — Schema delta fixes merged. Ready for Phase 6.
+# Last updated: 2026-05-05 — Phase 6 complete. Docker services healthy. PAUSED.
 # ---
 
-## Status: Schema delta fixes applied post-Phase 5. All 9 validation commands re-verified pass. Ready for Phase 6.
+## Status: Phase 6 complete — PAUSED. All Docker services healthy. Migrations applied, seed data populated, Visual QA passed.
 
 ### Schema Delta Fixes (feat/schema-delta-fixes — merged to main)
 - [x] PatrolType enum: seabourn → seaborne (Prisma, shared types/schemas, seed, tRPC routers)
@@ -191,6 +191,29 @@
 
 ---
 
+### Phase 6 — Docker Services + Visual QA (2026-05-05)
+- [x] All Docker services started via deploy/compose/start.sh dev up -d
+- [x] PostgreSQL 16: port 45194 ✅ healthy
+- [x] PgBouncer: port 45195 ✅ healthy
+- [x] Valkey 7: port 45196 ✅ healthy
+- [x] MinIO: port 45197 (API), 45198 (console) ✅ healthy
+- [x] MailHog: port 45199 (SMTP), 45200 (UI) ✅ running
+- [x] pgAdmin 4: port 45201 ✅ healthy
+- [x] App (Next.js): port 45204 ✅ healthy
+- [ ] Worker: restarting (worker.js not in standalone output — fix in Phase 7)
+- [x] 2 migrations applied: init + schema_delta_fixes
+- [x] Seed data: 1 tenant, webmaster super_admin, admin user, 3 event types, 1 patrol area
+- [x] Visual QA: /api/health → 200, /login → 200, /dashboard → 302 redirect (auth working)
+
+Docker fixes applied (5 total):
+1. PgBouncer env_file removal — individual env vars instead of full .env.dev
+2. Prisma engine binary copy — find+cp in Dockerfile builder stage
+3. Healthcheck localhost→127.0.0.1 — Alpine IPv6 resolution fix
+4. DATABASE_URL password URL-encoding — %2F and %2B for special chars
+5. Prisma CLI env sourcing — set -a && source .env.dev prefix for host commands
+
+---
+
 ### Not yet built (deferred to Phase 7/8)
 - [ ] EarthRanger API sync implementation (er-sync worker body)
 - [ ] Alert rule evaluation engine (alerts worker body)
@@ -203,7 +226,6 @@
 ---
 
 ### Next Step
-Phase 6 — say "Start Phase 6" in a new Claude Code session.
-Prerequisites: Docker Desktop running on Windows (verify: docker ps).
-Run: bash deploy/compose/start.sh dev up -d → pnpm db:migrate → pnpm db:seed
-Then Visual QA at http://localhost:45204 per Rule 16.
+Phase 7 Feature Update — edit docs/PRODUCT.md then say "Feature Update"
+Or: Phase 8 iterative buildout — say "Start Phase 8"
+Known blocker: Worker container needs dedicated entry point (non-blocking).
