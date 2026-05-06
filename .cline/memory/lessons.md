@@ -222,3 +222,20 @@
   env files. Fix: prefix Prisma commands with `set -a && source .env.dev && set +a &&` to
   export all variables from .env.dev into the current shell session before running Prisma.
   Alternative: add dotenv-cli as a dev dependency and prefix scripts with `dotenv -e .env.dev --`.
+
+## 2026-05-06 — 🔴 Docker internal networking: worker containers must NOT use host-mapped ports
+- Type:      🔴 gotcha
+- Phase:     Phase 6
+- Files:     packages/jobs/src/connection.ts, deploy/compose/dev/docker-compose.app.yml, deploy/compose/stage/docker-compose.app.yml, deploy/compose/prod/docker-compose.app.yml
+- Concepts:  docker, networking, valkey, redis, bullmq, worker, compose, env-vars
+- Narrative: Worker containers crashed with ECONNREFUSED to localhost:45196. Root cause: .env.dev
+  sets REDIS_HOST=localhost and REDIS_PORT=45196 (host-mapped port) which is correct for the host
+  machine but WRONG inside Docker containers. Inside the Docker network, Valkey is reachable at
+  ${COMPOSE_PROJECT_NAME}_valkey:6379 (internal hostname and internal port). Fix: add REDIS_HOST
+  and REDIS_PORT overrides in the compose environment: block for the worker service, pointing to
+  the Docker internal hostname and port 6379. REDIS_PASSWORD flows correctly from env_file without
+  needing an override. IMPORTANT: never reference ${REDIS_PASSWORD} in a compose environment: block
+  — Docker Compose interpolates ${VAR} in environment: from the SHELL environment at compose-up
+  time, NOT from env_file contents. This causes "variable not set" warnings and blank passwords.
+  Keep secrets in env_file only; use environment: overrides only for non-secret values like
+  hostnames and ports that differ between host and container contexts.

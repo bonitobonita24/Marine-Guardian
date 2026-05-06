@@ -46,7 +46,9 @@ services:
     environment:
       NODE_ENV: production
       WORKER_MODE: "true"
-    command: ["node", "worker.js"]
+      REDIS_HOST: ${COMPOSE_PROJECT_NAME}_valkey
+      REDIS_PORT: "6379"
+    command: ["node", "worker/start-workers.mjs"]
     networks: [app_network]
     restart: unless-stopped
     depends_on:

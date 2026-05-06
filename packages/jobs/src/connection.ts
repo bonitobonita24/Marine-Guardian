@@ -1,23 +1,14 @@
 import type { ConnectionOptions } from "bullmq";
 
-function getRedisUrl(): string {
-  const url = process.env["REDIS_URL"];
-  if (url == null) {
-    throw new Error("REDIS_URL environment variable is required");
-  }
-  return url;
-}
+export function getConnection(): ConnectionOptions {
+  const host = process.env["REDIS_HOST"] ?? "localhost";
+  const port = Number(process.env["REDIS_PORT"]) || 6379;
+  const password = process.env["REDIS_PASSWORD"];
 
-function parseRedisUrl(url: string): ConnectionOptions {
-  const parsed = new URL(url);
   return {
-    host: parsed.hostname,
-    port: Number(parsed.port) || 6379,
-    ...(parsed.password !== "" ? { password: parsed.password } : {}),
+    host,
+    port,
+    ...(password != null && password !== "" ? { password } : {}),
     maxRetriesPerRequest: null,
   };
-}
-
-export function getConnection(): ConnectionOptions {
-  return parseRedisUrl(getRedisUrl());
 }

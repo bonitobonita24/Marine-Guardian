@@ -1,9 +1,9 @@
 # Implementation Map — Marine Guardian Command Center
 # Current build state. Rewritten after every feature update.
-# Last updated: 2026-05-05 — Phase 6 complete. Docker services healthy. PAUSED.
+# Last updated: 2026-05-06 — Phase 6 complete. Worker fix applied. All services stable. PAUSED.
 # ---
 
-## Status: Phase 6 complete — PAUSED. All Docker services healthy. Migrations applied, seed data populated, Visual QA passed.
+## Status: Phase 6 complete — PAUSED. All Docker services healthy including workers. Migrations applied, seed data populated, Visual QA passed.
 
 ### Schema Delta Fixes (feat/schema-delta-fixes — merged to main)
 - [x] PatrolType enum: seabourn → seaborne (Prisma, shared types/schemas, seed, tRPC routers)
@@ -200,17 +200,18 @@
 - [x] MailHog: port 45199 (SMTP), 45200 (UI) ✅ running
 - [x] pgAdmin 4: port 45201 ✅ healthy
 - [x] App (Next.js): port 45204 ✅ healthy
-- [ ] Worker: restarting (worker.js not in standalone output — fix in Phase 7)
+- [x] Worker: 4 BullMQ workers stable (er-sync, alerts, email, maintenance) — Docker internal networking fix applied
 - [x] 2 migrations applied: init + schema_delta_fixes
 - [x] Seed data: 1 tenant, webmaster super_admin, admin user, 3 event types, 1 patrol area
 - [x] Visual QA: /api/health → 200, /login → 200, /dashboard → 302 redirect (auth working)
 
-Docker fixes applied (5 total):
+Docker fixes applied (6 total):
 1. PgBouncer env_file removal — individual env vars instead of full .env.dev
 2. Prisma engine binary copy — find+cp in Dockerfile builder stage
 3. Healthcheck localhost→127.0.0.1 — Alpine IPv6 resolution fix
 4. DATABASE_URL password URL-encoding — %2F and %2B for special chars
 5. Prisma CLI env sourcing — set -a && source .env.dev prefix for host commands
+6. Worker Docker internal networking — REDIS_HOST/REDIS_PORT overrides in compose environment: block pointing to ${COMPOSE_PROJECT_NAME}_valkey:6379 (not host-mapped localhost:45196)
 
 ---
 
@@ -228,4 +229,4 @@ Docker fixes applied (5 total):
 ### Next Step
 Phase 7 Feature Update — edit docs/PRODUCT.md then say "Feature Update"
 Or: Phase 8 iterative buildout — say "Start Phase 8"
-Known blocker: Worker container needs dedicated entry point (non-blocking).
+No known blockers. All services operational.
