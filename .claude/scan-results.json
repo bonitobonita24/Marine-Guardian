@@ -1,5 +1,5 @@
 {
-  "scannedAt": "2026-05-03",
+  "scannedAt": "2026-05-06",
   "techStack": [
     "TypeScript",
     "Next.js 15",
@@ -110,6 +110,30 @@
       "category": "Development & DevOps",
       "tier": "T4",
       "reason": "Matches 4 MCP servers in project (SocratiCode, Context7, shadcn, code-review-graph)"
+    },
+    {
+      "name": "owasp-security",
+      "category": "Security & Testing",
+      "tier": "T2",
+      "reason": "Matches multi-tenant SaaS with auth, RBAC, tenant isolation, payment webhooks (Xendit), file uploads"
+    },
+    {
+      "name": "playwright-skill",
+      "category": "Security & Testing",
+      "tier": "T2",
+      "reason": "Matches Playwright MCP plugin already installed, Rule 16 Visual QA, E2E testing needs"
+    },
+    {
+      "name": "design-auditor",
+      "category": "Design & UI",
+      "tier": "T2",
+      "reason": "Matches Meta Dark Mode aesthetic, shadcn/ui theming, visual design scoring for Phase 7 UI reviews"
+    },
+    {
+      "name": "test-fixing",
+      "category": "Collaboration & Workflow",
+      "tier": "T4",
+      "reason": "Complements TDD skill — specialized test failure diagnosis for complex monorepo with multi-layer architecture"
     }
   ],
   "excludedGlobals": [
@@ -150,13 +174,9 @@
       "reason": "Browser automation — project uses Playwright plugin instead"
     }
   ],
+  "resolvedConflicts": [],
   "recommendedPlugins": [],
   "skippedOptional": [
-    {
-      "name": "accesslint-contrast-checker",
-      "category": "Design & UI",
-      "reason": "MEDIUM confidence — already installed globally, useful if WCAG requirement added"
-    },
     {
       "name": "a11y-skill",
       "category": "Security & Testing",
