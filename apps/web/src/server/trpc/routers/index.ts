@@ -11,6 +11,7 @@ import { notificationRouter } from "./notification";
 import { syncLogRouter } from "./syncLog";
 import { userRouter } from "./user";
 import { knownRangerRouter } from "./knownRanger";
+import { dashboardRouter } from "./dashboard";
 
 export const appRouter = router({
   event: eventRouter,
@@ -25,6 +26,7 @@ export const appRouter = router({
   syncLog: syncLogRouter,
   user: userRouter,
   knownRanger: knownRangerRouter,
+  dashboard: dashboardRouter,
 });
 
 export type AppRouter = typeof appRouter;

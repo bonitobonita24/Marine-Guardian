@@ -153,3 +153,13 @@
 - Schema/migrations:   none
 - Errors encountered:  (1) Worker ECONNREFUSED localhost:45196 — .env.dev sets REDIS_HOST=localhost and REDIS_PORT=45196 (host-mapped port), but inside Docker container, Valkey is at marine-guardian_dev_valkey:6379 on the internal network. (2) Attempted REDIS_URL override with ${REDIS_PASSWORD} in compose environment: block — Docker Compose interpolates from shell env (not env_file), causing "variable not set" warning and blank password.
 - Errors resolved:     (1) Rewrote connection.ts to read REDIS_HOST/REDIS_PORT/REDIS_PASSWORD individually. Added REDIS_HOST and REDIS_PORT overrides in compose environment: block for worker service across all 3 envs. REDIS_PASSWORD flows correctly from env_file (no shell interpolation needed). (2) Dropped REDIS_URL approach entirely — individual vars avoid the Compose shell interpolation problem.
+
+## 2026-05-08 — Phase 8 Batch 1 Item 1: Dashboard (Standard) — Command Center
+- Agent:               CLAUDE_CODE
+- Why:                 Implement dashboard as first Phase 8 iterative buildout item — KPI cards, event breakdown charts, recent events feed, quick stats
+- Files added:         apps/web/src/server/trpc/routers/dashboard.ts (3 tenant-scoped procedures: kpis, eventBreakdown, recentEvents), apps/web/src/components/ui/chart.tsx (shadcn/ui chart component — Recharts wrapper), apps/web/components.json (shadcn/ui config)
+- Files modified:      apps/web/src/app/(dashboard)/dashboard/page.tsx (full rewrite — KPI cards, bar charts, event feed, quick stats), apps/web/src/server/trpc/routers/index.ts (added dashboardRouter), apps/web/src/components/ui/card.tsx (updated shadcn card component), apps/web/package.json (added recharts dependency), pnpm-lock.yaml
+- Files deleted:       none
+- Schema/migrations:   none
+- Errors encountered:  (1) exactOptionalPropertyTypes — passing undefined to optional number prop. (2) Date | null not assignable to new Date(). (3) strict-boolean-expressions — truthy checks on nullable strings and numbers.
+- Errors resolved:     (1) Conditional rendering pattern — only pass delta/deltaLabel props when data exists. (2) Ternary null check on reportedAt. (3) Changed nullable length checks to explicit `!== undefined && .length > 0` pattern, changed nullable string checks to `!== null`.
