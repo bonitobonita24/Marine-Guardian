@@ -134,6 +134,16 @@
 - Errors encountered:  (1) PgBouncer crash — env_file injected DATABASE_URL with `/` in password breaking URL parsing, (2) Prisma engine binary missing in Alpine standalone — query_engine .so.node not copied to runner stage, (3) App healthcheck failing — Alpine resolves `localhost` to IPv6 `::1` but Next.js binds IPv4 only, (4) Prisma CLI migrate fails — DATABASE_URL password `/` parsed as path separator, (5) Worker container restarts — worker.js not in Next.js standalone output (non-blocking)
 - Errors resolved:     (1) Removed env_file from PgBouncer, added explicit DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME env vars, (2) Added find+cp step in Dockerfile builder stage to collect libquery_engine-linux-musl-openssl-3.0.x.so.node into /prisma-engines/, copied to runner .prisma/client/ and .next/server/, (3) Changed healthcheck URL to http://127.0.0.1:3000/api/health, (4) URL-encoded passwords in .env.dev: `/`→`%2F`, `+`→`%2B`, (5) Worker issue deferred to Phase 7 — non-blocking
 
+## 2026-05-07 — Phase 7 Feature Update: EarthRanger Sync Processor Implementation
+- Agent:               CLAUDE_CODE
+- Why:                 Implement the er-sync processor body — 5 sync functions (event_types, subjects, events, patrols, observations) with SyncLog lifecycle, tenant validation, credential decryption, and Prisma JSON nullable handling
+- Files added:         packages/jobs/src/processors/er-sync.processor.ts, packages/jobs/src/__tests__/er-sync.processor.test.ts
+- Files modified:      .cline/STATE.md, docs/CHANGELOG_AI.md (this entry), docs/IMPLEMENTATION_MAP.md, .cline/memory/agent-log.md
+- Files deleted:       none
+- Schema/migrations:   none
+- Errors encountered:  (1) Prisma JSON nullable — plain null not assignable to InputJsonValue | NullableJsonNullValueInput, (2) ESLint strict-boolean-expressions — nullable strings in conditionals need explicit != null, (3) ESLint no-unsafe-assignment — expect.objectContaining returns any, (4) ESLint no-unnecessary-type-assertion — as never casts on vi.fn().mockResolvedValue() unnecessary
+- Errors resolved:     (1) Created toJsonOrNull() helper using Prisma.JsonNull + explicit type casts at call sites, (2) Changed all ternaries to use != null pattern, (3) Added <Record<string, unknown>> generic to expect.objectContaining, (4) Removed as never casts from mock setup
+
 ## 2026-05-06 — Worker Fix — Docker Internal Networking for BullMQ Workers
 - Agent:               CLAUDE_CODE
 - Why:                 Fix worker container crash loop — ECONNREFUSED to localhost:45196 inside Docker. Workers must connect to Valkey via Docker internal hostname, not host-mapped port.

@@ -1,9 +1,9 @@
 # Implementation Map — Marine Guardian Command Center
 # Current build state. Rewritten after every feature update.
-# Last updated: 2026-05-06 — Phase 6 complete. Worker fix applied. All services stable. PAUSED.
+# Last updated: 2026-05-07 — Phase 7 Feature Update: EarthRanger sync processor implemented.
 # ---
 
-## Status: Phase 6 complete — PAUSED. All Docker services healthy including workers. Migrations applied, seed data populated, Visual QA passed.
+## Status: Phase 7 — EarthRanger sync processor complete. All Docker services healthy including workers.
 
 ### Schema Delta Fixes (feat/schema-delta-fixes — merged to main)
 - [x] PatrolType enum: seabourn → seaborne (Prisma, shared types/schemas, seed, tRPC routers)
@@ -66,12 +66,14 @@
 - [x] src/lib/utils.ts (cn() helper)
 - [x] shadcn/ui components.json present in apps/web (New York style, CSS variables)
 
-### packages/jobs (Part 4)
+### packages/jobs (Part 4 + Phase 7)
 - [x] BullMQ connection factory (src/connection.ts)
 - [x] Queue factory with standard job options (src/queues/queue-factory.ts)
 - [x] 5 typed queues: alerts, email, er-sync (EarthRanger sync), maintenance, index barrel
 - [x] Base worker class with tenantId validation + error handling (src/workers/base-worker.ts)
 - [x] Workers index barrel (src/workers/index.ts)
+- [x] er-sync processor (src/processors/er-sync.processor.ts) — 5 sync functions: syncEventTypes, syncSubjects, syncEvents, syncPatrols, syncObservations. SyncLog lifecycle (running→success/failed), tenant validation, credential decryption, Prisma JSON nullable via toJsonOrNull() helper
+- [x] er-sync processor tests (src/__tests__/er-sync.processor.test.ts) — 7 tests: tenant not configured, sync event_types, sync subjects, sync events, sync patrols, sync observations, API error → failed SyncLog
 
 ### apps/web (Part 5 — Next.js 15, App Router)
 - [x] next.config.ts (output: standalone, 7 HTTP security headers, Content-Security-Policy,
@@ -216,7 +218,7 @@ Docker fixes applied (6 total):
 ---
 
 ### Not yet built (deferred to Phase 7/8)
-- [ ] EarthRanger API sync implementation (er-sync worker body)
+- [x] ~~EarthRanger API sync implementation (er-sync worker body)~~ — DONE (Phase 7)
 - [ ] Alert rule evaluation engine (alerts worker body)
 - [ ] Interactive map (Leaflet.js on /map page)
 - [ ] Real-time notifications (WebSocket/SSE)

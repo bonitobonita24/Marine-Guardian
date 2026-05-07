@@ -58,6 +58,7 @@ enum SyncType {
 }
 
 enum SyncStatus {
+  running
   success
   failed
   partial
