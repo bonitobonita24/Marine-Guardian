@@ -53,3 +53,5 @@ openclaw-handoff.md
 .DS_Store
 *.log
 coverage/
+
+# ─── Build + TypeScript cache (Spec-Driven V31) ───

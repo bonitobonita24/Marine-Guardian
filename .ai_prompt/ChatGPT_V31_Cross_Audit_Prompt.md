@@ -7,6 +7,7 @@
 > 4. Memory system (Resume Session, Governance Sync, Feature Update, Log Lesson, Governance Retro) still works with Claude Code as primary
 > 5. Foundation intact: L1-L6 security stack, 9 governance docs, Rule 24 fresh context, file ownership model
 > 6. No regressions introduced during the updates
+> 7. Post-lock additive patches: Phase 3.5, Phase 4+8 anti-thrashing, Skill Installer, Prompt 4.13, attribution cleanup, prompt count 55
 >
 > **Use case:** Run this after every major framework update to catch mistakes Claude missed.
 >
@@ -16,12 +17,23 @@
 
 ## INSTRUCTIONS FOR CHATGPT
 
-You are an independent auditor reviewing the **Spec-Driven Platform V31** framework. This version has TWO notable changes from V30:
+You are an independent auditor reviewing the **Spec-Driven Platform V31** framework. This version has the following changes from V30:
 
+**Original V31 lock (two changes from V30):**
 1. **Phase 2.8 — Clickable Mockup Review** added to the Planning Assistant chat
 2. **Cline deprecated in-place** — Cline is no longer the fallback builder. Claude Code handles ALL work. Cline infrastructure (`.cline/` folders, `.clinerules` file) is RETAINED but marked unused.
 
-I am attaching 16 V31 framework files. Your job is to verify both changes were implemented correctly AND that the foundational Spec-Driven Platform architecture remains intact.
+**Post-lock additive patches (no version bump — still V31):**
+3. **Phase 3.5 — Execution Plan Generation** — auto-runs after Phase 3 (context cost estimation, task decomposition, Skill Installer activation)
+4. **Phase 4 anti-thrashing rule** — mandatory scope assessment, 12-file threshold, module-by-module sub-sessions
+5. **Phase 8 anti-thrashing rule** — same 12-file threshold, per-feature sub-batches, mandatory completeness check before committing
+6. **Skill Installer integration** — Primary Group 6 slots, per-phase supplementary skills
+7. **Prompt 4.13** — Add Automation to Existing Project (n8n / OpenClaw / Hybrid, 7-step flow)
+8. **Attribution cleanup** — CLAUDE_CODE first, CLINE removed from active attribution chain
+9. **Prompt count** updated from 54 → 55 (32 NEW ✨)
+10. **code-review-graph setup signal** — Phase 6 completion + Phase 7 pre-flight
+
+I am attaching 16 V31 framework files. Your job is to verify ALL changes were implemented correctly AND that the foundational Spec-Driven Platform architecture remains intact.
 
 **Do NOT suggest new features.** Do NOT recommend changes to the framework's philosophy. Your job is ONLY to verify:
 
@@ -31,7 +43,8 @@ I am attaching 16 V31 framework files. Your job is to verify both changes were i
 4. Cross-file references (filenames, phase counts, agent routing) are internally consistent
 5. Memory system commands all still function (Resume Session, Governance Sync, Feature Update, Governance Retro, Log Lesson, Resume from handoff)
 6. Foundation intact: L1-L6 security stack, 9 governance docs, Rule 24 fresh context, file ownership model
-7. No regressions
+7. Post-lock patches are present in the correct files (Phase 3.5, anti-thrashing rules, Skill Installer, Prompt 4.13, attribution, prompt count)
+8. No regressions
 
 ---
 
@@ -40,7 +53,7 @@ I am attaching 16 V31 framework files. Your job is to verify both changes were i
 ### What V31 IS (Two-Part Change)
 
 **PART A — Phase 2.8 Addition**
-Runs in the **Planning Assistant chat (Claude.ai)** — NOT in Claude Code. Generates a clickable single-file HTML mockup with realistic industry-appropriate data using shadcn/ui conventions. User verifies spec interpretation BEFORE Phase 3 locks the architecture.
+Runs in the **Planning Assistant chat (Claude.ai)** — NOT in Claude Code. Generates a clickable React (.jsx) mockup with realistic industry-appropriate data using shadcn/ui conventions. After user confirms, Step 7a generates an HTML archive version. User verifies spec interpretation BEFORE Phase 3 locks the architecture.
 
 **PART B — Cline Deprecation (In-Place V31 Update)**
 Cline was the fallback builder in V30. In V31 in-place update, Cline is marked **⚠ DEPRECATED — do not use** across all framework files. Claude Code handles everything Cline used to handle. The `.cline/` folder structure AND `.clinerules` file are **retained** because:
@@ -60,6 +73,7 @@ Bonito's user preference: keep Cline extension installed in VS Code as emergency
 - V31 does NOT delete `.cline/` folders or `.clinerules` (Cline is deprecated, not removed)
 - V31 does NOT introduce new MCP servers or agents
 - V31 adds n8n + OpenClaw automation signal detection to Planning Assistant (Rule 11, Step 5 signal check, Step 7 conditional infra question, conditional Integrations template). This is opt-in only — zero footprint when not used.
+- Post-lock patches add Phase 3.5 as a NEW phase (between Phase 3 and Phase 4) and anti-thrashing rules to Phase 4 and Phase 8. These are in phases.md and Master_Prompt_v31.md. They do NOT change the framework rule count, scenario count, or bootstrap step count.
 
 ### V31 verified counts (must match in every file that quotes them)
 
@@ -67,10 +81,48 @@ Bonito's user preference: keep Cline extension installed in VS Code as emergency
 30 Rules · 34 Scenarios · 18 Bootstrap Steps · 8 Phase 4 Parts
 9 Phase 5 Commands · 16 Phase 6.5 Categories · 16 Secure Code Gen sub-sections
 10 UI Component Rules · 84 Security Checklist items (13 sections)
+55 Prompts (32 NEW ✨) in Prompt_References.md and Prompt_References.html
 16 deliverable files (15 in .ai_prompt/ + deploy-v31.sh at project root) · 4 MCP servers (3 wired + 1 plugin) · Node v22 · pnpm@10
-Phase count: 8 main phases + 2.5 + 2.6 + 2.7 + 2.8 (V31) + 6.5
+Phase count: 8 main phases + 2.5 + 2.6 + 2.7 + 2.8 (V31) + 3.5 (POST-LOCK) + 6.5
 6 agents (Claude Code primary · Cline ⚠ DEPRECATED · Copilot · SpecStory · SocratiCode · code-review-graph)
 9 governance docs (unchanged)
+Planning Assistant: 11 rules (Rule 11 = n8n+OpenClaw automation opt-in)
+```
+
+### V31 post-lock additive patches (must be present in the files listed)
+
+These were added after V31 was locked. No version bump — they are additive patches.
+ChatGPT MUST verify each patch is present in the specified file(s):
+
+```
+1. Phase 3.5 — Execution Plan Generation
+   MUST BE IN: phases.md (full section), Master_Prompt_v31.md (summary + phase menu),
+   CLAUDE_v31_compact.md (phase menu), Framework_Feature_Index_v31.md (V31 row + footer)
+
+2. Phase 4 anti-thrashing rule
+   MUST BE IN: phases.md (full section), Master_Prompt_v31.md (in Phase 4 section)
+
+3. Phase 8 anti-thrashing rule (with completeness check)
+   MUST BE IN: phases.md (full section after batch confirmation),
+   Master_Prompt_v31.md (summary in Phase 8 section)
+
+4. Skill Installer integration
+   MUST BE IN: phases.md (Phase 3.5 section), Framework_Feature_Index_v31.md
+
+5. Prompt 4.13 — Add Automation to Existing Project
+   MUST BE IN: Prompt_References.md (7-step flow), Prompt_References.html (card p-4-13)
+
+6. code-review-graph setup signal
+   MUST BE IN: phases.md (Phase 6 completion + Phase 7 pre-flight Step 0)
+
+7. Attribution order: CLAUDE_CODE first, CLINE removed from active chain
+   MUST BE IN: templates.md (Rule 15 template), Master_Prompt_v31.md (Rule 3 attribution)
+   CLAUDE_v31_compact.md Rule 15 line must NOT list CLINE
+
+8. Prompt count: 55 prompts, 32 NEW ✨
+   MUST BE IN: Master_Prompt_v31.md (changelog), CLAUDE_v31_compact.md (header),
+   Framework_Feature_Index_v31.md (V31 row + footer), Prompt_References.html (hero stat)
+   MUST NOT appear as "54 prompts" or "31 New" anywhere
 ```
 
 ---
@@ -81,7 +133,7 @@ Phase count: 8 main phases + 2.5 + 2.6 + 2.7 + 2.8 (V31) + 6.5
 1.  CLAUDE_v31_compact.md              — compact rules card (~200 lines)
 2.  Master_Prompt_v31.md               — full monolithic prompt (~8000 lines)
 3.  bootstrap.md                       — Phase 0 Bootstrap (18 steps)
-4.  phases.md                          — All phase details (Phases 1–8 + 2.5, 2.6, 2.7, 2.8, 6.5)
+4.  phases.md                          — All phase details (Phases 1–8 + 2.5, 2.6, 2.7, 2.8, 3.5, 6.5 + anti-thrashing rules)
 5.  security.md                        — Secure Code Generation (16 sub-sections)
 6.  ui-rules.md                        — UI Component Rules (10 rules, shadcn/ui enforced)
 7.  scenarios.md                       — Scenarios 1–34 (Scenario 33: DESIGN.md integration; Scenario 34: CREDENTIALS.md Agent-Proof Upgrade)
@@ -344,7 +396,8 @@ Platform foundation is compromised.
 ### SECTION H — Phase 2.8 Technical Correctness (10 items)
 
 ```
-□ H.1  Mockup is single-file HTML (Tailwind CDN + Inter font CDN only)
+□ H.1  Mockup is React (.jsx) primary format (shadcn/ui + Tailwind + Inter font).
+       HTML archive generated in Step 7a after user confirmation.
 □ H.2  shadcn/ui color tokens in HSL format
 □ H.3  Inter font from rsms.me CDN
 □ H.4  showScreen(id) JS function for client-side navigation
@@ -388,6 +441,63 @@ Platform foundation is compromised.
 
 ---
 
+### SECTION J — Post-Lock Additive Patches (12 items)
+
+These patches were applied after V31 was locked. They do NOT trigger a version bump.
+Verify each is present in the specified locations.
+
+```
+□ J.1  Phase 3.5 — Execution Plan Generation section exists in phases.md
+       LOOK FOR: "## PHASE 3.5 — EXECUTION PLAN GENERATION"
+       Must include: 7 steps, output contract, Skill Installer integration
+
+□ J.2  Phase 3.5 summary exists in Master_Prompt_v31.md
+       LOOK FOR: "## PHASE 3.5" between Phase 3 and Phase 4 sections
+       Must include: cross-reference to phases.md, output contract
+
+□ J.3  Phase 3.5 appears in CLAUDE_v31_compact.md phase menu
+       LOOK FOR: "Phase 3.5" line between Phase 3 and Phase 4
+
+□ J.4  Phase 4 anti-thrashing rule exists in phases.md
+       LOOK FOR: "### ⚠ ANTI-THRASHING RULE — MANDATORY (applies to ALL Parts)"
+       Must include: 12-file threshold, module-by-module sub-sessions, Part 8 always subdivides
+
+□ J.5  Phase 4 anti-thrashing rule exists in Master_Prompt_v31.md
+       LOOK FOR: "### ⚠ ANTI-THRASHING RULE" inside Phase 4 section
+
+□ J.6  Phase 8 anti-thrashing rule exists in phases.md
+       LOOK FOR: "### ⚠ ANTI-THRASHING RULE — MANDATORY (applies to ALL Phase 8 Batches)"
+       Must include: 12-file threshold, per-feature sub-batches, CRITICAL PRINCIPLE,
+       completeness check (verifies every user flow, data field, permission guard,
+       validation rule, UI element from PRODUCT.md), STATE.md progress tracking
+
+□ J.7  Phase 8 anti-thrashing summary exists in Master_Prompt_v31.md
+       LOOK FOR: "### ⚠ ANTI-THRASHING RULE" inside Phase 8 section
+       Must include: CRITICAL PRINCIPLE about protecting the build
+
+□ J.8  Prompt 4.13 — Add Automation to Existing Project exists in Prompt_References.md
+       LOOK FOR: "## 4.13 — Add Automation to Existing Project"
+       Must include: 7 sub-steps (4.13.1 through 4.13.7)
+
+□ J.9  Prompt 4.13 card exists in Prompt_References.html
+       LOOK FOR: id="p-4-13"
+
+□ J.10 Prompt count is 55 (not 54) across all files that state a count:
+       Master_Prompt_v31.md, CLAUDE_v31_compact.md, Framework_Feature_Index_v31.md,
+       Prompt_References.html hero stat
+       MUST NOT find "54 prompts" or "31 New" anywhere
+
+□ J.11 Attribution order: CLAUDE_CODE first, CLINE removed from active chain
+       templates.md Rule 15: must show CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
+       CLAUDE_v31_compact.md Rule 15: must NOT list CLINE
+       Master_Prompt_v31.md Rule 3: CLAUDE_CODE → self-reported first
+
+□ J.12 Framework_Feature_Index_v31.md V31 row mentions Phase 3.5, anti-thrashing,
+       Skill Installer, Prompt 4.13, and Phase 8 anti-thrashing
+```
+
+---
+
 ## OUTPUT FORMAT
 
 For each checklist item, report ONE of:
@@ -419,8 +529,9 @@ SECTION F (Foundational Architecture Intact):  [X PASS / Y FAIL / Z PARTIAL]
 SECTION G (Regression Checks):                 [X PASS / Y FAIL / Z PARTIAL]
 SECTION H (Phase 2.8 Technical):               [X PASS / Y FAIL / Z PARTIAL]
 SECTION I (Automation Integration):            [X PASS / Y FAIL / Z PARTIAL]
+SECTION J (Post-Lock Additive Patches):        [X PASS / Y FAIL / Z PARTIAL]
 ───────────────────────────────────────────────────────────
-TOTAL:                                         [X PASS / Y FAIL / Z PARTIAL] out of ~93 items
+TOTAL:                                         [X PASS / Y FAIL / Z PARTIAL] out of ~105 items
 
 TOP 3 CRITICAL FAILS (must fix before release):
 1. [item] — [file] — [fix]
@@ -451,9 +562,11 @@ SECONDARY ISSUES (nice to fix but not blocking):
 
 8. **False positives waste everyone's time.** If you can't find something with evidence, mark PARTIAL and explain — don't fabricate a FAIL.
 
-9. **V31 is additive: Planning Assistant (Phase 2.8 + Rule 11 Automation) + Cline-deprecation-in-place + Scenario 33-34.** Planning Assistant Rule 11 is a Planning Assistant rule — it does NOT increment the framework's 30-rule count. Framework rule count stays at 30.
+9. **V31 is additive: Planning Assistant (Phase 2.8 + Rule 11 Automation) + Cline-deprecation-in-place + Scenario 33-34 + post-lock patches.** Planning Assistant Rule 11 is a Planning Assistant rule — it does NOT increment the framework's 30-rule count. Framework rule count stays at 30. Post-lock patches (Phase 3.5, anti-thrashing, Skill Installer, Prompt 4.13, attribution cleanup) were applied after V31 lock with no version bump.
 
 10. **Memory system verification is critical.** If ANY memory command (Resume Session, Governance Sync, Feature Update, Governance Retro, Log Lesson, Resume from handoff) appears broken or has stale Cline routing as primary, flag as F.7 FAIL immediately — this is Bonito's most important concern.
+
+11. **Post-lock patches are NOT a new version.** They are additive changes applied to V31 files without bumping to V32. ChatGPT should verify they exist in the correct files (Section J) but should NOT flag them as version inconsistencies. Phase 3.5 is a new phase — verify it appears in phase menus and counts. Anti-thrashing rules are in Phase 4 and Phase 8 sections. Prompt count is 55 (not 54). Attribution chain is CLAUDE_CODE first (not CLINE).
 
 ---
 

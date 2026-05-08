@@ -49,7 +49,7 @@ Rule 11  Feature removal = full cleanup — delete files + down-migration + conf
 Rule 12  TypeScript strict everywhere — no any types, no .js in src/
 Rule 13  Multi-app monorepo — mobile never imports packages/db, API only
 Rule 14  OSS-first — Valkey, Auth.js, Keycloak, MinIO. Avoid proprietary per-user fees
-Rule 15  Agent attribution — every CHANGELOG_AI entry states CLINE/CLAUDE_CODE/COPILOT/HUMAN
+Rule 15  Agent attribution — every CHANGELOG_AI entry states CLAUDE_CODE/COPILOT/HUMAN
 Rule 16  Visual QA — browser check after Phase 6 + major Phase 7 updates
 Rule 17  Search before reading — codebase_search first, then open files
 Rule 18  Typed lessons.md — 🔴 gotcha, 🟡 fix, 🟤 decision, ⚖️ tradeoff, 🟢 change

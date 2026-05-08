@@ -183,7 +183,7 @@ SECTION I — Infrastructure
 □ Git worktrees for Phase 4 Parts? (default: yes — cleaner isolation per Part)
 □ Model routing for Claude Code tasks:
   - Planning/Phase 2: Claude Code (auto)
-  - Execution/Phase 4-8: [default: MiniMax M2.5 via OpenRouter — free tier]
+  - Execution/Phase 4-8: [default: Claude Sonnet 4.6 via Claude Code]
   - Governance writes: [default: Gemini Flash-Lite — cheapest]
   → Lock these in DECISIONS_LOG.md under "Model routing"
 
@@ -506,7 +506,7 @@ Cheap to generate (single HTML file, ~90 seconds), expensive to skip (misinterpr
 1. Parses the just-written PRODUCT.md — extracts every declared screen
 2. Classifies into Tier 1 (5-8 critical screens, full fidelity) vs Tier 2 (remaining screens, simplified placeholders)
 3. Selects an industry-appropriate dummy data theme (ERP / Fisheries / Inventory / Healthcare / Education / Fintech / Government / Other)
-4. Generates a single-file HTML mockup using shadcn/ui conventions (Tailwind CDN + Inter font + shadcn CSS variable color tokens)
+4. Generates a clickable React (.jsx) mockup using shadcn/ui conventions (Tailwind + Inter font + shadcn CSS variable color tokens); HTML archive version generated after user confirmation (Step 7a)
 5. Delivers as Claude.ai artifact + downloadable HTML file
 6. Asks 3 alignment questions covering navigation structure, primary workflow, data display
 7. Handles user response — confirmed, change request, expand Tier-2-to-Tier-1, or skip
@@ -1191,7 +1191,7 @@ Generate:
       use_worktrees: true
     models:
       planning:   claude-code
-      execution:  minimax-m2.5
+      execution:  claude-sonnet-4-6
       governance: gemini-2.5-flash-lite
     ```
 5c. `inputs.yml` docker section (UPDATED V22):
@@ -1372,7 +1372,394 @@ IF ANY item fails → Phase 3 = INCOMPLETE → fix before proceeding → do not 
 
 Output after completion:
 > ✅ Phase 3 complete. Spec files generated.
-> **Open Claude Code and say "Start Phase 4". Claude Code runs Part 1. After each Part: STOP. Human opens next Part in a new session.**
+> **Next: Phase 3.5 generates the Execution Plan, then you start Phase 4.**
+
+---
+
+## PHASE 3.5 — EXECUTION PLAN GENERATION (AUTO — runs at end of Phase 3)
+**Who:** Claude Code (auto-runs after Phase 3 output contract passes) | **Where:** VS Code — Claude Code terminal
+
+**Purpose:** Analyze PRODUCT.md complexity and predict context cost per task BEFORE
+Phase 4 starts. Generates a pre-computed execution plan that right-sizes every session
+to stay well within context limits. Prevention, not reaction.
+
+**Philosophy:** Many small sessions that complete cleanly with confidence are infinitely
+better than fewer large sessions that thrash and produce broken code. Extra sessions
+cost minutes. Thrashing costs hours of debugging and rework.
+
+**Trigger:** Runs automatically at the end of Phase 3 — no human prompt needed.
+
+### Step 1 — PRODUCT.md Complexity Scan
+
+Scan the entire PRODUCT.md and build a complexity profile:
+```
+METRICS:
+  entities:        [count all entities in Data Entities section]
+  modules:         [count all ### Module headings in Modules + Features]
+  pages:           [count all declared pages/screens]
+  trpc_routers:    [estimate: 1 per module + shared utilities]
+  bullmq_queues:   [count all background job declarations]
+  integrations:    [count external services: payment, email, SMS, n8n, OpenClaw]
+  mobile_first:    [count pages marked "Mobile First" in Mobile Needs]
+  mobile_ready:    [count pages marked "Mobile Ready"]
+  cross_module:    [count entities referenced by 3+ modules — high coupling]
+
+MODULE BREAKDOWN (per module):
+  [ModuleName]:
+    entities: [N]
+    pages: [N]
+    has_complex_logic: [yes/no — financial calculations, state machines, approval flows]
+    depends_on: [list of other modules this module imports from]
+    estimated_files: [N]
+```
+
+### Step 2 — Context Cost Estimation
+
+For each task that Claude Code will perform, estimate the context cost:
+
+```
+CONTEXT BUDGET per session: 120K tokens (safe ceiling — leaves 80K buffer in 200K window)
+
+COST ESTIMATION FORMULA per sub-session:
+  read_cost:
+    + STATE.md + execution-plan.md          ~2K tokens (always loaded)
+    + governance docs (lessons.md, etc.)     ~5K tokens (always loaded)
+    + PRODUCT.md section for this module     ~[lines × 4] tokens
+    + Prisma models for this module          ~[entity_count × 200] tokens
+    + Existing files to read as reference    ~[file_count × 300] tokens
+  write_cost:
+    + New files to generate                  ~[file_count × 500] tokens
+    + Test files                             ~[test_count × 400] tokens
+  tool_cost:
+    + Terminal commands (lint, typecheck)     ~3K tokens per run
+    + Git operations                         ~1K tokens
+  conversation_cost:
+    + Agent reasoning + error correction     ~15K tokens overhead
+
+  TOTAL ESTIMATED = read_cost + write_cost + tool_cost + conversation_cost
+
+  IF TOTAL ESTIMATED > 100K → SPLIT FURTHER (must subdivide this sub-session)
+  IF TOTAL ESTIMATED > 80K  → AT RISK (flag as "tight" — may need mid-session /clear)
+  IF TOTAL ESTIMATED ≤ 80K  → SAFE (comfortable margin)
+```
+
+### Step 3 — Task Decomposition
+
+Decompose ALL Phase 4 work into granular tasks, then group into sessions:
+
+```
+TASK TYPES (each is one atomic unit of work):
+  SCHEMA:     Define Prisma models for [N] entities → generates schema.prisma sections
+  ROUTER:     Build tRPC router for [Module] → router file + input validators
+  SERVICE:    Build business logic for [Module] → service files (if complex logic)
+  UI_LAYOUT:  Build app shell → layout, sidebar, header, footer, theme provider
+  UI_MODULE:  Build all pages for [Module] → list, detail, create, edit pages
+  UI_SHARED:  Build shared components → DataTable, forms, modals, filters
+  JOBS:       Build BullMQ workers for [queue list]
+  MOBILE_FDN: Expo scaffold + navigation + auth + theme
+  MOBILE_DB:  WatermelonDB schema + sync engine
+  MOBILE_MOD: Build mobile screens for [Module] (Mobile First only)
+  INFRA:      Docker compose, CI, deploy scripts
+  GOVERNANCE: MANIFEST.txt, SocratiCode index, final governance sweep
+
+GROUPING RULES:
+  1. Each session gets tasks totaling ≤80K estimated context (SAFE zone)
+  2. Never mix ROUTER + UI_MODULE in the same session (different mental context)
+  3. Schema tasks can be grouped — they're read-heavy but write-light
+  4. Complex logic modules (financial calculations, state machines) get their
+     own session — never grouped with other modules
+  5. Modules with high cross_module coupling: build the dependency first
+  6. UI_SHARED must come before any UI_MODULE sessions
+  7. MOBILE_FDN → MOBILE_DB → MOBILE_MOD (strict order, never parallel)
+```
+
+### Step 4 — Dependency Ordering
+
+Order all sessions respecting dependencies:
+```
+HARD DEPENDENCIES (must follow this order):
+  Part 1 (config)       → before everything
+  Part 2 (shared/api)   → before routers
+  SCHEMA tasks          → before ROUTER tasks
+  ROUTER tasks          → before UI_MODULE tasks
+  UI_SHARED             → before UI_MODULE tasks
+  UI_LAYOUT             → before UI_MODULE tasks
+  All web UI            → before INFRA (compose needs to know ports/services)
+  MOBILE_FDN            → MOBILE_DB → MOBILE_MOD
+  Everything            → before GOVERNANCE (final sweep)
+
+SOFT DEPENDENCIES (recommended but not blocking):
+  Core modules (the primary workflow) → before secondary modules
+  Simple modules → before complex modules (build momentum, catch patterns early)
+  Modules with fewer dependencies → before highly coupled modules
+```
+
+### Step 5 — Write Execution Plan
+
+Write `.cline/tasks/execution-plan.md` with this format:
+```markdown
+# Phase 4 Execution Plan — [AppName]
+Generated: [timestamp]
+
+## Complexity Profile
+| Metric | Count | Impact |
+|--------|-------|--------|
+| Entities | [N] | [SMALL ≤15 / MEDIUM 16-40 / LARGE 41+] |
+| Modules | [N] | [SMALL ≤8 / MEDIUM 9-15 / LARGE 16+] |
+| Pages | [N] | [SMALL ≤30 / MEDIUM 31-60 / LARGE 61+] |
+| BullMQ Queues | [N] | |
+| Mobile First pages | [N] | |
+| Cross-module entities | [N] | [HIGH if >5 — increases read cost per session] |
+| **Overall** | | **[SMALL / MEDIUM / LARGE / ENTERPRISE]** |
+
+## Session Schedule
+
+### Part 1 — Root config
+| Session | Tasks | Est. Files | Est. Context | Risk |
+|---------|-------|-----------|-------------|------|
+| 1 | Root config (standard) | 6 | ~25K | ✅ SAFE |
+
+### Part 2 — Shared packages
+| Session | Tasks | Est. Files | Est. Context | Risk |
+|---------|-------|-----------|-------------|------|
+| 2 | shared + api-client | 8 | ~30K | ✅ SAFE |
+
+### Part 3 — Database + tRPC routers
+| Session | Tasks | Est. Files | Est. Context | Risk |
+|---------|-------|-----------|-------------|------|
+| 3a | SCHEMA: all entities | [N] | ~[N]K | [risk] |
+| 3b | ROUTER: [ModuleA] ([N] entities) | [N] | ~[N]K | [risk] |
+| 3c | ROUTER: [ModuleB] ([N] entities, complex logic) | [N] | ~[N]K | [risk] |
+| 3d | ROUTER: [ModuleC] + [ModuleD] ([N] entities) | [N] | ~[N]K | [risk] |
+
+### Part 5 — Web UI
+| Session | Tasks | Est. Files | Est. Context | Risk |
+|---------|-------|-----------|-------------|------|
+| 5a | UI_LAYOUT + UI_SHARED | [N] | ~[N]K | [risk] |
+| 5b | UI_MODULE: Dashboard | [N] | ~[N]K | [risk] |
+| 5c | UI_MODULE: [ModuleA] | [N] | ~[N]K | [risk] |
+
+[...continue for all Parts...]
+
+### Part 8 — Mobile
+| Session | Tasks | Est. Files | Est. Context | Risk |
+|---------|-------|-----------|-------------|------|
+| 8a | MOBILE_FDN: scaffold + nav + auth | [N] | ~[N]K | [risk] |
+| 8b | MOBILE_DB: WatermelonDB + sync | [N] | ~[N]K | [risk] |
+| 8c | Push notifications | [N] | ~[N]K | [risk] |
+| 8d | MOBILE_MOD: [ModuleA] screens | [N] | ~[N]K | [risk] |
+
+## Summary
+| Metric | Value |
+|--------|-------|
+| Total sessions | [N] |
+| Sessions marked SAFE (≤80K) | [N] |
+| Sessions marked AT RISK (80-100K) | [N] |
+| Sessions marked MUST SPLIT (>100K) | [should be 0 — if not, re-split] |
+| Estimated total build time | [N sessions × ~45 min avg] |
+
+## Read Rules per Session
+Each session MUST follow these read constraints:
+- Read ONLY the PRODUCT.md sections listed in the session's task assignment
+- Read ONLY the Prisma models for entities in the current module
+- Read ONLY existing files that the current task directly imports from
+- Do NOT scan directories — read specific files by path
+- Do NOT read files from modules not assigned to this session
+```
+
+### Step 6 — Skill Activation Plan
+
+Based on the complexity profile and task decomposition, recommend which Claude Code
+skills to activate for each phase. Skills give Claude Code domain-specific expertise
+that improves planning accuracy and code quality per session.
+
+**Skill source:** https://aiskills.powerbyte.app/ (116+ skills, 601-skill library via /scan-project)
+**Prompt reference:** https://aiskills.powerbyte.app/prompt-reference.html
+
+**Installation workflow (at each phase transition):**
+1. Run `/scan-project` in Claude Code — let it run all 5 phases (scan → match →
+   conflict detection → install commands → interactive approval). Do NOT interfere.
+2. AFTER `/scan-project` finishes and you approve its recommendations, check the
+   framework's required skill list below. If any required skill was NOT installed
+   by `/scan-project`, install it manually.
+3. Run `check for skill conflicts` to verify no conflicts exist.
+4. Report to the human: "Skills active: [list]. Framework additions: [list of any
+   skills added in step 2 that /scan-project didn't suggest]."
+
+**Session discipline (from Skill Installer ecosystem):**
+- Start every session with: `catch me up` or `resume session` — loads full context
+  from memory, checks git log, summarizes current state
+- End every session with: `save session` — distills everything into memory files
+  (code changes, decisions, patterns, dev history). Run BEFORE closing.
+- These replace our custom pause/resume prompts for projects with the Skill Installer active.
+  For projects WITHOUT the Skill Installer, use the original pause/resume from prompt 2.10.
+
+**CRITICAL — Bundle inheritance (do NOT install these separately):**
+- `superpowers` bundle INCLUDES: systematic-debugging, root-cause-tracing, TDD,
+  brainstorming, verification, git-worktrees, finishing-branch, parallel-agents,
+  code-review requesting/receiving. Do NOT install these individually.
+- `code-review-graph` bundle INCLUDES: debug-issue, explore-codebase, refactor-safely.
+- `claude-skills-65` INCLUDES: individual framework skills (react-expert, nestjs-expert, etc.)
+
+**CRITICAL — Conflict registry (verified conflict-free):**
+- `socraticode` (our MCP server) + `code-review-graph` (Primary Group) = VALID
+  because SocratiCode runs as MCP-only alongside code-review-graph as active skill.
+- All skills below are checked against the Pairwise Conflict and Mutual Exclusion
+  registries — no conflicts.
+
+**Phase 3.5 generates this schedule in the execution plan. Claude Code follows it.**
+
+```markdown
+## Skill Activation Schedule
+
+### Primary Group (6 always-on slots — install ONCE, active across all phases)
+
+Run in Claude Code:
+  /scan-project
+
+The Skill Installer's Skillpilot will auto-detect your project type (Solo Full-Stack)
+and suggest the Primary Group. Let it install, then verify these 6 slots are filled:
+
+| Slot | Skill | Purpose |
+|------|-------|---------|
+| 1 | superpowers | Foundational toolkit — TDD, debugging, brainstorming, git, parallel agents (replaces 8 skills) |
+| 2 | code-review-graph | Codebase awareness — SQLite knowledge graph, blast radius, 28 MCP tools |
+| 3 | planning-with-files | Strategic thinking — persistent plans that survive sessions (ideal for execution-plan.md) |
+| 4 | frontend-design + design-auditor + owasp-security | Frontend intelligence — design + validate + secure in one pass |
+| 5 | git-pushing | Workflow — commit discipline, push safety, context preservation |
+| 6 | claude-skills-65 | Multi-framework (optional) — 65 skills for 30+ frameworks |
+
+These cover the majority of what every phase needs. The per-phase additions below
+are supplementary skills beyond the Primary Group.
+
+### Phase 4 Part 3 (schema + tRPC routers) — verify before first Part 3 session
+
+Run: /scan-project (re-scan — codebase has changed since bootstrap)
+
+Verify these supplementary skills are also active:
+
+| Skill | Layer | Why |
+|-------|-------|-----|
+| postgres | Database | Read-only DB queries — verify schema after migration, inspect seed data |
+
+Note: owasp-security is already in Primary Group Slot 4.
+Note: TDD enforcement is already in superpowers (Slot 1).
+
+### Phase 4 Parts 5-6 (Web UI) — verify before first Part 5 session
+
+Run: /scan-project (re-scan — routers are now built)
+
+Verify these supplementary skills are also active:
+
+| Skill | Layer | Why |
+|-------|-------|-----|
+| oiloil-ui-ux-guide | UX guidance | Task-first UX, HCI laws, interaction psychology |
+| playwright-skill | Testing | E2E + component + visual + a11y testing per module |
+
+Note: design-auditor and frontend-design are already in Primary Group Slot 4.
+Note: vercel-agent-skills may be suggested by /scan-project for Next.js projects — accept it.
+
+### Phase 4 Part 7 (Docker + infrastructure) — conditional
+
+| Skill | Layer | Why | When |
+|-------|-------|-----|------|
+| aws-skills | Infrastructure | CDK best practices, cost optimization | Only if AWS deployment declared |
+
+### Phase 5 (Validation) — verify before starting Phase 5
+
+Run: /scan-project (re-scan — full app is now built)
+
+Verify this supplementary skill is active:
+
+| Skill | Layer | Why |
+|-------|-------|-----|
+| test-fixing | Testing | Smart error grouping — systematic repair of all failing tests |
+
+Note: systematic-debugging is already in superpowers (Slot 1).
+
+### Phase 6 + 6.5 (Docker + Visual QA + Error Triage)
+
+| Skill | Layer | Why |
+|-------|-------|-----|
+| postgres | Database | Query live DB to verify migrations, seeds, data integrity |
+
+Note: debug-issue and root-cause-tracing are already in superpowers (Slot 1) and
+code-review-graph (Slot 2). Do NOT install debug-skill separately — it conflicts
+with the superpowers bundle.
+
+### Phase 7 (Feature Updates) — all previous skills remain active, add:
+
+| Skill | Layer | Why |
+|-------|-------|-----|
+| review-implementing | Code review | Systematic code review feedback implementation |
+
+Note: code-review requesting/receiving is already in superpowers (Slot 1).
+Note: blast radius analysis is already in code-review-graph (Slot 2).
+```
+
+**Skill activation rules:**
+- `/scan-project` runs FIRST at each phase transition — let it do its full 5-phase
+  analysis and install whatever it recommends without interference
+- AFTER `/scan-project` finishes, check the framework's required list above and
+  install any missing supplementary skills manually
+- Run `check for skill conflicts` after any manual installation
+- Skills persist across sessions once installed — no need to reinstall per sub-session
+- `/scan-project` may install additional skills beyond the framework's list — that's
+  fine, more context = better decisions for Claude Code
+- If `/scan-project` suggests removing a skill from the framework's required list,
+  keep the framework's skill — it supplements, the framework decides the minimum
+- Use `what skills are active?` at any time to verify the current skill profile
+- Use `optimize my skill set` if sessions feel sluggish — may suggest MCP-only
+  conversions to reduce token overhead
+
+### Step 7 — Human Review
+
+Output:
+```
+📋 Phase 4 Execution Plan generated → .cline/tasks/execution-plan.md
+
+COMPLEXITY: [SMALL/MEDIUM/LARGE/ENTERPRISE]
+  [X] entities · [Y] modules · [Z] pages
+
+SESSION SCHEDULE:
+  Part 1:  1 session  (standard)
+  Part 2:  1 session  (standard)
+  Part 3:  [N] sessions (schema + routers, split by module)
+  Part 5:  [N] sessions (web UI, split by module)
+  Part 7:  1 session  (standard)
+  Part 8:  [N] sessions (mobile, split by layer + module)
+  ─────────────────────
+  TOTAL:   [N] sessions
+
+CONTEXT SAFETY:
+  ✅ SAFE:     [N] sessions
+  ⚠  AT RISK:  [N] sessions (flagged — may need mid-session adjustment)
+  🔴 MUST SPLIT: [should be 0]
+
+Review the plan. Then say "Start Part 1" to begin Phase 4.
+Options:
+  • "Start Part 1" — accept and begin
+  • "Split [session] further" — subdivide a specific session
+  • "Combine [sessionA] and [sessionB]" — merge if you think they're small enough
+  • "Show me [Part N] details" — see the full task list for a specific Part
+```
+
+### Phase 3.5 Output Contract
+```
+□ .cline/tasks/execution-plan.md exists with full session schedule
+□ Every session estimates ≤80K context (SAFE) — no session exceeds 100K
+□ Complex-logic modules have their own dedicated sessions
+□ Part 8 (Mobile) is ALWAYS sub-divided if mobile is declared
+□ Dependency ordering is respected (schema → routers → UI → infra)
+□ Read rules are specified per session (which PRODUCT.md sections, which files)
+□ Skill activation schedule is included with Required/Recommended/Conditional ratings
+□ All "Required" pre-build skills are installed before Phase 4 begins
+□ Human has reviewed and approved (or adjusted) the plan
+□ STATE.md updated: PHASE="Phase 3.5 complete — Execution Plan ready"
+```
+─────────────────────────────────────────────────────────
+
+> **Open Claude Code and say "Start Phase 4". Claude Code reads execution-plan.md and runs the first session. After each session: STOP. Human opens next session.**
 
 ---
 
@@ -1381,7 +1768,71 @@ Output after completion:
 
 Each Part runs in a FRESH Claude Code session (Rule 24 — prevents context accumulation).
 Each Part stays under ~3,000 lines of context for best reliability.
-Each Part: reads STATE.md first → branches → builds → validates → squash-merges → STOPS.
+Each Part: reads STATE.md first → reads `.cline/tasks/execution-plan.md` for sub-division assignments → branches → builds → validates → squash-merges → STOPS.
+
+**IMPORTANT:** If `.cline/tasks/execution-plan.md` exists and shows sub-divisions for
+the current Part, follow the sub-division plan. Build ONLY the modules assigned to this
+sub-session. Do NOT build the entire Part in one session if the plan says to split it.
+
+**SKILL CHECK:** At the start of each phase transition (Part 3, Part 5, Phase 5, Phase 6),
+run `/scan-project` in Claude Code to verify skills are current. Check the Skill Activation
+Schedule in `.cline/tasks/execution-plan.md` for the minimum required set. Skills persist
+across sessions once installed — no need to reinstall per sub-session.
+
+### ⚠ ANTI-THRASHING RULE — MANDATORY (applies to ALL Parts)
+
+**Problem:** On large apps (15+ entities, 10+ modules), Parts 3-6 and Part 8 can trigger
+"Autocompact is thrashing" — the context window fills within 3 turns because Claude Code
+tries to read the entire PRODUCT.md + entire codebase at once.
+
+**Rule:** At the START of every Part, BEFORE writing any code, Claude Code MUST:
+
+1. Count the number of modules/entities relevant to this Part from PRODUCT.md
+2. IF the Part scope exceeds 12 files to create/modify → the Part MUST be sub-divided
+   into module-by-module sessions. Do NOT attempt to build everything in one session.
+3. Report the sub-division plan to the human:
+   ```
+   ⚠ Part [N] scope assessment: [X] modules, ~[Y] files to create.
+   This exceeds the 12-file threshold. Splitting into sub-sessions:
+     Part [N]a — [ModuleName]: [list of files]
+     Part [N]b — [ModuleName]: [list of files]
+     Part [N]c — [ModuleName]: [list of files]
+     ...
+   Starting with Part [N]a. I'll commit and stop after each sub-session.
+   ```
+4. IF the Part scope is ≤12 files → proceed normally as a single session.
+5. The human may also FORCE sub-division at any time by saying:
+   "Split this Part by module" — even if the threshold is not reached.
+
+**Per sub-session rules (when sub-divided):**
+- Read ONLY the PRODUCT.md sections for the current module — do NOT read the entire file
+- Read ONLY the files relevant to the current module (routers, models, pages)
+- If you need a shared component or utility, read ONLY that single file — not the directory
+- Build all files for this module, then run tests for this module
+- Commit with message: "feat([part-scope]): [ModuleName] [what was built]"
+- Update STATE.md with "Phase 4 Part [N] — [ModuleName] DONE, [remaining modules list]"
+- STOP. Do NOT start the next module. Human opens a new session.
+
+**Part 8 (Mobile) special handling:** Part 8 MUST ALWAYS be sub-divided regardless of
+entity count, because it involves platform setup (Expo scaffold, WatermelonDB, push
+notifications) plus per-module screen builds. Sub-divide as:
+- 8a: Expo project scaffold + navigation + auth flow + theme provider
+- 8b: WatermelonDB schema + sync engine + conflict resolution
+- 8c: Push notification setup (Expo Push)
+- 8d onward: One "Mobile First" module per session (skip "Mobile Ready" pages — 
+  those are handled by responsive web in Parts 5-6)
+
+**If thrashing occurs mid-session despite sub-division:**
+1. Immediately run `/clear` to reset context
+2. Update STATE.md with exact progress (which files done, which pending)
+3. Write a handoff note to `.cline/handoffs/`
+4. Commit all work done so far
+5. STOP — human opens a new session with narrower scope
+
+This rule exists because: many small commits that complete cleanly are infinitely better
+than one large session that thrashes and produces broken or incomplete code.
+
+---
 
 Trigger: Open `.cline/tasks/phase4-part1.md` in a new Claude Code session → say "Start Part 1"
 (Note: `.cline/tasks/` directory name preserved for historical continuity — Claude Code reads these task files.)
@@ -2663,8 +3114,8 @@ Phase 7 — the daily loop. Each Feature Update is its own cycle.
 ```
 
 **Why human-triggered:** Gives you a natural checkpoint between phases. You can pause,
-inspect outputs, fix environment issues, or take a break. MiniMax M2.5 also performs
-better with fresh context per phase rather than accumulating context across phase boundaries.
+inspect outputs, fix environment issues, or take a break. Fresh context per phase
+produces better results than accumulating context across phase boundaries.
 
 **Triggers:**
 ```
@@ -2850,6 +3301,23 @@ After Phase 6 completes, output EXACTLY:
 
   Run: cat .env.dev | grep _PORT   to see all assigned ports.
 
+⚡ CODE-REVIEW-GRAPH SETUP (run now — required before Phase 7):
+  → In your WSL2 terminal (not Claude Code), run:
+    cd /path/to/your/project
+    code-review-graph build
+  → This indexes the entire codebase into a SQLite knowledge graph.
+  → Takes 1-3 minutes depending on codebase size.
+  → After this, Claude Code can use blast radius analysis before every
+    Feature Update — knowing exactly which files a change will affect.
+  → See: https://github.com/tirth8205/code-review-graph
+
+  Verify it worked:
+    code-review-graph status
+  → Should show: indexed files count, last build timestamp.
+
+  If code-review-graph is not installed:
+    See Scenario 21 in the framework for installation instructions.
+
 Next steps:
 → To add features:    edit docs/PRODUCT.md → say "Feature Update" in Claude Code
 → To see what's left: say "Start Phase 8" in Claude Code
@@ -2904,6 +3372,15 @@ Edit PRODUCT.md → trigger Phase 7 → agents implement everything and keep gov
 
 **PRE-FLIGHT CHECK — MANDATORY before Phase 7 sequence (NEW V21):**
 ```
+0. code-review-graph check:
+   IF .code-review-graph/ directory exists:
+   → Good — blast radius analysis is available for this Feature Update.
+   IF .code-review-graph/ directory does NOT exist:
+   → Output WARNING: "code-review-graph is not set up. Blast radius analysis
+     will not be available. Run 'code-review-graph build' in WSL2 terminal
+     to enable it. Continuing without it — using codebase_search as fallback."
+   → Continue (not blocking — but blast radius won't be available).
+
 1. inputs.yml existence check:
    IF inputs.yml does not exist:
    → Output GAP_REPORT: SECTION: inputs.yml  PROBLEM: File missing — Phase 7 cannot run
@@ -3066,6 +3543,82 @@ Reply "confirmed" to begin.
 Wait for confirmation — do NOT start building until confirmed.
 On confirmation: run Phase 7 Feature Update for each item in the batch.
 After each batch: update all governance docs. Show updated "Not yet built" list.
+
+### ⚠ ANTI-THRASHING RULE — MANDATORY (applies to ALL Phase 8 Batches)
+
+**Problem:** On large apps with many modules, Phase 8 batches trigger "Autocompact is thrashing"
+because Claude Code tries to read the full PRODUCT.md + full codebase + all governance docs
+at once, filling the 120K context window within 2-3 turns. Features get silently dropped,
+code gets generated incomplete, or the session produces broken output.
+
+**CRITICAL PRINCIPLE:** Anti-thrashing exists to PROTECT the build, not to shortcut it.
+Every feature in PRODUCT.md MUST be built — splitting into sub-batches changes HOW MANY
+things are built per session, never WHAT gets built. Skipping or deferring features
+without explicit human approval is a governance violation.
+
+**Rule:** AFTER the batch is confirmed but BEFORE writing any code, Claude Code MUST:
+
+1. **Scope assessment** — list every file that will be created or modified across ALL items
+   in this batch (routers, services, pages, components, tests, migrations, types)
+2. IF the batch scope exceeds 12 files to create/modify → the batch MUST be sub-divided
+   into per-feature sub-batches. Do NOT attempt to build multiple features in one session.
+3. Report the sub-division plan:
+   ```
+   ⚠ Phase 8 Batch [N] scope assessment: [X] features, ~[Y] files total.
+   This exceeds the 12-file threshold. Splitting into sub-batches:
+     Batch [N]-1 — [FeatureName]: [list of files]
+     Batch [N]-2 — [FeatureName]: [list of files]
+     Batch [N]-3 — [FeatureName]: [list of files]
+   Starting with Batch [N]-1. I'll commit and stop after each sub-batch.
+   ```
+4. IF the batch scope is ≤12 files → proceed as a single session.
+5. The human may also FORCE sub-division at any time by saying:
+   "Split this batch by feature" — even if the threshold is not reached.
+
+**Per sub-batch rules (when sub-divided):**
+- Read ONLY the PRODUCT.md sections for the current feature — do NOT read the entire file
+- Read ONLY the codebase files relevant to the current feature
+- If you need a shared component or utility, read ONLY that single file — not the whole directory
+- Cross-reference against PRODUCT.md before completing: verify every field, validation rule,
+  permission, and UI element described for this feature is actually implemented
+- Run tests for this feature
+- Update governance docs for this feature (CHANGELOG_AI, IMPLEMENTATION_MAP, agent-log)
+- Commit with message: "feat([feature-slug]): [what was built]"
+- Update STATE.md with:
+  ```
+  Phase 8 Batch [N] progress:
+    ✅ [N]-1 [FeatureName] — DONE ([files created/modified])
+    ⬜ [N]-2 [FeatureName] — REMAINING
+    ⬜ [N]-3 [FeatureName] — REMAINING
+  Dependencies for next sub-batch: [any shared code or DB changes this sub-batch created
+  that the next one needs to know about]
+  ```
+- STOP. Do NOT start the next feature. Human opens a new session.
+
+**Completeness check (MANDATORY before marking a sub-batch DONE):**
+Before committing, Claude Code MUST re-read the PRODUCT.md section for the current feature
+and verify:
+  □ Every user flow described is implemented (happy path + error states)
+  □ Every data field in the entity is present in the Prisma schema, tRPC router, and UI form
+  □ Every permission/role guard matches the Roles & Permissions table
+  □ Every validation rule in the spec has a matching Zod schema
+  □ Every UI element described (buttons, tables, filters, modals) exists in the page
+  □ If the feature connects to another module, the integration point is wired
+IF any item is missing → implement it before committing. Do NOT leave it for a future batch
+unless the human explicitly says to defer it.
+
+**If thrashing occurs mid-session despite sub-division:**
+1. Immediately run `/clear` to reset context
+2. Update STATE.md with exact progress (which files done, which pending for THIS feature)
+3. Write a handoff note to `.cline/handoffs/` with: what's done, what's remaining,
+   any partial code that needs completion
+4. Commit all work done so far (even if incomplete — partial progress > lost progress)
+5. STOP — human opens a new session with narrower scope for the remaining work
+
+**Why this matters:** Phase 8 batches that thrash produce the most dangerous kind of bug —
+features that LOOK complete in IMPLEMENTATION_MAP.md but are actually missing validations,
+permission guards, error states, or entire user flows. The completeness check catches this
+before it becomes invisible tech debt.
 
 **Adaptive replanning after each batch (NEW V14 — from GSD-2):**
 After every batch completes, BEFORE proposing the next batch:

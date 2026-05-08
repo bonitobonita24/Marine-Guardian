@@ -506,7 +506,7 @@ Cheap to generate (single HTML file, ~90 seconds), expensive to skip (misinterpr
 1. Parses the just-written PRODUCT.md — extracts every declared screen
 2. Classifies into Tier 1 (5-8 critical screens, full fidelity) vs Tier 2 (remaining screens, simplified placeholders)
 3. Selects an industry-appropriate dummy data theme (ERP / Fisheries / Inventory / Healthcare / Education / Fintech / Government / Other)
-4. Generates a single-file HTML mockup using shadcn/ui conventions (Tailwind CDN + Inter font + shadcn CSS variable color tokens)
+4. Generates a clickable React (.jsx) mockup using shadcn/ui conventions (Tailwind + Inter font + shadcn CSS variable color tokens); HTML archive version generated after user confirmation (Step 7a)
 5. Delivers as Claude.ai artifact + downloadable HTML file
 6. Asks 3 alignment questions covering navigation structure, primary workflow, data display
 7. Handles user response — confirmed, change request, expand Tier-2-to-Tier-1, or skip
@@ -1711,8 +1711,6 @@ Note: blast radius analysis is already in code-review-graph (Slot 2).
 - Use `what skills are active?` at any time to verify the current skill profile
 - Use `optimize my skill set` if sessions feel sluggish — may suggest MCP-only
   conversions to reduce token overhead
-
-### Step 7 — Human Review
 
 ### Step 7 — Human Review
 
@@ -3545,6 +3543,82 @@ Reply "confirmed" to begin.
 Wait for confirmation — do NOT start building until confirmed.
 On confirmation: run Phase 7 Feature Update for each item in the batch.
 After each batch: update all governance docs. Show updated "Not yet built" list.
+
+### ⚠ ANTI-THRASHING RULE — MANDATORY (applies to ALL Phase 8 Batches)
+
+**Problem:** On large apps with many modules, Phase 8 batches trigger "Autocompact is thrashing"
+because Claude Code tries to read the full PRODUCT.md + full codebase + all governance docs
+at once, filling the 120K context window within 2-3 turns. Features get silently dropped,
+code gets generated incomplete, or the session produces broken output.
+
+**CRITICAL PRINCIPLE:** Anti-thrashing exists to PROTECT the build, not to shortcut it.
+Every feature in PRODUCT.md MUST be built — splitting into sub-batches changes HOW MANY
+things are built per session, never WHAT gets built. Skipping or deferring features
+without explicit human approval is a governance violation.
+
+**Rule:** AFTER the batch is confirmed but BEFORE writing any code, Claude Code MUST:
+
+1. **Scope assessment** — list every file that will be created or modified across ALL items
+   in this batch (routers, services, pages, components, tests, migrations, types)
+2. IF the batch scope exceeds 12 files to create/modify → the batch MUST be sub-divided
+   into per-feature sub-batches. Do NOT attempt to build multiple features in one session.
+3. Report the sub-division plan:
+   ```
+   ⚠ Phase 8 Batch [N] scope assessment: [X] features, ~[Y] files total.
+   This exceeds the 12-file threshold. Splitting into sub-batches:
+     Batch [N]-1 — [FeatureName]: [list of files]
+     Batch [N]-2 — [FeatureName]: [list of files]
+     Batch [N]-3 — [FeatureName]: [list of files]
+   Starting with Batch [N]-1. I'll commit and stop after each sub-batch.
+   ```
+4. IF the batch scope is ≤12 files → proceed as a single session.
+5. The human may also FORCE sub-division at any time by saying:
+   "Split this batch by feature" — even if the threshold is not reached.
+
+**Per sub-batch rules (when sub-divided):**
+- Read ONLY the PRODUCT.md sections for the current feature — do NOT read the entire file
+- Read ONLY the codebase files relevant to the current feature
+- If you need a shared component or utility, read ONLY that single file — not the whole directory
+- Cross-reference against PRODUCT.md before completing: verify every field, validation rule,
+  permission, and UI element described for this feature is actually implemented
+- Run tests for this feature
+- Update governance docs for this feature (CHANGELOG_AI, IMPLEMENTATION_MAP, agent-log)
+- Commit with message: "feat([feature-slug]): [what was built]"
+- Update STATE.md with:
+  ```
+  Phase 8 Batch [N] progress:
+    ✅ [N]-1 [FeatureName] — DONE ([files created/modified])
+    ⬜ [N]-2 [FeatureName] — REMAINING
+    ⬜ [N]-3 [FeatureName] — REMAINING
+  Dependencies for next sub-batch: [any shared code or DB changes this sub-batch created
+  that the next one needs to know about]
+  ```
+- STOP. Do NOT start the next feature. Human opens a new session.
+
+**Completeness check (MANDATORY before marking a sub-batch DONE):**
+Before committing, Claude Code MUST re-read the PRODUCT.md section for the current feature
+and verify:
+  □ Every user flow described is implemented (happy path + error states)
+  □ Every data field in the entity is present in the Prisma schema, tRPC router, and UI form
+  □ Every permission/role guard matches the Roles & Permissions table
+  □ Every validation rule in the spec has a matching Zod schema
+  □ Every UI element described (buttons, tables, filters, modals) exists in the page
+  □ If the feature connects to another module, the integration point is wired
+IF any item is missing → implement it before committing. Do NOT leave it for a future batch
+unless the human explicitly says to defer it.
+
+**If thrashing occurs mid-session despite sub-division:**
+1. Immediately run `/clear` to reset context
+2. Update STATE.md with exact progress (which files done, which pending for THIS feature)
+3. Write a handoff note to `.cline/handoffs/` with: what's done, what's remaining,
+   any partial code that needs completion
+4. Commit all work done so far (even if incomplete — partial progress > lost progress)
+5. STOP — human opens a new session with narrower scope for the remaining work
+
+**Why this matters:** Phase 8 batches that thrash produce the most dangerous kind of bug —
+features that LOOK complete in IMPLEMENTATION_MAP.md but are actually missing validations,
+permission guards, error states, or entire user flows. The completeness check catches this
+before it becomes invisible tech debt.
 
 **Adaptive replanning after each batch (NEW V14 — from GSD-2):**
 After every batch completes, BEFORE proposing the next batch:

@@ -3051,7 +3051,7 @@ NOT attempt to generate a mockup. Do NOT reference Phase 2.8 in your outputs.
 (Cline deprecated V31 — same rule applies: if Cline is ever re-enabled as emergency fallback, it must not attempt Phase 2.8 either.)
 
 **What Phase 2.8 produces:**
-- An ephemeral single-file HTML mockup with industry-appropriate realistic dummy data
+- An ephemeral React (.jsx) mockup with industry-appropriate realistic dummy data (HTML archive generated after confirmation in Step 7a)
 - Styled using shadcn/ui conventions (Tailwind CDN + Inter font + shadcn color tokens)
 - 5-8 screens at full fidelity, rest as navigable placeholders
 - Delivered as Claude.ai artifact + optional downloaded HTML file
@@ -5507,6 +5507,24 @@ Wait for confirmation — do NOT start building until confirmed.
 On confirmation: run Phase 7 Feature Update for each item in the batch.
 After each batch: update all governance docs. Show updated "Not yet built" list.
 
+### ⚠ ANTI-THRASHING RULE — MANDATORY (applies to ALL Phase 8 Batches)
+
+**Full specification:** See `.claude/rules/phases.md` — Phase 8 anti-thrashing section.
+
+**Summary:** AFTER batch is confirmed but BEFORE writing any code:
+1. Scope assessment — list every file to create/modify across ALL batch items
+2. IF >12 files → sub-divide into per-feature sub-batches, one feature per session
+3. Per sub-batch: read ONLY the PRODUCT.md sections for the current feature
+4. **Completeness check before committing** — re-read PRODUCT.md section for the feature and verify:
+   every user flow, data field, permission guard, validation rule, and UI element is implemented.
+   Do NOT leave gaps for future batches unless human explicitly defers.
+5. Update STATE.md with batch progress (done vs remaining) + dependencies for next sub-batch
+6. Commit, STOP, human opens new session for next sub-batch
+
+**CRITICAL PRINCIPLE:** Anti-thrashing protects the build — it changes HOW MANY things per session,
+never WHAT gets built. Every feature in PRODUCT.md must be fully built. Skipping features
+without explicit human approval is a governance violation.
+
 **Adaptive replanning after each batch (NEW V14 — from GSD-2):**
 After every batch completes, BEFORE proposing the next batch:
 1. Re-read PRODUCT.md and IMPLEMENTATION_MAP.md.
@@ -7736,7 +7754,7 @@ Version stays same for: wording fixes, clarifications, side note updates.
 - Rule count: 30 (unchanged). Scenario count: 32 (unchanged). Bootstrap: 18 steps (unchanged). Security Checklist: 84 items (unchanged). Secure Code Gen: 16 sub-sections (unchanged). UI Component Rules: 10 (unchanged). Version bump: V29 → V30 ✅
 
 **v30 → v31 upgrade notes — Phase 2.8 Clickable Mockup Review + Cline Deprecation + Interactive Prompt References:**
-- PHASE 2.8 ADDED: New phase in the Planning Assistant chat (Claude.ai) that runs between Phase 2 Alignment Check and Phase 3 handoff. Generates a clickable single-file HTML mockup with industry-appropriate realistic dummy data using shadcn/ui conventions (Tailwind CDN + Inter font + shadcn color tokens). User verifies Claude's interpretation of the spec visually BEFORE Phase 3 locks the architecture.
+- PHASE 2.8 ADDED: New phase in the Planning Assistant chat (Claude.ai) that runs between Phase 2 Alignment Check and Phase 3 handoff. Generates a clickable React (.jsx) mockup with industry-appropriate realistic dummy data using shadcn/ui conventions (Tailwind + Inter font + shadcn color tokens). User verifies Claude's interpretation of the spec visually BEFORE Phase 3 locks the architecture. HTML archive version generated after user confirmation (Step 7a).
 - TIERED RENDERING: 5-8 critical screens at full fidelity (login, dashboard, primary workflow, detail view, form, list view, settings, landing), remaining screens as navigable placeholders with correct nav structure and breadcrumb.
 - INDUSTRY DUMMY DATA: 7 pre-configured themes (ERP, Fisheries, Inventory, Healthcare, Education, Fintech, Government) — never Lorem ipsum or John Doe. 15-25 realistic rows per table with log-normal amount distribution, realistic date spreads, cross-referenced IDs.
 - DEFAULT-ON-BUT-SKIPPABLE: Auto-runs after Phase 2 Alignment Check passes. Type `skip mockup` to bypass. Auto-skipped if PRODUCT.md declares fewer than 2 screens.
@@ -7751,7 +7769,7 @@ Version stays same for: wording fixes, clarifications, side note updates.
 - DELIVERABLE SET: 13 → 16 files (added ChatGPT_V31_Cross_Audit_Prompt.md, Prompt_References.md, Prompt_References.html in `.ai_prompt/` + deploy-v31.sh at project root).
 - POST-LOCK ADDITIVE UPDATES (documentation + 1 scenario + 1 planning step — no version bump): Added Scenario 33 (DESIGN.md integration with shadcn/ui — VoltAgent/awesome-design-md catalog). Added prompts 1.1.5 (Re-deploy V31), 1.2.5 (Credentials Setup Kit), 1.2.6 (Top Up CREDENTIALS.md), 1.2.7 (Add New Credential Section via Phase 7), 1.4.0 (Deep Pre-Upgrade Analysis), 1.7 (Build code-review-graph), **1.8 (Combined Upgrade: Framework + Planning Assistant)**, 2.11 (Review Changes Since Last Commit), 2.12 (Architecture Map), 3.15 (Pre-Merge Blast-Radius Check), 3.16 (Debug Unknown Issue), 3.17 (Onboard to Unknown Codebase), 3.18 (Rebuild Stale Graph), 4.6 (Upgrade Planning Assistant Mid-Chat), 4.7 (Save Mockup Continuity Workflow), 4.8 (Adopt a DESIGN.md Aesthetic), 4.9 (New PA: spec done not built), 4.10 (New PA: mid-build), 4.11 (New PA: production), 4.12 (New PA: backfill one section). Expanded prompt 3.11 (Future framework upgrade safety workflow). **Step 8b added to Planning Assistant interview** — per-page Mobile First / Mobile Ready classification with auto-heuristics, user review table, written into PRODUCT.md Mobile Needs section. Phase 2.8 mockup now renders mobile strategy badge on every screen. **Two sidebar decision-tree menus** added to Prompt_References: "🆕 New Planning Assistant arrived?" (routes to 4.6 / 4.9 / 4.10 / 4.11 / 4.12) and "🔀 Two upgrades pending?" (routes to 1.8 combined upgrade). Current totals: 55 prompts (32 NEW ✨), 34 scenarios. Post-lock audit state: 85 PASS / 0 FAIL / 1 PARTIAL (G.8 resolved by exhaustive scan).
 - Rule count: 30 (unchanged). Scenario count: 32 → 34 (+1 for Scenario 33 DESIGN.md integration, +1 for Scenario 34 CREDENTIALS.md Agent-Proof Upgrade). Bootstrap: 18 steps (unchanged). Security Checklist: 84 items (unchanged). Secure Code Gen: 16 sub-sections (unchanged). UI Component Rules: 10 (unchanged). Phase count: 8 main phases + 2.5, 2.6, 2.7, **2.8 (NEW)**, **3.5 (NEW)**, 6.5. Version bump: V30 → V31 ✅
-- POST-LOCK ADDITIVE UPDATES (continued — phases.md additions, no version bump): **Phase 3.5 — Execution Plan Generation** added to phases.md (auto-runs after Phase 3). 7 steps: complexity scan → context cost estimation (120K budget, ≤80K SAFE) → task decomposition → dependency ordering → write execution-plan.md → skill activation (/scan-project first, then framework verifies Primary Group) → human review. **Anti-thrashing rule** added to Phase 4: mandatory scope assessment at start of every Part, auto-subdivide if >12 files, Part 8 always subdivides, module-by-module sub-sessions with per-module commits. **Skill Installer integration**: Primary Group 6 slots (superpowers, code-review-graph, planning-with-files, frontend-design+design-auditor+owasp-security, git-pushing, claude-skills-65), per-phase supplementary skills, /scan-project workflow, conflict registry verified. **code-review-graph setup signal**: Phase 6 completion message includes reminder, Phase 7 pre-flight Step 0 check. **Prompt 4.13** added — Add Automation to Existing Project (n8n / OpenClaw / Hybrid) 7-step flow for projects past initial planning. Prompt count: 54 → 55 (32 NEW ✨).
+- POST-LOCK ADDITIVE UPDATES (continued — phases.md additions, no version bump): **Phase 3.5 — Execution Plan Generation** added to phases.md (auto-runs after Phase 3). 7 steps: complexity scan → context cost estimation (120K budget, ≤80K SAFE) → task decomposition → dependency ordering → write execution-plan.md → skill activation (/scan-project first, then framework verifies Primary Group) → human review. **Anti-thrashing rule** added to Phase 4: mandatory scope assessment at start of every Part, auto-subdivide if >12 files, Part 8 always subdivides, module-by-module sub-sessions with per-module commits. **Skill Installer integration**: Primary Group 6 slots (superpowers, code-review-graph, planning-with-files, frontend-design+design-auditor+owasp-security, git-pushing, claude-skills-65), per-phase supplementary skills, /scan-project workflow, conflict registry verified. **code-review-graph setup signal**: Phase 6 completion message includes reminder, Phase 7 pre-flight Step 0 check. **Prompt 4.13** added — Add Automation to Existing Project (n8n / OpenClaw / Hybrid) 7-step flow for projects past initial planning. Prompt count: 54 → 55 (32 NEW ✨). **Phase 8 anti-thrashing rule** added to phases.md: same 12-file threshold as Phase 4, per-feature sub-batches, mandatory completeness check before committing (verifies every user flow, data field, permission guard, validation rule, and UI element from PRODUCT.md is actually implemented), STATE.md progress tracking with dependencies for next sub-batch. Critical principle: anti-thrashing protects the build — changes how many per session, never what gets built.
 
 **v21 → v22 upgrade notes — Docker image build pipeline + COMMANDS.md:**
 - docker-compose.app.yml (dev): now includes build: + image: keys — builds from source, tags locally for push
@@ -8154,7 +8172,7 @@ I am your Platform Architect. Active rules:
 • Cline deprecated — .clinerules and .cline/ paths preserved for historical continuity only (NEW V30, deprecated V31)
 • .claude/rules/ modular files: phases.md, security.md, ui-rules.md, bootstrap.md, scenarios.md, templates.md (NEW V30)
 • Dual architecture: compact CLAUDE.md (Claude Code) + full monolithic AI/Master_Prompt_v31.md (paste-based workflows) (NEW V30)
-• Phase 2.8 — Clickable Mockup Review in Planning Assistant chat: shadcn-styled HTML mockup with industry-realistic dummy data, 5-8 Tier 1 screens full fidelity + Tier 2 navigable placeholders, default-on-but-skippable, ephemeral (never committed) (NEW V31)
+• Phase 2.8 — Clickable Mockup Review in Planning Assistant chat: React (.jsx) mockup with industry-realistic dummy data using shadcn/ui conventions, 5-8 Tier 1 screens full fidelity + Tier 2 navigable placeholders, default-on-but-skippable, ephemeral (never committed), HTML archive generated after confirmation (Step 7a) (NEW V31)
 • Planning Assistant agent role expanded: "Product Specification Writer + Visual Design Preview Generator" with DESIGN CAPABILITY DECLARATION (shadcn/ui color tokens, typography, component patterns, layout patterns) (NEW V31)
 • Phase 3.5 — Execution Plan Generation: auto after Phase 3. Context cost estimation (120K budget), task decomposition, dependency ordering, Skill Installer activation (POST-LOCK V31)
 • Anti-thrashing rule — mandatory scope assessment at start of every Phase 4 Part. Auto-subdivide if >12 files. Part 8 always subdivides. Module-by-module sub-sessions (POST-LOCK V31)

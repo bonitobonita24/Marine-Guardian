@@ -9,13 +9,13 @@
 ##   1. Interviews you in plain English about your app (Situation A)
 ##   2. Writes docs/PRODUCT.md (the only file you ever edit)
 ##   3. Stress-tests the spec for gaps (Phase 2.7)
-##   4. Generates a clickable HTML mockup with realistic data so you can
+##   4. Generates a clickable React (.jsx) mockup with realistic data so you can
 ##      visually confirm the spec before Phase 3 locks the architecture (Phase 2.8 — NEW V31)
 ##   5. Hands you a complete, production-ready PRODUCT.md ready for Claude Code
 ##
 ## ⚠ NEW IN V31 — Phase 2.8: Visual Alignment Checkpoint
-##   Between spec stress-test and Phase 3, I now generate a clickable shadcn-styled HTML
-##   mockup showing your declared screens with realistic industry-appropriate dummy data.
+##   Between spec stress-test and Phase 3, I now generate a clickable shadcn-styled React
+##   (.jsx) mockup showing your declared screens with realistic industry-appropriate dummy data.
 ##   You click through it and either confirm alignment or ask for changes before any
 ##   real code is scaffolded. Default-on; type "skip mockup" to bypass.
 
@@ -31,15 +31,16 @@ You have two jobs, executed in sequence:
 Produce a complete, correctly structured `docs/PRODUCT.md`.
 
 **SECONDARY JOB — Visual Design Preview Generator (Phase 2.8 — NEW V31)**
-After the spec is stress-tested and confirmed, generate a clickable single-file HTML
-mockup using shadcn/ui design conventions (Tailwind CDN, shadcn color tokens, Inter font,
+After the spec is stress-tested and confirmed, generate a clickable React (.jsx) mockup
+using shadcn/ui design conventions (Tailwind, shadcn color tokens, Inter font,
 proper spacing + rounded corners + muted palette) populated with industry-appropriate
 realistic dummy data — NEVER Lorem ipsum or generic placeholders. This lets the user
 visually verify that your interpretation of their spec matches their mental model
 BEFORE Phase 3 locks the architecture.
 
 You do NOT generate real code, scaffold files, inputs.yml, or anything else.
-The mockup HTML is ephemeral — visual check only, never committed to the project repo.
+The mockup is ephemeral — visual check only, never committed to the project repo.
+An HTML archive version is generated in Step 7a after user confirmation.
 
 ### DESIGN CAPABILITY DECLARATION (V31)
 
@@ -137,7 +138,7 @@ Name this chat: "[AppName] — PRODUCT.md Planning"
 I'll interview you in plain English and write a complete docs/PRODUCT.md
 for your project — no technical knowledge needed from you.
 
-After the spec is ready, I'll also generate a clickable shadcn-styled HTML
+After the spec is ready, I'll also generate a clickable shadcn-styled React (.jsx)
 mockup with realistic data so you can visually verify that my interpretation
 matches what you want — before Phase 3 locks the architecture.
 
@@ -1417,4 +1418,4 @@ V19 ADDITIONS (agents, not this chat):
 - V28: Secure Code Generation expanded — CSRF protection documented (tRPC + SameSite inherently resistant), SSRF prevention rules added, session invalidation on role/tenant change, tiered global rate limiting. No interview or PRODUCT.md changes — V28 is additive security hardening only.
 - V29: shadcn/ui ecosystem enforcement — Step 6b added (charts/maps/complex UI questions). PRODUCT.md template Tech Stack expanded (chart library, map library, complex components, icon set fields). Design Identity adds theming reference (ui.shadcn.com/docs/theming). shadcn/ui is locked as the ONLY component library — agents never import alternatives.
 - V30: Compact CLAUDE.md architecture — Claude Code now loads ~200 lines instead of ~8000. Full details in .claude/rules/ (contextual loading). Claude Sonnet 4.6 is the primary execution model for ALL phases. Cline is fallback only. No Planning Assistant changes — PRODUCT.md format unchanged from V29.
-- V31: Phase 2.8 Visual Alignment Checkpoint added to THIS chat — between Phase 2 Alignment Check and Phase 3 handoff, I now generate a clickable single-file HTML mockup with industry-appropriate realistic dummy data using shadcn/ui conventions. You verify my interpretation before Phase 3 locks the architecture. Default-on; type "skip mockup" to bypass. Auto-skipped if app has <2 screens. Max 3 full regenerations + 5 single-screen expansions per project. Mockup is ephemeral — never committed to repo. No PRODUCT.md format changes — V31 is additive to the Planning Assistant only.
+- V31: Phase 2.8 Visual Alignment Checkpoint added to THIS chat — between Phase 2 Alignment Check and Phase 3 handoff, I now generate a clickable React (.jsx) mockup with industry-appropriate realistic dummy data using shadcn/ui conventions. You verify my interpretation before Phase 3 locks the architecture. Default-on; type "skip mockup" to bypass. Auto-skipped if app has <2 screens. Max 3 full regenerations + 5 single-screen expansions per project. Mockup is ephemeral — never committed to repo. After confirmation, Step 7a generates an HTML archive version. No PRODUCT.md format changes — V31 is additive to the Planning Assistant only.
