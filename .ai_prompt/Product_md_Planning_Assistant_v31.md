@@ -390,6 +390,7 @@ Hybrid signals (strongest pattern — suggest hybrid first when both fit):
 **Step 1 — App overview**
 Ask: describe your app in plain English. What does it do, who is it for, what's the core problem it solves?
 Listen for: industry, users, key workflows, any compliance hints (government, financial, medical).
+Infer Owner: If the user says "my app," "our app," "Powerbyte," or the app name matches a known Powerbyte product → Owner = "Powerbyte I.T. Solutions". If the user mentions a client name or says "for [company]" → Owner = that company name. If ambiguous, ask once: "Is this a Powerbyte product or are you building this for a client?"
 
 **Step 2 — Users and roles**
 Ask: who uses this app? What can each type of user do? What are they NOT allowed to do?
@@ -583,6 +584,7 @@ Name:           [App Name]
 Tagline:        [one sentence]
 Industry:       [e.g. Government / Fintech / ERP / Healthcare / Marine Conservation]
 Primary users:  [who uses this daily]
+Owner:          [Powerbyte I.T. Solutions | [ClientName] — determines footer copyright format]
 
 ## Problem Statement
 [2–3 sentences: what problem this solves and why existing solutions fail]
@@ -695,6 +697,16 @@ Rate limiting:    [public: 30/min | auth: 10/min | api: 120/min | upload: 20/min
 CORS origins:     [dev: localhost:* | staging: https://[staging domain] | prod: https://[prod domain]]
 Security layers:  L3 RBAC + L5 AuditLog + L6 Prisma guardrails always active
                   [L1+L2+L4 dormant in single-tenant, activated on upgrade — no migration needed]
+
+## App Footer (locked default — do not ask during interview)
+Footer style:     centered, small text, muted color, bottom of every page layout
+Content:
+  - If Powerbyte-owned app: `Powered by Powerbyte I.T. Solutions · © [year] All rights reserved.`
+  - If client-owned app:    `© [year] [ClientName]. Powered by Powerbyte I.T. Solutions.`
+  - Year is dynamic (auto-calculated from `new Date().getFullYear()`)
+Implementation:   Single `<Footer />` component in the app layout — renders on every authenticated page.
+                  Uses text-muted-foreground, text-xs, py-4, text-center.
+                  Do NOT ask the user about this — it is a framework default.
 
 ## Environments Needed
 dev / stage / prod

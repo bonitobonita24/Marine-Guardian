@@ -163,3 +163,14 @@
 - Schema/migrations:   none
 - Errors encountered:  (1) exactOptionalPropertyTypes — passing undefined to optional number prop. (2) Date | null not assignable to new Date(). (3) strict-boolean-expressions — truthy checks on nullable strings and numbers.
 - Errors resolved:     (1) Conditional rendering pattern — only pass delta/deltaLabel props when data exists. (2) Ternary null check on reportedAt. (3) Changed nullable length checks to explicit `!== undefined && .length > 0` pattern, changed nullable string checks to `!== null`.
+
+## 2026-05-08 — Phase 8 Batch 1 Item 2: Event Kanban Board — UI Scaffold (PAUSED)
+- Agent:               CLAUDE_CODE
+- Why:                 Implement Event Kanban Board — drag-and-drop state transitions (New → Active → Resolved) using Kibo UI kanban component + dnd-kit
+- Files added:         apps/web/src/components/kibo-ui/kanban/index.tsx (Kibo UI Kanban component), apps/web/src/components/ui/scroll-area.tsx (shadcn/ui scroll-area — kanban dependency), .cline/handoffs/2026-05-08-event-kanban-pause.md (pause handoff)
+- Files modified:      apps/web/src/app/(dashboard)/events/page.tsx (full rewrite — Kanban board with 3 columns, drag-and-drop, priority badges, event cards), apps/web/package.json (added @dnd-kit/core, @dnd-kit/sortable, @dnd-kit/utilities, @radix-ui/react-scroll-area), pnpm-lock.yaml, .cline/STATE.md (PAUSED)
+- Files deleted:       none
+- Schema/migrations:   none
+- Errors encountered:  none (UI scaffold only — no typecheck/lint run yet)
+- Errors resolved:     none
+- Status:              PAUSED — tRPC event.updateState + event.stats procedures NOT verified. Typecheck/lint/tests NOT run. Two-stage review NOT performed.

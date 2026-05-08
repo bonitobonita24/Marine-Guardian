@@ -1,9 +1,9 @@
 # Implementation Map — Marine Guardian Command Center
 # Current build state. Rewritten after every feature update.
-# Last updated: 2026-05-07 — Phase 7 Feature Update: EarthRanger sync processor implemented.
+# Last updated: 2026-05-08 — Phase 8 Batch 1 Item 2: Event Kanban Board UI scaffolded (PAUSED).
 # ---
 
-## Status: Phase 7 — EarthRanger sync processor complete. All Docker services healthy including workers.
+## Status: Phase 8 Batch 1 — Item 2 (Event Kanban Board) PAUSED. Dashboard complete. All Docker services healthy.
 
 ### Schema Delta Fixes (feat/schema-delta-fixes — merged to main)
 - [x] PatrolType enum: seabourn → seaborne (Prisma, shared types/schemas, seed, tRPC routers)
@@ -234,8 +234,21 @@ Docker fixes applied (6 total):
 - [x] shadcn/ui chart component: `apps/web/src/components/ui/chart.tsx` + recharts dependency
 - [x] shadcn/ui config: `apps/web/components.json` (new-york style, CSS variables)
 
+### Event Kanban Board (Phase 8 Batch 1 Item 2 — PAUSED)
+- [x] Kibo UI Kanban component: `apps/web/src/components/kibo-ui/kanban/index.tsx` — KanbanProvider, KanbanBoard, KanbanCards, KanbanCard, KanbanHeader
+- [x] shadcn/ui scroll-area: `apps/web/src/components/ui/scroll-area.tsx` (kanban dependency)
+- [x] Events page rewrite: `apps/web/src/app/(dashboard)/events/page.tsx` — 3-column Kanban (New/Active/Resolved), drag-and-drop state transitions, priority badges, event cards with serial number + type + reporter
+- [x] Dependencies: @dnd-kit/core, @dnd-kit/sortable, @dnd-kit/utilities, @radix-ui/react-scroll-area
+- [ ] tRPC `event.updateState` mutation — called by Kanban page but NOT verified in event router
+- [ ] tRPC `event.stats` query — called by Kanban page but NOT verified in event router
+- [ ] TypeScript typecheck — not run
+- [ ] ESLint — not run
+- [ ] Tests — not written
+- [ ] Two-stage review — not performed
+
 ---
 
 ### Next Step
-Phase 8 Batch 1 continues — Item 2: Event Kanban Board, Item 3: Fuel Logging.
+Resume feat/event-kanban — verify/add tRPC updateState + stats procedures, typecheck, lint, tests, two-stage review, governance, squash-merge.
+Then Phase 8 Batch 1 continues — Item 3: Fuel Logging.
 No known blockers. All services operational.
