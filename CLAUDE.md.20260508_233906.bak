@@ -104,9 +104,6 @@ read both relevant files. Never read scenarios.md unless the user triggers a nam
 
 ### ⚠ CONTEXT BUDGET — GLOBAL PRINCIPLE (applies to ALL phases, parts, batches, and tasks)
 
-**THIS IS THE FIRST THING YOU DO IN EVERY SESSION — before reading governance docs,
-before reading PRODUCT.md, before opening any source file. Estimate your scope FIRST.**
-
 You are **Claude Sonnet 4.6**. Your context window is 200K tokens but autocompact
 thrashes when input context exceeds ~120K. The **SAFE zone is ≤80K tokens of input**.
 
@@ -116,12 +113,6 @@ thrashes when input context exceeds ~120K. The **SAFE zone is ≤80K tokens of i
 
 **Every task you plan — every Phase 4 Part, Phase 7 Feature Update, Phase 8 Batch,
 or any other unit of work — MUST be scoped to fit within the 80K SAFE zone.**
-
-**OUTPUT EQUIVALENCE:** Splitting into smaller sessions MUST produce the SAME final
-result as one large session — except BETTER, because nothing is lost to context overflow.
-Every file, function, validation, permission guard, and UI element in PRODUCT.md must
-exist in the final codebase regardless of how many sessions it took. Each sub-session
-must produce complete, working, tested code — not stubs, not placeholders, not TODOs.
 
 ```
 TOKEN BUDGET REFERENCE (memorize this):

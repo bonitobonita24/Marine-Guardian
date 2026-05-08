@@ -113,6 +113,12 @@ autocompact thrashes when input context exceeds ~120K. The **SAFE zone is ≤80K
 **Every task you plan — every Phase 4 Part, Phase 7 Feature Update, Phase 8 Batch,
 or any other unit of work — MUST be scoped to fit within the 80K SAFE zone.**
 
+**OUTPUT EQUIVALENCE:** Splitting into smaller sessions MUST produce the SAME final
+result as one large session — except BETTER, because nothing is lost to context overflow.
+Every file, function, validation, permission guard, and UI element in PRODUCT.md must
+exist in the final codebase regardless of how many sessions it took. Each sub-session
+must produce complete, working, tested code — not stubs, not placeholders, not TODOs.
+
 ```
 TOKEN BUDGET REFERENCE:
   CLAUDE.md + active rules file:      ~5-8K
