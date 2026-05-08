@@ -29,6 +29,11 @@ import { prisma } from "@marine-guardian/db";
 import { createCallerFactory } from "../../trpc";
 import { eventRouter } from "../event";
 
+function partial<T>(obj: T): T {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return expect.objectContaining(obj as any) as T;
+}
+
 const createCaller = createCallerFactory(eventRouter);
 
 const TENANT_ID = "tenant-abc";
@@ -39,8 +44,10 @@ function makeCtx(tenantId: string | null = TENANT_ID) {
     session: {
       user: {
         id: USER_ID,
-        tenantId,
+        tenantId: tenantId as string,
         roles: ["ranger" as const],
+        email: "test@example.com",
+        name: "Test User",
       },
       expires: "9999-01-01",
     },
@@ -54,31 +61,29 @@ describe("event.updateState", () => {
   });
 
   it("updates event state for the authenticated tenant", async () => {
-    const mockPrisma = vi.mocked(prisma);
-    mockPrisma.event.updateMany.mockResolvedValue({ count: 1 });
+    vi.mocked(prisma.event.updateMany).mockResolvedValue({ count: 1 });
 
     const caller = createCaller(makeCtx());
     const result = await caller.updateState({ id: "ev-1", state: "active" });
 
     expect(result).toEqual({ count: 1 });
-    expect(mockPrisma.event.updateMany).toHaveBeenCalledWith({
+    expect(vi.mocked(prisma.event.updateMany)).toHaveBeenCalledWith({
       where: { id: "ev-1", tenantId: TENANT_ID },
       data: { state: "active" },
     });
   });
 
   it("scopes the update to the tenant — never leaks cross-tenant", async () => {
-    const mockPrisma = vi.mocked(prisma);
-    mockPrisma.event.updateMany.mockResolvedValue({ count: 0 });
+    vi.mocked(prisma.event.updateMany).mockResolvedValue({ count: 0 });
 
     const caller = createCaller(makeCtx("other-tenant"));
     await caller.updateState({ id: "ev-1", state: "resolved" });
 
-    expect(mockPrisma.event.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ tenantId: "other-tenant" }) })
+    expect(vi.mocked(prisma.event.updateMany)).toHaveBeenCalledWith(
+      partial({ where: partial<{ tenantId: string }>({ tenantId: "other-tenant" }) })
     );
     // Critically: the tenantId in the where clause matches the session, not an arbitrary value
-    const call = mockPrisma.event.updateMany.mock.calls[0];
+    const call = vi.mocked(prisma.event.updateMany).mock.calls[0];
     expect(call?.[0]?.where?.tenantId).toBe("other-tenant");
   });
 

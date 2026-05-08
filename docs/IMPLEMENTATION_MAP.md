@@ -246,7 +246,23 @@ Docker fixes applied (6 total):
 - [x] vitest upgraded ^2.1.8→^4.1.5 — resolves Vite 8 incompatibility from root pnpm override
 - [x] Two-stage review: Stage 1 PASS (spec compliance), Stage 2 PASS (code quality)
 
+### Alert Rules + Notification Center (Phase 7 Feature Update — COMPLETE)
+- [x] Alert Rules page: `apps/web/src/app/(dashboard)/alerts/page.tsx` — list, create/edit dialog, severity Select, channel multi-select (in_app + email), isActive Switch toggle, inline delete confirm. Backed by `alertRule` tRPC router (already on main: list/create/update/delete with tenant scoping + adminProcedure for writes)
+- [x] Notification Center page: `apps/web/src/app/(dashboard)/notifications/page.tsx` — full rewrite from 8-line stub. Chronological list (newest first), type filter (critical/warning/info/system + "all"), priority color indicators (red/orange/blue/gray dot + badge), unread state (border-left + "New" pill), mark-individual-read (Mark read button on unread items), mark-all-read button, click-through to `/events/{eventId}` when notification has eventId
+- [x] Sidebar unread badge: `apps/web/src/components/layout/sidebar.tsx` — `notification.unreadCount` query with 30s refetchInterval + 15s staleTime, pill badge on /notifications nav item with "99+" cap and aria-label
+- [x] 6 shadcn primitives added: `apps/web/src/components/ui/{dialog,dropdown-menu,select,separator,switch,tabs}.tsx` — React 19 ComponentRef from the outset, dropdown-menu CheckboxItem `checked` conditionally spread for exactOptionalPropertyTypes:true
+- [x] Dependencies: @radix-ui/react-{dialog,dropdown-menu,select,separator,switch,tabs}
+- [x] Unit tests: `apps/web/src/server/trpc/routers/__tests__/alertRule.test.ts` (6 tests — list+tenant, list+filter, create+RBAC, create non-admin rejection, update tenant-scoped, delete non-admin rejection); `apps/web/src/server/trpc/routers/__tests__/notification.test.ts` (5 tests — list+tenant+user, list+filter, markRead, markAllRead, unreadCount+FORBIDDEN). Plus typed `partial<T>` helper added to alertRule/notification/event test files for vitest matcher type safety
+- [x] Lint cleanup: alerts/page.tsx tightened against Prisma schema (creator + isActive non-nullable), bulk React.ElementRef→React.ComponentRef across vendored shadcn primitives (28 errors fixed in one sed), dropdown-menu strict-boolean for optional `inset` prop
+- [x] Two-stage review: Stage 1 PASS (spec compliance with 3 deferrals logged), Stage 2 PASS (code quality)
+- [x] Final: lint 0, typecheck 0, 17/17 tests passing in 429ms
+
+#### Spec deferrals from this branch (logged in CHANGELOG_AI 2026-05-08)
+- [ ] **Alert history log** (PRODUCT.md L182) — not implemented; needs separate scope decision (notifications view filtered by alertRuleId, or dedicated page)
+- [ ] **Filter type spec/schema alignment** (PRODUCT.md L189 "event alert, system alert, escalation, warning" vs schema enum `critical | warning | info | system`) — implementation uses schema enum; recommend updating PRODUCT.md L189 (1-line edit) to resolve drift
+- [ ] **Notification → patrol click-through** (PRODUCT.md L187) — events implemented; patrol requires `Notification.patrolId` FK migration (current schema has only `eventId`)
+
 ---
 
 ### Next Step
-Phase 8 Batch 1 Item 3. No known blockers. All services operational.
+Phase 8 Batch 1 Item 3 OR address one of the 3 spec deferrals above. No known blockers. All services operational.

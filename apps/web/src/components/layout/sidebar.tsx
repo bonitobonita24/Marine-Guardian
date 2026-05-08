@@ -21,6 +21,7 @@ import {
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { trpc } from "@/lib/trpc/client";
 
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, labelKey: "dashboard" },
@@ -41,6 +42,11 @@ export function Sidebar() {
   const pathname = usePathname();
   const t = useTranslations("nav");
   const tAuth = useTranslations("auth");
+  const unreadCountQuery = trpc.notification.unreadCount.useQuery(undefined, {
+    refetchInterval: 30_000,
+    staleTime: 15_000,
+  });
+  const unread = unreadCountQuery.data ?? 0;
 
   return (
     <aside className="flex h-screen w-60 flex-col border-r bg-card">
@@ -51,6 +57,7 @@ export function Sidebar() {
         <ul className="space-y-1">
           {navItems.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const showUnread = item.href === "/notifications" && unread > 0;
             return (
               <li key={item.href}>
                 <Link
@@ -63,7 +70,15 @@ export function Sidebar() {
                   )}
                 >
                   <item.icon className="h-4 w-4 shrink-0" />
-                  {t(item.labelKey)}
+                  <span className="flex-1">{t(item.labelKey)}</span>
+                  {showUnread ? (
+                    <span
+                      className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground"
+                      aria-label={`${String(unread)} unread notifications`}
+                    >
+                      {unread > 99 ? "99+" : String(unread)}
+                    </span>
+                  ) : null}
                 </Link>
               </li>
             );
