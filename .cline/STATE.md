@@ -4,7 +4,20 @@
 
 PHASE:        Phase 7 Feature Update — Alert Rules + Notification Center complete
 LAST_DONE:    Alert Rules CRUD UI (/alerts) + Notification Center page (/notifications) + sidebar unread badge polling notification.unreadCount. 6 shadcn primitives vendored (dialog, dropdown-menu, select, separator, switch, tabs) with React 19 ComponentRef. 11 new unit tests (alertRule 6, notification 5) + typed partial<T> helper added to event.test.ts. Lint+typecheck clean (resolved bulk React.ElementRef deprecation in shadcn primitives, dropdown-menu exactOptionalPropertyTypes for CheckboxItem.checked, alerts/page.tsx tightened against Prisma non-nullable schema). 17/17 tests passing. Two-stage review PASS. feat/alert-notification-ui squash-merged to main.
-NEXT:         Phase 8 Batch 1 Item 3 (next feature from PRODUCT.md backlog) OR address 3 deferred spec items: (1) Alert history log (PRODUCT.md L182), (2) Filter type spec/schema alignment (PRODUCT.md L189 vs enum critical|warning|info|system — 1-line PRODUCT.md edit), (3) Notification→patrol click-through (needs Notification.patrolId FK migration).
+NEXT:         FIRST (housekeeping carried over from prior session pause): commit the uncommitted handoff note + lessons.md additions before any new feature work. They sit on `main`'s working tree because Rule 23 forbids direct commits to main. Procedure:
+                git checkout -b chore/session-handoff-2026-05-08
+                git add .cline/memory/lessons.md .cline/handoffs/2026-05-08-alert-notification-ui-complete-pause.md
+                git commit -m "chore: lessons + handoff from alert/notification UI session"
+                git checkout main && git merge --squash chore/session-handoff-2026-05-08 && git commit -m "chore: lessons + handoff from alert/notification UI session"
+                git branch -D chore/session-handoff-2026-05-08
+              (.specstory/statistics.json should NOT be committed — auto-regenerated, gitignored per Bootstrap.)
+              Alternative: if you'd rather skip the chore branch entirely, the handoff + lessons can stay as on-disk reference docs (which is how .cline/handoffs/ has historically been used). Confirm with user first.
+
+              THEN main work — pick one:
+              (a) Phase 8 Batch 1 Item 3 — next feature from PRODUCT.md backlog
+              (b) Spec deferral #2 — fastest follow-up. Edit PRODUCT.md L189 filter type list from "event alert, system alert, escalation, warning" to "critical, warning, info, system" to match locked schema enum. (Human-owned per Rule 1 — agent describes the edit; human applies.)
+              (c) Spec deferral #1 — Alert history log feature (PRODUCT.md L182). Separate Phase 7 Feature Update.
+              (d) Spec deferral #3 — Notification.patrolId FK migration + UI wiring (PRODUCT.md L187). Separate Phase 7 Feature Update including schema migration.
 BLOCKERS:     none
 GIT_BRANCH:   main
 PORTS:        APP=45204 DB=45194 PGBOUNCER=45195 CACHE=45196 MINIO=45197 PGADMIN=45201

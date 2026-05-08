@@ -239,3 +239,56 @@
   time, NOT from env_file contents. This causes "variable not set" warnings and blank passwords.
   Keep secrets in env_file only; use environment: overrides only for non-secret values like
   hostnames and ports that differ between host and container contexts.
+
+## 2026-05-08 — 🔴 React.ElementRef deprecated in React 19 — affects every shadcn primitive
+- Type:      🔴 gotcha
+- Phase:     Phase 7 (Feature Update — alerts/notifications UI)
+- Files:     apps/web/src/components/ui/{dialog,dropdown-menu,select,separator,switch,tabs,scroll-area}.tsx
+- Concepts:  shadcn/ui, react-19, forwardRef, eslint-no-deprecated, ComponentRef
+- Narrative: Every shadcn/ui primitive vendored via `npx shadcn@latest add` uses
+  `React.ElementRef<typeof Primitive>` paired with `React.forwardRef`. Under React 19 this is
+  deprecated; `@typescript-eslint/no-deprecated` flags every occurrence. One bulk sed fixes all:
+  `sed -i 's/React\.ElementRef/React.ComponentRef/g' src/components/ui/*.tsx`
+  `ComponentRef<T>` is the drop-in replacement (both come from React core, same generic shape).
+  Apply this immediately after any `npx shadcn@latest add` until shadcn updates their templates.
+  Already seen with: scroll-area (Event Kanban), dialog/dropdown-menu/select/separator/switch/tabs
+  (alerts/notifications). Will recur with any future shadcn add.
+
+## 2026-05-08 — 🟡 vitest expect.objectContaining unsafe-assignment in nested matchers
+- Type:      🟡 fix
+- Phase:     Phase 7 (alertRule/notification/event tRPC tests)
+- Files:     apps/web/src/server/trpc/routers/__tests__/{alertRule,notification,event}.test.ts
+- Concepts:  vitest, eslint-no-unsafe-assignment, objectContaining, DeeplyAllowMatchers, type-safety
+- Narrative: vitest's `expect.objectContaining(x)` returns `any`. When used as a nested property
+  value (`{ where: expect.objectContaining({ tenantId }) }`) the outer object literal triggers
+  `@typescript-eslint/no-unsafe-assignment` because the inner result is typed `any`. Naive fix
+  with `<T extends object>(obj: Partial<T>): T { return expect.objectContaining(obj) as T; }`
+  fails typecheck because `objectContaining` formally takes `DeeplyAllowMatchers<T>` (not exported
+  cleanly). Working pattern: define one helper per test file with widened input + narrow
+  one-line cast and disable comment, signature `partial<T>(obj: T): T`:
+    function partial<T>(obj: T): T {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return expect.objectContaining(obj as any) as T;
+    }
+  Then call sites become `partial({ where: partial<{ tenantId: string }>({ tenantId: "abc" }) })`
+  — fully typed, no lint errors, no typecheck errors. The `as any` is justified: vitest matchers
+  ARE inherently dynamic and typing them precisely requires importing internal vitest types that
+  are not stable across versions.
+
+## 2026-05-08 — 🟡 shadcn DropdownMenuCheckboxItem violates exactOptionalPropertyTypes
+- Type:      🟡 fix
+- Phase:     Phase 7 (alerts/notifications UI — dropdown-menu primitive)
+- Files:     apps/web/src/components/ui/dropdown-menu.tsx
+- Concepts:  shadcn/ui, exactOptionalPropertyTypes, radix-ui, CheckedState, conditional-spread
+- Narrative: shadcn's vendored `DropdownMenuCheckboxItem` does
+  `<DropdownMenuPrimitive.CheckboxItem checked={checked} {...props}>` after destructuring
+  `checked` from optional props. Under our root tsconfig `exactOptionalPropertyTypes: true`,
+  `checked` becomes `CheckedState | undefined`, but Radix's prop type is `CheckedState` (no
+  undefined). TS errors: `Type 'undefined' is not assignable to type 'CheckedState'`. Fix is to
+  conditionally spread instead of always passing the prop:
+    {...(checked !== undefined ? { checked } : {})}
+  Same pattern applies to any vendored shadcn primitive whose Radix counterpart has a
+  non-optional discriminator that shadcn's wrapper exposes as optional. Quick scan after any
+  shadcn add: grep for `={[a-zA-Z]+}` after destructured optional props passed straight through
+  to Radix primitives. Related: optional booleans like `inset` need explicit `=== true` check
+  in conditional class expressions to satisfy strict-boolean-expressions.
