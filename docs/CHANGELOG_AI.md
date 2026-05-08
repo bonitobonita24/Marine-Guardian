@@ -163,3 +163,24 @@
 - Schema/migrations:   none
 - Errors encountered:  (1) exactOptionalPropertyTypes — passing undefined to optional number prop. (2) Date | null not assignable to new Date(). (3) strict-boolean-expressions — truthy checks on nullable strings and numbers.
 - Errors resolved:     (1) Conditional rendering pattern — only pass delta/deltaLabel props when data exists. (2) Ternary null check on reportedAt. (3) Changed nullable length checks to explicit `!== undefined && .length > 0` pattern, changed nullable string checks to `!== null`.
+
+## 2026-05-08 — Phase 8 Batch 1 Item 2: Event Kanban Board — UI Scaffold (PAUSED)
+- Agent:               CLAUDE_CODE
+- Why:                 Implement Event Kanban Board — drag-and-drop state transitions (New → Active → Resolved) using Kibo UI kanban component + dnd-kit
+- Files added:         apps/web/src/components/kibo-ui/kanban/index.tsx (Kibo UI Kanban component), apps/web/src/components/ui/scroll-area.tsx (shadcn/ui scroll-area — kanban dependency), .cline/handoffs/2026-05-08-event-kanban-pause.md (pause handoff)
+- Files modified:      apps/web/src/app/(dashboard)/events/page.tsx (full rewrite — Kanban board with 3 columns, drag-and-drop, priority badges, event cards), apps/web/package.json (added @dnd-kit/core, @dnd-kit/sortable, @dnd-kit/utilities, @radix-ui/react-scroll-area), pnpm-lock.yaml, .cline/STATE.md (PAUSED)
+- Files deleted:       none
+- Schema/migrations:   none
+- Errors encountered:  none (UI scaffold only — no typecheck/lint run yet)
+- Errors resolved:     none
+- Status:              PAUSED — tRPC event.updateState + event.stats procedures NOT verified. Typecheck/lint/tests NOT run. Two-stage review NOT performed.
+
+## 2026-05-08 — Phase 8 Batch 1 Item 2: Event Kanban Board — COMPLETE
+- Agent:               CLAUDE_CODE
+- Why:                 Resume paused Event Kanban Board — add event.updateState + event.stats tRPC procedures, fix all TypeScript errors, write unit tests (TDD), resolve vitest/Vite 8 compatibility, run two-stage review
+- Files added:         apps/web/src/server/trpc/routers/__tests__/event.test.ts (4 unit tests: happy path, tenant scoping, FORBIDDEN on missing tenantId, schema validation)
+- Files modified:      apps/web/src/server/trpc/routers/event.ts (added updateState mutation: tenant-scoped updateMany, FORBIDDEN guard; added stats query), apps/web/src/app/(dashboard)/events/page.tsx (wired updateState + stats queries, optimistic UI with rollback on error), apps/web/src/components/kibo-ui/kanban/index.tsx (TypeScript fixes — ComponentRef, DragEndEvent export, strict null checks), apps/web/src/components/ui/scroll-area.tsx (React.ElementRef→React.ComponentRef for React 19 compat), apps/web/vitest.config.ts (vmForks pool, resolve.alias for @ path), apps/web/package.json (vitest ^2.1.8→^4.1.5 — Vite 8 compat fix), pnpm-lock.yaml
+- Files deleted:       none
+- Schema/migrations:   none
+- Errors encountered:  (1) __vite_ssr_exportName__ is not defined — vitest 2.x incompatible with Vite 8.0.10 imposed by root pnpm override. 6 config-level attempts failed. (2) TypeScript strict errors in kanban component (ComponentRef, DragEndEvent, optional chaining). (3) React 19 ElementRef deprecation in scroll-area.
+- Errors resolved:     (1) Upgraded vitest ^2.1.8→^4.1.5 — vitest 4.x pairs with Vite 8.x. All 4 tests pass in 307ms. (2)/(3) Fixed TypeScript and React 19 compat issues at source. Two-stage review: Stage 1 PASS (all spec behaviours implemented — columns, drag-and-drop, optimistic UI, tenant scoping, priority badges, stats), Stage 2 PASS (no any types, tests written RED before GREEN, blast-radius scope only).

@@ -3714,7 +3714,7 @@ Generate:
       use_worktrees: true
     models:
       planning:   claude-code
-      execution:  minimax-m2.5
+      execution:  claude-sonnet-4-6
       governance: gemini-2.5-flash-lite
     ```
 5c. `inputs.yml` docker section (UPDATED V22):
@@ -3769,6 +3769,53 @@ IF ANY item fails → Phase 3 = INCOMPLETE → fix before proceeding → do not 
 
 Output after completion:
 > ✅ Phase 3 complete. Spec files generated.
+> **Next: Phase 3.5 generates the Execution Plan, then you start Phase 4.**
+
+---
+
+## PHASE 3.5 — EXECUTION PLAN GENERATION (AUTO — runs at end of Phase 3)
+**Who:** Claude Code | **Where:** VS Code terminal
+**Trigger:** Auto-runs after Phase 3 Output Contract passes. No human trigger needed.
+
+**Purpose:** Before Phase 4 begins, generate a complete execution plan that predicts context
+costs, decomposes tasks, orders dependencies, and activates skills. This prevents autocompact
+thrashing during Phase 4 by giving Claude Code a pre-built session schedule.
+
+**Full specification:** See `.claude/rules/phases.md` — Phase 3.5 section (7 steps + output contract + Skill Installer integration).
+
+**Summary of the 7 steps:**
+```
+Step 1 — Complexity scan: count modules, entities, roles, integrations from PRODUCT.md
+Step 2 — Context cost estimation: 120K token budget, ≤80K = SAFE zone
+Step 3 — Task decomposition: break Phase 4 Parts into sub-sessions if needed
+Step 4 — Dependency ordering: which modules must build before others
+Step 5 — Write execution-plan.md to .cline/tasks/
+Step 6 — Skill activation: /scan-project first, then framework verifies Primary Group 6 slots
+Step 7 — Human review: present the plan, wait for confirmation before Phase 4
+```
+
+**Skill Installer integration (if installed):**
+- Primary Group: 6 always-on skill slots (superpowers, code-review-graph, planning-with-files,
+  frontend-design+design-auditor+owasp-security, git-pushing, claude-skills-65)
+- Per-phase supplementary skills activated contextually
+- Phase 3.5 generates the skill schedule in the execution plan
+- If Skill Installer is NOT installed: skip skill activation steps, use original pause/resume from prompt 2.10
+
+**code-review-graph setup signal:**
+- Phase 6 completion message includes: "Consider building code-review-graph now (prompt 1.7)"
+- Phase 7 pre-flight Step 0: check if code-review-graph is installed, log reminder if absent
+
+─────────────────────────────────────────────────────────
+PHASE 3.5 OUTPUT CONTRACT — MANDATORY
+□ .cline/tasks/execution-plan.md exists with full session schedule
+□ Context cost estimate per Part documented
+□ Sub-session splits identified for Parts exceeding 12-file threshold
+□ Skill activation schedule documented (if Skill Installer present)
+□ Human has confirmed the plan
+IF ANY item fails → Phase 3.5 = INCOMPLETE → fix before proceeding to Phase 4
+─────────────────────────────────────────────────────────
+
+> ✅ Phase 3.5 complete. Execution plan confirmed.
 > **Open Claude Code and say "Start Phase 4". Claude Code runs Part 1. After each Part: STOP. Human opens next Part in a new session.**
 
 ---
@@ -3785,6 +3832,47 @@ After Part 1 completes: open `phase4-part2.md` in a NEW Claude Code session → 
 Continue until Part 8 completes. Then say "Start Phase 5" in a new Claude Code session.
 
 Claude Code derives everything from `inputs.yml` — never hardcodes.
+
+### ⚠ ANTI-THRASHING RULE — MANDATORY (applies to ALL Parts)
+
+**Problem:** On large apps (15+ entities, 10+ modules), Parts 3-6 and Part 8 can trigger
+"Autocompact is thrashing" — the context window fills within 3 turns because Claude Code
+tries to read the entire PRODUCT.md + entire codebase at once.
+
+**Rule:** At the START of every Part, BEFORE writing any code, Claude Code MUST:
+
+1. Count the number of modules/entities relevant to this Part from PRODUCT.md
+2. IF the Part scope exceeds 12 files to create/modify → the Part MUST be sub-divided
+   into module-by-module sessions. Do NOT attempt to build everything in one session.
+3. Report the sub-division plan to the human:
+   ```
+   ⚠ Part [N] scope assessment: [X] modules, ~[Y] files to create.
+   This exceeds the 12-file threshold. Splitting into sub-sessions:
+     Part [N]a — [ModuleName]: [list of files]
+     Part [N]b — [ModuleName]: [list of files]
+     ...
+   Starting with Part [N]a. I'll commit and stop after each sub-session.
+   ```
+4. IF the Part scope is ≤12 files → proceed normally as a single session.
+5. The human may also FORCE sub-division at any time by saying:
+   "Split this Part by module" — even if the threshold is not reached.
+
+**Per sub-session rules (when sub-divided):**
+- Read ONLY the PRODUCT.md sections for the current module — do NOT read the entire file
+- Build all files for this module, then run tests for this module
+- Commit with message: "feat([part-scope]): [ModuleName] [what was built]"
+- Update STATE.md with progress tracking
+- STOP. Do NOT start the next module. Human opens a new session.
+
+**Part 8 (Mobile) special handling:** Part 8 MUST ALWAYS be sub-divided regardless of
+entity count — platform setup + per-module screen builds are inherently too large for one session.
+
+**If thrashing occurs mid-session despite sub-division:**
+1. Immediately run `/clear` to reset context
+2. Update STATE.md with exact progress
+3. Write a handoff note to `.cline/handoffs/`
+4. Commit all work done so far
+5. STOP — human opens a new session with narrower scope
 
 ### PART 1 — Root config files
 
@@ -7661,8 +7749,9 @@ Version stays same for: wording fixes, clarifications, side note updates.
 - INTERACTIVE HTML UI ADDED: New `Prompt_References.html` companion file — browser-friendly presentation of the same content as `Prompt_References.md`. Features sidebar navigation with live search, expandable prompt cards (click to expand one, or expand/collapse whole groups), one-click copy on every code block, mobile-responsive layout, anchor links for sharing specific prompts. Additive deliverable — zero behavioral change to framework. Markdown version remains authoritative for version control and diffs; HTML is optimized for daily reference and onboarding. Both share the same content and version number.
 - NO NEW RULES. NO NEW BOOTSTRAP STEPS. NO PRODUCT.md FORMAT CHANGES. ADDS 1 NEW SCENARIO (Scenario 33). POST-LOCK PATCH: Added Scenario 34 (CREDENTIALS.md Agent-Proof Upgrade). Expanded .gitignore entries (Step 8) with comprehensive AI + third-party tool artifacts.
 - DELIVERABLE SET: 13 → 16 files (added ChatGPT_V31_Cross_Audit_Prompt.md, Prompt_References.md, Prompt_References.html in `.ai_prompt/` + deploy-v31.sh at project root).
-- POST-LOCK ADDITIVE UPDATES (documentation + 1 scenario + 1 planning step — no version bump): Added Scenario 33 (DESIGN.md integration with shadcn/ui — VoltAgent/awesome-design-md catalog). Added prompts 1.1.5 (Re-deploy V31), 1.2.5 (Credentials Setup Kit), 1.2.6 (Top Up CREDENTIALS.md), 1.2.7 (Add New Credential Section via Phase 7), 1.4.0 (Deep Pre-Upgrade Analysis), 1.7 (Build code-review-graph), **1.8 (Combined Upgrade: Framework + Planning Assistant)**, 2.11 (Review Changes Since Last Commit), 2.12 (Architecture Map), 3.15 (Pre-Merge Blast-Radius Check), 3.16 (Debug Unknown Issue), 3.17 (Onboard to Unknown Codebase), 3.18 (Rebuild Stale Graph), 4.6 (Upgrade Planning Assistant Mid-Chat), 4.7 (Save Mockup Continuity Workflow), 4.8 (Adopt a DESIGN.md Aesthetic), 4.9 (New PA: spec done not built), 4.10 (New PA: mid-build), 4.11 (New PA: production), 4.12 (New PA: backfill one section). Expanded prompt 3.11 (Future framework upgrade safety workflow). **Step 8b added to Planning Assistant interview** — per-page Mobile First / Mobile Ready classification with auto-heuristics, user review table, written into PRODUCT.md Mobile Needs section. Phase 2.8 mockup now renders mobile strategy badge on every screen. **Two sidebar decision-tree menus** added to Prompt_References: "🆕 New Planning Assistant arrived?" (routes to 4.6 / 4.9 / 4.10 / 4.11 / 4.12) and "🔀 Two upgrades pending?" (routes to 1.8 combined upgrade). Current totals: 54 prompts (31 NEW ✨), 34 scenarios. Post-lock audit state: 85 PASS / 0 FAIL / 1 PARTIAL (G.8 resolved by exhaustive scan).
-- Rule count: 30 (unchanged). Scenario count: 32 → 34 (+1 for Scenario 33 DESIGN.md integration, +1 for Scenario 34 CREDENTIALS.md Agent-Proof Upgrade). Bootstrap: 18 steps (unchanged). Security Checklist: 84 items (unchanged). Secure Code Gen: 16 sub-sections (unchanged). UI Component Rules: 10 (unchanged). Phase count: 8 main phases + 2.5, 2.6, 2.7, **2.8 (NEW)**, 6.5. Version bump: V30 → V31 ✅
+- POST-LOCK ADDITIVE UPDATES (documentation + 1 scenario + 1 planning step — no version bump): Added Scenario 33 (DESIGN.md integration with shadcn/ui — VoltAgent/awesome-design-md catalog). Added prompts 1.1.5 (Re-deploy V31), 1.2.5 (Credentials Setup Kit), 1.2.6 (Top Up CREDENTIALS.md), 1.2.7 (Add New Credential Section via Phase 7), 1.4.0 (Deep Pre-Upgrade Analysis), 1.7 (Build code-review-graph), **1.8 (Combined Upgrade: Framework + Planning Assistant)**, 2.11 (Review Changes Since Last Commit), 2.12 (Architecture Map), 3.15 (Pre-Merge Blast-Radius Check), 3.16 (Debug Unknown Issue), 3.17 (Onboard to Unknown Codebase), 3.18 (Rebuild Stale Graph), 4.6 (Upgrade Planning Assistant Mid-Chat), 4.7 (Save Mockup Continuity Workflow), 4.8 (Adopt a DESIGN.md Aesthetic), 4.9 (New PA: spec done not built), 4.10 (New PA: mid-build), 4.11 (New PA: production), 4.12 (New PA: backfill one section). Expanded prompt 3.11 (Future framework upgrade safety workflow). **Step 8b added to Planning Assistant interview** — per-page Mobile First / Mobile Ready classification with auto-heuristics, user review table, written into PRODUCT.md Mobile Needs section. Phase 2.8 mockup now renders mobile strategy badge on every screen. **Two sidebar decision-tree menus** added to Prompt_References: "🆕 New Planning Assistant arrived?" (routes to 4.6 / 4.9 / 4.10 / 4.11 / 4.12) and "🔀 Two upgrades pending?" (routes to 1.8 combined upgrade). Current totals: 55 prompts (32 NEW ✨), 34 scenarios. Post-lock audit state: 85 PASS / 0 FAIL / 1 PARTIAL (G.8 resolved by exhaustive scan).
+- Rule count: 30 (unchanged). Scenario count: 32 → 34 (+1 for Scenario 33 DESIGN.md integration, +1 for Scenario 34 CREDENTIALS.md Agent-Proof Upgrade). Bootstrap: 18 steps (unchanged). Security Checklist: 84 items (unchanged). Secure Code Gen: 16 sub-sections (unchanged). UI Component Rules: 10 (unchanged). Phase count: 8 main phases + 2.5, 2.6, 2.7, **2.8 (NEW)**, **3.5 (NEW)**, 6.5. Version bump: V30 → V31 ✅
+- POST-LOCK ADDITIVE UPDATES (continued — phases.md additions, no version bump): **Phase 3.5 — Execution Plan Generation** added to phases.md (auto-runs after Phase 3). 7 steps: complexity scan → context cost estimation (120K budget, ≤80K SAFE) → task decomposition → dependency ordering → write execution-plan.md → skill activation (/scan-project first, then framework verifies Primary Group) → human review. **Anti-thrashing rule** added to Phase 4: mandatory scope assessment at start of every Part, auto-subdivide if >12 files, Part 8 always subdivides, module-by-module sub-sessions with per-module commits. **Skill Installer integration**: Primary Group 6 slots (superpowers, code-review-graph, planning-with-files, frontend-design+design-auditor+owasp-security, git-pushing, claude-skills-65), per-phase supplementary skills, /scan-project workflow, conflict registry verified. **code-review-graph setup signal**: Phase 6 completion message includes reminder, Phase 7 pre-flight Step 0 check. **Prompt 4.13** added — Add Automation to Existing Project (n8n / OpenClaw / Hybrid) 7-step flow for projects past initial planning. Prompt count: 54 → 55 (32 NEW ✨).
 
 **v21 → v22 upgrade notes — Docker image build pipeline + COMMANDS.md:**
 - docker-compose.app.yml (dev): now includes build: + image: keys — builds from source, tags locally for push
@@ -8067,6 +8156,11 @@ I am your Platform Architect. Active rules:
 • Dual architecture: compact CLAUDE.md (Claude Code) + full monolithic AI/Master_Prompt_v31.md (paste-based workflows) (NEW V30)
 • Phase 2.8 — Clickable Mockup Review in Planning Assistant chat: shadcn-styled HTML mockup with industry-realistic dummy data, 5-8 Tier 1 screens full fidelity + Tier 2 navigable placeholders, default-on-but-skippable, ephemeral (never committed) (NEW V31)
 • Planning Assistant agent role expanded: "Product Specification Writer + Visual Design Preview Generator" with DESIGN CAPABILITY DECLARATION (shadcn/ui color tokens, typography, component patterns, layout patterns) (NEW V31)
+• Phase 3.5 — Execution Plan Generation: auto after Phase 3. Context cost estimation (120K budget), task decomposition, dependency ordering, Skill Installer activation (POST-LOCK V31)
+• Anti-thrashing rule — mandatory scope assessment at start of every Phase 4 Part. Auto-subdivide if >12 files. Part 8 always subdivides. Module-by-module sub-sessions (POST-LOCK V31)
+• Skill Installer integration — Primary Group 6 slots, per-phase supplementary skills, /scan-project workflow (POST-LOCK V31)
+• code-review-graph setup signal — Phase 6 completion message, Phase 7 pre-flight Step 0 check (POST-LOCK V31)
+• Prompt 4.13 — Add Automation to Existing Project (n8n / OpenClaw / Hybrid) 7-step flow (POST-LOCK V31)
 • 9 governance docs + STATE.md (STATE.md read first for fast orientation)
 ─────────────────────────────────────────────────────────
 Agent mode:
@@ -8090,6 +8184,7 @@ Which phase are you starting from?
 → Phase 2.7    — Spec stress-test gate (auto after Phase 2.6 · "Re-run Phase 2.7" to repeat)
 → Phase 2.8    — Clickable Mockup Review (Planning Assistant chat ONLY, NOT Claude Code · Cline deprecated V31 · default-on, "skip mockup" to bypass · NEW V31)
 → Phase 3      — Generate spec files (inputs.yml + schema) — CLAUDE CODE
+→ Phase 3.5    — Execution Plan Generation (auto after Phase 3 — context budget + task decomposition + Skill Installer activation)
 → Phase 4      — Full monorepo scaffold — CLAUDE CODE only (Cline deprecated) — Part-by-Part, fresh session each Part (Rule 24), explicit stops between Parts
 → Phase 5      — Validation — CLAUDE CODE (human trigger: "Start Phase 5" after Phase 4 Part 8)
 → Phase 6      — Docker + Visual QA — CLAUDE CODE (human trigger: "Start Phase 6" after Phase 5)

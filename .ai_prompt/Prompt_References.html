@@ -155,15 +155,21 @@ body {
 }
 
 .search-box::placeholder { color: var(--text-dim); }
+.search-box[data-results]::after { content: attr(data-results); }
+.search-results-count {
+  font-size: 0.7rem;
+  color: var(--accent);
+  padding: 0.25rem 0;
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+  display: none;
+}
+.search-results-count.visible { display: block; }
 
 /* ===== MAIN CONTENT ===== */
 .main {
   padding: 3rem 3.5rem;
   max-width: 900px;
-}
-
-@media (max-width: 1200px) {
-  .main { padding: 2rem 2rem; }
 }
 
 /* ===== HERO ===== */
@@ -509,7 +515,9 @@ body {
   line-height: 1.55;
   color: var(--text);
   overflow-x: auto;
-  white-space: pre;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .code-body::-webkit-scrollbar { height: 6px; }
@@ -786,7 +794,7 @@ ul.checklist li:last-child { border-bottom: none; }
   font-weight: 500;
 }
 
-/* ===== MOBILE ===== */
+/* ===== MOBILE TOGGLE ===== */
 .mobile-toggle {
   display: none;
   position: fixed;
@@ -805,27 +813,149 @@ ul.checklist li:last-child { border-bottom: none; }
   box-shadow: 0 4px 20px rgba(247, 129, 102, 0.3);
 }
 
+/* Sidebar backdrop overlay */
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 98;
+}
+
+/* ===== RESPONSIVE: TABLES ===== */
+.table-wrap,
+.data-table {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ===== TABLET (≤1100px) ===== */
+@media (max-width: 1100px) {
+  .container { grid-template-columns: 240px 1fr; }
+  .sidebar { padding: 1.5rem 1rem; }
+  .main { padding: 2rem 1.5rem; }
+  .hero h1 { font-size: 2.5rem; }
+  .hero-stats { grid-template-columns: repeat(2, 1fr); }
+  .nav-link { font-size: 0.78rem; }
+  .prompt-content { padding: 0 1.25rem 1.25rem; padding-top: 1.25rem; }
+}
+
+/* ===== MOBILE (≤900px) ===== */
 @media (max-width: 900px) {
   .container { grid-template-columns: 1fr; }
+
+  /* Sidebar: off-canvas drawer */
   .sidebar {
     position: fixed;
     top: 0;
     left: 0;
     width: 280px;
     transform: translateX(-100%);
-    transition: transform 0.3s;
+    transition: transform 0.3s ease;
     z-index: 99;
   }
   .sidebar.open { transform: translateX(0); }
+  .sidebar.open ~ .sidebar-backdrop,
+  .sidebar-backdrop.open { display: block; }
   .mobile-toggle { display: block; }
-  .main { padding: 4rem 1.25rem 2rem; }
+
+  /* Main content */
+  .main { padding: 4rem 1rem 2rem; max-width: 100%; }
+
+  /* Hero */
   .hero h1 { font-size: 2rem; }
-  .hero-stats { grid-template-columns: repeat(2, 1fr); }
-  .prompt-header { padding: 1rem 1.1rem; }
-  .prompt-num { font-size: 0.78rem; padding: 0.25rem 0.5rem; }
+  .hero-lede { font-size: 0.95rem; }
+  .hero-stats { grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
+  .stat { padding: 0.75rem; }
+  .stat-num { font-size: 1.2rem; }
+
+  /* Section headers */
+  .section-title { font-size: 1.5rem; }
+
+  /* Prompt cards */
+  .prompt-card.new-badge::before {
+    top: 0.85rem;
+    right: 1rem;
+    font-size: 0.6rem;
+    padding: 0.15rem 0.4rem;
+  }
+  .prompt-header { padding: 1rem; gap: 0.65rem; }
+  .prompt-num { font-size: 0.75rem; padding: 0.25rem 0.5rem; }
   .prompt-title { font-size: 1.05rem; }
-  .decision-row { grid-template-columns: 1fr; text-align: left; }
-  .decision-arrow, .decision-target { text-align: left; }
+  .prompt-summary { font-size: 0.82rem; }
+  .prompt-content { padding: 0 1rem 1rem; padding-top: 1rem; }
+  .prompt-content h4 { font-size: 0.95rem; }
+  .prompt-content p,
+  .prompt-content ul,
+  .prompt-content ol { font-size: 0.88rem; }
+
+  /* Code blocks */
+  .code-body { font-size: 0.75rem; padding: 0.75rem 0.85rem; }
+
+  /* Meta row */
+  .meta-row { gap: 0.5rem; }
+  .meta-item { font-size: 0.78rem; }
+
+  /* Callouts */
+  .callout { padding: 0.75rem 0.85rem; font-size: 0.84rem; }
+
+  /* Decision tree */
+  .decision-tree { padding: 1.25rem; font-size: 0.82rem; }
+  .decision-row {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+    text-align: left;
+    padding: 0.65rem 0;
+  }
+  .decision-arrow { display: none; }
+  .decision-target {
+    text-align: left;
+    color: var(--blue);
+    padding-left: 0.5rem;
+    border-left: 2px solid var(--accent);
+  }
+
+  /* Tables */
+  table { font-size: 0.82rem; }
+  th, td { padding: 0.5rem 0.65rem; }
+  .data-table th { font-size: 0.68rem; }
+  .data-table td { font-size: 0.8rem; padding: 0.45rem 0.65rem; }
+
+  /* Controls */
+  .controls { gap: 0.35rem; }
+  .ctrl-btn { font-size: 0.7rem; padding: 0.35rem 0.65rem; }
+
+  /* Credential sections */
+  .cred-section > summary { font-size: 0.88rem; padding: 0.75rem 0.85rem; }
+  .cred-body { font-size: 0.85rem; padding: 0.4rem 0.85rem 0.85rem; }
+}
+
+/* ===== SMALL MOBILE (≤480px) ===== */
+@media (max-width: 480px) {
+  .main { padding: 3.5rem 0.75rem 1.5rem; }
+  .hero h1 { font-size: 1.6rem; }
+  .hero-lede { font-size: 0.88rem; }
+  .hero-stats { grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+  .stat { padding: 0.6rem; }
+  .stat-num { font-size: 1rem; }
+  .stat-label { font-size: 0.68rem; }
+
+  .section-title { font-size: 1.3rem; }
+  .prompt-header { padding: 0.85rem 0.75rem; gap: 0.5rem; }
+  .prompt-num { font-size: 0.7rem; padding: 0.2rem 0.4rem; min-width: auto; }
+  .prompt-title { font-size: 0.95rem; }
+  .prompt-content { padding: 0 0.75rem 0.75rem; padding-top: 0.75rem; }
+
+  .code-body { font-size: 0.7rem; padding: 0.6rem 0.7rem; }
+
+  .decision-tree { padding: 1rem; font-size: 0.78rem; }
+
+  /* Search box full width */
+  .search-box { font-size: 0.75rem; padding: 0.5rem 0.65rem; }
+
+  /* Footer */
+  .footer { font-size: 0.75rem; }
+  .footer-sig { font-size: 0.82rem; }
 }
 
 /* ===== SCROLLBAR GLOBAL ===== */
@@ -865,6 +995,7 @@ ul.checklist li:last-child { border-bottom: none; }
 <body>
 
 <button class="mobile-toggle" onclick="toggleSidebar()">☰ Menu</button>
+<div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleSidebar()"></div>
 
 <div class="container">
 
@@ -874,6 +1005,7 @@ ul.checklist li:last-child { border-bottom: none; }
     <div class="brand-sub">v31 · Prompt References</div>
 
     <input type="text" class="search-box" id="searchBox" placeholder="Search prompts…" oninput="filterPrompts(this.value)">
+    <div class="search-results-count" id="searchResults"></div>
 
     <div class="nav-group">
       <div class="nav-group-title"><span class="group-num">01</span> Setup</div>
@@ -902,7 +1034,7 @@ ul.checklist li:last-child { border-bottom: none; }
       <a class="nav-link" href="#p-2-7"><span class="nav-num">2.7</span>Push Image</a>
       <a class="nav-link" href="#p-2-8"><span class="nav-num">2.8</span>Context7 docs</a>
       <a class="nav-link" href="#p-2-9"><span class="nav-num">2.9</span>Validate Spec ✨</a>
-      <a class="nav-link" href="#p-2-10"><span class="nav-num">2.10</span>Pause/Resume Part ✨</a>
+      <a class="nav-link" href="#p-2-10"><span class="nav-num">2.10</span>Pause/Resume Session ✨</a>
       <a class="nav-link" href="#p-2-11"><span class="nav-num">2.11</span>Review Delta ✨</a>
       <a class="nav-link" href="#p-2-12"><span class="nav-num">2.12</span>Architecture Map ✨</a>
     </div>
@@ -957,6 +1089,7 @@ ul.checklist li:last-child { border-bottom: none; }
       <a class="nav-link" href="#p-4-10"><span class="nav-num">4.10</span>Mid-Build Adopt ✨</a>
       <a class="nav-link" href="#p-4-11"><span class="nav-num">4.11</span>Production Adopt ✨</a>
       <a class="nav-link" href="#p-4-12"><span class="nav-num">4.12</span>Backfill Section ✨</a>
+      <a class="nav-link" href="#p-4-13"><span class="nav-num">4.13</span>Add Automation ✨</a>
     </div>
 
     <div class="nav-group">
@@ -978,7 +1111,7 @@ ul.checklist li:last-child { border-bottom: none; }
 
       <div class="hero-stats">
         <div class="stat">
-          <div class="stat-num">54</div>
+          <div class="stat-num">55</div>
           <div class="stat-label">Prompts</div>
         </div>
         <div class="stat">
@@ -986,7 +1119,7 @@ ul.checklist li:last-child { border-bottom: none; }
           <div class="stat-label">Groups</div>
         </div>
         <div class="stat">
-          <div class="stat-num">31</div>
+          <div class="stat-num">32</div>
           <div class="stat-label">New ✨</div>
         </div>
         <div class="stat">
@@ -1812,6 +1945,71 @@ Start Part 7
 Start Part 8</div>
             </div>
             <p><strong>Part assignments:</strong> (1) Root config · (2) shared + api-client · (3) db (L3/L5/L6) · (4) ui + jobs + storage · (5) Web app · (6) Mobile app if declared · (7) tools + compose + SocratiCode · (8) CI + governance + index</p>
+
+            <div class="callout callout-warn">
+              <span class="callout-icon">⚠</span>
+              <div><strong>Anti-Thrashing: Module-by-Module Execution</strong> — If you hit "Autocompact is thrashing" during any Part (especially Parts 3-6 and Part 8 on apps with 15+ entities), scope each session to ONE module instead of the entire Part. See below.</div>
+            </div>
+
+            <h4>Anti-Thrashing: For Parts 3-6 (tRPC + UI)</h4>
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">Prompt (per module)</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+              <div class="code-body">Start Phase 4 Part [N] — [ModuleName] module ONLY.
+
+Rules for this session:
+1. Read ONLY the PRODUCT.md sections for [ModuleName] — do NOT read 
+   the entire PRODUCT.md
+2. Read ONLY the tRPC router / UI files for this module
+3. Read ONLY the Prisma models relevant to this module
+4. Build everything for this module, then run tests
+5. Commit with message: "feat([part-scope]): [ModuleName] [what was built]"
+6. Update STATE.md with "[ModuleName] — DONE"
+7. Do NOT start the next module — session ends here
+
+If you need to reference a shared component or utility, read ONLY that 
+single file — do not read its entire directory.</div>
+            </div>
+
+            <h4>Anti-Thrashing: For Part 8 (Mobile — Expo + WatermelonDB)</h4>
+            <p>Split Part 8 into layers first, then modules:</p>
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">Session 8a — Scaffold</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+              <div class="code-body">Start Phase 4 Part 8 — Expo project scaffold ONLY.
+Set up: project structure, navigation (expo-router), auth flow, 
+theme provider with DESIGN.md tokens. Do NOT build any screens yet.
+Commit and stop.</div>
+            </div>
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">Session 8b — WatermelonDB</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+              <div class="code-body">Resume Phase 4 Part 8 — WatermelonDB setup ONLY.
+Build: WatermelonDB schema (mirror Prisma models for Mobile First 
+entities only), sync engine with conflict resolution, pull/push 
+protocol. Do NOT build any screens yet. Commit and stop.</div>
+            </div>
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">Session 8c — Push</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+              <div class="code-body">Resume Phase 4 Part 8 — Expo Push notification setup ONLY.
+Build: push token registration, notification handler, background 
+handler. Commit and stop.</div>
+            </div>
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">Session 8d+ — Per module</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+              <div class="code-body">Resume Phase 4 Part 8 — [ModuleName] mobile screens ONLY.
+Build ONLY screens classified as "Mobile First" in PRODUCT.md 
+Mobile Needs table. Mobile Ready pages are already handled by 
+the responsive web app (Parts 5-6) — skip them here.
+Read ONLY this module's PRODUCT.md section. Commit and stop.</div>
+            </div>
+
+            <h4>Resume between module sessions</h4>
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">Prompt</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+              <div class="code-body">Resume session. Read STATE.md for current status, then read the latest 
+handoff note in .cline/handoffs/ before doing anything.
+
+Continue Phase 4 Part [N] — next module is [ModuleName].
+Read ONLY PRODUCT.md sections for this module.</div>
+            </div>
 
             <h4>1.3.6 — Fill CREDENTIALS.md ⏳ placeholders</h4>
             <p>Open <code>CREDENTIALS.md</code>, replace every <code>⏳ FILL LATER</code> with real values (GitHub PAT, Docker Hub token, SMTP, Komodo URL, Xendit keys, Turnstile prod keys). Then:</p>
@@ -2810,8 +3008,8 @@ Report only. If FAIL: suggest exact PRODUCT.md edit needed.</div>
         <div class="prompt-header" onclick="togglePrompt(this)">
           <div class="prompt-num">2.10</div>
           <div class="prompt-title-wrap">
-            <div class="prompt-title">Pause/Resume Mid-Part</div>
-            <div class="prompt-summary">Safely interrupt Phase 4 Part — meeting, break, context burning</div>
+            <div class="prompt-title">Pause/Resume Session</div>
+            <div class="prompt-summary">Safely interrupt any Phase — meeting, break, battery low, done for the day</div>
           </div>
           <div class="prompt-toggle">›</div>
         </div>
@@ -2819,31 +3017,36 @@ Report only. If FAIL: suggest exact PRODUCT.md edit needed.</div>
           <div class="prompt-content">
             <div class="callout callout-warn">
               <span class="callout-icon">⚠</span>
-              <div><strong>Never just kill the session</strong> — it leaves the branch in a half-built state. Use this pause flow instead.</div>
+              <div><strong>Never just kill the session</strong> — it leaves the branch in a half-built state and loses in-memory context. Use this pause flow instead.</div>
             </div>
 
             <h4>To pause</h4>
             <div class="code-block">
               <div class="code-header"><span class="code-lang">Pause Prompt</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-              <div class="code-body">Pause Phase 4 Part [N]
-
-Before you stop: write a handoff at .cline/handoffs/pause-part[N]-[timestamp].md with:
-- Exact state of the Part (what files written, what's still pending)
-- Any uncommitted changes on the scaffold/part-[N] branch
-- Any in-memory context that would be lost (decisions, gotchas discovered)
-- Resume instructions — what I need to type in the next session
-
-Do NOT squash-merge. Do NOT delete the branch. Do NOT rewrite STATE.md as "complete."
-Do rewrite STATE.md as "Phase 4 Part [N] PAUSED" with the handoff filename.</div>
+              <div class="code-body">Pause current work. Before stopping:
+1. Write a handoff note to .cline/handoffs/ with current progress, 
+   pending items, and resume instructions
+2. Update STATE.md with current status (mark as PAUSED)
+3. Update CHANGELOG_AI.md with everything done this session
+4. Update DECISIONS_LOG.md if any decisions were made
+5. Update IMPLEMENTATION_MAP.md if any new files were created
+6. Append to .cline/memory/lessons.md if any errors were resolved
+7. Commit all changes to the current branch with message: 
+   "wip: pause session — [brief description of what was done]"
+8. Do NOT squash-merge into main. Do NOT delete the branch.
+   The branch stays as-is until the next session resumes.</div>
             </div>
 
-            <h4>To resume later</h4>
+            <h4>To resume later (new Claude Code session)</h4>
             <div class="code-block">
               <div class="code-header"><span class="code-lang">Prompt</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-              <div class="code-body">Resume from handoff: pause-part[N]-[timestamp].md</div>
+              <div class="code-body">Resume session. Read STATE.md for current status, then read the latest 
+handoff note in .cline/handoffs/ before doing anything.</div>
             </div>
 
-            <p>Agent reads the handoff, restores context, continues the Part from exactly where it paused. Once Part completes, the handoff is archived but not deleted (historical record).</p>
+            <p><strong>What happens on pause:</strong> Agent writes the handoff note with exact state (files written, pending items, uncommitted changes, decisions, gotchas), updates all governance docs, and marks STATE.md as PAUSED with the handoff filename.</p>
+
+            <p><strong>What happens on resume:</strong> Agent reads STATE.md first (Rule 24), finds the PAUSED status with the handoff filename, reads the handoff note from <code>.cline/handoffs/</code>, then reads the 9 governance docs (lessons.md first). Full context rebuilt automatically from files. No need to tell it which Phase or Part — it knows from STATE.md and the handoff note.</p>
           </div>
         </div>
       </div>
@@ -4489,6 +4692,102 @@ unrelated code.</div>
           </div>
         </div>
       </div>
+
+      <div class="prompt-card group-4 new-badge" id="p-4-13" style="position:relative">
+        <div class="prompt-header" onclick="togglePrompt(this)">
+          <div class="prompt-num">4.13</div>
+          <div class="prompt-title-wrap">
+            <div class="prompt-title">Add Automation to Existing Project: n8n / OpenClaw / Hybrid</div>
+            <div class="prompt-summary">For when you didn't set up automation during initial planning but need it later mid-build or in production</div>
+          </div>
+          <div class="prompt-toggle">›</div>
+        </div>
+        <div class="prompt-body">
+          <div class="prompt-content">
+            <div class="meta-row">
+              <div class="meta-item"><span class="meta-label">Type</span><span class="meta-value">Standalone (7-step flow)</span></div>
+              <div class="meta-item"><span class="meta-label">When</span><span class="meta-value">Project past Phase 3, need automation</span></div>
+              <div class="meta-item"><span class="meta-label">Where</span><span class="meta-value">Planning Assistant → Claude Code</span></div>
+            </div>
+
+            <p><strong>When to use:</strong> Your project is already mid-build or in production (Phase 3+ started), and you realize a workflow would be better handled by n8n, OpenClaw, or a hybrid of both — but you didn't set up automation during the initial planning interview.</p>
+
+            <p><strong>Prerequisites:</strong> PRODUCT.md exists and is past Phase 3. The Planning Assistant is loaded in a Claude.ai chat (use 4.6 to swap to the latest template if needed — Rule 11 must be present).</p>
+
+            <h4>4.13.1 — Describe the workflow to the Planning Assistant</h4>
+            <p>In your Planning Assistant chat, describe what you want automated. Be specific about the trigger and the expected outcome:</p>
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">Planning Assistant Prompt</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+              <div class="code-body">I need to add automation to my project. Here's the workflow:
+
+[Describe the workflow in plain English. Examples:]
+- "When an invoice becomes 30 days overdue, send a reminder email to the customer
+  and notify the finance team on Slack"
+- "Every Monday at 8am, scan all open support tickets, prioritize them by urgency
+  using AI judgment, and post a summary to the #support channel"
+- "When a new lead is submitted, collect company info from the web, score the lead
+  based on our criteria, then route high-score leads to sales and low-score to
+  nurture campaign"
+
+Trigger: [what starts the workflow]
+Expected outcome: [what should happen at the end]
+Frequency: [one-time / on event / scheduled]</div>
+            </div>
+            <p>The Planning Assistant will detect the automation signals (Rule 11) and ask you whether this fits <strong>n8n</strong> (deterministic), <strong>OpenClaw</strong> (judgment), or <strong>hybrid</strong> (both).</p>
+
+            <h4>4.13.2 — Planning Assistant updates PRODUCT.md</h4>
+            <p>Once you confirm, the Planning Assistant will add the workflow to the <strong>Integrations → External Automation</strong> table, add any new env vars to Infrastructure Notes, specify webhook endpoints and fallback behavior, then output the complete updated PRODUCT.md.</p>
+
+            <h4>4.13.3 — Copy updated PRODUCT.md to project</h4>
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">Bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+              <div class="code-body">cp ~/Downloads/PRODUCT.md docs/PRODUCT.md
+git add docs/PRODUCT.md
+git commit -m "docs: add [workflow-name] automation via n8n/OpenClaw"</div>
+            </div>
+
+            <h4>4.13.4 — Generate handoff doc(s)</h4>
+            <p><strong>For n8n workflows:</strong> Open a separate Claude Code session and run <code>/automate</code> to scaffold the n8n workflow. This produces <code>n8n-handoff.md</code> in the project root.</p>
+            <p><strong>For OpenClaw agents:</strong> The Planning Assistant helps draft <code>openclaw-handoff.md</code> in the same chat. Copy it to the project root.</p>
+            <p><strong>For hybrid workflows:</strong> You'll need both — run <code>/automate</code> for the n8n part, and get the Planning Assistant to draft the OpenClaw part.</p>
+            <p>Both handoff docs are gitignored. They're consumed by Claude Code during the Feature Update.</p>
+
+            <h4>4.13.5 — Wire the app side via Phase 7 Feature Update</h4>
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">Claude Code Prompt</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+              <div class="code-body">Feature Update
+
+Add automation wiring for [workflow name] per docs/PRODUCT.md Integrations section.
+
+Read the handoff doc(s) in project root:
+- n8n-handoff.md (if n8n workflow)
+- openclaw-handoff.md (if OpenClaw agent)
+
+Implement:
+1. HTTP dispatch client in packages/api/src/lib/automation-client.ts
+   (typed client for n8n webhook trigger / OpenClaw task dispatch)
+2. Webhook receiver at apps/web/src/app/api/webhooks/[provider]/route.ts
+   (signature verification + idempotency key + async result handling)
+3. Add env vars to .env.example (placeholders only) and CREDENTIALS.md
+4. Add fallback behavior as specified in PRODUCT.md Integrations table
+
+Standard Phase 7 governance — branch, CHANGELOG_AI, agent-log, tests.
+Scope: ONLY automation wiring. Do not touch unrelated code.</div>
+            </div>
+
+            <h4>4.13.6 — Deploy the n8n workflow / OpenClaw agent</h4>
+            <p>After the app-side wiring is merged:</p>
+            <ul>
+              <li><strong>n8n:</strong> Import the workflow JSON to <code>pbn8n.powerbyte.app</code></li>
+              <li><strong>OpenClaw:</strong> Deploy the agent config to <code>primeclaws.com</code> via the VSCode extension or dashboard</li>
+              <li><strong>Test end-to-end</strong> in staging before production</li>
+            </ul>
+
+            <h4>4.13.7 — Adding more workflows later</h4>
+            <p>Repeat 4.13.1–4.13.6 for each additional workflow. The Planning Assistant appends new rows to the Integrations table — it never regenerates existing rows. Each workflow gets its own Feature Update branch.</p>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ===== QUICK COMMANDS ===== -->
@@ -4641,15 +4940,60 @@ function collapseGroup(n) {
 // Filter prompts by search
 function filterPrompts(query) {
   const q = query.toLowerCase().trim();
+  let visibleCount = 0;
+  let firstMatch = null;
+
+  // Show/hide individual prompt cards
   document.querySelectorAll('.prompt-card').forEach(card => {
     const text = card.textContent.toLowerCase();
-    card.style.display = (q === '' || text.includes(q)) ? '' : 'none';
+    const match = (q === '' || text.includes(q));
+    card.style.display = match ? '' : 'none';
+    if (match) {
+      visibleCount++;
+      if (!firstMatch) firstMatch = card;
+    }
   });
+
+  // Show/hide section wrappers based on whether they have visible cards
+  document.querySelectorAll('.section').forEach(section => {
+    const hasVisible = section.querySelectorAll('.prompt-card:not([style*="display: none"])').length > 0;
+    section.style.display = (q === '' || hasVisible) ? '' : 'none';
+  });
+
+  // Auto-expand matching cards when searching, collapse when cleared
+  if (q.length > 2) {
+    document.querySelectorAll('.prompt-card').forEach(card => {
+      if (card.style.display !== 'none') {
+        card.classList.add('open');
+      }
+    });
+    // Scroll to first match
+    if (firstMatch) {
+      setTimeout(() => {
+        firstMatch.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    }
+  } else if (q === '') {
+    document.querySelectorAll('.prompt-card').forEach(card => {
+      card.classList.remove('open');
+    });
+  }
+
+  // Update result count display
+  const resultsEl = document.getElementById('searchResults');
+  if (q !== '') {
+    resultsEl.textContent = visibleCount + (visibleCount === 1 ? ' prompt found' : ' prompts found');
+    resultsEl.classList.add('visible');
+  } else {
+    resultsEl.textContent = '';
+    resultsEl.classList.remove('visible');
+  }
 }
 
 // Mobile sidebar toggle
 function toggleSidebar() {
   document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebarBackdrop').classList.toggle('open');
 }
 
 // Close mobile sidebar when a link is clicked
@@ -4657,6 +5001,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
   link.addEventListener('click', () => {
     if (window.innerWidth <= 900) {
       document.getElementById('sidebar').classList.remove('open');
+      document.getElementById('sidebarBackdrop').classList.remove('open');
     }
   });
 });

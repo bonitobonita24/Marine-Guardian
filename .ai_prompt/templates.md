@@ -714,7 +714,7 @@ Non-OSS choice: accept, note tradeoff, document in DECISIONS_LOG.md.
 
 ```markdown
 ## YYYY-MM-DD — [Phase or Feature Name]
-- Agent:               CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
+- Agent:               CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 - Why:                 reason for the change
 - Files added:         list or "none"
 - Files modified:      list or "none"
@@ -724,9 +724,9 @@ Non-OSS choice: accept, note tradeoff, document in DECISIONS_LOG.md.
 - Errors resolved:     how each was fixed, or "none"
 ```
 
-Attribution detection priority: CLINE (self-reported) → CLAUDE_CODE (self-reported)
-→ COPILOT (inferred from SpecStory, no agent session) → HUMAN (inferred, manual edit)
-→ UNKNOWN (SpecStory diff, source unclear). See Rule 3 for full detection logic.
+Attribution detection priority: CLAUDE_CODE (self-reported) → COPILOT (inferred from SpecStory,
+no agent session) → HUMAN (inferred, manual edit) → UNKNOWN (SpecStory diff, source unclear).
+(Cline deprecated V31 — no longer part of active attribution chain.) See Rule 3 for full detection logic.
 
 ### Rule 16 — Visual QA after every Phase 6 and major Phase 7
 

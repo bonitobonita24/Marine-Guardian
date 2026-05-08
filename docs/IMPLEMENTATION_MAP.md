@@ -1,9 +1,9 @@
 # Implementation Map — Marine Guardian Command Center
 # Current build state. Rewritten after every feature update.
-# Last updated: 2026-05-07 — Phase 7 Feature Update: EarthRanger sync processor implemented.
+# Last updated: 2026-05-08 — Phase 8 Batch 1 Item 2: Event Kanban Board COMPLETE.
 # ---
 
-## Status: Phase 7 — EarthRanger sync processor complete. All Docker services healthy including workers.
+## Status: Phase 8 Batch 1 — Items 1 (Dashboard) and 2 (Event Kanban Board) complete. All Docker services healthy.
 
 ### Schema Delta Fixes (feat/schema-delta-fixes — merged to main)
 - [x] PatrolType enum: seabourn → seaborne (Prisma, shared types/schemas, seed, tRPC routers)
@@ -220,6 +220,7 @@ Docker fixes applied (6 total):
 ### Not yet built (deferred to Phase 7/8)
 - [x] ~~EarthRanger API sync implementation (er-sync worker body)~~ — DONE (Phase 7)
 - [x] ~~Dashboard: KPI cards, event breakdown charts, recent events feed, quick stats~~ — DONE (Phase 8 Batch 1 Item 1)
+- [x] ~~Event Kanban Board: drag-and-drop state transitions, tenant-scoped updateState, optimistic UI, unit tests~~ — DONE (Phase 8 Batch 1 Item 2)
 - [ ] Alert rule evaluation engine (alerts worker body)
 - [ ] Interactive map (Leaflet.js on /map page)
 - [ ] Real-time notifications (WebSocket/SSE)
@@ -234,8 +235,18 @@ Docker fixes applied (6 total):
 - [x] shadcn/ui chart component: `apps/web/src/components/ui/chart.tsx` + recharts dependency
 - [x] shadcn/ui config: `apps/web/components.json` (new-york style, CSS variables)
 
+### Event Kanban Board (Phase 8 Batch 1 Item 2 — COMPLETE)
+- [x] Kibo UI Kanban component: `apps/web/src/components/kibo-ui/kanban/index.tsx` — KanbanProvider, KanbanBoard, KanbanCards, KanbanCard, KanbanHeader (TypeScript strict fixes applied)
+- [x] shadcn/ui scroll-area: `apps/web/src/components/ui/scroll-area.tsx` (React 19 ComponentRef compat)
+- [x] Events page rewrite: `apps/web/src/app/(dashboard)/events/page.tsx` — 3-column Kanban (New/Active/Resolved), drag-and-drop state transitions, optimistic UI with rollback on error, priority badges, stats bar
+- [x] Dependencies: @dnd-kit/core, @dnd-kit/sortable, @dnd-kit/utilities, @radix-ui/react-scroll-area
+- [x] tRPC `event.updateState` mutation — tenant-scoped updateMany with FORBIDDEN guard when tenantId absent
+- [x] tRPC `event.stats` query — tenant-scoped counts by state (total, newEvents, active, resolved)
+- [x] Unit tests: `apps/web/src/server/trpc/routers/__tests__/event.test.ts` — 4 tests (happy path, tenant scoping, FORBIDDEN, schema validation), all passing
+- [x] vitest upgraded ^2.1.8→^4.1.5 — resolves Vite 8 incompatibility from root pnpm override
+- [x] Two-stage review: Stage 1 PASS (spec compliance), Stage 2 PASS (code quality)
+
 ---
 
 ### Next Step
-Phase 8 Batch 1 continues — Item 2: Event Kanban Board, Item 3: Fuel Logging.
-No known blockers. All services operational.
+Phase 8 Batch 1 Item 3. No known blockers. All services operational.

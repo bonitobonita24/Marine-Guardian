@@ -2,7 +2,7 @@ import type { Job } from "bullmq";
 import type { MaintenanceJobPayload } from "../queues/types";
 import { validateTenantContext } from "../workers/base-worker";
 
-export async function processMaintenance(job: Job<MaintenanceJobPayload>): Promise<void> {
+export function processMaintenance(job: Job<MaintenanceJobPayload>): Promise<void> {
   validateTenantContext(job.data);
 
   const { task, tenantId } = job.data;
@@ -11,4 +11,6 @@ export async function processMaintenance(job: Job<MaintenanceJobPayload>): Promi
 
   // TODO: implement actual maintenance tasks (DB cleanup, view refresh, archival) in Phase 8
   console.log(`[maintenance] Job ${job.id ?? "unknown"} processed (stub — no maintenance logic yet)`);
+
+  return Promise.resolve();
 }

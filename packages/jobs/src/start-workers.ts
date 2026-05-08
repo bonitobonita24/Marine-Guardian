@@ -14,7 +14,7 @@ const workers = [
   createWorker(QUEUE_NAMES.MAINTENANCE, processMaintenance, { concurrency: 1 }),
 ];
 
-console.log(`[worker] ${workers.length} workers registered: ${Object.values(QUEUE_NAMES).join(", ")}`);
+console.log(`[worker] ${String(workers.length)} workers registered: ${Object.values(QUEUE_NAMES).join(", ")}`);
 
 async function shutdown(): Promise<void> {
   console.log("[worker] Shutting down gracefully...");

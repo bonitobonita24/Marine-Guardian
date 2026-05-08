@@ -75,11 +75,11 @@ export class EarthRangerClient {
       headers: { Authorization: `Bearer ${this.token}` },
     });
     if (!res.ok) {
-      throw new Error(`EarthRanger API error: ${res.status} ${res.statusText}`);
+      throw new Error(`EarthRanger API error: ${String(res.status)} ${res.statusText}`);
     }
     const body = (await res.json()) as { data?: T } | T;
     if (typeof body === "object" && body !== null && "data" in body) {
-      return body.data as T;
+      return (body as { data: T }).data;
     }
     return body as T;
   }
@@ -93,17 +93,17 @@ export class EarthRangerClient {
   }
 
   async getEvents(since?: string): Promise<ErEvent[]> {
-    const qs = since ? `?updated_since=${encodeURIComponent(since)}` : "";
+    const qs = since !== undefined ? `?updated_since=${encodeURIComponent(since)}` : "";
     return this.request<ErEvent[]>(`/activity/events${qs}`);
   }
 
   async getPatrols(since?: string): Promise<ErPatrol[]> {
-    const qs = since ? `?updated_since=${encodeURIComponent(since)}` : "";
+    const qs = since !== undefined ? `?updated_since=${encodeURIComponent(since)}` : "";
     return this.request<ErPatrol[]>(`/activity/patrols${qs}`);
   }
 
   async getObservations(since?: string): Promise<ErObservation[]> {
-    const qs = since ? `?updated_since=${encodeURIComponent(since)}` : "";
+    const qs = since !== undefined ? `?updated_since=${encodeURIComponent(since)}` : "";
     return this.request<ErObservation[]>("/observations" + qs);
   }
 }

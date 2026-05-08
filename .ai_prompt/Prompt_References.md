@@ -736,6 +736,73 @@ Start Part 8
 
 Part assignments: (1) Root config · (2) shared + api-client · (3) db (L3/L5/L6) · (4) ui + jobs + storage · (5) Web app · (6) Mobile app if declared · (7) tools + compose + SocratiCode · (8) CI + governance + index
 
+### ⚠ Anti-Thrashing: Module-by-Module Execution (for large apps)
+
+**When:** You hit "Autocompact is thrashing" during any Phase 4 Part — especially Parts 3-6 (tRPC routers + UI pages) and Part 8 (Mobile) on apps with 15+ entities. This means the context window is filling up because Claude Code is reading too many files per turn.
+
+**The fix: scope each session to ONE module instead of the entire Part.**
+
+**For Parts 3-6 (tRPC routers + UI pages):**
+```
+Start Phase 4 Part [N] — [ModuleName] module ONLY.
+
+Rules for this session:
+1. Read ONLY the PRODUCT.md sections for [ModuleName] — do NOT read 
+   the entire PRODUCT.md
+2. Read ONLY the tRPC router / UI files for this module
+3. Read ONLY the Prisma models relevant to this module
+4. Build everything for this module, then run tests
+5. Commit with message: "feat([part-scope]): [ModuleName] [what was built]"
+6. Update STATE.md with "[ModuleName] — DONE"
+7. Do NOT start the next module — session ends here
+
+If you need to reference a shared component or utility, read ONLY that 
+single file — do not read its entire directory.
+```
+
+Then start a fresh session for each remaining module. Example for a 10-module ERP — Part 5 (UI) becomes 8-12 sessions instead of one, each touching 6-12 files max.
+
+**For Part 8 (Mobile — Expo + WatermelonDB + offline sync):**
+
+Part 8 is the heaviest because it mirrors the web app for a different platform. Split it into layers first, then modules:
+
+```
+Session 8a — Expo scaffold + navigation + auth:
+  Start Phase 4 Part 8 — Expo project scaffold ONLY.
+  Set up: project structure, navigation (expo-router), auth flow, 
+  theme provider with DESIGN.md tokens. Do NOT build any screens yet.
+  Commit and stop.
+
+Session 8b — WatermelonDB schema + sync engine:
+  Resume Phase 4 Part 8 — WatermelonDB setup ONLY.
+  Build: WatermelonDB schema (mirror Prisma models for Mobile First 
+  entities only), sync engine with conflict resolution, pull/push 
+  protocol. Do NOT build any screens yet. Commit and stop.
+
+Session 8c — Push notifications:
+  Resume Phase 4 Part 8 — Expo Push notification setup ONLY.
+  Build: push token registration, notification handler, background 
+  handler. Commit and stop.
+
+Session 8d onward — one Mobile First module per session:
+  Resume Phase 4 Part 8 — [ModuleName] mobile screens ONLY.
+  Build ONLY screens classified as "Mobile First" in PRODUCT.md 
+  Mobile Needs table. Mobile Ready pages are already handled by 
+  the responsive web app (Parts 5-6) — skip them here.
+  Read ONLY this module's PRODUCT.md section. Commit and stop.
+```
+
+**Key rule for Part 8:** Not every page gets a native mobile screen. Only pages marked **Mobile First** in the PRODUCT.md Mobile Needs table are built here. **Mobile Ready** pages rely on the responsive web layout from Parts 5-6.
+
+**Resume between module sessions:**
+```
+Resume session. Read STATE.md for current status, then read the latest 
+handoff note in .cline/handoffs/ before doing anything.
+
+Continue Phase 4 Part [N] — next module is [ModuleName].
+Read ONLY PRODUCT.md sections for this module.
+```
+
 ### 1.3.6 — Fill CREDENTIALS.md ⏳ placeholders
 
 Open `CREDENTIALS.md` and replace every `⏳ FILL LATER` with real values (GitHub PAT, Docker Hub token, SMTP, Komodo URL, Xendit keys, Turnstile prod keys). Then:
@@ -1638,30 +1705,35 @@ Report only. If FAIL: suggest exact PRODUCT.md edit needed.
 
 ---
 
-## 2.10 — Pause/Resume Mid-Part (safely interrupt Phase 4)
+## 2.10 — Pause/Resume Session (safely interrupt any Phase)
 
-**When:** You need to stop Phase 4 Part N mid-execution (meeting, break, battery running low, model burning context). Never just kill the session — it leaves the branch in a half-built state.
+**When:** You need to stop mid-execution (meeting, break, battery running low, model burning context, or just done for the day). Never just kill the session — it leaves the branch in a half-built state and loses in-memory context.
 
 **To pause:**
 ```
-Pause Phase 4 Part [N]
-
-Before you stop: write a handoff at .cline/handoffs/pause-part[N]-[timestamp].md with:
-- Exact state of the Part (what files written, what's still pending)
-- Any uncommitted changes on the scaffold/part-[N] branch
-- Any in-memory context that would be lost (decisions, gotchas discovered)
-- Resume instructions — what I need to type in the next session
-
-Do NOT squash-merge. Do NOT delete the branch. Do NOT rewrite STATE.md as "complete."
-Do rewrite STATE.md as "Phase 4 Part [N] PAUSED" with the handoff filename.
+Pause current work. Before stopping:
+1. Write a handoff note to .cline/handoffs/ with current progress, 
+   pending items, and resume instructions
+2. Update STATE.md with current status (mark as PAUSED)
+3. Update CHANGELOG_AI.md with everything done this session
+4. Update DECISIONS_LOG.md if any decisions were made
+5. Update IMPLEMENTATION_MAP.md if any new files were created
+6. Append to .cline/memory/lessons.md if any errors were resolved
+7. Commit all changes to the current branch with message: 
+   "wip: pause session — [brief description of what was done]"
+8. Do NOT squash-merge into main. Do NOT delete the branch.
+   The branch stays as-is until the next session resumes.
 ```
 
-**To resume later:**
+**To resume later (new Claude Code session):**
 ```
-Resume from handoff: pause-part[N]-[timestamp].md
+Resume session. Read STATE.md for current status, then read the latest 
+handoff note in .cline/handoffs/ before doing anything.
 ```
 
-**What happens:** Agent reads the handoff, restores context, continues the Part from exactly where it paused. Once Part completes, the handoff is archived but not deleted (historical record).
+**What happens on pause:** Agent writes the handoff note with exact state (files written, pending items, uncommitted changes, decisions, gotchas), updates all governance docs, and marks STATE.md as PAUSED with the handoff filename.
+
+**What happens on resume:** Agent reads STATE.md first (Rule 24), finds the PAUSED status with the handoff filename, reads the handoff note from `.cline/handoffs/`, then reads the 9 governance docs (lessons.md first). Full context rebuilt automatically from files. No need to tell it which Phase or Part — it knows from STATE.md and the handoff note.
 
 ---
 
