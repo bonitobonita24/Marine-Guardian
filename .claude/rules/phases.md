@@ -1781,6 +1781,12 @@ across sessions once installed — no need to reinstall per sub-session.
 
 ### ⚠ ANTI-THRASHING RULE — MANDATORY (applies to ALL Parts)
 
+**Model context:** Claude Sonnet 4.6 via Claude Code. 200K token context window,
+~120K practical working budget, ≤80K SAFE zone for input context. Every file read,
+governance doc loaded, and PRODUCT.md section parsed consumes from this budget.
+The 12-file threshold is calibrated for this model: each file + overhead averages
+~6-8K tokens, so 12 files ≈ 80-96K ≈ the edge of the SAFE zone.
+
 **Problem:** On large apps (15+ entities, 10+ modules), Parts 3-6 and Part 8 can trigger
 "Autocompact is thrashing" — the context window fills within 3 turns because Claude Code
 tries to read the entire PRODUCT.md + entire codebase at once.
@@ -1788,25 +1794,30 @@ tries to read the entire PRODUCT.md + entire codebase at once.
 **Rule:** At the START of every Part, BEFORE writing any code, Claude Code MUST:
 
 1. Count the number of modules/entities relevant to this Part from PRODUCT.md
-2. IF the Part scope exceeds 12 files to create/modify → the Part MUST be sub-divided
-   into module-by-module sessions. Do NOT attempt to build everything in one session.
-3. Report the sub-division plan to the human:
+2. Estimate the token cost: CLAUDE.md (~5K) + active rules file (~3K) + PRODUCT.md
+   sections (~2-4K each) + existing source files to read (~1-3K each) + governance
+   docs (~10-15K) + output generation (~2-5K per file). If total exceeds 80K → MUST split.
+3. IF the Part scope exceeds 12 files to create/modify OR estimated context exceeds
+   80K tokens → the Part MUST be sub-divided into module-by-module sessions.
+   Do NOT attempt to build everything in one session.
+4. Report the sub-division plan to the human:
    ```
-   ⚠ Part [N] scope assessment: [X] modules, ~[Y] files to create.
-   This exceeds the 12-file threshold. Splitting into sub-sessions:
-     Part [N]a — [ModuleName]: [list of files]
-     Part [N]b — [ModuleName]: [list of files]
-     Part [N]c — [ModuleName]: [list of files]
+   ⚠ Part [N] scope assessment: [X] modules, ~[Y] files, ~[Z]K estimated tokens.
+   Exceeds 80K SAFE zone. Splitting into sub-sessions:
+     Part [N]a — [ModuleName]: [list of files] (~[N]K tokens)
+     Part [N]b — [ModuleName]: [list of files] (~[N]K tokens)
      ...
    Starting with Part [N]a. I'll commit and stop after each sub-session.
    ```
-4. IF the Part scope is ≤12 files → proceed normally as a single session.
-5. The human may also FORCE sub-division at any time by saying:
+5. IF the Part scope is ≤12 files AND estimated context is ≤80K → proceed normally.
+6. The human may also FORCE sub-division at any time by saying:
    "Split this Part by module" — even if the threshold is not reached.
 
 **Per sub-session rules (when sub-divided):**
 - Read ONLY the PRODUCT.md sections for the current module — do NOT read the entire file
+  (a full PRODUCT.md can be 20-40K tokens alone — reading it all defeats the purpose)
 - Read ONLY the files relevant to the current module (routers, models, pages)
+- Use codebase_search (Rule 17) to find specific symbols instead of opening files for context
 - If you need a shared component or utility, read ONLY that single file — not the directory
 - Build all files for this module, then run tests for this module
 - Commit with message: "feat([part-scope]): [ModuleName] [what was built]"
@@ -3546,6 +3557,12 @@ After each batch: update all governance docs. Show updated "Not yet built" list.
 
 ### ⚠ ANTI-THRASHING RULE — MANDATORY (applies to ALL Phase 8 Batches)
 
+**Model context:** Claude Sonnet 4.6 via Claude Code. 200K token context window,
+~120K practical working budget, ≤80K SAFE zone for input context. Every file read,
+governance doc loaded, and PRODUCT.md section parsed consumes from this budget.
+The 12-file threshold is calibrated for this model: each file + overhead averages
+~6-8K tokens, so 12 files ≈ 80-96K ≈ the edge of the SAFE zone.
+
 **Problem:** On large apps with many modules, Phase 8 batches trigger "Autocompact is thrashing"
 because Claude Code tries to read the full PRODUCT.md + full codebase + all governance docs
 at once, filling the 120K context window within 2-3 turns. Features get silently dropped,
@@ -3560,24 +3577,30 @@ without explicit human approval is a governance violation.
 
 1. **Scope assessment** — list every file that will be created or modified across ALL items
    in this batch (routers, services, pages, components, tests, migrations, types)
-2. IF the batch scope exceeds 12 files to create/modify → the batch MUST be sub-divided
-   into per-feature sub-batches. Do NOT attempt to build multiple features in one session.
-3. Report the sub-division plan:
+2. **Estimate the token cost:** CLAUDE.md (~5K) + active rules file (~3K) + PRODUCT.md
+   sections (~2-4K each) + existing source files to read (~1-3K each) + governance
+   docs (~10-15K) + output generation (~2-5K per file). If total exceeds 80K → MUST split.
+3. IF the batch scope exceeds 12 files to create/modify OR estimated context exceeds
+   80K tokens → the batch MUST be sub-divided into per-feature sub-batches.
+   Do NOT attempt to build multiple features in one session.
+4. Report the sub-division plan:
    ```
-   ⚠ Phase 8 Batch [N] scope assessment: [X] features, ~[Y] files total.
-   This exceeds the 12-file threshold. Splitting into sub-batches:
-     Batch [N]-1 — [FeatureName]: [list of files]
-     Batch [N]-2 — [FeatureName]: [list of files]
-     Batch [N]-3 — [FeatureName]: [list of files]
+   ⚠ Phase 8 Batch [N] scope assessment: [X] features, ~[Y] files, ~[Z]K estimated tokens.
+   Exceeds 80K SAFE zone. Splitting into sub-batches:
+     Batch [N]-1 — [FeatureName]: [list of files] (~[N]K tokens)
+     Batch [N]-2 — [FeatureName]: [list of files] (~[N]K tokens)
+     Batch [N]-3 — [FeatureName]: [list of files] (~[N]K tokens)
    Starting with Batch [N]-1. I'll commit and stop after each sub-batch.
    ```
-4. IF the batch scope is ≤12 files → proceed as a single session.
-5. The human may also FORCE sub-division at any time by saying:
+5. IF the batch scope is ≤12 files AND estimated context ≤80K → proceed as a single session.
+6. The human may also FORCE sub-division at any time by saying:
    "Split this batch by feature" — even if the threshold is not reached.
 
 **Per sub-batch rules (when sub-divided):**
 - Read ONLY the PRODUCT.md sections for the current feature — do NOT read the entire file
+  (a full PRODUCT.md can be 20-40K tokens alone — reading it all defeats the purpose)
 - Read ONLY the codebase files relevant to the current feature
+- Use codebase_search (Rule 17) to find specific symbols instead of opening files for context
 - If you need a shared component or utility, read ONLY that single file — not the whole directory
 - Cross-reference against PRODUCT.md before completing: verify every field, validation rule,
   permission, and UI element described for this feature is actually implemented

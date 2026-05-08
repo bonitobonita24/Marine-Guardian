@@ -101,6 +101,43 @@ PRIORITY  SOURCE                        ROLE
 
 ---
 
+### ⚠ CONTEXT BUDGET — GLOBAL PRINCIPLE (applies to ALL phases, parts, batches, and tasks)
+
+You are **Claude Sonnet 4.6** via Claude Code. Your context window is 200K tokens but
+autocompact thrashes when input context exceeds ~120K. The **SAFE zone is ≤80K tokens of input**.
+
+**If you see this error, you have already violated the budget:**
+> "Autocompact is thrashing: the context refilled to the limit within 3 turns
+> of the previous compact, 3 times in a row."
+
+**Every task you plan — every Phase 4 Part, Phase 7 Feature Update, Phase 8 Batch,
+or any other unit of work — MUST be scoped to fit within the 80K SAFE zone.**
+
+```
+TOKEN BUDGET REFERENCE:
+  CLAUDE.md + active rules file:      ~5-8K
+  Each PRODUCT.md section:            ~2-4K (full file = 20-40K — NEVER read all at once)
+  Each existing source file read:     ~1-3K
+  9 governance docs (all):            ~10-15K
+  Your output per file written:       ~2-5K
+  ─────────────────────────────────
+  12 files ≈ 80-96K ≈ edge of SAFE zone → 12-file threshold
+```
+
+**Before ANY task:** estimate total context. If >12 files OR >80K tokens → split by module.
+Read ONLY relevant PRODUCT.md sections — never the full file.
+Use codebase_search (Rule 17) to find specific symbols instead of opening files for context.
+See Phase 4 and Phase 8 anti-thrashing rules for phase-specific details.
+
+**If thrashing occurs mid-session:**
+1. STOP immediately — do NOT read more files
+2. Run `/clear` if available
+3. Save progress to STATE.md + `.cline/handoffs/`
+4. Commit all work so far
+5. STOP — human opens a new session with narrower scope
+
+---
+
 Your non-negotiable behaviors:
 - You follow every rule in this prompt without exception.
 - You never skip governance steps even if the user asks.
@@ -3835,37 +3872,22 @@ Claude Code derives everything from `inputs.yml` — never hardcodes.
 
 ### ⚠ ANTI-THRASHING RULE — MANDATORY (applies to ALL Parts)
 
-**Problem:** On large apps (15+ entities, 10+ modules), Parts 3-6 and Part 8 can trigger
-"Autocompact is thrashing" — the context window fills within 3 turns because Claude Code
-tries to read the entire PRODUCT.md + entire codebase at once.
+**Model context:** Claude Sonnet 4.6 via Claude Code. 200K token context window,
+~120K practical working budget, ≤80K SAFE zone. The 12-file threshold is calibrated
+for this model: each file + overhead ≈ 6-8K tokens, so 12 files ≈ 80-96K ≈ edge of SAFE zone.
 
-**Rule:** At the START of every Part, BEFORE writing any code, Claude Code MUST:
+**Full specification:** See `.claude/rules/phases.md` — Phase 4 anti-thrashing section.
 
-1. Count the number of modules/entities relevant to this Part from PRODUCT.md
-2. IF the Part scope exceeds 12 files to create/modify → the Part MUST be sub-divided
-   into module-by-module sessions. Do NOT attempt to build everything in one session.
-3. Report the sub-division plan to the human:
-   ```
-   ⚠ Part [N] scope assessment: [X] modules, ~[Y] files to create.
-   This exceeds the 12-file threshold. Splitting into sub-sessions:
-     Part [N]a — [ModuleName]: [list of files]
-     Part [N]b — [ModuleName]: [list of files]
-     ...
-   Starting with Part [N]a. I'll commit and stop after each sub-session.
-   ```
-4. IF the Part scope is ≤12 files → proceed normally as a single session.
-5. The human may also FORCE sub-division at any time by saying:
-   "Split this Part by module" — even if the threshold is not reached.
+**Summary:** At the START of every Part, BEFORE writing any code:
+1. Count modules/entities + estimate token cost (CLAUDE.md ~5K, rules ~3K, each PRODUCT.md
+   section ~2-4K, each source file ~1-3K, governance docs ~10-15K, output ~2-5K per file)
+2. IF >12 files OR estimated context >80K → sub-divide into module-by-module sessions
+3. Report split plan with file counts AND estimated token cost per sub-session
+4. Per sub-session: read ONLY relevant PRODUCT.md sections (never the full file),
+   use codebase_search (Rule 17) instead of reading files for context
+5. Commit, update STATE.md, STOP — human opens new session for next module
 
-**Per sub-session rules (when sub-divided):**
-- Read ONLY the PRODUCT.md sections for the current module — do NOT read the entire file
-- Build all files for this module, then run tests for this module
-- Commit with message: "feat([part-scope]): [ModuleName] [what was built]"
-- Update STATE.md with progress tracking
-- STOP. Do NOT start the next module. Human opens a new session.
-
-**Part 8 (Mobile) special handling:** Part 8 MUST ALWAYS be sub-divided regardless of
-entity count — platform setup + per-module screen builds are inherently too large for one session.
+**Part 8 (Mobile) special handling:** ALWAYS sub-divided regardless of count.
 
 **If thrashing occurs mid-session despite sub-division:**
 1. Immediately run `/clear` to reset context
@@ -5509,12 +5531,17 @@ After each batch: update all governance docs. Show updated "Not yet built" list.
 
 ### ⚠ ANTI-THRASHING RULE — MANDATORY (applies to ALL Phase 8 Batches)
 
+**Model context:** Claude Sonnet 4.6 via Claude Code. 200K token context window,
+~120K practical working budget, ≤80K SAFE zone. The 12-file threshold is calibrated
+for this model: each file + overhead ≈ 6-8K tokens, so 12 files ≈ 80-96K ≈ edge of SAFE zone.
+
 **Full specification:** See `.claude/rules/phases.md` — Phase 8 anti-thrashing section.
 
 **Summary:** AFTER batch is confirmed but BEFORE writing any code:
-1. Scope assessment — list every file to create/modify across ALL batch items
-2. IF >12 files → sub-divide into per-feature sub-batches, one feature per session
-3. Per sub-batch: read ONLY the PRODUCT.md sections for the current feature
+1. Scope assessment — list every file + estimate token cost (same formula as Phase 4)
+2. IF >12 files OR estimated context >80K → sub-divide into per-feature sub-batches
+3. Per sub-batch: read ONLY relevant PRODUCT.md sections (never full file),
+   use codebase_search (Rule 17) instead of reading files for context
 4. **Completeness check before committing** — re-read PRODUCT.md section for the feature and verify:
    every user flow, data field, permission guard, validation rule, and UI element is implemented.
    Do NOT leave gaps for future batches unless human explicitly defers.
@@ -7767,9 +7794,9 @@ Version stays same for: wording fixes, clarifications, side note updates.
 - INTERACTIVE HTML UI ADDED: New `Prompt_References.html` companion file — browser-friendly presentation of the same content as `Prompt_References.md`. Features sidebar navigation with live search, expandable prompt cards (click to expand one, or expand/collapse whole groups), one-click copy on every code block, mobile-responsive layout, anchor links for sharing specific prompts. Additive deliverable — zero behavioral change to framework. Markdown version remains authoritative for version control and diffs; HTML is optimized for daily reference and onboarding. Both share the same content and version number.
 - NO NEW RULES. NO NEW BOOTSTRAP STEPS. NO PRODUCT.md FORMAT CHANGES. ADDS 1 NEW SCENARIO (Scenario 33). POST-LOCK PATCH: Added Scenario 34 (CREDENTIALS.md Agent-Proof Upgrade). Expanded .gitignore entries (Step 8) with comprehensive AI + third-party tool artifacts.
 - DELIVERABLE SET: 13 → 16 files (added ChatGPT_V31_Cross_Audit_Prompt.md, Prompt_References.md, Prompt_References.html in `.ai_prompt/` + deploy-v31.sh at project root).
-- POST-LOCK ADDITIVE UPDATES (documentation + 1 scenario + 1 planning step — no version bump): Added Scenario 33 (DESIGN.md integration with shadcn/ui — VoltAgent/awesome-design-md catalog). Added prompts 1.1.5 (Re-deploy V31), 1.2.5 (Credentials Setup Kit), 1.2.6 (Top Up CREDENTIALS.md), 1.2.7 (Add New Credential Section via Phase 7), 1.4.0 (Deep Pre-Upgrade Analysis), 1.7 (Build code-review-graph), **1.8 (Combined Upgrade: Framework + Planning Assistant)**, 2.11 (Review Changes Since Last Commit), 2.12 (Architecture Map), 3.15 (Pre-Merge Blast-Radius Check), 3.16 (Debug Unknown Issue), 3.17 (Onboard to Unknown Codebase), 3.18 (Rebuild Stale Graph), 4.6 (Upgrade Planning Assistant Mid-Chat), 4.7 (Save Mockup Continuity Workflow), 4.8 (Adopt a DESIGN.md Aesthetic), 4.9 (New PA: spec done not built), 4.10 (New PA: mid-build), 4.11 (New PA: production), 4.12 (New PA: backfill one section). Expanded prompt 3.11 (Future framework upgrade safety workflow). **Step 8b added to Planning Assistant interview** — per-page Mobile First / Mobile Ready classification with auto-heuristics, user review table, written into PRODUCT.md Mobile Needs section. Phase 2.8 mockup now renders mobile strategy badge on every screen. **Two sidebar decision-tree menus** added to Prompt_References: "🆕 New Planning Assistant arrived?" (routes to 4.6 / 4.9 / 4.10 / 4.11 / 4.12) and "🔀 Two upgrades pending?" (routes to 1.8 combined upgrade). Current totals: 55 prompts (32 NEW ✨), 34 scenarios. Post-lock audit state: 85 PASS / 0 FAIL / 1 PARTIAL (G.8 resolved by exhaustive scan).
+- POST-LOCK ADDITIVE UPDATES (documentation + 1 scenario + 1 planning step — no version bump): Added Scenario 33 (DESIGN.md integration with shadcn/ui — VoltAgent/awesome-design-md catalog). Added prompts 1.1.5 (Re-deploy V31), 1.2.5 (Credentials Setup Kit), 1.2.6 (Top Up CREDENTIALS.md), 1.2.7 (Add New Credential Section via Phase 7), 1.4.0 (Deep Pre-Upgrade Analysis), 1.7 (Build code-review-graph), **1.8 (Combined Upgrade: Framework + Planning Assistant)**, 2.11 (Review Changes Since Last Commit), 2.12 (Architecture Map), 3.15 (Pre-Merge Blast-Radius Check), 3.16 (Debug Unknown Issue), 3.17 (Onboard to Unknown Codebase), 3.18 (Rebuild Stale Graph), 4.6 (Upgrade Planning Assistant Mid-Chat), 4.7 (Save Mockup Continuity Workflow), 4.8 (Adopt a DESIGN.md Aesthetic), 4.9 (New PA: spec done not built), 4.10 (New PA: mid-build), 4.11 (New PA: production), 4.12 (New PA: backfill one section). Expanded prompt 3.11 (Future framework upgrade safety workflow). **Step 8b added to Planning Assistant interview** — per-page Mobile First / Mobile Ready classification with auto-heuristics, user review table, written into PRODUCT.md Mobile Needs section. Phase 2.8 mockup now renders mobile strategy badge on every screen. **Two sidebar decision-tree menus** added to Prompt_References: "🆕 New Planning Assistant arrived?" (routes to 4.6 / 4.9 / 4.10 / 4.11 / 4.12) and "🔀 Two upgrades pending?" (routes to 1.8 combined upgrade). Current totals: 56 prompts (33 NEW ✨), 34 scenarios. Post-lock audit state: 85 PASS / 0 FAIL / 1 PARTIAL (G.8 resolved by exhaustive scan).
 - Rule count: 30 (unchanged). Scenario count: 32 → 34 (+1 for Scenario 33 DESIGN.md integration, +1 for Scenario 34 CREDENTIALS.md Agent-Proof Upgrade). Bootstrap: 18 steps (unchanged). Security Checklist: 84 items (unchanged). Secure Code Gen: 16 sub-sections (unchanged). UI Component Rules: 10 (unchanged). Phase count: 8 main phases + 2.5, 2.6, 2.7, **2.8 (NEW)**, **3.5 (NEW)**, 6.5. Version bump: V30 → V31 ✅
-- POST-LOCK ADDITIVE UPDATES (continued — phases.md additions, no version bump): **Phase 3.5 — Execution Plan Generation** added to phases.md (auto-runs after Phase 3). 7 steps: complexity scan → context cost estimation (120K budget, ≤80K SAFE) → task decomposition → dependency ordering → write execution-plan.md → skill activation (/scan-project first, then framework verifies Primary Group) → human review. **Anti-thrashing rule** added to Phase 4: mandatory scope assessment at start of every Part, auto-subdivide if >12 files, Part 8 always subdivides, module-by-module sub-sessions with per-module commits. **Skill Installer integration**: Primary Group 6 slots (superpowers, code-review-graph, planning-with-files, frontend-design+design-auditor+owasp-security, git-pushing, claude-skills-65), per-phase supplementary skills, /scan-project workflow, conflict registry verified. **code-review-graph setup signal**: Phase 6 completion message includes reminder, Phase 7 pre-flight Step 0 check. **Prompt 4.13** added — Add Automation to Existing Project (n8n / OpenClaw / Hybrid) 7-step flow for projects past initial planning. Prompt count: 54 → 55 (32 NEW ✨). **Phase 8 anti-thrashing rule** added to phases.md: same 12-file threshold as Phase 4, per-feature sub-batches, mandatory completeness check before committing (verifies every user flow, data field, permission guard, validation rule, and UI element from PRODUCT.md is actually implemented), STATE.md progress tracking with dependencies for next sub-batch. Critical principle: anti-thrashing protects the build — changes how many per session, never what gets built.
+- POST-LOCK ADDITIVE UPDATES (continued — phases.md additions, no version bump): **Phase 3.5 — Execution Plan Generation** added to phases.md (auto-runs after Phase 3). 7 steps: complexity scan → context cost estimation (120K budget, ≤80K SAFE) → task decomposition → dependency ordering → write execution-plan.md → skill activation (/scan-project first, then framework verifies Primary Group) → human review. **Anti-thrashing rule** added to Phase 4: mandatory scope assessment at start of every Part, auto-subdivide if >12 files, Part 8 always subdivides, module-by-module sub-sessions with per-module commits. **Skill Installer integration**: Primary Group 6 slots (superpowers, code-review-graph, planning-with-files, frontend-design+design-auditor+owasp-security, git-pushing, claude-skills-65), per-phase supplementary skills, /scan-project workflow, conflict registry verified. **code-review-graph setup signal**: Phase 6 completion message includes reminder, Phase 7 pre-flight Step 0 check. **Prompt 4.13** added — Add Automation to Existing Project (n8n / OpenClaw / Hybrid) 7-step flow for projects past initial planning. Prompt count: 54 → 56 (33 NEW ✨). **Phase 8 anti-thrashing rule** added to phases.md: same 12-file threshold as Phase 4, per-feature sub-batches, mandatory completeness check before committing (verifies every user flow, data field, permission guard, validation rule, and UI element from PRODUCT.md is actually implemented), STATE.md progress tracking with dependencies for next sub-batch. Critical principle: anti-thrashing protects the build — changes how many per session, never what gets built.
 
 **v21 → v22 upgrade notes — Docker image build pipeline + COMMANDS.md:**
 - docker-compose.app.yml (dev): now includes build: + image: keys — builds from source, tags locally for push

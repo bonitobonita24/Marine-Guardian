@@ -21,6 +21,7 @@
 > - Added 1.8 — **Combined Upgrade: Framework + Planning Assistant** — enforces correct order (framework FIRST, Planning Assistant SECOND) when both upgrades are pending
 > - Added **Planning Assistant Rule 11** — n8n + OpenClaw automation opt-in (signal detection in Step 5, conditional infra in Step 7, conditional Integrations template with workflow table). Zero footprint when not used. Handoff docs: `n8n-handoff.md` + `openclaw-handoff.md` (gitignored)
 > - Added **4.13** — Add Automation to Existing Project (n8n / OpenClaw / Hybrid) — for when you didn't set up automation during initial planning but need it later mid-build or in production
+> - Added **3.19** — Emergency Anti-Thrashing: Fix Autocompact Thrashing in Any Phase — general-purpose prompt for mid-session rescue + proactive scope assessment, works in any phase or situation
 > - Added **Scenario 34** — CREDENTIALS.md Agent-Proof Upgrade (local shell script pattern for credential file format upgrades that agents cannot read into context)
 > - Expanded `.gitignore` entries across bootstrap, Master Prompt, deploy script — 21 new entries covering third-party AI tools (`.agents/`, `.cursor/`, `.windsurf/`, etc.) + automation handoff docs
 > - **NEW — Interactive HTML version** available at `Prompt_References.html` (same content, browser UI with search, expand/collapse, one-click copy, responsive mobile layout)
@@ -2249,6 +2250,115 @@ code-review-graph status
 **What happens:** Update mode diffs file hashes, re-parses only changed files — usually 1-2 seconds. Build mode does a full Tree-sitter re-parse (~10s for 500 files). Only force a full build if incremental update reports failures. After rebuild, blast-radius queries return to normal accuracy.
 
 > Tip: add `code-review-graph status` to your end-of-week routine. Catches drift before it bites you on a high-stakes Feature Update.
+
+---
+
+## 3.19 — Emergency Anti-Thrashing: Fix Autocompact Thrashing in Any Phase (NEW)
+
+**When to use:** Claude Code hits "Autocompact is thrashing" — the context window fills within 2-3 turns, output becomes incomplete or broken. Works in ANY phase (Phase 4, Phase 7, Phase 8, or any other situation).
+
+**Where:** VS Code — Claude Code terminal (paste directly into the current session or start a fresh session)
+
+**Model context:** Claude Sonnet 4.6 via Claude Code. 200K token context window, but
+autocompact kicks in well before that. Practical working budget is ~120K tokens.
+The SAFE zone is ≤80K tokens of input context — leaving 40K+ for Claude's reasoning
+and output. When a session crosses ~100K input, autocompact starts aggressively
+summarizing earlier turns, and by ~120K it thrashes (rewrites context every turn,
+losing coherence). The 12-file threshold below is calibrated for this model's
+behavior — each file read + governance overhead + PRODUCT.md sections averages
+~6-8K tokens, so 12 files ≈ 80-96K tokens ≈ the edge of the SAFE zone.
+
+### If thrashing is happening RIGHT NOW (mid-session rescue):
+
+```
+STOP. Autocompact is thrashing. Apply anti-thrashing protocol immediately.
+
+You are Claude Sonnet 4.6 with a 200K context window. Autocompact thrashes
+when input context exceeds ~120K tokens. You are past that point now.
+Do NOT read any more files — every file read makes it worse.
+
+1. Do NOT read any more files. Do NOT continue building.
+2. Run /clear if available to free context immediately.
+3. Update STATE.md with exactly what you've completed so far:
+   - Files created/modified (with status: DONE or PARTIAL)
+   - What remains to be built for the current task
+   - Any dependencies the next session needs to know about
+   - Estimated context consumption that caused thrashing (how many files read,
+     how large was PRODUCT.md section, how many governance docs loaded)
+4. Write a handoff note to .cline/handoffs/ with:
+   - Current phase and task
+   - What's done, what's remaining
+   - Any partial code that needs completion
+   - Which PRODUCT.md sections the next session needs (by name, not "all")
+5. Commit all work done so far (even if incomplete — partial progress > lost progress)
+   git add -A && git commit -m "wip: [current-task] — anti-thrashing checkpoint"
+6. STOP. I'll open a new session with narrower scope.
+```
+
+### Starting a new session after thrashing (or preventing it proactively):
+
+```
+Before you start, apply anti-thrashing scope assessment.
+
+Context budget: You are Claude Sonnet 4.6. Your practical working budget is
+~120K tokens. The SAFE zone is ≤80K tokens of input context. Every file you
+read, every governance doc you load, and every PRODUCT.md section you parse
+consumes from this budget. Plan accordingly.
+
+1. List every file you'll need to create or modify for this task
+2. Estimate the token cost:
+   - CLAUDE.md + active .claude/rules/ file: ~5K tokens
+   - Each PRODUCT.md section: ~2-4K tokens
+   - Each existing source file read: ~1-3K tokens
+   - 9 governance docs (lessons.md, CHANGELOG_AI, etc.): ~10-15K total
+   - Your output (code generation): ~2-5K per file written
+   Add it up. If estimated total exceeds 80K → you MUST split.
+3. If the file list exceeds 12 files OR estimated context exceeds 80K:
+   - Group files by module/feature
+   - Report the split plan to me before writing any code:
+     ```
+     ⚠ Scope assessment: [X] files, ~[Y]K estimated tokens.
+     Exceeds 80K SAFE zone. Splitting into sub-sessions:
+       Sub-session 1 — [ModuleName]: [files] (~[N]K tokens)
+       Sub-session 2 — [ModuleName]: [files] (~[N]K tokens)
+     Starting with sub-session 1.
+     ```
+   - Build one module at a time, commit after each, then STOP
+4. Read ONLY the PRODUCT.md sections relevant to the current module
+   — do NOT read the entire PRODUCT.md (a full PRODUCT.md can be 20-40K tokens alone)
+5. Read ONLY the codebase files you'll actually modify
+   — do NOT scan entire directories or read files "for context"
+   — use codebase_search (Rule 17) to find specific symbols instead of opening files
+6. Before committing each module, re-read ONLY its PRODUCT.md section and verify:
+   □ Every user flow is implemented (happy path + error states)
+   □ Every data field is in the schema, router, and UI
+   □ Every permission guard matches the Roles table
+   □ Every validation rule has a matching Zod schema
+   □ Every UI element described exists in the page
+7. After each module: commit, update STATE.md with progress, then STOP.
+   I'll open a new session for the next module.
+
+CRITICAL: This split changes HOW MANY things per session, never WHAT gets built.
+Every feature in PRODUCT.md must be fully implemented. Do not skip or defer
+anything without my explicit approval.
+
+Report the scope assessment now — file count, estimated tokens, do we need to split?
+```
+
+### Quick version (paste-and-go for experienced users):
+
+```
+Anti-thrashing mode (Sonnet 4.6, 120K practical budget, ≤80K SAFE zone).
+Scope assessment first — list all files, estimate token cost.
+If >12 files or >80K tokens, split by module. One module per session.
+Read only relevant PRODUCT.md sections — never the full file.
+Use codebase_search instead of reading files for context.
+Completeness check before each commit. Report the plan before writing code.
+```
+
+> ⚠ **Why this matters:** Thrashing sessions produce the most dangerous bugs — features that LOOK complete in governance docs but are actually missing validations, permission guards, error states, or entire user flows. The completeness check catches this before it becomes invisible tech debt.
+>
+> 💡 **Context budget rule of thumb for Sonnet 4.6:** If you can describe your task scope in under 3 sentences and it touches fewer than 12 files, you're in the SAFE zone. If you need a paragraph to explain the scope, you probably need to split.
 
 ---
 

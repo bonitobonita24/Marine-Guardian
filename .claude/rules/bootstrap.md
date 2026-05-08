@@ -234,6 +234,15 @@ Step 4 — .cline/tasks/ — 8 separate task files (NEW V14 — one per Phase 4 
   .cline/tasks/phase4-part1.md:
   ```
   # Phase 4 Part 1 — Root config files
+  #
+  # ⚠ CONTEXT BUDGET — Claude Sonnet 4.6 (200K window · ≤80K SAFE zone · thrashes near 120K)
+  # Before any code: estimate (rules ~5K + 9 docs ~10-15K + each read ~1-3K + each write ~2-5K).
+  # IF this Part will touch >12 files OR >80K → STOP. Sub-divide by module, build first
+  # sub-module only, commit, STOP. Resume next sub-module in a NEW session.
+  # Read ONLY relevant PRODUCT.md sections. Use codebase_search (Rule 17), not speculative reads.
+  # If thrashing mid-session: /clear → commit progress → write handoff → STOP.
+  # Full rule: .claude/rules/phases.md → "ANTI-THRASHING RULE — MANDATORY (applies to ALL Parts)"
+  #
   # Fresh session. Read STATE.md first, then inputs.yml + PRODUCT.md only.
   # Branch: scaffold/part-1. Never commit to main directly.
   TASK: Generate all root config files (Part 1 of 8).
@@ -261,6 +270,15 @@ Step 4 — .cline/tasks/ — 8 separate task files (NEW V14 — one per Phase 4 
   .cline/tasks/phase4-part2.md:
   ```
   # Phase 4 Part 2 — packages/shared + packages/api-client
+  #
+  # ⚠ CONTEXT BUDGET — Claude Sonnet 4.6 (200K window · ≤80K SAFE zone · thrashes near 120K)
+  # Before any code: estimate (rules ~5K + 9 docs ~10-15K + each read ~1-3K + each write ~2-5K).
+  # IF this Part will touch >12 files OR >80K → STOP. Sub-divide by module, build first
+  # sub-module only, commit, STOP. Resume next sub-module in a NEW session.
+  # Read ONLY relevant PRODUCT.md sections. Use codebase_search (Rule 17), not speculative reads.
+  # If thrashing mid-session: /clear → commit progress → write handoff → STOP.
+  # Full rule: .claude/rules/phases.md → "ANTI-THRASHING RULE — MANDATORY (applies to ALL Parts)"
+  #
   # Fresh session. Read STATE.md first, then inputs.yml only.
   TASK: Generate shared TypeScript types and API client (Part 2 of 8).
   - Read .cline/STATE.md first. Confirm LAST_DONE shows Part 1 complete.
@@ -276,6 +294,15 @@ Step 4 — .cline/tasks/ — 8 separate task files (NEW V14 — one per Phase 4 
   .cline/tasks/phase4-part3.md:
   ```
   # Phase 4 Part 3 — packages/db
+  #
+  # ⚠ CONTEXT BUDGET — Claude Sonnet 4.6 (200K window · ≤80K SAFE zone · thrashes near 120K)
+  # Before any code: estimate (rules ~5K + 9 docs ~10-15K + each read ~1-3K + each write ~2-5K).
+  # IF this Part will touch >12 files OR >80K → STOP. Sub-divide by module, build first
+  # sub-module only, commit, STOP. Resume next sub-module in a NEW session.
+  # Read ONLY relevant PRODUCT.md sections. Use codebase_search (Rule 17), not speculative reads.
+  # If thrashing mid-session: /clear → commit progress → write handoff → STOP.
+  # Full rule: .claude/rules/phases.md → "ANTI-THRASHING RULE — MANDATORY (applies to ALL Parts)"
+  #
   TASK: Generate full ORM schema with all entities (Part 3 of 8).
   - Read STATE.md first. Read inputs.yml + PRODUCT.md (Core Entities section).
   - Read DECISIONS_LOG.md (tenancy mode, security layers).
@@ -309,7 +336,13 @@ Step 4 — .cline/tasks/ — 8 separate task files (NEW V14 — one per Phase 4 
   .cline/tasks/phase4-part8.md — CI + governance docs + MANIFEST.txt + SocratiCode index (Part 8 of 8)
 
   Parts 4–8 follow the same pattern as Parts 1–3:
-  Read STATE.md first → read only needed docs → branch → build → lint/typecheck → rewrite STATE.md → commit → squash-merge → STOP.
+  Each task file MUST start with the same CONTEXT BUDGET header block as Parts 1–3
+  (Sonnet 4.6, 80K SAFE zone, 12-file threshold, sub-divide if exceeded).
+  Part 5 (web app) typically exceeds 12 files — pre-plan sub-division by module
+  (layout/shared first → module-by-module pages).
+  Part 6 (mobile, when active) ALWAYS sub-divides — 6a foundation, 6b WatermelonDB,
+  6c push notifications, 6d+ per-module screens.
+  Then: Read STATE.md first → read only needed docs → branch → build → lint/typecheck → rewrite STATE.md → commit → squash-merge → STOP.
   Human opens the next task file in a fresh Claude Code session.
 
 Step 5 — .cline/memory/lessons.md (structured template — Rule 18 format)

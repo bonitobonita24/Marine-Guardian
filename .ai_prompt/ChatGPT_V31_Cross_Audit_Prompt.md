@@ -30,8 +30,10 @@ You are an independent auditor reviewing the **Spec-Driven Platform V31** framew
 6. **Skill Installer integration** — Primary Group 6 slots, per-phase supplementary skills
 7. **Prompt 4.13** — Add Automation to Existing Project (n8n / OpenClaw / Hybrid, 7-step flow)
 8. **Attribution cleanup** — CLAUDE_CODE first, CLINE removed from active attribution chain
-9. **Prompt count** updated from 54 → 55 (32 NEW ✨)
+9. **Prompt count** updated from 54 → 56 (33 NEW ✨)
 10. **code-review-graph setup signal** — Phase 6 completion + Phase 7 pre-flight
+11. **Context Budget — Global Principle** — Sonnet 4.6 model-aware task sizing added to CLAUDE_v31_compact.md and Master_Prompt_v31.md. Every task must be scoped to ≤80K tokens SAFE zone.
+12. **Prompt 3.19** — Emergency Anti-Thrashing for any phase (Sonnet 4.6 calibrated, 3 variants)
 
 I am attaching 16 V31 framework files. Your job is to verify ALL changes were implemented correctly AND that the foundational Spec-Driven Platform architecture remains intact.
 
@@ -74,6 +76,7 @@ Bonito's user preference: keep Cline extension installed in VS Code as emergency
 - V31 does NOT introduce new MCP servers or agents
 - V31 adds n8n + OpenClaw automation signal detection to Planning Assistant (Rule 11, Step 5 signal check, Step 7 conditional infra question, conditional Integrations template). This is opt-in only — zero footprint when not used.
 - Post-lock patches add Phase 3.5 as a NEW phase (between Phase 3 and Phase 4) and anti-thrashing rules to Phase 4 and Phase 8. These are in phases.md and Master_Prompt_v31.md. They do NOT change the framework rule count, scenario count, or bootstrap step count.
+- Post-lock patches add a **Context Budget — Global Principle** to CLAUDE_v31_compact.md and Master_Prompt_v31.md. This is a Sonnet 4.6 model-aware task sizing principle (200K window, 120K practical, ≤80K SAFE zone, 12-file threshold). It governs how ALL work is scoped — not a new rule, but a non-negotiable behavioral principle.
 
 ### V31 verified counts (must match in every file that quotes them)
 
@@ -81,7 +84,7 @@ Bonito's user preference: keep Cline extension installed in VS Code as emergency
 30 Rules · 34 Scenarios · 18 Bootstrap Steps · 8 Phase 4 Parts
 9 Phase 5 Commands · 16 Phase 6.5 Categories · 16 Secure Code Gen sub-sections
 10 UI Component Rules · 84 Security Checklist items (13 sections)
-55 Prompts (32 NEW ✨) in Prompt_References.md and Prompt_References.html
+56 Prompts (33 NEW ✨) in Prompt_References.md and Prompt_References.html
 16 deliverable files (15 in .ai_prompt/ + deploy-v31.sh at project root) · 4 MCP servers (3 wired + 1 plugin) · Node v22 · pnpm@10
 Phase count: 8 main phases + 2.5 + 2.6 + 2.7 + 2.8 (V31) + 3.5 (POST-LOCK) + 6.5
 6 agents (Claude Code primary · Cline ⚠ DEPRECATED · Copilot · SpecStory · SocratiCode · code-review-graph)
@@ -119,10 +122,22 @@ ChatGPT MUST verify each patch is present in the specified file(s):
    MUST BE IN: templates.md (Rule 15 template), Master_Prompt_v31.md (Rule 3 attribution)
    CLAUDE_v31_compact.md Rule 15 line must NOT list CLINE
 
-8. Prompt count: 55 prompts, 32 NEW ✨
+8. Prompt count: 56 prompts, 33 NEW ✨
    MUST BE IN: Master_Prompt_v31.md (changelog), CLAUDE_v31_compact.md (header),
    Framework_Feature_Index_v31.md (V31 row + footer), Prompt_References.html (hero stat)
-   MUST NOT appear as "54 prompts" or "31 New" anywhere
+   MUST NOT appear as "54 prompts" or "55 prompts" or "31 New" or "32 New" anywhere
+
+9. Context Budget — Global Principle (Sonnet 4.6 model-aware task sizing)
+   MUST BE IN: CLAUDE_v31_compact.md (NON-NEGOTIABLE BEHAVIORS section — auto-loaded every session),
+   Master_Prompt_v31.md (after GLOBAL INSTRUCTION PRIORITY ORDER section)
+   Must include: "Claude Sonnet 4.6", "200K token context window", "≤80K SAFE zone",
+   TOKEN BUDGET REFERENCE table, 12-file threshold explanation, codebase_search (Rule 17),
+   exact autocompact error message quoted, mid-session recovery steps
+   ALSO IN: phases.md Phase 4 + Phase 8 anti-thrashing sections (model context block)
+
+10. Prompt 3.19 — Emergency Anti-Thrashing (any phase)
+    MUST BE IN: Prompt_References.md (3 variants: mid-session rescue, proactive scope assessment,
+    quick version — all Sonnet 4.6 calibrated), Prompt_References.html (card p-3-19)
 ```
 
 ---
@@ -441,7 +456,7 @@ Platform foundation is compromised.
 
 ---
 
-### SECTION J — Post-Lock Additive Patches (12 items)
+### SECTION J — Post-Lock Additive Patches (16 items)
 
 These patches were applied after V31 was locked. They do NOT trigger a version bump.
 Verify each is present in the specified locations.
@@ -482,10 +497,10 @@ Verify each is present in the specified locations.
 □ J.9  Prompt 4.13 card exists in Prompt_References.html
        LOOK FOR: id="p-4-13"
 
-□ J.10 Prompt count is 55 (not 54) across all files that state a count:
+□ J.10 Prompt count is 56 (not 54 or 55) across all files that state a count:
        Master_Prompt_v31.md, CLAUDE_v31_compact.md, Framework_Feature_Index_v31.md,
        Prompt_References.html hero stat
-       MUST NOT find "54 prompts" or "31 New" anywhere
+       MUST NOT find "54 prompts" or "55 prompts" or "31 New" or "32 New" anywhere
 
 □ J.11 Attribution order: CLAUDE_CODE first, CLINE removed from active chain
        templates.md Rule 15: must show CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
@@ -494,6 +509,31 @@ Verify each is present in the specified locations.
 
 □ J.12 Framework_Feature_Index_v31.md V31 row mentions Phase 3.5, anti-thrashing,
        Skill Installer, Prompt 4.13, and Phase 8 anti-thrashing
+
+□ J.13 Context Budget — Global Principle exists in CLAUDE_v31_compact.md
+       LOOK FOR: "### ⚠ CONTEXT BUDGET — GLOBAL PRINCIPLE" in NON-NEGOTIABLE BEHAVIORS
+       Must include: "Claude Sonnet 4.6", "200K token context window", "≤80K SAFE zone",
+       TOKEN BUDGET REFERENCE table (with ~5-8K, ~2-4K, ~1-3K, ~10-15K, ~2-5K estimates),
+       12-file threshold explanation, codebase_search (Rule 17) directive,
+       exact autocompact error message: "Autocompact is thrashing: the context refilled
+       to the limit within 3 turns"
+
+□ J.14 Context Budget — Global Principle exists in Master_Prompt_v31.md
+       LOOK FOR: "### ⚠ CONTEXT BUDGET — GLOBAL PRINCIPLE" after priority order section
+       Must include: same elements as J.13 + mid-session recovery steps (5 steps:
+       STOP, /clear, STATE.md, handoff, commit)
+
+□ J.15 Phase 4 and Phase 8 anti-thrashing sections both have "Model context:" block
+       LOOK FOR in phases.md: "**Model context:** Claude Sonnet 4.6" within 5 lines of
+       each "### ⚠ ANTI-THRASHING RULE" heading. Must include "80K SAFE zone".
+       Same check in Master_Prompt_v31.md for both Phase 4 and Phase 8 summaries.
+
+□ J.16 Prompt 3.19 — Emergency Anti-Thrashing exists in Prompt_References.md
+       LOOK FOR: "## 3.19 — Emergency Anti-Thrashing"
+       Must include: 3 variants (mid-session rescue, proactive scope assessment, quick version),
+       "Claude Sonnet 4.6" model reference, "200K token context window", "≤80K SAFE zone",
+       TOKEN BUDGET estimation step, codebase_search directive, /clear command
+       Card p-3-19 must exist in Prompt_References.html
 ```
 
 ---
@@ -531,7 +571,7 @@ SECTION H (Phase 2.8 Technical):               [X PASS / Y FAIL / Z PARTIAL]
 SECTION I (Automation Integration):            [X PASS / Y FAIL / Z PARTIAL]
 SECTION J (Post-Lock Additive Patches):        [X PASS / Y FAIL / Z PARTIAL]
 ───────────────────────────────────────────────────────────
-TOTAL:                                         [X PASS / Y FAIL / Z PARTIAL] out of ~105 items
+TOTAL:                                         [X PASS / Y FAIL / Z PARTIAL] out of ~109 items
 
 TOP 3 CRITICAL FAILS (must fix before release):
 1. [item] — [file] — [fix]
@@ -566,7 +606,7 @@ SECONDARY ISSUES (nice to fix but not blocking):
 
 10. **Memory system verification is critical.** If ANY memory command (Resume Session, Governance Sync, Feature Update, Governance Retro, Log Lesson, Resume from handoff) appears broken or has stale Cline routing as primary, flag as F.7 FAIL immediately — this is Bonito's most important concern.
 
-11. **Post-lock patches are NOT a new version.** They are additive changes applied to V31 files without bumping to V32. ChatGPT should verify they exist in the correct files (Section J) but should NOT flag them as version inconsistencies. Phase 3.5 is a new phase — verify it appears in phase menus and counts. Anti-thrashing rules are in Phase 4 and Phase 8 sections. Prompt count is 55 (not 54). Attribution chain is CLAUDE_CODE first (not CLINE).
+11. **Post-lock patches are NOT a new version.** They are additive changes applied to V31 files without bumping to V32. ChatGPT should verify they exist in the correct files (Section J) but should NOT flag them as version inconsistencies. Phase 3.5 is a new phase — verify it appears in phase menus and counts. Anti-thrashing rules are in Phase 4 and Phase 8 sections. Context Budget is a global principle in CLAUDE_v31_compact.md and Master_Prompt_v31.md — it governs ALL task sizing. Prompt count is 56 (not 54 or 55). Attribution chain is CLAUDE_CODE first (not CLINE). Prompt 3.19 is the emergency anti-thrashing prompt.
 
 ---
 
