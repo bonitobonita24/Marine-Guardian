@@ -1,186 +1,107 @@
 {
-  "scannedAt": "2026-05-06",
+  "scannedAt": "2026-05-09",
+  "previousScan": "2026-05-06",
   "techStack": [
-    "TypeScript",
+    "TypeScript strict",
     "Next.js 15",
-    "tRPC",
-    "Prisma",
-    "PostgreSQL",
-    "PgBouncer",
-    "Valkey",
-    "BullMQ",
-    "Docker Compose",
-    "MapLibre GL (mapcn)",
-    "Auth.js v5",
-    "shadcn/ui",
-    "WebSocket",
-    "pnpm monorepo",
+    "React 19",
+    "tRPC v11",
+    "Prisma 6",
+    "PostgreSQL + PgBouncer + RLS",
+    "Valkey + BullMQ",
+    "ioredis",
+    "Auth.js v5 (credentials/JWT)",
+    "shadcn/ui + Radix",
+    "Tailwind 3",
+    "next-intl (en/id/ms)",
+    "Recharts",
+    "react-hook-form + Zod",
+    "isomorphic-dompurify",
+    "lru-cache",
+    "@dnd-kit",
+    "@marsidev/react-turnstile (disabled)",
+    "vitest",
+    "ESLint 9 strict",
     "Turborepo",
-    "ESLint 9.x",
-    "Prettier"
+    "pnpm 10 monorepo",
+    "Docker Compose",
+    "AES-256-GCM column encryption",
+    "EarthRanger socket.io realtime",
+    "Multi-tenant L1-L6 security"
   ],
   "projectType": "full-stack",
+  "specDrivenFramework": "V31",
+  "currentPhase": "Phase 7 / Phase 8 mid-stream (per .cline/STATE.md 2026-05-08)",
   "installedSkills": [
+    { "name": "agnix", "category": "Development & DevOps", "tier": "T4", "reason": "Lints SKILL.md/CLAUDE.md/hooks/MCP — useful in this Spec-Driven framework project with extensive .claude/ tree" },
+    { "name": "awesome-design-md", "category": "Design & UI", "tier": "T1", "reason": "docs/DESIGN.md exists per Scenario 33 — visual reference layer" },
+    { "name": "claude-api", "category": "Development & DevOps", "tier": "T4", "reason": "Anthropic API reference — AI integration phases" },
+    { "name": "claude-skills-65", "category": "Development & DevOps", "tier": "T1", "reason": "Slot 6 — 65 framework skills covering React, Next.js, tRPC, Prisma, etc." },
+    { "name": "design-auditor", "category": "Design & UI", "tier": "T1", "reason": "Slot 4 — visual design validation, scores against 17 professional rules" },
+    { "name": "frontend-design", "category": "Design & UI", "tier": "T1", "reason": "Slot 4 — Anthropic's production UI code generation, Phase 4 UI quality bar" },
+    { "name": "git-pushing", "category": "Development & DevOps", "tier": "T1", "reason": "Slot 5 — commit discipline, safe push workflow" },
+    { "name": "mcp-builder", "category": "Development & DevOps", "tier": "T4", "reason": "MCP server creation reference — 3 MCPs already wired (socraticode, context7, shadcn)" },
+    { "name": "oiloil-ui-ux-guide", "category": "Design & UI", "tier": "T1", "reason": "Phase 4 Parts 5-6 UX theory — task-first UX, HCI laws" },
+    { "name": "owasp-security", "category": "Security & Testing", "tier": "T1", "reason": "Slot 4 — OWASP Top 10:2025, ASVS 5.0 — multi-tenant L1-L6 security review" },
+    { "name": "planning-with-files", "category": "Development & DevOps", "tier": "T1", "reason": "Slot 3 — persistent task_plan.md/findings.md, maps to STATE.md pattern" },
+    { "name": "playwright-skill", "category": "Security & Testing", "tier": "T1", "reason": "Phase 4 Parts 5-6 — E2E + component + visual + a11y testing" },
+    { "name": "postgres", "category": "Data & Analytics", "tier": "T2", "reason": "PostgreSQL + PgBouncer + RLS — verify schema/seed data" },
+    { "name": "review-implementing", "category": "Development & DevOps", "tier": "T1", "reason": "Phase 7 — systematic code review feedback implementation" },
+    { "name": "spartan-ai-toolkit", "category": "Development & DevOps", "tier": "T4", "reason": "V31 strict workflow, atomic commits, conventional commit style locked in inputs.yml" },
+    { "name": "test-fixing", "category": "Development & DevOps", "tier": "T1", "reason": "Phase 5 — smart error grouping for failing tests" },
+    { "name": "ui-ux-pro-max", "category": "Design & UI", "tier": "T1", "reason": "Phase 2.5/2.6 design system generation — Section K + Meta Dark Mode aesthetic" },
+    { "name": "varlock-claude-skill", "category": "Security & Testing", "tier": "T2", "reason": "Multi-tenant env var management across 3 environments + AES-256-GCM key handling" },
+    { "name": "vercel-agent-skills", "category": "Development & DevOps", "tier": "T1", "reason": "Stack — Next.js 15 App Router rules + React/TSX components" },
+    { "name": "webapp-testing", "category": "Security & Testing", "tier": "T2", "reason": "Localhost dev server at :45204 — interactive Playwright testing" }
+  ],
+  "installedPlugins": [
+    { "name": "superpowers", "installedAt": "2026-05-09", "reason": "Slot 1 — bundle of TDD + systematic-debugging + root-cause-tracing + brainstorming + git-worktrees + finishing-branch + parallel-agents + code-review + defense-in-depth. Verified active via superpowers:* namespace." }
+  ],
+  "pendingPluginInstalls": [
+    { "name": "code-review-graph", "installCommand": "claude plugin add tirth8205/code-review-graph", "reason": "Slot 2 — SQLite knowledge graph, blast radius, 28 MCP tools. Phases.md designated code-intelligence skill. Run 'code-review-graph build' from WSL2 terminal after install." }
+  ],
+  "skipped": [
+    { "name": "graphify", "reason": "HIGH conflict with code-review-graph; phases.md designates code-review-graph as the framework's code-intelligence skill" },
+    { "name": "debug-skill", "reason": "phases.md prohibits alongside superpowers; systematic-debugging (inside superpowers) covers this" },
+    { "name": "root-cause-tracing", "reason": "Already inside superpowers bundle" },
+    { "name": "sdd-skill", "reason": "V31 framework has its own SDD methodology (Phase 2 → Phase 8); would conflict with framework rules" },
+    { "name": "openspec", "reason": "Same as sdd-skill — V31 framework owns SDD methodology" },
+    { "name": "n8n-expression-syntax", "reason": "No n8n in this project" },
+    { "name": "n8n-mcp-tools-expert", "reason": "No n8n in this project" },
+    { "name": "n8n-workflow-patterns", "reason": "No n8n in this project" },
+    { "name": "aws-skills", "reason": "Deploys to Komodo + Docker Hub per V27, not AWS" },
+    { "name": "trailofbits-security-skills", "reason": "owasp-security already covers needs; CodeQL/Semgrep not declared in stack" },
+    { "name": "context-mode", "reason": "Plugin not yet adopted by user — can add later via /plugin install if context budgets become tight" },
+    { "name": "claude-mem", "reason": "Plugin not yet adopted by user — can add later if cross-session memory becomes a friction point" }
+  ],
+  "resolvedConflicts": [
     {
-      "name": "vercel-agent-skills",
-      "category": "Development & DevOps",
-      "tier": "T1",
-      "reason": "Matches Next.js 15 App Router, next.config.ts, React/TSX components"
+      "domain": "Code intelligence layer",
+      "winner": "code-review-graph (skill) + socraticode (MCP-only)",
+      "loser": "graphify (excluded entirely)",
+      "severity": "HIGH",
+      "resolution": "Never install graphify in this Spec-Driven project. socraticode stays MCP-only in .vscode/mcp.json (verified — no plugin install)."
     },
     {
-      "name": "test-driven-development",
-      "category": "Development & DevOps",
-      "tier": "T1",
-      "reason": "Matches Rule 25 TDD enforcement (RED→GREEN→refactor)"
+      "domain": "Debugging/TDD/worktree methodology",
+      "winner": "superpowers bundle",
+      "loser": "individual systematic-debugging, test-driven-development, using-git-worktrees, defense-in-depth",
+      "severity": "RESOLVED",
+      "resolution": "2026-05-09 — superpowers installed, 4 redundant standalone skills removed from .claude/skills/. Capabilities now provided by superpowers:* namespace."
     },
     {
-      "name": "frontend-design",
-      "category": "Design & UI",
-      "tier": "T1",
-      "reason": "Matches .tsx files, shadcn/ui components, Meta Dark Mode aesthetic"
-    },
-    {
-      "name": "awesome-design-md",
-      "category": "Design & UI",
-      "tier": "T1",
-      "reason": "Matches docs/DESIGN.md already exists in project (Meta Dark Mode)"
-    },
-    {
-      "name": "postgres",
-      "category": "Data & Analytics",
-      "tier": "T2",
-      "reason": "Matches PostgreSQL + PgBouncer + RLS policies in stack"
-    },
-    {
-      "name": "defense-in-depth",
-      "category": "Security & Testing",
-      "tier": "T2",
-      "reason": "Matches 6 security layers (L1-L6), multi-tenant isolation, AES-256-GCM"
-    },
-    {
-      "name": "webapp-testing",
-      "category": "Security & Testing",
-      "tier": "T2",
-      "reason": "Matches Next.js web app with localhost dev server, E2E testing needs"
-    },
-    {
-      "name": "systematic-debugging",
-      "category": "Development & DevOps",
-      "tier": "T4",
-      "reason": "Matches complex full-stack monorepo, Docker Compose, multi-layer architecture"
-    },
-    {
-      "name": "using-git-worktrees",
-      "category": "Development & DevOps",
-      "tier": "T4",
-      "reason": "Matches git.use_worktrees: true in inputs.yml"
-    },
-    {
-      "name": "planning-with-files",
-      "category": "Development & DevOps",
-      "tier": "T4",
-      "reason": "Matches 8-phase build process, governance docs, complex multi-step implementation"
-    },
-    {
-      "name": "spartan-ai-toolkit",
-      "category": "Development & DevOps",
-      "tier": "T4",
-      "reason": "Complements V31 strict workflow discipline"
-    },
-    {
-      "name": "ui-ux-pro-max",
-      "category": "Design & UI",
-      "tier": "T1",
-      "reason": "Design system generation for Phase 2.6, Meta Dark Mode aesthetic, 161 industry rules"
-    },
-    {
-      "name": "varlock-claude-skill",
-      "category": "Security & Testing",
-      "tier": "T2",
-      "reason": "Matches multi-tenant env var management across 3 environments (dev/staging/prod)"
-    },
-    {
-      "name": "agnix",
-      "category": "Development & DevOps",
-      "tier": "T4",
-      "reason": "Matches complex monorepo agent workflow orchestration with governance docs"
-    },
-    {
-      "name": "mcp-builder",
-      "category": "Development & DevOps",
-      "tier": "T4",
-      "reason": "Matches 4 MCP servers in project (SocratiCode, Context7, shadcn, code-review-graph)"
-    },
-    {
-      "name": "owasp-security",
-      "category": "Security & Testing",
-      "tier": "T2",
-      "reason": "Matches multi-tenant SaaS with auth, RBAC, tenant isolation, payment webhooks (Xendit), file uploads"
-    },
-    {
-      "name": "playwright-skill",
-      "category": "Security & Testing",
-      "tier": "T2",
-      "reason": "Matches Playwright MCP plugin already installed, Rule 16 Visual QA, E2E testing needs"
-    },
-    {
-      "name": "design-auditor",
-      "category": "Design & UI",
-      "tier": "T2",
-      "reason": "Matches Meta Dark Mode aesthetic, shadcn/ui theming, visual design scoring for Phase 7 UI reviews"
-    },
-    {
-      "name": "test-fixing",
-      "category": "Collaboration & Workflow",
-      "tier": "T4",
-      "reason": "Complements TDD skill — specialized test failure diagnosis for complex monorepo with multi-layer architecture"
+      "domain": "Design guidance triad",
+      "winner": "All three coexist (frontend-design + ui-ux-pro-max + oiloil-ui-ux-guide)",
+      "loser": "(intentional)",
+      "severity": "Intentional coexistence",
+      "resolution": "Spec-Driven framework uses each in different phases — Phase 2.5/2.6 (ui-ux-pro-max), Phase 4 UI code (frontend-design), Phase 4 UX review (oiloil-ui-ux-guide). The general 'pick one' rule does not apply here."
     }
   ],
-  "excludedGlobals": [
-    {
-      "name": "article-extractor",
-      "reason": "Content extraction — not relevant to marine conservation SaaS"
-    },
-    {
-      "name": "content-research-writer",
-      "reason": "Content marketing — not relevant to technical build phases"
-    },
-    {
-      "name": "csv-data-summarizer-claude-skill",
-      "reason": "CSV summarization — not a core workflow"
-    },
-    {
-      "name": "deep-research",
-      "reason": "General research — not needed during scaffold/build phases"
-    },
-    {
-      "name": "google-workspace-skills",
-      "reason": "Google Workspace — not part of this project's stack"
-    },
-    {
-      "name": "image-enhancer",
-      "reason": "Image processing — not a core feature of v1"
-    },
-    {
-      "name": "imagen",
-      "reason": "Image generation — not relevant"
-    },
-    {
-      "name": "youtube-transcript",
-      "reason": "YouTube — not relevant"
-    },
-    {
-      "name": "automate",
-      "reason": "Browser automation — project uses Playwright plugin instead"
-    }
+  "mcpServersWired": [
+    { "name": "socraticode", "where": ".vscode/mcp.json", "purpose": "Vector codebase search — MCP-only, NEVER install as plugin" },
+    { "name": "context7", "where": ".vscode/mcp.json", "purpose": "Live version-matched docs (Rule 30 — append 'use context7' to library tasks)" },
+    { "name": "shadcn", "where": ".vscode/mcp.json", "purpose": "shadcn/ui component search + install via natural language" }
   ],
-  "resolvedConflicts": [],
-  "recommendedPlugins": [],
-  "skippedOptional": [
-    {
-      "name": "a11y-skill",
-      "category": "Security & Testing",
-      "reason": "MEDIUM confidence — not in local skills library, install externally: npx skills add airowe/claude-a11y-skill"
-    }
-  ]
+  "globalCleanupAdvised": false,
+  "globalCleanupReason": "~/.claude/skills/ is empty — no global skills to migrate."
 }
