@@ -1,9 +1,9 @@
 # Implementation Map — Marine Guardian Command Center
 # Current build state. Rewritten after every feature update.
-# Last updated: 2026-05-11 — Phase 8 Batch 2: Alert Rule Evaluation Engine processor COMPLETE.
+# Last updated: 2026-05-11 — Phase 8 Batch 2: Alert engine processor + er-sync enqueue integration COMPLETE (engine now fires on real EarthRanger event sync).
 # ---
 
-## Status: Phase 8 Batch 1 complete. Phase 8 Batch 2 — Alert Rule Evaluation Engine processor body shipped (event.create enqueue integration deferred to follow-up). All Docker services healthy.
+## Status: Phase 8 Batch 1 complete. Phase 8 Batch 2 — Alert Rule Evaluation Engine processor body + er-sync create-path enqueue integration shipped. Engine fires on every newly-synced EarthRanger event. All Docker services healthy.
 
 ### Schema Delta Fixes (feat/schema-delta-fixes — merged to main)
 - [x] PatrolType enum: seabourn → seaborne (Prisma, shared types/schemas, seed, tRPC routers)
@@ -221,7 +221,7 @@ Docker fixes applied (6 total):
 - [x] ~~EarthRanger API sync implementation (er-sync worker body)~~ — DONE (Phase 7)
 - [x] ~~Dashboard: KPI cards, event breakdown charts, recent events feed, quick stats~~ — DONE (Phase 8 Batch 1 Item 1)
 - [x] ~~Event Kanban Board: drag-and-drop state transitions, tenant-scoped updateState, optimistic UI, unit tests~~ — DONE (Phase 8 Batch 1 Item 2)
-- [x] ~~Alert rule evaluation engine (alerts worker body)~~ — DONE (Phase 8 Batch 2; processor + tests shipped 2026-05-11; event.create enqueue integration DEFERRED to follow-up)
+- [x] ~~Alert rule evaluation engine (alerts worker body)~~ — DONE (Phase 8 Batch 2; processor + tests shipped 2026-05-11; er-sync create-path enqueue integration shipped 2026-05-11 — closes the deferred follow-up)
 - [ ] Interactive map (Leaflet.js on /map page)
 - [ ] Real-time notifications (WebSocket/SSE)
 - [ ] PDF/CSV export endpoints
@@ -264,19 +264,19 @@ Docker fixes applied (6 total):
 
 ---
 
-### Alert Rule Evaluation Engine (Phase 8 Batch 2 — processor body COMPLETE)
+### Alert Rule Evaluation Engine (Phase 8 Batch 2 — COMPLETE)
 - [x] Processor: `packages/jobs/src/processors/alerts.processor.ts` — `evaluateAlerts(job)` exported. Tenant-scoped event load → active rule load → match on `conditionJson.eventTypeId + minPriority` → recipient fallback to super_admin/site_admin → atomic Prisma `$transaction` creates Notification + AuditLog (action `ALERT_FIRED`) per rule×recipient. Returns `{rulesEvaluated, rulesMatched, notificationsCreated}`.
 - [x] Tests: `packages/jobs/src/__tests__/alerts.processor.test.ts` — 5 vitest cases (missing tenantId rejection, no-active-rules, match+recipient happy path with notification + audit log assertions, match+no-recipient yields zero without opening transaction, transaction-failure atomic no-partial-commit). All pass in 132ms.
 - [x] Worker registration: pre-existed in `packages/jobs/src/start-workers.ts:12` from Phase 4 scaffold. `processAlert` deprecated re-export preserved at end of processor file for compat.
-- [ ] **DEFERRED** — `event.create` enqueue integration: tRPC router `apps/web/src/server/trpc/routers/event.ts` does not yet enqueue an alerts job after successful event create. Without this, the engine is built but does not fire on real events. Separate follow-up task.
+- [x] **Enqueue integration shipped 2026-05-11** — actual integration site is `er-sync.processor.ts syncEvents`, not the (non-existent) `event.create` tRPC mutation. Refactored `syncEvents` to split `upsert` into `findUnique` + `create`/`update` so create-vs-update is distinguishable. `enqueueAlert({tenantId, userId:"system", alertRuleId:"", eventId, priority})` is called on the create path only, wrapped in try/catch so a queue outage never fails the sync. 5 new er-sync tests cover create-path, update-path, enqueue-on-create-only, no-enqueue-on-update, sync-succeeds-on-enqueue-failure.
 
 ### Next Step
-Phase 8 Batch 2 next item. Options (Opus-recommended order from thrashing-recovery session):
-1. **Wire alerts enqueue from event.create** (closes the deferred integration above — single small Tier 2 task).
-2. Phase 8 Batch 2 Item: Interactive map (Leaflet/mapcn on /map page).
-3. Spec deferral #3: Notification.patrolId FK migration + UI wiring.
-4. Real-time notifications (WebSocket/SSE — Tier 3, must split into 3 sub-sessions per memory-governance.md §1).
-5. PDF/CSV export endpoints (per entity, one at a time).
+Phase 8 Batch 2 next item. Options (Opus-recommended order, updated 2026-05-11):
+1. Phase 8 Batch 2 Item: Interactive map (Leaflet/mapcn on /map page) — single small Tier 2 session.
+2. Spec deferral #3: Notification.patrolId FK migration + UI wiring (PRODUCT.md L187).
+3. Real-time notifications (WebSocket/SSE — Tier 3, must split into 3 sub-sessions per memory-governance.md §1).
+4. PDF/CSV export endpoints (per entity, one at a time).
+5. Spec deferral #1: Alert history log (now meaningful since engine fires on real events).
 6. Spec deferral #1: Alert history log (now meaningful since engine fires).
 
 No known blockers. All services operational.

@@ -4,6 +4,7 @@ import { validateTenantContext } from "../workers/base-worker";
 import { platformPrisma, decrypt } from "@marine-guardian/db";
 import { Prisma } from "@prisma/client";
 import { EarthRangerClient } from "../lib/earthranger-client";
+import { enqueueAlert } from "../queues/alerts.queue";
 
 function toJsonOrNull(
   value: Record<string, unknown> | unknown[] | null | undefined,
@@ -176,39 +177,56 @@ async function syncEvents(
 ): Promise<number> {
   const events = await client.getEvents(since);
   const now = new Date();
+  const newlyCreated: Array<{ id: string; priority: number }> = [];
 
   for (const e of events) {
-    await platformPrisma.event.upsert({
-      where: {
-        tenantId_erEventId: { tenantId, erEventId: e.id },
-      },
-      create: {
-        tenantId,
-        erEventId: e.id,
-        serialNumber: e.serial_number != null ? String(e.serial_number) : null,
-        title: e.title ?? null,
-        priority: e.priority ?? 0,
-        reportedByName: e.reported_by?.name ?? null,
-        reportedAt: e.time != null ? new Date(e.time) : null,
-        locationLat: e.location?.latitude ?? null,
-        locationLon: e.location?.longitude ?? null,
-        eventDetailsJson: toJsonOrNull(e.event_details as Record<string, unknown> | null | undefined),
-        notesJson: toJsonOrNull(e.notes as unknown[] | null | undefined),
-        syncedAt: now,
-      },
-      update: {
-        serialNumber: e.serial_number != null ? String(e.serial_number) : null,
-        title: e.title ?? null,
-        priority: e.priority ?? 0,
-        reportedByName: e.reported_by?.name ?? null,
-        reportedAt: e.time != null ? new Date(e.time) : null,
-        locationLat: e.location?.latitude ?? null,
-        locationLon: e.location?.longitude ?? null,
-        eventDetailsJson: toJsonOrNull(e.event_details as Record<string, unknown> | null | undefined),
-        notesJson: toJsonOrNull(e.notes as unknown[] | null | undefined),
-        syncedAt: now,
-      },
+    const data = {
+      serialNumber: e.serial_number != null ? String(e.serial_number) : null,
+      title: e.title ?? null,
+      priority: e.priority ?? 0,
+      reportedByName: e.reported_by?.name ?? null,
+      reportedAt: e.time != null ? new Date(e.time) : null,
+      locationLat: e.location?.latitude ?? null,
+      locationLon: e.location?.longitude ?? null,
+      eventDetailsJson: toJsonOrNull(e.event_details),
+      notesJson: toJsonOrNull(e.notes),
+      syncedAt: now,
+    };
+
+    const existing = await platformPrisma.event.findUnique({
+      where: { tenantId_erEventId: { tenantId, erEventId: e.id } },
+      select: { id: true },
     });
+
+    if (existing === null) {
+      const created = await platformPrisma.event.create({
+        data: { tenantId, erEventId: e.id, ...data },
+        select: { id: true, priority: true },
+      });
+      newlyCreated.push({ id: created.id, priority: created.priority });
+    } else {
+      await platformPrisma.event.update({
+        where: { id: existing.id },
+        data,
+      });
+    }
+  }
+
+  for (const created of newlyCreated) {
+    try {
+      await enqueueAlert({
+        tenantId,
+        userId: "system",
+        alertRuleId: "",
+        eventId: created.id,
+        priority: created.priority,
+      });
+    } catch (err) {
+      console.error(
+        `[er-sync] enqueueAlert failed for event ${created.id}:`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
   }
 
   return events.length;

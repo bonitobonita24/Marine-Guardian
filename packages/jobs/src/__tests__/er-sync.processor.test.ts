@@ -17,13 +17,21 @@ vi.mock("@marine-guardian/db", () => ({
     eventType: { upsert: vi.fn() },
     subject: { upsert: vi.fn() },
     subjectGroup: { upsert: vi.fn() },
-    event: { upsert: vi.fn() },
+    event: {
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+    },
     patrol: { upsert: vi.fn() },
     patrolSegment: { upsert: vi.fn() },
     observation: { upsert: vi.fn() },
     syncLog: { create: vi.fn(), update: vi.fn() },
   },
   decrypt: vi.fn((v: string) => `decrypted_${v}`),
+}));
+
+vi.mock("../queues/alerts.queue", () => ({
+  enqueueAlert: vi.fn().mockResolvedValue("alert-job-1"),
 }));
 
 const mockErClient = {
@@ -54,16 +62,23 @@ vi.mock("../lib/earthranger-client", () => {
 
 import { platformPrisma } from "@marine-guardian/db";
 import { processErSync } from "../processors/er-sync.processor";
+import { enqueueAlert } from "../queues/alerts.queue";
 
 const mockPrisma = platformPrisma as unknown as {
   tenant: { findUnique: ReturnType<typeof vi.fn> };
   eventType: { upsert: ReturnType<typeof vi.fn> };
   subject: { upsert: ReturnType<typeof vi.fn> };
-  event: { upsert: ReturnType<typeof vi.fn> };
+  event: {
+    findUnique: ReturnType<typeof vi.fn>;
+    create: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+  };
   patrol: { upsert: ReturnType<typeof vi.fn> };
   observation: { upsert: ReturnType<typeof vi.fn> };
   syncLog: { create: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
 };
+
+const mockEnqueueAlert = enqueueAlert as ReturnType<typeof vi.fn>;
 
 function makeJob(overrides: Partial<ErSyncJobPayload> = {}) {
   return {
@@ -129,12 +144,69 @@ describe("processErSync", () => {
     );
   });
 
-  it("syncs events", async () => {
-    mockPrisma.event.upsert.mockResolvedValue({});
+  it("syncs events: creates new event when none exists", async () => {
+    mockPrisma.event.findUnique.mockResolvedValue(null);
+    mockPrisma.event.create.mockResolvedValue({ id: "evt-1", priority: 200 });
 
     await processErSync(makeJob({ syncType: "events" }));
 
-    expect(mockPrisma.event.upsert).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.event.findUnique).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.event.create).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.event.update).not.toHaveBeenCalled();
+  });
+
+  it("syncs events: updates existing event without re-creating", async () => {
+    mockPrisma.event.findUnique.mockResolvedValue({ id: "evt-existing" });
+    mockPrisma.event.update.mockResolvedValue({});
+
+    await processErSync(makeJob({ syncType: "events" }));
+
+    expect(mockPrisma.event.findUnique).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.event.create).not.toHaveBeenCalled();
+    expect(mockPrisma.event.update).toHaveBeenCalledTimes(1);
+  });
+
+  it("enqueues alert evaluation for newly created events only", async () => {
+    mockPrisma.event.findUnique.mockResolvedValue(null);
+    mockPrisma.event.create.mockResolvedValue({ id: "evt-new-1", priority: 200 });
+
+    await processErSync(makeJob({ syncType: "events" }));
+
+    expect(mockEnqueueAlert).toHaveBeenCalledOnce();
+    expect(mockEnqueueAlert).toHaveBeenCalledWith({
+      tenantId: "tenant-1",
+      userId: "system",
+      alertRuleId: "",
+      eventId: "evt-new-1",
+      priority: 200,
+    });
+  });
+
+  it("does NOT enqueue alert evaluation when event already existed (update path)", async () => {
+    mockPrisma.event.findUnique.mockResolvedValue({ id: "evt-existing" });
+    mockPrisma.event.update.mockResolvedValue({});
+
+    await processErSync(makeJob({ syncType: "events" }));
+
+    expect(mockEnqueueAlert).not.toHaveBeenCalled();
+  });
+
+  it("sync succeeds even if enqueueAlert throws (queue unavailable)", async () => {
+    mockPrisma.event.findUnique.mockResolvedValue(null);
+    mockPrisma.event.create.mockResolvedValue({ id: "evt-new-2", priority: 100 });
+    mockEnqueueAlert.mockRejectedValueOnce(new Error("Redis connection lost"));
+
+    await expect(
+      processErSync(makeJob({ syncType: "events" })),
+    ).resolves.not.toThrow();
+
+    expect(mockPrisma.syncLog.update).toHaveBeenCalledWith(
+      expect.objectContaining<Record<string, unknown>>({
+        data: expect.objectContaining<Record<string, unknown>>({
+          status: "success",
+        }),
+      }),
+    );
   });
 
   it("syncs patrols", async () => {

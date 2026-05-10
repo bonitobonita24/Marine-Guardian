@@ -3,6 +3,19 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-05-11 — Phase 8 Batch 2: Wire Alert Enqueue from Event Sync (deferred integration closed)
+- Agent:               CLAUDE_CODE (Opus 4.7)
+- Why:                 Close the Phase 8 Batch 2 deferred integration so the alerts engine fires on real events. STATE.md NEXT had described the integration point as `event.create` tRPC mutation, but no such mutation exists — events are created via the `er-sync.processor.ts` `syncEvents` upsert from EarthRanger. Wired enqueue at the actual create site instead.
+- Files added:         none
+- Files modified:      packages/jobs/src/processors/er-sync.processor.ts (refactor `syncEvents`: split `upsert` into `findUnique` + `create`/`update` so create-vs-update is distinguishable; enqueueAlert called only on create path; wrapped in try/catch so a queue outage never fails the sync; removed two unnecessary type assertions on toJsonOrNull args), packages/jobs/src/__tests__/er-sync.processor.test.ts (replaced `event.upsert` mock with `findUnique`/`create`/`update`; mocked `../queues/alerts.queue`; replaced single "syncs events" test with 5 cases — create-path, update-path, enqueue-on-create-only, no-enqueue-on-update, sync-succeeds-on-enqueue-failure)
+- Files deleted:       none
+- Schema/migrations:   none
+- Errors encountered:  ESLint flagged two `as Record<string, unknown> | null | undefined` casts on toJsonOrNull args as @typescript-eslint/no-unnecessary-type-assertion after the refactor extracted the `data` const out of the upsert input-type context.
+- Errors resolved:     Removed the casts — `toJsonOrNull` parameter type already accepts the inferred shapes of `e.event_details` and `e.notes`.
+- Tests:               16/16 pass (5 alerts.processor + 11 er-sync, including the 5 new cases). Lint 0, typecheck 0.
+- Two-stage review:    Stage 1 PASS (closes deferred integration — engine now fires on real events). Stage 2 PASS (no any types, no unnecessary casts, scope confined to 2 files, enqueue failure isolated from sync).
+- Note:                STATE.md NEXT was wrong about the integration point being `event.create` router mutation; flagged and corrected during this session. Real integration site is `er-sync.processor.ts syncEvents`.
+
 ## 2026-05-02 — Phase 3: Generate Spec Files
 - Agent:               CLAUDE_CODE
 - Why:                 Generate all Phase 3 deliverables — env files, inputs.yml, schema, credentials, sync script
