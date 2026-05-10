@@ -577,11 +577,20 @@ Verify each is present in the specified locations.
        LOOK FOR: overwrite_with_backup line for memory-governance.md → .claude/rules/
        File count should say 17 deliverable files (not 16)
 
-□ J.21 Prompts 3.20 + 3.21 exist in Prompt_References.md and .html
+□ J.21 memory-governance.md contains V31.2 additions: Step 2.5 (30K token budget gate) and Step 2.5b (Opus escalation)
+       LOOK FOR in §1 (Tiered Decomposition Engine):
+       "Step 2.5" with a 30K token budget gate — every Sonnet subagent task must have token estimate ≤30K;
+       split further if over, regardless of tier or file count.
+       "Step 2.5b" with Opus escalation — genuinely atomic unsplittable tasks >30K dispatch to
+       Agent(model: "opus") as last resort; 100K budget cap; max 20% of tasks per session; logged in STATE.md.
+       Also check §4 (Architect-Execute Model) references THRASHING as a new Sonnet status (re-reads files,
+       partial output, contradicts edits → stop agent, re-decompose via Step 2.5).
+
+□ J.22 Prompts 3.20 + 3.21 exist in Prompt_References.md and .html
        LOOK FOR: "## 3.20 — Memory Governance Baseline" and "## 3.21 — Opus Planning Session"
        Cards p-3-20 and p-3-21 must exist in HTML
 
-□ J.22 Prompt count is 59 (not 54, 55, or 56) across all files that state a count
+□ J.23 Prompt count is 59 (not 54, 55, or 56) across all files that state a count
        MUST NOT find "54 prompts" or "55 prompts" or "56 prompts" or
        "31 New" or "32 New" or "33 New" anywhere
 ```
@@ -656,7 +665,7 @@ SECONDARY ISSUES (nice to fix but not blocking):
 
 10. **Memory system verification is critical.** If ANY memory command (Resume Session, Governance Sync, Feature Update, Governance Retro, Log Lesson, Resume from handoff) appears broken or has stale Cline routing as primary, flag as F.7 FAIL immediately — this is Bonito's most important concern.
 
-11. **Post-lock patches are NOT a new version.** They are additive changes applied to V31 files without bumping to V32. V31.1 is a minor version tag for the Memory Governance Layer — still within V31. ChatGPT should verify patches exist in the correct files (Section J) but should NOT flag them as version inconsistencies. Phase 3.5 is a new phase — verify it appears in phase menus and counts. Anti-thrashing rules are in Phase 4 and Phase 8 sections. Context Budget is a global principle in CLAUDE_v31_compact.md and Master_Prompt_v31.md. Memory Governance Layer is in memory-governance.md with 13 hooks in phases.md. Architect-Execute Model uses Opus 4.6 (architect) and Sonnet 4.6 (executor). Prompt count is 59 (not 54, 55, or 56). Deliverable file count is 17 (not 16). Attribution chain is CLAUDE_CODE first (not CLINE).
+11. **Post-lock patches are NOT a new version.** They are additive changes applied to V31 files without bumping to V32. V31.1 is a minor version tag for the Memory Governance Layer — still within V31. V31.2 is the latest minor version, adding the 30K Token Budget Gate (Step 2.5: every Sonnet subagent task must have token estimate ≤30K; if over, split further regardless of tier/file count) and Opus Escalation (Step 2.5b: genuinely atomic unsplittable tasks >30K dispatch to Agent(model: "opus") as last resort, 100K budget, max 20% of tasks, logged in STATE.md). ChatGPT should verify patches exist in the correct files (Section J) but should NOT flag them as version inconsistencies. Phase 3.5 is a new phase — verify it appears in phase menus and counts. Anti-thrashing rules are in Phase 4 and Phase 8 sections. Context Budget is a global principle in CLAUDE_v31_compact.md and Master_Prompt_v31.md. Memory Governance Layer is in memory-governance.md with 13 hooks in phases.md. Architect-Execute Model uses Opus 4.6 (architect) and Sonnet 4.6 (executor). Prompt count is 59 (not 54, 55, or 56). Deliverable file count is 17 (not 16). Attribution chain is CLAUDE_CODE first (not CLINE).
 
 ---
 

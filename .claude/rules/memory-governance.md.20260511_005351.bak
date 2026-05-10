@@ -40,81 +40,6 @@ TIER 3 — HEAVY
   Examples:  Auth + RBAC + tenant isolation, multi-entity batch, billing integration.
 ```
 
-### Step 2.5: Subagent Token Budget Gate (MANDATORY)
-
-**This check applies to EVERY task before dispatching to a Sonnet subagent — regardless of tier.**
-
-Sonnet 4.6 has a 60K token context window. After accounting for system prompt, tool definitions, and reasoning overhead, the **safe execution budget is 30K tokens per subagent task**.
-
-```
-ESTIMATE TASK TOKEN COST:
-  tokens = (files_to_read × avg_lines × 4) + (files_to_write × expected_lines × 4)
-         + (tool_calls × 1.5K) + (reasoning_overhead: 5K flat)
-
-IF estimated_tokens > 30K:
-  → SPLIT FURTHER — even if Tier 1, even if only 1 file
-  → Split strategies (pick one):
-    a) Separate read-phase from write-phase (research agent → edit agent)
-    b) Split large file edits into sections (lines 1-200, 201-400, etc.)
-    c) Separate create from configure (scaffolding agent → wiring agent)
-    d) Separate implementation from validation (build agent → test agent)
-
-IF estimated_tokens ≤ 30K:
-  → Safe to dispatch as single subagent task
-```
-
-**Token estimation quick-reference:**
-
-| Input | Token cost estimate |
-|-------|-------------------|
-| 100-line file read | ~400 tokens |
-| 500-line file read | ~2,000 tokens |
-| 1000-line file read | ~4,000 tokens |
-| Each tool call (read/write/bash) | ~1,500 tokens |
-| Reasoning/planning overhead | ~5,000 tokens flat |
-| Writing 100 lines of new code | ~600 tokens |
-
-**Common over-budget patterns to watch for:**
-
-| Pattern | Why it thrashes | Split into |
-|---------|----------------|-----------|
-| "Read 3 large files + implement feature" | 3 × 2K read + 5K reasoning + 5K writing = 16K minimum, but tool results accumulate → 35K+ | Agent 1: read + summarize deps → Agent 2: implement with summary |
-| "Modify file with 800+ lines" | Full file read + reasoning about where + full edit = 12K+ per operation, compounds with retries | Agent per section, or Agent 1: identify locations → Agent 2: apply edits |
-| "Implement + write tests + verify" | 3 distinct phases each needing context | Agent 1: implement → Agent 2: write tests → Agent 3: verify |
-| "Update 5+ files for one feature" | Each file read + edit accumulates | Group by module boundary (max 2-3 files per agent) |
-
-**The 30K rule is NON-NEGOTIABLE.** A task that looks simple ("just update this one file") can still blow the budget if the file is large or requires reading multiple dependencies for context. Always estimate before dispatching.
-
-### Step 2.5b: Opus Escalation (last resort only)
-
-If a task is **truly atomic** — cannot be split without breaking correctness — AND exceeds 30K tokens, escalate to an Opus subagent instead of Sonnet:
-
-```
-IF estimated_tokens > 30K AND task is unsplittable:
-  → Ask: "Can this be split using strategies a-d above?"
-  → If YES (even awkwardly) → split it. Splitting is always preferred.
-  → If genuinely NO → dispatch via Agent(model: "opus") instead of Sonnet.
-
-OPUS SUBAGENT BUDGET:
-  Opus 4.6 context: 200K tokens → safe execution budget: ~100K tokens
-  Use the same Task Scope Format from §4.
-  Add to prompt: "You are dispatched as Opus executor because this task
-  exceeds Sonnet's 30K budget. Follow scope exactly — do not plan further."
-```
-
-**When escalation is justified (all must be true):**
-1. The task requires reading/reasoning over large interdependent context that loses meaning if summarized
-2. Splitting into read→write phases would produce incorrect output (e.g., complex refactor where every edit depends on full-file understanding)
-3. The task has been attempted as a split and failed, OR Opus has analyzed it and determined splitting breaks atomicity
-
-**When escalation is NOT justified (use splitting instead):**
-- "It's just easier as one task" — not a valid reason
-- "The file is big" — split by section
-- "It touches many files" — split by module
-- "It needs context from other files" — use research agent → execution agent pattern
-
-**Cost awareness:** Opus subagents cost ~5× more than Sonnet. Log every Opus escalation in STATE.md with justification. If >20% of tasks escalate to Opus, the decomposition strategy needs rethinking.
-
 ### Step 3: Split Plan (Tier 3 only)
 
 When score > 40, output a split plan before writing any code:
@@ -299,12 +224,11 @@ OPUS SESSION (Architect)
 
 ### Task Scope Format (what Opus gives Sonnet)
 
-Each dispatched Sonnet subagent receives a self-contained prompt.
-**Every task MUST include a token estimate. If estimate > 30K → do not dispatch, split further (see §1 Step 2.5).**
+Each dispatched Sonnet subagent receives a self-contained prompt:
 
 ```markdown
 # Task: [Phase N] — [Module Name]
-Tier: [1|2|3] | Estimated tokens: ~[N]K (MUST be ≤ 30K)
+Tier: [1|2|3] | Estimated tokens: ~[N]K
 
 ## Scope
 Files to create: [explicit list]
@@ -350,16 +274,9 @@ BLOCKED
   → Opus assesses:
     1. Context problem → provide more context, re-dispatch
     2. Architecture problem → Opus handles directly (never retry Sonnet on architecture)
-    3. Task too large → Opus re-decomposes into smaller pieces (apply §1 Step 2.5)
+    3. Task too large → Opus re-decomposes into smaller pieces
     4. Plan is wrong → escalate to human
   → Two consecutive BLOCKEDs on same task → Opus takes over implementation
-
-THRASHING (detected by Opus — not self-reported)
-  Signs: Sonnet re-reads same files multiple times, produces partial output,
-         loses track of earlier tool results, or contradicts its own prior edits.
-  → Cause is almost always: task exceeded 30K budget in practice.
-  → Response: STOP the agent. Re-decompose using §1 Step 2.5 split strategies.
-  → Do NOT re-dispatch the same task — it will thrash again.
 ```
 
 ### When to Use Each Model
@@ -384,17 +301,6 @@ SONNET 4.6 (Executor) — use when:
   ✓ UI components (pre-designed by Opus)
   ✓ Running validations and scans
   ✓ Governance doc updates (mechanical, per template)
-  ⚠ HARD LIMIT: Each Sonnet task ≤ 30K estimated tokens (see §1 Step 2.5)
-  ⚠ If a "simple" task needs to read 3+ large files → split it
-
-OPUS 4.6 (Executor — last resort) — use when:
-  ✓ Task is genuinely atomic AND exceeds 30K tokens
-  ✓ Complex refactor requiring full-file understanding across large files
-  ✓ Splitting has been attempted and produces incorrect results
-  ✗ NEVER as a convenience shortcut — always try splitting first
-  ✗ NEVER more than ~20% of total dispatched tasks
-  ⚠ Budget: ~100K safe execution ceiling
-  ⚠ Log every Opus executor dispatch in STATE.md with justification
 ```
 
 ### Skill Integration

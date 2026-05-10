@@ -22,9 +22,9 @@
 > - Added **Planning Assistant Rule 11** — n8n + OpenClaw automation opt-in (signal detection in Step 5, conditional infra in Step 7, conditional Integrations template with workflow table). Zero footprint when not used. Handoff docs: `n8n-handoff.md` + `openclaw-handoff.md` (gitignored)
 > - Added **4.13** — Add Automation to Existing Project (n8n / OpenClaw / Hybrid) — for when you didn't set up automation during initial planning but need it later mid-build or in production
 > - Added **3.19** — Emergency Anti-Thrashing: Fix Autocompact Thrashing in Any Phase — general-purpose prompt for mid-session rescue + proactive scope assessment, works in any phase or situation
-> - Added **3.20** — Memory Governance Baseline (V31.1) — first-time setup for existing Phase 7/8 projects, writes Claude Code memory for zero-cost resume
-> - Added **3.21** — Opus Planning Session (V31.1) — Architect-Execute Model: Opus decomposes tasks, dispatches Sonnet subagents
-> - Added **3.22** — Thrashing Recovery (V31.1) — emergency Opus session to decompose interrupted work after thrashing
+> - Added **3.20** — Memory Governance Baseline (V31.2) — first-time setup for existing Phase 7/8 projects, writes Claude Code memory for zero-cost resume
+> - Added **3.21** — Opus Planning Session (V31.2) — Architect-Execute Model: Opus decomposes tasks, dispatches Sonnet subagents; 30K token budget gate per task
+> - Added **3.22** — Thrashing Recovery (V31.2) — emergency Opus session to decompose interrupted work after thrashing; includes THRASHING status detection
 > - Added **Scenario 34** — CREDENTIALS.md Agent-Proof Upgrade (local shell script pattern for credential file format upgrades that agents cannot read into context)
 > - Expanded `.gitignore` entries across bootstrap, Master Prompt, deploy script — 21 new entries covering third-party AI tools (`.agents/`, `.cursor/`, `.windsurf/`, etc.) + automation handoff docs
 > - **NEW — Interactive HTML version** available at `Prompt_References.html` (same content, browser UI with search, expand/collapse, one-click copy, responsive mobile layout)
@@ -2365,7 +2365,7 @@ Completeness check before each commit. Report the plan before writing code.
 
 ---
 
-## 3.20 — Memory Governance Baseline (first-time setup for existing projects) (NEW V31.1)
+## 3.20 — Memory Governance Baseline (first-time setup for existing projects) (NEW V31.2)
 
 **Where:** Claude Code (Opus 4.6 recommended)
 **When:** First time using the Memory Governance Layer on a project already in Phase 7/8
@@ -2383,7 +2383,7 @@ Then decompose my current task using Tiered Decomposition (§1).
 
 ---
 
-## 3.21 — Opus Planning Session (Phase 4/7/8 task decomposition) (NEW V31.1)
+## 3.21 — Opus Planning Session (Phase 4/7/8 task decomposition) (NEW V31.2)
 
 **Where:** Claude Code (Opus 4.6)
 **When:** Starting any Phase 4 Part, Phase 7 Feature Update, or Phase 8 Batch
@@ -2393,30 +2393,42 @@ Use the Architect-Execute Model (memory-governance.md §4).
 Read STATE.md and relevant PRODUCT.md sections.
 Run Tiered Decomposition (§1) on this task.
 If Tier 2-3: decompose into scoped sub-tasks.
-Dispatch Sonnet 4.6 subagents via Agent(model: "sonnet") for each sub-task.
+Step 2.5 — Token Budget Gate: estimate tokens required per sub-task.
+  - If ≤30K: dispatch as Sonnet subagent via Agent(model: "sonnet").
+  - If >30K: split further until each task is ≤30K.
+Step 2.5b — Opus Escalation: if a task is genuinely atomic and unsplittable at >30K,
+  dispatch as Agent(model: "opus") as last resort.
+Dispatch approved sub-tasks to Sonnet via Agent(model: "sonnet").
 Review each subagent's output (spec compliance then code quality).
 Run Smart Checkpoint (§2) after all tasks complete.
 ```
 
-> 💡 **Why Opus?** Opus excels at reading large context and making decomposition decisions. One Opus planning session saves 3-5 Sonnet sessions from thrashing. Sonnet never reads full PRODUCT.md — it gets pre-scoped task instructions from Opus.
+> 💡 **Why Opus?** Opus excels at reading large context and making decomposition decisions. One Opus planning session saves 3-5 Sonnet sessions from thrashing. Sonnet never reads full PRODUCT.md — it gets pre-scoped task instructions from Opus. The 30K token budget gate prevents Sonnet subagents from thrashing on oversized tasks.
 
 ---
 
-## 3.22 — Thrashing Recovery (emergency mid-session rescue) (NEW V31.1)
+## 3.22 — Thrashing Recovery (emergency mid-session rescue) (NEW V31.2)
 
 **Where:** Claude Code (Opus 4.6)
 **When:** You're currently experiencing "Autocompact is thrashing" and need immediate help
+
+**THRASHING detection signs (Opus watches for these):**
+- Agent re-reads the same files it already read earlier in the session
+- Agent produces partial output then stalls or truncates
+- Agent contradicts or undoes its own prior edits
+- Multiple loops with no net progress on STATE.md
 
 ```
 I'm experiencing context thrashing. Follow memory-governance.md §5 Thrashing Recovery:
 1. I've already stopped and committed partial work.
 2. Run the memory governance baseline (§5 Step 2) to capture current state.
 3. Decompose my interrupted task using Tiered Decomposition (§1).
-4. Output a split plan with numbered sub-sessions I can execute with Sonnet.
+4. Apply Step 2.5 Token Budget Gate — ensure each sub-task is ≤30K tokens for Sonnet.
+5. Output a split plan with numbered sub-sessions I can execute with Sonnet.
 I was working on: [describe what you were doing]
 ```
 
-> ⚠ **Critical:** Open this in a NEW session with Opus 4.6, not in the thrashing session. The thrashing session's context is corrupted — starting fresh is the only reliable recovery.
+> ⚠ **Critical:** Open this in a NEW session with Opus 4.6, not in the thrashing session. The thrashing session's context is corrupted — starting fresh is the only reliable recovery. If Opus itself detects THRASHING status mid-session, it must stop immediately and re-decompose before continuing.
 
 ---
 

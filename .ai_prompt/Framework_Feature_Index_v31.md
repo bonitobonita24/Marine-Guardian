@@ -92,6 +92,7 @@
 - V14: Two-stage review (Rule 25) enforced for Feature Updates via Claude Code
 - V30: Promoted to primary agent for ALL phases. Claude Sonnet 4.6. Compact CLAUDE.md + .claude/rules/ architecture
 - V31.1: Architect-Execute Model — Opus 4.6 plans/decomposes, dispatches Sonnet 4.6 subagents. Memory Governance Layer (`.claude/rules/memory-governance.md`)
+- V31.2: 30K Token Budget Gate — every Sonnet subagent task must estimate ≤30K tokens; split further if over. Opus Escalation for genuinely atomic tasks >30K. THRASHING status detection.
 
 ---
 
@@ -313,7 +314,7 @@
 
 ---
 
-### 3.3 Memory Governance Layer (V31.1)
+### 3.3 Memory Governance Layer (V31.2)
 | Field | Value |
 |---|---|
 | Status | ACTIVE |
@@ -322,11 +323,12 @@
 | Auto-install | `/scan-project` detects and installs on Spec-Driven projects |
 | Applies to | ALL phases — hooks injected into every phase pre-flight |
 
-**What it does:** Prevents context thrashing via 4 integrated systems:
+**What it does:** Prevents context thrashing via 5 integrated systems:
 1. **Tiered Decomposition (Section 1)** — 3-tier complexity classifier with scoring formula. Runs at pre-flight before any phase/part/batch.
 2. **Smart Checkpoint (Section 2)** — auto-persists progress to STATE.md + Claude Code memory + lessons.md after significant changes. Enables zero-cost session resume.
 3. **Phase Hooks (Section 3)** — one-liner hooks in every phase pre-flight (12 injection points).
 4. **Architect-Execute Model (Section 4)** — Opus 4.6 plans/decomposes, Sonnet 4.6 executes via `Agent(model: "sonnet")` subagents.
+5. **30K Token Budget Gate (Step 2.5/2.5b)** — every Sonnet task must estimate ≤30K tokens before dispatch; split further if over. If genuinely atomic and unsplittable, escalate to `Agent(model: "opus")` (100K budget, max 20% of tasks). THRASHING status detected by Opus triggers stop + re-decompose.
 
 **Mid-project adoption:** Section 5 provides a 4-step adoption path for projects already in Phase 7/8, plus an emergency thrashing recovery protocol.
 
@@ -334,6 +336,7 @@
 
 **Change history:**
 - V31.1: Introduced — designed specifically to solve Phase 7/8 thrashing on mature projects
+- V31.2: Added 30K Token Budget Gate (Step 2.5), Opus Escalation (Step 2.5b), and THRASHING status detection
 
 ---
 
@@ -1385,7 +1388,7 @@ Full deployment guide for teams using Komodo (already installed). V27: Staging u
 
 ---
 
-*Last updated: V31.1 (30 rules · 34 scenarios · 18 bootstrap steps · 59 prompts (36 New ✨) · WSL2 native only · 17-file deliverable set · 84 security checklist items · 10 UI component rules · compact CLAUDE.md + 7 modular rule files architecture · interactive HTML prompt references · DESIGN.md integration · Phase 3.5 execution plan · Phase 4 + Phase 8 anti-thrashing rules · Skill Installer integration · Memory Governance Layer · Architect-Execute Model) · Maintained by Claude on behalf of Bonito — Powerbyte IT Solutions, Lipa City, Philippines*
+*Last updated: V31.2 (30 rules · 34 scenarios · 18 bootstrap steps · 59 prompts (36 New ✨) · WSL2 native only · 17-file deliverable set · 84 security checklist items · 10 UI component rules · compact CLAUDE.md + 7 modular rule files architecture · interactive HTML prompt references · DESIGN.md integration · Phase 3.5 execution plan · Phase 4 + Phase 8 anti-thrashing rules · Skill Installer integration · Memory Governance Layer · Architect-Execute Model · 30K Token Budget Gate · Opus Escalation · THRASHING status detection) · Maintained by Claude on behalf of Bonito — Powerbyte IT Solutions, Lipa City, Philippines*
 
 > **Note:** This file is updated by Claude alongside every version bump. You never edit it manually. It is part of the 16-file V31 deliverable set — 15 files in `.ai_prompt/`: CLAUDE_v31_compact.md · Master_Prompt_v31.md · bootstrap.md · phases.md · security.md · ui-rules.md · scenarios.md · templates.md · Product_md_Planning_Assistant_v31.md · Framework_Feature_Index_v31.md · AI_Tools_Skills_MCPs_Reference_v31.md · Post_Generation_Security_Checklist_v31.md · ChatGPT_V31_Cross_Audit_Prompt.md · Prompt_References.md · Prompt_References.html — plus `deploy-v31.sh` at project root.
 >

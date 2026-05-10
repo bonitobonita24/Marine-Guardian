@@ -78,7 +78,7 @@ TASK YOU'RE DOING                         FILE TO READ FIRST
 ─────────────────────────────────────     ──────────────────────────────────────
 Bootstrap (Phase 0)                       .claude/rules/bootstrap.md
 Any Phase 1-8 execution                   .claude/rules/phases.md → find your phase
-Context thrashing / task decomposition    .claude/rules/memory-governance.md (incl. THRASHING status + 30K gate)
+Context thrashing / task decomposition    .claude/rules/memory-governance.md
 Writing secure code (any phase)           .claude/rules/security.md
 Generating UI components                  .claude/rules/ui-rules.md
 Working with templates (.env, compose)    .claude/rules/templates.md
@@ -143,12 +143,6 @@ files for context. See `.claude/rules/phases.md` for full anti-thrashing rules p
 Sonnet 4.6 for execution. Opus dispatches Sonnet subagents via `Agent(model: "sonnet")`.
 See `.claude/rules/memory-governance.md` §4 for full protocol. This eliminates thrashing
 on mature projects by ensuring Sonnet never reads full PRODUCT.md or makes decomposition decisions.
-**30K Token Budget Gate (§1 Step 2.5):** every Sonnet subagent task must have a token estimate
-≤30K — split further if over, regardless of tier. If a task is genuinely atomic and cannot be
-split, escalate to `Agent(model: "opus")` as last resort (Step 2.5b — 100K budget, log
-justification, max 20% of tasks). **THRASHING status:** if Opus detects a Sonnet agent
-re-reading files, producing partial output, or contradicting prior edits — stop the agent and
-re-decompose via Step 2.5.
 
 ---
 
@@ -201,7 +195,6 @@ Claude Code       Primary — planning + execution (V31). Auto-loads this file.
                   Handles ALL phases. No handoff needed.
                   Opus 4.6 = Architect (planning, decomposition, review).
                   Sonnet 4.6 = Executor (implementation, tests, commits).
-                  Opus 4.6 = Executor (last resort — tasks exceeding Sonnet 30K budget, Step 2.5b).
                   See memory-governance.md §4 for Architect-Execute Model.
 Cline             ⚠ DEPRECATED — do not use. Kept for historical reference only.
                   .clinerules still generated but unused. Claude Code handles all work.

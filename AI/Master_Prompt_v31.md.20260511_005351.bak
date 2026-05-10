@@ -141,7 +141,7 @@ See Phase 4 and Phase 8 anti-thrashing rules for phase-specific details.
 
 **Memory Governance Layer (NEW):** See `.claude/rules/memory-governance.md` for the full
 token-efficient session & task management system:
-- §1 Tiered Decomposition — classify task complexity (Tier 1/2/3) with scoring formula; Step 2.5: 30K token budget gate per Sonnet task (split if over); Step 2.5b: Opus escalation for genuinely atomic tasks (100K budget, max 20% of tasks)
+- §1 Tiered Decomposition — classify task complexity (Tier 1/2/3) with scoring formula
 - §2 Smart Checkpoint — auto-persist progress to STATE.md + Claude Code memory + lessons.md
 - §3 Phase Hooks — every phase pre-flight references memory governance
 - §4 Architect-Execute Model — Opus 4.6 plans, Sonnet 4.6 executes via subagents
@@ -784,11 +784,11 @@ git worktree remove .worktrees/part-1   # after merge
 This prevents Part N's incomplete scaffold from breaking Part N+1's validation.
 
 
-### Rule 24 — Fresh context per Phase 4 Part + STATE.md + Memory Governance (V14 + V31.2)
+### Rule 24 — Fresh context per Phase 4 Part + STATE.md + Memory Governance (V14 + V31.1)
 
 **The context accumulation problem:** When Claude Code runs all 8 Phase 4 Parts in one continuous session, early scaffold decisions bleed into later ones, quality degrades across the session, and errors in Part 3 corrupt Parts 4–8. V14 solves this by treating each Part as an independent task.
 
-**Memory Governance integration (V31.2):** Rule 24's fresh-context principle is now reinforced by the Memory Governance Layer (`.claude/rules/memory-governance.md`). The Tiered Decomposition Engine (§1) runs at each Part's pre-flight to classify complexity. **30K Token Budget Gate (§1 Step 2.5):** every Sonnet subagent task must estimate ≤30K tokens before dispatch — split further if over. **Opus Escalation (Step 2.5b):** if a task is genuinely atomic and cannot be split, dispatch to `Agent(model: "opus")` as last resort (100K budget, log justification, max 20% of tasks). **THRASHING status:** Opus monitors for Sonnet agents re-reading files, producing partial output, or contradicting prior edits — stop and re-decompose via Step 2.5. The Smart Checkpoint (§2) persists progress to Claude Code memory after each Part, enabling zero-cost resume. The Architect-Execute Model (§4) uses Opus 4.6 to plan Part decomposition and dispatch Sonnet 4.6 subagents for execution. This extends Rule 24 from "fresh context per Part" to "intelligently scoped context per task."
+**Memory Governance integration (V31.1):** Rule 24's fresh-context principle is now reinforced by the Memory Governance Layer (`.claude/rules/memory-governance.md`). The Tiered Decomposition Engine (§1) runs at each Part's pre-flight to classify complexity. The Smart Checkpoint (§2) persists progress to Claude Code memory after each Part, enabling zero-cost resume. The Architect-Execute Model (§4) uses Opus 4.6 to plan Part decomposition and dispatch Sonnet 4.6 subagents for execution. This extends Rule 24 from "fresh context per Part" to "intelligently scoped context per task."
 
 **STATE.md — the quick-read session file (NEW V14):**
 Bootstrap Step 16 creates `.cline/STATE.md`. Every agent reads this FIRST (before the 9 governance docs) to orient instantly.
