@@ -99,8 +99,6 @@ This step requires a physical action on your machine — no agent can trigger it
 **Who:** Claude Code (you interact with it) | **Where:** Terminal — run `claude` in your project folder
 
 > **⚠ CONTEXT BUDGET:** Interview phase — lightweight context. If the interview produces a very large PRODUCT.md (>30K tokens), Phase 3 will handle it with section-by-section reads.
->
-> **⚠ MEMORY GOVERNANCE** (memory-governance.md): PRE: Run Tiered Decomposition (§1) — classify scope before starting. POST: Run Smart Checkpoint (§2) if any files were created or modified. MODEL: Use Architect-Execute Model (§4) for Phase 4/7/8 work.
 
 Before any files are generated, Claude Code interviews you to understand your app.
 This locks in tech stack, tenancy model, entities, security, and infrastructure.
@@ -292,8 +290,6 @@ IF ANY item fails → output GAP_REPORT only → do not advance to Phase 2.5
 **Who:** Claude Code | **Where:** VS Code
 
 > **⚠ CONTEXT BUDGET:** Summary phase — reads PRODUCT.md to produce a condensed review. If PRODUCT.md is >30K tokens, read section-by-section and summarize incrementally.
->
-> **⚠ MEMORY GOVERNANCE** (memory-governance.md): PRE: Run Tiered Decomposition (§1). POST: Run Smart Checkpoint (§2) if files changed.
 
 Trigger: Say "Start Phase 3"
 
@@ -334,8 +330,6 @@ After confirmation → Phase 2.6 runs automatically (if skill installed + Sectio
 **Trigger:** Runs automatically as part of the "confirmed" → Phase 3 sequence.
 
 > **⚠ CONTEXT BUDGET:** Design system generation reads PRODUCT.md Section K + generates design tokens. Lightweight — but if combined with Phase 2.7 + Phase 3 in one session, estimate total context.
->
-> **⚠ MEMORY GOVERNANCE** (memory-governance.md): PRE: Run Tiered Decomposition (§1). POST: Run Smart Checkpoint (§2) if files changed.
 
 User says "confirmed" once after Phase 2.5 — Claude Code handles 2.6 then proceeds to Phase 3.
 **Prerequisite:** UI UX Pro Max skill installed + Section K in PRODUCT.md.
@@ -472,8 +466,6 @@ Install the skill and add Section K to PRODUCT.md any time → say "Feature Upda
 **Trigger:** Runs automatically after Phase 2.6 (or after Phase 2.5 if Phase 2.6 skipped).
 
 > **⚠ CONTEXT BUDGET:** Stress-test reads full PRODUCT.md to find gaps. If PRODUCT.md exceeds 30K tokens, read section-by-section and test each independently rather than loading the entire file.
->
-> **⚠ MEMORY GOVERNANCE** (memory-governance.md): PRE: Run Tiered Decomposition (§1). POST: Run Smart Checkpoint (§2) if files changed.
 
 **Skip condition — CONDITIONAL:** `vibe_test.enabled: false` in inputs.yml → skip entirely → proceed to Phase 3.
 **Default:** Enabled. Costs one LLM call. Prevents entire Phase 4 rebuilds from spec gaps.
@@ -627,8 +619,6 @@ for visual verification only, not architecture input.
 Trigger: User says "confirmed" after Phase 2.5
 
 > **⚠ CONTEXT BUDGET:** Run the Universal Context Budget pre-flight (top of this file) before starting. Phase 3 reads the full PRODUCT.md — if it exceeds 30K tokens, generate spec files in module groups rather than all at once.
->
-> **⚠ MEMORY GOVERNANCE** (memory-governance.md): PRE: Run Tiered Decomposition (§1). POST: Run Smart Checkpoint (§2) if files changed.
 
 ─────────────────────────────────────────────────────────
 PHASE 3 PRE-FLIGHT — ACCOUNTS & CREDENTIALS CHECKLIST — MANDATORY
@@ -1464,8 +1454,6 @@ Output after completion:
 **Who:** Claude Code (auto-runs after Phase 3 output contract passes) | **Where:** VS Code — Claude Code terminal
 
 > **⚠ CONTEXT BUDGET:** This phase GENERATES the context budget plan for Phase 4+. Apply the Universal Context Budget pre-flight (top of this file) to this phase itself — Phase 3.5 reads the full PRODUCT.md to scan complexity, so if PRODUCT.md is very large (>30K tokens), read it in sections.
->
-> **⚠ MEMORY GOVERNANCE** (memory-governance.md): PRE: Run Tiered Decomposition (§1). POST: Run Smart Checkpoint (§2) if files changed. MODEL: Use Architect-Execute Model (§4) — Opus should plan Phase 4 decomposition here.
 
 **Purpose:** Analyze PRODUCT.md complexity and predict context cost per task BEFORE
 Phase 4 starts. Generates a pre-computed execution plan that right-sizes every session
@@ -1855,8 +1843,6 @@ Options:
 **Who:** Claude Code (Part-by-Part, fresh session each Part — Rule 24 · Cline deprecated) | **Where:** VS Code — Claude Code terminal
 
 > **⚠ CONTEXT BUDGET:** Run the Universal Context Budget pre-flight (top of this file) at the START of every Part. Estimate files + tokens. If >12 files or >80K tokens, sub-divide by module per the anti-thrashing rule below. The execution plan from Phase 3.5 pre-computes this — follow it.
->
-> **⚠ MEMORY GOVERNANCE** (memory-governance.md): PRE: Run Tiered Decomposition (§1) per Part. POST: Run Smart Checkpoint (§2) after each Part. MODEL: Use Architect-Execute Model (§4) — Opus dispatches Sonnet subagents per Part.
 
 Each Part runs in a FRESH Claude Code session (Rule 24 — prevents context accumulation).
 Each Part stays under ~3,000 lines of context for best reliability.
@@ -3233,8 +3219,6 @@ After Phase 6 completes:        say "Feature Update" for each new feature (Phase
 **Who:** Claude Code (human-triggered: "Start Phase 5" — Cline deprecated) | **Where:** WSL2 terminal
 
 > **⚠ CONTEXT BUDGET:** Run the Universal Context Budget pre-flight (top of this file) before starting. Estimate scope + tokens. If >12 files or >80K tokens, split validation into module groups.
->
-> **⚠ MEMORY GOVERNANCE** (memory-governance.md): PRE: Run Tiered Decomposition (§1). POST: Run Smart Checkpoint (§2) if files changed.
 
 ─────────────────────────────────────────────────────────
 PHASE 5 PRE-FLIGHT — CREDENTIAL COMPLETENESS GATE — MANDATORY (NEW V30)
@@ -3349,8 +3333,6 @@ Human triggers Phase 6 explicitly.
 **Who:** Claude Code (human-triggered: "Start Phase 6" — Cline deprecated) or you manually | **Where:** WSL2 terminal
 
 > **⚠ CONTEXT BUDGET:** Run the Universal Context Budget pre-flight (top of this file) before starting. Phase 6 typically reads compose files + .env + governance docs — estimate tokens before proceeding.
->
-> **⚠ MEMORY GOVERNANCE** (memory-governance.md): PRE: Run Tiered Decomposition (§1). POST: Run Smart Checkpoint (§2) if files changed.
 
 All `docker compose` commands run from the WSL2 Ubuntu terminal.
 Docker Desktop provides the socket natively — no DinD, no socket mounts needed.
@@ -3442,8 +3424,6 @@ Next steps:
 **Trigger:** Say "First Run Error" + paste full error output
 
 > **⚠ CONTEXT BUDGET:** Run the Universal Context Budget pre-flight (top of this file). Error triage can snowball — if fixing requires touching >12 files, split into separate fix sessions per error category.
->
-> **⚠ MEMORY GOVERNANCE** (memory-governance.md): PRE: Run Tiered Decomposition (§1). POST: Run Smart Checkpoint (§2) if files changed.
 
 Diagnose from these categories:
 - **ENV_MISSING** → check .env against .env.example
@@ -3490,8 +3470,6 @@ Edit PRODUCT.md → trigger Phase 7 → agents implement everything and keep gov
 >   - Commit + STOP after each sub-feature → human opens new session for next module
 > Read ONLY the PRODUCT.md sections for the current feature — NEVER the full file.
 > Use `codebase_search` (Rule 17) before opening source files.
->
-> **⚠ MEMORY GOVERNANCE** (memory-governance.md): PRE: Run Tiered Decomposition (§1) — classify this Feature Update's complexity before touching any files. POST: Run Smart Checkpoint (§2) on completion. MODEL: Use Architect-Execute Model (§4) — Opus plans the feature decomposition, Sonnet executes each scoped task. **CRITICAL for Phase 7 on mature projects** — this is where thrashing is most common.
 
 **Trigger:**
 - Via Claude Code: say "Feature Update" — it reads all 9 governance docs automatically
@@ -3631,8 +3609,6 @@ IF ANY item fails → Feature Update = INCOMPLETE → fix before marking done
 - Via Copilot (emergency fallback only): say "Feature Rollback: [feature name]" + attach all 9 docs manually
 
 > **⚠ CONTEXT BUDGET:** Run the Universal Context Budget pre-flight (top of this file). Rollbacks can touch many files across modules. If the feature spans >12 files, split the rollback into module-by-module sessions: revert schema first, then routers, then UI — commit after each group.
->
-> **⚠ MEMORY GOVERNANCE** (memory-governance.md): PRE: Run Tiered Decomposition (§1). POST: Run Smart Checkpoint (§2) if files changed.
 
 1. Find feature entry in CHANGELOG_AI.md
 2. List all files + migrations to revert
@@ -3648,8 +3624,6 @@ IF ANY item fails → Feature Update = INCOMPLETE → fix before marking done
 **Who:** Claude Code (primary — Cline deprecated) | **Trigger:** "Start Phase 8" (Claude Code reads 9 docs auto)
 
 > **⚠ CONTEXT BUDGET:** Run the Universal Context Budget pre-flight (top of this file) before every batch. Estimate files + tokens for the proposed batch. If >12 files or >80K tokens, split into per-feature sub-batches per the anti-thrashing rule below.
->
-> **⚠ MEMORY GOVERNANCE** (memory-governance.md): PRE: Run Tiered Decomposition (§1) — classify this batch before starting. POST: Run Smart Checkpoint (§2) after each sub-batch. MODEL: Use Architect-Execute Model (§4) — Opus plans the batch decomposition, Sonnet executes each feature. **CRITICAL for Phase 8** — multiple features per batch makes thrashing almost certain without Opus planning.
 
 Cross-references PRODUCT.md vs IMPLEMENTATION_MAP.md and proposes the next batch.
 Repeats until PRODUCT.md is fully implemented.

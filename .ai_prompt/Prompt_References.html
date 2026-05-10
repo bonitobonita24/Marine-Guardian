@@ -1060,6 +1060,9 @@ ul.checklist li:last-child { border-bottom: none; }
       <a class="nav-link" href="#p-3-17"><span class="nav-num">3.17</span>Onboard Codebase ✨</a>
       <a class="nav-link" href="#p-3-18"><span class="nav-num">3.18</span>Rebuild Graph ✨</a>
       <a class="nav-link" href="#p-3-19"><span class="nav-num">3.19</span>Anti-Thrashing ✨</a>
+      <a class="nav-link" href="#p-3-20"><span class="nav-num">3.20</span>Memory Gov Baseline ✨</a>
+      <a class="nav-link" href="#p-3-21"><span class="nav-num">3.21</span>Opus Planning ✨</a>
+      <a class="nav-link" href="#p-3-22"><span class="nav-num">3.22</span>Thrashing Recovery ✨</a>
     </div>
 
     <div class="nav-group">
@@ -1112,7 +1115,7 @@ ul.checklist li:last-child { border-bottom: none; }
 
       <div class="hero-stats">
         <div class="stat">
-          <div class="stat-num">56</div>
+          <div class="stat-num">59</div>
           <div class="stat-label">Prompts</div>
         </div>
         <div class="stat">
@@ -1120,7 +1123,7 @@ ul.checklist li:last-child { border-bottom: none; }
           <div class="stat-label">Groups</div>
         </div>
         <div class="stat">
-          <div class="stat-num">33</div>
+          <div class="stat-num">36</div>
           <div class="stat-label">New ✨</div>
         </div>
         <div class="stat">
@@ -3974,6 +3977,100 @@ Completeness check before each commit. Report the plan before writing code.</div
           </div>
         </div>
       </div>
+      <!-- 3.20 -->
+      <div class="prompt-card group-3 new-badge" id="p-3-20" style="position:relative">
+        <div class="prompt-header" onclick="togglePrompt(this)">
+          <div class="prompt-num">3.20</div>
+          <div class="prompt-title-wrap">
+            <div class="prompt-title">Memory Governance Baseline (V31.1)</div>
+            <div class="prompt-summary">First-time setup for existing Phase 7/8 projects — writes Claude Code memory for zero-cost resume</div>
+          </div>
+          <div class="prompt-toggle">›</div>
+        </div>
+        <div class="prompt-body">
+          <div class="prompt-content">
+            <div class="meta-row">
+              <div class="meta-item"><span class="meta-label">When</span><span class="meta-value">First time using Memory Governance on an existing project</span></div>
+              <div class="meta-item"><span class="meta-label">Where</span><span class="meta-value">Claude Code (Opus 4.6 recommended)</span></div>
+              <div class="meta-item"><span class="meta-label">One-time</span><span class="meta-value">Run once per project — future sessions resume at zero cost</span></div>
+            </div>
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">Claude Code Prompt</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+              <div class="code-body">Run memory governance baseline (memory-governance.md §5 Step 2).
+Read STATE.md + IMPLEMENTATION_MAP.md + lessons.md.
+Write a Claude Code memory entry capturing: current phase, what's been built,
+top gotchas from lessons.md, locked decisions, and what's next.
+Update STATE.md with TOKEN_ESTIMATE, FILES_TOUCHED, TIER_CLASSIFICATION fields.
+Then decompose my current task using Tiered Decomposition (§1).</div>
+            </div>
+            <div class="callout"><strong>Token savings:</strong> ~5-10K tokens saved per session after baseline. Memory replaces re-reading 3 governance docs on every resume.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3.21 -->
+      <div class="prompt-card group-3 new-badge" id="p-3-21" style="position:relative">
+        <div class="prompt-header" onclick="togglePrompt(this)">
+          <div class="prompt-num">3.21</div>
+          <div class="prompt-title-wrap">
+            <div class="prompt-title">Opus Planning Session — Architect-Execute Model (V31.1)</div>
+            <div class="prompt-summary">Opus 4.6 decomposes tasks, dispatches Sonnet 4.6 subagents — for Phase 4/7/8 work</div>
+          </div>
+          <div class="prompt-toggle">›</div>
+        </div>
+        <div class="prompt-body">
+          <div class="prompt-content">
+            <div class="meta-row">
+              <div class="meta-item"><span class="meta-label">When</span><span class="meta-value">Starting Phase 4 Part, Phase 7 Feature Update, or Phase 8 Batch</span></div>
+              <div class="meta-item"><span class="meta-label">Where</span><span class="meta-value">Claude Code (Opus 4.6)</span></div>
+              <div class="meta-item"><span class="meta-label">Model</span><span class="meta-value">Opus plans, Sonnet executes via Agent(model: "sonnet")</span></div>
+            </div>
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">Claude Code Prompt</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+              <div class="code-body">Use the Architect-Execute Model (memory-governance.md §4).
+Read STATE.md and relevant PRODUCT.md sections.
+Run Tiered Decomposition (§1) on this task.
+If Tier 2-3: decompose into scoped sub-tasks.
+Dispatch Sonnet 4.6 subagents via Agent(model: "sonnet") for each sub-task.
+Review each subagent's output (spec compliance then code quality).
+Run Smart Checkpoint (§2) after all tasks complete.</div>
+            </div>
+            <div class="callout"><strong>Why Opus?</strong> One Opus planning session saves 3-5 Sonnet sessions from thrashing. Sonnet never reads full PRODUCT.md — it gets pre-scoped task instructions from Opus.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3.22 -->
+      <div class="prompt-card group-3 new-badge" id="p-3-22" style="position:relative">
+        <div class="prompt-header" onclick="togglePrompt(this)">
+          <div class="prompt-num">3.22</div>
+          <div class="prompt-title-wrap">
+            <div class="prompt-title">Thrashing Recovery — Emergency Opus Session (V31.1)</div>
+            <div class="prompt-summary">Emergency mid-session rescue — open NEW Opus session to decompose interrupted work</div>
+          </div>
+          <div class="prompt-toggle">›</div>
+        </div>
+        <div class="prompt-body">
+          <div class="prompt-content">
+            <div class="meta-row">
+              <div class="meta-item"><span class="meta-label">When</span><span class="meta-value">Currently experiencing autocompact thrashing</span></div>
+              <div class="meta-item"><span class="meta-label">Where</span><span class="meta-value">NEW Claude Code session (Opus 4.6) — not the thrashing session</span></div>
+              <div class="meta-item"><span class="meta-label">Critical</span><span class="meta-value">Commit partial work BEFORE opening this session</span></div>
+            </div>
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">Claude Code Prompt</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+              <div class="code-body">I'm experiencing context thrashing. Follow memory-governance.md §5 Thrashing Recovery:
+1. I've already stopped and committed partial work.
+2. Run the memory governance baseline (§5 Step 2) to capture current state.
+3. Decompose my interrupted task using Tiered Decomposition (§1).
+4. Output a split plan with numbered sub-sessions I can execute with Sonnet.
+I was working on: [describe what you were doing]</div>
+            </div>
+            <div class="callout warning"><strong>Critical:</strong> Open this in a NEW session with Opus 4.6, not in the thrashing session. The thrashing session's context is corrupted — starting fresh is the only reliable recovery.</div>
+          </div>
+        </div>
+      </div>
+
     </div>
 
     <!-- ===== GROUP 4 NEW ===== -->

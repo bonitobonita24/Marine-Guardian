@@ -30,10 +30,12 @@ You are an independent auditor reviewing the **Spec-Driven Platform V31** framew
 6. **Skill Installer integration** — Primary Group 6 slots, per-phase supplementary skills
 7. **Prompt 4.13** — Add Automation to Existing Project (n8n / OpenClaw / Hybrid, 7-step flow)
 8. **Attribution cleanup** — CLAUDE_CODE first, CLINE removed from active attribution chain
-9. **Prompt count** updated from 54 → 56 (33 NEW ✨)
+9. **Prompt count** updated from 54 → 59 (36 NEW ✨)
 10. **code-review-graph setup signal** — Phase 6 completion + Phase 7 pre-flight
 11. **Context Budget — Global Principle** — Sonnet 4.6 model-aware task sizing added to CLAUDE_v31_compact.md and Master_Prompt_v31.md. Every task must be scoped to ≤80K tokens SAFE zone.
 12. **Prompt 3.19** — Emergency Anti-Thrashing for any phase (Sonnet 4.6 calibrated, 3 variants)
+13. **Memory Governance Layer (V31.1)** — new file `memory-governance.md` with 5 sections: Tiered Decomposition Engine, Smart Checkpoint Protocol, Phase Hooks (13 hooks across all phases), Architect-Execute Model (Opus 4.6 plans → Sonnet 4.6 executes), Mid-Project Adoption
+14. **Prompts 3.20 + 3.21** — Memory Governance Baseline + Opus Planning Session
 
 I am attaching 16 V31 framework files. Your job is to verify ALL changes were implemented correctly AND that the foundational Spec-Driven Platform architecture remains intact.
 
@@ -84,10 +86,10 @@ Bonito's user preference: keep Cline extension installed in VS Code as emergency
 30 Rules · 34 Scenarios · 18 Bootstrap Steps · 8 Phase 4 Parts
 9 Phase 5 Commands · 16 Phase 6.5 Categories · 16 Secure Code Gen sub-sections
 10 UI Component Rules · 84 Security Checklist items (13 sections)
-56 Prompts (33 NEW ✨) in Prompt_References.md and Prompt_References.html
-16 deliverable files (15 in .ai_prompt/ + deploy-v31.sh at project root) · 4 MCP servers (3 wired + 1 plugin) · Node v22 · pnpm@10
+59 Prompts (36 NEW ✨) in Prompt_References.md and Prompt_References.html
+17 deliverable files (16 in .ai_prompt/ + deploy-v31.sh at project root) · 4 MCP servers (3 wired + 1 plugin) · Node v22 · pnpm@10
 Phase count: 8 main phases + 2.5 + 2.6 + 2.7 + 2.8 (V31) + 3.5 (POST-LOCK) + 6.5
-6 agents (Claude Code primary · Cline ⚠ DEPRECATED · Copilot · SpecStory · SocratiCode · code-review-graph)
+6 agents (Claude Code primary: Opus 4.6 Architect + Sonnet 4.6 Executor · Cline ⚠ DEPRECATED · Copilot · SpecStory · SocratiCode · code-review-graph)
 9 governance docs (unchanged)
 Planning Assistant: 11 rules (Rule 11 = n8n+OpenClaw automation opt-in)
 ```
@@ -122,7 +124,7 @@ ChatGPT MUST verify each patch is present in the specified file(s):
    MUST BE IN: templates.md (Rule 15 template), Master_Prompt_v31.md (Rule 3 attribution)
    CLAUDE_v31_compact.md Rule 15 line must NOT list CLINE
 
-8. Prompt count: 56 prompts, 33 NEW ✨
+8. **Attribution cleanup** — CLAUDE_CODE first, CLINE removed from active attribution chain
    MUST BE IN: Master_Prompt_v31.md (changelog), CLAUDE_v31_compact.md (header),
    Framework_Feature_Index_v31.md (V31 row + footer), Prompt_References.html (hero stat)
    MUST NOT appear as "54 prompts" or "55 prompts" or "31 New" or "32 New" anywhere
@@ -138,6 +140,25 @@ ChatGPT MUST verify each patch is present in the specified file(s):
 10. Prompt 3.19 — Emergency Anti-Thrashing (any phase)
     MUST BE IN: Prompt_References.md (3 variants: mid-session rescue, proactive scope assessment,
     quick version — all Sonnet 4.6 calibrated), Prompt_References.html (card p-3-19)
+
+11. Memory Governance Layer (V31.1) — new file memory-governance.md
+    MUST BE IN: .claude/rules/memory-governance.md (5 sections: §1-§5)
+    MUST BE REFERENCED IN: CLAUDE_v31_compact.md (contextual file loading table + agent stack),
+    Master_Prompt_v31.md (context budget section + Rule 24), phases.md (13 memory governance hooks),
+    Framework_Feature_Index_v31.md (feature domain entry), AI_Tools_Skills_MCPs_Reference_v31.md
+    deploy-v31.sh MUST copy memory-governance.md to .claude/rules/
+
+12. Architect-Execute Model (Opus 4.6 → Sonnet 4.6)
+    MUST BE IN: memory-governance.md §4, CLAUDE_v31_compact.md (agent stack + context budget),
+    Master_Prompt_v31.md (context budget + agent description)
+
+13. Prompts 3.20 + 3.21 (Memory Governance Baseline + Opus Planning Session)
+    MUST BE IN: Prompt_References.md, Prompt_References.html (cards p-3-20, p-3-21)
+
+14. Prompt count: 59 prompts, 36 NEW ✨
+    MUST BE IN: Master_Prompt_v31.md (changelog), CLAUDE_v31_compact.md (header),
+    Framework_Feature_Index_v31.md (V31 row + footer), Prompt_References.html (hero stat)
+    MUST NOT appear as "54 prompts" or "55 prompts" or "56 prompts" or "31 New" or "32 New" or "33 New" anywhere
 ```
 
 ---
@@ -456,7 +477,7 @@ Platform foundation is compromised.
 
 ---
 
-### SECTION J — Post-Lock Additive Patches (16 items)
+### SECTION J — Post-Lock Additive Patches (22 items)
 
 These patches were applied after V31 was locked. They do NOT trigger a version bump.
 Verify each is present in the specified locations.
@@ -497,10 +518,10 @@ Verify each is present in the specified locations.
 □ J.9  Prompt 4.13 card exists in Prompt_References.html
        LOOK FOR: id="p-4-13"
 
-□ J.10 Prompt count is 56 (not 54 or 55) across all files that state a count:
+□ J.10 Prompt count is 59 (not 54, 55, or 56) across all files that state a count:
        Master_Prompt_v31.md, CLAUDE_v31_compact.md, Framework_Feature_Index_v31.md,
        Prompt_References.html hero stat
-       MUST NOT find "54 prompts" or "55 prompts" or "31 New" or "32 New" anywhere
+       MUST NOT find "54 prompts" or "55 prompts" or "56 prompts" or "31 New" or "32 New" or "33 New" anywhere
 
 □ J.11 Attribution order: CLAUDE_CODE first, CLINE removed from active chain
        templates.md Rule 15: must show CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
@@ -534,6 +555,35 @@ Verify each is present in the specified locations.
        "Claude Sonnet 4.6" model reference, "200K token context window", "≤80K SAFE zone",
        TOKEN BUDGET estimation step, codebase_search directive, /clear command
        Card p-3-19 must exist in Prompt_References.html
+
+□ J.17 memory-governance.md exists with 5 sections (§1-§5)
+       LOOK FOR: file memory-governance.md with headings:
+       "## §1 — TIERED DECOMPOSITION ENGINE"
+       "## §2 — SMART CHECKPOINT PROTOCOL"
+       "## §3 — PHASE HOOKS"
+       "## §4 — ARCHITECT-EXECUTE MODEL (Opus 4.6 → Sonnet 4.6)"
+       "## §5 — MID-PROJECT ADOPTION"
+
+□ J.18 Memory governance hooks in phases.md (should be 13 hooks)
+       LOOK FOR: "> **⚠ MEMORY GOVERNANCE**" blockquotes across phases.
+       Must exist in: Phase 2, 2.5, 2.6, 2.7, 3, 3.5, 4, 5, 6, 6.5, 7, 7R, 8
+       Phase 4/7/8 hooks must include "Architect-Execute Model (§4)"
+
+□ J.19 Architect-Execute Model referenced in CLAUDE_v31_compact.md
+       LOOK FOR: "Opus 4.6 = Architect" and "Sonnet 4.6 = Executor" in Agent Stack
+       Also: "Architect-Execute Model" in Context Budget section
+
+□ J.20 deploy-v31.sh deploys memory-governance.md
+       LOOK FOR: overwrite_with_backup line for memory-governance.md → .claude/rules/
+       File count should say 17 deliverable files (not 16)
+
+□ J.21 Prompts 3.20 + 3.21 exist in Prompt_References.md and .html
+       LOOK FOR: "## 3.20 — Memory Governance Baseline" and "## 3.21 — Opus Planning Session"
+       Cards p-3-20 and p-3-21 must exist in HTML
+
+□ J.22 Prompt count is 59 (not 54, 55, or 56) across all files that state a count
+       MUST NOT find "54 prompts" or "55 prompts" or "56 prompts" or
+       "31 New" or "32 New" or "33 New" anywhere
 ```
 
 ---
@@ -571,7 +621,7 @@ SECTION H (Phase 2.8 Technical):               [X PASS / Y FAIL / Z PARTIAL]
 SECTION I (Automation Integration):            [X PASS / Y FAIL / Z PARTIAL]
 SECTION J (Post-Lock Additive Patches):        [X PASS / Y FAIL / Z PARTIAL]
 ───────────────────────────────────────────────────────────
-TOTAL:                                         [X PASS / Y FAIL / Z PARTIAL] out of ~109 items
+TOTAL:                                         [X PASS / Y FAIL / Z PARTIAL] out of ~115 items
 
 TOP 3 CRITICAL FAILS (must fix before release):
 1. [item] — [file] — [fix]
@@ -606,7 +656,7 @@ SECONDARY ISSUES (nice to fix but not blocking):
 
 10. **Memory system verification is critical.** If ANY memory command (Resume Session, Governance Sync, Feature Update, Governance Retro, Log Lesson, Resume from handoff) appears broken or has stale Cline routing as primary, flag as F.7 FAIL immediately — this is Bonito's most important concern.
 
-11. **Post-lock patches are NOT a new version.** They are additive changes applied to V31 files without bumping to V32. ChatGPT should verify they exist in the correct files (Section J) but should NOT flag them as version inconsistencies. Phase 3.5 is a new phase — verify it appears in phase menus and counts. Anti-thrashing rules are in Phase 4 and Phase 8 sections. Context Budget is a global principle in CLAUDE_v31_compact.md and Master_Prompt_v31.md — it governs ALL task sizing. Prompt count is 56 (not 54 or 55). Attribution chain is CLAUDE_CODE first (not CLINE). Prompt 3.19 is the emergency anti-thrashing prompt.
+11. **Post-lock patches are NOT a new version.** They are additive changes applied to V31 files without bumping to V32. V31.1 is a minor version tag for the Memory Governance Layer — still within V31. ChatGPT should verify patches exist in the correct files (Section J) but should NOT flag them as version inconsistencies. Phase 3.5 is a new phase — verify it appears in phase menus and counts. Anti-thrashing rules are in Phase 4 and Phase 8 sections. Context Budget is a global principle in CLAUDE_v31_compact.md and Master_Prompt_v31.md. Memory Governance Layer is in memory-governance.md with 13 hooks in phases.md. Architect-Execute Model uses Opus 4.6 (architect) and Sonnet 4.6 (executor). Prompt count is 59 (not 54, 55, or 56). Deliverable file count is 17 (not 16). Attribution chain is CLAUDE_CODE first (not CLINE).
 
 ---
 

@@ -15,6 +15,7 @@
 #         • .claude/rules/bootstrap.md
 #         • .claude/rules/scenarios.md
 #         • .claude/rules/templates.md
+#         • .claude/rules/memory-governance.md
 #         • AI/Master_Prompt_v31.md      (new file — any old AI/Master_Prompt_v2*.md
 #                                        is kept untouched; delete manually if desired)
 #
@@ -45,7 +46,7 @@
 # ============================================================
 # EXPECTED LAYOUT BEFORE RUNNING:
 #   your-project/
-#   ├── .ai_prompt/               ← put all 15 V31 reference files in here
+#   ├── .ai_prompt/               ← put all 16 V31 reference files in here
 #   │   ├── CLAUDE_v31_compact.md
 #   │   ├── Master_Prompt_v31.md
 #   │   ├── bootstrap.md
@@ -54,6 +55,7 @@
 #   │   ├── ui-rules.md
 #   │   ├── scenarios.md
 #   │   ├── templates.md
+#   │   ├── memory-governance.md
 #   │   ├── Product_md_Planning_Assistant_v31.md
 #   │   ├── Framework_Feature_Index_v31.md
 #   │   ├── AI_Tools_Skills_MCPs_Reference_v31.md
@@ -61,7 +63,7 @@
 #   │   ├── ChatGPT_V31_Cross_Audit_Prompt.md
 #   │   ├── Prompt_References.md
 #   │   └── Prompt_References.html     ← interactive HTML UI for prompt references
-#   └── deploy-v31.sh             ← this script at project root (16th file — total deliverable set)
+#   └── deploy-v31.sh             ← this script at project root (17th file — total deliverable set)
 #
 # USAGE:
 #   cd your-project
@@ -162,6 +164,7 @@ for item in \
   ".claude/rules/bootstrap.md" \
   ".claude/rules/scenarios.md" \
   ".claude/rules/templates.md" \
+  ".claude/rules/memory-governance.md" \
   "AI/Master_Prompt_v31.md"; do
   if [ -f "$PROJECT/$item" ]; then
     echo "    $item  (exists → will back up, then overwrite)"
@@ -340,6 +343,7 @@ overwrite_with_backup "$AI_PROMPT/ui-rules.md"  "$PROJECT/.claude/rules/ui-rules
 overwrite_with_backup "$AI_PROMPT/bootstrap.md" "$PROJECT/.claude/rules/bootstrap.md"
 overwrite_with_backup "$AI_PROMPT/scenarios.md" "$PROJECT/.claude/rules/scenarios.md"
 overwrite_with_backup "$AI_PROMPT/templates.md" "$PROJECT/.claude/rules/templates.md"
+overwrite_with_backup "$AI_PROMPT/memory-governance.md" "$PROJECT/.claude/rules/memory-governance.md"
 echo ""
 
 # ============================================================
@@ -464,6 +468,7 @@ echo "    .claude/rules/ui-rules.md"
 echo "    .claude/rules/bootstrap.md"
 echo "    .claude/rules/scenarios.md"
 echo "    .claude/rules/templates.md"
+echo "    .claude/rules/memory-governance.md        ← Memory Governance Layer (V31.1)"
 echo "    AI/Master_Prompt_v31.md                 ← full monolithic"
 echo ""
 echo "  Merged additively (APPEND bucket):"

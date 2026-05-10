@@ -1,6 +1,7 @@
 {
-  "scannedAt": "2026-05-09",
-  "previousScan": "2026-05-06",
+  "scannedAt": "2026-05-10",
+  "previousScan": "2026-05-09",
+  "rescanReason": "Re-scan validated current state — Foundation Bundle skills + superpowers + memory-governance.md confirmed installed; 3 plugins remain pending (context-mode, claude-mem, code-review-graph) and were re-surfaced as install commands for the user to run interactively. No skill set changes; no new conflicts.",
   "techStack": [
     "TypeScript strict",
     "Next.js 15",
@@ -58,7 +59,25 @@
     { "name": "superpowers", "installedAt": "2026-05-09", "reason": "Slot 1 — bundle of TDD + systematic-debugging + root-cause-tracing + brainstorming + git-worktrees + finishing-branch + parallel-agents + code-review + defense-in-depth. Verified active via superpowers:* namespace." }
   ],
   "pendingPluginInstalls": [
-    { "name": "code-review-graph", "installCommand": "claude plugin add tirth8205/code-review-graph", "reason": "Slot 2 — SQLite knowledge graph, blast radius, 28 MCP tools. Phases.md designated code-intelligence skill. Run 'code-review-graph build' from WSL2 terminal after install." }
+    {
+      "name": "context-mode",
+      "priority": 1,
+      "installCommand": "/plugin marketplace add mksglu/context-mode && /plugin install context-mode@context-mode",
+      "reason": "98% token reduction on tool outputs — direct fix for current context thrashing. With 13 entities + multi-tenant tRPC routers + 6 packages, each tool call now returns 2-5K tokens; context-mode summarizes them. Protects 80K SAFE zone."
+    },
+    {
+      "name": "claude-mem",
+      "priority": 2,
+      "installCommand": "/plugin marketplace add thedotmack/claude-mem && /plugin install claude-mem@claude-mem",
+      "reason": "Cross-session compressed memory — replaces full re-reads of governance docs (lessons.md + DECISIONS_LOG.md + CHANGELOG_AI.md + IMPLEMENTATION_MAP.md) every session. With Phase 7/8 mid-stream and growing CHANGELOG, this saves 10-15K per session start."
+    },
+    {
+      "name": "code-review-graph",
+      "priority": 3,
+      "installCommand": "claude plugin add tirth8205/code-review-graph",
+      "postInstallCommand": "code-review-graph build  # run from WSL2 terminal at project root after plugin install",
+      "reason": "Slot 2 of Foundation Bundle — SQLite knowledge graph + 28 MCP tools for blast radius. Pending since 2026-05-09 prior scan. With multi-tenant code paths + alert/notification system just merged, blast-radius analysis becomes critical for Phase 7 Feature Updates."
+    }
   ],
   "skipped": [
     { "name": "graphify", "reason": "HIGH conflict with code-review-graph; phases.md designates code-review-graph as the framework's code-intelligence skill" },
@@ -71,8 +90,7 @@
     { "name": "n8n-workflow-patterns", "reason": "No n8n in this project" },
     { "name": "aws-skills", "reason": "Deploys to Komodo + Docker Hub per V27, not AWS" },
     { "name": "trailofbits-security-skills", "reason": "owasp-security already covers needs; CodeQL/Semgrep not declared in stack" },
-    { "name": "context-mode", "reason": "Plugin not yet adopted by user — can add later via /plugin install if context budgets become tight" },
-    { "name": "claude-mem", "reason": "Plugin not yet adopted by user — can add later if cross-session memory becomes a friction point" }
+    { "name": "skillpilot", "reason": "2026-05-09: Referenced in framework Phase 1.5 doc as 'Context Mgmt' orchestrator slot, but no public Claude Code marketplace path exists — appears to be part of Powerbyte's own AI Skills Installer ecosystem (aiskills.powerbyte.app), not yet published as a CC plugin. User confirmed it cannot be located. Re-evaluate if it becomes available via a known marketplace. The orchestration role is partially covered by Rule 28 priority ladder + Rule 26 contextual skill loading." }
   ],
   "resolvedConflicts": [
     {
@@ -95,6 +113,13 @@
       "loser": "(intentional)",
       "severity": "Intentional coexistence",
       "resolution": "Spec-Driven framework uses each in different phases — Phase 2.5/2.6 (ui-ux-pro-max), Phase 4 UI code (frontend-design), Phase 4 UX review (oiloil-ui-ux-guide). The general 'pick one' rule does not apply here."
+    },
+    {
+      "domain": "Context budget management (Sonnet 4.6, 80K SAFE zone)",
+      "winner": "context-mode + claude-mem (2-layer defense; skillpilot dropped — not publicly available)",
+      "loser": "(none — additive)",
+      "severity": "Pre-emptive against context thrashing",
+      "resolution": "2026-05-09 (re-scan) — user reported thrashing as project size grew. context-mode reduces tool-output drain; claude-mem reduces session-start governance-doc drain. skillpilot was originally proposed as a third layer but no public marketplace path exists (Powerbyte-internal); dropped from install set. Rule 28 priority ladder + Rule 26 contextual skill loading partially cover the orchestration role skillpilot would have played."
     }
   ],
   "mcpServersWired": [

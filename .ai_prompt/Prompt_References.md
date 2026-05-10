@@ -22,6 +22,9 @@
 > - Added **Planning Assistant Rule 11** — n8n + OpenClaw automation opt-in (signal detection in Step 5, conditional infra in Step 7, conditional Integrations template with workflow table). Zero footprint when not used. Handoff docs: `n8n-handoff.md` + `openclaw-handoff.md` (gitignored)
 > - Added **4.13** — Add Automation to Existing Project (n8n / OpenClaw / Hybrid) — for when you didn't set up automation during initial planning but need it later mid-build or in production
 > - Added **3.19** — Emergency Anti-Thrashing: Fix Autocompact Thrashing in Any Phase — general-purpose prompt for mid-session rescue + proactive scope assessment, works in any phase or situation
+> - Added **3.20** — Memory Governance Baseline (V31.1) — first-time setup for existing Phase 7/8 projects, writes Claude Code memory for zero-cost resume
+> - Added **3.21** — Opus Planning Session (V31.1) — Architect-Execute Model: Opus decomposes tasks, dispatches Sonnet subagents
+> - Added **3.22** — Thrashing Recovery (V31.1) — emergency Opus session to decompose interrupted work after thrashing
 > - Added **Scenario 34** — CREDENTIALS.md Agent-Proof Upgrade (local shell script pattern for credential file format upgrades that agents cannot read into context)
 > - Expanded `.gitignore` entries across bootstrap, Master Prompt, deploy script — 21 new entries covering third-party AI tools (`.agents/`, `.cursor/`, `.windsurf/`, etc.) + automation handoff docs
 > - **NEW — Interactive HTML version** available at `Prompt_References.html` (same content, browser UI with search, expand/collapse, one-click copy, responsive mobile layout)
@@ -2359,6 +2362,61 @@ Completeness check before each commit. Report the plan before writing code.
 > ⚠ **Why this matters:** Thrashing sessions produce the most dangerous bugs — features that LOOK complete in governance docs but are actually missing validations, permission guards, error states, or entire user flows. The completeness check catches this before it becomes invisible tech debt.
 >
 > 💡 **Context budget rule of thumb for Sonnet 4.6:** If you can describe your task scope in under 3 sentences and it touches fewer than 12 files, you're in the SAFE zone. If you need a paragraph to explain the scope, you probably need to split.
+
+---
+
+## 3.20 — Memory Governance Baseline (first-time setup for existing projects) (NEW V31.1)
+
+**Where:** Claude Code (Opus 4.6 recommended)
+**When:** First time using the Memory Governance Layer on a project already in Phase 7/8
+
+```
+Run memory governance baseline (memory-governance.md §5 Step 2).
+Read STATE.md + IMPLEMENTATION_MAP.md + lessons.md.
+Write a Claude Code memory entry capturing: current phase, what's been built,
+top gotchas from lessons.md, locked decisions, and what's next.
+Update STATE.md with TOKEN_ESTIMATE, FILES_TOUCHED, TIER_CLASSIFICATION fields.
+Then decompose my current task using Tiered Decomposition (§1).
+```
+
+> 💡 **One-time per project.** After this baseline, future sessions resume at zero token cost via Claude Code memory instead of re-reading 3 governance docs (~5-10K tokens saved per session).
+
+---
+
+## 3.21 — Opus Planning Session (Phase 4/7/8 task decomposition) (NEW V31.1)
+
+**Where:** Claude Code (Opus 4.6)
+**When:** Starting any Phase 4 Part, Phase 7 Feature Update, or Phase 8 Batch
+
+```
+Use the Architect-Execute Model (memory-governance.md §4).
+Read STATE.md and relevant PRODUCT.md sections.
+Run Tiered Decomposition (§1) on this task.
+If Tier 2-3: decompose into scoped sub-tasks.
+Dispatch Sonnet 4.6 subagents via Agent(model: "sonnet") for each sub-task.
+Review each subagent's output (spec compliance then code quality).
+Run Smart Checkpoint (§2) after all tasks complete.
+```
+
+> 💡 **Why Opus?** Opus excels at reading large context and making decomposition decisions. One Opus planning session saves 3-5 Sonnet sessions from thrashing. Sonnet never reads full PRODUCT.md — it gets pre-scoped task instructions from Opus.
+
+---
+
+## 3.22 — Thrashing Recovery (emergency mid-session rescue) (NEW V31.1)
+
+**Where:** Claude Code (Opus 4.6)
+**When:** You're currently experiencing "Autocompact is thrashing" and need immediate help
+
+```
+I'm experiencing context thrashing. Follow memory-governance.md §5 Thrashing Recovery:
+1. I've already stopped and committed partial work.
+2. Run the memory governance baseline (§5 Step 2) to capture current state.
+3. Decompose my interrupted task using Tiered Decomposition (§1).
+4. Output a split plan with numbered sub-sessions I can execute with Sonnet.
+I was working on: [describe what you were doing]
+```
+
+> ⚠ **Critical:** Open this in a NEW session with Opus 4.6, not in the thrashing session. The thrashing session's context is corrupted — starting fresh is the only reliable recovery.
 
 ---
 

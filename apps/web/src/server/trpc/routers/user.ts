@@ -1,16 +1,93 @@
 import { z } from "zod";
+import crypto from "crypto";
+import bcrypt from "bcrypt";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
 import { adminProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
+import { TRPCError } from "@trpc/server";
+
+const BCRYPT_ROUNDS = 12;
+
+const userRoleSchema = z.enum(["super_admin", "site_admin", "field_coordinator", "operator"]);
 
 export const userRouter = router({
+  create: adminProcedure
+    .input(
+      z.object({
+        email: z.string().email().max(255),
+        fullName: z.string().min(1).max(255),
+        role: userRoleSchema,
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Check for duplicate email within tenant
+      const existing = await prisma.user.findFirst({
+        where: { email: input.email, tenantId: ctx.tenantId },
+        select: { id: true },
+      });
+      if (existing) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "A user with this email already exists.",
+        });
+      }
+
+      const tempPassword = crypto.randomBytes(16).toString("hex");
+      const passwordHash = await bcrypt.hash(tempPassword, BCRYPT_ROUNDS);
+
+      const user = await prisma.user.create({
+        data: {
+          email: input.email,
+          fullName: input.fullName,
+          role: input.role,
+          tenantId: ctx.tenantId,
+          passwordHash,
+          isActive: true,
+        },
+        select: {
+          id: true,
+          email: true,
+          fullName: true,
+          role: true,
+          isActive: true,
+          createdAt: true,
+        },
+      });
+
+      return { user, tempPassword };
+    }),
+
+  resetPassword: adminProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const tempPassword = crypto.randomBytes(16).toString("hex");
+      const passwordHash = await bcrypt.hash(tempPassword, BCRYPT_ROUNDS);
+
+      const result = await prisma.user.updateMany({
+        where: { id: input.id, tenantId: ctx.tenantId },
+        data: {
+          passwordHash,
+          securityVersion: { increment: 1 },
+        },
+      });
+
+      if (result.count === 0) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "User not found.",
+        });
+      }
+
+      return { tempPassword };
+    }),
+
   list: tenantProcedure
     .input(
       z.object({
         cursor: z.string().optional(),
         limit: z.number().int().min(1).max(200).default(50),
-        role: z.enum(["super_admin", "site_admin", "field_coordinator", "operator"]).optional(),
+        role: userRoleSchema.optional(),
         isActive: z.boolean().optional(),
         search: z.string().max(200).optional(),
       })
