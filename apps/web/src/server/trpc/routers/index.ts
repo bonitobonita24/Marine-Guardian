@@ -12,6 +12,7 @@ import { syncLogRouter } from "./syncLog";
 import { userRouter } from "./user";
 import { knownRangerRouter } from "./knownRanger";
 import { dashboardRouter } from "./dashboard";
+import { mapRouter } from "./map";
 
 export const appRouter = router({
   event: eventRouter,
@@ -27,6 +28,7 @@ export const appRouter = router({
   user: userRouter,
   knownRanger: knownRangerRouter,
   dashboard: dashboardRouter,
+  map: mapRouter,
 });
 
 export type AppRouter = typeof appRouter;

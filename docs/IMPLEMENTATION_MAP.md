@@ -1,6 +1,6 @@
 # Implementation Map — Marine Guardian Command Center
 # Current build state. Rewritten after every feature update.
-# Last updated: 2026-05-11 — Phase 8 Batch 2: Alert engine processor + er-sync enqueue integration COMPLETE (engine now fires on real EarthRanger event sync).
+# Last updated: 2026-05-11 — Phase 8 Batch 2: Interactive Map COMPLETE (geo tRPC router + mapcn primitive + InteractiveMap wrapper + page route shipped across sub-sessions 1.1/1.2a/1.2b/1.2c; tile-only map served at /map, data-layer wiring deferred).
 # ---
 
 ## Status: Phase 8 Batch 1 complete. Phase 8 Batch 2 — Alert Rule Evaluation Engine processor body + er-sync create-path enqueue integration shipped. Engine fires on every newly-synced EarthRanger event. All Docker services healthy.
@@ -222,7 +222,7 @@ Docker fixes applied (6 total):
 - [x] ~~Dashboard: KPI cards, event breakdown charts, recent events feed, quick stats~~ — DONE (Phase 8 Batch 1 Item 1)
 - [x] ~~Event Kanban Board: drag-and-drop state transitions, tenant-scoped updateState, optimistic UI, unit tests~~ — DONE (Phase 8 Batch 1 Item 2)
 - [x] ~~Alert rule evaluation engine (alerts worker body)~~ — DONE (Phase 8 Batch 2; processor + tests shipped 2026-05-11; er-sync create-path enqueue integration shipped 2026-05-11 — closes the deferred follow-up)
-- [ ] Interactive map (Leaflet.js on /map page)
+- [x] ~~Interactive map (MapLibre/mapcn on /map page)~~ — DONE (Phase 8 Batch 2; geo router + vendor primitive + InteractiveMap wrapper + page route shipped 2026-05-11 across 4 sub-sessions 1.1/1.2a/1.2b/1.2c)
 - [ ] Real-time notifications (WebSocket/SSE)
 - [ ] PDF/CSV export endpoints
 - [ ] Mobile app (not in scope for V1)
@@ -264,6 +264,17 @@ Docker fixes applied (6 total):
 
 ---
 
+### Interactive Map (Phase 8 Batch 2 — COMPLETE)
+- [x] Geo tRPC router: `apps/web/src/server/trpc/routers/map.ts` — 4 tenant-scoped read-only procedures (getBounds, getSubjects, getPatrolAreas, getEvents) with L6 guardrails. Registered on appRouter.
+- [x] Router tests: `apps/web/src/server/trpc/routers/__tests__/map.test.ts` — 10 unit tests covering tenant isolation, role-based access, geo filtering. All pass.
+- [x] mapcn vendor primitive: `apps/web/src/components/ui/map.tsx` — 1844-line MapLibre GL primitive (MIT) installed via `npx shadcn@latest add @mapcn/map`. File-level `/* eslint-disable */` + `// @ts-nocheck` headers applied — registry-managed, see DECISIONS_LOG ("mapcn Vendor File Lint/TS Suppression").
+- [x] InteractiveMap wrapper: `apps/web/src/components/map/InteractiveMap.tsx` — 25-line `"use client"` component, centered on Banda Sea `[127.5, -2.5]` zoom 6, props surface `className?: string` only. No data layers, no tRPC calls, no markers (deferred to follow-up).
+- [x] Map page route: `apps/web/src/app/(dashboard)/map/page.tsx` — server component renders `<InteractiveMap />` inside full-viewport rounded container.
+- [x] Coordinate convention locked: `[lon, lat]` (mapcn primitive contract) — see DECISIONS_LOG from sub-session 1.2a.
+- [x] Two-stage review: Stage 1 PASS (PRODUCT.md L191 map view served, tenant-scoped data API ready). Stage 2 PASS for map files; pre-existing user-dialog lint errors documented + deferred to `fix/user-dialogs-strict-mode`.
+- [x] Sub-session decomposition: 1.1 (router, Sonnet) → 1.2a (mapcn install, Sonnet) → 1.2b (wrapper, Opus direct) → 1.2c (page route + suppression + governance, Opus direct). Applied per memory-governance.md §5 Thrashing Recovery.
+- [ ] **Follow-up (not in scope this branch):** Wire map.ts geo procedures into InteractiveMap to render live subject/patrol-area/event markers. Currently a tile-only view.
+
 ### Alert Rule Evaluation Engine (Phase 8 Batch 2 — COMPLETE)
 - [x] Processor: `packages/jobs/src/processors/alerts.processor.ts` — `evaluateAlerts(job)` exported. Tenant-scoped event load → active rule load → match on `conditionJson.eventTypeId + minPriority` → recipient fallback to super_admin/site_admin → atomic Prisma `$transaction` creates Notification + AuditLog (action `ALERT_FIRED`) per rule×recipient. Returns `{rulesEvaluated, rulesMatched, notificationsCreated}`.
 - [x] Tests: `packages/jobs/src/__tests__/alerts.processor.test.ts` — 5 vitest cases (missing tenantId rejection, no-active-rules, match+recipient happy path with notification + audit log assertions, match+no-recipient yields zero without opening transaction, transaction-failure atomic no-partial-commit). All pass in 132ms.
@@ -271,12 +282,14 @@ Docker fixes applied (6 total):
 - [x] **Enqueue integration shipped 2026-05-11** — actual integration site is `er-sync.processor.ts syncEvents`, not the (non-existent) `event.create` tRPC mutation. Refactored `syncEvents` to split `upsert` into `findUnique` + `create`/`update` so create-vs-update is distinguishable. `enqueueAlert({tenantId, userId:"system", alertRuleId:"", eventId, priority})` is called on the create path only, wrapped in try/catch so a queue outage never fails the sync. 5 new er-sync tests cover create-path, update-path, enqueue-on-create-only, no-enqueue-on-update, sync-succeeds-on-enqueue-failure.
 
 ### Next Step
-Phase 8 Batch 2 next item. Options (Opus-recommended order, updated 2026-05-11):
-1. Phase 8 Batch 2 Item: Interactive map (Leaflet/mapcn on /map page) — single small Tier 2 session.
-2. Spec deferral #3: Notification.patrolId FK migration + UI wiring (PRODUCT.md L187).
-3. Real-time notifications (WebSocket/SSE — Tier 3, must split into 3 sub-sessions per memory-governance.md §1).
-4. PDF/CSV export endpoints (per entity, one at a time).
-5. Spec deferral #1: Alert history log (now meaningful since engine fires on real events).
+Phase 8 Batch 2 next item. Options (Opus-recommended order, updated 2026-05-11 after Interactive Map merge):
+1. **`fix/dev-docker-internal-urls`** (small) — land the stashed compose override + INTERNAL_DATABASE_URL/INTERNAL_REDIS_URL pattern. Surfaced during 1.2c visual QA; app container was failing to reach DB at `localhost:DB_PORT` (resolves to itself, not host). Includes AUTH_TRUST_HOST=true addition for Auth.js v5 trusted-host validation.
+2. **`fix/user-dialogs-strict-mode`** (small) — clean up 13 pre-existing ESLint errors in `users/create-user-dialog.tsx`, `edit-role-dialog.tsx`, `reset-password-dialog.tsx` per DECISIONS_LOG ("User Management Dialogs — Strict-Mode Lint Deferral"). Unblocks CI lint gate on main.
+3. **Map data layer follow-up** — Wire `map.getSubjects` + `map.getPatrolAreas` + `map.getEvents` into InteractiveMap to render live markers. Current map is tile-only.
+4. Spec deferral #3: Notification.patrolId FK migration + UI wiring (PRODUCT.md L187).
+5. Real-time notifications (WebSocket/SSE — Tier 3, must split into 3 sub-sessions per memory-governance.md §1).
+6. PDF/CSV export endpoints (per entity, one at a time).
+7. Spec deferral #1: Alert history log (now meaningful since engine fires on real events).
 6. Spec deferral #1: Alert history log (now meaningful since engine fires).
 
 No known blockers. All services operational.

@@ -108,3 +108,32 @@ pnpm install (non-frozen) regenerated the lockfile. Re-audit confirmed 0 vulnera
 Additional overrides: esbuild, vite, postcss, next-intl (minor CVEs, same mechanism).
 Process: pnpm audit --fix → pnpm install → pnpm install --frozen-lockfile (CI will now pass).
 Locked: yes — do not remove overrides; update version bounds when packages publish fixes.
+
+## mapcn Vendor File Lint/TS Suppression (Phase 8 Batch 2 — Interactive Map)
+Decision: File-level `/* eslint-disable */` + `// @ts-nocheck` headers on `apps/web/src/components/ui/map.tsx`
+Rationale: The mapcn registry primitive (1844 lines, MIT) ships with 64 ESLint errors and 4 TS18048
+errors under our strict config. The file is registry-managed — `npx shadcn@latest add @mapcn/map`
+regenerates it on every pull, so inline fixes would be clobbered. Mirrors the pattern obs 82 used
+for `map.test.ts` in sub-session 1.1.
+Scope: Suppression applies ONLY to the vendor file. The thin `InteractiveMap` wrapper
+(`apps/web/src/components/map/InteractiveMap.tsx`) and the map page route are clean under strict mode.
+Re-validate on every mapcn upgrade — strict-mode compliance may land upstream.
+Locked: yes — until mapcn ships strict-compliant or we vendor a maintained fork.
+
+## User Management Dialogs — Strict-Mode Lint Deferral
+Decision: Three pre-existing dialog files carry 13 ESLint errors under strict config — deferred
+to dedicated `fix/user-dialogs-strict-mode` branch rather than fixed inline on `feat/interactive-map`.
+Affected files (all on main, byte-identical to feat/interactive-map HEAD as of 2026-05-11):
+  - apps/web/src/app/(dashboard)/users/create-user-dialog.tsx (7 errors)
+  - apps/web/src/app/(dashboard)/users/edit-role-dialog.tsx (4 errors)
+  - apps/web/src/app/(dashboard)/users/reset-password-dialog.tsx (2 errors)
+Error classes: deprecated `FormEvent` import (typescript-eslint/no-deprecated),
+no-confusing-void-expression on arrow shorthand handlers, strict-boolean-expressions on nullable strings.
+Rationale: Errors are pre-existing tech debt unrelated to the interactive map feature.
+Fixing them on the map branch would violate scope discipline (one feature per branch — Rule 23).
+~6/13 are auto-fixable with `--fix`; remaining 7 need manual edits. A dedicated branch keeps the
+diff readable and the fix attributable.
+Impact: 1.2c merge proceeds with these lint errors on main. CI lint gate currently fails on main
+for this reason (pre-existing). The `fix/user-dialogs-strict-mode` branch is queued as a separate
+work item — owner to claim before next Feature Update touching that module.
+Locked: yes — deferral confirmed; do not block 1.2c merge on these errors.

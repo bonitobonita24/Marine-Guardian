@@ -41,6 +41,7 @@
     "isomorphic-dompurify": "^2.16.0",
     "lru-cache": "^11.0.2",
     "lucide-react": "^0.468.0",
+    "maplibre-gl": "^5.24.0",
     "next": "^15.1.6",
     "next-auth": "^5.0.0-beta.25",
     "next-intl": "^3.26.3",
