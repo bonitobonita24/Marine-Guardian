@@ -58,7 +58,7 @@ export function ResetPasswordDialog({
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
       <DialogContent className="sm:max-w-md">
-        {tempPassword ? (
+        {tempPassword !== null ? (
           <>
             <DialogHeader>
               <DialogTitle>Password Reset</DialogTitle>
@@ -101,7 +101,7 @@ export function ResetPasswordDialog({
                 immediately invalidate all their active sessions.
               </DialogDescription>
             </DialogHeader>
-            {error && (
+            {error !== null && (
               <p className="text-sm text-destructive">{error}</p>
             )}
             <DialogFooter>

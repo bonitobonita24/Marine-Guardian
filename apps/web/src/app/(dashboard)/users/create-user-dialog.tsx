@@ -56,7 +56,7 @@ export function CreateUserDialog({ onSuccess }: CreateUserDialogProps) {
     },
   });
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
     setError(null);
     createUser.mutate({ email, fullName, role });
@@ -74,10 +74,10 @@ export function CreateUserDialog({ onSuccess }: CreateUserDialogProps) {
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); else setOpen(true); }}>
       <DialogTrigger asChild>
-        <Button onClick={() => setOpen(true)}>Add User</Button>
+        <Button onClick={() => { setOpen(true); }}>Add User</Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
-        {tempPassword ? (
+        {tempPassword !== null ? (
           <>
             <DialogHeader>
               <DialogTitle>User Created</DialogTitle>
@@ -122,7 +122,7 @@ export function CreateUserDialog({ onSuccess }: CreateUserDialogProps) {
                 <Input
                   id="create-fullname"
                   value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
+                  onChange={(e) => { setFullName(e.target.value); }}
                   placeholder="Jane Smith"
                   required
                   minLength={1}
@@ -135,7 +135,7 @@ export function CreateUserDialog({ onSuccess }: CreateUserDialogProps) {
                   id="create-email"
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => { setEmail(e.target.value); }}
                   placeholder="jane@example.com"
                   required
                   maxLength={255}
@@ -143,7 +143,7 @@ export function CreateUserDialog({ onSuccess }: CreateUserDialogProps) {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="create-role">Role</Label>
-                <Select value={role} onValueChange={(v) => setRole(v as UserRole)}>
+                <Select value={role} onValueChange={(v) => { setRole(v as UserRole); }}>
                   <SelectTrigger id="create-role">
                     <SelectValue />
                   </SelectTrigger>
@@ -156,7 +156,7 @@ export function CreateUserDialog({ onSuccess }: CreateUserDialogProps) {
                   </SelectContent>
                 </Select>
               </div>
-              {error && (
+              {error !== null && (
                 <p className="text-sm text-destructive">{error}</p>
               )}
             </div>

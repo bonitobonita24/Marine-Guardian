@@ -62,7 +62,7 @@ export function EditRoleDialog({
     },
   });
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
     setError(null);
     updateRole.mutate({ id: userId, role });
@@ -90,7 +90,7 @@ export function EditRoleDialog({
           <div className="space-y-4 py-4">
             <div className="space-y-1.5">
               <Label htmlFor="edit-role">New Role</Label>
-              <Select value={role} onValueChange={(v) => setRole(v as UserRole)}>
+              <Select value={role} onValueChange={(v) => { setRole(v as UserRole); }}>
                 <SelectTrigger id="edit-role">
                   <SelectValue />
                 </SelectTrigger>
@@ -103,7 +103,7 @@ export function EditRoleDialog({
                 </SelectContent>
               </Select>
             </div>
-            {error && (
+            {error !== null && (
               <p className="text-sm text-destructive">{error}</p>
             )}
           </div>
@@ -111,7 +111,7 @@ export function EditRoleDialog({
             <Button
               type="button"
               variant="outline"
-              onClick={() => handleOpenChange(false)}
+              onClick={() => { handleOpenChange(false); }}
             >
               Cancel
             </Button>
