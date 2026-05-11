@@ -21,8 +21,19 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm --filter @marine-guardian/db db:generate
 RUN pnpm --filter @marine-guardian/web build
 RUN pnpm --filter @marine-guardian/jobs build
+# Ensure public/ exists so the runner stage COPY always has a source
+RUN mkdir -p /app/apps/web/public
 RUN mkdir -p /prisma-engines && \
     find /app -name "libquery_engine-linux-musl-openssl-3.0.x.so.node" -exec cp {} /prisma-engines/ \;
+# Dereference pnpm symlinks so COPY --from=builder works on the actual package files
+# pnpm hoists @prisma/client under packages/db/node_modules (not root node_modules)
+# because packages/db is the direct dependent. Resolve the real store path via readlink -f.
+# .prisma/client (generated output) lives inside the pnpm store alongside @prisma/client.
+RUN PRISMA_CLIENT_REAL=$(readlink -f /app/packages/db/node_modules/@prisma/client) && \
+    PRISMA_GENERATED_REAL=$(find /app -maxdepth 8 -type d -path "*/.prisma/client" 2>/dev/null | head -1) && \
+    mkdir -p /prisma-deps/@prisma/client /prisma-deps/.prisma/client && \
+    cp -r "${PRISMA_CLIENT_REAL}/." /prisma-deps/@prisma/client/ && \
+    cp -r "${PRISMA_GENERATED_REAL}/." /prisma-deps/.prisma/client/
 
 FROM node:22-alpine AS runner
 WORKDIR /app
@@ -34,6 +45,9 @@ COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /app/apps/web/public ./apps/web/public
 COPY --from=builder /prisma-engines/ ./node_modules/.prisma/client/
 COPY --from=builder /prisma-engines/ ./apps/web/.next/server/
+# Ship @prisma/client + generated client for worker's external requires
+COPY --from=builder /prisma-deps/@prisma/client ./node_modules/@prisma/client
+COPY --from=builder /prisma-deps/.prisma/client ./node_modules/.prisma/client
 COPY --from=builder /app/packages/jobs/dist/start-workers.mjs ./worker/start-workers.mjs
 USER nextjs
 EXPOSE 3000

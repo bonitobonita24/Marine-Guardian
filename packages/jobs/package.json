@@ -10,7 +10,7 @@
     "./connection": "./src/connection.ts"
   },
   "scripts": {
-    "build": "esbuild src/start-workers.ts --bundle --platform=node --format=esm --outfile=dist/start-workers.mjs --banner:js=\"import{createRequire}from'module';const require=createRequire(import.meta.url);\" --external:child_process --external:fs --external:path --external:os --external:net --external:tls --external:dns --external:crypto --external:stream --external:events --external:util --external:assert --external:http --external:https --external:zlib --external:url --external:querystring --external:string_decoder --external:buffer --external:worker_threads --external:cluster --external:dgram --external:readline",
+    "build": "esbuild src/start-workers.ts --bundle --platform=node --format=esm --outfile=dist/start-workers.mjs --banner:js=\"import{createRequire}from'module';import{fileURLToPath}from'url';import{dirname}from'path';const require=createRequire(import.meta.url);const __filename=fileURLToPath(import.meta.url);const __dirname=dirname(__filename);\" --external:@prisma/client --external:.prisma/client --external:child_process --external:fs --external:path --external:os --external:net --external:tls --external:dns --external:crypto --external:stream --external:events --external:util --external:assert --external:http --external:https --external:zlib --external:url --external:querystring --external:string_decoder --external:buffer --external:worker_threads --external:cluster --external:dgram --external:readline",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/"
