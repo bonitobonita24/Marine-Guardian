@@ -1,6 +1,6 @@
 # Implementation Map — Marine Guardian Command Center
 # Current build state. Rewritten after every feature update.
-# Last updated: 2026-05-12 — Phase 8 Batch 2: Seed-password rotation tech debt cleared. seed.ts now reads WEBMASTER_PASSWORD + DEMO_SITE_ADMIN_PASSWORD from .env.{env}, upsert update path rotates bcrypt hashes on every re-seed. MAP FEATURE GROUP also COMPLETE (basemap + subjects + events + patrol tracks + patrol-area polygons — PRODUCT.md L191 fully satisfied).
+# Last updated: 2026-05-12 — Phase 7 Feature Update: Notification.patrolId nullable FK added (migration 20260512024505_add_notification_patrol_id). Router list query now includes patrol relation. Notification Center UI implements PRODUCT.md L187 click-through priority: patrol → event → no-link. Spec deferral #3 cleared. Pre-existing SyncStatus.running schema drift swept into same migration. 50/50 tests pass. Seed-password rotation tech debt also cleared earlier same day. MAP FEATURE GROUP COMPLETE (basemap + subjects + events + patrol tracks + patrol-area polygons — PRODUCT.md L191 fully satisfied).
 # ---
 
 ## Status: Phase 8 Batch 1 complete. Phase 8 Batch 2 — Alert Rule Evaluation Engine processor body + er-sync create-path enqueue integration shipped. Engine fires on every newly-synced EarthRanger event. All Docker services healthy.

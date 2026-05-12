@@ -6,6 +6,7 @@ export interface Notification {
   userId: string;
   alertRuleId: string | null;
   eventId: string | null;
+  patrolId: string | null;
   title: string;
   message: string;
   isRead: boolean;

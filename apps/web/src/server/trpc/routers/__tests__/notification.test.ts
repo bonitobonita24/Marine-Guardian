@@ -85,6 +85,51 @@ describe("notification.list", () => {
       })
     );
   });
+
+  it("returns notification.patrol when patrolId is set", async () => {
+    const mockPatrol = { id: "p-1", title: "Night Patrol", serialNumber: "NP-001" };
+    const mockItems = [
+      {
+        id: "n-2",
+        title: "Patrol started",
+        tenantId: TENANT_ID,
+        userId: USER_ID,
+        patrolId: "p-1",
+        patrol: mockPatrol,
+        event: null,
+      },
+    ];
+    vi.mocked(prisma.notification.findMany).mockResolvedValue(
+      mockItems as never
+    );
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.list({ limit: 50 });
+
+    expect(result.items[0]?.patrol).toEqual(mockPatrol);
+  });
+
+  it("returns notification.patrol === null when patrolId is null", async () => {
+    const mockItems = [
+      {
+        id: "n-3",
+        title: "Zone alert",
+        tenantId: TENANT_ID,
+        userId: USER_ID,
+        patrolId: null,
+        patrol: null,
+        event: null,
+      },
+    ];
+    vi.mocked(prisma.notification.findMany).mockResolvedValue(
+      mockItems as never
+    );
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.list({ limit: 50 });
+
+    expect(result.items[0]?.patrol).toBeNull();
+  });
 });
 
 describe("notification.markRead", () => {

@@ -130,7 +130,14 @@ export default function NotificationsPage() {
         <ul className="space-y-2">
           {items.map((n) => {
             const styles = TYPE_STYLES[n.notificationType];
+            const patrolId = n.patrolId ?? null;
             const eventId = n.eventId ?? null;
+            const href =
+              patrolId !== null
+                ? `/patrols/${patrolId}`
+                : eventId !== null
+                  ? `/events/${eventId}`
+                  : null;
             const handleMarkRead = () => {
               if (n.isRead) return;
               markReadMutation.mutate({ id: n.id });
@@ -172,7 +179,11 @@ export default function NotificationsPage() {
                     <p className="mt-1 text-sm text-muted-foreground">{n.message}</p>
                     <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
                       <span>{formatTimestamp(n.createdAt)}</span>
-                      {n.event !== null ? (
+                      {n.patrol !== null ? (
+                        <span className="truncate">
+                          → Patrol: {n.patrol.title ?? n.patrol.serialNumber ?? n.patrol.id}
+                        </span>
+                      ) : n.event !== null ? (
                         <span className="truncate">
                           → {n.event.title}{" "}
                           <span className="text-[10px] uppercase tracking-wide">
@@ -202,9 +213,9 @@ export default function NotificationsPage() {
 
             return (
               <li key={n.id}>
-                {eventId !== null ? (
+                {href !== null ? (
                   <Link
-                    href={`/events/${eventId}`}
+                    href={href}
                     onClick={handleMarkRead}
                     className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg"
                   >

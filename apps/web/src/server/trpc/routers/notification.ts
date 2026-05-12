@@ -24,7 +24,10 @@ export const notificationRouter = router({
         take: input.limit + 1,
         ...(input.cursor !== undefined ? { cursor: { id: input.cursor } } : {}),
         orderBy: { createdAt: "desc" },
-        include: { event: { select: { id: true, title: true, state: true } } },
+        include: {
+          event: { select: { id: true, title: true, state: true } },
+          patrol: { select: { id: true, title: true, serialNumber: true } },
+        },
       });
       let nextCursor: string | undefined;
       if (items.length > input.limit) {

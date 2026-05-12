@@ -309,3 +309,66 @@
   .env.{env} (gitignored). Verified with `bcrypt.compare(process.env.X, user.passwordHash)`
   returning true for both accounts after re-seed. Applies to any future seeded account — never
   hardcode credentials in seed scripts again, even for "demo" accounts in dev.
+
+## 2026-05-12 — 🟢 Notification.patrolId nullable FK added; UI click-through prioritizes patrol over event
+- Type:      🟢 change
+- Phase:     Phase 7 Feature Update (spec deferral #3 from STATE.md)
+- Files:     packages/db/prisma/schema.prisma, packages/db/prisma/migrations/20260512024505_add_notification_patrol_id/, packages/shared/src/types/notification.ts, apps/web/src/server/trpc/routers/notification.ts, apps/web/src/app/(dashboard)/notifications/page.tsx
+- Concepts:  prisma-fk, nullable-relation, click-through, notification-center, exactOptionalPropertyTypes
+- Narrative: PRODUCT.md L187 says "Click-through to related event or patrol" — until this change
+  only the event path existed. Added `patrolId String? @map("patrol_id")` on Notification with
+  `patrol Patrol? @relation(fields: [patrolId], references: [id])`, plus `notifications Notification[]`
+  inverse on Patrol, plus `@@index([patrolId])`. Router `list` query now `include`s
+  `patrol: { select: { id: true, title: true, serialNumber: true } }` alongside the existing
+  event include. UI click-through priority: patrol → event → no-link (patrol wins when both
+  present because it's the more specific destination). Metadata row mirrors the priority and
+  uses `n.patrol.title ?? n.patrol.serialNumber ?? n.patrol.id` for the label (Patrol.title is
+  nullable). Pattern reusable for any "Notification has one of several optional related
+  entities" — order the priorities by specificity, compute one `href` variable, conditionally
+  wrap Link only when href !== null. Alerts processor untouched — patrolId stays null on
+  notifications created from event-only alerts; future patrol-aware rules can populate it.
+
+## 2026-05-12 — 🟡 Subagent thrashing from hook-injection overhead — escalate to Opus-direct, do NOT re-dispatch
+- Type:      🟡 fix
+- Phase:     Phase 7 Feature Update (Notification.patrolId FK migration)
+- Files:     n/a (process gotcha — applies to any Phase 7/8 work)
+- Concepts:  subagent, thrashing, hook-injection, vercel-plugin, claude-mem, opus-escalation, memory-governance
+- Narrative: Sonnet 4.6 subagent thrashed on a tightly-scoped Tier-2 task that should have fit
+  in its 30K budget. Root cause was NOT the task scope — it was the hook-injection overhead.
+  Every Read tool call from inside a subagent triggers (a) vercel-plugin auto-suggesters that
+  pattern-match on file paths like `prisma/schema.prisma`, `app/**`, `apps/web/**` and inject
+  ~1.5K of "use this skill" boilerplate (next-forge, vercel-storage, bootstrap, nextjs,
+  next-cache-components — none applicable to this self-hosted Docker project), and (b)
+  claude-mem prior-observation context (~500 tokens per Read pointing at past observation IDs).
+  10 Read calls = ~20K of pure hook overhead before any real work. The subagent burned its
+  budget on the injected context, not on the planned reads. Fix per memory-governance.md §4
+  thrashing rule: STOP the agent. DO NOT re-dispatch the same task — it will thrash again the
+  same way. Escalate per §2.5b: complete the remaining work as Opus-direct (Opus has 100K
+  budget, can absorb the hook overhead) and log the justification in STATE.md. Pattern: if a
+  subagent thrashes despite a token estimate well under 30K, check whether hook injection is
+  inflating every tool call. If yes → Opus-direct is the right call, not "split the task
+  smaller" (which still pays the hook overhead per call). Forward fix on the horizon: hook
+  filtering by relevance, or disabling vercel-plugin auto-suggesters for non-Vercel projects.
+
+## 2026-05-12 — 🟡 Pre-existing schema drift sweeps into next migration (SyncStatus.running case)
+- Type:      🟡 fix
+- Phase:     Phase 7 Feature Update (Notification.patrolId FK migration)
+- Files:     packages/db/prisma/schema.prisma (SyncStatus enum line ~60), packages/db/prisma/migrations/20260512024505_add_notification_patrol_id/migration.sql
+- Concepts:  prisma-migrate, schema-drift, enum-value, postgres-enum-immutability, migration-hygiene
+- Narrative: `prisma migrate dev --create-only` unexpectedly included `ALTER TYPE "SyncStatus"
+  ADD VALUE 'running'` alongside the actual Notification.patrolId changes. Investigation showed
+  the init migration created SyncStatus with `('success', 'failed', 'partial')` only — but
+  schema.prisma had `running` added at some point (almost certainly with the alert engine sync
+  wiring on 2026-05-11, see observation 58) without a corresponding migration. The drift sat
+  dormant until the next `migrate dev` run. Prisma's drift detector correctly swept the missing
+  value into this migration. Decision: KEEP the sweep in this migration (reverting would just
+  push the same drift into the NEXT migration — endless punt). Document the sweep in down.sql
+  header comment so anyone running a rollback knows why an enum value remains. PostgreSQL note:
+  `DROP VALUE` is not a supported operation on enums — the only way to "remove" a value is to
+  rename the enum, create a fresh one without the value, alter the column type, drop the old.
+  Too heavy for a routine down-migration. So enum value additions are effectively one-way in
+  PG; the down.sql cleanly reverses the patrol_id column changes but leaves the enum value as
+  a no-op residue. Prevention: every time you edit an enum in schema.prisma, IMMEDIATELY run
+  `prisma migrate dev --name <descriptive>` to capture it as its own migration. Don't let enum
+  changes sit alongside other in-flight schema work — they pollute the next unrelated migration
+  with a confusing extra line.
