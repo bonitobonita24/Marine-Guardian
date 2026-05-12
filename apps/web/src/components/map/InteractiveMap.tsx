@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/map";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
+import { MapPolygon } from "./MapPolygon";
 import { PatrolSelector } from "./PatrolSelector";
 
 // MapLibre coordinate convention is [longitude, latitude] (locked in DECISIONS_LOG).
@@ -40,6 +41,9 @@ type InteractiveMapProps = {
 export function InteractiveMap({ className }: InteractiveMapProps) {
   const subjectsQuery = trpc.map.subjects.list.useQuery();
   const eventsQuery = trpc.map.events.list.useQuery({});
+  const patrolAreasQuery = trpc.map.patrolAreas.list.useQuery({
+    activeOnly: true,
+  });
 
   const [selectedPatrolId, setSelectedPatrolId] = useState<string | null>(null);
   const patrolTracksQuery = trpc.map.patrolTracks.byPatrolId.useQuery(
@@ -61,6 +65,19 @@ export function InteractiveMap({ className }: InteractiveMapProps) {
     <div className={cn("relative h-full w-full", className)}>
       <Map center={BANDA_SEA_CENTER} zoom={DEFAULT_ZOOM} className="h-full w-full">
         <MapControls />
+
+        {(patrolAreasQuery.data ?? []).map((area) => (
+          <MapPolygon
+            key={`patrol-area-${area.id}`}
+            id={`patrol-area-${area.id}`}
+            geojson={
+              area.polygonGeojson as unknown as
+                | GeoJSON.Polygon
+                | GeoJSON.MultiPolygon
+            }
+            color={area.colorHex}
+          />
+        ))}
 
         {trackCoordinates.length >= 2 && (
           <MapRoute
