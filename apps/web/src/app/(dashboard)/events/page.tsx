@@ -2,6 +2,8 @@
 
 import { useState, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { buildExportUrl } from "@/lib/exports";
 import {
   KanbanProvider,
   KanbanBoard,
@@ -138,23 +140,37 @@ export default function EventsPage() {
 
   return (
     <div className="flex h-full flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold">Events</h1>
-        {statsQuery.data !== undefined && (
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-            <span>{statsQuery.data.total} total</span>
-            <span className="h-4 w-px bg-border" />
-            <span className={stateColor("new_event")}>
-              {statsQuery.data.newEvents} new
-            </span>
-            <span className={stateColor("active")}>
-              {statsQuery.data.active} active
-            </span>
-            <span className={stateColor("resolved")}>
-              {statsQuery.data.resolved} resolved
-            </span>
+        <div className="flex items-center gap-4">
+          {statsQuery.data !== undefined && (
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <span>{statsQuery.data.total} total</span>
+              <span className="h-4 w-px bg-border" />
+              <span className={stateColor("new_event")}>
+                {statsQuery.data.newEvents} new
+              </span>
+              <span className={stateColor("active")}>
+                {statsQuery.data.active} active
+              </span>
+              <span className={stateColor("resolved")}>
+                {statsQuery.data.resolved} resolved
+              </span>
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline" size="sm">
+              <a href={buildExportUrl("events", {}, "csv")} download>
+                Export CSV
+              </a>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <a href={buildExportUrl("events", {}, "pdf")} download>
+                Export PDF
+              </a>
+            </Button>
           </div>
-        )}
+        </div>
       </div>
 
       <div className="min-h-0 flex-1">

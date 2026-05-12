@@ -3,14 +3,22 @@ import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
 import { prisma } from "@marine-guardian/db";
 
+/**
+ * Filter inputs shared between the list query and the /api/exports/events
+ * Route Handler. Exported so the export endpoint validates with the same
+ * Zod schema (single source of truth).
+ */
+export const eventListFilters = z.object({
+  state: z.enum(["new_event", "active", "resolved"]).optional(),
+  priority: z.number().int().min(0).max(3).optional(),
+});
+
 export const eventRouter = router({
   list: tenantProcedure
     .input(
-      z.object({
+      eventListFilters.extend({
         cursor: z.string().optional(),
         limit: z.number().int().min(1).max(200).default(50),
-        state: z.enum(["new_event", "active", "resolved"]).optional(),
-        priority: z.number().int().min(0).max(3).optional(),
       })
     )
     .query(async ({ ctx, input }) => {

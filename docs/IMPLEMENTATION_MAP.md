@@ -1,6 +1,6 @@
 # Implementation Map — Marine Guardian Command Center
 # Current build state. Rewritten after every feature update.
-# Last updated: 2026-05-12 — Phase 8 Batch 2 Item 4 SS-0: Export Foundation shipped on feat/exports-foundation (squash-merge pending). 5 shared helpers added under apps/web/src/server/lib/ — route-auth (Auth.js v5 verifier for Route Handlers), export-csv (~30-LOC RFC-4180 + BOM), export-pdf (React-PDF Document component + renderToBuffer wrapper), export-audit (DATA_EXPORT AuditLog writer), export-filename (`{entity}-{tenant}-{YYYYMMDD-HHmmss}.{ext}` builder). @react-pdf/renderer installed. vitest.config.ts gained @vitejs/plugin-react to support JSX in `.tsx` test files (Next.js tsconfig sets jsx:preserve which vite respects). 15 new tests (10 csv + 2 pdf + 3 audit) all GREEN; full web suite now 54/54 (was 39); typecheck 6/6 clean, lint 5/5 clean, build succeeds. SS-1..4 (events/patrols/alert-rules/notifications+alert-history per-entity Route Handlers + UI buttons) now unblocked per .cline/tasks/phase8-batch2-item4-exports.md. Prior: Item 3 Alert History Log (merged earlier 2026-05-12, commit 7da0cab). Phase 8 Batch 2 backlog after Item 4 ships: 1 item — real-time SSE (Tier 3, mandatory split).
+# Last updated: 2026-05-12 — Phase 8 Batch 2 Item 4 SS-1: Events Export Route Handler shipped on feat/exports-events (squash-merge pending). New: apps/web/src/app/api/exports/events/route.ts (GET handler — manual requireRouteAuth + rateLimiters.upload + take 10001 overflow → HTTP 413 + sha256 filterHash + CSV/PDF branch + DATA_EXPORT AuditLog after success), apps/web/src/lib/exports.ts (buildExportUrl helper for entity list pages), 6 new route tests (CSV byte-level BOM check, PDF content-type, 401, 413, audit write, filter propagation). Modified: event.ts router exported `eventListFilters` z.object so the Route Handler reuses the same schema (single source of truth for SS-2/3/4 routers to follow), events/page.tsx header now shows Export CSV + Export PDF buttons as `<Button asChild><a download href={buildExportUrl(...)}>`. Full web suite: 60/60 (was 54), typecheck 6/6 clean, lint 5/5 clean, build registers /api/exports/events as ƒ Dynamic Route. New 🟡 fix in lessons.md: Response.text() strips UTF-8 BOM during decoding — assert BOM via arrayBuffer() byte-level check (applies to SS-2/3/4 test authors). SS-0 prior: 5 shared helpers under apps/web/src/server/lib/ — route-auth, export-csv (~30-LOC RFC-4180+BOM), export-pdf (React-PDF Document), export-audit (DATA_EXPORT writer), export-filename (`{entity}-{tenant}-{YYYYMMDD-HHmmss}.{ext}`). SS-2 (Patrols), SS-3 (Alert Rules), SS-4 (Notifications + Alert History combined) remain; each ~18K, independently mergeable. Phase 8 Batch 2 backlog after Item 4 fully ships: 1 item — real-time SSE (Tier 3, mandatory split per memory-governance.md §1).
 # ---
 
 ## Status: Phase 8 Batch 1 complete. Phase 8 Batch 2 — Alert Rule Evaluation Engine processor body + er-sync create-path enqueue integration shipped. Engine fires on every newly-synced EarthRanger event. All Docker services healthy.
@@ -283,21 +283,31 @@ Docker fixes applied (6 total):
 - [x] Worker registration: pre-existed in `packages/jobs/src/start-workers.ts:12` from Phase 4 scaffold. `processAlert` deprecated re-export preserved at end of processor file for compat.
 - [x] **Enqueue integration shipped 2026-05-11** — actual integration site is `er-sync.processor.ts syncEvents`, not the (non-existent) `event.create` tRPC mutation. Refactored `syncEvents` to split `upsert` into `findUnique` + `create`/`update` so create-vs-update is distinguishable. `enqueueAlert({tenantId, userId:"system", alertRuleId:"", eventId, priority})` is called on the create path only, wrapped in try/catch so a queue outage never fails the sync. 5 new er-sync tests cover create-path, update-path, enqueue-on-create-only, no-enqueue-on-update, sync-succeeds-on-enqueue-failure.
 
+### Exports (Phase 8 Batch 2 Item 4 — IN PROGRESS)
+- [x] **SS-0: Foundation primitives (2026-05-12, commit 4caa449).** 5 shared helpers in apps/web/src/server/lib/: route-auth.ts (Auth.js v5 session verifier — `requireRouteAuth()` returns `{userId, tenantId, roles}`, throws RouteAuthError with 401 NextResponse), export-csv.ts (~30-LOC RFC-4180 renderer with UTF-8 BOM + CRLF endings), export-pdf.tsx (React-PDF Document component + `renderExportPdf()` async Buffer wrapper), export-audit.ts (writeExportAudit → DATA_EXPORT AuditLog row with filterHash entityId + changesJson={format, rowCount}), export-filename.ts (`{entity}-{tenantSlug}-{YYYYMMDD-HHmmss}.{ext}` UTC). 15 unit tests across 3 test files (10 csv + 2 pdf + 3 audit). @react-pdf/renderer added to deps. vitest.config.ts gained @vitejs/plugin-react to support JSX in `.tsx` test files (Next.js tsconfig sets jsx:preserve).
+- [x] **SS-1: Events export (2026-05-12, branch feat/exports-events — squash-merge pending).** Route Handler at apps/web/src/app/api/exports/events/route.ts: manual auth via `requireRouteAuth()`, rate limit via `rateLimiters.upload.check(userId)` (20/min), validates state+priority via reused `eventListFilters` (exported from event router), fetches Tenant.slug+name for filename + PDF header, prisma.event.findMany with `take: 10001` for overflow detection (HTTP 413 on >10000), sha256 filterHash from sorted-keys JSON, flattens to 10-column EventRow (id, serial, title, state, priority, eventType.display+category, reportedByName, reportedAt ISO, createdAt ISO), branches on `format=csv|pdf`, writes DATA_EXPORT audit log AFTER success. New helper apps/web/src/lib/exports.ts `buildExportUrl(entity, filters, format)`. /events page header gains Export CSV + Export PDF outline buttons (`<Button asChild><a download href=...>`). 6 new route-handler tests (CSV byte-level BOM + tenant scoping, PDF content-type, 401 missing session, 413 overflow, audit shape with 64-hex filterHash, filter propagation). Full web suite: 60/60 (was 54). Lessons: 🟡 fix — Response.text() strips UTF-8 BOM during decoding; assert via arrayBuffer() byte-level check.
+- [ ] **SS-2: Patrols export** — `/api/exports/patrols/route.ts` + tests + buttons on /patrols/page.tsx. Identical pattern to SS-1; reuses patrol router's list filter schema (will need similar `patrolListFilters` extract).
+- [ ] **SS-3: Alert Rules export** — `/api/exports/alert-rules/route.ts` + tests + buttons on /alerts/page.tsx (beside "View History" + "New Rule"). Column formatter needs to stringify `notificationChannels` array + `conditionJson` object sensibly.
+- [ ] **SS-4: Notifications + Alert History (combined)** — `/api/exports/notifications/route.ts` + `/api/exports/alert-history/route.ts` + tests + buttons on /notifications/page.tsx + /alerts/history/page.tsx. Combined sub-session because both are audit-style views with similar column shapes.
+
 ### Next Step
-Map feature group COMPLETE + seed-rotation tech debt cleared. Phase 8 Batch 2 remaining backlog (Opus-recommended order, updated 2026-05-12 after seed rotation merge):
-1. Spec deferral #3: Notification.patrolId FK migration + UI wiring (PRODUCT.md L187). Migration + router update + notification-center click-through wiring. Tier 2.
-2. Real-time notifications (WebSocket/SSE — Tier 3, must split into ≥3 sub-sessions per memory-governance.md §1).
-3. PDF/CSV export endpoints (per entity, one at a time).
-4. Spec deferral #1: Alert history log (now meaningful since engine fires on real events).
+SS-1 Events Export shipped (pending squash-merge). Phase 8 Batch 2 remaining backlog after Item 4 fully ships:
+1. **SS-2 Patrols export** — next per-entity Route Handler, ~18K, copies SS-1 pattern. Branch: feat/exports-patrols.
+2. **SS-3 Alert Rules export** — ~18K.
+3. **SS-4 Notifications + Alert History (combined)** — ~22K.
+4. **Real-time notifications (WebSocket/SSE)** — Tier 3, MANDATORY split into ≥3 sub-sessions per memory-governance.md §1. Last remaining backlog item after Item 4.
+5. Open spec deferral: filter type drift (PRODUCT.md L189 enum mismatch) — 1-line human edit, not agent-side.
 
 Shipped since the last "Next Step" rewrite (2026-05-11):
 - ✅ `fix/dev-docker-internal-urls` (92e0e65) — compose overrides + INTERNAL_DATABASE_URL/REDIS_URL pattern + AUTH_TRUST_HOST in .env.dev
 - ✅ `fix/user-dialogs-strict-mode` (29e66b0) — 13 ESLint errors cleared; CI lint gate now passes on main
 - ✅ `feat/map-data-layer` (f041215) — subjects + events markers wired into InteractiveMap
-- ✅ `fix/worker` (e409aba) — Prisma ESM externalization + pnpm symlink dereference; alerts engine + er-sync workers unblocked
-- ✅ `feat/map-patrol-tracks` (e1e2d8a) — PatrolSelector + MapRoute wiring for selected patrol GPS path
-- ✅ `feat/map-patrol-areas` (7250039) — MapPolygon component + InteractiveMap polygon overlay rendering — MAP FEATURE GROUP COMPLETE
-- ✅ `fix/seed-password-from-env` — seed.ts reads WEBMASTER_PASSWORD + DEMO_SITE_ADMIN_PASSWORD from env vars, upsert update path rotates hashes on re-seed, plaintext lifted out of source into .env.{env} + CREDENTIALS.md
-- ✅ `feat/map-patrol-areas` (7250039) — MapPolygon component + patrol-area overlays. **Map feature group COMPLETE.**
+- ✅ `fix/worker` (e409aba) — Prisma ESM externalization + pnpm symlink dereference
+- ✅ `feat/map-patrol-tracks` (e1e2d8a), `feat/map-patrol-areas` (7250039) — MAP FEATURE GROUP COMPLETE
+- ✅ `fix/seed-password-from-env` — seed.ts reads passwords from env vars, rotates on re-seed
+- ✅ `feat/alert-history` (7da0cab) — Alert History Log audit-trail table + page, spec deferral #1 cleared
+- ✅ `feat/notification-patrol-fk` (895fa84) — Notification.patrolId FK + click-through wiring, spec deferral #3 cleared
+- ✅ `feat/exports-foundation` (4caa449) — SS-0 Export Foundation primitives merged
+- ✅ `feat/exports-events` (SS-1) — Events Export Route Handler + UI buttons (this branch, squash-merge pending)
 
-No known blockers. All services operational. 4 commits on main ahead of origin/main (push when ready).
+No known blockers. All services operational. Main currently at 595ee2c (in sync with origin/main pre-SS-1).

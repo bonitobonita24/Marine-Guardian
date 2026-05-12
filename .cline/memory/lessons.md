@@ -4,6 +4,27 @@
 # READ ORDER: 🔴 first → 🟤 second → rest by relevance
 # ---
 
+## 2026-05-12 — 🟡 Response.text() strips UTF-8 BOM during decoding — assert BOM via arrayBuffer()
+- Type:      🟡 fix
+- Phase:     Phase 8 Batch 2 Item 4 SS-1 (events export Route Handler tests)
+- Files:     apps/web/src/app/api/exports/events/__tests__/route.test.ts
+- Concepts:  utf-8, bom, response, fetch-spec, text-decoder, vitest, route-handler, csv
+- Narrative: A test that asserted `(await res.text()).charCodeAt(0) === 0xFEFF` failed even though
+  the CSV body definitely starts with the BOM. Root cause: per the Fetch spec, `Response.text()`
+  runs UTF-8 decoding via TextDecoder which strips a leading BOM by default
+  (https://encoding.spec.whatwg.org/#utf-8-decode). The BOM IS on the wire — just gone after decoding.
+  Fix: read the response as bytes and check the raw three-byte sequence:
+    const buf = new Uint8Array(await res.arrayBuffer());
+    expect(buf[0]).toBe(0xef);
+    expect(buf[1]).toBe(0xbb);
+    expect(buf[2]).toBe(0xbf);
+    const bodyText = new TextDecoder("utf-8").decode(buf);  // explicit decode preserves BOM if needed
+  Note: `TextDecoder("utf-8", { ignoreBOM: true })` is the default; pass `{ ignoreBOM: false }` only
+  if you need to surface the BOM as U+FEFF in the decoded string. Excel still detects the encoding
+  fine because it reads the raw bytes — only JavaScript decoders strip it.
+  Applies to: SS-2/SS-3/SS-4 (patrols / alert-rules / notifications + alert-history) — every export
+  Route Handler test should follow this pattern when verifying CSV BOM presence.
+
 ## 2026-05-12 — 🟡 Vitest needs @vitejs/plugin-react when tsconfig sets jsx:preserve
 - Type:      🟡 fix
 - Phase:     Phase 8 Batch 2 Item 4 SS-0 (exports foundation)
