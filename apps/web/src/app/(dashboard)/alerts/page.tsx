@@ -24,6 +24,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { trpc } from "@/lib/trpc/client";
+import { buildExportUrl } from "@/lib/exports";
 
 type ChannelValue = "in_app" | "email";
 
@@ -170,6 +171,16 @@ export default function AlertsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <a href={buildExportUrl("alert-rules", {}, "csv")} download>
+              Export CSV
+            </a>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <a href={buildExportUrl("alert-rules", {}, "pdf")} download>
+              Export PDF
+            </a>
+          </Button>
           <Button variant="outline" asChild>
             <Link href="/alerts/history">View History</Link>
           </Button>

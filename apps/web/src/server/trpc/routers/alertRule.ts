@@ -4,13 +4,16 @@ import { tenantProcedure } from "../middleware/tenant";
 import { adminProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
 
+export const alertRuleListFilters = z.object({
+  isActive: z.boolean().optional(),
+});
+
 export const alertRuleRouter = router({
   list: tenantProcedure
     .input(
-      z.object({
+      alertRuleListFilters.extend({
         cursor: z.string().optional(),
         limit: z.number().int().min(1).max(200).default(50),
-        isActive: z.boolean().optional(),
       })
     )
     .query(async ({ ctx, input }) => {
