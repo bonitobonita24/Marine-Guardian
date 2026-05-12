@@ -3,13 +3,18 @@ import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
 import { prisma } from "@marine-guardian/db";
 
+// Single source of truth for alert-history list filters.
+// Re-used by the /api/exports/alert-history Route Handler (SS-4).
+export const alertHistoryListFilters = z.object({
+  alertRuleId: z.string().optional(),
+});
+
 export const alertHistoryRouter = router({
   list: tenantProcedure
     .input(
-      z.object({
+      alertHistoryListFilters.extend({
         cursor: z.string().optional(),
         limit: z.number().int().min(1).max(200).default(50),
-        alertRuleId: z.string().optional(),
       })
     )
     .query(async ({ ctx, input }) => {

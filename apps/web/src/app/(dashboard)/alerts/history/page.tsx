@@ -14,6 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { trpc } from "@/lib/trpc/client";
+import { buildExportUrl } from "@/lib/exports";
 
 const PAGE_SIZE = 50;
 
@@ -65,9 +66,21 @@ export default function AlertHistoryPage() {
             Every time an alert rule matched an event. Immutable audit trail.
           </p>
         </div>
-        <Button variant="outline" asChild>
-          <Link href="/alerts">Back to Alert Rules</Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline" size="sm">
+            <a href={buildExportUrl("alert-history", {}, "csv")} download>
+              Export CSV
+            </a>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <a href={buildExportUrl("alert-history", {}, "pdf")} download>
+              Export PDF
+            </a>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href="/alerts">Back to Alert Rules</Link>
+          </Button>
+        </div>
       </div>
 
       <Card>

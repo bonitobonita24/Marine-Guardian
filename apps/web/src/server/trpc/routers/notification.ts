@@ -3,14 +3,19 @@ import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
 import { prisma } from "@marine-guardian/db";
 
+// Single source of truth for notification list filters.
+// Re-used by the /api/exports/notifications Route Handler (SS-4).
+export const notificationListFilters = z.object({
+  isRead: z.boolean().optional(),
+  notificationType: z.enum(["critical", "warning", "info", "system"]).optional(),
+});
+
 export const notificationRouter = router({
   list: tenantProcedure
     .input(
-      z.object({
+      notificationListFilters.extend({
         cursor: z.string().optional(),
         limit: z.number().int().min(1).max(200).default(50),
-        isRead: z.boolean().optional(),
-        notificationType: z.enum(["critical", "warning", "info", "system"]).optional(),
       })
     )
     .query(async ({ ctx, input }) => {

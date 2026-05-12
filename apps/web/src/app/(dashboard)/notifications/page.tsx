@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc/client";
+import { buildExportUrl } from "@/lib/exports";
 
 type NotificationType = "critical" | "warning" | "info" | "system";
 type TypeFilter = NotificationType | "all";
@@ -92,6 +93,30 @@ export default function NotificationsPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <Button asChild variant="outline" size="sm">
+            <a
+              href={buildExportUrl(
+                "notifications",
+                { notificationType: typeFilter === "all" ? undefined : typeFilter },
+                "csv",
+              )}
+              download
+            >
+              Export CSV
+            </a>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <a
+              href={buildExportUrl(
+                "notifications",
+                { notificationType: typeFilter === "all" ? undefined : typeFilter },
+                "pdf",
+              )}
+              download
+            >
+              Export PDF
+            </a>
+          </Button>
           <Select
             value={typeFilter}
             onValueChange={(v) => { setTypeFilter(v as TypeFilter); }}
