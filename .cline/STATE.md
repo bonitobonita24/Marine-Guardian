@@ -34,9 +34,27 @@ LAST_DONE:    Alert History Log. Branch `feat/alert-history-log` (squash-merge p
               - PDF/CSV exports — next backlog item.
               - Real-time SSE — last backlog item; Tier 3, mandatory split per §1.
 
-NEXT:         Phase 8 Batch 2 remaining backlog (Alert History now shipped — pending merge):
-              (next-1) PDF/CSV exports — Tier 2 per entity (events, patrols, alert rules, notifications, alert history). Likely one sub-task per entity; alert history is now a natural addition to the export entity set.
-              (next-2) Real-time notifications (WebSocket/SSE) — Tier 3, MANDATORY split per memory-governance.md §1 (estimate >12 files: SSE endpoint + auth + reconnection + client hook + notification context + at least 3 page integrations + tests). With alert history shipped, SSE can broadcast both new notifications AND new history rows for live dashboard updates.
+NEXT:         Phase 8 Batch 2 Item 4 — PDF/CSV Exports (PREPPED FOR NEXT SESSION).
+              **Plan file:** `.cline/tasks/phase8-batch2-item4-exports.md` (full prep doc — locked decisions, tech choices, 5 sub-session breakdown with file manifests, test strategy, execution model).
+              **Locked decisions** (DO NOT re-ask):
+                - Access: all authenticated roles can export (tenant scoping still applies)
+                - Filter behavior: respect current UI filter state (URL query → reuse list-endpoint Zod schemas)
+                - Audit: write AuditLog DATA_EXPORT row per export (consistent with L5)
+                - CSV: hand-rolled toCsv() helper, no library, RFC 4180 + UTF-8 BOM for Excel
+                - PDF: @react-pdf/renderer (JSX composition, MIT, server renderToBuffer)
+                - Endpoints: Next.js Route Handlers `/api/exports/{entity}/route.ts` with manual auth
+                - Row cap: 10,000 per export (HTTP 413 above)
+                - Rate limit: rateLimiters.upload tier (20/min)
+              **Sub-sessions (in order):**
+                SS-0 Foundation (~25K, ~7 files): route-auth helper + toCsv + ExportPdfDocument + writeExportAudit + filename builder + tests. Install @react-pdf/renderer. Blocks SS-1..4. Branch: feat/exports-foundation.
+                SS-1 Events (~18K, ~4 files): /api/exports/events/route.ts + tests + UI buttons on /events page. Branch: feat/exports-events.
+                SS-2 Patrols (~18K, ~4 files): same pattern. Branch: feat/exports-patrols.
+                SS-3 Alert Rules (~18K, ~4 files): same pattern + special channel/condition formatting. Branch: feat/exports-alert-rules.
+                SS-4 Notifications + Alert History combined (~22K, ~6 files): both audit-style views, share session. Branch: feat/exports-audit-views.
+              **Execution model:** Opus-direct recommended for SS-0 (boundary case) and SS-4 (combined size). Sonnet-eligible for SS-1..3 IF hook-injection issue resolves by execution time; otherwise Opus-direct per §2.5b — try SS-1 with Sonnet first, observe, decide for SS-2/3.
+              **After Item 4 ships:** only 1 Phase 8 Batch 2 backlog item remains — Real-time SSE (Tier 3, MANDATORY split per memory-governance.md §1).
+
+              Open spec deferrals updated: (a) ~~Alert history log PRODUCT.md L182~~ — CLEARED this session; (b) filter type drift PRODUCT.md L189 — 1-line PRODUCT.md edit by human, STILL OPEN; (c) ~~Notification.patrolId FK click-through PRODUCT.md L187~~ — cleared earlier today. Only one spec deferral remains open repo-wide.
 
               Open spec deferrals updated: (a) ~~Alert history log PRODUCT.md L182~~ — CLEARED this session; (b) filter type drift PRODUCT.md L189 — 1-line PRODUCT.md edit by human, STILL OPEN; (c) ~~Notification.patrolId FK click-through PRODUCT.md L187~~ — cleared earlier today. Only one spec deferral remains open repo-wide.
 
