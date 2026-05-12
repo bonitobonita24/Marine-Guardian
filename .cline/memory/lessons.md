@@ -4,6 +4,27 @@
 # READ ORDER: 🔴 first → 🟤 second → rest by relevance
 # ---
 
+## 2026-05-12 — 🟡 Vitest needs @vitejs/plugin-react when tsconfig sets jsx:preserve
+- Type:      🟡 fix
+- Phase:     Phase 8 Batch 2 Item 4 SS-0 (exports foundation)
+- Files:     apps/web/vitest.config.ts, apps/web/package.json (devDependencies)
+- Concepts:  vitest, vite, jsx, tsconfig, @vitejs/plugin-react, @react-pdf/renderer, test-setup
+- Narrative: First time the repo introduced a server-side `.tsx` source file (apps/web/src/server/lib/export-pdf.tsx for
+  @react-pdf/renderer) and tried to test it with vitest. Tests failed with "Failed to parse source for import analysis
+  because the content contains invalid JS syntax. If you use tsconfig.json, make sure to not set jsx to preserve."
+  Root cause: tsconfig.base.json has `"jsx": "preserve"` (the Next.js default — Next handles the JSX transform during
+  its own build, so tsc emits JSX unchanged). Vite 8 / vitest 4 honor that setting during the import-analysis pass on
+  `.tsx` files. Two fix attempts that DID NOT work: (a) `esbuild.jsx: "automatic"` in vitest.config.ts — vite still
+  reads the disk tsconfig for the parse pass; (b) `esbuild.tsconfigRaw: { compilerOptions: { jsx: "react-jsx" } }` —
+  same result, the override is applied to esbuild but vite's import-analysis runs first. The fix that works:
+  `pnpm --filter @marine-guardian/web add -D @vitejs/plugin-react`, then in vitest.config.ts add
+  `plugins: [react()]` to the defineConfig. The plugin transforms JSX before vite's import-analysis sees it, so the
+  tsconfig.json's `jsx: "preserve"` setting becomes a no-op for tests (Next.js's own build still respects it). This
+  is now baked in for any future server-side `.tsx` file the project adds (PDF templates, MJML email templates, etc.).
+  Apply when: adding any new `.tsx` source file outside `apps/web/src/app/**` or `apps/web/src/components/**` and
+  writing a vitest test for it. NOT needed for `.ts` tests that only import `.tsx` indirectly via type — only the
+  direct `.tsx` import (source or test) triggers the parse failure.
+
 ## 2026-05-12 — 🟢 AlertHistory immutable audit trail added (Phase 8 Batch 2 Item 3)
 - Type:      🟢 change
 - Phase:     Phase 8 Batch 2 — alert engine hardening
