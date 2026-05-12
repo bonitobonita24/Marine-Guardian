@@ -3,6 +3,20 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-05-12 — Phase 8 Batch 2 Tier-1 cleanup: Seed passwords sourced from env vars (rotation-capable)
+- Agent:               CLAUDE_CODE (Opus 4.7 direct execution — Tier 1 task, ~5 files, well under thrashing threshold)
+- Why:                 Lifts the seed password gotcha tracked in STATE.md (next-1) and observation 292/391. Previous seed hardcoded `WEBMASTER_PASSWORD` as a top-level constant and used `update: {}` on the user upsert, so plaintext passwords lived in git history forever AND `pnpm db:seed` could never rotate the password on existing users. Same applied to the `DemoAdmin2024!SecurePass` literal for the demo site admin.
+- Files added:         none
+- Files modified:      packages/db/prisma/seed.ts (removed hardcoded WEBMASTER_PASSWORD constant and the `"DemoAdmin2024!SecurePass"` literal; added `requireEnv()` helper that throws with a remediation pointer when WEBMASTER_PASSWORD or DEMO_SITE_ADMIN_PASSWORD is unset; both bcrypt hashes computed once at top of main; both user upserts now use `update: { passwordHash }` instead of `update: {}` so re-seeding rotates), .env.dev / .env.staging / .env.prod (added WEBMASTER_PASSWORD + DEMO_SITE_ADMIN_PASSWORD per env — unique 22-char openssl-generated values per environment, never reused), .env.example (added matching placeholders), CREDENTIALS.md (rewrote First Admin Account section as a two-table layout: Webmaster + Demo Site Admin, both with per-env rows; added rotation procedure note pointing at env-file edit + re-seed).
+- Files deleted:       none
+- Schema/migrations:   none
+- Tests:               typecheck clean (6 packages), lint clean (5 packages), 32/32 web router tests pass. Seed re-run against dev DB succeeded. Rotation verified by `bcrypt.compare(process.env.WEBMASTER_PASSWORD, user.passwordHash)` returning true post-seed for both accounts.
+- Errors encountered:  none (clean Tier 1 task — Opus direct execution, no subagent dispatch needed)
+- Errors resolved:     n/a
+- Two-stage review:    Stage 1 PASS — `pnpm db:seed` without env vars throws a clear message; with env vars it rotates both account passwords on every run. Stage 2 PASS — no any types, `requireEnv()` is a single-responsibility helper, only blast-radius files touched (1 source + 4 env files + CREDENTIALS.md), conventional commit, no plaintext password appears in any tracked file or governance doc.
+- Branch:              fix/seed-password-from-env (squash-merge pending)
+- Lessons:             🟢 change entry added to lessons.md — "Seed passwords moved from hardcoded constants to env vars"
+
 ## 2026-05-12 — Phase 8 Batch 2 Item 2: Map patrol-area polygon overlays — MAP FEATURE GROUP COMPLETE
 - Agent:               CLAUDE_CODE (Opus 4.7 direct execution — Sonnet bypassed per the thrashing lesson reproduced earlier this session, no subagent dispatch attempted)
 - Why:                 Close out the Phase 8 Batch 2 map feature group by rendering Marine Protected Area (MPA) polygons on the operator map. Geo router `mapRouter.patrolAreas.list` already returned `polygonGeojson` + `colorHex` per area; this branch wires the UI consumer. mapcn primitive does NOT expose a polygon component, so a new `MapPolygon` wrapper encapsulates the imperative MapLibre dance.

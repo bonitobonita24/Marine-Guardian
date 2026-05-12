@@ -292,3 +292,20 @@
   shadcn add: grep for `={[a-zA-Z]+}` after destructured optional props passed straight through
   to Radix primitives. Related: optional booleans like `inset` need explicit `=== true` check
   in conditional class expressions to satisfy strict-boolean-expressions.
+
+## 2026-05-12 — 🟢 Seed passwords moved from hardcoded constants to env vars
+- Type:      🟢 change
+- Phase:     Phase 8 Batch 2 (post-map-feature-group cleanup — Tier 1 tech debt)
+- Files:     packages/db/prisma/seed.ts, .env.dev, .env.staging, .env.prod, .env.example, CREDENTIALS.md
+- Concepts:  prisma-seed, upsert, password-rotation, bcrypt, env-vars, idempotent-seed
+- Narrative: The seed script previously hardcoded `WEBMASTER_PASSWORD` as a top-level constant AND
+  used `update: {}` on the user upsert. Two problems combined: (a) the plaintext password was
+  visible in git history forever, and (b) re-running `pnpm db:seed` did nothing to the password
+  even if you wanted to rotate it — the upsert took the `update: {}` no-op path on existing users.
+  Fix: read both `WEBMASTER_PASSWORD` and `DEMO_SITE_ADMIN_PASSWORD` from `process.env` via a
+  `requireEnv()` helper that throws with a remediation message; set `update: { passwordHash }` on
+  both user upserts so re-seeding always rotates. Pattern for any seed account: env-var sourced
+  + upsert-update-path = rotatable. Plaintext lives only in CREDENTIALS.md (gitignored) and
+  .env.{env} (gitignored). Verified with `bcrypt.compare(process.env.X, user.passwordHash)`
+  returning true for both accounts after re-seed. Applies to any future seeded account — never
+  hardcode credentials in seed scripts again, even for "demo" accounts in dev.

@@ -1,6 +1,6 @@
 # Implementation Map — Marine Guardian Command Center
 # Current build state. Rewritten after every feature update.
-# Last updated: 2026-05-12 — Phase 8 Batch 2: MAP FEATURE GROUP COMPLETE. Patrol-area polygons shipped (7250039). All four map data layers now have UI consumers — basemap + subjects markers + events markers + patrol tracks line + patrol-area polygon overlays. PRODUCT.md L191 fully satisfied.
+# Last updated: 2026-05-12 — Phase 8 Batch 2: Seed-password rotation tech debt cleared. seed.ts now reads WEBMASTER_PASSWORD + DEMO_SITE_ADMIN_PASSWORD from .env.{env}, upsert update path rotates bcrypt hashes on every re-seed. MAP FEATURE GROUP also COMPLETE (basemap + subjects + events + patrol tracks + patrol-area polygons — PRODUCT.md L191 fully satisfied).
 # ---
 
 ## Status: Phase 8 Batch 1 complete. Phase 8 Batch 2 — Alert Rule Evaluation Engine processor body + er-sync create-path enqueue integration shipped. Engine fires on every newly-synced EarthRanger event. All Docker services healthy.
@@ -284,12 +284,11 @@ Docker fixes applied (6 total):
 - [x] **Enqueue integration shipped 2026-05-11** — actual integration site is `er-sync.processor.ts syncEvents`, not the (non-existent) `event.create` tRPC mutation. Refactored `syncEvents` to split `upsert` into `findUnique` + `create`/`update` so create-vs-update is distinguishable. `enqueueAlert({tenantId, userId:"system", alertRuleId:"", eventId, priority})` is called on the create path only, wrapped in try/catch so a queue outage never fails the sync. 5 new er-sync tests cover create-path, update-path, enqueue-on-create-only, no-enqueue-on-update, sync-succeeds-on-enqueue-failure.
 
 ### Next Step
-Map feature group COMPLETE. Phase 8 Batch 2 has remaining backlog (Opus-recommended order, updated 2026-05-12 after polygons merge):
-1. **`fix/seed-password-from-env`** — small tech-debt cleanup. Read `WEBMASTER_PASSWORD` from env, write generated value to CREDENTIALS.md, set `update: { passwordHash }` on the upsert so rotations actually apply to existing rows. Lifts the 🔴 gotcha from lessons.md. Tier 1 (~3K).
-2. Spec deferral #3: Notification.patrolId FK migration + UI wiring (PRODUCT.md L187). Migration + router update + notification-center click-through wiring. Tier 2.
-3. Real-time notifications (WebSocket/SSE — Tier 3, must split into ≥3 sub-sessions per memory-governance.md §1).
-4. PDF/CSV export endpoints (per entity, one at a time).
-5. Spec deferral #1: Alert history log (now meaningful since engine fires on real events).
+Map feature group COMPLETE + seed-rotation tech debt cleared. Phase 8 Batch 2 remaining backlog (Opus-recommended order, updated 2026-05-12 after seed rotation merge):
+1. Spec deferral #3: Notification.patrolId FK migration + UI wiring (PRODUCT.md L187). Migration + router update + notification-center click-through wiring. Tier 2.
+2. Real-time notifications (WebSocket/SSE — Tier 3, must split into ≥3 sub-sessions per memory-governance.md §1).
+3. PDF/CSV export endpoints (per entity, one at a time).
+4. Spec deferral #1: Alert history log (now meaningful since engine fires on real events).
 
 Shipped since the last "Next Step" rewrite (2026-05-11):
 - ✅ `fix/dev-docker-internal-urls` (92e0e65) — compose overrides + INTERNAL_DATABASE_URL/REDIS_URL pattern + AUTH_TRUST_HOST in .env.dev
@@ -297,6 +296,8 @@ Shipped since the last "Next Step" rewrite (2026-05-11):
 - ✅ `feat/map-data-layer` (f041215) — subjects + events markers wired into InteractiveMap
 - ✅ `fix/worker` (e409aba) — Prisma ESM externalization + pnpm symlink dereference; alerts engine + er-sync workers unblocked
 - ✅ `feat/map-patrol-tracks` (e1e2d8a) — PatrolSelector + MapRoute wiring for selected patrol GPS path
+- ✅ `feat/map-patrol-areas` (7250039) — MapPolygon component + InteractiveMap polygon overlay rendering — MAP FEATURE GROUP COMPLETE
+- ✅ `fix/seed-password-from-env` — seed.ts reads WEBMASTER_PASSWORD + DEMO_SITE_ADMIN_PASSWORD from env vars, upsert update path rotates hashes on re-seed, plaintext lifted out of source into .env.{env} + CREDENTIALS.md
 - ✅ `feat/map-patrol-areas` (7250039) — MapPolygon component + patrol-area overlays. **Map feature group COMPLETE.**
 
 No known blockers. All services operational. 4 commits on main ahead of origin/main (push when ready).

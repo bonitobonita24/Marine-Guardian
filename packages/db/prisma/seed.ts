@@ -3,11 +3,24 @@ import bcrypt from "bcrypt";
 
 const prisma = new PrismaClient();
 
-const WEBMASTER_PASSWORD = "kTTQDNrXB6TvJEc7TvUuCC";
 const BCRYPT_ROUNDS = 12;
 
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (value === undefined || value === "") {
+    throw new Error(
+      `${name} is not set. Add it to .env.{env} (see CREDENTIALS.md → First Admin Account).`,
+    );
+  }
+  return value;
+}
+
 async function main() {
-  const passwordHash = await bcrypt.hash(WEBMASTER_PASSWORD, BCRYPT_ROUNDS);
+  const webmasterPassword = requireEnv("WEBMASTER_PASSWORD");
+  const demoSiteAdminPassword = requireEnv("DEMO_SITE_ADMIN_PASSWORD");
+
+  const webmasterHash = await bcrypt.hash(webmasterPassword, BCRYPT_ROUNDS);
+  const demoSiteAdminHash = await bcrypt.hash(demoSiteAdminPassword, BCRYPT_ROUNDS);
 
   const tenant = await prisma.tenant.upsert({
     where: { slug: "demo-site" },
@@ -23,10 +36,10 @@ async function main() {
 
   await prisma.user.upsert({
     where: { email: "webmaster@marine-guardian.local" },
-    update: {},
+    update: { passwordHash: webmasterHash },
     create: {
       email: "webmaster@marine-guardian.local",
-      passwordHash,
+      passwordHash: webmasterHash,
       fullName: "Webmaster",
       role: "super_admin",
       isActive: true,
@@ -36,10 +49,10 @@ async function main() {
 
   const siteAdmin = await prisma.user.upsert({
     where: { email: "admin@demo-site.local" },
-    update: {},
+    update: { passwordHash: demoSiteAdminHash },
     create: {
       email: "admin@demo-site.local",
-      passwordHash: await bcrypt.hash("DemoAdmin2024!SecurePass", BCRYPT_ROUNDS),
+      passwordHash: demoSiteAdminHash,
       fullName: "Demo Site Admin",
       role: "site_admin",
       isActive: true,
