@@ -1,6 +1,6 @@
 # Implementation Map — Marine Guardian Command Center
 # Current build state. Rewritten after every feature update.
-# Last updated: 2026-05-12 — Phase 8 Batch 2: map feature group close-out underway. Patrol tracks wired into InteractiveMap (e1e2d8a). Subjects + events markers shipped (f041215). Worker Prisma ESM fix (e409aba), user-dialogs lint (29e66b0), dev docker URLs (92e0e65) all shipped to main. Remaining map item: patrol-area polygons.
+# Last updated: 2026-05-12 — Phase 8 Batch 2: MAP FEATURE GROUP COMPLETE. Patrol-area polygons shipped (7250039). All four map data layers now have UI consumers — basemap + subjects markers + events markers + patrol tracks line + patrol-area polygon overlays. PRODUCT.md L191 fully satisfied.
 # ---
 
 ## Status: Phase 8 Batch 1 complete. Phase 8 Batch 2 — Alert Rule Evaluation Engine processor body + er-sync create-path enqueue integration shipped. Engine fires on every newly-synced EarthRanger event. All Docker services healthy.
@@ -275,7 +275,7 @@ Docker fixes applied (6 total):
 - [x] Sub-session decomposition: 1.1 (router, Sonnet) → 1.2a (mapcn install, Sonnet) → 1.2b (wrapper, Opus direct) → 1.2c (page route + suppression + governance, Opus direct). Applied per memory-governance.md §5 Thrashing Recovery.
 - [x] **Data layer wiring — subjects + events markers (2026-05-12, commit f041215).** Subjects render as emerald-500 circular markers (gray-400 if stale); events render as 45°-rotated diamonds colored by EarthRanger priority tier (red-600/orange-500/amber-400/sky-400). Null lat/lon filtered client-side for type narrowing. Tooltips via `MarkerTooltip`.
 - [x] **Patrol tracks wiring (2026-05-12, commit e1e2d8a).** PatrolSelector shadcn `<Select>` overlay (top-left, `absolute z-10 max-w-xs`) queries `trpc.patrol.list({ state: "open", limit: 200 })`. Selected patrol id triggers `trpc.map.patrolTracks.byPatrolId` query; result mapped to `[lon, lat]` tuples and rendered as `<MapRoute color="#2563eb" width={3} opacity={0.85} />` when ≥2 valid points. MapRoute cleans up its own MapLibre source/layer on patrol change via existing useEffect cleanup. Sentinel `"__none__"` value used for clear-selection option.
-- [ ] **Follow-up still pending:** patrol-area polygon overlays via imperative MapLibre `addSource`/`addLayer` through `MapRef` (mapcn primitive does not expose a polygon component). Per-area `colorHex` already in router response.
+- [x] **Patrol-area polygons (2026-05-12, commit 7250039).** New `apps/web/src/components/map/MapPolygon.tsx` (119 lines) — client component using `useMap()` to imperatively `addSource` (geojson Feature wrapping the stored Polygon/MultiPolygon) + two `addLayer` calls (fill at 0.2 opacity, line outline at 0.8 opacity 1.5px width), both colored by per-area `colorHex`. InteractiveMap queries `trpc.map.patrolAreas.list({ activeOnly: true })` and maps each result to `<MapPolygon>` rendered BEFORE `<MapRoute>` for correct z-order (track line on top). Prisma `Json` → `GeoJSON.Polygon | GeoJSON.MultiPolygon` cast routed through `unknown`. **MAP FEATURE GROUP COMPLETE.**
 
 ### Alert Rule Evaluation Engine (Phase 8 Batch 2 — COMPLETE)
 - [x] Processor: `packages/jobs/src/processors/alerts.processor.ts` — `evaluateAlerts(job)` exported. Tenant-scoped event load → active rule load → match on `conditionJson.eventTypeId + minPriority` → recipient fallback to super_admin/site_admin → atomic Prisma `$transaction` creates Notification + AuditLog (action `ALERT_FIRED`) per rule×recipient. Returns `{rulesEvaluated, rulesMatched, notificationsCreated}`.
@@ -284,13 +284,12 @@ Docker fixes applied (6 total):
 - [x] **Enqueue integration shipped 2026-05-11** — actual integration site is `er-sync.processor.ts syncEvents`, not the (non-existent) `event.create` tRPC mutation. Refactored `syncEvents` to split `upsert` into `findUnique` + `create`/`update` so create-vs-update is distinguishable. `enqueueAlert({tenantId, userId:"system", alertRuleId:"", eventId, priority})` is called on the create path only, wrapped in try/catch so a queue outage never fails the sync. 5 new er-sync tests cover create-path, update-path, enqueue-on-create-only, no-enqueue-on-update, sync-succeeds-on-enqueue-failure.
 
 ### Next Step
-Phase 8 Batch 2 next item. Options (Opus-recommended order, updated 2026-05-12 after patrol tracks merge):
-1. **Map patrol-area polygon overlays** — close the map feature group. Wire `trpc.map.patrolAreas.list` → imperative MapLibre `addSource({ type: "geojson", data: polygonGeojson })` + `addLayer({ type: "fill" })` calls through the `MapRef` forwarded ref. mapcn primitive does NOT expose a polygon component, so consider extracting a small `MapPolygon` client component that encapsulates the imperative dance + cleanup. Per-area `colorHex` already in router response. Tier 2 (~8-12K), Opus-direct recommended given Sonnet workspace ≤15K in this project.
-2. **`fix/seed-password-from-env`** (small, parallel) — read `WEBMASTER_PASSWORD` from env, write generated value to CREDENTIALS.md, set `update: { passwordHash }` on the upsert so rotations actually apply to existing rows. Lifts the 🔴 gotcha from lessons.md. Tier 1 (~3K).
-3. Spec deferral #3: Notification.patrolId FK migration + UI wiring (PRODUCT.md L187).
-4. Real-time notifications (WebSocket/SSE — Tier 3, must split into ≥3 sub-sessions per memory-governance.md §1).
-5. PDF/CSV export endpoints (per entity, one at a time).
-6. Spec deferral #1: Alert history log (now meaningful since engine fires on real events).
+Map feature group COMPLETE. Phase 8 Batch 2 has remaining backlog (Opus-recommended order, updated 2026-05-12 after polygons merge):
+1. **`fix/seed-password-from-env`** — small tech-debt cleanup. Read `WEBMASTER_PASSWORD` from env, write generated value to CREDENTIALS.md, set `update: { passwordHash }` on the upsert so rotations actually apply to existing rows. Lifts the 🔴 gotcha from lessons.md. Tier 1 (~3K).
+2. Spec deferral #3: Notification.patrolId FK migration + UI wiring (PRODUCT.md L187). Migration + router update + notification-center click-through wiring. Tier 2.
+3. Real-time notifications (WebSocket/SSE — Tier 3, must split into ≥3 sub-sessions per memory-governance.md §1).
+4. PDF/CSV export endpoints (per entity, one at a time).
+5. Spec deferral #1: Alert history log (now meaningful since engine fires on real events).
 
 Shipped since the last "Next Step" rewrite (2026-05-11):
 - ✅ `fix/dev-docker-internal-urls` (92e0e65) — compose overrides + INTERNAL_DATABASE_URL/REDIS_URL pattern + AUTH_TRUST_HOST in .env.dev
@@ -298,5 +297,6 @@ Shipped since the last "Next Step" rewrite (2026-05-11):
 - ✅ `feat/map-data-layer` (f041215) — subjects + events markers wired into InteractiveMap
 - ✅ `fix/worker` (e409aba) — Prisma ESM externalization + pnpm symlink dereference; alerts engine + er-sync workers unblocked
 - ✅ `feat/map-patrol-tracks` (e1e2d8a) — PatrolSelector + MapRoute wiring for selected patrol GPS path
+- ✅ `feat/map-patrol-areas` (7250039) — MapPolygon component + patrol-area overlays. **Map feature group COMPLETE.**
 
-No known blockers. All services operational.
+No known blockers. All services operational. 4 commits on main ahead of origin/main (push when ready).
