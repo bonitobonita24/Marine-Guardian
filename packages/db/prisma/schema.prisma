@@ -120,6 +120,7 @@ model Tenant {
   observations     Observation[]
   patrolAreas      PatrolArea[]
   alertRules       AlertRule[]
+  alertHistory     AlertHistory[]
   notifications    Notification[]
   syncLogs         SyncLog[]
   auditLogs        AuditLog[]
@@ -201,6 +202,7 @@ model Event {
   tenant            Tenant        @relation(fields: [tenantId], references: [id])
   eventType         EventType?    @relation(fields: [eventTypeId], references: [id])
   notifications     Notification[]
+  alertHistory      AlertHistory[]
   accompanyingRangers AccompanyingRanger[] @relation("AccompanyingRangerEvent")
 
   @@unique([tenantId, erEventId])
@@ -383,9 +385,32 @@ model AlertRule {
   tenant                Tenant              @relation(fields: [tenantId], references: [id])
   creator               User                @relation("AlertRuleCreatedBy", fields: [createdBy], references: [id])
   notifications         Notification[]
+  history               AlertHistory[]
 
   @@index([tenantId])
   @@map("alert_rules")
+}
+
+model AlertHistory {
+  id                 String     @id @default(cuid())
+  tenantId           String     @map("tenant_id")
+  alertRuleId        String?    @map("alert_rule_id")
+  eventId            String?    @map("event_id")
+  firedAt            DateTime   @default(now()) @map("fired_at")
+  matchedPriority    Int        @map("matched_priority")
+  recipientCount     Int        @map("recipient_count")
+  ruleNameSnapshot   String     @map("rule_name_snapshot")
+  eventTitleSnapshot String     @map("event_title_snapshot")
+
+  tenant             Tenant     @relation(fields: [tenantId], references: [id])
+  alertRule          AlertRule? @relation(fields: [alertRuleId], references: [id], onDelete: SetNull)
+  event              Event?     @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([alertRuleId])
+  @@index([eventId])
+  @@index([tenantId, firedAt])
+  @@map("alert_history")
 }
 
 model Notification {

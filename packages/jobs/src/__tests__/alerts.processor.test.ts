@@ -23,6 +23,7 @@ const { mockTransaction, mockTx } = vi.hoisted(() => {
   const mockTx = {
     notification: { create: vi.fn() },
     auditLog: { create: vi.fn() },
+    alertHistory: { create: vi.fn() },
   };
   const mockTransaction = vi.fn().mockImplementation(
     async (cb: (tx: unknown) => Promise<unknown>) => cb(mockTx),
@@ -104,6 +105,7 @@ describe("evaluateAlerts", () => {
     vi.clearAllMocks();
     mockTx.notification.create.mockResolvedValue({ id: "notif-1" });
     mockTx.auditLog.create.mockResolvedValue({ id: "audit-1" });
+    mockTx.alertHistory.create.mockResolvedValue({ id: "hist-1" });
   });
 
   // (a) tenant validation: missing tenantId → throws/rejects
@@ -199,5 +201,53 @@ describe("evaluateAlerts", () => {
     // Transaction was attempted but failed atomically — no partial notifications
     expect(mockTx.notification.create).not.toHaveBeenCalled();
     expect(mockTx.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  // (f) AlertHistory log: one row written per matching rule (NOT per recipient)
+  it("writes one AlertHistory row per matching rule with snapshot fields", async () => {
+    mockPrisma.event.findFirst.mockResolvedValue(mockEvent);
+    mockPrisma.alertRule.findMany.mockResolvedValue([mockRule]);
+    mockPrisma.user.findMany.mockResolvedValue([mockAdminUser, mockSuperAdminUser]);
+
+    await evaluateAlerts(makeJob());
+
+    // 2 recipients → 2 notifications, but only 1 history row for this rule fire
+    expect(mockTx.notification.create).toHaveBeenCalledTimes(2);
+    expect(mockTx.alertHistory.create).toHaveBeenCalledOnce();
+    /* eslint-disable @typescript-eslint/no-unsafe-assignment */
+    expect(mockTx.alertHistory.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          tenantId: "tenant-1",
+          alertRuleId: "rule-1",
+          eventId: "event-1",
+          matchedPriority: 200,
+          recipientCount: 2,
+          ruleNameSnapshot: "High Priority Poaching Alert",
+          eventTitleSnapshot: "Illegal fishing spotted",
+        }),
+      }),
+    );
+    /* eslint-enable @typescript-eslint/no-unsafe-assignment */
+  });
+
+  // (g) Multiple matching rules → one history row per rule
+  it("writes one AlertHistory row per matching rule when multiple rules match", async () => {
+    const secondRule = {
+      id: "rule-2",
+      tenantId: "tenant-1",
+      name: "Any Critical Priority",
+      conditionJson: { minPriority: 100 },
+      isActive: true,
+      notificationChannels: ["in_app"],
+    };
+    mockPrisma.event.findFirst.mockResolvedValue(mockEvent);
+    mockPrisma.alertRule.findMany.mockResolvedValue([mockRule, secondRule]);
+    mockPrisma.user.findMany.mockResolvedValue([mockAdminUser]);
+
+    const result = await evaluateAlerts(makeJob());
+
+    expect(result.rulesMatched).toBe(2);
+    expect(mockTx.alertHistory.create).toHaveBeenCalledTimes(2);
   });
 });

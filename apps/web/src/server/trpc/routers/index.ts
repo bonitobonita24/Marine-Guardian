@@ -7,6 +7,7 @@ import { patrolAreaRouter } from "./patrolArea";
 import { patrolScheduleRouter } from "./patrolSchedule";
 import { eventTypeRouter } from "./eventType";
 import { alertRuleRouter } from "./alertRule";
+import { alertHistoryRouter } from "./alertHistory";
 import { notificationRouter } from "./notification";
 import { syncLogRouter } from "./syncLog";
 import { userRouter } from "./user";
@@ -23,6 +24,7 @@ export const appRouter = router({
   patrolSchedule: patrolScheduleRouter,
   eventType: eventTypeRouter,
   alertRule: alertRuleRouter,
+  alertHistory: alertHistoryRouter,
   notification: notificationRouter,
   syncLog: syncLogRouter,
   user: userRouter,

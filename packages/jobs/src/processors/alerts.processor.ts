@@ -105,6 +105,7 @@ export async function evaluateAlerts(
       const typedTx = tx as unknown as {
         notification: { create: (args: Record<string, unknown>) => Promise<unknown> };
         auditLog: { create: (args: Record<string, unknown>) => Promise<unknown> };
+        alertHistory: { create: (args: Record<string, unknown>) => Promise<unknown> };
       };
 
       for (const recipient of recipients) {
@@ -133,6 +134,18 @@ export async function evaluateAlerts(
 
         notificationsCreated += 1;
       }
+
+      await typedTx.alertHistory.create({
+        data: {
+          tenantId,
+          alertRuleId: rule.id,
+          eventId: event.id,
+          matchedPriority: event.priority,
+          recipientCount: recipients.length,
+          ruleNameSnapshot: rule.name,
+          eventTitleSnapshot: event.title,
+        },
+      });
     });
   }
 

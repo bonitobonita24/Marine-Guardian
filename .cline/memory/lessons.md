@@ -4,6 +4,35 @@
 # READ ORDER: 🔴 first → 🟤 second → rest by relevance
 # ---
 
+## 2026-05-12 — 🟢 AlertHistory immutable audit trail added (Phase 8 Batch 2 Item 3)
+- Type:      🟢 change
+- Phase:     Phase 8 Batch 2 — alert engine hardening
+- Files:     packages/db/prisma/schema.prisma, packages/jobs/src/processors/alerts.processor.ts, apps/web/src/server/trpc/routers/alertHistory.ts, apps/web/src/app/(dashboard)/alerts/history/page.tsx
+- Concepts:  alert-engine, audit-trail, snapshot-fields, transaction-atomicity, prisma
+- Narrative: AlertHistory model holds one row per (rule × event) match — NOT per recipient. Grain choice matters:
+  per-recipient would conflate "rule fired once for 5 admins" with "rule fired 5 times" in reports. The processor
+  writes the history row INSIDE the same `$transaction` as the per-recipient notification + audit log writes,
+  so if history.create fails the whole alert rolls back atomically (no notifications without history). Snapshot
+  fields `ruleNameSnapshot` and `eventTitleSnapshot` preserve display strings even after the parent rule or event
+  is later deleted — FK constraints use `ON DELETE SET NULL` so history rows survive deletion with the snapshot
+  taking over for display ("Rule Name (deleted)" italic in the UI). Lessons for future audit-trail work in this
+  codebase: (a) bake the snapshot column in from migration #1 — backfilling snapshots later is expensive;
+  (b) write inside the same transaction as the side-effects you're auditing, never in a follow-up step.
+# ---
+
+## 2026-05-12 — 🟡 shadcn Table primitive missing — install via shadcn CLI, not by hand
+- Type:      🟡 fix
+- Phase:     Phase 8 Batch 2 — alert history UI page
+- Files:     apps/web/src/components/ui/table.tsx
+- Concepts:  shadcn, ui-primitives, missing-component, dlx
+- Narrative: Marine-Guardian was scaffolded with a minimal shadcn footprint — only button, card, dialog, badge,
+  input, label, select, switch, separator were installed initially. Table is NOT among them. First time something
+  needs a `<Table>` (here: alert history list), the import fails with `Cannot find module '@/components/ui/table'`.
+  Fix: `cd apps/web && pnpm dlx shadcn@latest add table --yes`. Same pattern applies for any other shadcn primitive
+  not yet installed (data-table, accordion, sheet, tabs, etc.). Do NOT hand-write a Table component — the shadcn
+  one has the correct CSS variable + Tailwind class composition for dark mode + the rest of the design system.
+# ---
+
 ## BOOTSTRAP — 🔴 WSL2 + Docker Desktop known pitfalls
 - Type:      🔴 gotcha
 - Phase:     Phase 0 Bootstrap / Phase 1 dev environment open
