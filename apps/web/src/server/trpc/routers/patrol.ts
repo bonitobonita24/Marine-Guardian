@@ -3,14 +3,17 @@ import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
 import { prisma } from "@marine-guardian/db";
 
+export const patrolListFilters = z.object({
+  state: z.enum(["open", "done", "cancelled"]).optional(),
+  patrolType: z.enum(["foot", "seaborne"]).optional(),
+});
+
 export const patrolRouter = router({
   list: tenantProcedure
     .input(
-      z.object({
+      patrolListFilters.extend({
         cursor: z.string().optional(),
         limit: z.number().int().min(1).max(200).default(50),
-        state: z.enum(["open", "done", "cancelled"]).optional(),
-        patrolType: z.enum(["foot", "seaborne"]).optional(),
       })
     )
     .query(async ({ ctx, input }) => {
