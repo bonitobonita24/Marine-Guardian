@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { Maximize2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buildExportUrl } from "@/lib/exports";
@@ -12,6 +13,7 @@ import {
   KanbanHeader,
   type DragEndEvent,
 } from "@/components/kibo-ui/kanban";
+import { EventDetailModal } from "@/components/events/event-detail-modal";
 import { trpc } from "@/lib/trpc/client";
 
 type EventState = "new_event" | "active" | "resolved";
@@ -71,6 +73,7 @@ export default function EventsPage() {
 
   const [data, setData] = useState<KanbanEvent[]>([]);
   const [initialized, setInitialized] = useState(false);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
   if (eventsQuery.data && !initialized) {
     const mapped = eventsQuery.data.items.map((event) => ({
@@ -200,12 +203,23 @@ export default function EventsPage() {
                         <p className="text-sm font-medium leading-tight">
                           {event.name}
                         </p>
-                        <Badge
-                          variant={priorityVariant(event.priority)}
-                          className="shrink-0"
-                        >
-                          {priorityLabel(event.priority)}
-                        </Badge>
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          <Badge variant={priorityVariant(event.priority)}>
+                            {priorityLabel(event.priority)}
+                          </Badge>
+                          <button
+                            type="button"
+                            aria-label={`Open detail for ${event.name}`}
+                            className="rounded-sm p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                            onPointerDown={(e) => { e.stopPropagation(); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedEventId(event.id);
+                            }}
+                          >
+                            <Maximize2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         {event.serialNumber !== null && (
@@ -236,6 +250,11 @@ export default function EventsPage() {
           )}
         </KanbanProvider>
       </div>
+
+      <EventDetailModal
+        eventId={selectedEventId}
+        onClose={() => { setSelectedEventId(null); }}
+      />
     </div>
   );
 }
