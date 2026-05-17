@@ -2,6 +2,10 @@ import type { Job } from "bullmq";
 import { platformPrisma } from "@marine-guardian/db";
 import type { AlertJobPayload } from "../queues/types";
 import { validateTenantContext } from "../workers/base-worker";
+import {
+  getDefaultPublisher,
+  notificationChannel,
+} from "../lib/realtime-publisher";
 
 interface ConditionJson {
   eventTypeId?: string;
@@ -92,6 +96,17 @@ export async function evaluateAlerts(
 
   let notificationsCreated = 0;
 
+  // Notifications to publish AFTER successful $transaction commit. Pub/sub is
+  // best-effort delivery — the DB row is the durable source of truth, clients
+  // reconcile missed events via Last-Event-ID replay on SSE reconnect (SSE-2).
+  interface PendingPublish {
+    userId: string;
+    title: string;
+    message: string;
+    notificationType: string;
+  }
+  const pendingPublishes: PendingPublish[] = [];
+
   for (const rule of matchingRules) {
     const recipients = (await platformPrisma.user.findMany({
       where: { tenantId, role: { in: ["site_admin", "super_admin"] } },
@@ -100,6 +115,9 @@ export async function evaluateAlerts(
     if (recipients.length === 0) {
       continue;
     }
+
+    const message = `Event "${event.title}" triggered alert rule "${rule.name}"`;
+    const notificationType = "warning";
 
     await platformPrisma.$transaction(async (tx) => {
       const typedTx = tx as unknown as {
@@ -117,8 +135,8 @@ export async function evaluateAlerts(
             eventId: event.id,
             isRead: false,
             title: rule.name,
-            message: `Event "${event.title}" triggered alert rule "${rule.name}"`,
-            notificationType: "warning",
+            message,
+            notificationType,
           },
         });
 
@@ -133,6 +151,12 @@ export async function evaluateAlerts(
         });
 
         notificationsCreated += 1;
+        pendingPublishes.push({
+          userId: recipient.id,
+          title: rule.name,
+          message,
+          notificationType,
+        });
       }
 
       await typedTx.alertHistory.create({
@@ -147,6 +171,27 @@ export async function evaluateAlerts(
         },
       });
     });
+
+    // Publish AFTER the $transaction commits. A publisher failure here does
+    // not roll back the DB write — the notification row is already durable.
+    const publisher = getDefaultPublisher();
+    for (const p of pendingPublishes) {
+      try {
+        await publisher.publish(notificationChannel(tenantId, p.userId), {
+          type: "notification.created",
+          tenantId,
+          userId: p.userId,
+          alertRuleId: rule.id,
+          eventId: event.id,
+          title: p.title,
+          message: p.message,
+          notificationType: p.notificationType,
+        });
+      } catch {
+        // Best-effort delivery. Clients reconcile via Last-Event-ID on reconnect.
+      }
+    }
+    pendingPublishes.length = 0;
   }
 
   return { rulesEvaluated, rulesMatched, notificationsCreated };

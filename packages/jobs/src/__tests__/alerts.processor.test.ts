@@ -40,6 +40,24 @@ vi.mock("@marine-guardian/db", () => ({
   },
 }));
 
+// Mock the realtime-publisher module so the processor can be unit-tested
+// without touching ioredis. The processor must call publish AFTER the
+// $transaction commits, not inside it.
+const { mockPublish } = vi.hoisted(() => ({
+  mockPublish: vi.fn().mockResolvedValue(0),
+}));
+
+vi.mock("../lib/realtime-publisher", () => ({
+  getDefaultPublisher: () => ({
+    publish: mockPublish as unknown as (
+      channel: string,
+      payload: unknown,
+    ) => Promise<number>,
+  }),
+  notificationChannel: (tenantId: string, userId: string) =>
+    `tenant:${tenantId}:user:${userId}:notifications`,
+}));
+
 import { platformPrisma } from "@marine-guardian/db";
 import { validateTenantContext } from "../workers/base-worker";
 import { evaluateAlerts } from "../processors/alerts.processor";
@@ -106,6 +124,7 @@ describe("evaluateAlerts", () => {
     mockTx.notification.create.mockResolvedValue({ id: "notif-1" });
     mockTx.auditLog.create.mockResolvedValue({ id: "audit-1" });
     mockTx.alertHistory.create.mockResolvedValue({ id: "hist-1" });
+    mockPublish.mockResolvedValue(0);
   });
 
   // (a) tenant validation: missing tenantId → throws/rejects
@@ -249,5 +268,65 @@ describe("evaluateAlerts", () => {
 
     expect(result.rulesMatched).toBe(2);
     expect(mockTx.alertHistory.create).toHaveBeenCalledTimes(2);
+  });
+
+  // (h) SSE-1: publish one notification event per recipient AFTER the
+  //     $transaction commits — uses per-user channel naming.
+  it("publishes one notification event per recipient to the per-user channel after commit", async () => {
+    mockPrisma.event.findFirst.mockResolvedValue(mockEvent);
+    mockPrisma.alertRule.findMany.mockResolvedValue([mockRule]);
+    mockPrisma.user.findMany.mockResolvedValue([mockAdminUser, mockSuperAdminUser]);
+
+    await evaluateAlerts(makeJob());
+
+    expect(mockPublish).toHaveBeenCalledTimes(2);
+    expect(mockPublish).toHaveBeenCalledWith(
+      "tenant:tenant-1:user:admin-user-1:notifications",
+      expect.objectContaining({
+        type: "notification.created",
+        tenantId: "tenant-1",
+        userId: "admin-user-1",
+        alertRuleId: "rule-1",
+        eventId: "event-1",
+        notificationType: "warning",
+      }),
+    );
+    expect(mockPublish).toHaveBeenCalledWith(
+      "tenant:tenant-1:user:super-admin-user-1:notifications",
+      expect.objectContaining({
+        type: "notification.created",
+        tenantId: "tenant-1",
+        userId: "super-admin-user-1",
+      }),
+    );
+  });
+
+  // (i) SSE-1: if the transaction fails, NOTHING is published — preserves the
+  //     "publish only after durable write" invariant.
+  it("does NOT publish if the transaction fails (atomic with DB commit)", async () => {
+    mockPrisma.event.findFirst.mockResolvedValue(mockEvent);
+    mockPrisma.alertRule.findMany.mockResolvedValue([mockRule]);
+    mockPrisma.user.findMany.mockResolvedValue([mockAdminUser]);
+    mockTransaction.mockRejectedValueOnce(new Error("DB connection lost"));
+
+    await expect(evaluateAlerts(makeJob())).rejects.toThrow("DB connection lost");
+
+    expect(mockPublish).not.toHaveBeenCalled();
+  });
+
+  // (j) SSE-1: a publisher failure does NOT roll back the DB write — the
+  //     notification row is already committed and remains the durable source
+  //     of truth. SSE is best-effort delivery; clients reconcile via Last-Event-ID
+  //     replay on reconnect (SSE-2/SSE-3).
+  it("does not throw if publisher fails after a successful commit", async () => {
+    mockPrisma.event.findFirst.mockResolvedValue(mockEvent);
+    mockPrisma.alertRule.findMany.mockResolvedValue([mockRule]);
+    mockPrisma.user.findMany.mockResolvedValue([mockAdminUser]);
+    mockPublish.mockRejectedValueOnce(new Error("Redis unreachable"));
+
+    const result = await evaluateAlerts(makeJob());
+
+    expect(result.notificationsCreated).toBe(1);
+    expect(mockTx.notification.create).toHaveBeenCalledOnce();
   });
 });
