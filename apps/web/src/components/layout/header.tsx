@@ -2,6 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { Badge } from "@/components/ui/badge";
+import { NotificationBell } from "@/components/layout/notification-bell";
 
 export function Header() {
   const { data: session } = useSession();
@@ -10,6 +11,7 @@ export function Header() {
     <header className="flex h-14 items-center justify-between border-b bg-card px-6">
       <div />
       <div className="flex items-center gap-3">
+        <NotificationBell />
         {session?.user && (
           <>
             <span className="text-sm text-muted-foreground">

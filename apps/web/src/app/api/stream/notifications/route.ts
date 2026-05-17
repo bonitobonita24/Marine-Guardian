@@ -11,18 +11,30 @@
 //
 // Lifecycle:
 //   1. requireRouteAuth() — 401 on missing session/tenant
-//   2. Create a ReadableStream whose `start` enqueues the opening comment and
+//   2. rateLimiters.api.check(userId) — 429 when a single user opens too many
+//      concurrent SSE connections per minute
+//   3. Create a ReadableStream whose `start` enqueues the opening comment and
 //      registers a Valkey subscription
-//   3. Each pub/sub message → enqueue `event: ... \n data: ... \n id: ... \n\n`
-//   4. Heartbeat comment every HEARTBEAT_INTERVAL_MS keeps the connection
+//   4. On successful subscribe → incrementConnection() (process-local metric)
+//   5. Each pub/sub message → enqueue `event: ... \n data: ... \n id: ... \n\n`
+//   6. Heartbeat comment every HEARTBEAT_INTERVAL_MS keeps the connection
 //      alive through proxies/load balancers (default 30s)
-//   5. `cancel` (browser closed, navigated away, network drop) → clear
-//      heartbeat timer, call subscription.unsubscribe() to release Redis conn
+//   7. `cancel` (browser closed, navigated away, network drop) → clear
+//      heartbeat timer, call subscription.unsubscribe(), decrementConnection()
+//
+// Reconnect tracking is client-driven (the useNotificationStream hook tracks
+// reconnectAttempts locally). Server-side reconnect attribution would require
+// a session-correlation header from the client — deferred until needed.
 
 import { type NextRequest, NextResponse } from "next/server";
 
 import { requireRouteAuth, RouteAuthError } from "@/server/lib/route-auth";
 import { subscribeToChannel } from "@/server/lib/realtime-subscriber";
+import { rateLimiters } from "@/server/lib/rate-limit";
+import {
+  incrementConnection,
+  decrementConnection,
+} from "@/server/lib/sse-metrics";
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
 
@@ -51,11 +63,22 @@ export async function GET(_req: NextRequest): Promise<Response> {
     throw e;
   }
 
+  // Per-user rate limit: caps how many SSE connection attempts a single
+  // authenticated user can make per minute. The `api` tier (120/min) is the
+  // right cost center here — a user repeatedly reconnecting is the load to
+  // protect against, not aggregate global traffic.
+  try {
+    rateLimiters.api.check(ctx.userId);
+  } catch {
+    return new NextResponse("Too Many Requests", { status: 429 });
+  }
+
   const channel = notificationChannel(ctx.tenantId, ctx.userId);
   const encoder = new TextEncoder();
 
   let heartbeat: ReturnType<typeof setInterval> | null = null;
   let subscription: { unsubscribe: () => Promise<void> } | null = null;
+  let connectionTracked = false;
   let closed = false;
 
   const stream = new ReadableStream<Uint8Array>({
@@ -95,6 +118,8 @@ export async function GET(_req: NextRequest): Promise<Response> {
             // the stream on a single bad payload.
           },
         });
+        incrementConnection();
+        connectionTracked = true;
       } catch {
         // If subscription setup fails, close the stream cleanly so the client
         // reconnects rather than hanging.
@@ -126,6 +151,10 @@ export async function GET(_req: NextRequest): Promise<Response> {
       if (subscription !== null) {
         await subscription.unsubscribe();
         subscription = null;
+      }
+      if (connectionTracked) {
+        decrementConnection();
+        connectionTracked = false;
       }
     },
   });

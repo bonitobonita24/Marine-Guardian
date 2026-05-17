@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc/client";
 import { buildExportUrl } from "@/lib/exports";
+import { useNotificationStore } from "@/lib/realtime/notification-store";
 
 type NotificationType = "critical" | "warning" | "info" | "system";
 type TypeFilter = NotificationType | "all";
@@ -63,6 +64,20 @@ export default function NotificationsPage() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
 
   const utils = trpc.useUtils();
+
+  // Realtime: when a new notification arrives via SSE (or the REST poller
+  // fallback), `useNotificationStream` prepends it to the in-memory store.
+  // We watch the store length and invalidate the DB-backed queries so the
+  // page re-fetches from Postgres — the store itself is ephemera; Postgres
+  // remains the source of truth for the rendered list and unread count.
+  const notificationsLength = useNotificationStore(
+    (s) => s.notifications.length,
+  );
+  useEffect(() => {
+    void utils.notification.list.invalidate();
+    void utils.notification.unreadCount.invalidate();
+  }, [notificationsLength, utils]);
+
   const listQuery = trpc.notification.list.useQuery({
     limit: 100,
     notificationType: typeFilter === "all" ? undefined : typeFilter,

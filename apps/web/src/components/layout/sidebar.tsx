@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -22,6 +23,7 @@ import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc/client";
+import { useNotificationStore } from "@/lib/realtime/notification-store";
 
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, labelKey: "dashboard" },
@@ -42,11 +44,21 @@ export function Sidebar() {
   const pathname = usePathname();
   const t = useTranslations("nav");
   const tAuth = useTranslations("auth");
-  const unreadCountQuery = trpc.notification.unreadCount.useQuery(undefined, {
-    refetchInterval: 30_000,
-    staleTime: 15_000,
-  });
+  const utils = trpc.useUtils();
+  const unreadCountQuery = trpc.notification.unreadCount.useQuery();
   const unread = unreadCountQuery.data ?? 0;
+
+  // Realtime-driven invalidation: when `useNotificationStream` (mounted once
+  // in RealtimeProvider) prepends a new notification to the in-memory store,
+  // the store length changes and we invalidate the DB-backed unread count.
+  // Replaces the previous 30s refetchInterval — Postgres remains the source
+  // of truth, but the round-trip is now event-driven, not timer-driven.
+  const notificationsLength = useNotificationStore(
+    (s) => s.notifications.length,
+  );
+  useEffect(() => {
+    void utils.notification.unreadCount.invalidate();
+  }, [notificationsLength, utils]);
 
   return (
     <aside className="flex h-screen w-60 flex-col border-r bg-card">

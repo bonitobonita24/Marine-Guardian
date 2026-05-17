@@ -31,8 +31,22 @@ vi.mock("@/server/lib/realtime-subscriber", () => ({
   subscribeToChannel: vi.fn(),
 }));
 
+vi.mock("@/server/lib/rate-limit", () => ({
+  rateLimiters: {
+    api: { check: vi.fn() },
+    auth: { check: vi.fn() },
+    public: { check: vi.fn() },
+    upload: { check: vi.fn() },
+  },
+}));
+
 import { auth } from "@/server/auth";
 import { subscribeToChannel } from "@/server/lib/realtime-subscriber";
+import { rateLimiters } from "@/server/lib/rate-limit";
+import {
+  __resetMetricsForTests,
+  getActiveConnectionCount,
+} from "@/server/lib/sse-metrics";
 import { GET } from "../route";
 
 type MockFn = ReturnType<typeof vi.fn>;
@@ -114,9 +128,15 @@ async function readChunkRaw(
   return new TextDecoder().decode(result.value);
 }
 
+type RateLimitCheck = (token: string, limit?: number) => void;
+const mockedRateLimitCheck =
+  rateLimiters.api.check as unknown as ReturnType<typeof vi.fn> &
+    RateLimitCheck;
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.useRealTimers();
+  __resetMetricsForTests();
 });
 
 afterEach(() => {
@@ -240,5 +260,86 @@ describe("GET /api/stream/notifications", () => {
 
     vi.useRealTimers();
     await reader.cancel();
+  });
+
+  // ─── SSE-3c: rate limit + connection metrics ──────────────────────────
+
+  it("increments the active connection count after subscribe succeeds", async () => {
+    mockedAuth.mockResolvedValue(authedSession());
+    captureSubscribe();
+
+    expect(getActiveConnectionCount()).toBe(0);
+
+    const req = new NextRequest("http://localhost/api/stream/notifications");
+    const res = await GET(req);
+
+    expect(getActiveConnectionCount()).toBe(1);
+
+    await res.body?.cancel();
+  });
+
+  it("decrements the active connection count when the stream is cancelled", async () => {
+    mockedAuth.mockResolvedValue(authedSession());
+    captureSubscribe();
+
+    const req = new NextRequest("http://localhost/api/stream/notifications");
+    const res = await GET(req);
+    expect(getActiveConnectionCount()).toBe(1);
+
+    await res.body?.cancel();
+
+    expect(getActiveConnectionCount()).toBe(0);
+  });
+
+  it("does NOT increment active count when subscribeToChannel rejects", async () => {
+    mockedAuth.mockResolvedValue(authedSession());
+    mockedSubscribe.mockRejectedValueOnce(new Error("redis down"));
+
+    const req = new NextRequest("http://localhost/api/stream/notifications");
+    const res = await GET(req);
+
+    // The response itself still opens (the stream closes itself), but no
+    // active connection should be reported.
+    expect(getActiveConnectionCount()).toBe(0);
+    // Drain to free resources
+    await res.body?.cancel().catch(() => undefined);
+  });
+
+  it("calls rateLimiters.api.check with the authenticated userId", async () => {
+    mockedAuth.mockResolvedValue(authedSession());
+    captureSubscribe();
+
+    const req = new NextRequest("http://localhost/api/stream/notifications");
+    const res = await GET(req);
+
+    expect(mockedRateLimitCheck).toHaveBeenCalledOnce();
+    expect(mockedRateLimitCheck).toHaveBeenCalledWith("u1");
+
+    await res.body?.cancel();
+  });
+
+  it("returns 429 and skips subscribe when the rate limit is exceeded", async () => {
+    mockedAuth.mockResolvedValue(authedSession());
+    captureSubscribe();
+    mockedRateLimitCheck.mockImplementationOnce(() => {
+      throw new Error("rate-limited");
+    });
+
+    const req = new NextRequest("http://localhost/api/stream/notifications");
+    const res = await GET(req);
+
+    expect(res.status).toBe(429);
+    expect(mockedSubscribe).not.toHaveBeenCalled();
+    expect(getActiveConnectionCount()).toBe(0);
+  });
+
+  it("does NOT call the rate limiter when auth fails (401 short-circuits first)", async () => {
+    mockedAuth.mockResolvedValue(null);
+
+    const req = new NextRequest("http://localhost/api/stream/notifications");
+    const res = await GET(req);
+
+    expect(res.status).toBe(401);
+    expect(mockedRateLimitCheck).not.toHaveBeenCalled();
   });
 });

@@ -1,0 +1,120 @@
+// @vitest-environment jsdom
+
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, cleanup } from "@testing-library/react";
+
+// Hoisted mutable stubs. `notificationsLength` drives the mocked
+// notification-store selector. `useQueryOpts` captures whatever the sidebar
+// passes as options to trpc.notification.unreadCount.useQuery so we can
+// assert no `refetchInterval` is configured. `invalidateUnreadCount` is the
+// spy attached to the mocked tRPC utils.
+const { stubs } = vi.hoisted(() => {
+  const stubs: {
+    notificationsLength: number;
+    useQueryOpts: unknown;
+    useQueryCalled: boolean;
+    invalidateUnreadCount: ReturnType<typeof vi.fn<() => Promise<void>>>;
+  } = {
+    notificationsLength: 0,
+    useQueryOpts: undefined,
+    useQueryCalled: false,
+    invalidateUnreadCount: vi.fn<() => Promise<void>>(),
+  };
+  return { stubs };
+});
+
+vi.mock("@/lib/realtime/notification-store", () => ({
+  useNotificationStore: <T,>(
+    selector: (s: { unreadCount: number; notifications: unknown[] }) => T,
+  ): T =>
+    selector({
+      unreadCount: 5,
+      notifications: Array.from(
+        { length: stubs.notificationsLength },
+        (_, i) => ({ id: String(i) }),
+      ),
+    }),
+}));
+
+// Stable utils object — real tRPC memoizes useUtils() so the effect should
+// only re-fire when `notificationsLength` changes, not on every render.
+const utilsObj = {
+  notification: {
+    unreadCount: {
+      invalidate: stubs.invalidateUnreadCount,
+    },
+  },
+};
+
+vi.mock("@/lib/trpc/client", () => ({
+  trpc: {
+    notification: {
+      unreadCount: {
+        useQuery: (_input?: unknown, opts?: unknown) => {
+          stubs.useQueryCalled = true;
+          stubs.useQueryOpts = opts;
+          return { data: 5 };
+        },
+      },
+    },
+    useUtils: () => utilsObj,
+  },
+}));
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/dashboard",
+}));
+
+vi.mock("next-intl", () => ({
+  useTranslations: () => (key: string) => key,
+}));
+
+vi.mock("next-auth/react", () => ({
+  signOut: vi.fn(),
+}));
+
+// Import AFTER mocks are registered.
+import { Sidebar } from "../sidebar";
+
+describe("Sidebar — SSE-driven invalidation", () => {
+  beforeEach(() => {
+    stubs.notificationsLength = 0;
+    stubs.useQueryOpts = undefined;
+    stubs.useQueryCalled = false;
+    stubs.invalidateUnreadCount.mockReset();
+    stubs.invalidateUnreadCount.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("does NOT configure unreadCount.useQuery with refetchInterval", () => {
+    render(<Sidebar />);
+    expect(stubs.useQueryCalled).toBe(true);
+    if (stubs.useQueryOpts !== undefined && stubs.useQueryOpts !== null) {
+      expect(stubs.useQueryOpts).not.toHaveProperty("refetchInterval");
+    } else {
+      expect(stubs.useQueryOpts).toBeUndefined();
+    }
+  });
+
+  it("invalidates unreadCount once on mount", () => {
+    render(<Sidebar />);
+    expect(stubs.invalidateUnreadCount).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-invalidates unreadCount when notification-store length changes", () => {
+    const { rerender } = render(<Sidebar />);
+    expect(stubs.invalidateUnreadCount).toHaveBeenCalledTimes(1);
+    stubs.notificationsLength = 3;
+    rerender(<Sidebar />);
+    expect(stubs.invalidateUnreadCount).toHaveBeenCalledTimes(2);
+  });
+
+  it("renders the unread badge for the notifications nav item", () => {
+    const { getByLabelText } = render(<Sidebar />);
+    const badge = getByLabelText("5 unread notifications");
+    expect(badge.textContent).toBe("5");
+  });
+});

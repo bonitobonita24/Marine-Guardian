@@ -1,6 +1,7 @@
 import { SessionProvider } from "next-auth/react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
+import { RealtimeProvider } from "@/components/realtime/realtime-provider";
 
 export default function DashboardLayout({
   children,
@@ -9,13 +10,15 @@ export default function DashboardLayout({
 }) {
   return (
     <SessionProvider>
-      <div className="flex h-screen overflow-hidden">
-        <Sidebar />
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <Header />
-          <main className="flex-1 overflow-y-auto p-6">{children}</main>
+      <RealtimeProvider>
+        <div className="flex h-screen overflow-hidden">
+          <Sidebar />
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <Header />
+            <main className="flex-1 overflow-y-auto p-6">{children}</main>
+          </div>
         </div>
-      </div>
+      </RealtimeProvider>
     </SessionProvider>
   );
 }
