@@ -1,7 +1,7 @@
 {
-  "scannedAt": "2026-05-10",
-  "previousScan": "2026-05-09",
-  "rescanReason": "Re-scan validated current state — Foundation Bundle skills + superpowers + memory-governance.md confirmed installed; 3 plugins remain pending (context-mode, claude-mem, code-review-graph) and were re-surfaced as install commands for the user to run interactively. No skill set changes; no new conflicts.",
+  "scannedAt": "2026-05-17",
+  "previousScan": "2026-05-10",
+  "rescanReason": "Re-scan during SSE-2 GREEN → squash-merge transition on feat/sse-foundation. Foundation Bundle fully confirmed active. KEY DISCOVERY 2026-05-17: prior scans flagged context-mode, claude-mem, code-review-graph as 'pending plugin installs' but verification in this session (via available skill namespaces + active MCP tool list) proved all THREE are already installed and operational. Marketplace registrations may have been removed from a clean Claude Code session (re-running install commands returns 'Marketplace not found' errors) but the underlying plugins and MCP tools work fine. Moved all three from pendingPluginInstalls → installedPlugins. No new tech additions since 2026-05-10. No new conflicts.",
   "techStack": [
     "TypeScript strict",
     "Next.js 15",
@@ -32,7 +32,7 @@
   ],
   "projectType": "full-stack",
   "specDrivenFramework": "V31",
-  "currentPhase": "Phase 7 / Phase 8 mid-stream (per .cline/STATE.md 2026-05-08)",
+  "currentPhase": "Phase 8 Batch 2 SSE-2 GREEN complete on feat/sse-foundation (pending squash-merge to main per .cline/STATE.md 2026-05-16)",
   "installedSkills": [
     { "name": "agnix", "category": "Development & DevOps", "tier": "T4", "reason": "Lints SKILL.md/CLAUDE.md/hooks/MCP — useful in this Spec-Driven framework project with extensive .claude/ tree" },
     { "name": "awesome-design-md", "category": "Design & UI", "tier": "T1", "reason": "docs/DESIGN.md exists per Scenario 33 — visual reference layer" },
@@ -56,29 +56,12 @@
     { "name": "webapp-testing", "category": "Security & Testing", "tier": "T2", "reason": "Localhost dev server at :45204 — interactive Playwright testing" }
   ],
   "installedPlugins": [
-    { "name": "superpowers", "installedAt": "2026-05-09", "reason": "Slot 1 — bundle of TDD + systematic-debugging + root-cause-tracing + brainstorming + git-worktrees + finishing-branch + parallel-agents + code-review + defense-in-depth. Verified active via superpowers:* namespace." }
+    { "name": "superpowers", "installedAt": "2026-05-09", "reason": "Slot 1 — bundle of TDD + systematic-debugging + root-cause-tracing + brainstorming + git-worktrees + finishing-branch + parallel-agents + code-review + defense-in-depth. Verified active via superpowers:* namespace." },
+    { "name": "context-mode", "verifiedAt": "2026-05-17", "verifiedVia": "context-mode:* skill namespace + mcp__plugin_context-mode_context-mode__* MCP tools active in session", "reason": "98% token reduction on tool outputs. Was listed as pending in prior scans; 2026-05-17 re-scan confirmed it is in fact active. Marketplace registration may have been removed (re-install via /plugin marketplace add mksglu/context-mode would re-register marketplace if needed)." },
+    { "name": "claude-mem", "verifiedAt": "2026-05-17", "verifiedVia": "claude-mem:* skill namespace (mem-search, do, pathfinder, knowledge-agent, learn-codebase, timeline-report, etc.) + mcp__plugin_claude-mem_mcp-search__* MCP tools active in session", "reason": "Cross-session compressed memory. Was listed as pending in prior scans; 2026-05-17 re-scan confirmed it is in fact active. Marketplace registration appears to have been removed (re-running /plugin install claude-mem@claude-mem returned 'Marketplace not found' — but the plugin tools work)." },
+    { "name": "code-review-graph", "verifiedAt": "2026-05-17", "verifiedVia": "28 mcp__code-review-graph__* MCP tools active in session (build_or_update_graph_tool, get_impact_radius_tool, get_review_context_tool, semantic_search_nodes_tool, etc.) + .code-review-graph/ directory present at project root", "reason": "Slot 2 — SQLite knowledge graph for blast-radius analysis. Was listed as pending in prior scans; 2026-05-17 re-scan confirmed it is in fact active as MCP server. Run 'code-review-graph build' in WSL2 terminal if graph is stale." }
   ],
-  "pendingPluginInstalls": [
-    {
-      "name": "context-mode",
-      "priority": 1,
-      "installCommand": "/plugin marketplace add mksglu/context-mode && /plugin install context-mode@context-mode",
-      "reason": "98% token reduction on tool outputs — direct fix for current context thrashing. With 13 entities + multi-tenant tRPC routers + 6 packages, each tool call now returns 2-5K tokens; context-mode summarizes them. Protects 80K SAFE zone."
-    },
-    {
-      "name": "claude-mem",
-      "priority": 2,
-      "installCommand": "/plugin marketplace add thedotmack/claude-mem && /plugin install claude-mem@claude-mem",
-      "reason": "Cross-session compressed memory — replaces full re-reads of governance docs (lessons.md + DECISIONS_LOG.md + CHANGELOG_AI.md + IMPLEMENTATION_MAP.md) every session. With Phase 7/8 mid-stream and growing CHANGELOG, this saves 10-15K per session start."
-    },
-    {
-      "name": "code-review-graph",
-      "priority": 3,
-      "installCommand": "claude plugin add tirth8205/code-review-graph",
-      "postInstallCommand": "code-review-graph build  # run from WSL2 terminal at project root after plugin install",
-      "reason": "Slot 2 of Foundation Bundle — SQLite knowledge graph + 28 MCP tools for blast radius. Pending since 2026-05-09 prior scan. With multi-tenant code paths + alert/notification system just merged, blast-radius analysis becomes critical for Phase 7 Feature Updates."
-    }
-  ],
+  "pendingPluginInstalls": [],
   "skipped": [
     { "name": "graphify", "reason": "HIGH conflict with code-review-graph; phases.md designates code-review-graph as the framework's code-intelligence skill" },
     { "name": "debug-skill", "reason": "phases.md prohibits alongside superpowers; systematic-debugging (inside superpowers) covers this" },
