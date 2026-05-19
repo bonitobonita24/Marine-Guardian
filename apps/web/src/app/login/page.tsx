@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -17,25 +16,57 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
+  async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
     const formData = new FormData(e.currentTarget);
-    void signIn("credentials", {
-      email: formData.get("email") as string,
-      password: formData.get("password") as string,
-      redirect: false,
-    }).then((result) => {
-      setLoading(false);
-      if (result.error !== undefined) {
+    const emailRaw = formData.get("email");
+    const passwordRaw = formData.get("password");
+    const email = typeof emailRaw === "string" ? emailRaw : "";
+    const password = typeof passwordRaw === "string" ? passwordRaw : "";
+
+    try {
+      const csrfRes = await fetch("/api/auth/csrf", {
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (!csrfRes.ok) throw new Error("csrf");
+      const { csrfToken } = (await csrfRes.json()) as { csrfToken: string };
+
+      const body = new URLSearchParams({
+        csrfToken,
+        email,
+        password,
+        callbackUrl,
+        json: "true",
+      });
+
+      const res = await fetch("/api/auth/callback/credentials", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "X-Auth-Return-Redirect": "1",
+        },
+        body,
+        credentials: "include",
+      });
+
+      if (!res.ok) throw new Error("post");
+      const data = (await res.json()) as { url?: string };
+
+      if (data.url !== undefined && data.url.includes("error=")) {
         setError(t("invalidCredentials"));
       } else {
         router.push(callbackUrl);
         router.refresh();
       }
-    });
+    } catch {
+      setError(t("invalidCredentials"));
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -46,7 +77,12 @@ function LoginForm() {
           <p className="text-sm text-muted-foreground">{t("signIn")}</p>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form
+            onSubmit={(e) => {
+              void handleSubmit(e);
+            }}
+            className="space-y-4"
+          >
             {error !== null && (
               <p className="text-sm text-destructive text-center">{error}</p>
             )}

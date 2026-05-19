@@ -26,7 +26,7 @@ vi.mock("../../../auth", () => ({
   auth: vi.fn(),
 }));
 
-vi.mock("bcrypt", () => ({
+vi.mock("bcryptjs", () => ({
   default: {
     hash: vi.fn().mockResolvedValue("$2b$10$hashedpassword"),
     compare: vi.fn(),

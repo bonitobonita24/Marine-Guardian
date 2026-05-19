@@ -33,8 +33,9 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  // Prevent webpack from bundling native Node.js modules (bcrypt uses node-pre-gyp)
-  serverExternalPackages: ["bcrypt"],
+  // bcryptjs is pure JS (no native module) — no externalization required, kept here
+  // to make the auth dependency explicit. Safe to remove if desired.
+  serverExternalPackages: ["bcryptjs"],
   transpilePackages: [
     "@marine-guardian/shared",
     "@marine-guardian/db",
