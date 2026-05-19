@@ -10,7 +10,11 @@ export type { SubjectGroup } from "./subject-group";
 export type { PatrolArea } from "./patrol-area";
 export type { PatrolSchedule } from "./patrol-schedule";
 export type { AlertRule, AlertRuleCondition } from "./alert-rule";
-export type { Notification } from "./notification";
+export type {
+  Notification,
+  NotificationRecipient,
+  NotificationEmailStatus,
+} from "./notification";
 export type { SyncLog } from "./sync-log";
 export type { AuditLog } from "./audit-log";
 export type { AccompanyingRanger } from "./accompanying-ranger";

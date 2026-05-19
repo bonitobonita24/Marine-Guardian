@@ -91,6 +91,14 @@ enum NotificationChannel {
   email
 }
 
+enum NotificationEmailStatus {
+  pending
+  sent
+  suppressed_by_cooldown
+  digested
+  failed
+}
+
 enum BoundarySource {
   official
   custom
@@ -187,7 +195,7 @@ model User {
   updatedAt          DateTime  @updatedAt @map("updated_at")
 
   tenant                   Tenant?              @relation(fields: [tenantId], references: [id])
-  notifications            Notification[]
+  notificationRecipients   NotificationRecipient[]
   createdPatrolAreas       PatrolArea[]         @relation("PatrolAreaCreatedBy")
   createdAreaBoundaries    AreaBoundary[]       @relation("AreaBoundaryCreatedBy")
   createdAlertRules        AlertRule[]          @relation("AlertRuleCreatedBy")
@@ -271,9 +279,10 @@ model Subject {
   groupId         String?   @map("group_id")
   syncedAt        DateTime  @map("synced_at")
 
-  tenant       Tenant        @relation(fields: [tenantId], references: [id])
-  group        SubjectGroup? @relation(fields: [groupId], references: [id])
-  observations Observation[]
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  group         SubjectGroup?  @relation(fields: [groupId], references: [id])
+  observations  Observation[]
+  notifications Notification[]
 
   @@unique([tenantId, erSubjectId])
   @@index([tenantId])
@@ -559,27 +568,45 @@ model AlertHistory {
 model Notification {
   id               String           @id @default(cuid())
   tenantId         String           @map("tenant_id")
-  userId           String           @map("user_id")
   alertRuleId      String?          @map("alert_rule_id")
   eventId          String?          @map("event_id")
   patrolId         String?          @map("patrol_id")
+  subjectId        String?          @map("subject_id")
   title            String
   message          String
-  isRead           Boolean          @default(false) @map("is_read")
   notificationType NotificationType @map("notification_type")
   createdAt        DateTime         @default(now()) @map("created_at")
 
-  tenant    Tenant     @relation(fields: [tenantId], references: [id])
-  user      User       @relation(fields: [userId], references: [id])
-  alertRule AlertRule? @relation(fields: [alertRuleId], references: [id])
-  event     Event?     @relation(fields: [eventId], references: [id])
-  patrol    Patrol?    @relation(fields: [patrolId], references: [id])
+  tenant     Tenant                  @relation(fields: [tenantId], references: [id])
+  alertRule  AlertRule?              @relation(fields: [alertRuleId], references: [id])
+  event      Event?                  @relation(fields: [eventId], references: [id])
+  patrol     Patrol?                 @relation(fields: [patrolId], references: [id])
+  subject    Subject?                @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  recipients NotificationRecipient[]
 
   @@index([tenantId])
-  @@index([userId])
-  @@index([isRead])
   @@index([patrolId])
+  @@index([subjectId])
   @@map("notifications")
+}
+
+model NotificationRecipient {
+  id             String                  @id @default(cuid())
+  notificationId String                  @map("notification_id")
+  userId         String                  @map("user_id")
+  isRead         Boolean                 @default(false) @map("is_read")
+  readAt         DateTime?               @map("read_at")
+  emailSentAt    DateTime?               @map("email_sent_at")
+  emailStatus    NotificationEmailStatus @default(pending) @map("email_status")
+  createdAt      DateTime                @default(now()) @map("created_at")
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@index([notificationId])
+  @@index([userId, isRead])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("notification_recipients")
 }
 
 model SyncLog {

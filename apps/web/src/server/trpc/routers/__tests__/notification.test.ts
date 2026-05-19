@@ -3,7 +3,7 @@ import { TRPCError } from "@trpc/server";
 
 vi.mock("@marine-guardian/db", () => ({
   prisma: {
-    notification: {
+    notificationRecipient: {
       findMany: vi.fn(),
       updateMany: vi.fn(),
       count: vi.fn(),
@@ -35,8 +35,9 @@ function partial<T>(obj: T): T {
 
 const createCaller = createCallerFactory(notificationRouter);
 
-const TENANT_ID = "tenant-abc";
-const USER_ID = "user-123";
+// 25-char cuid-shaped IDs (z.cuid()-strict): start with 'c', 24 alphanumerics.
+const TENANT_ID = "ctenantabcdefghijk0123456";
+const USER_ID = "cuser123abcdefghijklmno12";
 
 function makeCtx(tenantId: string | null = TENANT_ID) {
   return {
@@ -51,115 +52,179 @@ function makeCtx(tenantId: string | null = TENANT_ID) {
 describe("notification.list", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("returns notifications scoped to tenant and user", async () => {
-    const mockItems = [
-      { id: "n-1", title: "Zone alert", tenantId: TENANT_ID, userId: USER_ID },
+  it("returns notifications scoped to user with tenant join, flattened shape", async () => {
+    const mockRecipients = [
+      {
+        id: "crecip000000000000000abc1",
+        notificationId: "cnotifa00000000000000abcd",
+        userId: USER_ID,
+        isRead: false,
+        readAt: null,
+        notification: {
+          id: "cnotifa00000000000000abcd",
+          tenantId: TENANT_ID,
+          alertRuleId: null,
+          eventId: null,
+          patrolId: null,
+          subjectId: null,
+          title: "Zone alert",
+          message: "Sub entered restricted zone",
+          notificationType: "warning",
+          createdAt: new Date("2026-05-19T10:00:00Z"),
+          event: null,
+          patrol: null,
+        },
+      },
     ];
-    vi.mocked(prisma.notification.findMany).mockResolvedValue(
-      mockItems as never
+    vi.mocked(prisma.notificationRecipient.findMany).mockResolvedValue(
+      mockRecipients as never,
     );
 
     const caller = createCaller(makeCtx());
     const result = await caller.list({ limit: 50 });
 
     expect(result.items).toHaveLength(1);
-    expect(vi.mocked(prisma.notification.findMany)).toHaveBeenCalledWith(
+    // Flattened shape: notification fields appear at top level.
+    expect(result.items[0]?.title).toBe("Zone alert");
+    expect(result.items[0]?.notificationType).toBe("warning");
+    expect(result.items[0]?.isRead).toBe(false);
+    // ID is the NotificationRecipient.id (used by markRead).
+    expect(result.items[0]?.id).toBe("crecip000000000000000abc1");
+    expect(result.items[0]?.notificationId).toBe("cnotifa00000000000000abcd");
+    expect(vi.mocked(prisma.notificationRecipient.findMany)).toHaveBeenCalledWith(
       partial({
-        where: partial<{ tenantId: string; userId: string }>({
-          tenantId: TENANT_ID,
+        where: partial<{ userId: string; notification: { tenantId: string } }>({
           userId: USER_ID,
+          notification: { tenantId: TENANT_ID },
         }),
-      })
+      }),
     );
   });
 
-  it("filters by notificationType when provided", async () => {
-    vi.mocked(prisma.notification.findMany).mockResolvedValue([]);
+  it("filters by isRead (applied to recipient.isRead)", async () => {
+    vi.mocked(prisma.notificationRecipient.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50, isRead: false });
+
+    expect(vi.mocked(prisma.notificationRecipient.findMany)).toHaveBeenCalledWith(
+      partial({
+        where: partial<{ isRead: boolean }>({ isRead: false }),
+      }),
+    );
+  });
+
+  it("filters by notificationType (applied to joined Notification.notificationType, tenant-scoped)", async () => {
+    vi.mocked(prisma.notificationRecipient.findMany).mockResolvedValue([]);
 
     const caller = createCaller(makeCtx());
     await caller.list({ limit: 50, notificationType: "critical" });
 
-    expect(vi.mocked(prisma.notification.findMany)).toHaveBeenCalledWith(
-      partial({
-        where: partial<{ notificationType: string }>({ notificationType: "critical" }),
-      })
-    );
+    const call = vi.mocked(prisma.notificationRecipient.findMany).mock.calls[0]?.[0];
+    expect(call?.where?.notification).toEqual({
+      tenantId: TENANT_ID,
+      notificationType: "critical",
+    });
   });
 
-  it("returns notification.patrol when patrolId is set", async () => {
-    const mockPatrol = { id: "p-1", title: "Night Patrol", serialNumber: "NP-001" };
-    const mockItems = [
+  it("returns notification.patrol when patrolId is set (flattened)", async () => {
+    const mockPatrol = { id: "cpatrol00000000000000abcd", title: "Night Patrol", serialNumber: "NP-001" };
+    const mockRecipients = [
       {
-        id: "n-2",
-        title: "Patrol started",
-        tenantId: TENANT_ID,
+        id: "crecip000000000000000abc2",
+        notificationId: "cnotifa00000000000000xyz1",
         userId: USER_ID,
-        patrolId: "p-1",
-        patrol: mockPatrol,
-        event: null,
+        isRead: false,
+        readAt: null,
+        notification: {
+          id: "cnotifa00000000000000xyz1",
+          tenantId: TENANT_ID,
+          alertRuleId: null,
+          eventId: null,
+          patrolId: "cpatrol00000000000000abcd",
+          subjectId: null,
+          title: "Patrol started",
+          message: "patrol began",
+          notificationType: "info",
+          createdAt: new Date(),
+          event: null,
+          patrol: mockPatrol,
+        },
       },
     ];
-    vi.mocked(prisma.notification.findMany).mockResolvedValue(
-      mockItems as never
+    vi.mocked(prisma.notificationRecipient.findMany).mockResolvedValue(
+      mockRecipients as never,
     );
 
     const caller = createCaller(makeCtx());
     const result = await caller.list({ limit: 50 });
 
     expect(result.items[0]?.patrol).toEqual(mockPatrol);
+    expect(result.items[0]?.patrolId).toBe("cpatrol00000000000000abcd");
   });
 
-  it("returns notification.patrol === null when patrolId is null", async () => {
-    const mockItems = [
-      {
-        id: "n-3",
-        title: "Zone alert",
-        tenantId: TENANT_ID,
-        userId: USER_ID,
-        patrolId: null,
-        patrol: null,
-        event: null,
-      },
-    ];
-    vi.mocked(prisma.notification.findMany).mockResolvedValue(
-      mockItems as never
-    );
+  it("uses NotificationRecipient.id as the pagination cursor", async () => {
+    vi.mocked(prisma.notificationRecipient.findMany).mockResolvedValue([]);
 
     const caller = createCaller(makeCtx());
-    const result = await caller.list({ limit: 50 });
+    await caller.list({ limit: 50, cursor: "crecip000000000000000ccc1" });
 
-    expect(result.items[0]?.patrol).toBeNull();
+    expect(vi.mocked(prisma.notificationRecipient.findMany)).toHaveBeenCalledWith(
+      partial({ cursor: { id: "crecip000000000000000ccc1" } }),
+    );
   });
 });
 
 describe("notification.markRead", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("marks a single notification as read scoped to tenant+user", async () => {
-    vi.mocked(prisma.notification.updateMany).mockResolvedValue({ count: 1 });
+  it("marks the current user's recipient row as read (scoped by userId + tenant via join)", async () => {
+    vi.mocked(prisma.notificationRecipient.updateMany).mockResolvedValue({ count: 1 });
 
     const caller = createCaller(makeCtx());
-    await caller.markRead({ id: "n-1" });
+    await caller.markRead({ id: "crecip000000000000000abc1" });
 
-    expect(vi.mocked(prisma.notification.updateMany)).toHaveBeenCalledWith({
-      where: { id: "n-1", tenantId: TENANT_ID, userId: USER_ID },
-      data: { isRead: true },
+    expect(vi.mocked(prisma.notificationRecipient.updateMany)).toHaveBeenCalledWith({
+      where: {
+        id: "crecip000000000000000abc1",
+        userId: USER_ID,
+        notification: { tenantId: TENANT_ID },
+      },
+      data: expect.objectContaining({ isRead: true }) as { isRead: boolean },
     });
+  });
+
+  it("cross-user attempt returns count=0 silently (ownership enforced via userId in WHERE)", async () => {
+    // Simulate scenario: user A tries to mark user B's recipient — updateMany
+    // returns count=0 because the WHERE clause forces userId match.
+    vi.mocked(prisma.notificationRecipient.updateMany).mockResolvedValue({ count: 0 });
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.markRead({ id: "crecip000000000000000foreign1" });
+
+    expect(result.count).toBe(0);
+    // No throw — silent failure for safety.
+    const call = vi.mocked(prisma.notificationRecipient.updateMany).mock.calls[0]?.[0];
+    expect(call?.where?.userId).toBe(USER_ID);
   });
 });
 
 describe("notification.markAllRead", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("marks all unread notifications as read for the user", async () => {
-    vi.mocked(prisma.notification.updateMany).mockResolvedValue({ count: 5 });
+  it("marks only the current user's unread recipients (scoped by userId + tenant via join)", async () => {
+    vi.mocked(prisma.notificationRecipient.updateMany).mockResolvedValue({ count: 5 });
 
     const caller = createCaller(makeCtx());
     await caller.markAllRead();
 
-    expect(vi.mocked(prisma.notification.updateMany)).toHaveBeenCalledWith({
-      where: { tenantId: TENANT_ID, userId: USER_ID, isRead: false },
-      data: { isRead: true },
+    expect(vi.mocked(prisma.notificationRecipient.updateMany)).toHaveBeenCalledWith({
+      where: {
+        userId: USER_ID,
+        isRead: false,
+        notification: { tenantId: TENANT_ID },
+      },
+      data: expect.objectContaining({ isRead: true }) as { isRead: boolean },
     });
   });
 });
@@ -167,15 +232,19 @@ describe("notification.markAllRead", () => {
 describe("notification.unreadCount", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("returns count scoped to tenant and user", async () => {
-    vi.mocked(prisma.notification.count).mockResolvedValue(3);
+  it("returns count scoped to user + tenant via join", async () => {
+    vi.mocked(prisma.notificationRecipient.count).mockResolvedValue(3);
 
     const caller = createCaller(makeCtx());
     const count = await caller.unreadCount();
 
     expect(count).toBe(3);
-    expect(vi.mocked(prisma.notification.count)).toHaveBeenCalledWith({
-      where: { tenantId: TENANT_ID, userId: USER_ID, isRead: false },
+    expect(vi.mocked(prisma.notificationRecipient.count)).toHaveBeenCalledWith({
+      where: {
+        userId: USER_ID,
+        isRead: false,
+        notification: { tenantId: TENANT_ID },
+      },
     });
   });
 

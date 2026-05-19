@@ -4,6 +4,43 @@
 # READ ORDER: 🔴 first → 🟤 second → rest by relevance
 # ---
 
+## 2026-05-19 — 🔴 `pnpm prisma migrate dev` hangs on stale advisory locks from backgrounded prior runs
+- Type:      🔴 gotcha
+- Phase:     Phase 8 Batch 4 Sub-batch 4.1d (NotificationRecipient split with data migration)
+- Files:     packages/db/prisma/migrations/20260519233500_add_notification_recipient_split/
+- Concepts:  prisma migrate dev, pg_advisory_lock, schema-engine, stale process, kill PID, dev DB
+- Narrative: While applying 4.1d's migration, `pnpm prisma migrate dev` hung indefinitely at the `pg_advisory_lock` step.
+  Cause: a previous `prisma migrate dev` invocation from an earlier session was backgrounded (probably via Ctrl+Z or a parent shell exit) and its schema-engine subprocess still held the migration advisory lock against the dev DB.
+  Diagnosis: `ps aux | grep prisma` showed multiple stale schema-engine PIDs lingering from earlier sessions; `SELECT * FROM pg_locks WHERE locktype='advisory';` against the dev DB confirmed the lock holders matched those PIDs.
+  Fix: kill the stale PIDs (`kill <pid>` for each schema-engine in the ps output — they release the advisory lock on exit). Then re-run `pnpm prisma migrate dev` and it completes normally.
+  Rule of thumb: when migrate dev hangs >30s with no output, suspect a stale lock holder. Don't kill --9 the foreground prisma — kill the background schema-engine process(es) instead. The foreground command resumes once locks free up.
+  Preventative: in future sessions, always foreground prisma migrate dev (don't background or pipe to nohup). If a migrate dev is interrupted, run `ps aux | grep prisma` immediately and kill any leftover schema-engine PIDs before retrying.
+
+## 2026-05-19 — 🟤 Backfill SQL inside Prisma migrations should use deterministic IDs for idempotency
+- Type:      🟤 decision
+- Phase:     Phase 8 Batch 4 Sub-batch 4.1d (NotificationRecipient split with data migration)
+- Files:     packages/db/prisma/migrations/20260519233500_add_notification_recipient_split/migration.sql
+- Concepts:  prisma migrations, data migration, backfill, idempotency, cuid vs uuid vs md5, staging/prod recovery
+- Narrative: 4.1d's migration creates a new table (notification_recipients) and back-fills 1 row per existing Notification.
+  Question: what ID strategy for the backfilled rows? Prisma's `@id @default(cuid())` only fires when no ID is supplied to INSERT; direct SQL INSERT must supply IDs.
+  **Decision**: use a deterministic md5-derived ID: `'c' || substring(md5('nr_' || id || '_' || user_id) FROM 1 FOR 24)`. Format matches cuid shape (25 chars, starts with 'c') so the column type is honest; same inputs always produce the same ID.
+  **Why**: idempotent re-run. If a DBA needs to re-execute the backfill by hand during staging/prod recovery (e.g., partial migration failure, accidental table truncation), the same source rows produce the same target IDs — no duplicate-key risk, no data divergence between recovery attempts. Alternatives rejected: `gen_random_uuid()::text` (non-deterministic, re-run produces fresh IDs); generating IDs in app code via Prisma (would require a separate migration script outside the prisma migrate flow, breaking the atomic-migration property).
+  **Trade-off**: mixed-inventory IDs across the table — backfilled rows have md5-derived IDs while new rows (created via Prisma client) have true cuid IDs. Acceptable since IDs are opaque strings everywhere they're consumed. No ID-format-validation code anywhere assumes pure cuid format.
+  **When to apply**: any future migration that backfills a new table from an existing one. Default to deterministic md5(constants || source_id || ...) over gen_random_uuid().
+
+## 2026-05-19 — 🟤 v2 spec is the authoritative source — verify against PRODUCT.md before trusting STATE.md plan text
+- Type:      🟤 decision
+- Phase:     Phase 8 Batch 4 Sub-batch 4.1d (NotificationRecipient split with data migration)
+- Files:     docs/v2/PRODUCT.md (L480-484), .cline/STATE.md (4.1d plan section), project_marine_guardian_phase8_batch4.md memory file
+- Concepts:  governance hierarchy, plan vs spec, PRODUCT.md priority 4, decision verification
+- Narrative: The STATE.md plan text for 4.1d had 3 errors that would have shipped wrong v2 schema if executed verbatim:
+  (1) Plan said move `notificationType` from Notification to NotificationRecipient. v2 spec L480 keeps it on Notification (alert type doesn't vary per recipient).
+  (2) Plan omitted the `read_at` field on NotificationRecipient. v2 spec L483 includes it (per-user read timestamp).
+  (3) Plan implied `email_status` was just a default-string field. v2 spec L483 defines it as a 5-value enum (`pending|sent|suppressed_by_cooldown|digested|failed`).
+  Caught during main-session pre-flight inspection (grep docs/v2/PRODUCT.md for "NotificationRecipient" + "Notification (Command Center"). Fixed in the dispatched subagent's task brief BEFORE the work was dispatched.
+  **Rule**: BEFORE executing any sub-batch plan, grep the authoritative spec (docs/v2/PRODUCT.md for v2 work; docs/PRODUCT.md for v1) for the relevant model section. Compare each field listed in the plan against the spec. If the plan deviates, the spec wins (priority 4 in CLAUDE.md hierarchy) — update the plan BEFORE dispatching execution. Treat STATE.md plan text as a starting hypothesis, not a contract.
+  This is especially load-bearing for v2 work where the plan was written from a draft entity-vs-schema diff that may not have captured every field per the final v2 spec.
+
 ## 2026-05-19 — 🔴 Prisma migrate dev sweeps multiple new models into ONE migration — --name does NOT split
 - Type:      🔴 gotcha
 - Phase:     Phase 8 Batch 4 Sub-batch 4.1c (FuelEntry + ReportExport scaffolds)

@@ -7,7 +7,7 @@ vi.mock("@/server/auth", () => ({
 
 vi.mock("@marine-guardian/db", () => ({
   prisma: {
-    notification: { findMany: vi.fn() },
+    notificationRecipient: { findMany: vi.fn() },
     tenant: { findUniqueOrThrow: vi.fn() },
     auditLog: { create: vi.fn() },
   },
@@ -33,7 +33,8 @@ import { GET } from "../route";
 
 type MockFn = ReturnType<typeof vi.fn>;
 const mockedAuth = auth as unknown as MockFn;
-const mockedFindMany = prisma.notification.findMany as unknown as MockFn;
+const mockedFindMany = prisma.notificationRecipient
+  .findMany as unknown as MockFn;
 const mockedTenantFind = prisma.tenant.findUniqueOrThrow as unknown as MockFn;
 const mockedAuditCreate = prisma.auditLog.create as unknown as MockFn;
 
@@ -64,22 +65,37 @@ function authedSession() {
   };
 }
 
-function makeNotification(id: string, overrides: Record<string, unknown> = {}) {
+// v2 shape: recipient row joined to its notification.
+function makeRecipient(id: string, overrides: Record<string, unknown> = {}) {
+  const recipientOverrides = overrides as {
+    isRead?: boolean;
+    notification?: Record<string, unknown>;
+  };
   return {
-    id,
-    title: `Notif ${id}`,
-    message: `Body for ${id}`,
-    notificationType: "warning",
-    isRead: false,
+    id: `recip-${id}`,
+    notificationId: id,
     userId: "u1",
-    alertRuleId: "ar1",
-    eventId: "e1",
-    patrolId: null,
+    isRead: recipientOverrides.isRead ?? false,
+    readAt: null,
+    emailSentAt: null,
+    emailStatus: "pending",
     createdAt: new Date("2026-05-02T00:00:00Z"),
-    event: { id: "e1", title: "Whale Sighting", state: "active" },
-    patrol: null,
-    alertRule: { id: "ar1", name: "Priority 200+" },
-    ...overrides,
+    notification: {
+      id,
+      tenantId: "t1",
+      title: `Notif ${id}`,
+      message: `Body for ${id}`,
+      notificationType: "warning",
+      alertRuleId: "ar1",
+      eventId: "e1",
+      patrolId: null,
+      subjectId: null,
+      createdAt: new Date("2026-05-02T00:00:00Z"),
+      event: { id: "e1", title: "Whale Sighting", state: "active" },
+      patrol: null,
+      alertRule: { id: "ar1", name: "Priority 200+" },
+      ...(recipientOverrides.notification ?? {}),
+    },
   };
 }
 
@@ -89,11 +105,11 @@ beforeEach(() => {
 });
 
 describe("GET /api/exports/notifications", () => {
-  it("returns CSV with BOM, text/csv content-type, and tenant+user-scoped findMany", async () => {
+  it("returns CSV with BOM, text/csv content-type, and user-scoped + tenant-via-join findMany", async () => {
     mockedAuth.mockResolvedValue(authedSession());
     mockedFindMany.mockResolvedValue([
-      makeNotification("n1"),
-      makeNotification("n2"),
+      makeRecipient("n1"),
+      makeRecipient("n2"),
     ]);
 
     const req = new NextRequest(
@@ -119,13 +135,18 @@ describe("GET /api/exports/notifications", () => {
     expect(bodyText).toContain("Priority 200+");
 
     expect(mockedFindMany).toHaveBeenCalledWith(
-      partial({ where: partial({ tenantId: "t1", userId: "u1" }) }),
+      partial({
+        where: partial({
+          userId: "u1",
+          notification: partial({ tenantId: "t1" }),
+        }),
+      }),
     );
   });
 
   it("returns PDF with application/pdf content-type", async () => {
     mockedAuth.mockResolvedValue(authedSession());
-    mockedFindMany.mockResolvedValue([makeNotification("n1")]);
+    mockedFindMany.mockResolvedValue([makeRecipient("n1")]);
 
     const req = new NextRequest(
       "http://localhost/api/exports/notifications?format=pdf",
@@ -152,7 +173,7 @@ describe("GET /api/exports/notifications", () => {
   it("returns 413 when result set exceeds 10000 rows", async () => {
     mockedAuth.mockResolvedValue(authedSession());
     const tooMany = Array.from({ length: 10001 }, (_, i) =>
-      makeNotification(`n${String(i)}`),
+      makeRecipient(`n${String(i)}`),
     );
     mockedFindMany.mockResolvedValue(tooMany);
 
@@ -168,9 +189,9 @@ describe("GET /api/exports/notifications", () => {
   it("writes a DATA_EXPORT AuditLog row with sha256 filterHash after success", async () => {
     mockedAuth.mockResolvedValue(authedSession());
     mockedFindMany.mockResolvedValue([
-      makeNotification("n1"),
-      makeNotification("n2"),
-      makeNotification("n3"),
+      makeRecipient("n1"),
+      makeRecipient("n2"),
+      makeRecipient("n3"),
     ]);
 
     const req = new NextRequest(
@@ -190,7 +211,7 @@ describe("GET /api/exports/notifications", () => {
     expect(arg?.data.changesJson).toEqual({ format: "csv", rowCount: 3 });
   });
 
-  it("propagates isRead + notificationType filters into prisma.where", async () => {
+  it("propagates isRead → recipient.isRead and notificationType → notification join filter", async () => {
     mockedAuth.mockResolvedValue(authedSession());
     mockedFindMany.mockResolvedValue([]);
 
@@ -200,15 +221,19 @@ describe("GET /api/exports/notifications", () => {
     const res = await GET(req);
     expect(res.status).toBe(200);
 
-    expect(mockedFindMany).toHaveBeenCalledWith(
-      partial({
-        where: partial({
-          tenantId: "t1",
-          userId: "u1",
-          isRead: true,
-          notificationType: "critical",
-        }),
-      }),
-    );
+    interface FindManyCall {
+      where?: {
+        userId?: string;
+        isRead?: boolean;
+        notification?: Record<string, unknown>;
+      };
+    }
+    const call = mockedFindMany.mock.calls[0]?.[0] as FindManyCall | undefined;
+    expect(call?.where?.userId).toBe("u1");
+    expect(call?.where?.isRead).toBe(true);
+    expect(call?.where?.notification).toEqual({
+      tenantId: "t1",
+      notificationType: "critical",
+    });
   });
 });

@@ -41,6 +41,14 @@ export const notificationTypeSchema = z.enum([
 
 export const notificationChannelSchema = z.enum(["in_app", "email"]);
 
+export const notificationEmailStatusSchema = z.enum([
+  "pending",
+  "sent",
+  "suppressed_by_cooldown",
+  "digested",
+  "failed",
+]);
+
 export const rangerTypeSchema = z.enum(["registered", "freetext"]);
 
 export const accompanyingEntityTypeSchema = z.enum(["event", "patrol"]);

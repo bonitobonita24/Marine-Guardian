@@ -124,21 +124,30 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     select: { slug: true, name: true },
   });
 
-  const items = await prisma.notification.findMany({
+  // v2 spec: per-user read state lives on NotificationRecipient. We query the
+  // recipient side (one row per user per notification) and JOIN Notification
+  // for the title/message/type. Tenant scoping is enforced through the join.
+  const items = await prisma.notificationRecipient.findMany({
     where: {
-      tenantId: ctx.tenantId,
       userId: ctx.userId,
       ...(filters.isRead !== undefined ? { isRead: filters.isRead } : {}),
-      ...(filters.notificationType !== undefined
-        ? { notificationType: filters.notificationType }
-        : {}),
+      notification: {
+        tenantId: ctx.tenantId,
+        ...(filters.notificationType !== undefined
+          ? { notificationType: filters.notificationType }
+          : {}),
+      },
     },
     take: ROW_CAP + 1,
-    orderBy: { createdAt: "desc" },
+    orderBy: { notification: { createdAt: "desc" } },
     include: {
-      alertRule: { select: { id: true, name: true } },
-      event: { select: { id: true, title: true, state: true } },
-      patrol: { select: { id: true, title: true, serialNumber: true } },
+      notification: {
+        include: {
+          alertRule: { select: { id: true, name: true } },
+          event: { select: { id: true, title: true, state: true } },
+          patrol: { select: { id: true, title: true, serialNumber: true } },
+        },
+      },
     },
   });
 
@@ -153,18 +162,21 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  type NotificationItem = (typeof items)[number];
+  type RecipientItem = (typeof items)[number];
 
-  const rows: NotificationRow[] = items.map((n: NotificationItem) => ({
-    id: n.id,
-    title: n.title,
-    message: n.message,
-    type: n.notificationType,
-    isRead: n.isRead ? "true" : "false",
-    alertRuleName: n.alertRule?.name ?? "",
-    eventTitle: n.event?.title ?? "",
-    patrolTitle: n.patrol?.title ?? "",
-    createdAt: n.createdAt.toISOString(),
+  // Flatten the recipient + notification join into export-ready CSV rows.
+  // The export ID column is the Notification.id (the alert identity) — not
+  // the recipient row ID — since the user only cares about which alert fired.
+  const rows: NotificationRow[] = items.map((r: RecipientItem) => ({
+    id: r.notification.id,
+    title: r.notification.title,
+    message: r.notification.message,
+    type: r.notification.notificationType,
+    isRead: r.isRead ? "true" : "false",
+    alertRuleName: r.notification.alertRule?.name ?? "",
+    eventTitle: r.notification.event?.title ?? "",
+    patrolTitle: r.notification.patrol?.title ?? "",
+    createdAt: r.notification.createdAt.toISOString(),
   }));
 
   const filterHash = hashFilters(filters);
