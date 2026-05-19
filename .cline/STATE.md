@@ -81,7 +81,7 @@ ONCE ALL DEFERRED WORK SHIPS: swap docs/v2/PRODUCT.md → canonical docs/PRODUCT
 BLOCKERS:     none
 
 GIT_BRANCH:   main (clean, pushed to origin)
-GIT_HEAD:     af94a98 feat(users): user management data table — Phase 8 Batch 3 Sub-batch 3.1
+GIT_HEAD:     cfe9195 feat(patrol-track): scaffold PatrolTrack v2 foundation table — Phase 8 Batch 4 Sub-batch 4.1b
 
 REMOTE_STALE: origin/feat/event-kanban still exists on GitHub. User has not authorized remote delete. Run `git push origin --delete feat/event-kanban` when ready, then `git fetch --prune`.
 
