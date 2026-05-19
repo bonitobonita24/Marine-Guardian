@@ -49,3 +49,7 @@ export const knownRangerSourceSchema = z.enum([
   "earthranger_sync",
   "manual_entry",
 ]);
+
+export const boundarySourceSchema = z.enum(["official", "custom"]);
+
+export const geometryTypeSchema = z.enum(["Polygon", "LineString"]);

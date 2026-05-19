@@ -9,6 +9,7 @@ export * from "./patrol-segment";
 export * from "./observation";
 export * from "./subject-group";
 export * from "./patrol-area";
+export * from "./area-boundary";
 export * from "./patrol-schedule";
 export * from "./alert-rule";
 export * from "./notification";
