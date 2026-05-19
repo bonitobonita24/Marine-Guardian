@@ -55,3 +55,21 @@ export const boundarySourceSchema = z.enum(["official", "custom"]);
 export const geometryTypeSchema = z.enum(["Polygon", "LineString"]);
 
 export const trackSourceSchema = z.enum(["er_api", "cache"]);
+
+export const reportTypeSchema = z.enum([
+  "coverage",
+  "area",
+  "consolidated",
+  "detailed",
+  "rangers",
+  "patrol_filtered",
+]);
+
+export const paperSizeSchema = z.enum(["A4", "Letter", "Legal"]);
+
+export const reportExportStatusSchema = z.enum([
+  "queued",
+  "rendering",
+  "ready",
+  "failed",
+]);

@@ -18,3 +18,5 @@ export * from "./sync-log";
 export * from "./audit-log";
 export * from "./accompanying-ranger";
 export * from "./known-ranger";
+export * from "./fuel-entry";
+export * from "./report-export";

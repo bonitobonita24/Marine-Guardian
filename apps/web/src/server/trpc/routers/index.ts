@@ -17,6 +17,8 @@ import { knownRangerRouter } from "./knownRanger";
 import { dashboardRouter } from "./dashboard";
 import { mapRouter } from "./map";
 import { rangerRouter } from "./ranger";
+import { fuelEntryRouter } from "./fuelEntry";
+import { reportExportRouter } from "./reportExport";
 
 export const appRouter = router({
   event: eventRouter,
@@ -37,6 +39,8 @@ export const appRouter = router({
   dashboard: dashboardRouter,
   map: mapRouter,
   ranger: rangerRouter,
+  fuelEntry: fuelEntryRouter,
+  reportExport: reportExportRouter,
 });
 
 export type AppRouter = typeof appRouter;
