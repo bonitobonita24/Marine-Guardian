@@ -53,3 +53,5 @@ export const knownRangerSourceSchema = z.enum([
 export const boundarySourceSchema = z.enum(["official", "custom"]);
 
 export const geometryTypeSchema = z.enum(["Polygon", "LineString"]);
+
+export const trackSourceSchema = z.enum(["er_api", "cache"]);

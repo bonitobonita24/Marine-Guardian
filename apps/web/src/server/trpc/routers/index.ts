@@ -5,6 +5,7 @@ import { subjectRouter } from "./subject";
 import { observationRouter } from "./observation";
 import { patrolAreaRouter } from "./patrolArea";
 import { areaBoundaryRouter } from "./areaBoundary";
+import { patrolTrackRouter } from "./patrolTrack";
 import { patrolScheduleRouter } from "./patrolSchedule";
 import { eventTypeRouter } from "./eventType";
 import { alertRuleRouter } from "./alertRule";
@@ -24,6 +25,7 @@ export const appRouter = router({
   observation: observationRouter,
   patrolArea: patrolAreaRouter,
   areaBoundary: areaBoundaryRouter,
+  patrolTrack: patrolTrackRouter,
   patrolSchedule: patrolScheduleRouter,
   eventType: eventTypeRouter,
   alertRule: alertRuleRouter,

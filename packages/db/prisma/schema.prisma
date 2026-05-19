@@ -101,6 +101,11 @@ enum GeometryType {
   LineString
 }
 
+enum TrackSource {
+  er_api
+  cache
+}
+
 // ─────────────────────────────────────────────────
 // MODELS
 // ─────────────────────────────────────────────────
@@ -130,6 +135,7 @@ model Tenant {
   observations        Observation[]
   patrolAreas         PatrolArea[]
   areaBoundaries      AreaBoundary[]
+  patrolTracks        PatrolTrack[]
   alertRules          AlertRule[]
   alertHistory        AlertHistory[]
   notifications       Notification[]
@@ -291,6 +297,7 @@ model Patrol {
   segments            PatrolSegment[]
   accompanyingRangers AccompanyingRanger[] @relation("AccompanyingRangerPatrol")
   notifications       Notification[]
+  track               PatrolTrack?
 
   @@unique([tenantId, erPatrolId])
   @@index([tenantId])
@@ -381,6 +388,31 @@ model AreaBoundary {
   @@index([tenantId])
   @@index([tenantId, isEnabled])
   @@map("area_boundaries")
+}
+
+model PatrolTrack {
+  id             String      @id @default(cuid())
+  tenantId       String      @map("tenant_id")
+  patrolId       String      @unique @map("patrol_id")
+  subjectId      String?     @map("subject_id")
+  since          DateTime
+  until          DateTime
+  trackGeojson   Json        @map("track_geojson")
+  hasTimestamps  Boolean     @default(false) @map("has_timestamps")
+  pointCount     Int         @default(0) @map("point_count")
+  lastTrackTime  DateTime?   @map("last_track_time")
+  patrolEnded    Boolean     @default(false) @map("patrol_ended")
+  source         TrackSource
+  fetchedAt      DateTime    @map("fetched_at")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  patrol Patrol @relation(fields: [patrolId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, patrolEnded])
+  @@map("patrol_tracks")
 }
 
 model PatrolSchedule {
