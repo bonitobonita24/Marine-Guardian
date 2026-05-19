@@ -4,6 +4,22 @@
 # READ ORDER: 🔴 first → 🟤 second → rest by relevance
 # ---
 
+## 2026-05-19 — 🔴 Prisma migrate dev sweeps multiple new models into ONE migration — --name does NOT split
+- Type:      🔴 gotcha
+- Phase:     Phase 8 Batch 4 Sub-batch 4.1c (FuelEntry + ReportExport scaffolds)
+- Files:     packages/db/prisma/migrations/20260519231300_add_fuel_entry/, packages/db/prisma/migrations/20260519231301_add_report_export/, packages/db/prisma/schema.prisma
+- Concepts:  prisma-migrate, migrate-dev, multi-model-sweep, --create-only, --name flag, migration-splitting
+- Narrative: When a task spec demands "one migration per table" and you add MULTIPLE new models to schema.prisma BEFORE running migrate-dev, Prisma sweeps ALL pending model additions into a SINGLE migration regardless of `--name`. The `--name` flag only controls the directory name — it does NOT scope which schema changes land in the migration. The Sub-batch 4.1c agent ran `prisma migrate dev --create-only --name add_fuel_entry` with both FuelEntry AND ReportExport already in schema.prisma; Prisma generated one migration containing both tables. Two workarounds: (a) PREFERRED — add models to schema.prisma INCREMENTALLY: add model 1 → run migrate-dev with name1 → add model 2 → run migrate-dev with name2; (b) ACCEPTED HERE — let the sweep happen, then hand-split the SQL: keep the first table's SQL in the original migration directory (rename the directory if needed for ordering) and write the second table's SQL into a fresh migration directory with a timestamp 1 second later (matching format: `YYYYMMDDHHMMSS+1_add_X`). The hand-split path is fine for additive scaffolds but riskier when migrations have ordering dependencies — the (a) path is safer. Related: the 2026-05-12 🟡 "enum drift sweeps into next migration" lesson is the same family of issue. Pattern recognition: if `prisma migrate dev --create-only --name X` produces a migration containing changes you didn't expect → check schema.prisma for ALL pending model/enum/index changes; the migration is a snapshot of the current schema-vs-DB delta, not a snapshot of what `--name X` semantically describes.
+
+## 2026-05-19 — 🟡 Zod .cuid() strict format check rejects synthetic short strings in test fixtures
+- Type:      🟡 fix
+- Phase:     Phase 8 Batch 4 Sub-batch 4.1c (FuelEntry + ReportExport scaffold tests)
+- Files:     apps/web/src/server/trpc/routers/__tests__/fuelEntry.test.ts, apps/web/src/server/trpc/routers/__tests__/reportExport.test.ts
+- Concepts:  zod, cuid, test-fixtures, schema-validation, vitest, mock-data
+- Narrative: When a Zod input schema uses `.cuid()` to validate an ID field, test fixtures using short strings like `"ab-1"` or `"user-1"` fail validation with "Invalid cuid" at the input-parsing stage — BEFORE the procedure body runs. The Sub-batch 4.1c tests hit this when writing the first happy-path test for fuelEntry.update: `{ id: "fe-1" }` failed `.parse()` immediately. Cuid format spec: ~25 lowercase alphanumeric chars starting with 'c'. Fix: use a synthetic 25-char cuid-shaped string in test fixtures: `"c000000000000000000000001"` (starts with c, all valid chars, exactly 25 chars). Increment the trailing digits for unique IDs across the test file: `"c000000000000000000000002"`, etc. Define a fixture helper at the top of the test file to keep this DRY:
+    `const cuid = (n: number) => 'c' + n.toString(36).padStart(24, '0');`
+  Then call sites: `cuid(1)`, `cuid(42)`, etc. Same pattern needed for any procedure whose input schema validates `.cuid()` — areaBoundary (4.1a) and patrolTrack (4.1b) test files used the same synthetic-cuid pattern but the helper was inlined per-test; the helper extraction is cleaner. Note: Zod's `.cuid()` also accepts `cuid2` format if the schema uses `.cuid2()` — different format (lowercase letters + digits, 24 chars by default, no starting-letter constraint). Marine-Guardian uses Prisma's `@default(cuid())` which is the original cuid spec.
+
 ## 2026-05-12 — 🟡 Response.text() strips UTF-8 BOM during decoding — assert BOM via arrayBuffer()
 - Type:      🟡 fix
 - Phase:     Phase 8 Batch 2 Item 4 SS-1 (events export Route Handler tests)
