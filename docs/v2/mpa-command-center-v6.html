@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Marine Guardian — Phase 2.8 Mockup HTML Archive (V31 · v6)</title>
+<link rel="preconnect" href="https://rsms.me/">
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+      colors: {
+        bg: '#18191A', surface: '#242526', elevated: '#3A3B3C',
+        text: '#E4E6EB', textsec: '#B0B3B8', textmuted: '#8A8D91',
+        brand: '#0866FF', brandlight: 'rgba(8,102,255,0.12)',
+        success: '#31A24C', successbg: 'rgba(49,162,76,0.15)',
+        danger: '#F0284A', dangerbg: 'rgba(240,40,74,0.15)',
+        warning: '#E8912D', warningbg: 'rgba(232,145,45,0.15)',
+        caution: '#F7D154', cautionbg: 'rgba(247,209,84,0.15)',
+        cyan: '#00C9DB', border: '#3E4042',
+      }
+    }
+  }
+}
+</script>
+<style>
+  body { font-family: 'Inter', system-ui, sans-serif; background: #18191A; color: #E4E6EB; }
+  .screen { display: none; }
+  .screen.active { display: block; }
+  .nav-btn.active { background: rgba(8,102,255,0.12); color: #0866FF; font-weight: 600; }
+  table { font-variant-numeric: tabular-nums; }
+  .pulse-red { animation: pulse-red 0.8s ease-in-out infinite alternate; }
+  @keyframes pulse-red { 0% { box-shadow: 0 0 4px #F0284A; } 100% { box-shadow: 0 0 12px #F0284A; } }
+  .scroll-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+  .scroll-thin::-webkit-scrollbar-thumb { background: #3E4042; border-radius: 3px; }
+</style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+<!-- Phase 2.8 mockup banner -->
+<div class="bg-caution text-bg px-5 py-1 text-[10px] font-semibold text-center">
+  📐 PHASE 2.8 MOCKUP — Marine Guardian — HTML Archive (V31 v6) · Visual check of PRODUCT.md interpretation · Not live · No data persists
+</div>
+
+<!-- App header -->
+<div class="bg-surface border-b border-border h-11 flex items-center gap-2 px-3">
+  <button onclick="toggleNav()" class="text-textsec text-base">☰</button>
+  <span class="text-[13px] font-bold text-text">🌊 Marine Guardian</span>
+  <span class="text-[9px] text-textmuted">/ Banggai</span>
+  <div class="ml-auto flex items-center gap-1.5">
+    <button class="px-1 py-px rounded border border-brand bg-brandlight text-xs">🇬🇧</button>
+    <button class="px-1 py-px rounded border border-transparent text-xs">🇮🇩</button>
+    <button class="px-1 py-px rounded border border-transparent text-xs">🇲🇾</button>
+    <button onclick="showScreen('warroom')" class="px-2 py-0.5 rounded-xl bg-elevated text-textsec text-[8px] font-semibold">WAR ROOM</button>
+    <div class="w-6 h-6 rounded-full bg-brand flex items-center justify-center text-[9px] font-semibold text-white">OP</div>
+  </div>
+</div>
+
+<div class="flex flex-1">
+  <!-- Sidebar nav -->
+  <nav id="sidebar" class="w-[170px] bg-surface border-r border-border py-1 overflow-y-auto scroll-thin flex-shrink-0">
+    <button onclick="showScreen('login')" class="nav-btn block w-full px-2.5 py-1 text-textmuted text-[9px] text-left">← Login</button>
+
+    <div class="mt-1.5"><div class="px-2.5 py-0.5 text-[7px] font-bold text-textmuted tracking-widest">COMMAND</div>
+      <button onclick="showScreen('warroom')" class="nav-btn block w-full px-2.5 py-1 text-textsec text-[9px] text-left">⬤ Command Center</button>
+      <button onclick="showScreen('dashboard')" class="nav-btn block w-full px-2.5 py-1 text-textsec text-[9px] text-left">Dashboard</button>
+      <button onclick="showScreen('map')" class="nav-btn block w-full px-2.5 py-1 text-textsec text-[9px] text-left">Live Map</button>
+    </div>
+
+    <div class="mt-1.5"><div class="px-2.5 py-0.5 text-[7px] font-bold text-textmuted tracking-widest">OPERATIONS</div>
+      <button onclick="showScreen('events')" class="nav-btn block w-full px-2.5 py-1 text-textsec text-[9px] text-left">Events (Kanban)</button>
+      <button onclick="showScreen('event-detail')" class="nav-btn block w-full px-2.5 py-1 text-textsec text-[9px] text-left">Event Detail ★</button>
+      <button onclick="showScreen('notifications')" class="nav-btn block w-full px-2.5 py-1 text-textsec text-[9px] text-left">Notifications</button>
+    </div>
+
+    <div class="mt-1.5"><div class="px-2.5 py-0.5 text-[7px] font-bold text-textmuted tracking-widest">PATROLS</div>
+      <button onclick="showScreen('patrol-monitor')" class="nav-btn block w-full px-2.5 py-1 text-textsec text-[9px] text-left">Patrol Monitor ★</button>
+      <button onclick="showScreen('patrol-areas')" class="nav-btn block w-full px-2.5 py-1 text-textsec text-[9px] text-left">Patrol Areas</button>
+      <button onclick="showScreen('area-boundaries')" class="nav-btn block w-full px-2.5 py-1 text-textsec text-[9px] text-left">Area Boundaries ★★</button>
+      <button onclick="showScreen('patrol-schedule')" class="nav-btn block w-full px-2.5 py-1 text-textsec text-[9px] text-left">Patrol Schedule</button>
+    </div>
+
+    <div class="mt-1.5"><div class="px-2.5 py-0.5 text-[7px] font-bold text-textmuted tracking-widest">LOGISTICS</div>
+      <button onclick="showScreen('fuel')" class="nav-btn block w-full px-2.5 py-1 text-textsec text-[9px] text-left">⛽ Fuel Logging ★</button>
+    </div>
+
+    <div class="mt-1.5"><div class="px-2.5 py-0.5 text-[7px] font-bold text-textmuted tracking-widest">REPORTS</div>
+      <button onclick="showScreen('report-area')" class="nav-btn block w-full px-2.5 py-1 text-textsec text-[9px] text-left">Per Area Report</button>
+      <button onclick="showScreen('report-coverage')" class="nav-btn block w-full px-2.5 py-1 text-textsec text-[9px] text-left">📄 Coverage Report ★★</button>
+      <button onclick="showScreen('report-consolidated')" class="nav-btn block w-full px-2.5 py-1 text-textsec text-[9px] text-left">Consolidated</button>
+      <button onclick="showScreen('report-detailed')" class="nav-btn block w-full px-2.5 py-1 text-textsec text-[9px] text-left">Detailed Log ★</button>
+      <button onclick="showScreen('report-rangers')" class="nav-btn block w-full px-2.5 py-1 text-textsec text-[9px] text-left">Rangers Perf ★</button>
+      <button onclick="showScreen('ranger-detail')" class="nav-btn block w-full px-2.5 py-1 text-textsec text-[9px] text-left">Ranger Detail ★</button>
+      <button onclick="showScreen('exports')" class="nav-btn block w-full px-2.5 py-1 text-textsec text-[9px] text-left">📦 Exports Queue ★★</button>
+    </div>
+
+    <div class="mt-1.5"><div class="px-2.5 py-0.5 text-[7px] font-bold text-textmuted tracking-widest">ADMIN</div>
+      <button onclick="showScreen('alerts')" class="nav-btn block w-full px-2.5 py-1 text-textsec text-[9px] text-left">Alert Rules</button>
+      <button onclick="showScreen('users')" class="nav-btn block w-full px-2.5 py-1 text-textsec text-[9px] text-left">User Mgmt</button>
+      <button onclick="showScreen('settings')" class="nav-btn block w-full px-2.5 py-1 text-textsec text-[9px] text-left">Tenant Settings ★★★</button>
+      <button onclick="showScreen('sync-health')" class="nav-btn block w-full px-2.5 py-1 text-textsec text-[9px] text-left">⟳ Sync Health ★★★</button>
+      <button onclick="showScreen('audit')" class="nav-btn block w-full px-2.5 py-1 text-textsec text-[9px] text-left">📋 Audit Log ★★★</button>
+      <button onclick="showScreen('admin-tenants')" class="nav-btn block w-full px-2.5 py-1 text-textsec text-[9px] text-left">Super Admin</button>
+      <button onclick="showScreen('admin-impersonate')" class="nav-btn block w-full px-2.5 py-1 text-textsec text-[9px] text-left">🔒 Impersonation ★★</button>
+    </div>
+  </nav>
+
+  <!-- Main content -->
+  <main class="flex-1 p-4 overflow-y-auto scroll-thin">
+
+    <!-- ────────────── SYNC HEALTH (★★★ ROUND 4 — landing) ────────────── -->
+    <div id="screen-sync-health" class="screen">
+      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-xl bg-elevated text-textmuted text-[10px] font-semibold">🖥️ Mobile Ready</span>
+      <div class="text-[10px] text-textmuted mt-2 mb-1">Tenant Settings / Sync Health</div>
+      <div class="flex justify-between items-center mt-1 mb-3">
+        <h2 class="text-[19px] font-bold text-text">Sync Health — Banggai</h2>
+        <div class="flex gap-1.5"><button class="px-3 py-1 rounded-xl border border-border text-textsec text-[10px] font-semibold">Reset Cache</button><button class="px-3 py-1 rounded-xl bg-brand text-white text-[10px] font-semibold">⟳ Force Resync</button></div>
+      </div>
+
+      <!-- State cycler -->
+      <div class="flex gap-1.5 mb-3 p-2.5 bg-surface rounded-lg border border-border">
+        <span class="text-[9px] font-bold text-textmuted self-center tracking-wider">DEMO STATE →</span>
+        <button onclick="setSyncState('running')" id="state-running" class="px-2.5 py-1 rounded-xl border border-success bg-successbg text-success text-[10px] font-semibold">🟢 Running</button>
+        <button onclick="setSyncState('rate_limited')" id="state-rate_limited" class="px-2.5 py-1 rounded-xl border border-border text-textsec text-[10px] font-semibold">🟡 Rate Limited</button>
+        <button onclick="setSyncState('auth_failed')" id="state-auth_failed" class="px-2.5 py-1 rounded-xl border border-border text-textsec text-[10px] font-semibold">🔴 Auth Failed</button>
+        <button onclick="setSyncState('manual_pause')" id="state-manual_pause" class="px-2.5 py-1 rounded-xl border border-border text-textsec text-[10px] font-semibold">⏸️ Manually Paused</button>
+      </div>
+
+      <!-- Banner — running variant -->
+      <div id="banner-running" class="rounded-xl border border-border bg-successbg p-3.5 mb-3" style="border-left: 3px solid #31A24C;">
+        <div class="flex items-center gap-2 mb-1.5">
+          <div class="w-2 h-2 rounded-full bg-success" style="box-shadow: 0 0 6px #31A24C;"></div>
+          <span class="text-[13px] font-bold text-success">Sync Engine Running</span>
+          <span class="ml-auto text-[9px] font-mono text-textmuted">sync_state = "running"</span>
+        </div>
+        <div class="text-[11px] text-text leading-relaxed">Two-loop model: Active Check + Deep Sync. last_error: null. auth_failure_count: 0.</div>
+      </div>
+
+      <div id="banner-rate_limited" class="rounded-xl border border-border bg-cautionbg p-3.5 mb-3 hidden" style="border-left: 3px solid #F7D154;">
+        <div class="flex items-center gap-2 mb-1.5">
+          <div class="w-2 h-2 rounded-full bg-caution" style="box-shadow: 0 0 6px #F7D154;"></div>
+          <span class="text-[13px] font-bold text-caution">Sync Paused — Rate Limited by EarthRanger</span>
+          <span class="ml-auto text-[9px] font-mono text-textmuted">sync_state = "rate_limited"</span>
+        </div>
+        <div class="text-[11px] text-text leading-relaxed">ER returned HTTP 429 with Retry-After: 60s. Sync queues paused until 12:47:33 UTC. Resumes automatically — no action needed unless persistent.</div>
+      </div>
+
+      <div id="banner-auth_failed" class="rounded-xl border border-border bg-dangerbg p-3.5 mb-3 hidden" style="border-left: 3px solid #F0284A;">
+        <div class="flex items-center gap-2 mb-1.5">
+          <div class="w-2 h-2 rounded-full bg-danger pulse-red"></div>
+          <span class="text-[13px] font-bold text-danger">Sync Stopped — Authentication Failed</span>
+          <span class="ml-auto text-[9px] font-mono text-textmuted">sync_state = "auth_failed"</span>
+        </div>
+        <div class="text-[11px] text-text leading-relaxed">2 consecutive 401 responses tripped the auth-failure circuit breaker. Both Active Check and Deep Sync timers are stopped. Update credentials in Tenant Settings → click Test Connection. Sync resumes on first successful test.</div>
+      </div>
+
+      <div id="banner-manual_pause" class="rounded-xl border border-border bg-elevated p-3.5 mb-3 hidden" style="border-left: 3px solid #8A8D91;">
+        <div class="flex items-center gap-2 mb-1.5">
+          <div class="w-2 h-2 rounded-full bg-textmuted"></div>
+          <span class="text-[13px] font-bold text-textmuted">Sync Paused — Manually Stopped</span>
+          <span class="ml-auto text-[9px] font-mono text-textmuted">sync_state = "manual_pause"</span>
+        </div>
+        <div class="text-[11px] text-text leading-relaxed">Site Admin paused the sync engine. Click 'Resume Sync' to restart. No new data is pulled from EarthRanger while paused.</div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <div class="p-3 bg-surface rounded-lg border border-border">
+          <div class="text-[9px] font-bold text-textmuted tracking-wider">ACTIVE CHECK INTERVAL</div>
+          <div class="text-base font-extrabold text-cyan mt-1">Every 2 min</div>
+          <div class="text-[10px] text-textsec mt-1 leading-snug">5 pages × 100 patrols + 50 candidate refreshes. Last run: <strong class="text-text">32s ago</strong>.</div>
+        </div>
+        <div class="p-3 bg-surface rounded-lg border border-border">
+          <div class="text-[9px] font-bold text-textmuted tracking-wider">DEEP SYNC INTERVAL</div>
+          <div class="text-base font-extrabold text-brand mt-1">Every 10 min</div>
+          <div class="text-[10px] text-textsec mt-1 leading-snug">Full history pagination (100 × 200). Reconciles deletions. Last run: <strong class="text-text">4m ago</strong>.</div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <div class="bg-surface rounded-xl border border-border p-4">
+          <div class="text-[13px] font-semibold text-text mb-3">Cache Stats</div>
+          <div class="flex justify-between py-1.5 border-b border-border"><span class="text-[11px] text-textsec">Total patrols cached</span><span class="text-xs font-bold text-text">2,847</span></div>
+          <div class="flex justify-between py-1.5 border-b border-border"><span class="text-[11px] text-textsec">Sync candidates (active)</span><span class="text-xs font-bold text-warning">6</span></div>
+          <div class="flex justify-between py-1.5 border-b border-border"><span class="text-[11px] text-textsec">Patrol tracks materialized</span><span class="text-xs font-bold text-text">2,791</span></div>
+          <div class="flex justify-between py-1.5 border-b border-border"><span class="text-[11px] text-textsec">auth_failure_count</span><span class="text-xs font-bold text-text" id="auth-fail-count">0</span></div>
+          <div class="flex justify-between py-1.5"><span class="text-[11px] text-textsec">Last cache update</span><span class="text-[11px] text-cyan">32s ago</span></div>
+        </div>
+        <div class="bg-surface rounded-xl border border-border p-4">
+          <div class="text-[13px] font-semibold text-text mb-3">Last Error</div>
+          <div class="p-2.5 bg-successbg rounded-md border" style="border-color: rgba(49,162,76,0.25);">
+            <div class="text-[11px] text-success font-semibold">✓ No errors</div>
+            <div class="text-[9px] text-textmuted mt-1">Last failure cleared 6 hours ago. Sync workers never propagate errors to event loop — failures stored in last_error and queue retries.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-surface rounded-xl border border-border overflow-x-auto scroll-thin">
+        <div class="px-3.5 py-2.5 border-b border-border"><div class="text-[13px] font-semibold text-text">Per-Data-Type Sync Status</div></div>
+        <table class="w-full border-collapse">
+          <thead><tr class="bg-elevated border-b border-border">
+            <th class="text-left px-2.5 py-2 text-[10px] font-semibold text-textmuted uppercase tracking-wider">Data Type</th>
+            <th class="text-left px-2.5 py-2 text-[10px] font-semibold text-textmuted uppercase tracking-wider">Last Sync</th>
+            <th class="text-right px-2.5 py-2 text-[10px] font-semibold text-textmuted uppercase tracking-wider">Records</th>
+            <th class="text-left px-2.5 py-2 text-[10px] font-semibold text-textmuted uppercase tracking-wider">Status</th>
+            <th class="text-left px-2.5 py-2 text-[10px] font-semibold text-textmuted uppercase tracking-wider">Error</th>
+          </tr></thead>
+          <tbody>
+            <tr class="border-b border-border"><td class="px-2.5 py-2 text-xs text-text"><strong>Subjects</strong></td><td class="px-2.5 py-2 text-xs">12s ago</td><td class="px-2.5 py-2 text-xs text-right">47</td><td class="px-2.5 py-2"><span class="inline-flex px-2.5 py-0.5 rounded-full bg-successbg text-success text-[10px] font-semibold">success</span></td><td class="px-2.5 py-2 text-[10px] text-textmuted">—</td></tr>
+            <tr class="border-b border-border"><td class="px-2.5 py-2 text-xs text-text"><strong>Events</strong></td><td class="px-2.5 py-2 text-xs">32s ago</td><td class="px-2.5 py-2 text-xs text-right">22</td><td class="px-2.5 py-2"><span class="inline-flex px-2.5 py-0.5 rounded-full bg-successbg text-success text-[10px] font-semibold">success</span></td><td class="px-2.5 py-2 text-[10px] text-textmuted">—</td></tr>
+            <tr class="border-b border-border"><td class="px-2.5 py-2 text-xs text-text"><strong>Patrols</strong></td><td class="px-2.5 py-2 text-xs">32s ago</td><td class="px-2.5 py-2 text-xs text-right">64</td><td class="px-2.5 py-2"><span class="inline-flex px-2.5 py-0.5 rounded-full bg-successbg text-success text-[10px] font-semibold">success</span></td><td class="px-2.5 py-2 text-[10px] text-textmuted">—</td></tr>
+            <tr class="border-b border-border"><td class="px-2.5 py-2 text-xs text-text"><strong>Observations</strong></td><td class="px-2.5 py-2 text-xs">12s ago</td><td class="px-2.5 py-2 text-xs text-right">1842</td><td class="px-2.5 py-2"><span class="inline-flex px-2.5 py-0.5 rounded-full bg-successbg text-success text-[10px] font-semibold">success</span></td><td class="px-2.5 py-2 text-[10px] text-textmuted">—</td></tr>
+            <tr class="border-b border-border"><td class="px-2.5 py-2 text-xs text-text"><strong>Event Types</strong></td><td class="px-2.5 py-2 text-xs">4m ago</td><td class="px-2.5 py-2 text-xs text-right">18</td><td class="px-2.5 py-2"><span class="inline-flex px-2.5 py-0.5 rounded-full bg-successbg text-success text-[10px] font-semibold">success</span></td><td class="px-2.5 py-2 text-[10px] text-textmuted">—</td></tr>
+            <tr class="border-b border-border"><td class="px-2.5 py-2 text-xs text-text"><strong>Subject Groups</strong></td><td class="px-2.5 py-2 text-xs">4m ago</td><td class="px-2.5 py-2 text-xs text-right">6</td><td class="px-2.5 py-2"><span class="inline-flex px-2.5 py-0.5 rounded-full bg-successbg text-success text-[10px] font-semibold">success</span></td><td class="px-2.5 py-2 text-[10px] text-textmuted">—</td></tr>
+            <tr><td class="px-2.5 py-2 text-xs text-text"><strong>Patrol Tracks</strong></td><td class="px-2.5 py-2 text-xs">1m ago</td><td class="px-2.5 py-2 text-xs text-right">8</td><td class="px-2.5 py-2"><span class="inline-flex px-2.5 py-0.5 rounded-full bg-warningbg text-warning text-[10px] font-semibold">partial</span></td><td class="px-2.5 py-2 text-[10px] text-warning">2 tracks: 404 (subject deleted upstream)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="bg-surface rounded-xl border border-border p-3.5 mt-3">
+        <div class="text-[13px] font-semibold text-text mb-3">Sync Failure Banner Logic</div>
+        <div class="text-[10px] text-textsec leading-relaxed">Banner "SYNC FAILED" appears at the top of every tenant page when (a) <strong class="text-text">3 consecutive sync attempts have failed</strong>, OR (b) the last successful sync is older than <strong class="text-text">active_check_interval_seconds × 5 (= 600s default)</strong>, whichever comes first. Banner clears on first successful sync.</div>
+        <div class="text-[10px] text-textsec leading-relaxed mt-2">EarthRanger 429 responses → <code class="text-caution">sync_state = "rate_limited"</code> per Retry-After header (60s default). 2 consecutive 401s → <code class="text-danger">sync_state = "auth_failed"</code> circuit breaker trips. See PRODUCT.md § ER Resilience.</div>
+      </div>
+    </div>
+
+    <!-- ────────────── TENANT SETTINGS (★★★ ROUND 4) ────────────── -->
+    <div id="screen-settings" class="screen">
+      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-xl bg-elevated text-textmuted text-[10px] font-semibold">🖥️ Mobile Ready</span>
+      <div class="flex justify-between items-center mt-2 mb-3">
+        <h2 class="text-[19px] font-bold text-text">Tenant Settings — Banggai MPA</h2>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <!-- EarthRanger Connection -->
+        <div class="bg-surface rounded-xl border border-border p-4">
+          <div class="text-[13px] font-semibold text-text mb-3">EarthRanger Connection</div>
+          <label class="text-[10px] font-medium text-textsec block mb-1">Server URL</label>
+          <input type="text" value="https://banggai.pamdas.org" class="w-full px-2.5 py-2 rounded-md border border-border bg-bg text-text text-xs mb-3">
+
+          <div class="mb-2.5">
+            <div class="text-[10px] font-medium text-textsec mb-1.5">Authentication Method</div>
+            <div class="flex gap-1.5">
+              <button onclick="setAuthPath('A')" id="auth-A" class="flex-1 p-2.5 rounded-md border border-brand bg-brandlight text-brand text-[10px] font-semibold text-left cursor-pointer">
+                <div class="text-[11px] font-bold">(A) Token Pair</div>
+                <div class="text-[9px] mt-0.5 opacity-85">Preferred · DAS + Track tokens</div>
+              </button>
+              <button onclick="setAuthPath('B')" id="auth-B" class="flex-1 p-2.5 rounded-md border border-border text-textsec text-[10px] font-semibold text-left cursor-pointer">
+                <div class="text-[11px] font-bold">(B) Username + Password</div>
+                <div class="text-[9px] mt-0.5 opacity-85">Legacy fallback</div>
+              </button>
+            </div>
+          </div>
+
+          <div id="auth-fields-A">
+            <label class="text-[10px] font-medium text-textsec block mb-1">DAS Web Token (REST API)</label>
+            <input type="password" value="••••••••••••••••••••••••••••••••••••••••" class="w-full px-2.5 py-2 rounded-md border border-border bg-bg text-text text-xs mb-3">
+            <label class="text-[10px] font-medium text-textsec block mb-1">ER Track Token (SocketIO WebSocket)</label>
+            <input type="password" value="••••••••••••••••••••••••••••••••••••••••" class="w-full px-2.5 py-2 rounded-md border border-border bg-bg text-text text-xs mb-3">
+          </div>
+          <div id="auth-fields-B" class="hidden">
+            <label class="text-[10px] font-medium text-textsec block mb-1">Username</label>
+            <input type="text" value="service_account_banggai" class="w-full px-2.5 py-2 rounded-md border border-border bg-bg text-text text-xs mb-3">
+            <label class="text-[10px] font-medium text-textsec block mb-1">Password</label>
+            <input type="password" value="••••••••" class="w-full px-2.5 py-2 rounded-md border border-border bg-bg text-text text-xs mb-3">
+          </div>
+
+          <div class="flex items-center gap-1.5 mt-1.5 p-2 bg-successbg rounded-md">
+            <div class="w-1.5 h-1.5 rounded-full bg-success"></div>
+            <span class="text-[10px] text-success font-semibold">✓ Connected — verified 2 min ago</span>
+          </div>
+
+          <div class="flex gap-1.5 mt-2.5 flex-wrap">
+            <button class="px-3 py-1 rounded-xl bg-brand text-white text-[10px] font-semibold">Save</button>
+            <button class="px-3 py-1 rounded-xl border border-border text-textsec text-[10px] font-semibold">Test Connection</button>
+            <button class="px-3 py-1 rounded-xl border border-border text-textsec text-[10px] font-semibold">Verify ER Limits</button>
+          </div>
+
+          <div class="mt-2.5 p-2 bg-elevated rounded-md border" style="border-color: rgba(0,201,219,0.3);">
+            <div class="text-[9px] font-bold text-cyan tracking-wider mb-1">VERIFIED LIMITS (last run Jan 12, 2026)</div>
+            <div class="text-[10px] text-textsec leading-snug">Max page_size honored: <strong class="text-text">100</strong> · Rate-limit headers: <strong class="text-text">yes</strong> · Concurrent cap: <strong class="text-text">4</strong></div>
+          </div>
+        </div>
+
+        <!-- Sync Intervals -->
+        <div class="bg-surface rounded-xl border border-border p-4">
+          <div class="text-[13px] font-semibold text-text mb-3">Sync Intervals</div>
+          <div class="text-[10px] text-textsec mb-3 leading-snug">Two-loop sync engine. Active Check pulls newest records frequently; Deep Sync reconciles full history less often.</div>
+          <label class="text-[10px] font-medium text-textsec block mb-1">Active Check Interval (seconds — floor 60, ceiling 3600)</label>
+          <input type="text" value="120" class="w-full px-2.5 py-2 rounded-md border border-border bg-bg text-text text-xs mb-3">
+          <label class="text-[10px] font-medium text-textsec block mb-1">Deep Sync Interval (seconds — floor 300, ceiling 86400)</label>
+          <input type="text" value="600" class="w-full px-2.5 py-2 rounded-md border border-border bg-bg text-text text-xs mb-3">
+          <label class="text-[10px] font-medium text-textsec block mb-1">Request Timeout (ms)</label>
+          <input type="text" value="30000" class="w-full px-2.5 py-2 rounded-md border border-border bg-bg text-text text-xs mb-3">
+          <div class="mt-2.5 p-2 bg-elevated rounded-md">
+            <div class="text-[10px] text-text font-semibold">📊 Real-time status →</div>
+            <div class="text-[10px] text-cyan mt-1">See <a onclick="showScreen('sync-health')" class="cursor-pointer underline"><strong>Tenant Settings / Sync Health</strong></a> for last_error, sync_state, and per-data-type breakdown</div>
+          </div>
+        </div>
+
+        <!-- Tenant Profile -->
+        <div class="bg-surface rounded-xl border border-border p-4">
+          <div class="text-[13px] font-semibold text-text mb-3">Tenant Profile</div>
+          <label class="text-[10px] font-medium text-textsec block mb-1">MPA Site Name</label>
+          <input type="text" value="Banggai Marine Protected Area" class="w-full px-2.5 py-2 rounded-md border border-border bg-bg text-text text-xs mb-3">
+          <label class="text-[10px] font-medium text-textsec block mb-1">Slug</label>
+          <input type="text" value="banggai" class="w-full px-2.5 py-2 rounded-md border border-border bg-bg text-text text-xs mb-3">
+          <label class="text-[10px] font-medium text-textsec block mb-1">Timezone</label>
+          <input type="text" value="Asia/Makassar (WITA)" class="w-full px-2.5 py-2 rounded-md border border-border bg-bg text-text text-xs mb-3">
+          <label class="text-[10px] font-medium text-textsec block mb-1">Currency</label>
+          <select class="w-full px-2.5 py-2 rounded-md border border-border bg-bg text-text text-xs mb-3"><option>IDR — Indonesian Rupiah (Rp)</option><option>PHP — Philippine Peso (₱)</option><option>MYR — Malaysian Ringgit (RM)</option></select>
+          <button class="px-3 py-1 rounded-xl bg-brand text-white text-[10px] font-semibold">Update</button>
+        </div>
+
+        <!-- External References -->
+        <div class="bg-surface rounded-xl border border-border p-4">
+          <div class="text-[13px] font-semibold text-text mb-3">External References</div>
+          <label class="text-[10px] font-medium text-textsec block mb-1">ArcGIS Boundary URL (reference-only, optional)</label>
+          <input type="text" placeholder="(Banggai has no ArcGIS reference — leave blank)" class="w-full px-2.5 py-2 rounded-md border border-border bg-bg text-text text-xs mb-3">
+          <label class="text-[10px] font-medium text-textsec block mb-1">ArcGIS outFields (comma-separated)</label>
+          <input type="text" placeholder="e.g., municipali,province" class="w-full px-2.5 py-2 rounded-md border border-border bg-bg text-text text-xs mb-3">
+          <div class="mt-2 p-2 bg-elevated rounded-md text-[9px] text-textmuted leading-snug">ArcGIS layer is shown in Area Boundaries editor as a <strong class="text-cyan">dashed cyan reference outline</strong> only. Never queried at report time. App-managed boundaries are the source of truth.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ────────────── AUDIT LOG (★★★ ROUND 4) ────────────── -->
+    <div id="screen-audit" class="screen">
+      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-xl bg-elevated text-textmuted text-[10px] font-semibold">🖥️ Mobile Ready</span>
+      <div class="flex justify-between items-center mt-2 mb-3">
+        <h2 class="text-[19px] font-bold text-text">Audit Log — Banggai MPA</h2>
+        <div class="flex gap-1.5"><select class="px-2.5 py-1 rounded-md border border-border bg-elevated text-text text-[11px]"><option>Last 7 days</option><option>Last 30 days</option></select><button class="px-3 py-1 rounded-xl bg-brand text-white text-[10px] font-semibold">Export CSV</button></div>
+      </div>
+      <div class="flex gap-1.5 mb-3">
+        <button class="px-3 py-1 rounded-xl border border-brand bg-brandlight text-brand text-[10px] font-semibold">All</button>
+        <button class="px-3 py-1 rounded-xl border border-border text-textsec text-[10px] font-semibold">Info (8)</button>
+        <button class="px-3 py-1 rounded-xl border border-border text-textsec text-[10px] font-semibold">Warning (1)</button>
+        <button class="px-3 py-1 rounded-xl border border-border text-textsec text-[10px] font-semibold">High (3)</button>
+        <button class="px-3 py-1 rounded-xl border border-border text-textsec text-[10px] font-semibold">Critical (3)</button>
+      </div>
+      <div class="bg-surface rounded-xl border border-border overflow-x-auto scroll-thin">
+        <table class="w-full border-collapse">
+          <thead><tr class="bg-elevated border-b border-border">
+            <th class="text-left px-2.5 py-2 text-[10px] font-semibold text-textmuted uppercase tracking-wider whitespace-nowrap">Timestamp</th>
+            <th class="text-left px-2.5 py-2 text-[10px] font-semibold text-textmuted uppercase tracking-wider">Severity</th>
+            <th class="text-left px-2.5 py-2 text-[10px] font-semibold text-textmuted uppercase tracking-wider">Actor</th>
+            <th class="text-left px-2.5 py-2 text-[10px] font-semibold text-textmuted uppercase tracking-wider">Action</th>
+            <th class="text-left px-2.5 py-2 text-[10px] font-semibold text-textmuted uppercase tracking-wider">Entity</th>
+            <th class="text-left px-2.5 py-2 text-[10px] font-semibold text-textmuted uppercase tracking-wider">Details</th>
+          </tr></thead>
+          <tbody>
+            <tr class="border-b border-border"><td class="px-2.5 py-2 text-[10px] font-mono text-textsec whitespace-nowrap">Jan 12, 14:47:12</td><td class="px-2.5 py-2"><span class="inline-flex px-2.5 py-0.5 rounded-full bg-elevated text-textsec text-[10px] font-semibold">info</span></td><td class="px-2.5 py-2 text-[10px] text-brand">ahmad@banggai.org</td><td class="px-2.5 py-2 text-[10px] text-text font-mono">event.state_change</td><td class="px-2.5 py-2 text-[10px] text-text">Event #14063</td><td class="px-2.5 py-2 text-[10px] text-textsec">state: new → active</td></tr>
+            <tr class="border-b border-border"><td class="px-2.5 py-2 text-[10px] font-mono text-textsec whitespace-nowrap">Jan 12, 14:33:02</td><td class="px-2.5 py-2"><span class="inline-flex px-2.5 py-0.5 rounded-full bg-elevated text-textsec text-[10px] font-semibold">info</span></td><td class="px-2.5 py-2 text-[10px] text-brand">siti@banggai.org</td><td class="px-2.5 py-2 text-[10px] text-text font-mono">event.detail_update</td><td class="px-2.5 py-2 text-[10px] text-text">Event #14063</td><td class="px-2.5 py-2 text-[10px] text-textsec">action_taken: "" → "Reported to BAPL Banggai PSDKP"</td></tr>
+            <tr class="border-b border-border"><td class="px-2.5 py-2 text-[10px] font-mono text-textsec whitespace-nowrap">Jan 12, 14:15:50</td><td class="px-2.5 py-2"><span class="inline-flex px-2.5 py-0.5 rounded-full bg-elevated text-textsec text-[10px] font-semibold">info</span></td><td class="px-2.5 py-2 text-[10px] text-brand">siti@banggai.org</td><td class="px-2.5 py-2 text-[10px] text-text font-mono">accompanying_ranger.add</td><td class="px-2.5 py-2 text-[10px] text-text">Event #14063</td><td class="px-2.5 py-2 text-[10px] text-textsec">added 3 companions: Putra Larekeng, Imran Idris, Abdul</td></tr>
+            <tr class="border-b border-border"><td class="px-2.5 py-2 text-[10px] font-mono text-textsec whitespace-nowrap">Jan 12, 13:02:18</td><td class="px-2.5 py-2"><span class="inline-flex px-2.5 py-0.5 rounded-full bg-warningbg text-warning text-[10px] font-semibold">high</span></td><td class="px-2.5 py-2 text-[10px] text-brand">superadmin@powerbyte.app</td><td class="px-2.5 py-2 text-[10px] text-text font-mono">impersonation.enable</td><td class="px-2.5 py-2 text-[10px] text-text">Tenant: Banggai MPA</td><td class="px-2.5 py-2 text-[10px] text-textsec">Read-only impersonation by superadmin (acting_user_id=usr_sa_01)</td></tr>
+            <tr class="border-b border-border"><td class="px-2.5 py-2 text-[10px] font-mono text-textsec whitespace-nowrap">Jan 12, 12:35:00</td><td class="px-2.5 py-2"><span class="inline-flex px-2.5 py-0.5 rounded-full bg-warningbg text-warning text-[10px] font-semibold">high</span></td><td class="px-2.5 py-2 text-[10px] text-brand">ahmad@banggai.org</td><td class="px-2.5 py-2 text-[10px] text-text font-mono">tenant.config_update</td><td class="px-2.5 py-2 text-[10px] text-text">Tenant: Banggai MPA</td><td class="px-2.5 py-2 text-[10px] text-textsec">sync_state: running → manual_pause; reason: "Scheduled ER maintenance window"</td></tr>
+            <tr class="border-b border-border"><td class="px-2.5 py-2 text-[10px] font-mono text-textsec whitespace-nowrap">Jan 12, 11:08:47</td><td class="px-2.5 py-2"><span class="inline-flex px-2.5 py-0.5 rounded-full bg-elevated text-textsec text-[10px] font-semibold">info</span></td><td class="px-2.5 py-2 text-[10px] text-brand">ahmad@banggai.org</td><td class="px-2.5 py-2 text-[10px] text-text font-mono">alert_rule.create</td><td class="px-2.5 py-2 text-[10px] text-text">AlertRule: "Critical events — any"</td><td class="px-2.5 py-2 text-[10px] text-textsec">kind=event_match, priority_min=critical, channels=[in_app,email]</td></tr>
+            <tr class="border-b border-border"><td class="px-2.5 py-2 text-[10px] font-mono text-textsec whitespace-nowrap">Jan 12, 09:22:55</td><td class="px-2.5 py-2"><span class="inline-flex px-2.5 py-0.5 rounded-full bg-cautionbg text-caution text-[10px] font-semibold">warning</span></td><td class="px-2.5 py-2 text-[10px] text-cyan">system</td><td class="px-2.5 py-2 text-[10px] text-text font-mono">sync.auth_failure_reset</td><td class="px-2.5 py-2 text-[10px] text-text">Tenant: Banggai MPA</td><td class="px-2.5 py-2 text-[10px] text-textsec">auth_failure_count: 1 → 0 (recovered after credential update)</td></tr>
+            <tr class="border-b border-border"><td class="px-2.5 py-2 text-[10px] font-mono text-textsec whitespace-nowrap">Jan 12, 09:21:08</td><td class="px-2.5 py-2"><span class="inline-flex px-2.5 py-0.5 rounded-full bg-dangerbg text-danger text-[10px] font-semibold">critical</span></td><td class="px-2.5 py-2 text-[10px] text-brand">ahmad@banggai.org</td><td class="px-2.5 py-2 text-[10px] text-text font-mono">tenant.credential_update</td><td class="px-2.5 py-2 text-[10px] text-text">Tenant: Banggai MPA</td><td class="px-2.5 py-2 text-[10px] text-textsec">earthranger_das_token rotated (old value redacted from audit)</td></tr>
+            <tr class="border-b border-border"><td class="px-2.5 py-2 text-[10px] font-mono text-textsec whitespace-nowrap">Jan 12, 09:18:33</td><td class="px-2.5 py-2"><span class="inline-flex px-2.5 py-0.5 rounded-full bg-dangerbg text-danger text-[10px] font-semibold">critical</span></td><td class="px-2.5 py-2 text-[10px] text-cyan">system</td><td class="px-2.5 py-2 text-[10px] text-text font-mono">sync.circuit_breaker_trip</td><td class="px-2.5 py-2 text-[10px] text-text">Tenant: Banggai MPA</td><td class="px-2.5 py-2 text-[10px] text-textsec">auth_failure_count reached 2; sync_state → auth_failed; notification dispatched to 2 Site Admins</td></tr>
+            <tr><td class="px-2.5 py-2 text-[10px] font-mono text-textsec whitespace-nowrap">Jan 10, 11:02:31</td><td class="px-2.5 py-2"><span class="inline-flex px-2.5 py-0.5 rounded-full bg-dangerbg text-danger text-[10px] font-semibold">critical</span></td><td class="px-2.5 py-2 text-[10px] text-brand">superadmin@powerbyte.app</td><td class="px-2.5 py-2 text-[10px] text-text font-mono">tenant.create</td><td class="px-2.5 py-2 text-[10px] text-text">Tenant: Pecca MPA</td><td class="px-2.5 py-2 text-[10px] text-textsec">slug=pecca, timezone=Asia/Manila, currency=PHP</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="flex gap-3 mt-3">
+        <div class="flex-1 bg-surface rounded-xl border border-border p-3">
+          <div class="text-[9px] font-bold text-textmuted tracking-wider mb-1">RETENTION</div>
+          <div class="text-[11px] text-text leading-snug">AuditLog rows kept <strong class="text-cyan">indefinitely</strong>. PII (IP addresses, user-agents) retained per § Data Sensitivity.</div>
+        </div>
+        <div class="flex-1 bg-surface rounded-xl border border-border p-3">
+          <div class="text-[9px] font-bold text-textmuted tracking-wider mb-1">IMPERSONATION</div>
+          <div class="text-[11px] text-text leading-snug">Super Admin actions during impersonation have both <code class="text-cyan">user_id</code> + <code class="text-cyan">acting_user_id</code> set. Filter by Critical severity to find them.</div>
+        </div>
+        <div class="flex-1 bg-surface rounded-xl border border-border p-3">
+          <div class="text-[9px] font-bold text-textmuted tracking-wider mb-1">ACCESS</div>
+          <div class="text-[11px] text-text leading-snug">Permission: <code class="text-cyan">audit.view</code>. Site Admin+ within tenant; Super Admin sees cross-tenant.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ────────────── EVENT DETAIL (★★★ Round 4 — area_name + area_boundary_id) ────────────── -->
+    <div id="screen-event-detail" class="screen">
+      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-xl bg-brandlight text-brand text-[10px] font-semibold">📱 Mobile First</span>
+      <div class="text-[10px] text-textmuted mt-2 mb-1">Events / #14063</div>
+      <div class="grid gap-3.5" style="grid-template-columns: 5fr 3fr;">
+        <div>
+          <div class="bg-surface rounded-xl border border-border p-4">
+            <div class="flex justify-between mb-3">
+              <div>
+                <div class="text-[17px] font-bold text-text">Destructive Practices — Explosives</div>
+                <div class="text-[11px] text-textmuted">#14063 · Pottoli Tobin 2</div>
+              </div>
+              <span class="inline-flex h-fit px-2.5 py-0.5 rounded-full bg-dangerbg text-danger text-[10px] font-semibold">Critical</span>
+            </div>
+            <div class="bg-bg rounded-md p-3 mb-3">
+              <div class="text-[10px] font-semibold text-textmuted mb-1.5 uppercase">Field Notes</div>
+              <p class="text-[11px] text-text leading-relaxed">Tim Blue Alliance Indonesia (BAI) mendengar suara ledakan saat melakukan patroli di sekitar Solan Bajo Reef. Pelaku dicurigai adalah Ittang atau Abdul.</p>
+            </div>
+            <div class="flex py-2 border-b border-border"><div class="w-40 text-[10px] text-textmuted">Area (raw)</div><div class="text-[11px] text-text flex-1"><span>A12a</span> <span class="text-[9px] text-textmuted ml-1.5">from ER, preserved verbatim</span></div></div>
+            <div class="flex py-2 border-b border-border"><div class="w-40 text-[10px] text-textmuted">Area Boundary (derived FK)</div><div class="text-[11px] text-text flex-1 flex items-center gap-1.5"><span class="inline-flex px-2.5 py-0.5 rounded-full bg-brandlight text-brand text-[10px] font-semibold">Solan Bajo Reef</span><span class="text-[9px] text-textmuted">matched via name+alias · derived 32s ago</span></div></div>
+            <div class="flex py-2 border-b border-border"><div class="w-40 text-[10px] text-textmuted">Event Type</div><div class="text-[11px] text-text flex-1">Use of Explosives</div></div>
+            <div class="flex py-2 border-b border-border"><div class="w-40 text-[10px] text-textmuted">Vessel Name</div><div class="text-[11px] text-text flex-1">NN</div></div>
+            <div class="flex py-2 border-b border-border"><div class="w-40 text-[10px] text-textmuted">Vessel Registration</div><div class="text-[11px] text-text flex-1">NN</div></div>
+            <div class="flex py-2 border-b border-border"><div class="w-40 text-[10px] text-textmuted">Address</div><div class="text-[11px] text-text flex-1">Lelang Matamaling</div></div>
+            <div class="flex py-2 border-b border-border"><div class="w-40 text-[10px] text-textmuted">Offender(s)</div><div class="text-[11px] text-text flex-1">Ittang atau Abdul</div></div>
+            <div class="flex py-2 border-b border-border"><div class="w-40 text-[10px] text-textmuted">Action Taken</div><div class="text-[11px] text-text flex-1"><span class="text-textmuted italic">— (pending; CC-owned field, push-back to ER on save)</span></div></div>
+            <div class="flex py-2"><div class="w-40 text-[10px] text-textmuted">Photo</div><div class="text-[11px] text-text flex-1"><span class="text-textmuted">NO IMAGE</span> <span class="text-[9px] text-textmuted ml-1">has_photo: false</span></div></div>
+          </div>
+
+          <div class="bg-surface rounded-xl border border-border p-4 mt-3" style="border-left: 3px solid #0866FF;">
+            <div class="flex justify-between items-center mb-2.5">
+              <div class="text-[13px] font-semibold text-text">👥 Accompanying Rangers</div>
+              <span class="inline-flex px-2.5 py-0.5 rounded-full bg-brandlight text-brand text-[10px] font-semibold">3 tagged</span>
+            </div>
+            <div class="text-[10px] text-textsec mb-2.5 leading-snug">Rangers who participated in this event receive equal performance credit as the reporter.</div>
+            <div class="mb-2.5">
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-2xl bg-brandlight border text-brand text-[11px] mr-1.5 mb-1" style="border-color: rgba(8,102,255,0.25);">👤 Putra Larekeng <span class="text-textmuted ml-1 cursor-pointer text-[13px]">×</span></span>
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-2xl bg-brandlight border text-brand text-[11px] mr-1.5 mb-1" style="border-color: rgba(8,102,255,0.25);">👤 Imran Idris Bado'o <span class="text-textmuted ml-1 cursor-pointer text-[13px]">×</span></span>
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-2xl bg-elevated border border-border text-text text-[11px] mr-1.5 mb-1">✏️ Abdul (Desa Matamaling) <span class="text-textmuted ml-1 cursor-pointer text-[13px]">×</span></span>
+            </div>
+            <div class="flex gap-1.5">
+              <input placeholder="Search registered rangers or type a name..." class="flex-1 px-2.5 py-2 rounded-md border border-border bg-bg text-text text-[11px]">
+              <button class="px-3 py-1 rounded-xl bg-brand text-white text-[10px] font-semibold">+ Add</button>
+            </div>
+            <div class="mt-2.5 p-2 bg-elevated rounded-md text-[9px] text-textmuted flex gap-3">
+              <span>👤 = Registered user (auto-linked to profile)</span>
+              <span>✏️ = Free-text name (saved to known rangers for future use)</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-3">
+          <div class="bg-surface rounded-xl border border-border p-4">
+            <div class="text-[13px] font-semibold text-text mb-2.5">Status</div>
+            <div class="flex gap-1"><button class="flex-1 py-1.5 rounded-md border border-brand bg-brand text-white text-[10px] font-semibold">New</button><button class="flex-1 py-1.5 rounded-md border border-border text-textsec text-[10px] font-semibold">Active</button><button class="flex-1 py-1.5 rounded-md border border-border text-textsec text-[10px] font-semibold">Resolved</button></div>
+          </div>
+          <div class="bg-surface rounded-xl border border-border p-4">
+            <div class="text-[13px] font-semibold text-text mb-2.5">Location</div>
+            <div class="bg-elevated rounded-md h-20 flex items-center justify-center"><span class="text-[10px] text-textmuted">📍 -1.2834, 123.5012</span></div>
+          </div>
+          <div class="bg-surface rounded-xl border border-border p-4">
+            <div class="text-[13px] font-semibold text-text mb-2.5">Performance Credit</div>
+            <div class="text-[10px] text-textsec leading-snug">This event awards <strong class="text-text">1 credit</strong> each to:</div>
+            <div class="mt-2">
+              <div class="flex justify-between py-1.5 border-b border-border"><span class="text-[11px] text-brand">Pottoli Tobin 2</span><span class="inline-flex px-2 py-0.5 rounded-full bg-brandlight text-brand text-[10px] font-semibold">Reporter</span></div>
+              <div class="flex justify-between py-1.5 border-b border-border"><span class="text-[11px] text-brand">Putra Larekeng</span><span class="inline-flex px-2 py-0.5 rounded-full bg-elevated text-textsec text-[10px] font-semibold">Companion</span></div>
+              <div class="flex justify-between py-1.5 border-b border-border"><span class="text-[11px] text-brand">Imran Idris Bado'o</span><span class="inline-flex px-2 py-0.5 rounded-full bg-elevated text-textsec text-[10px] font-semibold">Companion</span></div>
+              <div class="flex justify-between py-1.5 border-b border-border"><span class="text-[11px] text-text">Abdul (Desa Matamaling)</span><span class="inline-flex px-2 py-0.5 rounded-full bg-elevated text-textsec text-[10px] font-semibold">Companion</span></div>
+            </div>
+            <div class="mt-2 text-[10px] text-success font-semibold">= 4 rangers credited for this event</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ────────────── LOGIN (Priority 1 — Tier 1) ────────────── -->
+    <div id="screen-login" class="screen">
+      <div class="flex items-center justify-center min-h-[500px]">
+        <div class="w-[340px] bg-surface rounded-2xl border border-border p-8">
+          <div class="text-center mb-6">
+            <div class="text-2xl font-bold text-text">🌊 Marine Guardian</div>
+            <div class="text-[11px] text-textmuted mt-1">Marine Protected Area Operations Intelligence</div>
+          </div>
+          <label class="text-[10px] font-medium text-textsec block mb-1">Email</label>
+          <input type="email" placeholder="operator@banggai-mpa.org" class="w-full px-2.5 py-2 rounded-md border border-border bg-bg text-text text-xs mb-3">
+          <label class="text-[10px] font-medium text-textsec block mb-1">Password</label>
+          <input type="password" placeholder="••••••••" class="w-full px-2.5 py-2 rounded-md border border-border bg-bg text-text text-xs mb-3">
+          <button class="w-full py-2.5 rounded-full bg-brand text-white text-[13px] font-semibold mt-1">Sign In</button>
+          <div class="flex gap-2 justify-center mt-4">
+            <button class="px-2 py-0.5 rounded-xl border border-brand bg-brandlight text-brand text-[9px]">🇬🇧 EN</button>
+            <button class="px-2 py-0.5 rounded-xl border border-border text-textmuted text-[9px]">🇮🇩 ID</button>
+            <button class="px-2 py-0.5 rounded-xl border border-border text-textmuted text-[9px]">🇲🇾 MY</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ────────────── WAR ROOM (Priority 1 — Tier 1, app's main display) ────────────── -->
+    <div id="screen-warroom" class="screen">
+      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-xl bg-elevated text-textmuted text-[10px] font-semibold">🖥️ Mobile Ready</span>
+      <!-- KPI strip -->
+      <div class="flex gap-2 mt-2 mb-2 flex-wrap">
+        <div class="flex-1 bg-surface rounded-lg border border-border px-3 py-2 flex items-center gap-2 min-w-[130px]">
+          <span class="text-lg">⚡</span>
+          <div><div class="text-[8px] font-bold text-textmuted tracking-widest">ACTIVE EVENTS</div><div class="text-xl font-extrabold text-warning">22</div></div>
+        </div>
+        <div class="flex-1 bg-surface rounded-lg border border-border px-3 py-2 flex items-center gap-2 min-w-[130px]">
+          <span class="text-lg">🔴</span>
+          <div><div class="text-[8px] font-bold text-textmuted tracking-widest">UNACKNOWLEDGED</div><div class="text-xl font-extrabold text-danger">3</div></div>
+        </div>
+        <div class="flex-1 bg-surface rounded-lg border border-border px-3 py-2 flex items-center gap-2 min-w-[130px]">
+          <span class="text-lg">🚤</span>
+          <div><div class="text-[8px] font-bold text-textmuted tracking-widest">ACTIVE PATROLS</div><div class="text-xl font-extrabold text-brand">6</div></div>
+        </div>
+        <div class="flex-1 bg-surface rounded-lg border border-border px-3 py-2 flex items-center gap-2 min-w-[130px]">
+          <span class="text-lg">👥</span>
+          <div><div class="text-[8px] font-bold text-textmuted tracking-widest">RANGERS ON DUTY</div><div class="text-xl font-extrabold text-success">14</div></div>
+        </div>
+        <div class="flex-1 bg-surface rounded-lg border border-border px-3 py-2 flex items-center gap-2 min-w-[130px]">
+          <span class="text-lg">📊</span>
+          <div><div class="text-[8px] font-bold text-textmuted tracking-widest">EVENTS THIS MONTH</div><div class="text-xl font-extrabold text-cyan">47</div></div>
+        </div>
+        <div class="bg-surface rounded-lg border border-border px-3 py-2 flex flex-col items-center justify-center min-w-[110px]">
+          <div class="text-base font-bold text-text" style="font-variant-numeric: tabular-nums;">14:47:33</div>
+          <div class="text-[8px] text-textmuted">Mon · 12 Jan</div>
+          <div class="flex items-center gap-1 mt-1"><div class="w-1 h-1 rounded-full bg-success"></div><span class="text-[7px] text-success font-semibold">SYNCED 5s AGO</span></div>
+        </div>
+      </div>
+
+      <!-- Main grid: map + alert/feed panels -->
+      <div class="flex gap-2 min-h-[400px]">
+        <div class="flex-[3] flex flex-col gap-2">
+          <!-- Live map -->
+          <div class="flex-1 bg-elevated rounded-lg border border-border relative overflow-hidden min-h-[250px]">
+            <div class="absolute inset-0" style="background: linear-gradient(135deg, #0d1b2a 0%, #1b2838 40%, #0d2137 70%, #162230 100%);"></div>
+            <div class="absolute top-2 left-2 bg-bg/85 rounded px-2 py-0.5 z-10 text-[8px] text-textsec">🗺️ MapLibre GL · Banggai · Zoom 11</div>
+            <!-- Map markers -->
+            <div class="absolute z-20 flex items-center gap-1" style="top: 25%; left: 35%;"><div class="w-2 h-2 rounded-full bg-brand pulse-red" style="border: 2px solid rgba(255,255,255,0.8);"></div><span class="text-[7px] text-white bg-black/70 px-1 rounded">🚤 Pottoli Tobin 2</span></div>
+            <div class="absolute z-20 flex items-center gap-1" style="top: 40%; left: 50%;"><div class="w-2 h-2 rounded-full bg-brand" style="border: 2px solid rgba(255,255,255,0.8);"></div><span class="text-[7px] text-white bg-black/70 px-1 rounded">🚤 Saldi</span></div>
+            <div class="absolute z-20 flex items-center gap-1" style="top: 35%; left: 72%;"><div class="w-2 h-2 rounded-full bg-success" style="border: 2px solid rgba(255,255,255,0.8);"></div><span class="text-[7px] text-white bg-black/70 px-1 rounded">🐢 Turtle #12</span></div>
+            <div class="absolute z-20 flex items-center gap-1" style="top: 38%; left: 45%;"><div class="w-2 h-2 rounded-full bg-danger pulse-red" style="border: 2px solid rgba(255,255,255,0.8);"></div><span class="text-[7px] text-white bg-black/70 px-1 rounded">💥 #14063</span></div>
+            <div class="absolute z-20 flex items-center gap-1" style="top: 52%; left: 55%;"><div class="w-2 h-2 rounded-full bg-danger" style="border: 2px solid rgba(255,255,255,0.8);"></div><span class="text-[7px] text-white bg-black/70 px-1 rounded">💥 #14047</span></div>
+          </div>
+          <!-- Bottom strip -->
+          <div class="flex gap-2">
+            <div class="flex-1 bg-surface rounded-lg border border-border px-3 py-2">
+              <div class="text-[8px] font-bold text-textmuted tracking-wider mb-1">LAW ENFORCEMENT — JAN 2026</div>
+              <div class="flex items-center gap-1 mb-0.5"><div class="w-16 text-[10px] text-textmuted text-right">Destructive</div><div class="flex-1 h-3 bg-elevated"><div class="h-full bg-brand" style="width: 100%;"></div></div><div class="w-5 text-[10px] text-text font-semibold text-right">8</div></div>
+              <div class="flex items-center gap-1 mb-0.5"><div class="w-16 text-[10px] text-textmuted text-right">Compressor</div><div class="flex-1 h-3 bg-elevated"><div class="h-full bg-brand" style="width: 37%;"></div></div><div class="w-5 text-[10px] text-text font-semibold text-right">3</div></div>
+            </div>
+            <div class="flex-1 bg-surface rounded-lg border border-border px-3 py-2">
+              <div class="text-[8px] font-bold text-textmuted tracking-wider mb-1">MONITORING — JAN 2026</div>
+              <div class="flex items-center gap-1 mb-0.5"><div class="w-16 text-[10px] text-textmuted text-right">Wildlife</div><div class="flex-1 h-3 bg-elevated"><div class="h-full bg-success" style="width: 100%;"></div></div><div class="w-5 text-[10px] text-text font-semibold text-right">6</div></div>
+              <div class="flex items-center gap-1 mb-0.5"><div class="w-16 text-[10px] text-textmuted text-right">Outreach</div><div class="flex-1 h-3 bg-elevated"><div class="h-full bg-warning" style="width: 67%;"></div></div><div class="w-5 text-[10px] text-text font-semibold text-right">4</div></div>
+            </div>
+            <div class="bg-surface rounded-lg border border-border px-3 py-2 min-w-[100px] flex flex-col items-center justify-center">
+              <div class="text-[7px] font-bold text-textmuted">LAST INCIDENT</div>
+              <div class="text-2xl font-extrabold text-warning">2m</div>
+              <div class="text-[7px] text-textmuted">#14063 · Blast</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right column: alert panel + event feed + active patrols -->
+        <div class="flex-[2] flex flex-col gap-2 min-w-[280px]">
+          <!-- Alert panel -->
+          <div class="bg-surface rounded-lg overflow-hidden" style="border: 1px solid rgba(240,40,74,0.25);">
+            <div class="px-3 py-1.5 bg-dangerbg flex items-center gap-1.5 border-b border-border">
+              <span class="text-xs">🚨</span><span class="text-[10px] font-bold text-danger">ALERTS & ESCALATIONS</span>
+              <span class="ml-auto bg-danger text-white text-[8px] font-bold px-1.5 py-px rounded">2</span>
+            </div>
+            <div class="p-1 max-h-[120px] overflow-y-auto scroll-thin">
+              <div class="flex items-start gap-1.5 px-1.5 py-1 rounded mb-0.5" style="background: rgba(240,40,74,0.08);">
+                <div class="w-1.5 h-1.5 rounded-full bg-danger pulse-red mt-1"></div>
+                <div class="flex-1"><div class="text-[10px] font-bold text-danger">#14063 — BLAST FISHING</div><div class="text-[8px] text-textmuted">A12a — Solan Bajo · Pottoli Tobin 2 · 2m</div></div>
+                <button class="px-1.5 py-0.5 rounded bg-danger text-white text-[7px] font-semibold">ACK</button>
+              </div>
+              <div class="flex items-start gap-1.5 px-1.5 py-1 rounded mb-0.5" style="background: rgba(240,40,74,0.08);">
+                <div class="w-1.5 h-1.5 rounded-full bg-danger pulse-red mt-1"></div>
+                <div class="flex-1"><div class="text-[10px] font-bold text-danger">#14047 — BLAST FISHING</div><div class="text-[8px] text-textmuted">A12a — Tulus Reef · Pottoli Tobin 4 · 18m</div></div>
+                <button class="px-1.5 py-0.5 rounded bg-danger text-white text-[7px] font-semibold">ACK</button>
+              </div>
+              <div class="flex items-start gap-1.5 px-1.5 py-1 rounded mb-0.5">
+                <div class="w-1.5 h-1.5 rounded-full bg-danger mt-1"></div>
+                <div class="flex-1"><div class="text-[10px] font-bold text-text">#13878 — POISON</div><div class="text-[8px] text-textmuted">A12a — Sombuan · Pottoli Tobin 4 · 3h</div></div>
+                <span class="inline-flex px-2 py-px rounded-full bg-elevated text-textsec text-[8px] font-semibold">Ack'd</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live event feed -->
+          <div class="flex-1 bg-surface rounded-lg border border-border overflow-hidden flex flex-col">
+            <div class="px-3 py-1.5 border-b border-border flex items-center gap-1.5">
+              <div class="w-1 h-1 rounded-full bg-success" style="box-shadow: 0 0 4px #31A24C;"></div><span class="text-[10px] font-bold text-text">LIVE EVENT FEED</span>
+            </div>
+            <div class="flex-1 overflow-y-auto scroll-thin p-1">
+              <div class="flex items-center gap-1 px-1.5 py-1 rounded mb-0.5" style="background: rgba(240,40,74,0.05);">
+                <div class="w-1.5 h-1.5 rounded-full bg-danger"></div>
+                <div class="flex-1 min-w-0 truncate"><div class="text-[9px] text-text font-bold truncate">#14063 Destructive — Explosives</div><div class="text-[7px] text-textmuted">Pottoli Tobin 2 · A12a · 2m</div></div>
+                <span class="inline-flex px-1.5 py-px rounded-full bg-brandlight text-brand text-[8px] font-semibold">new</span>
+              </div>
+              <div class="flex items-center gap-1 px-1.5 py-1 rounded mb-0.5" style="background: rgba(240,40,74,0.05);">
+                <div class="w-1.5 h-1.5 rounded-full bg-danger"></div>
+                <div class="flex-1 min-w-0 truncate"><div class="text-[9px] text-text font-bold truncate">#14047 Destructive — Explosives</div><div class="text-[7px] text-textmuted">Pottoli Tobin 4 · A12a · 18m</div></div>
+                <span class="inline-flex px-1.5 py-px rounded-full bg-brandlight text-brand text-[8px] font-semibold">new</span>
+              </div>
+              <div class="flex items-center gap-1 px-1.5 py-1 rounded mb-0.5">
+                <div class="w-1.5 h-1.5 rounded-full bg-warning"></div>
+                <div class="flex-1 min-w-0 truncate"><div class="text-[9px] text-text truncate">#14046 Compressor Fishing</div><div class="text-[7px] text-textmuted">Pottoli Tobin 4 · A12a · 32m</div></div>
+                <span class="inline-flex px-1.5 py-px rounded-full bg-brandlight text-brand text-[8px] font-semibold">new</span>
+              </div>
+              <div class="flex items-center gap-1 px-1.5 py-1 rounded mb-0.5">
+                <div class="w-1.5 h-1.5 rounded-full bg-success"></div>
+                <div class="flex-1 min-w-0 truncate"><div class="text-[9px] text-text truncate">#13981 Outreach</div><div class="text-[7px] text-textmuted">PKM Tobuiku · A7 · 1h</div></div>
+                <span class="inline-flex px-1.5 py-px rounded-full bg-warningbg text-warning text-[8px] font-semibold">active</span>
+              </div>
+              <div class="flex items-center gap-1 px-1.5 py-1 rounded mb-0.5">
+                <div class="w-1.5 h-1.5 rounded-full bg-success"></div>
+                <div class="flex-1 min-w-0 truncate"><div class="text-[9px] text-text truncate">#13967 Wildlife Sighting</div><div class="text-[7px] text-textmuted">PKM Togong · A6 · 3h</div></div>
+                <span class="inline-flex px-1.5 py-px rounded-full bg-warningbg text-warning text-[8px] font-semibold">active</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Active patrols -->
+          <div class="bg-surface rounded-lg border border-border overflow-hidden">
+            <div class="px-3 py-1.5 border-b border-border flex items-center gap-1.5">
+              <span class="text-[10px]">🛡️</span><span class="text-[10px] font-bold text-text">ACTIVE PATROLS</span><span class="text-[9px] text-brand ml-auto font-semibold">6</span>
+            </div>
+            <table class="w-full text-[10px]">
+              <thead><tr class="bg-elevated border-b border-border">
+                <th class="text-left px-2 py-1 text-[9px] font-semibold text-textmuted uppercase">Ranger</th>
+                <th class="text-left px-2 py-1 text-[9px] font-semibold text-textmuted uppercase">Type</th>
+                <th class="text-left px-2 py-1 text-[9px] font-semibold text-textmuted uppercase">Area</th>
+                <th class="text-right px-2 py-1 text-[9px] font-semibold text-textmuted uppercase">Time</th>
+                <th class="text-right px-2 py-1 text-[9px] font-semibold text-textmuted uppercase">KM</th>
+              </tr></thead>
+              <tbody>
+                <tr class="border-b border-border"><td class="px-2 py-1 text-brand font-medium">Adrianto</td><td class="px-2 py-1">🚶</td><td class="px-2 py-1">A6</td><td class="px-2 py-1 text-right">4h23m</td><td class="px-2 py-1 text-right">18.4</td></tr>
+                <tr class="border-b border-border"><td class="px-2 py-1 text-brand font-medium">PKM Togong</td><td class="px-2 py-1">🚶</td><td class="px-2 py-1">A7</td><td class="px-2 py-1 text-right">3h05m</td><td class="px-2 py-1 text-right">12.1</td></tr>
+                <tr class="border-b border-border"><td class="px-2 py-1 text-brand font-medium">Pottoli Tobin 2</td><td class="px-2 py-1">🚤</td><td class="px-2 py-1">A12a</td><td class="px-2 py-1 text-right">6h12m</td><td class="px-2 py-1 text-right">87.3</td></tr>
+                <tr><td class="px-2 py-1 text-brand font-medium">Saldi</td><td class="px-2 py-1">🚤</td><td class="px-2 py-1">A7</td><td class="px-2 py-1 text-right">1h33m</td><td class="px-2 py-1 text-right">23.5</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ────────────── EVENT KANBAN (Priority 1 — Tier 1, core workflow) ────────────── -->
+    <div id="screen-events" class="screen">
+      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-xl bg-elevated text-textmuted text-[10px] font-semibold">🖥️ Mobile Ready</span>
+      <div class="flex justify-between items-center mt-2 mb-3">
+        <h2 class="text-[19px] font-bold text-text">Event Management — Kanban</h2>
+        <div class="flex gap-1.5">
+          <select class="px-2.5 py-1 rounded-md border border-border bg-elevated text-text text-[11px]"><option>All Categories</option><option>Law Enforcement</option><option>Monitoring</option></select>
+          <select class="px-2.5 py-1 rounded-md border border-border bg-elevated text-text text-[11px]"><option>All Areas</option><option>A12a</option><option>A6</option><option>A7</option></select>
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-3">
+        <!-- New column -->
+        <div class="bg-surface rounded-lg border border-border overflow-hidden">
+          <div class="px-3 py-2 border-b border-border flex items-center gap-1.5">
+            <div class="w-2 h-2 rounded-full bg-brand"></div>
+            <span class="text-xs font-semibold text-text">New</span>
+            <span class="text-[10px] text-textmuted ml-auto">2</span>
+          </div>
+          <div class="p-2 flex flex-col gap-1.5">
+            <div class="bg-bg rounded-md p-2.5 border border-border cursor-grab">
+              <div class="flex justify-between mb-1"><span class="text-[9px] text-textmuted">#14063</span><span class="inline-flex px-2 py-px rounded-full bg-dangerbg text-danger text-[9px] font-semibold">critical</span></div>
+              <div class="text-[11px] font-semibold text-text">Destructive Practices</div>
+              <div class="text-[9px] text-textmuted mt-1">Pottoli Tobin 2 · A12a</div>
+            </div>
+            <div class="bg-bg rounded-md p-2.5 border border-border cursor-grab">
+              <div class="flex justify-between mb-1"><span class="text-[9px] text-textmuted">#14046</span><span class="inline-flex px-2 py-px rounded-full bg-warningbg text-warning text-[9px] font-semibold">high</span></div>
+              <div class="text-[11px] font-semibold text-text">Compressor Fishing</div>
+              <div class="text-[9px] text-textmuted mt-1">Pottoli Tobin 4 · A12a</div>
+            </div>
+          </div>
+        </div>
+        <!-- Active column -->
+        <div class="bg-surface rounded-lg border border-border overflow-hidden">
+          <div class="px-3 py-2 border-b border-border flex items-center gap-1.5">
+            <div class="w-2 h-2 rounded-full bg-warning"></div>
+            <span class="text-xs font-semibold text-text">Active</span>
+            <span class="text-[10px] text-textmuted ml-auto">2</span>
+          </div>
+          <div class="p-2 flex flex-col gap-1.5">
+            <div class="bg-bg rounded-md p-2.5 border border-border cursor-grab">
+              <div class="flex justify-between mb-1"><span class="text-[9px] text-textmuted">#13878</span><span class="inline-flex px-2 py-px rounded-full bg-warningbg text-warning text-[9px] font-semibold">high</span></div>
+              <div class="text-[11px] font-semibold text-text">Destructive — Poison</div>
+              <div class="text-[9px] text-textmuted mt-1">Pottoli Tobin 4 · A12a</div>
+            </div>
+            <div class="bg-bg rounded-md p-2.5 border border-border cursor-grab">
+              <div class="flex justify-between mb-1"><span class="text-[9px] text-textmuted">#13862</span><span class="inline-flex px-2 py-px rounded-full bg-cautionbg text-caution text-[9px] font-semibold">medium</span></div>
+              <div class="text-[11px] font-semibold text-text">Threats on Habitat</div>
+              <div class="text-[9px] text-textmuted mt-1">Saldi · A7</div>
+            </div>
+          </div>
+        </div>
+        <!-- Resolved column -->
+        <div class="bg-surface rounded-lg border border-border overflow-hidden">
+          <div class="px-3 py-2 border-b border-border flex items-center gap-1.5">
+            <div class="w-2 h-2 rounded-full bg-success"></div>
+            <span class="text-xs font-semibold text-text">Resolved</span>
+            <span class="text-[10px] text-textmuted ml-auto">1</span>
+          </div>
+          <div class="p-2 flex flex-col gap-1.5">
+            <div class="bg-bg rounded-md p-2.5 border border-border cursor-grab">
+              <div class="flex justify-between mb-1"><span class="text-[9px] text-textmuted">#13858</span><span class="inline-flex px-2 py-px rounded-full bg-successbg text-success text-[9px] font-semibold">low</span></div>
+              <div class="text-[11px] font-semibold text-text">Wildlife — Turtles</div>
+              <div class="text-[9px] text-textmuted mt-1">Saldi · A6</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ────────────── TIER 2 PLACEHOLDER SCREENS ────────────── -->
+    <!-- The remaining 20 screens are nav-accessible but render a placeholder card in this HTML archive,
+         keeping the file size reasonable. The full React version (mpa-command-center-v6.jsx) has them in full fidelity.
+    -->
+    <div id="placeholder-target" class="screen"></div>
+  </main>
+</div>
+
+<!-- Footer -->
+<div class="bg-surface border-t border-border py-2 text-center">
+  <span class="text-[10px] text-textmuted">Mockup generated by Spec-Driven Platform V31 · Phase 2.8 v6 · Marine Guardian — Banggai MPA · 27 screens (7 Tier 1 fully-built · 20 Tier 2 placeholders)</span>
+</div>
+
+<script>
+const screens = [
+  { id: 'login', title: 'Login' },
+  { id: 'warroom', title: 'Command Center War Room' },
+  { id: 'events', title: 'Event Kanban' },
+  { id: 'event-detail', title: 'Event Detail' },
+  { id: 'sync-health', title: 'Sync Health' },
+  { id: 'settings', title: 'Tenant Settings' },
+  { id: 'audit', title: 'Audit Log' },
+];
+const tier1Ids = screens.map(s => s.id);
+
+const placeholderTitles = {
+  dashboard: 'Dashboard — Standard Ops View',
+  map: 'Live Map — Full-screen MapLibre GL',
+  'patrol-monitor': 'Patrol Monitor',
+  'patrol-areas': 'Patrol Area Map Editor',
+  area-boundaries: 'Area Boundaries Editor',
+  'patrol-schedule': 'Patrol Schedule — Gantt',
+  fuel: 'Fuel Logging & Consumption',
+  'report-area': 'Per Area Report',
+  'report-coverage': 'Patrol Coverage Template Report (3-page)',
+  'report-consolidated': 'Consolidated Report — All Areas',
+  'report-detailed': 'Detailed Event Log',
+  'report-rangers': 'Ranger Performance Matrix',
+  'ranger-detail': 'Ranger Detail',
+  exports: 'Exports Queue',
+  alerts: 'Alert Rules',
+  'alert-rule-form': 'Alert Rule Form',
+  notifications: 'Notification Center',
+  users: 'User Management',
+  'admin-tenants': 'Super Admin — Tenants',
+  'admin-impersonate': 'Super Admin Impersonation',
+};
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  const navBtn = document.querySelector(`.nav-btn[onclick*="'${id}'"]`);
+  if (navBtn) navBtn.classList.add('active');
+  if (tier1Ids.includes(id)) {
+    const el = document.getElementById('screen-' + id);
+    if (el) el.classList.add('active');
+  } else {
+    const target = document.getElementById('placeholder-target');
+    target.innerHTML = `
+      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-xl bg-elevated text-textmuted text-[10px] font-semibold">🖥️ Mobile Ready</span>
+      <div class="mt-3 flex flex-col items-center justify-center" style="min-height: 60vh;">
+        <div class="bg-surface border border-border rounded-xl p-8 max-w-md text-center">
+          <div class="text-3xl mb-3">📐</div>
+          <div class="text-base font-bold text-text mb-2">${placeholderTitles[id] || id}</div>
+          <div class="text-[11px] text-textsec leading-relaxed mb-3">Tier 2 screen — nav-accessible, visually confirmed, but rendered as placeholder in the HTML archive to keep the file size manageable.</div>
+          <div class="text-[10px] text-textmuted leading-snug">Full implementation visible in the React mockup (mpa-command-center-v6.jsx).<br>To expand: include this screen in the next Phase 2.8 revision.</div>
+        </div>
+      </div>
+    `;
+    target.classList.add('active');
+  }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function toggleNav() {
+  const sb = document.getElementById('sidebar');
+  sb.style.display = sb.style.display === 'none' ? 'block' : 'none';
+}
+
+function setSyncState(state) {
+  const states = ['running', 'rate_limited', 'auth_failed', 'manual_pause'];
+  const colors = { running: 'success', rate_limited: 'caution', auth_failed: 'danger', manual_pause: 'textmuted' };
+  states.forEach(s => {
+    const btn = document.getElementById('state-' + s);
+    btn.className = `px-2.5 py-1 rounded-xl border text-[10px] font-semibold ${s === state ? `border-${colors[s]} bg-${colors[s]}bg text-${colors[s]}` : 'border-border text-textsec'}`;
+    document.getElementById('banner-' + s).classList.toggle('hidden', s !== state);
+  });
+  document.getElementById('auth-fail-count').textContent = state === 'auth_failed' ? '2 (tripped)' : '0';
+  document.getElementById('auth-fail-count').style.color = state === 'auth_failed' ? '#F0284A' : '#E4E6EB';
+}
+
+function setAuthPath(path) {
+  document.getElementById('auth-A').className = `flex-1 p-2.5 rounded-md border ${path === 'A' ? 'border-brand bg-brandlight text-brand' : 'border-border text-textsec'} text-[10px] font-semibold text-left cursor-pointer`;
+  document.getElementById('auth-B').className = `flex-1 p-2.5 rounded-md border ${path === 'B' ? 'border-brand bg-brandlight text-brand' : 'border-border text-textsec'} text-[10px] font-semibold text-left cursor-pointer`;
+  document.getElementById('auth-fields-A').classList.toggle('hidden', path !== 'A');
+  document.getElementById('auth-fields-B').classList.toggle('hidden', path !== 'B');
+}
+
+// Landing screen
+showScreen('sync-health');
+</script>
+
+</body>
+</html>
