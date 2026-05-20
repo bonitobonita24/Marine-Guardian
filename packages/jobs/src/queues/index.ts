@@ -8,6 +8,10 @@ export {
   scheduleRecurringMaintenance,
 } from "./maintenance.queue";
 export {
+  getAreaRederiveQueue,
+  enqueueAreaRederive,
+} from "./area-rederive.queue";
+export {
   QUEUE_NAMES,
   type QueueName,
   type JobPayloadMap,
@@ -16,4 +20,5 @@ export {
   type AlertJobPayload,
   type EmailJobPayload,
   type MaintenanceJobPayload,
+  type AreaRederiveJobPayload,
 } from "./types";

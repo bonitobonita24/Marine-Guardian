@@ -8,6 +8,10 @@
 //      NOT for FuelEntry (schema does not have the column).
 //
 // All prisma calls are mocked — no real DB I/O.
+//
+// 5.1c relocation note: moved from apps/web/src/server/sync/__tests__/ to
+// packages/jobs/src/lib/__tests__/ alongside the relocated helper. Test
+// content is identical — only the import path resolves to the new location.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { applyAreaDerivation, type PrismaClientLike } from "../area-derivation";

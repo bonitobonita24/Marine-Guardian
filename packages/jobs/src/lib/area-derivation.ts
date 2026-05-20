@@ -24,6 +24,12 @@
  *
  * Exceptions propagate — findUniqueOrThrow on a bad id is a programmer
  * bug, not a runtime concern.
+ *
+ * 5.1c relocation note: moved from apps/web/src/server/sync/ to
+ * packages/jobs/src/lib/ so the BullMQ worker (which lives in
+ * @marine-guardian/jobs) can consume it directly. apps/web continues
+ * to consume it via the @marine-guardian/jobs workspace dep (already
+ * declared in apps/web/package.json).
  */
 
 import type { ExtendedPrismaClient } from "@marine-guardian/db";
