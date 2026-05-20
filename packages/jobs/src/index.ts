@@ -15,6 +15,8 @@ export {
   scheduleRecurringMaintenance,
   getAreaRederiveQueue,
   enqueueAreaRederive,
+  getPatrolTrackMaterializeQueue,
+  enqueuePatrolTrackMaterialize,
   QUEUE_NAMES,
   type QueueName,
   type JobPayloadMap,
@@ -24,6 +26,7 @@ export {
   type EmailJobPayload,
   type MaintenanceJobPayload,
   type AreaRederiveJobPayload,
+  type PatrolTrackMaterializeJobPayload,
 } from "./queues/index";
 
 export {
@@ -33,6 +36,9 @@ export {
   startAreaRederiveWorker,
   AREA_REDERIVE_LIMITER,
   AREA_REDERIVE_CONCURRENCY,
+  startPatrolTrackMaterializeWorker,
+  PATROL_TRACK_MATERIALIZE_LIMITER,
+  PATROL_TRACK_MATERIALIZE_CONCURRENCY,
 } from "./workers/index";
 
 // 5.1c — re-export the area-derivation helper so apps/web (5.1e admin

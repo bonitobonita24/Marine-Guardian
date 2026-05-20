@@ -12,6 +12,10 @@ export {
   enqueueAreaRederive,
 } from "./area-rederive.queue";
 export {
+  getPatrolTrackMaterializeQueue,
+  enqueuePatrolTrackMaterialize,
+} from "./patrol-track-materialize.queue";
+export {
   QUEUE_NAMES,
   type QueueName,
   type JobPayloadMap,
@@ -21,4 +25,5 @@ export {
   type EmailJobPayload,
   type MaintenanceJobPayload,
   type AreaRederiveJobPayload,
+  type PatrolTrackMaterializeJobPayload,
 } from "./types";

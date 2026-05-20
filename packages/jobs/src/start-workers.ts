@@ -5,6 +5,7 @@ import { processAlert } from "./processors/alerts.processor";
 import { processEmail } from "./processors/email.processor";
 import { processMaintenance } from "./processors/maintenance.processor";
 import { startAreaRederiveWorker } from "./workers/area-rederive.worker";
+import { startPatrolTrackMaterializeWorker } from "./workers/patrol-track-materialize.worker";
 
 console.log("[worker] Starting Marine Guardian workers...");
 
@@ -17,6 +18,12 @@ const workers = [
   // factory (see workers/area-rederive.worker.ts) to keep the v2 spec L545
   // ceiling co-located with the worker registration.
   startAreaRederiveWorker(),
+  // 5.2b — patrol-track-materialize worker. Concurrency=5 + conservative
+  // limiter (20/sec) live inside the factory (see workers/patrol-track-
+  // materialize.worker.ts) — the ER tracks endpoint typically has stricter
+  // rate limits than events/patrols, so this caps the per-tenant burst
+  // from 5.2c admin tenant-wide rebuild.
+  startPatrolTrackMaterializeWorker(),
 ];
 
 console.log(`[worker] ${String(workers.length)} workers registered: ${Object.values(QUEUE_NAMES).join(", ")}`);
