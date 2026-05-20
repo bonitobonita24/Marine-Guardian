@@ -4,6 +4,24 @@
 # READ ORDER: 🔴 first → 🟤 second → rest by relevance
 # ---
 
+## 2026-05-20 — 🟡 platformPrisma → ExtendedPrismaClient cast pattern for BullMQ processors
+- Type:      🟡 fix
+- Phase:     Phase 8 Batch 5 Sub-batch 5.1c (BullMQ area-rederive processor) — pattern applies to ALL future BullMQ processors that call into ExtendedPrismaClient-typed helpers
+- Files:     packages/jobs/src/processors/area-rederive.processor.ts (pattern origin), packages/jobs/src/lib/area-derivation.ts (helper expecting ExtendedPrismaClient)
+- Concepts:  bullmq, prisma, extendedprismaclient, type-narrowing, tenant-guard, worker-context, l6-tenant-guard, processor-typing
+- Narrative: BullMQ processors instantiate `platformPrisma` (the un-extended PrismaClient — existing pattern from er-sync/alerts/email/maintenance processors) but the helpers they call (e.g. applyAreaDerivation from 5.1b) type their `prisma` arg as `ExtendedPrismaClient` (the L6 tenant-guarded variant — this typing decision was deliberate in 5.1b to share the type with admin-context tRPC callers in 5.1e where ctx.prisma IS already extended). Direct assignment fails typecheck.
+
+  RESOLUTION: cast `platformPrisma as unknown as ExtendedPrismaClient` in the processor module with a clear explanatory comment. The cast is structurally sound because: (1) worker queries ALWAYS pass explicit tenantId — the row's tenantId is what scopes the boundary fetch, never a context-derived one — so the L6 tenant-guard extension is a no-op in worker context; (2) the @marine-guardian/db encryption extension is unused for the plaintext columns the helper touches (tenantId / areaName / locationLat / locationLon / areaBoundaryId / areaDerivedAt — none are encrypted columns); (3) runtime shape is structurally compatible with ExtendedPrismaClient for every model + method invoked.
+
+  Why NOT the cleaner alternatives:
+  - "Instantiate a separate ExtendedPrismaClient just for the worker" — adds complexity without runtime benefit (worker would need its own connection pool config, healthcheck, shutdown handler) and the extension's purpose (tenant context propagation) is not needed since the worker context has no implicit tenantId to propagate.
+  - "Change applyAreaDerivation to accept `PrismaClient | ExtendedPrismaClient`" — invasive change to the helper's public type contract; risks blowing apart 5.1e admin tRPC where the extended client is the natural type.
+  - "Make a PrismaClientLike intersection type that accepts both" — proliferates type aliases; the `as unknown as` cast is local to one module and clearly intentional with the comment.
+
+  HOW 5.1d INHERITS THIS: when 5.1d adds inline applyAreaDerivation to er-sync.processor.ts, the same cast applies — er-sync.processor.ts already uses `platformPrisma` (same pattern as 5.1c). 5.1d processor MUST use the identical cast pattern + identical explanatory comment for consistency. Do NOT invent a new helper type alias.
+
+  HOW 5.1e DIFFERS: 5.1e admin tRPC mutation calls applyAreaDerivation with `ctx.prisma` which IS already typed as ExtendedPrismaClient — no cast needed there. This is the architectural reason 5.1b's helper was typed for ExtendedPrismaClient: 5.1e is the "primary" caller pathway with cleaner typing, and worker callers absorb the cast as the cost of running outside a tRPC context.
+
 ## 2026-05-19 — 🔴 `pnpm prisma migrate dev` hangs on stale advisory locks from backgrounded prior runs
 - Type:      🔴 gotcha
 - Phase:     Phase 8 Batch 4 Sub-batch 4.1d (NotificationRecipient split with data migration)
