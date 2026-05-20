@@ -141,20 +141,22 @@ enum ReportExportStatus {
 // ─────────────────────────────────────────────────
 
 model Tenant {
-  id                    String   @id @default(cuid())
-  name                  String
-  slug                  String   @unique
-  isActive              Boolean  @default(true) @map("is_active")
-  timezone              String   @default("UTC")
-  syncFrequencySeconds  Int      @default(300) @map("sync_frequency_seconds")
-  earthrangerUrl        String?  @map("earthranger_url")
-  earthrangerUsername   String?  @map("earthranger_username")
-  earthrangerPassword   String?  @map("earthranger_password")
-  earthrangerDasToken   String?  @map("earthranger_das_token")
-  earthrangerTrackToken String?  @map("earthranger_track_token")
-  currency              String   @default("IDR")
-  createdAt             DateTime @default(now()) @map("created_at")
-  updatedAt             DateTime @updatedAt @map("updated_at")
+  id                      String   @id @default(cuid())
+  name                    String
+  slug                    String   @unique
+  isActive                Boolean  @default(true) @map("is_active")
+  timezone                String   @default("UTC")
+  syncFrequencySeconds    Int      @default(300) @map("sync_frequency_seconds")
+  earthrangerUrl          String?  @map("earthranger_url")
+  earthrangerUsername     String?  @map("earthranger_username")
+  earthrangerPassword     String?  @map("earthranger_password")
+  earthrangerDasToken     String?  @map("earthranger_das_token")
+  earthrangerTrackToken   String?  @map("earthranger_track_token")
+  currency                String   @default("IDR")
+  arcgisBoundaryUrl       String?  @map("arcgis_boundary_url")
+  arcgisBoundaryOutfields String?  @map("arcgis_boundary_outfields")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
 
   users               User[]
   events              Event[]
@@ -194,18 +196,18 @@ model User {
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 
-  tenant                   Tenant?              @relation(fields: [tenantId], references: [id])
+  tenant                   Tenant?                 @relation(fields: [tenantId], references: [id])
   notificationRecipients   NotificationRecipient[]
-  createdPatrolAreas       PatrolArea[]         @relation("PatrolAreaCreatedBy")
-  createdAreaBoundaries    AreaBoundary[]       @relation("AreaBoundaryCreatedBy")
-  createdAlertRules        AlertRule[]          @relation("AlertRuleCreatedBy")
-  patrolSchedules          PatrolSchedule[]     @relation("PatrolScheduleRanger")
-  createdPatrolSchedules   PatrolSchedule[]     @relation("PatrolScheduleCreatedBy")
-  addedAccompanyingRangers AccompanyingRanger[] @relation("AccompanyingRangerAddedBy")
-  registeredAsRanger       AccompanyingRanger[] @relation("AccompanyingRangerRegistered")
+  createdPatrolAreas       PatrolArea[]            @relation("PatrolAreaCreatedBy")
+  createdAreaBoundaries    AreaBoundary[]          @relation("AreaBoundaryCreatedBy")
+  createdAlertRules        AlertRule[]             @relation("AlertRuleCreatedBy")
+  patrolSchedules          PatrolSchedule[]        @relation("PatrolScheduleRanger")
+  createdPatrolSchedules   PatrolSchedule[]        @relation("PatrolScheduleCreatedBy")
+  addedAccompanyingRangers AccompanyingRanger[]    @relation("AccompanyingRangerAddedBy")
+  registeredAsRanger       AccompanyingRanger[]    @relation("AccompanyingRangerRegistered")
   auditLogs                AuditLog[]
-  loggedFuelEntries        FuelEntry[]          @relation("FuelEntryLoggedBy")
-  requestedReportExports   ReportExport[]       @relation("ReportExportRequestedBy")
+  loggedFuelEntries        FuelEntry[]             @relation("FuelEntryLoggedBy")
+  requestedReportExports   ReportExport[]          @relation("ReportExportRequestedBy")
 
   @@index([tenantId])
   @@map("users")
@@ -247,12 +249,16 @@ model Event {
   reportedAt       DateTime?  @map("reported_at")
   eventDetailsJson Json?      @map("event_details_json")
   notesJson        Json?      @map("notes_json")
+  areaName         String?    @map("area_name")
+  areaBoundaryId   String?    @map("area_boundary_id")
+  areaDerivedAt    DateTime?  @map("area_derived_at")
   syncedAt         DateTime   @map("synced_at")
   createdAt        DateTime   @default(now()) @map("created_at")
   updatedAt        DateTime   @updatedAt @map("updated_at")
 
   tenant              Tenant               @relation(fields: [tenantId], references: [id])
   eventType           EventType?           @relation(fields: [eventTypeId], references: [id])
+  areaBoundary        AreaBoundary?        @relation(fields: [areaBoundaryId], references: [id])
   notifications       Notification[]
   alertHistory        AlertHistory[]
   accompanyingRangers AccompanyingRanger[] @relation("AccompanyingRangerEvent")
@@ -261,6 +267,7 @@ model Event {
   @@index([tenantId])
   @@index([state])
   @@index([priority])
+  @@index([tenantId, areaBoundaryId])
   @@map("events")
 }
 
@@ -324,11 +331,15 @@ model Patrol {
   endTime         DateTime?   @map("end_time")
   totalDistanceKm Float?      @map("total_distance_km")
   totalHours      Float?      @map("total_hours")
+  areaName        String?     @map("area_name")
+  areaBoundaryId  String?     @map("area_boundary_id")
+  areaDerivedAt   DateTime?   @map("area_derived_at")
   syncedAt        DateTime    @map("synced_at")
   createdAt       DateTime    @default(now()) @map("created_at")
   updatedAt       DateTime    @updatedAt @map("updated_at")
 
   tenant              Tenant               @relation(fields: [tenantId], references: [id])
+  areaBoundary        AreaBoundary?        @relation(fields: [areaBoundaryId], references: [id])
   segments            PatrolSegment[]
   accompanyingRangers AccompanyingRanger[] @relation("AccompanyingRangerPatrol")
   notifications       Notification[]
@@ -337,6 +348,7 @@ model Patrol {
   @@unique([tenantId, erPatrolId])
   @@index([tenantId])
   @@index([state])
+  @@index([tenantId, areaBoundaryId])
   @@map("patrols")
 }
 
@@ -420,6 +432,8 @@ model AreaBoundary {
   tenant      Tenant      @relation(fields: [tenantId], references: [id])
   creator     User        @relation("AreaBoundaryCreatedBy", fields: [createdByUserId], references: [id])
   fuelEntries FuelEntry[]
+  events      Event[]
+  patrols     Patrol[]
 
   @@index([tenantId])
   @@index([tenantId, isEnabled])
@@ -427,21 +441,21 @@ model AreaBoundary {
 }
 
 model PatrolTrack {
-  id             String      @id @default(cuid())
-  tenantId       String      @map("tenant_id")
-  patrolId       String      @unique @map("patrol_id")
-  subjectId      String?     @map("subject_id")
-  since          DateTime
-  until          DateTime
-  trackGeojson   Json        @map("track_geojson")
-  hasTimestamps  Boolean     @default(false) @map("has_timestamps")
-  pointCount     Int         @default(0) @map("point_count")
-  lastTrackTime  DateTime?   @map("last_track_time")
-  patrolEnded    Boolean     @default(false) @map("patrol_ended")
-  source         TrackSource
-  fetchedAt      DateTime    @map("fetched_at")
-  createdAt      DateTime    @default(now()) @map("created_at")
-  updatedAt      DateTime    @updatedAt @map("updated_at")
+  id            String      @id @default(cuid())
+  tenantId      String      @map("tenant_id")
+  patrolId      String      @unique @map("patrol_id")
+  subjectId     String?     @map("subject_id")
+  since         DateTime
+  until         DateTime
+  trackGeojson  Json        @map("track_geojson")
+  hasTimestamps Boolean     @default(false) @map("has_timestamps")
+  pointCount    Int         @default(0) @map("point_count")
+  lastTrackTime DateTime?   @map("last_track_time")
+  patrolEnded   Boolean     @default(false) @map("patrol_ended")
+  source        TrackSource
+  fetchedAt     DateTime    @map("fetched_at")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
   patrol Patrol @relation(fields: [patrolId], references: [id], onDelete: Cascade)

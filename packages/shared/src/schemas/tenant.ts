@@ -14,6 +14,8 @@ export const tenantSchema = z.object({
   isActive: z.boolean().default(true),
   syncFrequencySeconds: z.number().int().min(60).max(86400).default(300),
   currency: z.string().length(3).default("IDR"),
+  arcgisBoundaryUrl: z.string().url().nullable(),
+  arcgisBoundaryOutfields: z.string().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 });

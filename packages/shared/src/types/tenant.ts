@@ -12,6 +12,8 @@ export interface Tenant {
   isActive: boolean;
   syncFrequencySeconds: number;
   currency: string;
+  arcgisBoundaryUrl: string | null;
+  arcgisBoundaryOutfields: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

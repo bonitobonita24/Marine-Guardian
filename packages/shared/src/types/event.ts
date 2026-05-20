@@ -18,6 +18,8 @@ export interface Event {
   eventDetailsJson: Record<string, unknown> | null;
   notesJson: Record<string, unknown>[] | null;
   areaName: string | null;
+  areaBoundaryId: string | null;
+  areaDerivedAt: Date | null;
   syncedAt: Date;
   createdAt: Date;
   updatedAt: Date;

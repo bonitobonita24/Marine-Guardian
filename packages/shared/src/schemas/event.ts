@@ -19,6 +19,8 @@ export const eventSchema = z.object({
   eventDetailsJson: z.record(z.unknown()).nullable(),
   notesJson: z.array(z.record(z.unknown())).nullable(),
   areaName: z.string().max(255).nullable(),
+  areaBoundaryId: z.string().cuid().nullable(),
+  areaDerivedAt: z.coerce.date().nullable(),
   syncedAt: z.coerce.date(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
