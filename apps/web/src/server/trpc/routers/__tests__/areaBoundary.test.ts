@@ -10,7 +10,20 @@ vi.mock("@marine-guardian/db", () => ({
       updateMany: vi.fn(),
       deleteMany: vi.fn(),
     },
+    event: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+    patrol: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+    fuelEntry: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
   },
+}));
+
+vi.mock("@marine-guardian/jobs", () => ({
+  enqueueAreaRederive: vi.fn().mockResolvedValue("job-id"),
 }));
 
 vi.mock("../../../lib/rate-limit", () => ({
@@ -27,6 +40,7 @@ vi.mock("../../../auth", () => ({
 }));
 
 import { prisma } from "@marine-guardian/db";
+import { enqueueAreaRederive } from "@marine-guardian/jobs";
 import { createCallerFactory } from "../../trpc";
 import { areaBoundaryRouter } from "../areaBoundary";
 
@@ -132,7 +146,7 @@ describe("areaBoundary.create / update / delete (RBAC)", () => {
       arcgisReferenceId: null,
     });
 
-    expect(result.id).toBe("ab-new");
+    expect(result.boundary.id).toBe("ab-new");
     expect(vi.mocked(prisma.areaBoundary.create)).toHaveBeenCalledWith({
       data: partial<{ tenantId: string; createdByUserId: string }>({
         tenantId: TENANT_ID,
@@ -186,5 +200,177 @@ describe("areaBoundary.create / update / delete (RBAC)", () => {
     expect(vi.mocked(prisma.areaBoundary.deleteMany)).toHaveBeenCalledWith({
       where: { id: "ab-1", tenantId: TENANT_ID },
     });
+  });
+});
+
+// 5.1d — AreaBoundary CUD fan-out. When a boundary is created, updated, or
+// deleted, every Event + Patrol + FuelEntry row in the tenant must be
+// enqueued for area-rederive. v2 L545. Defense-in-depth tenant scoping per
+// security.md. The 50/sec rate limiter on the worker (5.1c) absorbs load.
+describe("areaBoundary CUD fan-out (5.1d)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Reset per-test fan-out fixtures — each test sets what it needs.
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.fuelEntry.findMany).mockResolvedValue([]);
+  });
+
+  it("create fans out enqueueAreaRederive for every Event + Patrol + FuelEntry in tenant", async () => {
+    vi.mocked(prisma.areaBoundary.create).mockResolvedValue({
+      id: "ab-new",
+      tenantId: TENANT_ID,
+    } as never);
+    vi.mocked(prisma.event.findMany).mockResolvedValue([
+      { id: "evt-1" },
+      { id: "evt-2" },
+    ] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([
+      { id: "ptrl-1" },
+    ] as never);
+    vi.mocked(prisma.fuelEntry.findMany).mockResolvedValue([
+      { id: "fuel-1" },
+      { id: "fuel-2" },
+    ] as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.create({
+      name: "Apo Reef Park",
+      aliases: [],
+      region: "Mindoro",
+      source: "custom",
+      geometryType: "Polygon",
+      geometryGeojson: VALID_GEOMETRY,
+      isEnabled: true,
+      overrideOfficial: false,
+      arcgisReferenceId: null,
+    });
+
+    expect(result.fanOut.enqueued).toBe(5);
+    expect(vi.mocked(enqueueAreaRederive)).toHaveBeenCalledTimes(5);
+    expect(vi.mocked(enqueueAreaRederive)).toHaveBeenCalledWith({
+      entity: "event",
+      id: "evt-1",
+      tenantId: TENANT_ID,
+      userId: USER_ID,
+    });
+    expect(vi.mocked(enqueueAreaRederive)).toHaveBeenCalledWith({
+      entity: "event",
+      id: "evt-2",
+      tenantId: TENANT_ID,
+      userId: USER_ID,
+    });
+    expect(vi.mocked(enqueueAreaRederive)).toHaveBeenCalledWith({
+      entity: "patrol",
+      id: "ptrl-1",
+      tenantId: TENANT_ID,
+      userId: USER_ID,
+    });
+    expect(vi.mocked(enqueueAreaRederive)).toHaveBeenCalledWith({
+      entity: "fuelEntry",
+      id: "fuel-1",
+      tenantId: TENANT_ID,
+      userId: USER_ID,
+    });
+    expect(vi.mocked(enqueueAreaRederive)).toHaveBeenCalledWith({
+      entity: "fuelEntry",
+      id: "fuel-2",
+      tenantId: TENANT_ID,
+      userId: USER_ID,
+    });
+  });
+
+  it("create fan-out queries are scoped to the requesting tenant (no cross-tenant leakage)", async () => {
+    vi.mocked(prisma.areaBoundary.create).mockResolvedValue({
+      id: "ab-new",
+      tenantId: TENANT_ID,
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    await caller.create({
+      name: "Apo Reef Park",
+      aliases: [],
+      region: "Mindoro",
+      source: "custom",
+      geometryType: "Polygon",
+      geometryGeojson: VALID_GEOMETRY,
+      isEnabled: true,
+      overrideOfficial: false,
+      arcgisReferenceId: null,
+    });
+
+    // Every fan-out query MUST include explicit tenantId scoping.
+    expect(vi.mocked(prisma.event.findMany)).toHaveBeenCalledWith({
+      where: { tenantId: TENANT_ID },
+      select: { id: true },
+    });
+    expect(vi.mocked(prisma.patrol.findMany)).toHaveBeenCalledWith({
+      where: { tenantId: TENANT_ID },
+      select: { id: true },
+    });
+    expect(vi.mocked(prisma.fuelEntry.findMany)).toHaveBeenCalledWith({
+      where: { tenantId: TENANT_ID },
+      select: { id: true },
+    });
+  });
+
+  it("update fans out when result.count > 0", async () => {
+    vi.mocked(prisma.areaBoundary.updateMany).mockResolvedValue({ count: 1 });
+    vi.mocked(prisma.event.findMany).mockResolvedValue([
+      { id: "evt-1" },
+    ] as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.update({ id: "ab-1", isEnabled: false });
+
+    expect(result.result.count).toBe(1);
+    expect(result.fanOut.enqueued).toBe(1);
+    expect(vi.mocked(enqueueAreaRederive)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(enqueueAreaRederive)).toHaveBeenCalledWith({
+      entity: "event",
+      id: "evt-1",
+      tenantId: TENANT_ID,
+      userId: USER_ID,
+    });
+  });
+
+  it("update does NOT fan out when result.count === 0", async () => {
+    vi.mocked(prisma.areaBoundary.updateMany).mockResolvedValue({ count: 0 });
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.update({ id: "ab-missing", isEnabled: false });
+
+    expect(result.result.count).toBe(0);
+    expect(result.fanOut.enqueued).toBe(0);
+    expect(vi.mocked(enqueueAreaRederive)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.event.findMany)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.patrol.findMany)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.fuelEntry.findMany)).not.toHaveBeenCalled();
+  });
+
+  it("delete fans out when result.count > 0", async () => {
+    vi.mocked(prisma.areaBoundary.deleteMany).mockResolvedValue({ count: 1 });
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([
+      { id: "ptrl-1" },
+      { id: "ptrl-2" },
+    ] as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.delete({ id: "ab-1" });
+
+    expect(result.result.count).toBe(1);
+    expect(result.fanOut.enqueued).toBe(2);
+    expect(vi.mocked(enqueueAreaRederive)).toHaveBeenCalledTimes(2);
+  });
+
+  it("delete does NOT fan out when result.count === 0", async () => {
+    vi.mocked(prisma.areaBoundary.deleteMany).mockResolvedValue({ count: 0 });
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.delete({ id: "ab-missing" });
+
+    expect(result.result.count).toBe(0);
+    expect(result.fanOut.enqueued).toBe(0);
+    expect(vi.mocked(enqueueAreaRederive)).not.toHaveBeenCalled();
   });
 });

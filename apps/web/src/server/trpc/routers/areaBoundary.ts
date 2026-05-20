@@ -7,6 +7,45 @@ import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
 import { adminProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
+import { enqueueAreaRederive } from "@marine-guardian/jobs";
+
+// 5.1d — AreaBoundary CUD fan-out helper. When a boundary is created,
+// updated, or deleted, the geometry universe for the tenant changes —
+// every previously-derived areaBoundaryId on Event + Patrol + FuelEntry
+// rows in that tenant is now potentially stale. Fan out enqueueAreaRederive
+// for every row in the tenant. The BullMQ queue's 50/sec rate limiter
+// (set in 5.1c worker) absorbs the load. Explicit `where: { tenantId }`
+// is defense-in-depth — L6 auto-injects but the reports/exports rule in
+// security.md requires explicit tenant scoping on every fan-out query.
+// userId is the triggering admin (passed through from ctx.userId) — required
+// by BaseJobPayload + validateTenantContext, surfaced in AuditLog at 5.1e.
+async function fanOutAreaRederive(
+  tenantId: string,
+  userId: string,
+): Promise<{ enqueued: number }> {
+  const [events, patrols, fuelEntries] = await Promise.all([
+    prisma.event.findMany({ where: { tenantId }, select: { id: true } }),
+    prisma.patrol.findMany({ where: { tenantId }, select: { id: true } }),
+    prisma.fuelEntry.findMany({ where: { tenantId }, select: { id: true } }),
+  ]);
+  await Promise.all([
+    ...events.map((e) =>
+      enqueueAreaRederive({ entity: "event", id: e.id, tenantId, userId }),
+    ),
+    ...patrols.map((p) =>
+      enqueueAreaRederive({ entity: "patrol", id: p.id, tenantId, userId }),
+    ),
+    ...fuelEntries.map((f) =>
+      enqueueAreaRederive({
+        entity: "fuelEntry",
+        id: f.id,
+        tenantId,
+        userId,
+      }),
+    ),
+  ]);
+  return { enqueued: events.length + patrols.length + fuelEntries.length };
+}
 
 export const areaBoundaryRouter = router({
   list: tenantProcedure
@@ -50,7 +89,7 @@ export const areaBoundaryRouter = router({
   create: adminProcedure
     .input(createAreaBoundarySchema)
     .mutation(async ({ ctx, input }) => {
-      return prisma.areaBoundary.create({
+      const boundary = await prisma.areaBoundary.create({
         data: {
           name: input.name,
           aliases: input.aliases,
@@ -67,6 +106,8 @@ export const areaBoundaryRouter = router({
           createdByUserId: ctx.userId,
         },
       });
+      const fanOut = await fanOutAreaRederive(ctx.tenantId, ctx.userId);
+      return { boundary, fanOut };
     }),
 
   update: adminProcedure
@@ -78,17 +119,27 @@ export const areaBoundaryRouter = router({
       const data = Object.fromEntries(
         Object.entries(rest).filter(([, v]) => v !== undefined)
       );
-      return prisma.areaBoundary.updateMany({
+      const result = await prisma.areaBoundary.updateMany({
         where: { id, tenantId: ctx.tenantId },
         data,
       });
+      const fanOut =
+        result.count > 0
+          ? await fanOutAreaRederive(ctx.tenantId, ctx.userId)
+          : { enqueued: 0 };
+      return { result, fanOut };
     }),
 
   delete: adminProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      return prisma.areaBoundary.deleteMany({
+      const result = await prisma.areaBoundary.deleteMany({
         where: { id: input.id, tenantId: ctx.tenantId },
       });
+      const fanOut =
+        result.count > 0
+          ? await fanOutAreaRederive(ctx.tenantId, ctx.userId)
+          : { enqueued: 0 };
+      return { result, fanOut };
     }),
 });
