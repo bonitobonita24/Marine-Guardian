@@ -60,19 +60,66 @@ interface ErObservation {
   additional?: Record<string, unknown>;
 }
 
+/**
+ * EarthRanger track response shape (per /subject/{id}/tracks/).
+ * Standard GeoJSON FeatureCollection with LineString features carrying
+ * coordinate timestamps in `properties.coordinateProperties.times`.
+ *
+ * Exported because Phase 8 Batch 5 Sub-batch 5.2a (PatrolTrack materialization)
+ * narrows ER's response into the PatrolTrack.trackGeojson Json column and
+ * derives pointCount, hasTimestamps, lastTrackTime from feature properties.
+ */
+export interface ErTrackCoordinate3 {
+  0: number;
+  1: number;
+  2?: number;
+  length: 2 | 3;
+}
+
+export interface ErTrackFeature {
+  type: "Feature";
+  geometry: {
+    type: "LineString";
+    coordinates: Array<[number, number] | [number, number, number]>;
+  };
+  properties: {
+    title?: string;
+    subject_id?: string;
+    coordinateProperties?: {
+      times?: string[];
+    };
+    [key: string]: unknown;
+  };
+}
+
+export interface ErTrackResponse {
+  type: "FeatureCollection";
+  features: ErTrackFeature[];
+}
+
 export class EarthRangerClient {
   private baseUrl: string;
   private token: string;
+  private trackToken: string;
 
-  constructor(baseUrl: string, token: string) {
+  /**
+   * @param baseUrl     EarthRanger site base URL (e.g. https://example.pamdas.org)
+   * @param token       DAS API bearer token (events, patrols, subjects, observations)
+   * @param trackToken  Optional separate token for the tracks endpoint. Some ER
+   *                    deployments issue a dedicated higher-rate-limit token for
+   *                    track fetching. Defaults to `token` when omitted —
+   *                    backward compatible with all pre-5.2a callers.
+   */
+  constructor(baseUrl: string, token: string, trackToken?: string) {
     this.baseUrl = baseUrl.replace(/\/+$/, "");
     this.token = token;
+    this.trackToken = trackToken ?? token;
   }
 
-  private async request<T>(path: string): Promise<T> {
+  private async request<T>(path: string, bearer?: string): Promise<T> {
     const url = `${this.baseUrl}/api/v1.0${path}`;
     const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${this.token}` },
+      headers: { Authorization: `Bearer ${bearer ?? this.token}` },
     });
     if (!res.ok) {
       throw new Error(`EarthRanger API error: ${String(res.status)} ${res.statusText}`);
@@ -105,5 +152,33 @@ export class EarthRangerClient {
   async getObservations(since?: string): Promise<ErObservation[]> {
     const qs = since !== undefined ? `?updated_since=${encodeURIComponent(since)}` : "";
     return this.request<ErObservation[]>("/observations" + qs);
+  }
+
+  /**
+   * Fetch the GPS track for a single ER subject between two timestamps.
+   *
+   * Endpoint: GET /api/v1.0/subject/{subjectId}/tracks/?since=&until=
+   * Returns a GeoJSON FeatureCollection of LineString features.
+   * Uses `trackToken` from the constructor (falls back to the main token if a
+   * dedicated track token was not provided).
+   *
+   * Consumed by Phase 8 Batch 5 Sub-batch 5.2a — materializePatrolTrack
+   * (packages/jobs/src/lib/patrol-track-materialization.ts) — to populate
+   * the PatrolTrack.trackGeojson column.
+   *
+   * @param subjectId  ER subject id (typically from PatrolSegment.leaderErId)
+   * @param since      ISO timestamp (inclusive lower bound)
+   * @param until      ISO timestamp (inclusive upper bound)
+   */
+  async fetchSubjectTracks(
+    subjectId: string,
+    since: string,
+    until: string,
+  ): Promise<ErTrackResponse> {
+    const qs = `?since=${encodeURIComponent(since)}&until=${encodeURIComponent(until)}`;
+    return this.request<ErTrackResponse>(
+      `/subject/${encodeURIComponent(subjectId)}/tracks/${qs}`,
+      this.trackToken,
+    );
   }
 }
