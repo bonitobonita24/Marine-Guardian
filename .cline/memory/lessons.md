@@ -4,6 +4,55 @@
 # READ ORDER: 🔴 first → 🟤 second → rest by relevance
 # ---
 
+## 2026-05-20 — 🟡 BullMQ jobId dedupe pattern: exclude userId for cross-operator collapse
+- Type:      🟡 fix
+- Phase:     Phase 8 Batch 5 Sub-batch 5.2b (patrol-track-materialize queue) — pattern applies to ALL future BullMQ queues where the underlying job is "refresh resource X for tenant Y" and the requesting user is incidental
+- Files:     packages/jobs/src/queues/patrol-track-materialize.queue.ts (pattern origin); contrast with packages/jobs/src/queues/area-rederive.queue.ts (5.1c — no jobId pattern, no dedupe needed because CUD events ARE the dedupe boundary)
+- Concepts:  bullmq, jobid, dedupe, idempotency, queue design, multi-operator coordination
+- Narrative: 5.2b's queue uses jobId `patrol-track-materialize:${tenantId}:${patrolId}` for BullMQ-layer dedupe at enqueue time. The dedupe key DELIBERATELY excludes userId even though every job payload carries userId (required by BaseJobPayload contract for observability).
+
+  WHY exclude userId from jobId: when 5.2c admin manual-rebuild fans out per-patrol jobs across the tenant, two operators (e.g. two site_admins) might both click "Rebuild Tracks" within seconds of each other. With userId in the jobId, each operator's request creates a separate job per patrol — N patrols × 2 operators = 2N redundant ER fetches against the same data. With userId excluded, the second operator's enqueue collides with the first (BullMQ rejects the duplicate jobId silently) and only N ER fetches happen. Both operators see the same fresh data when the jobs complete. This is correct because the materialization output (PatrolTrack row) is identical regardless of who triggered it — userId is observability metadata, not a derivation input.
+
+  WHEN to apply this pattern:
+  - Job output depends ONLY on the resource being refreshed (tenant + entity id) — not on the requester
+  - Multiple operators can legitimately trigger the same refresh independently
+  - The cost of a duplicate fetch is non-trivial (network call to vendor API, expensive computation, etc.)
+
+  WHEN NOT to apply (keep userId in jobId or use no jobId pattern):
+  - The job output is user-scoped (e.g. "generate report for user X" — different users get different reports)
+  - The job is intentionally side-effect-driven per-call (e.g. "send notification to user X" — must run once per request even if duplicated)
+  - The queue uses CUD events as the dedupe boundary (e.g. 5.1c area-rederive — every CUD event creates a fresh job by design; deduping there would mask legitimate re-derivations)
+
+  HOW 5.2c INHERITS: when 5.2c admin tRPC mutation enqueues per-patrol jobs, the dedupe at the queue layer means the mutation can safely fire `enqueuePatrolTrackMaterialize` per patrol without checking whether one is already queued — BullMQ handles the dedupe atomically. The mutation reports `enqueued: N` based on the count of patrols it iterated, not the count of actually-new jobs. This is the right user-facing semantic: "we queued a refresh for all N patrols" is honest even if some of those N collapsed to existing in-flight jobs from another operator.
+
+## 2026-05-20 — 🟤 BullMQ worker rate limiter sizing is context-dependent (in-process vs network-bound)
+- Type:      🟤 decision
+- Phase:     Phase 8 Batch 5 Sub-batch 5.2b (patrol-track-materialize worker) — applies to ALL future BullMQ worker rate limiter sizing decisions
+- Files:     packages/jobs/src/workers/patrol-track-materialize.worker.ts (5.2b — 20/sec, concurrency=5); contrast with packages/jobs/src/workers/area-rederive.worker.ts (5.1c — 50/sec, concurrency=10)
+- Concepts:  bullmq, rate-limiter, concurrency, throughput, network-bound, in-process, vendor-api, er-api-budget
+- Narrative: 5.1c area-rederive uses limiter `{max:50, duration:1000}` + concurrency=10. 5.2b patrol-track-materialize uses limiter `{max:20, duration:1000}` + concurrency=5. v2 spec L545 specified the 50/sec figure for area-rederive but is silent on patrol-track-materialize. Reasoning for the divergence:
+
+  AREA-REDERIVE (5.1c — 50/sec, concurrency=10):
+  - Work is IN-PROCESS: load row + load tenant's boundaries + run pure derivation + write back. No external network calls.
+  - Per-job latency dominated by PostgreSQL round-trips (~5-20ms each); ~50ms median total.
+  - Bottleneck is PostgreSQL connection pool, not vendor API budget.
+  - 50/sec limiter + 10 concurrency = ample throughput for bulk re-derivation after AreaBoundary CUD.
+
+  PATROL-TRACK-MATERIALIZE (5.2b — 20/sec, concurrency=5):
+  - Work is NETWORK-BOUND: load patrol + decrypt tenant credentials + fetch GPS track from EarthRanger `/subject/{id}/tracks/` + summarise features + atomic upsert.
+  - Per-job latency dominated by ER API roundtrip (~200-500ms typical, can spike higher for long patrols with thousands of coordinates).
+  - Bottleneck is the ER vendor API rate limit, which is typically stricter on `/tracks/` than on `/events/` or `/subjects/` because tracks payloads are larger.
+  - Concurrency=5 × ~200-500ms = arithmetic ceiling of 10-25 jobs/sec; 20/sec limiter is the BINDING constraint that ensures we stay well below typical vendor rate limits even on the fast end.
+  - 5x safety margin from v2 figure: 5.1c is in-process and can absorb whatever PostgreSQL allows; 5.2b is gated by an external vendor we don't control.
+
+  RULE OF THUMB for future worker rate limiter sizing:
+  - IN-PROCESS work (DB queries, pure computation, file I/O): start at 50/sec + concurrency=10. Tune up if PostgreSQL pool sustains it.
+  - NETWORK-BOUND to OWN infrastructure (Redis, MinIO): start at 30/sec + concurrency=10. Watch for connection saturation.
+  - NETWORK-BOUND to VENDOR API: start at 20/sec + concurrency=5. Halve both if vendor rate-limit responses appear in logs. Lock the decision in lessons.md with the vendor name.
+  - NETWORK-BOUND with heavy compute (e.g. PDF render via Puppeteer for ReportExport Item 3): start at 10/sec + concurrency=3. Memory pressure usually binds before throughput.
+
+  HOW 5.2c USES THIS: 5.2c admin mutation fans out N patrols × 1 job each. With N=100 active patrols and the 20/sec limiter, completion takes ~5 seconds of queue runtime + per-job processing. UI confirm dialog should warn "may take a few minutes for large tenants" rather than promise instant completion. Same shape as 5.1e RebuildAreaBoundariesButton's dialog copy.
+
 ## 2026-05-20 — 🟡 Test helper overrides: `null ?? default` returns default, not null
 - Type:      🟡 fix
 - Phase:     Phase 8 Batch 5 Sub-batch 5.2a (materializePatrolTrack tests) — applies to ALL test helper factories that accept Partial<T> overrides
