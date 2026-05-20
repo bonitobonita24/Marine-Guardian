@@ -19,6 +19,9 @@ vi.mock("@marine-guardian/db", () => ({
     fuelEntry: {
       findMany: vi.fn().mockResolvedValue([]),
     },
+    auditLog: {
+      create: vi.fn(),
+    },
   },
 }));
 
@@ -372,5 +375,146 @@ describe("areaBoundary CUD fan-out (5.1d)", () => {
     expect(result.result.count).toBe(0);
     expect(result.fanOut.enqueued).toBe(0);
     expect(vi.mocked(enqueueAreaRederive)).not.toHaveBeenCalled();
+  });
+});
+
+// 5.1e — Admin manual rebuild. Re-runs derivation for every Event + Patrol +
+// FuelEntry in a tenant via the 5.1d fan-out helper. super_admin may target
+// any tenant (PLATFORM:AREA_REBUILD action); site_admin may only rebuild own
+// tenant (AREA_REBUILD action). Every invocation writes an AuditLog row.
+describe("areaBoundary.rebuild (5.1e)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.fuelEntry.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
+
+  it("rejects non-admin roles", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["operator"]));
+    await expect(caller.rebuild({})).rejects.toThrow(TRPCError);
+  });
+
+  it("rejects field_coordinator (admin-only mutation)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["field_coordinator"]));
+    await expect(caller.rebuild({})).rejects.toThrow(TRPCError);
+  });
+
+  it("site_admin rebuilds own tenant — action AREA_REBUILD, AuditLog written, fan-out scoped to tenant", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([
+      { id: "evt-1" },
+      { id: "evt-2" },
+    ] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([
+      { id: "ptrl-1" },
+    ] as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const result = await caller.rebuild({});
+
+    expect(result.tenantId).toBe(TENANT_ID);
+    expect(result.enqueued).toBe(3);
+    expect(result.action).toBe("AREA_REBUILD");
+    expect(vi.mocked(enqueueAreaRederive)).toHaveBeenCalledTimes(3);
+    expect(vi.mocked(prisma.event.findMany)).toHaveBeenCalledWith({
+      where: { tenantId: TENANT_ID },
+      select: { id: true },
+    });
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith({
+      data: {
+        action: "AREA_REBUILD",
+        userId: USER_ID,
+        tenantId: TENANT_ID,
+        entityType: "AreaBoundary",
+        entityId: TENANT_ID,
+        changesJson: { enqueued: 3, scope: "tenant" },
+      },
+    });
+  });
+
+  it("site_admin attempting cross-tenant rebuild is FORBIDDEN (no fan-out, no AuditLog)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    await expect(
+      caller.rebuild({ tenantId: "other-tenant" })
+    ).rejects.toThrow(TRPCError);
+    expect(vi.mocked(enqueueAreaRederive)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.auditLog.create)).not.toHaveBeenCalled();
+  });
+
+  it("super_admin rebuilding own tenant — action AREA_REBUILD (not PLATFORM:)", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([
+      { id: "evt-1" },
+    ] as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["super_admin"]));
+    const result = await caller.rebuild({ tenantId: TENANT_ID });
+
+    expect(result.action).toBe("AREA_REBUILD");
+    expect(result.tenantId).toBe(TENANT_ID);
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith({
+      data: {
+        action: "AREA_REBUILD",
+        userId: USER_ID,
+        tenantId: TENANT_ID,
+        entityType: "AreaBoundary",
+        entityId: TENANT_ID,
+        changesJson: { enqueued: 1, scope: "tenant" },
+      },
+    });
+  });
+
+  it("super_admin rebuilding cross-tenant — action PLATFORM:AREA_REBUILD, AuditLog scope=platform", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([
+      { id: "evt-x" },
+    ] as never);
+    vi.mocked(prisma.fuelEntry.findMany).mockResolvedValue([
+      { id: "fuel-x" },
+    ] as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["super_admin"]));
+    const result = await caller.rebuild({ tenantId: "tenant-other" });
+
+    expect(result.tenantId).toBe("tenant-other");
+    expect(result.enqueued).toBe(2);
+    expect(result.action).toBe("PLATFORM:AREA_REBUILD");
+    // Fan-out queries target the SPECIFIED tenant, not the caller's tenant.
+    expect(vi.mocked(prisma.event.findMany)).toHaveBeenCalledWith({
+      where: { tenantId: "tenant-other" },
+      select: { id: true },
+    });
+    expect(vi.mocked(prisma.patrol.findMany)).toHaveBeenCalledWith({
+      where: { tenantId: "tenant-other" },
+      select: { id: true },
+    });
+    expect(vi.mocked(prisma.fuelEntry.findMany)).toHaveBeenCalledWith({
+      where: { tenantId: "tenant-other" },
+      select: { id: true },
+    });
+    expect(vi.mocked(enqueueAreaRederive)).toHaveBeenCalledWith({
+      entity: "event",
+      id: "evt-x",
+      tenantId: "tenant-other",
+      userId: USER_ID,
+    });
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith({
+      data: {
+        action: "PLATFORM:AREA_REBUILD",
+        userId: USER_ID,
+        tenantId: "tenant-other",
+        entityType: "AreaBoundary",
+        entityId: "tenant-other",
+        changesJson: { enqueued: 2, scope: "platform" },
+      },
+    });
+  });
+
+  it("rebuild with no rows still writes AuditLog (enqueued=0) — empty tenant is a valid no-op", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const result = await caller.rebuild({});
+
+    expect(result.enqueued).toBe(0);
+    expect(vi.mocked(enqueueAreaRederive)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledTimes(1);
   });
 });

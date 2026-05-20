@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import {
   createAreaBoundarySchema,
   updateAreaBoundarySchema,
@@ -141,5 +142,50 @@ export const areaBoundaryRouter = router({
           ? await fanOutAreaRederive(ctx.tenantId, ctx.userId)
           : { enqueued: 0 };
       return { result, fanOut };
+    }),
+
+  // 5.1e — Admin manual rebuild. Re-runs area derivation for every Event +
+  // Patrol + FuelEntry in a tenant by reusing the 5.1d fan-out helper. Use
+  // when an ArcGIS layer refresh, an external boundary import, or a bulk
+  // override has shifted the geometry universe in a way the CUD path did not
+  // capture. site_admin rebuilds own tenant; super_admin may target any
+  // tenant (cross-tenant rebuilds get a "PLATFORM:" AuditLog action prefix
+  // per security.md superadmin convention). AuditLog entityId stores the
+  // target tenantId — operation targets the tenant's universe, not a
+  // specific boundary row.
+  rebuild: adminProcedure
+    .input(z.object({ tenantId: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const isSuperAdmin = ctx.roles.includes("super_admin");
+      const targetTenantId = input.tenantId ?? ctx.tenantId;
+      if (
+        input.tenantId !== undefined &&
+        input.tenantId !== ctx.tenantId &&
+        !isSuperAdmin
+      ) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Access denied." });
+      }
+      const isCrossTenant =
+        isSuperAdmin && targetTenantId !== ctx.tenantId;
+      const action = isCrossTenant ? "PLATFORM:AREA_REBUILD" : "AREA_REBUILD";
+      const fanOut = await fanOutAreaRederive(targetTenantId, ctx.userId);
+      await prisma.auditLog.create({
+        data: {
+          action,
+          userId: ctx.userId,
+          tenantId: targetTenantId,
+          entityType: "AreaBoundary",
+          entityId: targetTenantId,
+          changesJson: {
+            enqueued: fanOut.enqueued,
+            scope: isCrossTenant ? "platform" : "tenant",
+          },
+        },
+      });
+      return {
+        tenantId: targetTenantId,
+        enqueued: fanOut.enqueued,
+        action,
+      };
     }),
 });
