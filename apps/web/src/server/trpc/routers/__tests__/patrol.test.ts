@@ -8,7 +8,14 @@ vi.mock("@marine-guardian/db", () => ({
       findFirst: vi.fn(),
       count: vi.fn(),
     },
+    auditLog: {
+      create: vi.fn(),
+    },
   },
+}));
+
+vi.mock("@marine-guardian/jobs", () => ({
+  enqueuePatrolTrackMaterialize: vi.fn().mockResolvedValue("job-id"),
 }));
 
 vi.mock("../../../lib/rate-limit", () => ({
@@ -25,6 +32,7 @@ vi.mock("../../../auth", () => ({
 }));
 
 import { prisma } from "@marine-guardian/db";
+import { enqueuePatrolTrackMaterialize } from "@marine-guardian/jobs";
 import { createCallerFactory } from "../../trpc";
 import { patrolRouter } from "../patrol";
 
@@ -38,13 +46,16 @@ const createCaller = createCallerFactory(patrolRouter);
 const TENANT_ID = "tenant-abc";
 const USER_ID = "user-123";
 
-function makeCtx(tenantId: string | null = TENANT_ID) {
+function makeCtx(
+  tenantId: string | null = TENANT_ID,
+  roles: string[] = ["ranger"],
+) {
   return {
     session: {
       user: {
         id: USER_ID,
         tenantId: tenantId as string,
-        roles: ["ranger" as const],
+        roles,
         email: "test@example.com",
         name: "Test User",
       },
@@ -188,5 +199,148 @@ describe("patrol.stats", () => {
       1,
       partial({ where: partial({ tenantId: TENANT_ID }) })
     );
+  });
+});
+
+// 5.2c — Admin manual patrol track rebuild. Re-fetches and materializes GPS
+// tracks from EarthRanger for every state==='open' Patrol in a tenant by
+// enqueueing one patrol-track-materialize job per active patrol. super_admin
+// may target any tenant (PLATFORM:PATROL_TRACK_REBUILD action); site_admin
+// may only rebuild own tenant (PATROL_TRACK_REBUILD action). Every
+// invocation writes one AuditLog row. Closed patrols (state==='done' or
+// 'cancelled') are skipped — their tracks are immutable once the patrol
+// closed and re-fetching wastes ER API quota.
+describe("patrol.rebuildTracks (5.2c)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
+
+  it("rejects non-admin roles", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["operator"]));
+    await expect(caller.rebuildTracks({})).rejects.toThrow(TRPCError);
+    expect(vi.mocked(enqueuePatrolTrackMaterialize)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.auditLog.create)).not.toHaveBeenCalled();
+  });
+
+  it("rejects field_coordinator (admin-only mutation)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["field_coordinator"]));
+    await expect(caller.rebuildTracks({})).rejects.toThrow(TRPCError);
+  });
+
+  it("site_admin rebuilds own tenant — only state='open' patrols enqueued, action PATROL_TRACK_REBUILD, AuditLog written", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([
+      { id: "ptrl-1" },
+      { id: "ptrl-2" },
+      { id: "ptrl-3" },
+    ] as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const result = await caller.rebuildTracks({});
+
+    expect(result.tenantId).toBe(TENANT_ID);
+    expect(result.enqueued).toBe(3);
+    expect(result.action).toBe("PATROL_TRACK_REBUILD");
+    // The query MUST scope to state='open' + tenantId — closed patrols skipped.
+    expect(vi.mocked(prisma.patrol.findMany)).toHaveBeenCalledWith({
+      where: { tenantId: TENANT_ID, state: "open" },
+      select: { id: true },
+    });
+    expect(vi.mocked(enqueuePatrolTrackMaterialize)).toHaveBeenCalledTimes(3);
+    expect(vi.mocked(enqueuePatrolTrackMaterialize)).toHaveBeenCalledWith({
+      patrolId: "ptrl-1",
+      tenantId: TENANT_ID,
+      userId: USER_ID,
+    });
+    expect(vi.mocked(enqueuePatrolTrackMaterialize)).toHaveBeenCalledWith({
+      patrolId: "ptrl-2",
+      tenantId: TENANT_ID,
+      userId: USER_ID,
+    });
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith({
+      data: {
+        action: "PATROL_TRACK_REBUILD",
+        userId: USER_ID,
+        tenantId: TENANT_ID,
+        entityType: "Patrol",
+        entityId: TENANT_ID,
+        changesJson: { enqueued: 3, scope: "tenant" },
+      },
+    });
+  });
+
+  it("site_admin attempting cross-tenant rebuild is FORBIDDEN (no fan-out, no AuditLog)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    await expect(
+      caller.rebuildTracks({ tenantId: "other-tenant" })
+    ).rejects.toThrow(TRPCError);
+    expect(vi.mocked(enqueuePatrolTrackMaterialize)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.auditLog.create)).not.toHaveBeenCalled();
+  });
+
+  it("super_admin rebuilding own tenant — action PATROL_TRACK_REBUILD (not PLATFORM:)", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([
+      { id: "ptrl-1" },
+    ] as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["super_admin"]));
+    const result = await caller.rebuildTracks({ tenantId: TENANT_ID });
+
+    expect(result.action).toBe("PATROL_TRACK_REBUILD");
+    expect(result.tenantId).toBe(TENANT_ID);
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith({
+      data: {
+        action: "PATROL_TRACK_REBUILD",
+        userId: USER_ID,
+        tenantId: TENANT_ID,
+        entityType: "Patrol",
+        entityId: TENANT_ID,
+        changesJson: { enqueued: 1, scope: "tenant" },
+      },
+    });
+  });
+
+  it("super_admin rebuilding cross-tenant — action PLATFORM:PATROL_TRACK_REBUILD, fan-out targets specified tenant", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([
+      { id: "ptrl-x" },
+      { id: "ptrl-y" },
+    ] as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["super_admin"]));
+    const result = await caller.rebuildTracks({ tenantId: "tenant-other" });
+
+    expect(result.tenantId).toBe("tenant-other");
+    expect(result.enqueued).toBe(2);
+    expect(result.action).toBe("PLATFORM:PATROL_TRACK_REBUILD");
+    // Query targets the SPECIFIED tenant, not the caller's tenant.
+    expect(vi.mocked(prisma.patrol.findMany)).toHaveBeenCalledWith({
+      where: { tenantId: "tenant-other", state: "open" },
+      select: { id: true },
+    });
+    expect(vi.mocked(enqueuePatrolTrackMaterialize)).toHaveBeenCalledWith({
+      patrolId: "ptrl-x",
+      tenantId: "tenant-other",
+      userId: USER_ID,
+    });
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith({
+      data: {
+        action: "PLATFORM:PATROL_TRACK_REBUILD",
+        userId: USER_ID,
+        tenantId: "tenant-other",
+        entityType: "Patrol",
+        entityId: "tenant-other",
+        changesJson: { enqueued: 2, scope: "platform" },
+      },
+    });
+  });
+
+  it("rebuild with no open patrols still writes AuditLog (enqueued=0) — empty tenant is a valid no-op", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const result = await caller.rebuildTracks({});
+
+    expect(result.enqueued).toBe(0);
+    expect(vi.mocked(enqueuePatrolTrackMaterialize)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledTimes(1);
   });
 });

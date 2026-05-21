@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { buildExportUrl } from "@/lib/exports";
+import { RebuildTracksButton } from "./rebuild-tracks-button";
 
 export default function PatrolsPage() {
   return (
@@ -17,6 +18,7 @@ export default function PatrolsPage() {
               Export PDF
             </a>
           </Button>
+          <RebuildTracksButton />
         </div>
       </div>
       <p className="text-muted-foreground">Patrol management — data table pending</p>

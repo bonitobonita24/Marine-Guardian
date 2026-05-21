@@ -11,6 +11,14 @@ vi.mock("@marine-guardian/db", () => ({
     tenant: { findUniqueOrThrow: vi.fn() },
     auditLog: { create: vi.fn() },
   },
+  // 5.2c — route.ts imports patrolListFilters from the patrol router, which
+  // in turn now imports enqueuePatrolTrackMaterialize from @marine-guardian/
+  // jobs. The jobs barrel eagerly loads workers + processors at module-load
+  // time, including area-rederive.processor.ts which casts platformPrisma.
+  // The cast runs even when the module is just transitively touched, so the
+  // mock must export platformPrisma (the value is never called in this
+  // test — only its module presence is checked).
+  platformPrisma: {},
 }));
 
 vi.mock("@react-pdf/renderer", async () => {
