@@ -54,3 +54,12 @@ export const pollReportExportStatusInputSchema = z.object({
 export const getReportExportDownloadUrlInputSchema = z.object({
   id: z.string(),
 });
+
+/**
+ * Retry input — admin re-enqueues a previously-failed (or stuck-queued)
+ * export. Resets status to "queued" and re-fires the pdf-render job.
+ * Tenant scope enforced server-side via session.tenantId.
+ */
+export const retryReportExportInputSchema = z.object({
+  id: z.string(),
+});

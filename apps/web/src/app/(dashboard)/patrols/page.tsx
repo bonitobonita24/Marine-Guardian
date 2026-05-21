@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { buildExportUrl } from "@/lib/exports";
+import { GenerateReportButton } from "./generate-report-button";
 import { RebuildTracksButton } from "./rebuild-tracks-button";
 
 export default function PatrolsPage() {
@@ -18,6 +19,7 @@ export default function PatrolsPage() {
               Export PDF
             </a>
           </Button>
+          <GenerateReportButton />
           <RebuildTracksButton />
         </div>
       </div>

@@ -5,10 +5,11 @@ import {
   getReportExportDownloadUrlInputSchema,
   listReportExportsInputSchema,
   pollReportExportStatusInputSchema,
+  retryReportExportInputSchema,
 } from "@marine-guardian/shared/schemas";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
-import { coordinatorProcedure } from "../middleware/rbac";
+import { adminProcedure, coordinatorProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
 import { enqueuePdfRender } from "@marine-guardian/jobs";
 
@@ -175,5 +176,62 @@ export const reportExportRouter = router({
         downloadUrl: `/api/exports/reports/${row.id}/download`,
         status: row.status,
       };
+    }),
+
+  /**
+   * retry — admin re-enqueues a previously-failed (or stuck-queued) export.
+   *
+   * Resets the row state: status=queued, nullifies filePath/fileSizeBytes/
+   * errorMessage/completedAt. Then re-fires the pdf-render job. The BullMQ
+   * jobId pattern `pdf-render:${exportId}` dedupes the second enqueue to
+   * one job if a stale job is still in flight (5.3b precedent).
+   *
+   * RBAC: adminProcedure (super_admin + site_admin). Tenant scope enforced
+   * via findFirst {id, tenantId} — returns NOT_FOUND for cross-tenant rows
+   * (never leaks existence). Pattern mirrors patrol.rebuildTracks (5.2c)
+   * and areaBoundary.rebuild (5.1e): sequential awaits (not $transaction)
+   * because BullMQ writes to Valkey outside the Postgres transaction
+   * scope.
+   */
+  retry: adminProcedure
+    .input(retryReportExportInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const existing = await prisma.reportExport.findFirst({
+        where: { id: input.id, tenantId: ctx.tenantId },
+        select: { id: true },
+      });
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+
+      const updated = await prisma.reportExport.update({
+        where: { id: existing.id },
+        data: {
+          status: "queued",
+          filePath: null,
+          fileSizeBytes: null,
+          errorMessage: null,
+          completedAt: null,
+        },
+      });
+
+      await enqueuePdfRender({
+        exportId: existing.id,
+        tenantId: ctx.tenantId,
+        userId: ctx.userId,
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          action: "EXPORT_RETRY",
+          userId: ctx.userId,
+          tenantId: ctx.tenantId,
+          entityType: "ReportExport",
+          entityId: existing.id,
+          changesJson: {},
+        },
+      });
+
+      return updated;
     }),
 });
