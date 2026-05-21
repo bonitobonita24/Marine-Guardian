@@ -134,6 +134,17 @@ async function handleRender(req, res) {
       waitUntil: "networkidle0",
       timeout: NAV_TIMEOUT_MS,
     });
+    // Optional render-ready signal — Coverage Report Page 2 (6.1b) sets
+    // window.__renderReady = true after Leaflet tile load + polygon paint.
+    // Pages without a map never set this flag; the catch swallows the
+    // timeout so they continue rendering immediately after networkidle0.
+    // Decision: docs/DECISIONS_LOG.md → "Coverage Report Page 2 Map
+    // Render Strategy".
+    await page
+      .waitForFunction(() => window.__renderReady === true, { timeout: 8000 })
+      .catch(() => {
+        /* page does not advertise a render-ready flag — proceed */
+      });
     const pdfBuffer = await page.pdf({
       format: paperSize,
       landscape: Boolean(landscape),

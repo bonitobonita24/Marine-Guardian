@@ -18,6 +18,7 @@ import type {
   CoverageReportData,
   CoverageReportPatrolRow,
 } from "@/server/coverage-report/get-coverage-report-data";
+import { Page2AreaBoundarySummary } from "./page-2-area-boundary-summary";
 
 interface CoverageReportProps {
   data: CoverageReportData;
@@ -283,6 +284,14 @@ export function CoverageReport({ data }: CoverageReportProps) {
             </table>
           )}
         </section>
+
+        <Page2AreaBoundarySummary
+          enabledAreas={data.enabledAreas}
+          patrols={data.patrols}
+          attributions={data.attributions}
+          patrolCountsByArea={data.patrolCountsByArea}
+          unattributedPatrolCount={data.unattributedPatrolCount}
+        />
 
         {/* Puppeteer networkidle0 anchor. */}
         <img

@@ -7,12 +7,14 @@ vi.mock("@marine-guardian/db", () => ({
     tenant: { findUnique: vi.fn() },
     reportExport: { findUnique: vi.fn() },
     patrol: { findMany: vi.fn() },
+    areaBoundary: { findMany: vi.fn() },
   },
 }));
 
 import { prisma } from "@marine-guardian/db";
 import {
   extractTrackEndpoints,
+  extractTrackPolyline,
   getCoverageReportData,
   parseCoverageParams,
 } from "../get-coverage-report-data";
@@ -237,6 +239,7 @@ describe("getCoverageReportData", () => {
         track: null,
       },
     ] as never);
+    vi.mocked(prisma.areaBoundary.findMany).mockResolvedValueOnce([] as never);
 
     const r = await getCoverageReportData(TENANT_SLUG, EXPORT_ID);
     expect(r).not.toBeNull();
@@ -289,9 +292,367 @@ describe("getCoverageReportData", () => {
       createdAt: new Date("2026-05-19T04:00:00.000Z"),
     } as never);
     vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.areaBoundary.findMany).mockResolvedValueOnce([] as never);
     const r = await getCoverageReportData(TENANT_SLUG, EXPORT_ID);
     expect(r?.period.label).toBe("MAY 2026");
     expect(r?.paperSize).toBe("Letter");
     expect(r?.patrols).toEqual([]);
+    expect(r?.enabledAreas).toEqual([]);
+    expect(r?.attributions).toEqual([]);
+    expect(r?.patrolCountsByArea).toEqual([]);
+    expect(r?.unattributedPatrolCount).toBe(0);
+  });
+});
+
+describe("extractTrackPolyline", () => {
+  it("returns null for null / undefined / non-object input", () => {
+    expect(extractTrackPolyline(null)).toBeNull();
+    expect(extractTrackPolyline(undefined)).toBeNull();
+    expect(extractTrackPolyline("not-an-object")).toBeNull();
+  });
+
+  it("returns the full point list from a LineString", () => {
+    const result = extractTrackPolyline({
+      type: "LineString",
+      coordinates: [
+        [121.5, 13.5],
+        [121.55, 13.55],
+        [121.6, 13.6],
+      ],
+    });
+    expect(result).toEqual([
+      [121.5, 13.5],
+      [121.55, 13.55],
+      [121.6, 13.6],
+    ]);
+  });
+
+  it("flattens MultiLineString segments head-to-tail", () => {
+    const result = extractTrackPolyline({
+      type: "MultiLineString",
+      coordinates: [
+        [
+          [121.5, 13.5],
+          [121.55, 13.55],
+        ],
+        [
+          [121.6, 13.6],
+          [121.65, 13.65],
+        ],
+      ],
+    });
+    expect(result).toEqual([
+      [121.5, 13.5],
+      [121.55, 13.55],
+      [121.6, 13.6],
+      [121.65, 13.65],
+    ]);
+  });
+
+  it("returns null for a track with fewer than 2 valid points", () => {
+    expect(
+      extractTrackPolyline({
+        type: "LineString",
+        coordinates: [[121.5, 13.5]],
+      }),
+    ).toBeNull();
+    expect(
+      extractTrackPolyline({ type: "LineString", coordinates: [] }),
+    ).toBeNull();
+  });
+
+  it("skips malformed inner pairs but keeps valid ones", () => {
+    const result = extractTrackPolyline({
+      type: "LineString",
+      coordinates: [
+        [121.5, 13.5],
+        ["bad", "data"],
+        [121.6, 13.6],
+      ],
+    });
+    expect(result).toEqual([
+      [121.5, 13.5],
+      [121.6, 13.6],
+    ]);
+  });
+
+  it("returns null for unsupported geometry types", () => {
+    expect(
+      extractTrackPolyline({ type: "Point", coordinates: [121.5, 13.5] }),
+    ).toBeNull();
+  });
+});
+
+describe("getCoverageReportData — Page 2 attribution", () => {
+  const TENANT_ROW = {
+    id: TENANT_ID,
+    name: "Mindoro MPA",
+    slug: TENANT_SLUG,
+    timezone: "Asia/Manila",
+  };
+  const COVERAGE_EXPORT = {
+    tenantId: TENANT_ID,
+    reportType: "coverage",
+    paramsJson: { category: "monthly", year: 2026, month: 5 },
+    paperSize: "A4",
+    createdAt: new Date("2026-05-21T08:00:00.000Z"),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("attributes patrols to enabled boundaries by nearest-start with name fallback", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
+      TENANT_ROW as never,
+    );
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValueOnce(
+      COVERAGE_EXPORT as never,
+    );
+    vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([
+      // Patrol nearest to "Alpha Reef" polygon.
+      {
+        id: "p1",
+        serialNumber: "MG-1",
+        title: null,
+        patrolType: "foot",
+        state: "done",
+        startTime: new Date("2026-05-10T01:00:00.000Z"),
+        endTime: new Date("2026-05-10T03:00:00.000Z"),
+        totalDistanceKm: 5,
+        totalHours: 2,
+        boatName: null,
+        areaName: "Bravo Bank", // intentionally wrong — nearest must win
+        segments: [],
+        track: {
+          trackGeojson: {
+            type: "LineString",
+            coordinates: [
+              [120.01, 13.01],
+              [120.012, 13.012],
+            ],
+          },
+        },
+      },
+      // No track, name matches "Bravo Bank".
+      {
+        id: "p2",
+        serialNumber: "MG-2",
+        title: null,
+        patrolType: "seaborne",
+        state: "done",
+        startTime: new Date("2026-05-11T01:00:00.000Z"),
+        endTime: null,
+        totalDistanceKm: null,
+        totalHours: null,
+        boatName: null,
+        areaName: "Bravo Bank",
+        segments: [],
+        track: null,
+      },
+      // No track, no area name → unattributed.
+      {
+        id: "p3",
+        serialNumber: "MG-3",
+        title: null,
+        patrolType: "foot",
+        state: "done",
+        startTime: new Date("2026-05-12T01:00:00.000Z"),
+        endTime: null,
+        totalDistanceKm: null,
+        totalHours: null,
+        boatName: null,
+        areaName: null,
+        segments: [],
+        track: null,
+      },
+    ] as never);
+    vi.mocked(prisma.areaBoundary.findMany).mockResolvedValueOnce([
+      {
+        id: "boundary-alpha",
+        name: "Alpha Reef",
+        aliases: ["Alpha"],
+        region: "Mindoro",
+        source: "custom",
+        geometryType: "Polygon",
+        geometryGeojson: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [120.0, 13.0],
+              [120.02, 13.0],
+              [120.02, 13.02],
+              [120.0, 13.02],
+              [120.0, 13.0],
+            ],
+          ],
+        },
+        arcgisReferenceId: null,
+      },
+      {
+        id: "boundary-bravo",
+        name: "Bravo Bank",
+        aliases: [],
+        region: "Mindoro",
+        source: "arcgis",
+        geometryType: "Polygon",
+        geometryGeojson: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [120.5, 13.5],
+              [120.52, 13.5],
+              [120.52, 13.52],
+              [120.5, 13.52],
+              [120.5, 13.5],
+            ],
+          ],
+        },
+        arcgisReferenceId: "arcgis-bravo-123",
+      },
+    ] as never);
+
+    const r = await getCoverageReportData(TENANT_SLUG, EXPORT_ID);
+
+    expect(r).not.toBeNull();
+    expect(r?.enabledAreas).toHaveLength(2);
+    expect(r?.enabledAreas[0]?.id).toBe("boundary-alpha");
+    expect(r?.enabledAreas[1]?.arcgisReferenceId).toBe("arcgis-bravo-123");
+
+    expect(r?.attributions).toHaveLength(3);
+    expect(r?.attributions[0]).toEqual({
+      patrolId: "p1",
+      areaBoundaryId: "boundary-alpha",
+      matchedVia: "nearest",
+    });
+    expect(r?.attributions[1]).toEqual({
+      patrolId: "p2",
+      areaBoundaryId: "boundary-bravo",
+      matchedVia: "feature-name",
+    });
+    expect(r?.attributions[2]).toEqual({
+      patrolId: "p3",
+      areaBoundaryId: null,
+      matchedVia: null,
+    });
+
+    expect(r?.patrolCountsByArea).toHaveLength(2);
+    expect(r?.patrolCountsByArea.find((c) => c.areaBoundaryId === "boundary-alpha")?.patrolCount).toBe(1);
+    expect(r?.patrolCountsByArea.find((c) => c.areaBoundaryId === "boundary-bravo")?.patrolCount).toBe(1);
+    expect(r?.unattributedPatrolCount).toBe(1);
+  });
+
+  it("returns empty roster + zero counts when tenant has no enabled boundaries", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
+      TENANT_ROW as never,
+    );
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValueOnce(
+      COVERAGE_EXPORT as never,
+    );
+    vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([
+      {
+        id: "p1",
+        serialNumber: "MG-1",
+        title: null,
+        patrolType: "foot",
+        state: "done",
+        startTime: new Date("2026-05-10T01:00:00.000Z"),
+        endTime: null,
+        totalDistanceKm: null,
+        totalHours: null,
+        boatName: null,
+        areaName: null,
+        segments: [],
+        track: null,
+      },
+    ] as never);
+    vi.mocked(prisma.areaBoundary.findMany).mockResolvedValueOnce([] as never);
+
+    const r = await getCoverageReportData(TENANT_SLUG, EXPORT_ID);
+
+    expect(r?.enabledAreas).toEqual([]);
+    expect(r?.patrolCountsByArea).toEqual([]);
+    expect(r?.unattributedPatrolCount).toBe(1);
+    expect(r?.attributions).toEqual([
+      { patrolId: "p1", areaBoundaryId: null, matchedVia: null },
+    ]);
+  });
+
+  it("scopes areaBoundary.findMany to tenant + isEnabled=true", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
+      TENANT_ROW as never,
+    );
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValueOnce(
+      COVERAGE_EXPORT as never,
+    );
+    vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.areaBoundary.findMany).mockResolvedValueOnce([] as never);
+
+    await getCoverageReportData(TENANT_SLUG, EXPORT_ID);
+
+    const calls = vi.mocked(prisma.areaBoundary.findMany).mock.calls;
+    expect(calls).toHaveLength(1);
+    const arg = calls[0]?.[0] as
+      | { where?: { tenantId?: string; isEnabled?: boolean } }
+      | undefined;
+    expect(arg?.where?.tenantId).toBe(TENANT_ID);
+    expect(arg?.where?.isEnabled).toBe(true);
+  });
+
+  it("populates trackLineString on patrols with tracks and null on patrols without", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
+      TENANT_ROW as never,
+    );
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValueOnce(
+      COVERAGE_EXPORT as never,
+    );
+    vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([
+      {
+        id: "p1",
+        serialNumber: "MG-1",
+        title: null,
+        patrolType: "foot",
+        state: "done",
+        startTime: new Date("2026-05-10T01:00:00.000Z"),
+        endTime: null,
+        totalDistanceKm: null,
+        totalHours: null,
+        boatName: null,
+        areaName: null,
+        segments: [],
+        track: {
+          trackGeojson: {
+            type: "LineString",
+            coordinates: [
+              [121.5, 13.5],
+              [121.6, 13.6],
+            ],
+          },
+        },
+      },
+      {
+        id: "p2",
+        serialNumber: "MG-2",
+        title: null,
+        patrolType: "foot",
+        state: "done",
+        startTime: new Date("2026-05-11T01:00:00.000Z"),
+        endTime: null,
+        totalDistanceKm: null,
+        totalHours: null,
+        boatName: null,
+        areaName: null,
+        segments: [],
+        track: null,
+      },
+    ] as never);
+    vi.mocked(prisma.areaBoundary.findMany).mockResolvedValueOnce([] as never);
+
+    const r = await getCoverageReportData(TENANT_SLUG, EXPORT_ID);
+    expect(r?.patrols[0]?.trackLineString).toEqual([
+      [121.5, 13.5],
+      [121.6, 13.6],
+    ]);
+    expect(r?.patrols[1]?.trackLineString).toBeNull();
   });
 });

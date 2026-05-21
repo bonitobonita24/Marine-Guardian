@@ -3,9 +3,20 @@
 // RSC-style test: render the component to a static string and assert on
 // the output. No DOM needed since vitest is on the "node" environment.
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { getMonthlyPeriod } from "@marine-guardian/shared/lib/coverage-period";
+
+// Page 2's client islands depend on a real browser (Leaflet + Recharts).
+// Page 1 tests only need Page 2 to no-op. Mock the leaf islands so the
+// react-dom server render stays in a node environment.
+vi.mock("../components/area-coverage-map", () => ({
+  AreaCoverageMap: () => null,
+}));
+vi.mock("../components/patrol-area-bar-chart", () => ({
+  PatrolAreaBarChart: () => null,
+}));
+
 import { CoverageReport } from "../coverage-report";
 import type { CoverageReportData } from "@/server/coverage-report/get-coverage-report-data";
 
@@ -24,6 +35,10 @@ function buildData(
     excludeTestPatrols: true,
     generatedAt: new Date("2026-05-21T12:00:00.000Z"),
     patrols: [],
+    enabledAreas: [],
+    attributions: [],
+    patrolCountsByArea: [],
+    unattributedPatrolCount: 0,
     ...overrides,
   };
 }
@@ -63,6 +78,7 @@ describe("CoverageReport (Page 1 — Patrol Index)", () => {
           areaName: "North Reef",
           startLocation: { lat: 13.5, lon: 121.5 },
           endLocation: { lat: 13.55, lon: 121.55 },
+          trackLineString: null,
         },
         {
           id: "p2",
@@ -79,6 +95,7 @@ describe("CoverageReport (Page 1 — Patrol Index)", () => {
           areaName: null,
           startLocation: { lat: 13.6, lon: 121.6 },
           endLocation: { lat: 13.65, lon: 121.65 },
+          trackLineString: null,
         },
         {
           id: "p3",
@@ -95,6 +112,7 @@ describe("CoverageReport (Page 1 — Patrol Index)", () => {
           areaName: "East Cove",
           startLocation: null,
           endLocation: null,
+          trackLineString: null,
         },
       ],
     });
@@ -123,6 +141,7 @@ describe("CoverageReport (Page 1 — Patrol Index)", () => {
           areaName: "North Reef",
           startLocation: { lat: 13.5, lon: 121.5 },
           endLocation: { lat: 13.55, lon: 121.55 },
+          trackLineString: null,
         },
       ],
     });
@@ -155,6 +174,7 @@ describe("CoverageReport (Page 1 — Patrol Index)", () => {
           areaName: "South Bay",
           startLocation: null,
           endLocation: null,
+          trackLineString: null,
         },
       ],
     });

@@ -243,3 +243,26 @@ processor only wrote a stub path). Post-5.3c, storage is in active use by both t
 process (uploadPdf) and the download Route Handler (getPdfReadStream).
 Locked: yes — `storage.enabled` stays `true` for the remainder of the project. Disabling
 storage would break the pdf-render pipeline + 5.3d admin UI.
+
+
+## Coverage Report Page 2 Map Render Strategy (Phase 8 Batch 6 Sub-batch 6.1b)
+Decision: Leaflet client-side + Puppeteer `window.__renderReady` wait flag — NOT static SVG composition.
+Rationale: Page 2 (Area Boundary Summary) of the Coverage Report needs a basemap with patrol
+tracks + filled cyan polygons + optional ArcGIS reference outlines. Static SVG composition
+server-side was rejected because it produces no basemap context (white background only) which
+makes the report less useful to funders. Leaflet client-side + Puppeteer wait is well-trodden
+(established pattern across reporting toolchains), supports OpenStreetMap tiles for free, and
+the ArcGIS reference layer fits naturally as a second Leaflet pane. Trade-off accepted: tile
+network dependency adds 0.5-2s to PDF render time + requires the Puppeteer service to have
+egress to tile.openstreetmap.org. Decision per v2 PRODUCT.md L771 note "Lock the decision in
+DECISIONS_LOG.md".
+Implementation: Page 2 client island sets `window.__renderReady = true` after both tile load
++ polygon paint complete. pdf-renderer service.js calls `page.waitForFunction(() =>
+(window).__renderReady === true)` AFTER its existing `networkidle0` wait, with a swallow-catch
+so pages without maps (e.g. coverage Page 1 only when no enabled boundaries exist) continue
+to render fine. Timeout = 8s — generous enough for 256-tile mosaics, fast enough to fail loud
+when egress is broken. Lock will also govern 6.1c Page 3 map.
+Locked: yes — Leaflet + OpenStreetMap tiles + Puppeteer wait flag is the map render
+contract for ALL future Coverage Report pages and any other report that embeds a map (Per Area
+Report, future Quarterly Report). Static SVG composition is rejected for this report family.
+

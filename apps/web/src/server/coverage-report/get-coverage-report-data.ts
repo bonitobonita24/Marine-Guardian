@@ -29,6 +29,13 @@
 import { prisma } from "@marine-guardian/db";
 import type { PatrolType } from "@marine-guardian/shared/types";
 import {
+  attributePatrolToArea,
+  countPatrolsByArea,
+  type AreaBoundaryForDerivation,
+  type AreaPatrolCount,
+  type AttributionSource,
+} from "@marine-guardian/shared/lib/area-attribution";
+import {
   DEFAULT_TENANT_OFFSET_MINUTES,
   getSelectedTemplatePeriod,
   type Period,
@@ -51,6 +58,31 @@ export interface CoverageReportPatrolRow {
   areaName: string | null;
   startLocation: { lat: number; lon: number } | null;
   endLocation: { lat: number; lon: number } | null;
+  /** Polyline coordinates [lon, lat] (or null when no track). Used by Page 2 map overlay. */
+  trackLineString: Array<[number, number]> | null;
+}
+
+/**
+ * Enabled AreaBoundary projected into the shape Page 2 of the Coverage
+ * Report needs. The render layer also draws each polygon on the map, so
+ * we ship the geometry alongside the attribution fields.
+ */
+export interface CoverageReportArea {
+  id: string;
+  name: string;
+  region: string;
+  source: string;
+  geometryType: "Polygon" | "LineString";
+  /** Raw GeoJSON for the boundary — Leaflet renders this verbatim. */
+  geometryGeojson: Record<string, unknown>;
+  /** Optional ArcGIS dashed reference outline id — null when no reference exists. */
+  arcgisReferenceId: string | null;
+}
+
+export interface CoverageReportAttribution {
+  patrolId: string;
+  areaBoundaryId: string | null;
+  matchedVia: AttributionSource;
 }
 
 export interface CoverageReportData {
@@ -65,6 +97,13 @@ export interface CoverageReportData {
   excludeTestPatrols: boolean;
   generatedAt: Date;
   patrols: CoverageReportPatrolRow[];
+  /** Enabled AreaBoundary roster — empty array when the tenant has none. */
+  enabledAreas: CoverageReportArea[];
+  /** One row per patrol — same length and order as `patrols`. */
+  attributions: CoverageReportAttribution[];
+  /** Per-boundary tally + a separate count for patrols outside all enabled boundaries. */
+  patrolCountsByArea: AreaPatrolCount[];
+  unattributedPatrolCount: number;
 }
 
 interface ParsedCoverageParams extends SelectedTemplatePeriodInput {
@@ -110,6 +149,55 @@ function parseCoord(c: unknown): { lat: number; lon: number } | null {
   if (typeof lon !== "number" || typeof lat !== "number") return null;
   if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
   return { lat, lon };
+}
+
+/**
+ * Extracts the full polyline as [lon, lat] pairs from a GeoJSON
+ * LineString or MultiLineString (flattened head-to-tail). Returns null
+ * when the shape is missing, malformed, or contains fewer than 2 points.
+ *
+ * Page 2 of the Coverage Report (6.1b) renders the polyline as a
+ * Leaflet polyline overlay on the area-coverage map.
+ */
+export function extractTrackPolyline(
+  geojson: unknown,
+): Array<[number, number]> | null {
+  if (typeof geojson !== "object" || geojson === null) return null;
+  const g = geojson as Record<string, unknown>;
+  const coords = g.coordinates;
+
+  function asPair(c: unknown): [number, number] | null {
+    if (!Array.isArray(c) || c.length < 2) return null;
+    const arr = c as unknown[];
+    const lon = arr[0];
+    const lat = arr[1];
+    if (typeof lon !== "number" || typeof lat !== "number") return null;
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
+    return [lon, lat];
+  }
+
+  if (g.type === "LineString" && Array.isArray(coords)) {
+    const out: Array<[number, number]> = [];
+    for (const c of coords as unknown[]) {
+      const pair = asPair(c);
+      if (pair !== null) out.push(pair);
+    }
+    return out.length >= 2 ? out : null;
+  }
+
+  if (g.type === "MultiLineString" && Array.isArray(coords)) {
+    const out: Array<[number, number]> = [];
+    for (const line of coords as unknown[]) {
+      if (!Array.isArray(line)) continue;
+      for (const c of line as unknown[]) {
+        const pair = asPair(c);
+        if (pair !== null) out.push(pair);
+      }
+    }
+    return out.length >= 2 ? out : null;
+  }
+
+  return null;
 }
 
 /**
@@ -215,7 +303,9 @@ export async function getCoverageReportData(
 
   const patrols: CoverageReportPatrolRow[] = patrolsRaw.map((p) => {
     const leaderName = p.segments[0]?.leaderName ?? null;
-    const endpoints = extractTrackEndpoints(p.track?.trackGeojson);
+    const trackGeojson = p.track?.trackGeojson;
+    const endpoints = extractTrackEndpoints(trackGeojson);
+    const polyline = extractTrackPolyline(trackGeojson);
     return {
       id: p.id,
       serialNumber: p.serialNumber,
@@ -231,8 +321,71 @@ export async function getCoverageReportData(
       areaName: p.areaName,
       startLocation: endpoints.start,
       endLocation: endpoints.end,
+      trackLineString: polyline,
     };
   });
+
+  // Page 2 — Area Boundary Summary.
+  //
+  // Pull the tenant's enabled AreaBoundary roster. Then attribute each
+  // patrol to a boundary via nearestStartArea → featureMatchesArea per
+  // v2 PRODUCT.md L771. Empty boundaries roster is a valid state — Page 2
+  // gracefully renders an "Outside enabled boundaries" tally only.
+  const enabledBoundariesRaw = await prisma.areaBoundary.findMany({
+    where: { tenantId: tenant.id, isEnabled: true },
+    orderBy: { name: "asc" },
+    select: {
+      id: true,
+      name: true,
+      aliases: true,
+      region: true,
+      source: true,
+      geometryType: true,
+      geometryGeojson: true,
+      arcgisReferenceId: true,
+    },
+  });
+
+  const enabledAreas: CoverageReportArea[] = enabledBoundariesRaw.map((b) => ({
+    id: b.id,
+    name: b.name,
+    region: b.region,
+    source: b.source,
+    geometryType: b.geometryType,
+    geometryGeojson: b.geometryGeojson as Record<string, unknown>,
+    arcgisReferenceId: b.arcgisReferenceId,
+  }));
+
+  const boundariesForAttribution: AreaBoundaryForDerivation[] =
+    enabledBoundariesRaw.map((b) => ({
+      id: b.id,
+      name: b.name,
+      aliases: b.aliases,
+      isEnabled: true,
+      geometryType: b.geometryType,
+      geometryGeojson: b.geometryGeojson as Record<string, unknown>,
+    }));
+
+  const attributions: CoverageReportAttribution[] = patrols.map((p) => {
+    const result = attributePatrolToArea(
+      {
+        id: p.id,
+        startLocation: p.startLocation,
+        areaName: p.areaName,
+      },
+      boundariesForAttribution,
+    );
+    return {
+      patrolId: result.patrolId,
+      areaBoundaryId: result.areaBoundaryId,
+      matchedVia: result.matchedVia,
+    };
+  });
+
+  const { rows: patrolCountsByArea, unattributedCount } = countPatrolsByArea(
+    attributions,
+    boundariesForAttribution,
+  );
 
   return {
     tenant: {
@@ -246,5 +399,9 @@ export async function getCoverageReportData(
     excludeTestPatrols: params.excludeTestPatrols ?? true,
     generatedAt: new Date(),
     patrols,
+    enabledAreas,
+    attributions,
+    patrolCountsByArea,
+    unattributedPatrolCount: unattributedCount,
   };
 }
