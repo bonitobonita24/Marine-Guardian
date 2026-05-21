@@ -8,7 +8,8 @@
     "./schemas": "./src/schemas/index.ts",
     "./lib/area-derivation": "./src/lib/area-derivation/index.ts",
     "./lib/area-attribution": "./src/lib/area-attribution/index.ts",
-    "./lib/coverage-period": "./src/lib/coverage-period/index.ts"
+    "./lib/coverage-period": "./src/lib/coverage-period/index.ts",
+    "./lib/coverage-clip": "./src/lib/coverage-clip/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -16,6 +17,10 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@turf/boolean-point-in-polygon": "^7.1.0",
+    "@turf/helpers": "^7.1.0",
+    "@turf/length": "^7.1.0",
+    "@turf/line-split": "^7.1.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
