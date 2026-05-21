@@ -19,6 +19,12 @@ export const env = createEnv({
     STORAGE_BUCKET: z.string().min(1),
     STORAGE_REGION: z.string().default("us-east-1"),
     EARTHRANGER_ENCRYPTION_KEY: z.string().min(32).optional(),
+    // Phase 8 Batch 5 Sub-batch 5.3a — marine-guardian-pdf-renderer access.
+    // Optional in 5.3a (infrastructure setup); the BullMQ pdf-render worker
+    // (5.3b) is the actual consumer. The /print-render/* middleware guard
+    // reads PDF_RENDERER_SERVICE_TOKEN directly from process.env.
+    PDF_RENDERER_SERVICE_URL: z.string().url().optional(),
+    PDF_RENDERER_SERVICE_TOKEN: z.string().min(32).optional(),
   },
   client: {
     NEXT_PUBLIC_APP_URL: z.string().url().optional(),
@@ -40,6 +46,8 @@ export const env = createEnv({
     STORAGE_BUCKET: process.env.STORAGE_BUCKET,
     STORAGE_REGION: process.env.STORAGE_REGION,
     EARTHRANGER_ENCRYPTION_KEY: process.env.EARTHRANGER_ENCRYPTION_KEY,
+    PDF_RENDERER_SERVICE_URL: process.env.PDF_RENDERER_SERVICE_URL,
+    PDF_RENDERER_SERVICE_TOKEN: process.env.PDF_RENDERER_SERVICE_TOKEN,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   },
   skipValidation: process.env.SKIP_ENV_VALIDATION === "true",

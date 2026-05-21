@@ -42,3 +42,14 @@ if [ "$ENV" = "dev" ] && [[ "$CMD" == *"up"* ]]; then
 else
   $COMPOSE $BASE/docker-compose.app.yml $CMD
 fi
+
+# pdf-renderer (dev only — Phase 8 Batch 5 Sub-batch 5.3a)
+# Standalone Puppeteer service. Dev rebuilds from source on every up; stage/prod
+# compose files for this service ship in a follow-up sub-batch.
+if [ "$ENV" = "dev" ]; then
+  if [[ "$CMD" == *"up"* ]]; then
+    docker compose --env-file $ENV_FILE -f $BASE/docker-compose.pdf-renderer.yml up --build -d
+  else
+    $COMPOSE $BASE/docker-compose.pdf-renderer.yml $CMD
+  fi
+fi

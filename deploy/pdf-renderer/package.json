@@ -1,0 +1,17 @@
+{
+  "name": "marine-guardian-pdf-renderer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sandboxed Puppeteer + Chromium service for rendering HTML to PDF. Consumed by the @marine-guardian/jobs pdf-render BullMQ worker (Phase 8 Batch 5 Sub-batch 5.3b). Standalone — NOT part of the pnpm monorepo workspace.",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "puppeteer-core": "^23.11.1"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

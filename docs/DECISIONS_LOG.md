@@ -137,3 +137,54 @@ Impact: 1.2c merge proceeds with these lint errors on main. CI lint gate current
 for this reason (pre-existing). The `fix/user-dialogs-strict-mode` branch is queued as a separate
 work item — owner to claim before next Feature Update touching that module.
 Locked: yes — deferral confirmed; do not block 1.2c merge on these errors.
+
+## ReportExport PDF Storage Backend (Phase 8 Batch 5 Item 3)
+Decision: MinIO bucket per environment — pattern `marine-guardian-{env}-exports`
+Rationale: packages/storage is the locked OSS choice (Rule 14). Local-disk path per v2
+PRODUCT.md L777 (`/uploads/exports/{tenant_slug}/{year}/{month}/{export_id}.pdf`) encourages
+single-server lock-in and complicates backups (separate tarball per v2 L811). MinIO signed
+URLs simplify download auth and align with the existing STORAGE_* env infrastructure (already
+provisioned but `packages/storage` source not yet built). Storage surface (uploadPdf,
+getReadStream, delete) builds in Sub-batch 5.3c. Per-tenant prefix inside the bucket:
+`{tenantSlug}/{year}/{month}/{exportId}.pdf` — matches v2's path semantics without the disk
+mount. 30-day retention enforced by extending the existing maintenance worker (deferred).
+Locked: yes — packages/storage MinIO adapter is the only PDF persistence path. Disk fallback
+flag rejected (option 3 from decision matrix) — adds adapter complexity without a self-host
+business need at v1 scale.
+
+## PDF Renderer Service Auth (Phase 8 Batch 5 Sub-batch 5.3a)
+Decision: Custom `X-PDF-Renderer-Token` header + 48-char shared secret + constant-time compare
+Rationale: The marine-guardian-pdf-renderer Docker service exposes `/render` only over the
+internal Docker network (no host port). The web app's `/print-render/*` print target also
+guards on the same header so the renderer can prove its identity when navigating back. JWT
+or mTLS would be over-engineered for a fixed pair of trusted internal services on the same
+Docker network. Service-token pattern matches the v2 PRODUCT.md L774-775 spec ("service-token
+auth header"). Token rotates via CREDENTIALS.md + .env.{env} + container restart. Constant-time
+compare implemented manually (no node:crypto.timingSafeEqual) because the middleware runs in
+Next.js Edge runtime where node:crypto is unavailable — see
+apps/web/src/server/lib/service-token-guard.ts. Mirror impl in deploy/pdf-renderer/src/server.js.
+Locked: yes — header name + comparison strategy frozen across web + renderer + worker (5.3b).
+
+## Puppeteer Concurrency + Rate Limiter (Phase 8 Batch 5 Sub-batch 5.3a)
+Decision: BullMQ pdf-render worker concurrency=2, limiter={max:5, duration:1000}
+Rationale: Chromium PDF rendering is heavy on CPU + memory (~300-500MB resident per browser
+instance, ~1-3s per page render). Concurrency=2 caps two concurrent renders per worker
+container — exceeds this risks OOM on smaller staging/prod hosts. Limiter 5/sec is a per-worker
+queue ceiling that smooths bursty admin "rebuild all reports" actions without backlogging the
+queue. Scale throughput by running multiple worker container replicas rather than raising the
+in-process concurrency. v2 PRODUCT.md §776-779 typical latency 3-30s — concurrency=2 sustains
+~40-160 reports/min per worker container. Tune in production based on observed Active CPU.
+Locked: yes — defaults frozen for 5.3b; revisit only after production telemetry justifies a change.
+
+## PDF Renderer Internal Route Path (Phase 8 Batch 5 Sub-batch 5.3a)
+Decision: Print-only render target lives at `/print-render/[tenantSlug]/[reportType]/[exportId]`
+Rationale: v2 PRODUCT.md L724 specifies `/_print/{tenant_slug}/{report_type}/{export_id}` but
+Next.js App Router treats folders prefixed with `_` as private folders that are excluded from
+the routing system (`apps/web/src/app/_print/` would not generate a route). "Internal-only"
+semantics are enforced by the X-PDF-Renderer-Token guard in middleware.ts (constant-time
+compare bypasses the user-session auth gate, returns 401 without the header). The leading
+underscore in the spec was conventional shorthand for "internal"; the service-token guard
+makes that semantic explicit. URL-encoded folder name (`%5Fprint`) was considered and rejected
+as it complicates tooling and IDE navigation.
+Locked: yes — path frozen across web router + middleware guard + 5.3b BullMQ producer
+(constructs printUrl from this template) + 5.3a Puppeteer service Dockerfile env.

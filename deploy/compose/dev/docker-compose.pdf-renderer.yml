@@ -1,0 +1,38 @@
+# marine-guardian-pdf-renderer (Phase 8 Batch 5 Sub-batch 5.3a)
+# Sandboxed Puppeteer + Chromium service. Joins the shared app_network with
+# no host port exposure — only the BullMQ pdf-render worker (5.3b) can reach
+# it via the internal Docker DNS name ${COMPOSE_PROJECT_NAME}_pdf_renderer.
+#
+# Stage/prod compose files for this service are deferred to a follow-up
+# sub-batch once 5.3b/c/d ship the producer + consumer chain.
+
+networks:
+  app_network:
+    name: ${COMPOSE_PROJECT_NAME}_network
+    external: true
+
+services:
+  pdf-renderer:
+    build:
+      context: ../../pdf-renderer
+      dockerfile: Dockerfile
+    image: marine-guardian-pdf-renderer:dev-latest
+    container_name: ${COMPOSE_PROJECT_NAME}_pdf_renderer
+    hostname: ${COMPOSE_PROJECT_NAME}_pdf_renderer
+    environment:
+      NODE_ENV: development
+      PORT: "4000"
+      PDF_RENDERER_SERVICE_TOKEN: ${PDF_RENDERER_SERVICE_TOKEN}
+      PDF_NAV_TIMEOUT_MS: "30000"
+    # No ports: — only reachable from inside app_network. The 5.3b BullMQ
+    # worker calls http://${COMPOSE_PROJECT_NAME}_pdf_renderer:4000/render.
+    networks: [app_network]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    # No shm sizing flag — Chromium runs with --disable-dev-shm-usage so it
+    # uses /tmp instead of the cramped default /dev/shm. Matches the server.js
+    # launch args. See deploy/pdf-renderer/src/server.js for the rationale.
