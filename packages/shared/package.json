@@ -6,7 +6,8 @@
   "exports": {
     "./types": "./src/types/index.ts",
     "./schemas": "./src/schemas/index.ts",
-    "./lib/area-derivation": "./src/lib/area-derivation/index.ts"
+    "./lib/area-derivation": "./src/lib/area-derivation/index.ts",
+    "./lib/coverage-period": "./src/lib/coverage-period/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

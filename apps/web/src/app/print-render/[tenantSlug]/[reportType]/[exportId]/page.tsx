@@ -1,10 +1,6 @@
 /**
  * Print-only HTML render target consumed by marine-guardian-pdf-renderer.
  *
- * Phase 8 Batch 5 Sub-batch 5.3a — pipeline stub only. The actual report
- * content (Coverage Report, Per Area Report, ad-hoc filtered exports) is
- * deferred to Batch 6+ as user-visible feature work.
- *
  * URL path: /print-render/[tenantSlug]/[reportType]/[exportId]
  *   Deviates from v2 PRODUCT.md L724 spec path /_print/* — Next.js App
  *   Router treats `_`-prefixed folders as private folders that are excluded
@@ -16,10 +12,17 @@
  * in apps/web/src/middleware.ts (checks X-PDF-Renderer-Token before the
  * auth gate). Direct browser access without the header returns 401.
  *
- * The page renders deterministic content that Puppeteer can wait on via
- * networkidle0. No client-side data fetching — every value is baked into
- * the server render so page.pdf() captures it on first paint.
+ * Dispatch (Sub-batch 6.1a):
+ *   coverage          → CoverageReport (Page 1 — Patrol Index implemented;
+ *                       Page 2 + Page 3 land in 6.1b/6.1c)
+ *   per-area /
+ *   ad-hoc-events /
+ *   ad-hoc-patrols    → pipeline-stub banner (content lands in later 6.x).
  */
+
+import { notFound } from "next/navigation";
+import { getCoverageReportData } from "@/server/coverage-report/get-coverage-report-data";
+import { CoverageReport } from "./coverage-report";
 
 interface PrintPageProps {
   params: Promise<{
@@ -38,8 +41,14 @@ const VALID_REPORT_TYPES = new Set([
 
 export default async function PrintPage({ params }: PrintPageProps) {
   const { tenantSlug, reportType, exportId } = await params;
-  const generatedAt = new Date().toISOString();
 
+  if (reportType === "coverage") {
+    const data = await getCoverageReportData(tenantSlug, exportId);
+    if (data === null) notFound();
+    return <CoverageReport data={data} />;
+  }
+
+  const generatedAt = new Date().toISOString();
   const reportTypeLabel = VALID_REPORT_TYPES.has(reportType)
     ? reportType
     : `${reportType} (unrecognized — pipeline stub)`;
@@ -74,9 +83,9 @@ export default async function PrintPage({ params }: PrintPageProps) {
           <dd>{generatedAt}</dd>
         </dl>
         <div className="stub-banner">
-          Phase 8 Batch 5 Sub-batch 5.3a — pipeline infrastructure only. Real
-          report content (Coverage Report, Per Area Report) lands in Batch 6+
-          user-visible feature work.
+          Report content for this type lands in a later Batch 6 sub-batch.
+          Coverage Report Page 1 ships in 6.1a; Pages 2 + 3 follow in 6.1b
+          and 6.1c.
         </div>
         {/* networkidle0 wait target — Puppeteer treats this page as fully loaded once this image (a 1×1 transparent data URI) resolves. */}
         <img
