@@ -4,6 +4,30 @@
 # READ ORDER: 🔴 first → 🟤 second → rest by relevance
 # ---
 
+## 2026-05-21 — 🟡 @marine-guardian/jobs barrel transitively loads workers — adding a jobs import to any router file expands route-handler test mocks too
+- Type:      🟡 fix
+- Phase:     Phase 8 Batch 5 Sub-batch 5.2c (patrol.rebuildTracks admin mutation) — pattern applies to ALL future router files that gain an `@marine-guardian/jobs` import, especially routers whose schemas (zod filters etc.) are cross-imported by Route Handlers in apps/web/src/app/api/
+- Files:     apps/web/src/app/api/exports/patrols/__tests__/route.test.ts (the test that broke); apps/web/src/server/trpc/routers/patrol.ts (the router that gained the jobs import); packages/jobs/src/index.ts (the eager-load barrel)
+- Concepts:  vitest, vi.mock, module-graph, barrel-imports, side-effect-modules, eager-load, monorepo-test-isolation, bullmq, platformPrisma
+- Narrative: Adding `import { enqueuePatrolTrackMaterialize } from "@marine-guardian/jobs"` to apps/web/src/server/trpc/routers/patrol.ts caused apps/web/src/app/api/exports/patrols/__tests__/route.test.ts to fail with `[vitest] No "platformPrisma" export is defined on the "@marine-guardian/db" mock` — even though route.test.ts has zero direct relationship to jobs and the test file wasn't modified.
+
+  ROOT CAUSE: The @marine-guardian/jobs package's barrel (packages/jobs/src/index.ts) re-exports both queue helpers AND worker factories. The worker barrel (packages/jobs/src/workers/index.ts) imports the area-rederive worker which imports the area-rederive processor which has a TOP-LEVEL `platformPrisma as unknown as ExtendedPrismaClient` cast that EXECUTES at module-load time. So loading anything from @marine-guardian/jobs eagerly evaluates the platformPrisma cast.
+
+  THE CROSS-IMPORT CHAIN: route.ts imports `patrolListFilters` from `@/server/trpc/routers/patrol` — a zod schema cross-import that existed long before 5.2c. With my 5.2c change, patrol.ts now also imports from @marine-guardian/jobs. So route.ts (and route.test.ts) now transitively load the jobs barrel including workers, even though they never call any job function.
+
+  WHY route.test.ts FAILED: it mocks @marine-guardian/db with only `{prisma: {...}}` — no `platformPrisma` export. When the jobs worker barrel loads at module-init, area-rederive.processor.ts:53 reads `platformPrisma` from the mock and finds it undefined → vitest throws.
+
+  THE FIX: Add `platformPrisma: {}` (any value — even an empty object) to the @marine-guardian/db mock in route.test.ts. The processor only CASTS platformPrisma at module load (`const prisma: ExtendedPrismaClient = platformPrisma as unknown as ExtendedPrismaClient`); it doesn't actually invoke any method on it during module init. So a stub value satisfies the import-time existence check without needing to mock methods.
+
+  GENERAL RULE for vitest mocks of @marine-guardian/db when ANYTHING in the test's module graph touches @marine-guardian/jobs (directly OR transitively via a router that does): include `platformPrisma: {}` in the mock. This applies to:
+  - Route Handler tests that import shared schemas from router files (the export endpoints all do this)
+  - Component tests for client components that import tRPC types from router files
+  - Server Action tests in apps/web that import server utilities depending on routers
+
+  WHY NOT FIX THE BARREL: The jobs barrel re-exporting workers is intentional — start-workers.ts (the BullMQ orchestrator) needs to import all worker factories from one entrypoint, and consumers (admin UIs, monitoring scripts) sometimes need worker handles directly. Splitting the barrel into `@marine-guardian/jobs/client` (queues only) vs `@marine-guardian/jobs/server` (queues + workers) would be ideal but is invasive — pickup path: do this when worker factories grow beyond 6 (currently er-sync/alerts/email/maintenance/area-rederive/patrol-track-materialize). For now, the per-test mock stub is the correct contained fix.
+
+  PRIOR ART: 5.1e areaBoundary.ts also imports @marine-guardian/jobs (enqueueAreaRederive), but no Route Handler tests cross-import from areaBoundary.ts the way route.ts does from patrol.ts, so this pattern only surfaced now.
+
 ## 2026-05-20 — 🟡 BullMQ jobId dedupe pattern: exclude userId for cross-operator collapse
 - Type:      🟡 fix
 - Phase:     Phase 8 Batch 5 Sub-batch 5.2b (patrol-track-materialize queue) — pattern applies to ALL future BullMQ queues where the underlying job is "refresh resource X for tenant Y" and the requesting user is incidental
