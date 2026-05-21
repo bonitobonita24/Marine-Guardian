@@ -4,6 +4,13 @@
 # READ ORDER: 🔴 first → 🟤 second → rest by relevance
 # ---
 
+## 2026-05-21 — 🔴 The `coverage/` entry in root .gitignore matches *any* directory named coverage anywhere in the tree — name new dirs accordingly
+- Type:      🔴 gotcha
+- Phase:     Phase 8 Batch 6 Sub-batch 6.1a (Coverage Report Page 1 server query layer)
+- Files:     .gitignore (line 55: `coverage/` — meant for test-coverage output but the glob is unbounded); apps/web/src/server/coverage-report/ (the resolved name); the original apps/web/src/server/coverage/ that was silently gitignored
+- Concepts:  gitignore, glob semantics, directory naming, coverage-report, test-coverage
+- Narrative: Created apps/web/src/server/coverage/ for the Coverage Report server query layer in 6.1a. `git add` reported "paths are ignored by one of your .gitignore files" — the root .gitignore line 55 `coverage/` is intended to ignore test-coverage output (`coverage/lcov.info` etc.) but the unanchored glob matches *every* directory named "coverage" anywhere in the tree, including server code modules. Resolution: renamed apps/web/src/server/coverage/ → apps/web/src/server/coverage-report/ and updated 3 import paths (page.tsx, coverage-report.tsx, test file). Rule for future: avoid bare names that conflict with common .gitignore patterns (node_modules, dist, build, coverage, .next, .turbo). When in doubt, prefix the directory with the feature name (coverage-report, coverage-computation) rather than the bare concept. The alternative — adding a negation `!apps/web/src/server/coverage/` to .gitignore — would work but the rename is less invasive and more self-documenting.
+
 ## 2026-05-21 — 🔴 Next.js App Router excludes underscore-prefixed folders from routing — v2 spec paths starting with `_` need a rename
 - Type:      🔴 gotcha
 - Phase:     Phase 8 Batch 5 Sub-batch 5.3a (Puppeteer pdf-renderer infrastructure) — applies to any future route whose v2 PRODUCT.md path starts with `_` (e.g. `/_print/`, `/_internal/`, `/_admin/`)
