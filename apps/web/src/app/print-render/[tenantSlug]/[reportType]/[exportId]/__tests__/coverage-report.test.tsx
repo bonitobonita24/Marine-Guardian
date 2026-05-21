@@ -7,14 +7,17 @@ import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { getMonthlyPeriod } from "@marine-guardian/shared/lib/coverage-period";
 
-// Page 2's client islands depend on a real browser (Leaflet + Recharts).
-// Page 1 tests only need Page 2 to no-op. Mock the leaf islands so the
+// Page 2 + Page 3 client islands depend on a real browser (Leaflet + Recharts).
+// Page 1 tests only need Page 2 + 3 to no-op. Mock the leaf islands so the
 // react-dom server render stays in a node environment.
 vi.mock("../components/area-coverage-map", () => ({
   AreaCoverageMap: () => null,
 }));
 vi.mock("../components/patrol-area-bar-chart", () => ({
   PatrolAreaBarChart: () => null,
+}));
+vi.mock("../components/area-covered-chart", () => ({
+  AreaCoveredChart: () => null,
 }));
 
 import { CoverageReport } from "../coverage-report";
@@ -39,6 +42,8 @@ function buildData(
     attributions: [],
     patrolCountsByArea: [],
     unattributedPatrolCount: 0,
+    areaCoverage: [],
+    missingTracksCount: 0,
     ...overrides,
   };
 }

@@ -1,13 +1,15 @@
 /**
- * Coverage Report PDF render — Page 1 (Patrol Index).
+ * Coverage Report PDF render — 3-page funder template.
  *
  * Pure RSC: server-renders a fully self-contained HTML document. Puppeteer
  * waits for networkidle0 on the print-renderer pipeline (5.3a), so all
  * content must be in the initial HTML — no client-side data fetching.
  *
- * Page 2 (Area Boundary Summary) and Page 3 (Area Covered) ship in 6.1b/6.1c.
+ *   Page 1 — Patrol Index (this file)
+ *   Page 2 — Area Boundary Summary (page-2-area-boundary-summary.tsx)
+ *   Page 3 — Area Covered (page-3-area-covered.tsx)
  *
- * Layout follows v2 PRODUCT.md L215-L217:
+ * Page 1 layout follows v2 PRODUCT.md L215-L217:
  *   - Header: tenant name + report title + date range + generated timestamp
  *   - Summary cards (count + km by type: Foot / Seaborne / Total)
  *   - Type subtotal table
@@ -19,6 +21,7 @@ import type {
   CoverageReportPatrolRow,
 } from "@/server/coverage-report/get-coverage-report-data";
 import { Page2AreaBoundarySummary } from "./page-2-area-boundary-summary";
+import { Page3AreaCovered } from "./page-3-area-covered";
 
 interface CoverageReportProps {
   data: CoverageReportData;
@@ -291,6 +294,11 @@ export function CoverageReport({ data }: CoverageReportProps) {
           attributions={data.attributions}
           patrolCountsByArea={data.patrolCountsByArea}
           unattributedPatrolCount={data.unattributedPatrolCount}
+        />
+
+        <Page3AreaCovered
+          areaCoverage={data.areaCoverage}
+          missingTracksCount={data.missingTracksCount}
         />
 
         {/* Puppeteer networkidle0 anchor. */}

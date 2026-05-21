@@ -301,6 +301,8 @@ describe("getCoverageReportData", () => {
     expect(r?.attributions).toEqual([]);
     expect(r?.patrolCountsByArea).toEqual([]);
     expect(r?.unattributedPatrolCount).toBe(0);
+    expect(r?.areaCoverage).toEqual([]);
+    expect(r?.missingTracksCount).toBe(0);
   });
 });
 
@@ -654,5 +656,286 @@ describe("getCoverageReportData — Page 2 attribution", () => {
       [121.6, 13.6],
     ]);
     expect(r?.patrols[1]?.trackLineString).toBeNull();
+  });
+});
+
+describe("getCoverageReportData — Page 3 area coverage", () => {
+  const TENANT_ROW = {
+    id: TENANT_ID,
+    name: "Mindoro MPA",
+    slug: TENANT_SLUG,
+    timezone: "Asia/Manila",
+  };
+  const COVERAGE_EXPORT = {
+    tenantId: TENANT_ID,
+    reportType: "coverage",
+    paramsJson: { category: "monthly", year: 2026, month: 5 },
+    paperSize: "A4",
+    createdAt: new Date("2026-05-21T08:00:00.000Z"),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("accumulates coverage_km and coverage_hrs per Polygon boundary by clipping tracks", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
+      TENANT_ROW as never,
+    );
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValueOnce(
+      COVERAGE_EXPORT as never,
+    );
+    // Patrol with a track that crosses entirely through the boundary polygon.
+    vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([
+      {
+        id: "p1",
+        serialNumber: "MG-1",
+        title: null,
+        patrolType: "foot",
+        state: "done",
+        startTime: new Date("2026-05-10T01:00:00.000Z"),
+        endTime: new Date("2026-05-10T03:00:00.000Z"),
+        totalDistanceKm: 5,
+        totalHours: 2,
+        boatName: null,
+        areaName: null,
+        segments: [],
+        track: {
+          trackGeojson: {
+            type: "LineString",
+            // Long line that passes through the small polygon below.
+            coordinates: [
+              [120.005, 13.005],
+              [120.015, 13.015],
+            ],
+          },
+        },
+      },
+    ] as never);
+    vi.mocked(prisma.areaBoundary.findMany).mockResolvedValueOnce([
+      {
+        id: "boundary-alpha",
+        name: "Alpha Reef",
+        aliases: [],
+        region: "Mindoro",
+        source: "custom",
+        geometryType: "Polygon",
+        geometryGeojson: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [120.0, 13.0],
+              [120.02, 13.0],
+              [120.02, 13.02],
+              [120.0, 13.02],
+              [120.0, 13.0],
+            ],
+          ],
+        },
+        arcgisReferenceId: null,
+      },
+    ] as never);
+
+    const r = await getCoverageReportData(TENANT_SLUG, EXPORT_ID);
+
+    expect(r?.areaCoverage).toHaveLength(1);
+    const alpha = r?.areaCoverage[0];
+    expect(alpha?.areaBoundaryId).toBe("boundary-alpha");
+    expect(alpha?.areaName).toBe("Alpha Reef");
+    expect(alpha?.patrolsCount).toBe(1);
+    expect(alpha?.coverageKm).toBeGreaterThan(0);
+    expect(alpha?.coverageHrs).toBeGreaterThan(0);
+    expect(alpha?.hrsEstimatedCount).toBe(1);
+    expect(r?.missingTracksCount).toBe(0);
+  });
+
+  it("counts missingTracksCount for patrols with hours but no track", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
+      TENANT_ROW as never,
+    );
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValueOnce(
+      COVERAGE_EXPORT as never,
+    );
+    vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([
+      // Has totalHours but no track — counted.
+      {
+        id: "p-no-track",
+        serialNumber: "MG-1",
+        title: null,
+        patrolType: "foot",
+        state: "done",
+        startTime: new Date("2026-05-10T01:00:00.000Z"),
+        endTime: null,
+        totalDistanceKm: null,
+        totalHours: 3,
+        boatName: null,
+        areaName: null,
+        segments: [],
+        track: null,
+      },
+      // No totalHours and no track — NOT counted (likely draft).
+      {
+        id: "p-empty",
+        serialNumber: "MG-2",
+        title: null,
+        patrolType: "foot",
+        state: "done",
+        startTime: new Date("2026-05-11T01:00:00.000Z"),
+        endTime: null,
+        totalDistanceKm: null,
+        totalHours: null,
+        boatName: null,
+        areaName: null,
+        segments: [],
+        track: null,
+      },
+    ] as never);
+    vi.mocked(prisma.areaBoundary.findMany).mockResolvedValueOnce([
+      {
+        id: "boundary-alpha",
+        name: "Alpha Reef",
+        aliases: [],
+        region: "Mindoro",
+        source: "custom",
+        geometryType: "Polygon",
+        geometryGeojson: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [120.0, 13.0],
+              [120.02, 13.0],
+              [120.02, 13.02],
+              [120.0, 13.02],
+              [120.0, 13.0],
+            ],
+          ],
+        },
+        arcgisReferenceId: null,
+      },
+    ] as never);
+
+    const r = await getCoverageReportData(TENANT_SLUG, EXPORT_ID);
+    expect(r?.missingTracksCount).toBe(1);
+    expect(r?.areaCoverage[0]?.patrolsCount).toBe(0);
+    expect(r?.areaCoverage[0]?.coverageKm).toBe(0);
+  });
+
+  it("seeds areaCoverage with one zero-row per enabled Polygon boundary even when no patrols cover it", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
+      TENANT_ROW as never,
+    );
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValueOnce(
+      COVERAGE_EXPORT as never,
+    );
+    vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.areaBoundary.findMany).mockResolvedValueOnce([
+      {
+        id: "b1",
+        name: "Alpha Reef",
+        aliases: [],
+        region: "Mindoro",
+        source: "custom",
+        geometryType: "Polygon",
+        geometryGeojson: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [120, 13],
+              [120.01, 13],
+              [120.01, 13.01],
+              [120, 13.01],
+              [120, 13],
+            ],
+          ],
+        },
+        arcgisReferenceId: null,
+      },
+      {
+        id: "b2",
+        name: "Bravo Bank",
+        aliases: [],
+        region: "Mindoro",
+        source: "custom",
+        geometryType: "Polygon",
+        geometryGeojson: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [121, 14],
+              [121.01, 14],
+              [121.01, 14.01],
+              [121, 14.01],
+              [121, 14],
+            ],
+          ],
+        },
+        arcgisReferenceId: null,
+      },
+    ] as never);
+
+    const r = await getCoverageReportData(TENANT_SLUG, EXPORT_ID);
+    expect(r?.areaCoverage).toHaveLength(2);
+    for (const row of r?.areaCoverage ?? []) {
+      expect(row.patrolsCount).toBe(0);
+      expect(row.coverageKm).toBe(0);
+      expect(row.coverageHrs).toBe(0);
+      expect(row.hrsEstimatedCount).toBe(0);
+    }
+  });
+
+  it("excludes LineString boundaries from areaCoverage rows (coastline references render on Page 2 only)", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
+      TENANT_ROW as never,
+    );
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValueOnce(
+      COVERAGE_EXPORT as never,
+    );
+    vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.areaBoundary.findMany).mockResolvedValueOnce([
+      {
+        id: "polygon-boundary",
+        name: "Polygon Reef",
+        aliases: [],
+        region: "Mindoro",
+        source: "custom",
+        geometryType: "Polygon",
+        geometryGeojson: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [120, 13],
+              [120.01, 13],
+              [120.01, 13.01],
+              [120, 13.01],
+              [120, 13],
+            ],
+          ],
+        },
+        arcgisReferenceId: null,
+      },
+      {
+        id: "linestring-boundary",
+        name: "North Coast",
+        aliases: [],
+        region: "Mindoro",
+        source: "arcgis",
+        geometryType: "LineString",
+        geometryGeojson: {
+          type: "LineString",
+          coordinates: [
+            [120, 13],
+            [121, 13],
+          ],
+        },
+        arcgisReferenceId: null,
+      },
+    ] as never);
+
+    const r = await getCoverageReportData(TENANT_SLUG, EXPORT_ID);
+    // Both boundaries returned in enabledAreas (Page 2 needs LineString for dashed overlay).
+    expect(r?.enabledAreas).toHaveLength(2);
+    // But only the Polygon appears in areaCoverage (Page 3).
+    expect(r?.areaCoverage).toHaveLength(1);
+    expect(r?.areaCoverage[0]?.areaBoundaryId).toBe("polygon-boundary");
   });
 });

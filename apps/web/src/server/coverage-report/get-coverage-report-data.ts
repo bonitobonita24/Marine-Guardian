@@ -36,6 +36,10 @@ import {
   type AttributionSource,
 } from "@marine-guardian/shared/lib/area-attribution";
 import {
+  accumulateCoverageByBoundary,
+  type BoundaryCoverage,
+} from "@marine-guardian/shared/lib/coverage-clip";
+import {
   DEFAULT_TENANT_OFFSET_MINUTES,
   getSelectedTemplatePeriod,
   type Period,
@@ -104,6 +108,19 @@ export interface CoverageReportData {
   /** Per-boundary tally + a separate count for patrols outside all enabled boundaries. */
   patrolCountsByArea: AreaPatrolCount[];
   unattributedPatrolCount: number;
+  /**
+   * Page 3 — Area Covered. One row per Polygon AreaBoundary with coverage
+   * km/hrs accumulated by clipping each patrol's track against the boundary.
+   * Sorted by coverageKm DESC then areaName ASC. LineString boundaries are
+   * excluded (clipping is meaningless on coastline references).
+   */
+  areaCoverage: BoundaryCoverage[];
+  /**
+   * Patrols with totalHours > 0 but no trackLineString — surfaced in the
+   * Page 3 footer note so coverage readers know the coverage_km may
+   * understate reality.
+   */
+  missingTracksCount: number;
 }
 
 interface ParsedCoverageParams extends SelectedTemplatePeriodInput {
@@ -387,6 +404,25 @@ export async function getCoverageReportData(
     boundariesForAttribution,
   );
 
+  // Page 3 — Area Covered.
+  //
+  // Clip each patrol's polyline against every enabled Polygon boundary to
+  // get coverage_km, then pro-rate totalHours by the km fraction inside
+  // each boundary. LineString boundaries are skipped by the aggregator —
+  // they appear on Page 2 as dashed reference outlines only.
+  //
+  // Reuses boundariesForAttribution: AreaBoundaryForDerivation is the
+  // single-sourced boundary shape across area-derivation, area-attribution,
+  // and coverage-clip (see packages/shared/src/lib/coverage-clip/types.ts).
+  const { rows: areaCoverage, missingTracksCount } = accumulateCoverageByBoundary(
+    patrols.map((p) => ({
+      id: p.id,
+      trackLineString: p.trackLineString,
+      totalHours: p.totalHours,
+    })),
+    boundariesForAttribution,
+  );
+
   return {
     tenant: {
       id: tenant.id,
@@ -403,5 +439,7 @@ export async function getCoverageReportData(
     attributions,
     patrolCountsByArea,
     unattributedPatrolCount: unattributedCount,
+    areaCoverage,
+    missingTracksCount,
   };
 }
