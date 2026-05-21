@@ -4,6 +4,27 @@
 # READ ORDER: 🔴 first → 🟤 second → rest by relevance
 # ---
 
+## 2026-05-21 — 🔴 Next.js App Router excludes underscore-prefixed folders from routing — v2 spec paths starting with `_` need a rename
+- Type:      🔴 gotcha
+- Phase:     Phase 8 Batch 5 Sub-batch 5.3a (Puppeteer pdf-renderer infrastructure) — applies to any future route whose v2 PRODUCT.md path starts with `_` (e.g. `/_print/`, `/_internal/`, `/_admin/`)
+- Files:     apps/web/src/app/print-render/[tenantSlug]/[reportType]/[exportId]/page.tsx (the renamed-from-`_print` route); apps/web/src/middleware.ts (the service-token guard matcher); docs/DECISIONS_LOG.md "PDF Renderer Internal Route Path" lock; docs/v2/PRODUCT.md L724 (the spec line whose `/_print/{tenant_slug}/{report_type}/{export_id}` path was deviated from)
+- Concepts:  next-js-app-router, private-folders, routing-conventions, v2-spec-deviation, service-token-auth, puppeteer-target, underscore-prefix, /_print/, /print-render/
+- Narrative: Next.js App Router treats any folder prefixed with `_` as a **private folder** — its `page.tsx`/`route.ts` files are EXCLUDED from the routing system entirely. `apps/web/src/app/_print/[tenantSlug]/[reportType]/[exportId]/page.tsx` would not generate a route at `/_print/.../.../...` — direct browser access (and Puppeteer navigation) would 404 with no obvious reason.
+
+  ROOT CAUSE: This is an intentional Next.js feature for hiding implementation-detail folders alongside routes (e.g. `_components/`, `_utils/`). The leading `_` is the only marker — there is no opt-out without renaming or URL-encoding (`%5F`).
+
+  DETECTION: Caught during 5.3a implementation before any commit by re-reading Next.js routing conventions while writing the page.tsx file. Would have surfaced as a 404 at the first Puppeteer navigation attempt in 5.3b dispatch — far more expensive to debug after the fact.
+
+  v2 PRODUCT.md L724 specifies `/_print/{tenant_slug}/{report_type}/{export_id}` because the spec author used `_` as a "this is internal-only" convention. But the internal-only semantic is properly enforced by the X-PDF-Renderer-Token middleware guard, not by a URL prefix.
+
+  FIX (locked in DECISIONS_LOG "PDF Renderer Internal Route Path"): Renamed route to `/print-render/[tenantSlug]/[reportType]/[exportId]`. URL-encoded folder name `%5Fprint` was considered and rejected — it complicates IDE navigation, file-search, and grep workflows, and offers zero functional benefit over a clean folder name when service-token auth already provides the access gate.
+
+  COROLLARY 1: If v2 spec specifies any route path starting with `_`, deviate to a non-underscore equivalent BEFORE generating the page.tsx — and lock the deviation in DECISIONS_LOG so all downstream producers (BullMQ processors that construct the URL, link generators, sitemap generators) use the corrected path.
+
+  COROLLARY 2: This convention also excludes `_components`, `_lib`, `_utils`, etc. inside the app directory — useful for co-locating implementation files next to routes without them becoming accidental routes. The corollary is one-way: a folder name starting with `_` is private. Folders containing but not starting with `_` (e.g. `my_route`) ARE routes. Route group syntax `(group)` is different — those folders don't appear in the URL at all.
+
+  COROLLARY 3 (re-validated): The (dashboard) folder pattern used elsewhere in this codebase (`apps/web/src/app/(dashboard)/users/page.tsx` → URL `/users`) is a **route group** — parentheses syntax — and is unrelated to the underscore-prefix private folder mechanism.
+
 ## 2026-05-21 — 🟡 @marine-guardian/jobs barrel transitively loads workers — adding a jobs import to any router file expands route-handler test mocks too
 - Type:      🟡 fix
 - Phase:     Phase 8 Batch 5 Sub-batch 5.2c (patrol.rebuildTracks admin mutation) — pattern applies to ALL future router files that gain an `@marine-guardian/jobs` import, especially routers whose schemas (zod filters etc.) are cross-imported by Route Handlers in apps/web/src/app/api/
