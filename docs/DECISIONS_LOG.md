@@ -188,3 +188,58 @@ makes that semantic explicit. URL-encoded folder name (`%5Fprint`) was considere
 as it complicates tooling and IDE navigation.
 Locked: yes — path frozen across web router + middleware guard + 5.3b BullMQ producer
 (constructs printUrl from this template) + 5.3a Puppeteer service Dockerfile env.
+
+## MinIO Client Library Choice (Phase 8 Batch 5 Sub-batch 5.3c)
+Decision: `@aws-sdk/client-s3` + `@aws-sdk/lib-storage` (NOT the `minio` Node client)
+Rationale: Both speak the S3 protocol that MinIO implements. AWS SDK gives a broader S3-compat
+surface so the eventual migration to Amazon S3 (declared as an option in "ReportExport PDF
+Storage Backend" above) is configuration-only — change `MINIO_ENDPOINT` to the S3 regional
+endpoint and the same code paths run unchanged. The `minio` Node client is smaller and has a
+MinIO-native API but locking to it would force a rewrite of packages/storage if the project
+moves to AWS. `forcePathStyle: true` is required for MinIO compatibility and is also accepted
+by AWS S3, so the configuration is portable. AWS SDK bundle cost is acceptable — the storage
+package is only consumed by the worker process (server-side, no client bundle impact) and the
+download Route Handler (already a Node runtime, not Edge).
+Locked: yes — packages/storage uses @aws-sdk/client-s3 exclusively. `minio` Node client not in
+the dependency tree and must not be added without revisiting this decision.
+
+## ReportExport Download URL Shape (Phase 8 Batch 5 Sub-batch 5.3c)
+Decision: `/api/exports/reports/${exportId}/download` (NOT v2 spec §506 `/${tenantSlug}/exports/${exportId}/download`)
+Rationale: v2 PRODUCT.md §506 specifies a tenant-prefixed URL shape inherited from the broader
+`/${tenantSlug}/*` URL convention. For the download endpoint specifically, the tenant prefix
+is information leakage — the URL identifies which tenant a row belongs to, which a user without
+the row's tenant access could discover by URL probing. The Route Handler enforces tenant scope
+server-side via `session.tenantId` from `requireRouteAuth` (security.md L11 manual auth pattern)
+so the URL no longer needs to carry tenantId. 404 (not 403) on cross-tenant access prevents
+existence leakage. This is a controlled deviation from v2 §506 — the spec's intent (a download
+URL that resolves to the right file for the right user) is preserved, only the URL shape changes.
+Locked: yes — `reportExport.getDownloadUrl` returns the `/api/exports/reports/${id}/download`
+shape; the Route Handler lives at apps/web/src/app/api/exports/reports/[id]/download/route.ts.
+5.3d UI surfaces consume the URL via the existing `getDownloadUrl` tRPC procedure — no UI
+change needed when this decision was made.
+
+## ReportExport row.filePath Storage Convention (Phase 8 Batch 5 Sub-batch 5.3c)
+Decision: `row.filePath` stores the S3 KEY only (`${tenantId}/${YYYY}/${MM}/${exportId}.pdf`)
+— NOT the full bucket+key path (`marine-guardian-${env}-exports/${tenantId}/...`)
+Rationale: Bucket name is environment-dependent configuration (`marine-guardian-{env}-exports`
+varies per env); the key is per-export data that should not be coupled to deployment env.
+Storing the bucket inside the DB row would couple data to its deployment env and break clean
+cross-env data restores (e.g. dump prod → restore to staging would carry stale bucket names).
+Bucket is derived at write+read time via `packages/storage.getExportsBucketName()` — the single
+source of truth for the bucket shape. 5.3b stub temporarily stored the full bucket+key string,
+but no production data exists yet (5.3b never wrote real uploads) so the shape change in 5.3c
+is safe without a migration. Future restoration semantics: `key` is portable across envs as
+long as the env-prefixed bucket exists.
+Locked: yes — `row.filePath` always stores the key only. Code that reads `filePath` MUST pair
+it with `getExportsBucketName()` to compute the full s3:// reference.
+
+## Storage Feature Flag (Phase 8 Batch 5 Sub-batch 5.3c — Rule 9 sync)
+Decision: `inputs.yml` storage.enabled flipped `false` → `true` + provider = `minio`
+Rationale: 5.3a built the MinIO Docker infrastructure + env vars; 5.3c built the
+packages/storage source surface that consumes them. Rule 9 (bidirectional governance) requires
+`inputs.yml` to reflect the activated state of every package. Prior `storage.enabled: false`
+was correct through Sub-batch 5.3b (no source consumed MinIO directly — the pdf-render
+processor only wrote a stub path). Post-5.3c, storage is in active use by both the worker
+process (uploadPdf) and the download Route Handler (getPdfReadStream).
+Locked: yes — `storage.enabled` stays `true` for the remainder of the project. Disabling
+storage would break the pdf-render pipeline + 5.3d admin UI.
