@@ -4,6 +4,13 @@
 # READ ORDER: 🔴 first → 🟤 second → rest by relevance
 # ---
 
+## 2026-05-21 — 🔴 turf.lineSplit returns an EMPTY FeatureCollection when the line does not cross the splitter — must fall back to point-in-polygon
+- Type:      🔴 gotcha
+- Phase:     Phase 8 Batch 6 Sub-batch 6.1c-i (coverage-clip line × polygon clipping primitive)
+- Files:     packages/shared/src/lib/coverage-clip/clip-track-to-boundary.ts (the fallback path); packages/shared/src/lib/coverage-clip/__tests__/coverage-clip.test.ts (5 of 29 cases failed before the fix landed)
+- Concepts:  turf.js, lineSplit, line-polygon clipping, GeoJSON, edge case, empty FeatureCollection, booleanPointInPolygon, geospatial
+- Narrative: When clipping a patrol track LineString against an AreaBoundary polygon via `turf.lineSplit(track, ring)`, the FIRST implementation assumed lineSplit always returns at least one feature. WRONG. lineSplit returns an EMPTY FeatureCollection (`split.features.length === 0`) when the input line does NOT intersect the splitter at all — which is the common case when the track is either fully inside OR fully outside the polygon. The initial implementation that iterated `for (const piece of split.features)` and summed inside-piece lengths returned coverageKm = 0 for EVERY fully-inside track — exactly the patrols we most need to count. 5 of 29 vitest cases failed on the first run (all fully-inside-track variants + multi-patrol aggregation tests that depend on them). Fix: add an explicit fallback path when `split.features.length === 0` — test the track's first vertex via `booleanPointInPolygon(turfPoint(track[0]), polygon)`. If inside → return `{ totalKm: trackTotalKm, trackTotalKm }`. If outside → return `{ totalKm: 0, trackTotalKm }`. All 137 tests pass after the fix. **General rule for future turf-based clipping work**: never trust that the result of any `split` / `intersect` / `difference` operation is non-empty for the obvious "everything's inside" case. Always have a fallback that classifies the no-result case via a primitive geometric test (point-in-polygon for inside/outside, bbox overlap for touching, etc.). This pattern will reappear when 6.1c-ii Page 3 or future Per Area Report layers reach for `@turf/intersect`, `@turf/difference`, or `@turf/line-overlap` — the no-intersection branch always needs a fallback.
+
 ## 2026-05-21 — 🔴 The `coverage/` entry in root .gitignore matches *any* directory named coverage anywhere in the tree — name new dirs accordingly
 - Type:      🔴 gotcha
 - Phase:     Phase 8 Batch 6 Sub-batch 6.1a (Coverage Report Page 1 server query layer)

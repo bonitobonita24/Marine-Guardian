@@ -266,3 +266,39 @@ Locked: yes — Leaflet + OpenStreetMap tiles + Puppeteer wait flag is the map r
 contract for ALL future Coverage Report pages and any other report that embeds a map (Per Area
 Report, future Quarterly Report). Static SVG composition is rejected for this report family.
 
+
+
+## Coverage Clip Library Choice (Phase 8 Batch 6 Sub-batch 6.1c-i)
+Decision: Narrow @turf/* modules — boolean-point-in-polygon + helpers + length + line-split,
+all pinned at ^7.1.0 — NOT the full @turf/turf bundle, NOT @turf/intersect, NOT pure-math
+hand-rolled clipping.
+Rationale: Page 3 (Area Covered) of the Coverage Report — and every future report that
+computes coverage_km / coverage_hrs per AreaBoundary (Per Area Report, future Quarterly
+Report) — needs to clip patrol track LineStrings against enabled boundary Polygons. Three
+options surfaced via AskUserQuestion at session start:
+  • Narrow @turf/* modules (4 packages, ~60KB tree-shaken, MIT)
+  • Full @turf/turf bundle (~200KB, MIT, more helpers for future reports)
+  • Pure-math hand-rolled (Sutherland-Hodgman + haversine + point-in-polygon, ~250 LOC)
+User selected the narrow-modules path. Justifications: (a) packages/shared minimalism — the
+package has ~50 cumulative LOC of geometry math today across area-derivation; adding 4 narrow
+deps is a smaller surface than 250 LOC of hand-rolled clipping that we have to test + maintain.
+(b) Correctness — turf's lineSplit + booleanPointInPolygon have years of geospatial-edge-case
+hardening (anti-meridian wrap, near-pole projections, polygon hole semantics). (c) Algorithm
+clarity — the clip primitive reads as 5 sequential turf calls vs hundreds of lines of geometry.
+@turf/intersect was rejected (polygon × polygon — wrong primitive for line × polygon clipping).
+Full @turf/turf bundle was rejected (~200KB unnecessary for narrow surface; tree-shaking helps
+but cleaner to depend only on what's used; future Per Area Report can add another @turf/*
+module if needed). Pure-math was rejected (~250 LOC + correctness risk + slower velocity).
+Implementation: packages/shared/src/lib/coverage-clip/ (5 src + 1 test file, 29 vitest cases).
+Surface: clipTrackToBoundary(track, boundary) → ClipResult{totalKm, trackTotalKm};
+computeCoverageHours(totalHours, coverageKm, trackTotalKm) → CoverageHoursResult{coverageHrs,
+estimated}; accumulateCoverageByBoundary(patrols, boundaries) → AccumulatedCoverage{rows,
+missingTracksCount}. LineString boundaries return 0 km (coastlines enclose no area); fallback
+path classifies non-crossing tracks via first-vertex booleanPointInPolygon when turf.lineSplit
+returns an empty FeatureCollection. Polygon holes (coordinates[1..]) NOT subtracted in 6.1c —
+no enabled boundary uses holes today; future enhancement is mechanical.
+Locked: yes — the coverage-clip module is the SINGLE source of truth for line × polygon
+clipping across this codebase. Per Area Report + future Quarterly Report MUST consume the
+same module — no second-source clip library. Bumping turf to a major version (e.g. v8 when
+released) requires re-running the full 29-case test suite + verifying lineSplit empty-result
+fallback still applies.
