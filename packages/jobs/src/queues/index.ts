@@ -16,6 +16,10 @@ export {
   enqueuePatrolTrackMaterialize,
 } from "./patrol-track-materialize.queue";
 export {
+  getPdfRenderQueue,
+  enqueuePdfRender,
+} from "./pdf-render.queue";
+export {
   QUEUE_NAMES,
   type QueueName,
   type JobPayloadMap,
@@ -26,4 +30,5 @@ export {
   type MaintenanceJobPayload,
   type AreaRederiveJobPayload,
   type PatrolTrackMaterializeJobPayload,
+  type PdfRenderJobPayload,
 } from "./types";

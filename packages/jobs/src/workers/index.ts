@@ -9,3 +9,8 @@ export {
   PATROL_TRACK_MATERIALIZE_LIMITER,
   PATROL_TRACK_MATERIALIZE_CONCURRENCY,
 } from "./patrol-track-materialize.worker";
+export {
+  startPdfRenderWorker,
+  PDF_RENDER_LIMITER,
+  PDF_RENDER_CONCURRENCY,
+} from "./pdf-render.worker";

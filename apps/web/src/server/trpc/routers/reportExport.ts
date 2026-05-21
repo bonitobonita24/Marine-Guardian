@@ -10,6 +10,7 @@ import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
 import { coordinatorProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
+import { enqueuePdfRender } from "@marine-guardian/jobs";
 
 /**
  * ReportExport router — async PDF export tracker per v2 PRODUCT.md §505-506.
@@ -88,14 +89,24 @@ export const reportExportRouter = router({
     }),
 
   /**
-   * create — inserts a queued ReportExport row and returns it. Does NOT
-   * enqueue the BullMQ pdf-render job yet (future batch). The row exists
-   * with status=queued so the UI flow + audit trail are testable.
+   * create — inserts a queued ReportExport row, enqueues the BullMQ
+   * pdf-render job, and writes the EXPORT_REQUESTED AuditLog. Wired in
+   * 5.3b — closes the loop from v2 PRODUCT.md L505-506 (4.1c scaffolded
+   * the row insert; 5.3b fires the producer side of the pipeline).
+   *
+   * Order of operations: prisma.create → enqueuePdfRender → auditLog.create.
+   * Each step's failure mode is independent: a row exists with status=queued
+   * even if the enqueue or audit log fails, and the 5.3d admin "Retry"
+   * button can re-enqueue from the stuck-queued state if needed (jobId
+   * `pdf-render:${exportId}` dedupes the second enqueue to one BullMQ
+   * job). Same pattern as patrol.rebuildTracks + areaBoundary.rebuild —
+   * sequential awaits rather than $transaction wrap because BullMQ writes
+   * to Valkey (outside Postgres) and a $transaction cannot span both.
    */
   create: coordinatorProcedure
     .input(createReportExportInputSchema)
     .mutation(async ({ ctx, input }) => {
-      return prisma.reportExport.create({
+      const created = await prisma.reportExport.create({
         data: {
           tenantId: ctx.tenantId,
           requestedByUserId: ctx.userId,
@@ -105,6 +116,28 @@ export const reportExportRouter = router({
           status: "queued",
         },
       });
+
+      await enqueuePdfRender({
+        exportId: created.id,
+        tenantId: ctx.tenantId,
+        userId: ctx.userId,
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          action: "EXPORT_REQUESTED",
+          userId: ctx.userId,
+          tenantId: ctx.tenantId,
+          entityType: "ReportExport",
+          entityId: created.id,
+          changesJson: {
+            reportType: input.reportType,
+            paperSize: input.paperSize,
+          },
+        },
+      });
+
+      return created;
     }),
 
   /**

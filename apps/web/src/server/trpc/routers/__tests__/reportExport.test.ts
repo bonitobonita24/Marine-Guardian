@@ -8,7 +8,14 @@ vi.mock("@marine-guardian/db", () => ({
       findFirst: vi.fn(),
       create: vi.fn(),
     },
+    auditLog: {
+      create: vi.fn(),
+    },
   },
+}));
+
+vi.mock("@marine-guardian/jobs", () => ({
+  enqueuePdfRender: vi.fn(),
 }));
 
 vi.mock("../../../lib/rate-limit", () => ({
@@ -25,6 +32,7 @@ vi.mock("../../../auth", () => ({
 }));
 
 import { prisma } from "@marine-guardian/db";
+import { enqueuePdfRender } from "@marine-guardian/jobs";
 import { createCallerFactory } from "../../trpc";
 import { reportExportRouter } from "../reportExport";
 
@@ -151,7 +159,7 @@ describe("reportExport.getById / pollStatus", () => {
   });
 });
 
-describe("reportExport.create (RBAC)", () => {
+describe("reportExport.create (RBAC + 5.3b pipeline wiring)", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("creates an export row with status=queued and proper tenant/user scoping (coordinator+)", async () => {
@@ -194,6 +202,89 @@ describe("reportExport.create (RBAC)", () => {
       })
     ).rejects.toThrow(TRPCError);
     expect(vi.mocked(prisma.reportExport.create)).not.toHaveBeenCalled();
+    expect(vi.mocked(enqueuePdfRender)).not.toHaveBeenCalled();
+  });
+
+  it("enqueues a pdf-render job with the created row's id + tenantId + userId (5.3b wiring)", async () => {
+    vi.mocked(prisma.reportExport.create).mockResolvedValue({
+      id: "re-enqueue-1",
+      tenantId: TENANT_ID,
+      requestedByUserId: USER_ID,
+      status: "queued",
+    } as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["field_coordinator"]));
+    await caller.create({
+      reportType: "area",
+      paramsJson: {},
+      paperSize: "A4",
+    });
+
+    expect(vi.mocked(enqueuePdfRender)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(enqueuePdfRender)).toHaveBeenCalledWith({
+      exportId: "re-enqueue-1",
+      tenantId: TENANT_ID,
+      userId: USER_ID,
+    });
+  });
+
+  it("writes an EXPORT_REQUESTED AuditLog with the new row's id as entityId (5.3b wiring)", async () => {
+    vi.mocked(prisma.reportExport.create).mockResolvedValue({
+      id: "re-audit-1",
+      tenantId: TENANT_ID,
+      requestedByUserId: USER_ID,
+      status: "queued",
+    } as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["field_coordinator"]));
+    await caller.create({
+      reportType: "coverage",
+      paramsJson: { dateRange: { start: "2026-05-01", end: "2026-05-31" } },
+      paperSize: "Letter",
+    });
+
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith({
+      data: partial<{
+        action: string;
+        userId: string;
+        tenantId: string;
+        entityType: string;
+        entityId: string;
+      }>({
+        action: "EXPORT_REQUESTED",
+        userId: USER_ID,
+        tenantId: TENANT_ID,
+        entityType: "ReportExport",
+        entityId: "re-audit-1",
+      }),
+    });
+  });
+
+  it("invokes prisma.create BEFORE enqueuePdfRender BEFORE auditLog.create", async () => {
+    vi.mocked(prisma.reportExport.create).mockResolvedValue({
+      id: "re-order-1",
+      tenantId: TENANT_ID,
+      requestedByUserId: USER_ID,
+      status: "queued",
+    } as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["field_coordinator"]));
+    await caller.create({
+      reportType: "consolidated",
+      paramsJson: {},
+      paperSize: "A4",
+    });
+
+    const createOrder =
+      vi.mocked(prisma.reportExport.create).mock.invocationCallOrder[0];
+    const enqueueOrder = vi.mocked(enqueuePdfRender).mock.invocationCallOrder[0];
+    const auditOrder = vi.mocked(prisma.auditLog.create).mock.invocationCallOrder[0];
+    expect(createOrder).toBeDefined();
+    expect(enqueueOrder).toBeDefined();
+    expect(auditOrder).toBeDefined();
+    expect(createOrder).toBeLessThan(enqueueOrder as number);
+    expect(enqueueOrder).toBeLessThan(auditOrder as number);
   });
 });
 

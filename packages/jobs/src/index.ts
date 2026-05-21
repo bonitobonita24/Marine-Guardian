@@ -17,6 +17,8 @@ export {
   enqueueAreaRederive,
   getPatrolTrackMaterializeQueue,
   enqueuePatrolTrackMaterialize,
+  getPdfRenderQueue,
+  enqueuePdfRender,
   QUEUE_NAMES,
   type QueueName,
   type JobPayloadMap,
@@ -27,6 +29,7 @@ export {
   type MaintenanceJobPayload,
   type AreaRederiveJobPayload,
   type PatrolTrackMaterializeJobPayload,
+  type PdfRenderJobPayload,
 } from "./queues/index";
 
 export {
@@ -39,7 +42,26 @@ export {
   startPatrolTrackMaterializeWorker,
   PATROL_TRACK_MATERIALIZE_LIMITER,
   PATROL_TRACK_MATERIALIZE_CONCURRENCY,
+  startPdfRenderWorker,
+  PDF_RENDER_LIMITER,
+  PDF_RENDER_CONCURRENCY,
 } from "./workers/index";
+
+// 5.3b — re-export the pdf-renderer-client helper. Relocated from
+// apps/web/src/server/lib/ to packages/jobs/src/lib/ in this sub-batch
+// so the 5.3b processor + future apps/web consumers can both reach it
+// through the stable @marine-guardian/jobs package boundary (same arc
+// as 5.1c area-derivation + 5.2a patrol-track-materialization).
+export {
+  renderPdfViaService,
+  PdfRendererError,
+  type RenderPdfInput,
+} from "./lib/pdf-renderer-client";
+
+// 5.3b — re-export the processor's RenderResult so apps/web (5.3d admin
+// UI list page surfaces filePath + fileSizeBytes from the result row)
+// can reach the type through the stable package boundary.
+export { type RenderResult } from "./processors/pdf-render.processor";
 
 // 5.1c — re-export the area-derivation helper so apps/web (5.1e admin
 // manual-rebuild tRPC mutation) can consume the helper through the

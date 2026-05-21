@@ -65,6 +65,31 @@ export interface PatrolTrackMaterializeJobPayload extends BaseJobPayload {
   patrolId: string;
 }
 
+/**
+ * 5.3b — PDF render job payload. Enqueued when:
+ *  - reportExport.create mutation completes the row insert (status=queued)
+ *    and fires the producer side of the pdf-render pipeline,
+ *  - 5.3d admin "Retry" button on a failed export row re-enqueues with
+ *    the same exportId (jobId dedupe collapses double-clicks to one job).
+ *
+ * jobId pattern: `pdf-render:${exportId}` — NOT scoped by tenantId.
+ * exportId is the ReportExport.id PK (cuid, globally unique across all
+ * tenants), so tenant scoping would be redundant. exportId is the row
+ * identity that owns this render — re-enqueueing the same exportId
+ * (e.g. retry button while still queued/rendering) collapses to one
+ * BullMQ job via the deterministic jobId.
+ *
+ * tenantId is included for observability/logging + validateTenantContext
+ * (required by BaseJobPayload). The processor re-loads the ReportExport
+ * row and uses row.tenantId as the source of truth for tenant scoping
+ * downstream (printUrl construction + storage path + audit).
+ * userId is set to the triggering user (req.session.userId for admin
+ * create or admin retry) — required by BaseJobPayload.
+ */
+export interface PdfRenderJobPayload extends BaseJobPayload {
+  exportId: string;
+}
+
 export type JobPayloadMap = {
   "er-sync": ErSyncJobPayload;
   alerts: AlertJobPayload;
@@ -72,6 +97,7 @@ export type JobPayloadMap = {
   maintenance: MaintenanceJobPayload;
   "area-rederive": AreaRederiveJobPayload;
   "patrol-track-materialize": PatrolTrackMaterializeJobPayload;
+  "pdf-render": PdfRenderJobPayload;
 };
 
 export type QueueName = keyof JobPayloadMap;
@@ -83,4 +109,5 @@ export const QUEUE_NAMES = {
   MAINTENANCE: "maintenance",
   AREA_REDERIVE: "area-rederive",
   PATROL_TRACK_MATERIALIZE: "patrol-track-materialize",
+  PDF_RENDER: "pdf-render",
 } as const satisfies Record<string, QueueName>;
