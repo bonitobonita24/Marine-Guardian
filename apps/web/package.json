@@ -19,6 +19,7 @@
     "@marine-guardian/db": "workspace:*",
     "@marine-guardian/jobs": "workspace:*",
     "@marine-guardian/shared": "workspace:*",
+    "@marine-guardian/storage": "workspace:*",
     "@marine-guardian/ui": "workspace:*",
     "@marsidev/react-turnstile": "^1.0.2",
     "@radix-ui/react-dialog": "^1.1.15",

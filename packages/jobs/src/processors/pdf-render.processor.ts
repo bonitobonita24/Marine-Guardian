@@ -21,34 +21,45 @@
 //      packages/jobs/src/lib/ in this sub-batch — see 5.1c + 5.2a arc).
 //      paperSize comes from the row; landscape is derived per report-
 //      type (coverage = wide funder template per v2 §771, others = portrait).
-//   7. STUB the storage upload — 5.3b returns a deterministic file path
-//      shaped per spec without writing to MinIO. Real MinIO upload lands
-//      in 5.3c (packages/storage surface + replace this stub with the
-//      real uploadPdf call).
-//   8. Update status=ready + filePath + fileSizeBytes + completedAt.
+//   7. Upload the rendered PDF buffer to MinIO at
+//      bucket=marine-guardian-{env}-exports
+//      key=${tenantId}/${YYYY}/${MM}/${exportId}.pdf
+//      via @marine-guardian/storage.uploadPdf. The 5.3b deterministic-
+//      path stub is replaced by this real write. row.filePath stores the
+//      KEY only (bucket is env-derived at read time so cross-env data
+//      restores don't carry the bucket coupling).
+//   8. Update status=ready + filePath (key) + fileSizeBytes + completedAt.
 //   9. Return RenderResult for BullMQ result storage (visible in the
 //      dashboard + 5.3d admin UI surfaces fileSizeBytes from this).
 //
 // Error path:
-//   - Render or storage failure: re-throw to trigger BullMQ retry
+//   - Render OR storage failure: re-throw to trigger BullMQ retry
 //     (default: 3 attempts, exponential backoff starting at 5000ms per
 //     queue-factory.ts). On the LAST attempt only (attemptsMade+1 ===
 //     attempts), flip the row to status=failed + errorMessage +
 //     completedAt before re-throwing. Intermediate retries leave the
 //     row as status=rendering so the UI does not flicker through
-//     failed → rendering → failed across retries.
+//     failed → rendering → failed across retries. Render + storage share
+//     the same try/catch — both failure modes follow identical retry
+//     semantics.
 //
 // NO try/finally for queue lifecycle — base-worker.createWorker owns the
 // connection. NO AuditLog write here — reportExport.create owns the
-// EXPORT_REQUESTED audit log; downloads write EXPORT_DOWNLOAD in 5.3c's
-// Route Handler. No user is present in this processor's context (sync-
-// driven enqueues have no triggering user from the worker side).
+// EXPORT_REQUESTED audit log; downloads write EXPORT_DOWNLOAD in the
+// Route Handler (apps/web/src/app/api/exports/reports/[id]/download).
+// No user is present in this processor's context (sync-driven enqueues
+// have no triggering user from the worker side).
 
 import type { Job } from "bullmq";
 import {
   platformPrisma,
   type ExtendedPrismaClient,
 } from "@marine-guardian/db";
+import {
+  uploadPdf,
+  buildExportKey,
+  getExportsBucketName,
+} from "@marine-guardian/storage";
 import type { PdfRenderJobPayload } from "../queues/types";
 import { validateTenantContext } from "../workers/base-worker";
 import { renderPdfViaService } from "../lib/pdf-renderer-client";
@@ -78,25 +89,6 @@ export interface RenderResult {
  * any future per-tenant override would belong in the row's paramsJson.
  */
 const LANDSCAPE_REPORT_TYPES: ReadonlySet<string> = new Set(["coverage"]);
-
-function deriveAppEnv(): string {
-  const env = process.env.APP_ENV;
-  if (env === undefined || env === "") {
-    return "dev";
-  }
-  return env;
-}
-
-function buildStorageFilePath(
-  tenantId: string,
-  exportId: string,
-  now: Date,
-): string {
-  const env = deriveAppEnv();
-  const year = String(now.getUTCFullYear());
-  const month = String(now.getUTCMonth() + 1).padStart(2, "0");
-  return `marine-guardian-${env}-exports/${tenantId}/${year}/${month}/${exportId}.pdf`;
-}
 
 function isLastAttempt(job: Job<PdfRenderJobPayload>): boolean {
   const attempts = job.opts.attempts ?? 1;
@@ -149,17 +141,20 @@ export async function processPdfRender(
       exportId: row.id,
     });
 
-    // 5.3b STUB — real MinIO write lands in 5.3c. The deterministic path
-    // matches the eventual bucket key so the row's filePath is stable
-    // across the storage swap.
-    const filePath = buildStorageFilePath(row.tenantId, row.id, new Date());
+    // 5.3c — write to MinIO via @marine-guardian/storage. filePath stores
+    // just the KEY; bucket name is env-derived at read time (download
+    // Route Handler calls getExportsBucketName() to pair them back up).
+    const bucket = getExportsBucketName();
+    const key = buildExportKey(row.tenantId, row.id, new Date());
+    const upload = await uploadPdf({ bucket, key, body: pdfBuffer });
+
     const fileSizeBytes = pdfBuffer.length;
 
     await prisma.reportExport.update({
       where: { id: row.id },
       data: {
         status: "ready",
-        filePath,
+        filePath: upload.key,
         fileSizeBytes,
         completedAt: new Date(),
       },
@@ -168,7 +163,7 @@ export async function processPdfRender(
     return {
       exportId: row.id,
       status: "ready",
-      filePath,
+      filePath: upload.key,
       fileSizeBytes,
     };
   } catch (err) {

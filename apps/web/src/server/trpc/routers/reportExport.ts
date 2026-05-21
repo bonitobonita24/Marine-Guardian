@@ -143,11 +143,16 @@ export const reportExportRouter = router({
   /**
    * getDownloadUrl — returns the download URL when the export is ready.
    * Returns null when status is not "ready" (still queued, rendering, or
-   * failed). The actual file-serving endpoint is future batch work; this
-   * procedure only resolves the URL shape per spec §506.
+   * failed).
    *
    * Returns NOT_FOUND when the row does not exist for this tenant — never
    * leaks existence cross-tenant.
+   *
+   * 5.3c — URL shape changed from `/${tenantId}/exports/${id}/download`
+   * (v2 spec §506) to `/api/exports/reports/${id}/download`. The Route
+   * Handler enforces tenant scope server-side via session.tenantId, so
+   * the URL no longer needs to carry tenantId. Cleaner posture: no public
+   * URL identifies the tenant a row belongs to.
    */
   getDownloadUrl: tenantProcedure
     .input(getReportExportDownloadUrlInputSchema)
@@ -158,7 +163,6 @@ export const reportExportRouter = router({
           id: true,
           status: true,
           filePath: true,
-          tenantId: true,
         },
       });
       if (!row) {
@@ -167,11 +171,8 @@ export const reportExportRouter = router({
       if (row.status !== "ready" || row.filePath === null) {
         return { downloadUrl: null as string | null, status: row.status };
       }
-      // Spec §506: download path is /[tenant]/exports/{id}/download.
-      // We return the canonical URL shape; the actual streaming endpoint
-      // is wired in a future batch alongside the pdf-renderer service.
       return {
-        downloadUrl: `/${row.tenantId}/exports/${row.id}/download`,
+        downloadUrl: `/api/exports/reports/${row.id}/download`,
         status: row.status,
       };
     }),

@@ -161,7 +161,15 @@ jobs:
       description: Stale data detection and report pre-computation
 
 storage:
-  enabled: false
+  enabled: true
+  provider: minio
+  # MinIO is the S3-compatible object store used for the pdf-render pipeline
+  # (Phase 8 Batch 5 Item 3 — 5.3a infrastructure + 5.3c packages/storage
+  # surface + Route Handler). Bucket convention: marine-guardian-{env}-exports.
+  # AWS S3 migration path is open — packages/storage uses @aws-sdk/client-s3
+  # so swapping the endpoint is configuration-only. Decisions locked in
+  # DECISIONS_LOG.md under "ReportExport PDF Storage Backend" (5.3a) +
+  # "MinIO Client Library Choice" (5.3c) + "Storage Feature Flag" (5.3c).
 
 maps:
   library: mapcn

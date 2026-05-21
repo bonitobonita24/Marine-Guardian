@@ -302,7 +302,10 @@ describe("reportExport.getDownloadUrl", () => {
     const caller = createCaller(makeCtx());
     const result = await caller.getDownloadUrl({ id: "re-1" });
 
-    expect(result.downloadUrl).toBe(`/${TENANT_ID}/exports/re-1/download`);
+    // 5.3c — URL shape switched to /api/exports/reports/{id}/download.
+    // Tenant scope enforced server-side at the Route Handler boundary
+    // via session.tenantId; URL no longer carries tenantId.
+    expect(result.downloadUrl).toBe(`/api/exports/reports/re-1/download`);
     expect(result.status).toBe("ready");
   });
 
