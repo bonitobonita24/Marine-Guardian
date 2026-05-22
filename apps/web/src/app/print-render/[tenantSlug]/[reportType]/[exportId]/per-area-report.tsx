@@ -18,6 +18,7 @@
 
 import type { PerAreaReportData } from "@/server/per-area-report/get-per-area-report-data";
 import { Page1EventAndPatrolSummary } from "./page-1-event-and-patrol-summary";
+import { Page2Heatmaps } from "./page-2-heatmaps";
 
 interface PerAreaReportProps {
   data: PerAreaReportData;
@@ -122,6 +123,14 @@ export function PerAreaReport({ data }: PerAreaReportProps) {
           lawEnforcementBreakdown={data.lawEnforcementBreakdown}
           monitoringBreakdown={data.monitoringBreakdown}
           patrolSummary={data.patrolSummary}
+        />
+
+        <Page2Heatmaps
+          area={data.area}
+          dateRange={data.dateRange}
+          lawEnforcementEventLocations={data.lawEnforcementEventLocations}
+          monitoringEventLocations={data.monitoringEventLocations}
+          patrolTracks={data.patrolTracks}
         />
 
         {/* Puppeteer networkidle0 anchor. */}
