@@ -8,6 +8,12 @@
 //
 // On success, surfaces a link to /exports where the user can poll status +
 // download the result once ready.
+//
+// 6.2d — Per Area Report payload wiring. When reportType === "area", the
+// dialog reveals area selector + startDate + endDate inputs. paramsJson is
+// emitted as { areaBoundaryId, startDate, endDate } matching parsePerAreaParams
+// in @/server/per-area-report/get-per-area-report-data.ts. All other
+// reportTypes continue to emit {} (no per-area shape change).
 
 import { useState } from "react";
 import Link from "next/link";
@@ -21,6 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc/client";
 
@@ -54,6 +61,10 @@ export function GenerateReportButton() {
   const [open, setOpen] = useState(false);
   const [reportType, setReportType] = useState<ReportType>("coverage");
   const [paperSize, setPaperSize] = useState<PaperSize>("A4");
+  // 6.2d — area-specific fields, only used when reportType === "area".
+  const [areaBoundaryId, setAreaBoundaryId] = useState<string>("");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
   const [feedback, setFeedback] = useState<
     | { kind: "success"; exportId: string }
     | { kind: "error"; message: string }
@@ -65,6 +76,15 @@ export function GenerateReportButton() {
     roles.includes("super_admin") ||
     roles.includes("site_admin") ||
     roles.includes("field_coordinator");
+
+  // 6.2d — area-list fetch is gated on dialog open to avoid burning a trpc
+  // call on every Patrols page load. List is filtered to enabled areas
+  // (overrideOfficial:true rows + custom rows that are isEnabled) — matches
+  // the existing areaBoundary.list filter shape from 5.1e.
+  const areaList = trpc.areaBoundary.list.useQuery(
+    { isEnabled: true, limit: 200 },
+    { enabled: open && canGenerate },
+  );
 
   const create = trpc.reportExport.create.useMutation({
     onSuccess: (data) => {
@@ -79,11 +99,31 @@ export function GenerateReportButton() {
     return null;
   }
 
+  // 6.2d — paramsJson shape is reportType-discriminated. Only "area" carries
+  // a payload today; coverage and the future reportTypes pass {} until each
+  // gets its own print-render wiring.
+  const isAreaReport = reportType === "area";
+  const areaFieldsComplete =
+    areaBoundaryId.length > 0 && startDate.length > 0 && endDate.length > 0;
+  const confirmDisabled =
+    create.isPending || (isAreaReport && !areaFieldsComplete);
+
+  function buildParamsJson(): Record<string, unknown> {
+    if (isAreaReport) {
+      return {
+        areaBoundaryId,
+        startDate,
+        endDate,
+      };
+    }
+    return {};
+  }
+
   function handleConfirm() {
     setFeedback(null);
     create.mutate({
       reportType,
-      paramsJson: {},
+      paramsJson: buildParamsJson(),
       paperSize,
     });
   }
@@ -93,15 +133,40 @@ export function GenerateReportButton() {
     setFeedback(null);
     setReportType("coverage");
     setPaperSize("A4");
+    setAreaBoundaryId("");
+    setStartDate("");
+    setEndDate("");
     create.reset();
   }
 
   function handleReportTypeChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    setReportType(e.target.value as ReportType);
+    const next = e.target.value as ReportType;
+    setReportType(next);
+    // 6.2d — clear area-specific state whenever the user moves off "area".
+    // Prevents stale areaBoundaryId leaking into a subsequent coverage
+    // export's paramsJson (would still be ignored server-side but keeping
+    // payload shape clean matches the L268 methodology).
+    if (next !== "area") {
+      setAreaBoundaryId("");
+      setStartDate("");
+      setEndDate("");
+    }
   }
 
   function handlePaperSizeChange(e: React.ChangeEvent<HTMLSelectElement>) {
     setPaperSize(e.target.value as PaperSize);
+  }
+
+  function handleAreaChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    setAreaBoundaryId(e.target.value);
+  }
+
+  function handleStartDateChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setStartDate(e.target.value);
+  }
+
+  function handleEndDateChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setEndDate(e.target.value);
   }
 
   return (
@@ -179,6 +244,59 @@ export function GenerateReportButton() {
                 ))}
               </select>
             </div>
+
+            {isAreaReport && (
+              <div
+                className="space-y-3 rounded-md border border-input bg-muted/30 p-3"
+                data-testid="area-report-fields"
+              >
+                <div className="space-y-1.5">
+                  <Label htmlFor="area-boundary">Area</Label>
+                  <select
+                    id="area-boundary"
+                    data-testid="area-boundary-select"
+                    value={areaBoundaryId}
+                    onChange={handleAreaChange}
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="">
+                      {areaList.isLoading
+                        ? "Loading areas…"
+                        : (areaList.data?.items.length ?? 0) > 0
+                          ? "Select an area…"
+                          : "No areas available"}
+                    </option>
+                    {areaList.data?.items.map((area) => (
+                      <option key={area.id} value={area.id}>
+                        {area.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="area-start-date">Start date</Label>
+                    <Input
+                      id="area-start-date"
+                      data-testid="area-start-date-input"
+                      type="date"
+                      value={startDate}
+                      onChange={handleStartDateChange}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="area-end-date">End date</Label>
+                    <Input
+                      id="area-end-date"
+                      data-testid="area-end-date-input"
+                      type="date"
+                      value={endDate}
+                      onChange={handleEndDateChange}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -198,7 +316,7 @@ export function GenerateReportButton() {
             <Button
               data-testid="generate-report-confirm"
               onClick={handleConfirm}
-              disabled={create.isPending}
+              disabled={confirmDisabled}
             >
               {create.isPending ? "Queuing…" : "Generate"}
             </Button>
