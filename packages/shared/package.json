@@ -9,7 +9,8 @@
     "./lib/area-derivation": "./src/lib/area-derivation/index.ts",
     "./lib/area-attribution": "./src/lib/area-attribution/index.ts",
     "./lib/coverage-period": "./src/lib/coverage-period/index.ts",
-    "./lib/coverage-clip": "./src/lib/coverage-clip/index.ts"
+    "./lib/coverage-clip": "./src/lib/coverage-clip/index.ts",
+    "./lib/heatmap-sample": "./src/lib/heatmap-sample/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

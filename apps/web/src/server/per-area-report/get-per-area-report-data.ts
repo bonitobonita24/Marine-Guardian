@@ -32,16 +32,38 @@
  * breakdowns (e.g. operational categories like "test" or "system"); they
  * still appear in raw Event records, just not in this report's charts.
  *
- * Out of scope for 6.2a (lands in 6.2b/6.2c/6.2d):
- *   - Event location heatmap data (Page 2 — 6.2b)
- *   - Patrol track heatmap data (Page 2 — 6.2b)
+ * 6.2b-i additions (this sub-batch):
+ *   - lawEnforcementEventLocations[] + monitoringEventLocations[]: filtered
+ *     Event point geometries used by the Page 2 event-location heatmap.
+ *     Bucketing reuses the same case-insensitive substring match on
+ *     EventType.category as the breakdown helpers (single co-pass).
+ *   - patrolTracks[]: per-patrol [lat, lon, weight] tuples ready for direct
+ *     consumption by L.heatLayer. Tracks are densified via the shared
+ *     heatmap-sample library at 250m intervals (locked in DECISIONS_LOG.md
+ *     "Heatmap Renderer Choice"). Patrols with no materialised track or
+ *     non-LineString geometry are skipped defensively.
+ *
+ * Out of scope for 6.2b-i (lands in 6.2b-ii / 6.2c / 6.2d):
+ *   - Page 2 RSC + Leaflet client island + HeatLayer wrapper (6.2b-ii)
  *   - Fuel consumption aggregation (Page 3 — 6.2c)
- *   - ReportExport row creation flow + reportType: "per-area" wiring (6.2d)
+ *   - ReportExport row creation flow + reportType: "area" wiring (6.2d)
  */
 
 import { prisma } from "@marine-guardian/db";
 import type { PatrolType } from "@marine-guardian/shared/types";
 import { DEFAULT_TENANT_OFFSET_MINUTES } from "@marine-guardian/shared/lib/coverage-period";
+import {
+  sampleTrackPoints,
+  type HeatLatLng,
+} from "@marine-guardian/shared/lib/heatmap-sample";
+import { extractTrackPolyline } from "@/server/coverage-report/get-coverage-report-data";
+
+/**
+ * Patrol-track densification interval in meters. Locked at 250m per the
+ * "Heatmap Renderer Choice" decision — balances visual coverage against
+ * client-island payload size for typical patrol tracks (1-30 km).
+ */
+const TRACK_SAMPLE_INTERVAL_METERS = 250;
 
 /**
  * One row in the dynamic event-type bar charts. Sorted DESC by count, then
@@ -69,6 +91,36 @@ export interface PerAreaReportArea {
   name: string;
   region: string;
   source: string;
+}
+
+/**
+ * One event geometry contributed to a heatmap layer. Lat/lon are the raw
+ * Event.locationLat/locationLon scalars (no densification — events are
+ * native point geometries). Skipped entirely when either coordinate is
+ * null or non-finite. eventTypeId is included for client-side filtering
+ * or per-type drill-down (not currently consumed by 6.2b but cheap to
+ * include).
+ */
+export interface PerAreaReportEventLocation {
+  lat: number;
+  lon: number;
+  eventTypeId: string;
+}
+
+/**
+ * One patrol's track densified into [lat, lon, weight] tuples ready for
+ * direct L.heatLayer consumption (Leaflet HeatLatLng convention).
+ *
+ * Sampling uses haversine arc-length stepping at TRACK_SAMPLE_INTERVAL_METERS
+ * (250m default). Patrols with no PatrolTrack row, with a non-LineString
+ * track geometry, or whose track materialises to <2 points are filtered
+ * out by the loader before this shape is built.
+ */
+export interface PerAreaReportPatrolTrack {
+  patrolId: string;
+  patrolType: PatrolType;
+  /** Pre-densified [lat, lon, weight] tuples — ready for L.heatLayer.addTo(map). */
+  sampledPoints: HeatLatLng[];
 }
 
 export interface PerAreaReportDateRange {
@@ -110,6 +162,25 @@ export interface PerAreaReportData {
     foot: PatrolTypeSummary;
     seaborne: PatrolTypeSummary;
   };
+  /**
+   * Point geometries for the Page 2 event-location heatmap, filtered to
+   * events whose EventType.category matches "law enforcement"
+   * (case-insensitive substring). Spec PRODUCT.md L135. Empty array when
+   * no matching events have a non-null location in the range.
+   */
+  lawEnforcementEventLocations: PerAreaReportEventLocation[];
+  /**
+   * Same shape as lawEnforcementEventLocations, filtered to events whose
+   * EventType.category matches "monitoring" (case-insensitive substring).
+   */
+  monitoringEventLocations: PerAreaReportEventLocation[];
+  /**
+   * Per-patrol densified track points for the Page 2 patrol-track heatmap.
+   * Each row carries pre-densified [lat, lon, weight] tuples ready for
+   * direct L.heatLayer consumption — the Client island never re-runs the
+   * sampler. Spec PRODUCT.md L137.
+   */
+  patrolTracks: PerAreaReportPatrolTrack[];
 }
 
 interface ParsedPerAreaParams {
@@ -231,6 +302,79 @@ function buildBreakdown(
   });
 }
 
+/**
+ * Filters and projects events into PerAreaReportEventLocation rows for a
+ * single category bucket. Reuses the same categoryMatches predicate as
+ * buildBreakdown so the heatmap layer and the bar chart are guaranteed to
+ * include the same event population. Events with null/non-finite location
+ * coordinates are skipped — Event.locationLat/locationLon are optional
+ * scalars on the schema (ER can publish events without GPS context).
+ */
+function buildEventLocations(
+  raw: ReadonlyArray<{
+    eventTypeId: string;
+    locationLat: number | null;
+    locationLon: number | null;
+    eventType: {
+      id: string;
+      value: string;
+      display: string;
+      category: string | null;
+    } | null;
+  }>,
+  needle: string,
+): PerAreaReportEventLocation[] {
+  const out: PerAreaReportEventLocation[] = [];
+  for (const evt of raw) {
+    if (evt.eventType === null) continue;
+    if (!categoryMatches(evt.eventType.category, needle)) continue;
+    if (evt.locationLat === null || evt.locationLon === null) continue;
+    if (
+      !Number.isFinite(evt.locationLat) ||
+      !Number.isFinite(evt.locationLon)
+    ) {
+      continue;
+    }
+    out.push({
+      lat: evt.locationLat,
+      lon: evt.locationLon,
+      eventTypeId: evt.eventType.id,
+    });
+  }
+  return out;
+}
+
+/**
+ * Densifies each patrol's track LineString into [lat, lon, weight] tuples
+ * via the shared heatmap-sample library. Patrols with no PatrolTrack row,
+ * with a non-LineString geometry, or whose extracted polyline has <2
+ * points are skipped — they contribute nothing to the heatmap.
+ */
+function buildPatrolTracks(
+  raw: ReadonlyArray<{
+    id: string;
+    patrolType: PatrolType;
+    track: { trackGeojson: unknown } | null;
+  }>,
+): PerAreaReportPatrolTrack[] {
+  const out: PerAreaReportPatrolTrack[] = [];
+  for (const p of raw) {
+    if (p.track === null) continue;
+    const polyline = extractTrackPolyline(p.track.trackGeojson);
+    if (polyline === null) continue;
+    const sampledPoints = sampleTrackPoints(polyline, {
+      intervalMeters: TRACK_SAMPLE_INTERVAL_METERS,
+    });
+    if (sampledPoints.length === 0) continue;
+    out.push({
+      patrolId: p.id,
+      patrolType: p.patrolType,
+      sampledPoints,
+    });
+  }
+  return out;
+}
+
 function buildPatrolSummary(
   patrols: ReadonlyArray<{
     patrolType: PatrolType;
@@ -344,6 +488,8 @@ export async function getPerAreaReportData(
     },
     select: {
       eventTypeId: true,
+      locationLat: true,
+      locationLon: true,
       eventType: {
         select: { id: true, value: true, display: true, category: true },
       },
@@ -353,6 +499,8 @@ export async function getPerAreaReportData(
   // Cast at the boundary to keep the helper signatures clean.
   const eventsTyped = events as ReadonlyArray<{
     eventTypeId: string;
+    locationLat: number | null;
+    locationLon: number | null;
     eventType: {
       id: string;
       value: string;
@@ -366,6 +514,14 @@ export async function getPerAreaReportData(
     LAW_ENFORCEMENT_NEEDLE,
   );
   const monitoringBreakdown = buildBreakdown(eventsTyped, MONITORING_NEEDLE);
+  const lawEnforcementEventLocations = buildEventLocations(
+    eventsTyped,
+    LAW_ENFORCEMENT_NEEDLE,
+  );
+  const monitoringEventLocations = buildEventLocations(
+    eventsTyped,
+    MONITORING_NEEDLE,
+  );
 
   const patrols = await prisma.patrol.findMany({
     where: {
@@ -374,13 +530,16 @@ export async function getPerAreaReportData(
       startTime: { gte: dateRange.start, lt: dateRange.end },
     },
     select: {
+      id: true,
       patrolType: true,
       totalDistanceKm: true,
       totalHours: true,
+      track: { select: { trackGeojson: true } },
     },
   });
 
   const patrolSummary = buildPatrolSummary(patrols);
+  const patrolTracks = buildPatrolTracks(patrols);
 
   return {
     tenant: {
@@ -396,5 +555,8 @@ export async function getPerAreaReportData(
     lawEnforcementBreakdown,
     monitoringBreakdown,
     patrolSummary,
+    lawEnforcementEventLocations,
+    monitoringEventLocations,
+    patrolTracks,
   };
 }

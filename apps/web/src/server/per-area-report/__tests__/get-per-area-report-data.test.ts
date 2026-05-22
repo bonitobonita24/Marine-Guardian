@@ -401,11 +401,11 @@ describe("getPerAreaReportData", () => {
     );
     vi.mocked(prisma.event.findMany).mockResolvedValueOnce([] as never);
     vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([
-      { patrolType: "foot", totalDistanceKm: 3.5, totalHours: 2.0 },
-      { patrolType: "foot", totalDistanceKm: 1.5, totalHours: 1.0 },
-      { patrolType: "foot", totalDistanceKm: null, totalHours: null },
-      { patrolType: "seaborne", totalDistanceKm: 20.0, totalHours: 4.0 },
-      { patrolType: "seaborne", totalDistanceKm: 15.0, totalHours: 3.5 },
+      { id: "p1", patrolType: "foot", totalDistanceKm: 3.5, totalHours: 2.0, track: null },
+      { id: "p2", patrolType: "foot", totalDistanceKm: 1.5, totalHours: 1.0, track: null },
+      { id: "p3", patrolType: "foot", totalDistanceKm: null, totalHours: null, track: null },
+      { id: "p4", patrolType: "seaborne", totalDistanceKm: 20.0, totalHours: 4.0, track: null },
+      { id: "p5", patrolType: "seaborne", totalDistanceKm: 15.0, totalHours: 3.5, track: null },
     ] as never);
     const r = await getPerAreaReportData(TENANT_SLUG, EXPORT_ID);
     expect(r?.patrolSummary.foot).toEqual({
@@ -507,5 +507,325 @@ describe("getPerAreaReportData", () => {
     });
     expect(r?.paperSize).toBe("A4");
     expect(r?.generatedAt).toBeInstanceOf(Date);
+  });
+
+  // ───────────────────────────────────────────────────────────────────
+  // Page 2 heatmap data — 6.2b-i extension
+  // ───────────────────────────────────────────────────────────────────
+
+  it("populates lawEnforcementEventLocations from events with finite lat/lon and matching category", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
+      TENANT_ROW as never,
+    );
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValueOnce(
+      EXPORT_ROW as never,
+    );
+    vi.mocked(prisma.areaBoundary.findUnique).mockResolvedValueOnce(
+      AREA_ROW as never,
+    );
+    vi.mocked(prisma.event.findMany).mockResolvedValueOnce([
+      {
+        eventTypeId: "et_illegal_fishing",
+        locationLat: 13.42,
+        locationLon: 121.05,
+        eventType: {
+          id: "et_illegal_fishing",
+          value: "illegal_fishing",
+          display: "Illegal Fishing",
+          category: "Law Enforcement",
+        },
+      },
+      {
+        eventTypeId: "et_apprehension",
+        locationLat: 13.43,
+        locationLon: 121.06,
+        eventType: {
+          id: "et_apprehension",
+          value: "apprehension",
+          display: "Apprehension",
+          category: "Law Enforcement / Marine",
+        },
+      },
+      // Monitoring event — must NOT appear in lawEnforcementEventLocations
+      {
+        eventTypeId: "et_turtle",
+        locationLat: 13.44,
+        locationLon: 121.07,
+        eventType: {
+          id: "et_turtle",
+          value: "turtle_sighting",
+          display: "Turtle Sighting",
+          category: "Monitoring",
+        },
+      },
+    ] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([] as never);
+    const r = await getPerAreaReportData(TENANT_SLUG, EXPORT_ID);
+    expect(r?.lawEnforcementEventLocations).toHaveLength(2);
+    expect(r?.lawEnforcementEventLocations[0]).toEqual({
+      lat: 13.42,
+      lon: 121.05,
+      eventTypeId: "et_illegal_fishing",
+    });
+    expect(r?.lawEnforcementEventLocations[1]?.eventTypeId).toBe(
+      "et_apprehension",
+    );
+    expect(r?.monitoringEventLocations).toEqual([
+      { lat: 13.44, lon: 121.07, eventTypeId: "et_turtle" },
+    ]);
+  });
+
+  it("skips events with null or non-finite location coordinates from heatmap arrays", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
+      TENANT_ROW as never,
+    );
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValueOnce(
+      EXPORT_ROW as never,
+    );
+    vi.mocked(prisma.areaBoundary.findUnique).mockResolvedValueOnce(
+      AREA_ROW as never,
+    );
+    vi.mocked(prisma.event.findMany).mockResolvedValueOnce([
+      // null lat — skipped
+      {
+        eventTypeId: "et_a",
+        locationLat: null,
+        locationLon: 121.05,
+        eventType: {
+          id: "et_a",
+          value: "a",
+          display: "A",
+          category: "Law Enforcement",
+        },
+      },
+      // null lon — skipped
+      {
+        eventTypeId: "et_b",
+        locationLat: 13.42,
+        locationLon: null,
+        eventType: {
+          id: "et_b",
+          value: "b",
+          display: "B",
+          category: "Law Enforcement",
+        },
+      },
+      // NaN lat — skipped (Number.isFinite(NaN) === false)
+      {
+        eventTypeId: "et_c",
+        locationLat: Number.NaN,
+        locationLon: 121.05,
+        eventType: {
+          id: "et_c",
+          value: "c",
+          display: "C",
+          category: "Law Enforcement",
+        },
+      },
+      // Both finite — kept
+      {
+        eventTypeId: "et_d",
+        locationLat: 13.45,
+        locationLon: 121.08,
+        eventType: {
+          id: "et_d",
+          value: "d",
+          display: "D",
+          category: "Law Enforcement",
+        },
+      },
+    ] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([] as never);
+    const r = await getPerAreaReportData(TENANT_SLUG, EXPORT_ID);
+    expect(r?.lawEnforcementEventLocations).toEqual([
+      { lat: 13.45, lon: 121.08, eventTypeId: "et_d" },
+    ]);
+  });
+
+  it("excludes events with null eventType from heatmap arrays (matches breakdown behavior)", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
+      TENANT_ROW as never,
+    );
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValueOnce(
+      EXPORT_ROW as never,
+    );
+    vi.mocked(prisma.areaBoundary.findUnique).mockResolvedValueOnce(
+      AREA_ROW as never,
+    );
+    vi.mocked(prisma.event.findMany).mockResolvedValueOnce([
+      {
+        eventTypeId: "et_orphan",
+        locationLat: 13.5,
+        locationLon: 121.1,
+        eventType: null,
+      },
+      // Operational category — excluded from both heatmap arrays
+      {
+        eventTypeId: "et_test",
+        locationLat: 13.5,
+        locationLon: 121.1,
+        eventType: {
+          id: "et_test",
+          value: "test",
+          display: "Test",
+          category: "Operational",
+        },
+      },
+    ] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([] as never);
+    const r = await getPerAreaReportData(TENANT_SLUG, EXPORT_ID);
+    expect(r?.lawEnforcementEventLocations).toEqual([]);
+    expect(r?.monitoringEventLocations).toEqual([]);
+  });
+
+  it("builds patrolTracks from patrols with materialised LineString tracks", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
+      TENANT_ROW as never,
+    );
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValueOnce(
+      EXPORT_ROW as never,
+    );
+    vi.mocked(prisma.areaBoundary.findUnique).mockResolvedValueOnce(
+      AREA_ROW as never,
+    );
+    vi.mocked(prisma.event.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([
+      {
+        id: "patrol_with_track",
+        patrolType: "seaborne",
+        totalDistanceKm: 5.0,
+        totalHours: 2.5,
+        track: {
+          trackGeojson: {
+            type: "LineString",
+            coordinates: [
+              [121.0, 13.4],
+              [121.01, 13.405],
+              [121.02, 13.41],
+            ],
+          },
+        },
+      },
+      // Patrol with no track row — counted in summary, excluded from heatmap
+      {
+        id: "patrol_no_track",
+        patrolType: "foot",
+        totalDistanceKm: 1.0,
+        totalHours: 0.5,
+        track: null,
+      },
+    ] as never);
+    const r = await getPerAreaReportData(TENANT_SLUG, EXPORT_ID);
+    expect(r?.patrolTracks).toHaveLength(1);
+    const tracked = r?.patrolTracks[0];
+    expect(tracked?.patrolId).toBe("patrol_with_track");
+    expect(tracked?.patrolType).toBe("seaborne");
+    expect(tracked?.sampledPoints.length).toBeGreaterThan(0);
+    // Each tuple is [lat, lon, weight=1]
+    for (const [lat, lon, w] of tracked?.sampledPoints ?? []) {
+      expect(lat).toBeGreaterThan(13.3);
+      expect(lat).toBeLessThan(13.5);
+      expect(lon).toBeGreaterThan(120.9);
+      expect(lon).toBeLessThan(121.1);
+      expect(w).toBe(1);
+    }
+    // Patrol summary still includes the trackless patrol
+    expect(r?.patrolSummary.foot.count).toBe(1);
+    expect(r?.patrolSummary.seaborne.count).toBe(1);
+  });
+
+  it("skips patrols whose track materialises to a non-LineString or <2 points", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
+      TENANT_ROW as never,
+    );
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValueOnce(
+      EXPORT_ROW as never,
+    );
+    vi.mocked(prisma.areaBoundary.findUnique).mockResolvedValueOnce(
+      AREA_ROW as never,
+    );
+    vi.mocked(prisma.event.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([
+      // Non-LineString geometry — extractor returns null → skipped
+      {
+        id: "p_point",
+        patrolType: "foot",
+        totalDistanceKm: 1.0,
+        totalHours: 0.5,
+        track: {
+          trackGeojson: { type: "Point", coordinates: [121.0, 13.4] },
+        },
+      },
+      // Single-point LineString — extractor returns null (needs >=2) → skipped
+      {
+        id: "p_one_point",
+        patrolType: "seaborne",
+        totalDistanceKm: null,
+        totalHours: null,
+        track: {
+          trackGeojson: { type: "LineString", coordinates: [[121.0, 13.4]] },
+        },
+      },
+      // Malformed JSON — extractor returns null → skipped
+      {
+        id: "p_malformed",
+        patrolType: "foot",
+        totalDistanceKm: null,
+        totalHours: null,
+        track: { trackGeojson: { foo: "bar" } },
+      },
+    ] as never);
+    const r = await getPerAreaReportData(TENANT_SLUG, EXPORT_ID);
+    expect(r?.patrolTracks).toEqual([]);
+    // Summary still counts the patrols (they exist, just have unusable tracks)
+    expect(r?.patrolSummary.foot.count).toBe(2);
+    expect(r?.patrolSummary.seaborne.count).toBe(1);
+  });
+
+  it("includes track relation in the patrol query SELECT", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
+      TENANT_ROW as never,
+    );
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValueOnce(
+      EXPORT_ROW as never,
+    );
+    vi.mocked(prisma.areaBoundary.findUnique).mockResolvedValueOnce(
+      AREA_ROW as never,
+    );
+    vi.mocked(prisma.event.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([] as never);
+    await getPerAreaReportData(TENANT_SLUG, EXPORT_ID);
+    const patrolCall = vi.mocked(prisma.patrol.findMany).mock.calls[0]?.[0];
+    // The new SELECT projection must include id + track.trackGeojson so the
+    // heatmap densifier has a stable patrolId + the raw GeoJSON to extract.
+    expect(patrolCall?.select).toMatchObject({
+      id: true,
+      patrolType: true,
+      track: { select: { trackGeojson: true } },
+    });
+    // The event SELECT must include locationLat + locationLon for heatmap geo.
+    const eventCall = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0];
+    expect(eventCall?.select).toMatchObject({
+      locationLat: true,
+      locationLon: true,
+    });
+  });
+
+  it("returns empty heatmap arrays when no events/patrols match (regression)", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
+      TENANT_ROW as never,
+    );
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValueOnce(
+      EXPORT_ROW as never,
+    );
+    vi.mocked(prisma.areaBoundary.findUnique).mockResolvedValueOnce(
+      AREA_ROW as never,
+    );
+    vi.mocked(prisma.event.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([] as never);
+    const r = await getPerAreaReportData(TENANT_SLUG, EXPORT_ID);
+    expect(r?.lawEnforcementEventLocations).toEqual([]);
+    expect(r?.monitoringEventLocations).toEqual([]);
+    expect(r?.patrolTracks).toEqual([]);
   });
 });
