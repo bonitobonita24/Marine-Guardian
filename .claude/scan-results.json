@@ -1,7 +1,7 @@
 {
-  "scannedAt": "2026-05-17",
-  "previousScan": "2026-05-10",
-  "rescanReason": "Re-scan during SSE-2 GREEN → squash-merge transition on feat/sse-foundation. Foundation Bundle fully confirmed active. KEY DISCOVERY 2026-05-17: prior scans flagged context-mode, claude-mem, code-review-graph as 'pending plugin installs' but verification in this session (via available skill namespaces + active MCP tool list) proved all THREE are already installed and operational. Marketplace registrations may have been removed from a clean Claude Code session (re-running install commands returns 'Marketplace not found' errors) but the underlying plugins and MCP tools work fine. Moved all three from pendingPluginInstalls → installedPlugins. No new tech additions since 2026-05-10. No new conflicts.",
+  "scannedAt": "2026-05-22",
+  "previousScan": "2026-05-17",
+  "rescanReason": "Re-scan during Phase 8 Batch 6 Item 2 Sub-batch 6.2c queue (Per Area Report Page 3 / Fuel Consumption). CLEAN — no install actions required. 20 project skills + 4 plugins (superpowers, context-mode, claude-mem, code-review-graph) + 3 MCPs (socraticode, context7, shadcn) + Memory Governance rules file all confirmed in place. 0 conflicts, 0 stale folders, 0 pending installs. Project progressed from Phase 8 Batch 2 SSE-2 (last scan) → Batch 6 Item 2 Sub-batch 6.2b-ii heatmap UI shipped → 6.2c queued. No new dependencies in package.json since 2026-05-17 — heatmap work used existing Leaflet + heatmap-sample library per locked Heatmap Renderer Choice decision. Stack unchanged: Next.js 15 + tRPC v11 + Prisma 6 + shadcn/ui + Recharts + vitest + ioredis/BullMQ + next-intl. No library suggestions (LIBRARIES-INDEX signals unmet — no langchain, no local RAG candidates).",
   "techStack": [
     "TypeScript strict",
     "Next.js 15",
