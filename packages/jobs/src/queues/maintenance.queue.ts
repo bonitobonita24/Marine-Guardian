@@ -12,7 +12,7 @@ export async function enqueueMaintenance(
 ): Promise<string> {
   const queue = getMaintenanceQueue();
   const job = await queue.add(`maintenance:${payload.task}`, payload, {
-    jobId: `maintenance:${payload.tenantId}:${payload.task}:${String(Date.now())}`,
+    jobId: `maintenance__${payload.tenantId}__${payload.task}__${String(Date.now())}`,
   });
   return job.id ?? "";
 }
@@ -28,7 +28,7 @@ export async function scheduleRecurringMaintenance(
     { tenantId, userId, task: "cleanup_old_sync_logs" as const },
     {
       repeat: { pattern: "0 3 * * *" },
-      jobId: `maintenance:recurring:${tenantId}:cleanup_old_sync_logs`,
+      jobId: `maintenance__recurring__${tenantId}__cleanup_old_sync_logs`,
     },
   );
 
@@ -37,7 +37,7 @@ export async function scheduleRecurringMaintenance(
     { tenantId, userId, task: "archive_resolved_events" as const },
     {
       repeat: { pattern: "0 4 * * 0" },
-      jobId: `maintenance:recurring:${tenantId}:archive_resolved_events`,
+      jobId: `maintenance__recurring__${tenantId}__archive_resolved_events`,
     },
   );
 }

@@ -10,7 +10,7 @@ export function getEmailQueue(): Queue<EmailJobPayload> {
 export async function enqueueEmail(payload: EmailJobPayload): Promise<string> {
   const queue = getEmailQueue();
   const job = await queue.add("email:send", payload, {
-    jobId: `email:${payload.tenantId}:${payload.to}:${String(Date.now())}`,
+    jobId: `email__${payload.tenantId}__${payload.to}__${String(Date.now())}`,
     attempts: 5,
     backoff: {
       type: "exponential",

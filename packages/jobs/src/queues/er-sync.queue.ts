@@ -12,7 +12,7 @@ export async function enqueueErSync(
 ): Promise<string> {
   const queue = getErSyncQueue();
   const job = await queue.add(`er-sync:${payload.syncType}`, payload, {
-    jobId: `er-sync:${payload.tenantId}:${payload.syncType}:${String(Date.now())}`,
+    jobId: `er-sync__${payload.tenantId}__${payload.syncType}__${String(Date.now())}`,
   });
   return job.id ?? "";
 }
@@ -37,7 +37,7 @@ export async function scheduleRecurringErSync(
       { tenantId, userId, syncType },
       {
         repeat: { every: intervalMs },
-        jobId: `er-sync:recurring:${tenantId}:${syncType}`,
+        jobId: `er-sync__recurring__${tenantId}__${syncType}`,
       },
     );
   }

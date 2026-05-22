@@ -63,7 +63,7 @@ describe("patrol-track-materialize queue", () => {
     ];
     expect(name).toBe("patrol-track-materialize");
     expect(addedPayload).toEqual(payload);
-    expect(opts.jobId).toBe("patrol-track-materialize:tenant-a:patrol-1");
+    expect(opts.jobId).toBe("patrol-track-materialize__tenant-a__patrol-1");
   });
 
   it("enqueuePatrolTrackMaterialize returns empty string when BullMQ omits job.id", async () => {
@@ -96,7 +96,7 @@ describe("patrol-track-materialize queue", () => {
     const opts0 = calls[0]?.[2] as { jobId: string };
     const opts1 = calls[1]?.[2] as { jobId: string };
     expect(opts0.jobId).toBe(opts1.jobId);
-    expect(opts0.jobId).toBe("patrol-track-materialize:tenant-a:patrol-1");
+    expect(opts0.jobId).toBe("patrol-track-materialize__tenant-a__patrol-1");
   });
 
   it("jobId scopes by tenant — same patrolId across different tenants does NOT collide", async () => {
@@ -116,8 +116,8 @@ describe("patrol-track-materialize queue", () => {
     const opts0 = calls[0]?.[2] as { jobId: string };
     const opts1 = calls[1]?.[2] as { jobId: string };
     expect(opts0.jobId).not.toBe(opts1.jobId);
-    expect(opts0.jobId).toBe("patrol-track-materialize:tenant-a:patrol-1");
-    expect(opts1.jobId).toBe("patrol-track-materialize:tenant-b:patrol-1");
+    expect(opts0.jobId).toBe("patrol-track-materialize__tenant-a__patrol-1");
+    expect(opts1.jobId).toBe("patrol-track-materialize__tenant-b__patrol-1");
   });
 
   it("different patrolIds in the same tenant produce distinct jobIds", async () => {

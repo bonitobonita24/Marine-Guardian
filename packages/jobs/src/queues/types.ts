@@ -72,7 +72,8 @@ export interface PatrolTrackMaterializeJobPayload extends BaseJobPayload {
  *  - 5.3d admin "Retry" button on a failed export row re-enqueues with
  *    the same exportId (jobId dedupe collapses double-clicks to one job).
  *
- * jobId pattern: `pdf-render:${exportId}` — NOT scoped by tenantId.
+ * jobId pattern: `pdf-render__${exportId}` — NOT scoped by tenantId.
+ * (double underscore separator — BullMQ rejects `:` in jobIds.)
  * exportId is the ReportExport.id PK (cuid, globally unique across all
  * tenants), so tenant scoping would be redundant. exportId is the row
  * identity that owns this render — re-enqueueing the same exportId

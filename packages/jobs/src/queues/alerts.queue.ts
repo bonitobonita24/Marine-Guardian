@@ -11,7 +11,7 @@ export async function enqueueAlert(payload: AlertJobPayload): Promise<string> {
   const queue = getAlertsQueue();
   const job = await queue.add("alert:evaluate", payload, {
     priority: payload.priority,
-    jobId: `alert:${payload.tenantId}:${payload.alertRuleId}:${payload.eventId}`,
+    jobId: `alert__${payload.tenantId}__${payload.alertRuleId}__${payload.eventId}`,
   });
   return job.id ?? "";
 }

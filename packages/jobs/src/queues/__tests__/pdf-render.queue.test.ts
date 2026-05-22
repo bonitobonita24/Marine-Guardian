@@ -61,7 +61,7 @@ describe("pdf-render queue", () => {
     ];
     expect(name).toBe("pdf-render");
     expect(addedPayload).toEqual(payload);
-    expect(opts.jobId).toBe("pdf-render:export-cuid-1");
+    expect(opts.jobId).toBe("pdf-render__export-cuid-1");
   });
 
   it("enqueuePdfRender returns empty string when BullMQ omits job.id", async () => {
@@ -94,7 +94,7 @@ describe("pdf-render queue", () => {
     const opts0 = calls[0]?.[2] as { jobId: string };
     const opts1 = calls[1]?.[2] as { jobId: string };
     expect(opts0.jobId).toBe(opts1.jobId);
-    expect(opts0.jobId).toBe("pdf-render:export-cuid-3");
+    expect(opts0.jobId).toBe("pdf-render__export-cuid-3");
   });
 
   it("different exportIds produce distinct jobIds", async () => {
@@ -114,7 +114,7 @@ describe("pdf-render queue", () => {
     const opts0 = calls[0]?.[2] as { jobId: string };
     const opts1 = calls[1]?.[2] as { jobId: string };
     expect(opts0.jobId).not.toBe(opts1.jobId);
-    expect(opts0.jobId).toBe("pdf-render:export-cuid-a");
-    expect(opts1.jobId).toBe("pdf-render:export-cuid-b");
+    expect(opts0.jobId).toBe("pdf-render__export-cuid-a");
+    expect(opts1.jobId).toBe("pdf-render__export-cuid-b");
   });
 });

@@ -17,6 +17,8 @@ services:
       PORT: "3000"
       DATABASE_URL: ${INTERNAL_DATABASE_URL}
       REDIS_URL: ${INTERNAL_REDIS_URL}
+      REDIS_HOST: ${COMPOSE_PROJECT_NAME}_valkey
+      REDIS_PORT: "6379"
     ports:
       - "${APP_PORT}:3000"
     networks: [app_network]

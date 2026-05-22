@@ -59,7 +59,7 @@ describe("area-rederive queue", () => {
     ];
     expect(name).toBe("area-rederive:event");
     expect(addedPayload).toEqual(payload);
-    expect(opts.jobId).toBe("area-rederive:tenant-a:event:evt-1");
+    expect(opts.jobId).toBe("area-rederive__tenant-a__event__evt-1");
   });
 
   it("enqueueAreaRederive returns empty string when BullMQ omits job.id", async () => {
@@ -88,7 +88,7 @@ describe("area-rederive queue", () => {
       { jobId: string },
     ];
     expect(name).toBe("area-rederive:patrol");
-    expect(opts.jobId).toBe("area-rederive:tenant-a:patrol:patrol-9");
+    expect(opts.jobId).toBe("area-rederive__tenant-a__patrol__patrol-9");
   });
 
   it("enqueueAreaRederive supports entity='fuelEntry'", async () => {
@@ -105,7 +105,7 @@ describe("area-rederive queue", () => {
       { jobId: string },
     ];
     expect(name).toBe("area-rederive:fuelEntry");
-    expect(opts.jobId).toBe("area-rederive:tenant-a:fuelEntry:fuel-77");
+    expect(opts.jobId).toBe("area-rederive__tenant-a__fuelEntry__fuel-77");
   });
 
   it("jobId is deterministic for the same (tenantId, entity, id) triple — enables BullMQ dedupe", async () => {
@@ -129,6 +129,6 @@ describe("area-rederive queue", () => {
     const opts0 = calls[0]?.[2] as { jobId: string };
     const opts1 = calls[1]?.[2] as { jobId: string };
     expect(opts0.jobId).toBe(opts1.jobId);
-    expect(opts0.jobId).toBe("area-rederive:tenant-a:event:evt-1");
+    expect(opts0.jobId).toBe("area-rederive__tenant-a__event__evt-1");
   });
 });

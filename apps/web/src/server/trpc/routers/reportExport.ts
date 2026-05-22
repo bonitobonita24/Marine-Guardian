@@ -99,7 +99,7 @@ export const reportExportRouter = router({
    * Each step's failure mode is independent: a row exists with status=queued
    * even if the enqueue or audit log fails, and the 5.3d admin "Retry"
    * button can re-enqueue from the stuck-queued state if needed (jobId
-   * `pdf-render:${exportId}` dedupes the second enqueue to one BullMQ
+   * `pdf-render__${exportId}` dedupes the second enqueue to one BullMQ
    * job). Same pattern as patrol.rebuildTracks + areaBoundary.rebuild —
    * sequential awaits rather than $transaction wrap because BullMQ writes
    * to Valkey (outside Postgres) and a $transaction cannot span both.
@@ -183,7 +183,7 @@ export const reportExportRouter = router({
    *
    * Resets the row state: status=queued, nullifies filePath/fileSizeBytes/
    * errorMessage/completedAt. Then re-fires the pdf-render job. The BullMQ
-   * jobId pattern `pdf-render:${exportId}` dedupes the second enqueue to
+   * jobId pattern `pdf-render__${exportId}` dedupes the second enqueue to
    * one job if a stale job is still in flight (5.3b precedent).
    *
    * RBAC: adminProcedure (super_admin + site_admin). Tenant scope enforced

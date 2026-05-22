@@ -7,7 +7,9 @@
 // path. Consumed by pdf-render.worker.ts and processed by
 // pdf-render.processor.ts.
 //
-// JobId convention: `pdf-render:${exportId}` — guarantees idempotency at
+// JobId convention: `pdf-render__${exportId}` — guarantees idempotency at
+// (double underscore separator — BullMQ rejects `:` in jobIds with
+// "Custom Id cannot contain :"; lessons.md 🔴 2026-05-22.)
 // enqueue time. exportId is the ReportExport.id PK (cuid, globally
 // unique across all tenants), so tenant scoping in the jobId would be
 // redundant. If the same export is enqueued twice in quick succession
@@ -40,7 +42,7 @@ export async function enqueuePdfRender(
     "pdf-render",
     payload,
     {
-      jobId: `pdf-render:${payload.exportId}`,
+      jobId: `pdf-render__${payload.exportId}`,
     },
   );
   return job.id ?? "";

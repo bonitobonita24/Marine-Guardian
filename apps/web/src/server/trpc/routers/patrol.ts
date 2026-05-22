@@ -76,7 +76,7 @@ export const patrolRouter = router({
   // patrol row. Closed patrols (state='done' or 'cancelled') are skipped
   // intentionally: their tracks are immutable after the patrol closed and
   // re-fetching wastes ER API quota. The queue jobId
-  // (patrol-track-materialize:${tenantId}:${patrolId}) dedupes any race
+  // (patrol-track-materialize__${tenantId}__${patrolId}) dedupes any race
   // between this admin trigger and other enqueue paths.
   rebuildTracks: adminProcedure
     .input(z.object({ tenantId: z.string().optional() }))

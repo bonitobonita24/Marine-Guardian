@@ -5,7 +5,9 @@
 // of the request path. Consumed by area-rederive.worker.ts and processed by
 // area-rederive.processor.ts.
 //
-// JobId convention: `area-rederive:${tenantId}:${entity}:${id}` — guarantees
+// JobId convention: `area-rederive__${tenantId}__${entity}__${id}` — guarantees
+// (double underscore separator — BullMQ rejects `:` in jobIds with
+// "Custom Id cannot contain :"; lessons.md 🔴 2026-05-22)
 // idempotency at enqueue time. If the same row is re-derived twice in quick
 // succession (e.g. boundary updated + row's areaName changed seconds apart),
 // BullMQ dedupes via the jobId before any work is done; only the second
@@ -29,7 +31,7 @@ export async function enqueueAreaRederive(
     `area-rederive:${payload.entity}`,
     payload,
     {
-      jobId: `area-rederive:${payload.tenantId}:${payload.entity}:${payload.id}`,
+      jobId: `area-rederive__${payload.tenantId}__${payload.entity}__${payload.id}`,
     },
   );
   return job.id ?? "";

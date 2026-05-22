@@ -6,7 +6,9 @@
 // patrol-track-materialize.worker.ts and processed by
 // patrol-track-materialize.processor.ts.
 //
-// JobId convention: `patrol-track-materialize:${tenantId}:${patrolId}` —
+// JobId convention: `patrol-track-materialize__${tenantId}__${patrolId}` —
+// (double underscore separator — BullMQ rejects `:` in jobIds with
+// "Custom Id cannot contain :"; lessons.md 🔴 2026-05-22.)
 // guarantees idempotency at enqueue time. If the same patrol is enqueued
 // twice in quick succession (e.g. 5.2c admin tenant-wide rebuild + a
 // sync-driven enqueue racing on the same patrol), BullMQ dedupes via the
@@ -36,7 +38,7 @@ export async function enqueuePatrolTrackMaterialize(
     "patrol-track-materialize",
     payload,
     {
-      jobId: `patrol-track-materialize:${payload.tenantId}:${payload.patrolId}`,
+      jobId: `patrol-track-materialize__${payload.tenantId}__${payload.patrolId}`,
     },
   );
   return job.id ?? "";
