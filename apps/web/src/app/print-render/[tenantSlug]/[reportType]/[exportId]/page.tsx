@@ -12,17 +12,21 @@
  * in apps/web/src/middleware.ts (checks X-PDF-Renderer-Token before the
  * auth gate). Direct browser access without the header returns 401.
  *
- * Dispatch (Sub-batch 6.1a):
- *   coverage          → CoverageReport (Page 1 — Patrol Index implemented;
- *                       Page 2 + Page 3 land in 6.1b/6.1c)
- *   per-area /
+ * Dispatch (slug ↔ ReportExport.reportType enum value):
+ *   coverage          → CoverageReport (3-page funder template — 6.1a/b/c)
+ *   area              → PerAreaReport (Page 1 ships in 6.2a; Pages 2-3
+ *                       land in 6.2b / 6.2c). URL slug matches the
+ *                       schema enum value `area`, not the spec route
+ *                       segment `/[tenant]/reports/area` "per-area" label.
  *   ad-hoc-events /
  *   ad-hoc-patrols    → pipeline-stub banner (content lands in later 6.x).
  */
 
 import { notFound } from "next/navigation";
 import { getCoverageReportData } from "@/server/coverage-report/get-coverage-report-data";
+import { getPerAreaReportData } from "@/server/per-area-report/get-per-area-report-data";
 import { CoverageReport } from "./coverage-report";
+import { PerAreaReport } from "./per-area-report";
 
 interface PrintPageProps {
   params: Promise<{
@@ -34,7 +38,7 @@ interface PrintPageProps {
 
 const VALID_REPORT_TYPES = new Set([
   "coverage",
-  "per-area",
+  "area",
   "ad-hoc-events",
   "ad-hoc-patrols",
 ]);
@@ -46,6 +50,12 @@ export default async function PrintPage({ params }: PrintPageProps) {
     const data = await getCoverageReportData(tenantSlug, exportId);
     if (data === null) notFound();
     return <CoverageReport data={data} />;
+  }
+
+  if (reportType === "area") {
+    const data = await getPerAreaReportData(tenantSlug, exportId);
+    if (data === null) notFound();
+    return <PerAreaReport data={data} />;
   }
 
   const generatedAt = new Date().toISOString();
