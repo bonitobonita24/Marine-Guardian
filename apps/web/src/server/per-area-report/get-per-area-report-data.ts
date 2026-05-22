@@ -32,7 +32,7 @@
  * breakdowns (e.g. operational categories like "test" or "system"); they
  * still appear in raw Event records, just not in this report's charts.
  *
- * 6.2b-i additions (this sub-batch):
+ * 6.2b-i additions:
  *   - lawEnforcementEventLocations[] + monitoringEventLocations[]: filtered
  *     Event point geometries used by the Page 2 event-location heatmap.
  *     Bucketing reuses the same case-insensitive substring match on
@@ -43,9 +43,21 @@
  *     "Heatmap Renderer Choice"). Patrols with no materialised track or
  *     non-LineString geometry are skipped defensively.
  *
- * Out of scope for 6.2b-i (lands in 6.2b-ii / 6.2c / 6.2d):
- *   - Page 2 RSC + Leaflet client island + HeatLayer wrapper (6.2b-ii)
- *   - Fuel consumption aggregation (Page 3 — 6.2c)
+ * 6.2c additions (this sub-batch — Page 3 fuel consumption):
+ *   - fuelConsumption: KPIs (total liters, total cost, average L/km) +
+ *     per-month breakdown table data. FuelEntry is keyed by
+ *     (tenantId, areaBoundaryId, dateReceived) — NOT joined to Patrol.
+ *     Fuel is allocated at area level per PRODUCT.md §128 ("Fuel is shared
+ *     across all boats in an area — not tracked per individual boat"), so
+ *     L/km is always an aggregate ratio over an area + period window.
+ *     totalSeabornePatrolKm reuses patrolSummary.seaborne.totalDistanceKm
+ *     already aggregated by buildPatrolSummary.
+ *     averageLitersPerKm is null when totalSeabornePatrolKm === 0
+ *     (divide-by-zero guard — the page renders "N/A" in that case).
+ *     Returns null only when BOTH the fuel entry list AND the seaborne
+ *     distance total are empty — there's nothing to show on Page 3.
+ *
+ * Out of scope for 6.2c (lands in 6.2d):
  *   - ReportExport row creation flow + reportType: "area" wiring (6.2d)
  */
 
@@ -123,6 +135,39 @@ export interface PerAreaReportPatrolTrack {
   sampledPoints: HeatLatLng[];
 }
 
+/**
+ * One row in the per-month fuel breakdown table. Renders only when the
+ * report's dateRange spans ≥2 calendar months (otherwise the KPI cards
+ * alone tell the whole story). month is the YYYY-MM tenant-local calendar
+ * label. litersPerKm is null when seabornePatrolKm === 0 in that month.
+ */
+export interface PerAreaReportFuelMonthRow {
+  /** YYYY-MM calendar label (tenant-local). */
+  month: string;
+  liters: number;
+  cost: number;
+  seabornePatrolKm: number;
+  litersPerKm: number | null;
+}
+
+/**
+ * Aggregated fuel consumption for Page 3. Null only when there are no fuel
+ * entries AND no seaborne patrol distance recorded in the period — Page 3
+ * renders an empty state in that case.
+ */
+export interface PerAreaReportFuelConsumption {
+  totalLiters: number;
+  totalCost: number;
+  /** ISO 4217 code from the first fuel entry, or "PHP" fallback. */
+  currency: string;
+  totalSeabornePatrolKm: number;
+  /** Null when totalSeabornePatrolKm === 0 (divide-by-zero guard). */
+  averageLitersPerKm: number | null;
+  entryCount: number;
+  /** Sorted chronologically (YYYY-MM ASC). Empty when no fuel entries. */
+  perMonthBreakdown: PerAreaReportFuelMonthRow[];
+}
+
 export interface PerAreaReportDateRange {
   /** Inclusive UTC start. */
   start: Date;
@@ -181,6 +226,12 @@ export interface PerAreaReportData {
    * sampler. Spec PRODUCT.md L137.
    */
   patrolTracks: PerAreaReportPatrolTrack[];
+  /**
+   * Page 3 fuel consumption data. Null when no fuel entries AND no seaborne
+   * patrol distance exists in the period — Page 3 renders an empty state in
+   * that case. Spec PRODUCT.md §138.
+   */
+  fuelConsumption: PerAreaReportFuelConsumption | null;
 }
 
 interface ParsedPerAreaParams {
@@ -375,6 +426,183 @@ function buildPatrolTracks(
   return out;
 }
 
+/**
+ * One fuel entry row as the buildFuelConsumption helper sees it. liters and
+ * totalPrice arrive from Prisma as Decimal — narrowed here to `unknown` and
+ * decoded via the toFiniteNumber helper to keep the helper independent of
+ * the Prisma Decimal class (and trivially mockable from tests that pass
+ * plain numbers).
+ */
+interface RawFuelEntry {
+  liters: unknown;
+  totalPrice: unknown;
+  currency: string;
+  dateReceived: Date;
+}
+
+/**
+ * Bucketing input — one seaborne patrol's startedAt + distance. Reused
+ * across the per-month bucketing pass so each month row carries both
+ * fuel-bucketed liters AND patrol-bucketed seaborne km.
+ *
+ * startedAt is nullable to match Patrol.startTime on the schema (Prisma
+ * `DateTime?`). When null, the patrol still contributes to the aggregate
+ * total km but is skipped from the per-month bucketing — see
+ * buildFuelConsumption for the defensive guard.
+ */
+interface SeabornePatrolBucketInput {
+  startedAt: Date | null;
+  totalDistanceKm: number | null;
+}
+
+/**
+ * Coerces Prisma's Decimal | number | string into a finite number. Returns
+ * null when the value is missing or non-finite (e.g. unparseable string,
+ * NaN). Avoids depending on Prisma.Decimal directly so tests can mock with
+ * plain numbers.
+ */
+function toFiniteNumber(v: unknown): number | null {
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (v !== null && typeof v === "object" && "toNumber" in v) {
+    const fn = (v as { toNumber: () => number }).toNumber;
+    if (typeof fn === "function") {
+      const n = fn.call(v);
+      return Number.isFinite(n) ? n : null;
+    }
+  }
+  if (typeof v === "string") {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+/**
+ * Returns a YYYY-MM tenant-local month label for a Date instant. The fuel
+ * entry uses `@db.Date` so dateReceived is already a midnight-UTC calendar
+ * date — shifting by the offset gives the tenant-local calendar month. For
+ * patrols we shift the patrol startedAt instant the same way.
+ */
+function tenantLocalMonthLabel(d: Date, offsetMinutes: number): string {
+  const shifted = new Date(d.getTime() + offsetMinutes * 60_000);
+  const y = shifted.getUTCFullYear();
+  const m = String(shifted.getUTCMonth() + 1).padStart(2, "0");
+  return `${String(y)}-${m}`;
+}
+
+interface FuelMonthBucket {
+  liters: number;
+  cost: number;
+  seabornePatrolKm: number;
+}
+
+/**
+ * Aggregates fuel entries + seaborne patrol distances into a Page 3 payload.
+ * Returns null when both inputs are empty (the page renders an empty state).
+ *
+ * Bucketing rule: fuel entries bucket by `dateReceived` YYYY-MM. Seaborne
+ * patrol km bucket by `startedAt` YYYY-MM. The two streams meet at the
+ * month label — months that have fuel but no patrol km show litersPerKm
+ * null; months that have patrol km but no fuel show liters/cost zero.
+ *
+ * Currency: pulled from the first fuel entry. Empty fuel list → "PHP"
+ * fallback (v2 launch tenants are all PHP-denominated per DECISIONS_LOG).
+ */
+function buildFuelConsumption(
+  fuelEntries: ReadonlyArray<RawFuelEntry>,
+  seabornePatrols: ReadonlyArray<SeabornePatrolBucketInput>,
+  offsetMinutes: number,
+): PerAreaReportFuelConsumption | null {
+  if (fuelEntries.length === 0 && seabornePatrols.length === 0) return null;
+
+  let totalLiters = 0;
+  let totalCost = 0;
+  let entryCount = 0;
+  const buckets = new Map<string, FuelMonthBucket>();
+  const ensureBucket = (month: string): FuelMonthBucket => {
+    let b = buckets.get(month);
+    if (b === undefined) {
+      b = { liters: 0, cost: 0, seabornePatrolKm: 0 };
+      buckets.set(month, b);
+    }
+    return b;
+  };
+
+  for (const e of fuelEntries) {
+    const litersNum = toFiniteNumber(e.liters);
+    const costNum = toFiniteNumber(e.totalPrice);
+    if (litersNum === null && costNum === null) continue;
+    if (
+      !(e.dateReceived instanceof Date) ||
+      Number.isNaN(e.dateReceived.getTime())
+    ) {
+      continue;
+    }
+    const liters = litersNum ?? 0;
+    const cost = costNum ?? 0;
+    totalLiters += liters;
+    totalCost += cost;
+    entryCount += 1;
+    const month = tenantLocalMonthLabel(e.dateReceived, offsetMinutes);
+    const bucket = ensureBucket(month);
+    bucket.liters += liters;
+    bucket.cost += cost;
+  }
+
+  let totalSeabornePatrolKm = 0;
+  for (const p of seabornePatrols) {
+    if (p.totalDistanceKm === null || !Number.isFinite(p.totalDistanceKm)) {
+      continue;
+    }
+    totalSeabornePatrolKm += p.totalDistanceKm;
+    // Defensive: Prisma always returns a valid Date for startTime in
+    // production, but mocked fixtures may omit it. Skip month bucketing
+    // for entries with missing/invalid startedAt — the total still sums.
+    if (
+      !(p.startedAt instanceof Date) ||
+      Number.isNaN(p.startedAt.getTime())
+    ) {
+      continue;
+    }
+    const month = tenantLocalMonthLabel(p.startedAt, offsetMinutes);
+    const bucket = ensureBucket(month);
+    bucket.seabornePatrolKm += p.totalDistanceKm;
+  }
+
+  const averageLitersPerKm =
+    totalSeabornePatrolKm > 0 ? totalLiters / totalSeabornePatrolKm : null;
+
+  const currency =
+    fuelEntries[0]?.currency !== undefined &&
+    typeof fuelEntries[0].currency === "string" &&
+    fuelEntries[0].currency.length > 0
+      ? fuelEntries[0].currency
+      : "PHP";
+
+  const perMonthBreakdown: PerAreaReportFuelMonthRow[] = Array.from(
+    buckets.entries(),
+  )
+    .map(([month, b]) => ({
+      month,
+      liters: b.liters,
+      cost: b.cost,
+      seabornePatrolKm: b.seabornePatrolKm,
+      litersPerKm:
+        b.seabornePatrolKm > 0 ? b.liters / b.seabornePatrolKm : null,
+    }))
+    .sort((a, b) => a.month.localeCompare(b.month));
+
+  return {
+    totalLiters,
+    totalCost,
+    currency,
+    totalSeabornePatrolKm,
+    averageLitersPerKm,
+    entryCount,
+    perMonthBreakdown,
+  };
+}
+
 function buildPatrolSummary(
   patrols: ReadonlyArray<{
     patrolType: PatrolType;
@@ -532,6 +760,7 @@ export async function getPerAreaReportData(
     select: {
       id: true,
       patrolType: true,
+      startTime: true,
       totalDistanceKm: true,
       totalHours: true,
       track: { select: { trackGeojson: true } },
@@ -540,6 +769,43 @@ export async function getPerAreaReportData(
 
   const patrolSummary = buildPatrolSummary(patrols);
   const patrolTracks = buildPatrolTracks(patrols);
+
+  // ────────────────────────────────────────────────────────────────────
+  // Page 3 — Fuel Consumption (6.2c)
+  // FuelEntry is keyed by tenantId + areaBoundaryId + dateReceived (NOT
+  // joined to Patrol). Fuel is allocated at area level per PRODUCT.md §128
+  // ("Fuel is shared across all boats in an area"), so L/km is always an
+  // aggregate ratio across the area + period window.
+  // ────────────────────────────────────────────────────────────────────
+  const fuelEntries = await prisma.fuelEntry.findMany({
+    where: {
+      tenantId: tenant.id,
+      areaBoundaryId: area.id,
+      dateReceived: { gte: dateRange.start, lt: dateRange.end },
+    },
+    select: {
+      liters: true,
+      totalPrice: true,
+      currency: true,
+      dateReceived: true,
+    },
+    orderBy: { dateReceived: "asc" },
+  });
+
+  const seabornePatrols: SeabornePatrolBucketInput[] = [];
+  for (const p of patrols) {
+    if (p.patrolType !== "seaborne") continue;
+    seabornePatrols.push({
+      startedAt: p.startTime,
+      totalDistanceKm: p.totalDistanceKm,
+    });
+  }
+
+  const fuelConsumption = buildFuelConsumption(
+    fuelEntries,
+    seabornePatrols,
+    offsetMinutes,
+  );
 
   return {
     tenant: {
@@ -558,5 +824,6 @@ export async function getPerAreaReportData(
     lawEnforcementEventLocations,
     monitoringEventLocations,
     patrolTracks,
+    fuelConsumption,
   };
 }

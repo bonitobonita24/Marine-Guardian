@@ -5,20 +5,29 @@
  * waits for networkidle0 on the print-renderer pipeline (Batch 5 Item 3),
  * so all content must be in the initial HTML — no client-side data fetching.
  *
- *   Page 1 — Event Breakdown + Patrol Summary (this sub-batch, 6.2a)
+ *   Page 1 — Event Breakdown + Patrol Summary (6.2a)
  *   Page 2 — Event Heatmap + Patrol Track Heatmap (6.2b)
- *   Page 3 — Fuel Consumption (6.2c)
+ *   Page 3 — Fuel Consumption (6.2c — this sub-batch)
  *
  * Spec: docs/PRODUCT.md §130-139 "Reports — Per Area".
  *
- * Page 1 (6.2a) covers: header band with tenant name + report title + area +
- * date range, two dynamic event-type bar charts (law enforcement + monitoring),
+ * Page 1 covers: header band with tenant name + report title + area + date
+ * range, two dynamic event-type bar charts (law enforcement + monitoring),
  * and three patrol summary cards (foot / seaborne / total).
+ *
+ * Page 2 covers: dual-layer Leaflet heatmap (events + patrol tracks) with a
+ * server-rendered legend + methodology footer.
+ *
+ * Page 3 covers: 3-KPI card row (total liters / total cost / aggregate
+ * L/km) + conditional per-month breakdown table (renders only when the
+ * report date range spans 2 or more calendar months) + methodology footer
+ * explaining the per-area fuel allocation caveat (PRODUCT.md §128).
  */
 
 import type { PerAreaReportData } from "@/server/per-area-report/get-per-area-report-data";
 import { Page1EventAndPatrolSummary } from "./page-1-event-and-patrol-summary";
 import { Page2Heatmaps } from "./page-2-heatmaps";
+import { Page3FuelConsumption } from "./page-3-fuel-consumption";
 
 interface PerAreaReportProps {
   data: PerAreaReportData;
@@ -131,6 +140,12 @@ export function PerAreaReport({ data }: PerAreaReportProps) {
           lawEnforcementEventLocations={data.lawEnforcementEventLocations}
           monitoringEventLocations={data.monitoringEventLocations}
           patrolTracks={data.patrolTracks}
+        />
+
+        <Page3FuelConsumption
+          area={data.area}
+          dateRange={data.dateRange}
+          fuelConsumption={data.fuelConsumption}
         />
 
         {/* Puppeteer networkidle0 anchor. */}

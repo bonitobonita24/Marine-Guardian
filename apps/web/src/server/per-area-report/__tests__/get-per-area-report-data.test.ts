@@ -9,6 +9,7 @@ vi.mock("@marine-guardian/db", () => ({
     areaBoundary: { findUnique: vi.fn(), findFirst: vi.fn() },
     event: { findMany: vi.fn() },
     patrol: { findMany: vi.fn() },
+    fuelEntry: { findMany: vi.fn() },
   },
 }));
 
@@ -118,6 +119,9 @@ describe("resolveDefaultMonthRange", () => {
 describe("getPerAreaReportData", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default fuel entries to empty — tests that exercise fuel override this
+    // with mockResolvedValueOnce. Keeps existing pre-6.2c tests untouched.
+    vi.mocked(prisma.fuelEntry.findMany).mockResolvedValue([] as never);
   });
 
   it("returns null when tenant slug is unknown", async () => {
@@ -827,5 +831,242 @@ describe("getPerAreaReportData", () => {
     expect(r?.lawEnforcementEventLocations).toEqual([]);
     expect(r?.monitoringEventLocations).toEqual([]);
     expect(r?.patrolTracks).toEqual([]);
+  });
+
+  // ───────────────────────────────────────────────────────────────────
+  // Page 3 fuel consumption — 6.2c extension
+  // ───────────────────────────────────────────────────────────────────
+
+  it("sums fuel liters + totalPrice across area + range and computes aggregate L/km", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
+      TENANT_ROW as never,
+    );
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValueOnce(
+      EXPORT_ROW as never,
+    );
+    vi.mocked(prisma.areaBoundary.findUnique).mockResolvedValueOnce(
+      AREA_ROW as never,
+    );
+    vi.mocked(prisma.event.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([
+      {
+        id: "p_seaborne_1",
+        patrolType: "seaborne",
+        startTime: new Date("2026-05-05T00:00:00.000Z"),
+        totalDistanceKm: 20.0,
+        totalHours: 4.0,
+        track: null,
+      },
+      {
+        id: "p_seaborne_2",
+        patrolType: "seaborne",
+        startTime: new Date("2026-05-12T00:00:00.000Z"),
+        totalDistanceKm: 30.0,
+        totalHours: 6.0,
+        track: null,
+      },
+      // Foot patrol — counted in patrolSummary but not in seaborne km
+      {
+        id: "p_foot",
+        patrolType: "foot",
+        startTime: new Date("2026-05-08T00:00:00.000Z"),
+        totalDistanceKm: 2.0,
+        totalHours: 1.0,
+        track: null,
+      },
+    ] as never);
+    vi.mocked(prisma.fuelEntry.findMany).mockResolvedValueOnce([
+      {
+        liters: 25.0,
+        totalPrice: 1500.0,
+        currency: "PHP",
+        dateReceived: new Date("2026-05-10T00:00:00.000Z"),
+      },
+      {
+        liters: 15.5,
+        totalPrice: 930.0,
+        currency: "PHP",
+        dateReceived: new Date("2026-05-20T00:00:00.000Z"),
+      },
+    ] as never);
+    const r = await getPerAreaReportData(TENANT_SLUG, EXPORT_ID);
+    expect(r?.fuelConsumption).not.toBeNull();
+    expect(r?.fuelConsumption?.totalLiters).toBeCloseTo(40.5, 5);
+    expect(r?.fuelConsumption?.totalCost).toBeCloseTo(2430.0, 5);
+    expect(r?.fuelConsumption?.currency).toBe("PHP");
+    expect(r?.fuelConsumption?.totalSeabornePatrolKm).toBeCloseTo(50.0, 5);
+    // 40.5 / 50 = 0.81 L/km (foot patrol km excluded from divisor)
+    expect(r?.fuelConsumption?.averageLitersPerKm).toBeCloseTo(0.81, 5);
+    expect(r?.fuelConsumption?.entryCount).toBe(2);
+  });
+
+  it("returns null averageLitersPerKm when seaborne distance is zero (divide-by-zero guard)", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
+      TENANT_ROW as never,
+    );
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValueOnce(
+      EXPORT_ROW as never,
+    );
+    vi.mocked(prisma.areaBoundary.findUnique).mockResolvedValueOnce(
+      AREA_ROW as never,
+    );
+    vi.mocked(prisma.event.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([
+      // Only foot patrols — totalSeabornePatrolKm stays 0
+      {
+        id: "p_foot",
+        patrolType: "foot",
+        startTime: new Date("2026-05-10T00:00:00.000Z"),
+        totalDistanceKm: 3.0,
+        totalHours: 1.0,
+        track: null,
+      },
+    ] as never);
+    vi.mocked(prisma.fuelEntry.findMany).mockResolvedValueOnce([
+      {
+        liters: 10.0,
+        totalPrice: 600.0,
+        currency: "PHP",
+        dateReceived: new Date("2026-05-10T00:00:00.000Z"),
+      },
+    ] as never);
+    const r = await getPerAreaReportData(TENANT_SLUG, EXPORT_ID);
+    expect(r?.fuelConsumption?.totalLiters).toBeCloseTo(10.0, 5);
+    expect(r?.fuelConsumption?.totalSeabornePatrolKm).toBe(0);
+    expect(r?.fuelConsumption?.averageLitersPerKm).toBeNull();
+  });
+
+  it("buckets fuel + seaborne km into per-month rows sorted chronologically", async () => {
+    // 3-month dateRange (Mar 2026 → Jun 2026 exclusive) so multiple months hit.
+    const multiMonthExport = {
+      ...EXPORT_ROW,
+      paramsJson: {
+        areaBoundaryId: AREA_ID,
+        startDate: "2026-03-01T00:00:00.000Z",
+        endDate: "2026-06-01T00:00:00.000Z",
+      },
+    };
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
+      TENANT_ROW as never,
+    );
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValueOnce(
+      multiMonthExport as never,
+    );
+    vi.mocked(prisma.areaBoundary.findUnique).mockResolvedValueOnce(
+      AREA_ROW as never,
+    );
+    vi.mocked(prisma.event.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([
+      {
+        id: "p_march",
+        patrolType: "seaborne",
+        startTime: new Date("2026-03-15T02:00:00.000Z"),
+        totalDistanceKm: 10.0,
+        totalHours: 2.0,
+        track: null,
+      },
+      {
+        id: "p_may",
+        patrolType: "seaborne",
+        startTime: new Date("2026-05-20T02:00:00.000Z"),
+        totalDistanceKm: 25.0,
+        totalHours: 5.0,
+        track: null,
+      },
+    ] as never);
+    vi.mocked(prisma.fuelEntry.findMany).mockResolvedValueOnce([
+      {
+        liters: 8.0,
+        totalPrice: 480.0,
+        currency: "PHP",
+        dateReceived: new Date("2026-03-10T00:00:00.000Z"),
+      },
+      {
+        // April fuel — no patrols this month (shows fuel-only month)
+        liters: 5.0,
+        totalPrice: 300.0,
+        currency: "PHP",
+        dateReceived: new Date("2026-04-22T00:00:00.000Z"),
+      },
+      {
+        liters: 20.0,
+        totalPrice: 1200.0,
+        currency: "PHP",
+        dateReceived: new Date("2026-05-18T00:00:00.000Z"),
+      },
+    ] as never);
+    const r = await getPerAreaReportData(TENANT_SLUG, EXPORT_ID);
+    const months = r?.fuelConsumption?.perMonthBreakdown ?? [];
+    expect(months.map((m) => m.month)).toEqual([
+      "2026-03",
+      "2026-04",
+      "2026-05",
+    ]);
+    expect(months[0]?.liters).toBeCloseTo(8.0, 5);
+    expect(months[0]?.seabornePatrolKm).toBeCloseTo(10.0, 5);
+    expect(months[0]?.litersPerKm).toBeCloseTo(0.8, 5);
+    // April fuel only, no patrol km → litersPerKm null
+    expect(months[1]?.liters).toBeCloseTo(5.0, 5);
+    expect(months[1]?.seabornePatrolKm).toBe(0);
+    expect(months[1]?.litersPerKm).toBeNull();
+    expect(months[2]?.liters).toBeCloseTo(20.0, 5);
+    expect(months[2]?.seabornePatrolKm).toBeCloseTo(25.0, 5);
+    expect(months[2]?.litersPerKm).toBeCloseTo(0.8, 5);
+  });
+
+  it("returns null fuelConsumption when no fuel entries AND no seaborne km", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
+      TENANT_ROW as never,
+    );
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValueOnce(
+      EXPORT_ROW as never,
+    );
+    vi.mocked(prisma.areaBoundary.findUnique).mockResolvedValueOnce(
+      AREA_ROW as never,
+    );
+    vi.mocked(prisma.event.findMany).mockResolvedValueOnce([] as never);
+    // Only foot patrols (zero seaborne km) + no fuel entries → null payload
+    vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([
+      {
+        id: "p_foot_only",
+        patrolType: "foot",
+        startTime: new Date("2026-05-10T00:00:00.000Z"),
+        totalDistanceKm: 2.0,
+        totalHours: 1.0,
+        track: null,
+      },
+    ] as never);
+    const r = await getPerAreaReportData(TENANT_SLUG, EXPORT_ID);
+    expect(r?.fuelConsumption).toBeNull();
+  });
+
+  it("scopes the fuelEntry query to tenant + area + dateReceived range", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
+      TENANT_ROW as never,
+    );
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValueOnce(
+      EXPORT_ROW as never,
+    );
+    vi.mocked(prisma.areaBoundary.findUnique).mockResolvedValueOnce(
+      AREA_ROW as never,
+    );
+    vi.mocked(prisma.event.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([] as never);
+    await getPerAreaReportData(TENANT_SLUG, EXPORT_ID);
+    const fuelCall = vi.mocked(prisma.fuelEntry.findMany).mock.calls[0]?.[0];
+    expect(fuelCall?.where).toMatchObject({
+      tenantId: TENANT_ID,
+      areaBoundaryId: AREA_ID,
+      dateReceived: {
+        gte: new Date("2026-05-01T00:00:00.000Z"),
+        lt: new Date("2026-06-01T00:00:00.000Z"),
+      },
+    });
+    expect(fuelCall?.select).toMatchObject({
+      liters: true,
+      totalPrice: true,
+      currency: true,
+      dateReceived: true,
+    });
   });
 });
