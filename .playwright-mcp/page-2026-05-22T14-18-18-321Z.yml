@@ -1,0 +1,119 @@
+- generic [active] [ref=e1]:
+  - alert [ref=e2]
+  - generic [ref=e16]:
+    - complementary [ref=e17]:
+      - generic [ref=e19]: Marine Guardian
+      - navigation [ref=e20]:
+        - list [ref=e21]:
+          - listitem [ref=e22]:
+            - link "Command Center" [ref=e23] [cursor=pointer]:
+              - /url: /dashboard
+              - img [ref=e24]
+              - generic [ref=e29]: Command Center
+          - listitem [ref=e30]:
+            - link "Live Map" [ref=e31] [cursor=pointer]:
+              - /url: /map
+              - img [ref=e32]
+              - generic [ref=e34]: Live Map
+          - listitem [ref=e35]:
+            - link "Events" [ref=e36] [cursor=pointer]:
+              - /url: /events
+              - img [ref=e37]
+              - generic [ref=e41]: Events
+          - listitem [ref=e42]:
+            - link "Patrols" [ref=e43] [cursor=pointer]:
+              - /url: /patrols
+              - img [ref=e44]
+              - generic [ref=e48]: Patrols
+          - listitem [ref=e49]:
+            - link "Subjects" [ref=e50] [cursor=pointer]:
+              - /url: /subjects
+              - img [ref=e51]
+              - generic [ref=e56]: Subjects
+          - listitem [ref=e57]:
+            - link "Patrol Areas" [ref=e58] [cursor=pointer]:
+              - /url: /patrol-areas
+              - img [ref=e59]
+              - generic [ref=e62]: Patrol Areas
+          - listitem [ref=e63]:
+            - link "Observations" [ref=e64] [cursor=pointer]:
+              - /url: /observations
+              - img [ref=e65]
+              - generic [ref=e68]: Observations
+          - listitem [ref=e69]:
+            - link "Alert Rules" [ref=e70] [cursor=pointer]:
+              - /url: /alerts
+              - img [ref=e71]
+              - generic [ref=e74]: Alert Rules
+          - listitem [ref=e75]:
+            - link "Notifications" [ref=e76] [cursor=pointer]:
+              - /url: /notifications
+              - img [ref=e77]
+              - generic [ref=e82]: Notifications
+          - listitem [ref=e83]:
+            - link "Sync Status" [ref=e84] [cursor=pointer]:
+              - /url: /sync
+              - img [ref=e85]
+              - generic [ref=e90]: Sync Status
+          - listitem [ref=e91]:
+            - link "Users" [ref=e92] [cursor=pointer]:
+              - /url: /users
+              - img [ref=e93]
+              - generic [ref=e105]: Users
+          - listitem [ref=e106]:
+            - link "Settings" [ref=e107] [cursor=pointer]:
+              - /url: /settings
+              - img [ref=e108]
+              - generic [ref=e111]: Settings
+      - button "Sign Out" [ref=e113] [cursor=pointer]:
+        - img
+        - text: Sign Out
+    - generic [ref=e114]:
+      - banner [ref=e115]:
+        - generic [ref=e116]:
+          - link "0 unread notifications" [ref=e117] [cursor=pointer]:
+            - /url: /notifications
+            - img
+          - generic [ref=e118]: smoketest@demo-site.local
+          - generic [ref=e119]: site_admin
+      - main [ref=e120]:
+        - generic [ref=e121]:
+          - heading "Command Center" [level=1] [ref=e122]
+          - generic [ref=e123]:
+            - generic [ref=e124]:
+              - generic [ref=e126]: Active Events
+              - paragraph [ref=e128]: "0"
+            - generic [ref=e129]:
+              - generic [ref=e131]: Active Patrols
+              - paragraph [ref=e133]: "0"
+            - generic [ref=e134]:
+              - generic [ref=e136]: Rangers on Duty
+              - paragraph [ref=e138]: "0"
+            - generic [ref=e139]:
+              - generic [ref=e141]: Events This Month
+              - generic [ref=e142]:
+                - paragraph [ref=e143]: "0"
+                - paragraph [ref=e144]: 0 vs last month
+          - generic [ref=e145]:
+            - generic [ref=e146]:
+              - generic [ref=e148]: Law Enforcement Events
+              - paragraph [ref=e150]: No law enforcement events recorded
+            - generic [ref=e151]:
+              - generic [ref=e153]: Monitoring & Surveillance
+              - paragraph [ref=e155]: No monitoring events recorded
+          - generic [ref=e156]:
+            - generic [ref=e157]:
+              - generic [ref=e159]: Recent Events
+              - paragraph [ref=e161]: No events recorded yet
+            - generic [ref=e162]:
+              - generic [ref=e164]: Quick Stats
+              - generic [ref=e165]:
+                - generic [ref=e166]:
+                  - generic [ref=e167]: Law Enforcement
+                  - generic [ref=e168]: "0"
+                - generic [ref=e169]:
+                  - generic [ref=e170]: Monitoring
+                  - generic [ref=e171]: "0"
+                - generic [ref=e173]:
+                  - generic [ref=e174]: Total Events
+                  - generic [ref=e175]: "0"

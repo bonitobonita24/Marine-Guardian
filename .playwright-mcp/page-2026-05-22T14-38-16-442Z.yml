@@ -1,0 +1,134 @@
+- generic [active]:
+  - generic:
+    - complementary:
+      - generic:
+        - generic: Marine Guardian
+      - navigation:
+        - list:
+          - listitem:
+            - link:
+              - /url: /dashboard
+              - img
+              - generic: Command Center
+          - listitem:
+            - link:
+              - /url: /map
+              - img
+              - generic: Live Map
+          - listitem:
+            - link:
+              - /url: /events
+              - img
+              - generic: Events
+          - listitem:
+            - link:
+              - /url: /patrols
+              - img
+              - generic: Patrols
+          - listitem:
+            - link:
+              - /url: /subjects
+              - img
+              - generic: Subjects
+          - listitem:
+            - link:
+              - /url: /patrol-areas
+              - img
+              - generic: Patrol Areas
+          - listitem:
+            - link:
+              - /url: /observations
+              - img
+              - generic: Observations
+          - listitem:
+            - link:
+              - /url: /alerts
+              - img
+              - generic: Alert Rules
+          - listitem:
+            - link:
+              - /url: /notifications
+              - img
+              - generic: Notifications
+          - listitem:
+            - link:
+              - /url: /sync
+              - img
+              - generic: Sync Status
+          - listitem:
+            - link:
+              - /url: /users
+              - img
+              - generic: Users
+          - listitem:
+            - link:
+              - /url: /settings
+              - img
+              - generic: Settings
+      - generic:
+        - button:
+          - img
+          - text: Sign Out
+    - generic:
+      - banner:
+        - generic:
+          - link:
+            - /url: /notifications
+            - img
+          - generic: smoketest@demo-site.local
+          - generic: site_admin
+      - main:
+        - generic:
+          - generic:
+            - heading [level=1]: Patrols
+            - generic:
+              - link:
+                - /url: /api/exports/patrols?format=csv
+                - text: Export CSV
+              - link:
+                - /url: /api/exports/patrols?format=pdf
+                - text: Export PDF
+              - button: Generate Report
+              - button: Rebuild Tracks
+          - paragraph: Patrol management — data table pending
+  - alert
+  - dialog "Generate Report" [ref=e116]:
+    - generic [ref=e117]:
+      - heading "Generate Report" [level=2] [ref=e118]
+      - paragraph [ref=e119]: Queues an asynchronous PDF render. You can track progress and download the result from the Exports page once ready.
+    - generic [ref=e120]:
+      - generic [ref=e121]:
+        - text: Report type
+        - combobox "Report type" [ref=e122]:
+          - option "Coverage Report"
+          - option "Per Area Report" [selected]
+          - option "Consolidated Report"
+          - option "Detailed Report"
+          - option "Rangers Report"
+          - option "Patrol-Filtered Report"
+      - generic [ref=e123]:
+        - text: Paper size
+        - combobox "Paper size" [ref=e124]:
+          - option "A4" [selected]
+          - option "Letter"
+          - option "Legal"
+      - generic [ref=e133]:
+        - generic [ref=e134]:
+          - text: Area
+          - combobox "Area" [ref=e135]:
+            - option "Select an area…"
+            - option "Smoke Test Area" [selected]
+        - generic [ref=e136]:
+          - generic [ref=e137]:
+            - text: Start date
+            - textbox "Start date" [ref=e138]: 2026-04-01
+          - generic [ref=e139]:
+            - text: End date
+            - textbox "End date" [ref=e140]: 2026-05-22
+    - paragraph [ref=e141]: "Custom Id cannot contain :"
+    - generic [ref=e125]:
+      - button "Cancel" [ref=e126] [cursor=pointer]
+      - button "Generate" [ref=e127] [cursor=pointer]
+    - button "Close" [ref=e128] [cursor=pointer]:
+      - img [ref=e129]
+      - generic [ref=e132]: Close
