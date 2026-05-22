@@ -4,6 +4,13 @@
 # READ ORDER: 🔴 first → 🟤 second → rest by relevance
 # ---
 
+## 2026-05-22 — 🟤 Heatmap Renderer Choice locked to leaflet.heat plugin + ~250m track-point densification
+- Type:      🟤 decision
+- Phase:     Phase 8 Batch 6 Sub-batch 6.2b — Per Area Report Page 2 (event location heatmap + patrol track heatmap)
+- Files:     apps/web/package.json (forthcoming: leaflet.heat ^0.2.0 + @types/leaflet.heat ^0.2.4); packages/shared/src/lib/heatmap-sample/ (forthcoming: sampleTrackPoints densifier); apps/web/src/app/print-render/[tenantSlug]/[reportType]/[exportId]/components/per-area-heatmap-map.tsx + components/heat-layer.tsx (forthcoming wrapper hook); docs/DECISIONS_LOG.md "Heatmap Renderer Choice (Phase 8 Batch 6 Sub-batch 6.2b)" — full rationale + 3 rejected alternatives
+- Concepts:  leaflet, leaflet.heat, react-leaflet, heatmap, density, canvas-raster, svg-density-grid, point-densification, line-string-sampling, funder-pdf-template, per-area-report
+- Narrative: User selected leaflet.heat over (a) custom density-grid SVG renderer and (b) hybrid mix at sub-batch start. Decision rationale captured fully in DECISIONS_LOG.md — the 4 deciding factors: ~100% reuse of the 6.1b AreaCoverageMap Leaflet client-island pattern (only add a thin HeatLayer wrapper hook using useMap()), faster velocity for the remaining 6.2c (fuel) + optional 6.2d (export wiring) queue, funder-recognized gradient Canvas heatmap visual language, acceptable print quality at PDF DPI 96-150. The wrapper hook pattern is: useMap() → useEffect(() => { const heat = L.heatLayer(points, options).addTo(map); return () => map.removeLayer(heat); }, [map, points]). Events feed raw [lat, lon, 1] tuples; patrol-tracks feed sampleTrackPoints(lineString, 250) → [lat, lon, weight=1] tuples (haversine-stepped along the LineString). Variant palettes: events=red gradient (red-200→red-600), tracks=blue gradient (blue-200→blue-700). The MapReadySignal contract locked in "Coverage Report Page 2 Map Render Strategy" applies unchanged — Canvas heat layers paint synchronously after tile load, so the existing requestAnimationFrame×2 paint-flush before window.__renderReady=true flip continues to work without modification. The decision is the heatmap-renderer contract for ALL future report families that need density overlays (Quarterly Report, ad-hoc analytics exports) — no second-source renderer.
+
 ## 2026-05-21 — 🔴 turf.lineSplit returns an EMPTY FeatureCollection when the line does not cross the splitter — must fall back to point-in-polygon
 - Type:      🔴 gotcha
 - Phase:     Phase 8 Batch 6 Sub-batch 6.1c-i (coverage-clip line × polygon clipping primitive)

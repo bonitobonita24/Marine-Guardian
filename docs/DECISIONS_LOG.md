@@ -302,3 +302,46 @@ clipping across this codebase. Per Area Report + future Quarterly Report MUST co
 same module — no second-source clip library. Bumping turf to a major version (e.g. v8 when
 released) requires re-running the full 29-case test suite + verifying lineSplit empty-result
 fallback still applies.
+
+
+
+## Heatmap Renderer Choice (Phase 8 Batch 6 Sub-batch 6.2b)
+Decision: leaflet.heat plugin (vanilla-Leaflet L.heatLayer) + ~250m track-point densification
+for the patrol-track variant — NOT a custom density-grid SVG renderer, NOT a hybrid mix.
+Rationale: Per Area Report Page 2 needs two heatmaps overlaid on a basemap (PRODUCT.md L135
+event location heatmap + L137 patrol track heatmap). Three options surfaced via AskUserQuestion
+at sub-batch start:
+  • leaflet.heat plugin (~10KB MIT, Canvas raster, densify tracks → points)
+  • Custom density-grid SVG (~0 deps, vector cells, +1 shared lib + ~15-20 test cases)
+  • Hybrid (heat for events, density-grid for tracks — two patterns to maintain)
+User selected the leaflet.heat path. Justifications: (a) Reuses ~100% of the proven Leaflet
+client-island pattern from 6.1b (AreaCoverageMap) — MapContainer + TileLayer + MapReadySignal
++ AutoFitBounds — plus a thin HeatLayer wrapper hook using useMap() to mount/cleanup
+L.heatLayer. (b) Faster to ship — Per Area Report has 6.2c (fuel) + optional 6.2d (export
+wiring) still queued; reducing 6.2b custom-algorithm surface preserves velocity. (c) Funder
+recognition — gradient Canvas heatmaps are the established visual language for ranger/marine
+density reports; SVG density grids are visually divergent from what funders expect. (d) Print
+quality acceptable at PDF DPI (96-150) — Canvas raster heatmaps are the industry default for
+mapping-toolchain PDFs (Mapbox, ArcGIS Online, QGIS print layouts all output raster heat overlays
+at this DPI band). The custom SVG density-grid path was rejected (zero deps but +1 shared
+library + 15-20 algorithm tests + bbox + grid + color-scale code + custom legend = strictly
+more code than the wrapper-hook path for the same funder-facing output). The hybrid path was
+rejected (two visual styles on one page + two test patterns + two render-ready paths to sync
+before window.__renderReady flip).
+Implementation: apps/web/package.json adds `leaflet.heat ^0.2.0` + `@types/leaflet.heat ^0.2.4`.
+New shared library `packages/shared/src/lib/heatmap-sample/` provides
+sampleTrackPoints(lineString, intervalMeters=250) → Array<[lat, lon, weight]> for the patrol-
+track variant (events use raw lat/lon, weight=1). New client island
+`apps/web/src/app/print-render/.../components/per-area-heatmap-map.tsx` extends the AreaCoverageMap
+pattern: MapContainer + TileLayer + <HeatLayer points={…} variant="events|tracks"/> + MapReadySignal.
+The HeatLayer wrapper component uses useMap() + useEffect to L.heatLayer(points, options).addTo(map)
+on mount and map.removeLayer(heat) on unmount. Variant palettes: events = red gradient (red-200 →
+red-600), tracks = blue gradient (blue-200 → blue-700). Legend rendered server-side in the RSC
+composer as a static gradient bar to avoid hydration mismatch. The MapReadySignal pattern
+locked in "Coverage Report Page 2 Map Render Strategy" applies unchanged (waits for tile load
++ paint flush before flipping window.__renderReady=true for Puppeteer).
+Locked: yes — leaflet.heat plugin is the heatmap renderer contract for the Per Area Report.
+Future report families that need heatmaps (Quarterly Report, ad-hoc analytics exports) MUST
+consume the same wrapper hook + sample-track-points library — no second-source heatmap renderer.
+Bumping leaflet.heat or pivoting to a vector renderer requires explicit re-decision +
+DECISIONS_LOG.md entry with reason.
