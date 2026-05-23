@@ -29,19 +29,22 @@ PHASE:        TASK 3 FOLLOW-UP DEFECT CLEANUP BASKET COMPLETE — All 4 small de
 
 LAST_DONE:    Task 3 follow-up defect cleanup basket — 4 defects (b pdf_renderer healthcheck, c orphan finding documented, a APP_ENV→bucket mapping with bucket migrated + image rebuilt, d demo-site admin credential rotation via new Scenario 34 rotation script). 24 consecutive clean main-session changesets (this commit pending will be #25).
 
-NEXT:         **Ask user what's next.** The locked task queue + defect basket cleanup are now fully closed.
+NEXT:         **🔒 LOCKED QUEUE for next session — Area Boundary Management UI.** Load `.cline/next-tasks.md` FIRST. Work A.1 (List + Delete + relocate rebuild button) then A.2 (Create + Edit dialogs). Don't suggest other work until both shipped. Design decisions confirmed by user 2026-05-23 ~4:20pm: expand existing /patrol-areas page (not separate /admin/area-boundaries), raw GeoJSON textarea for create/edit (defer map drawing to future session), two commits within next session.
 
-              **Outstanding from this session (deferred — needs user follow-through outside this session):**
-              - **Staging+prod demo-site admin rotation** (defect d follow-through). Run `bash scripts/rotate-demo-site-admin-password.sh staging` and `... prod` on this dev machine — script generates new passwords, updates CREDENTIALS.md rows + .env.{env} files locally, and writes SQL UPDATE statements to /tmp/rotate-sql-staging.sql + /tmp/rotate-sql-prod.sql. Then SCP/sync the updated .env.{env} files to the corresponding servers + run `psql "$DATABASE_URL" -f rotate-sql-{env}.sql` on each. Verify post-apply via a login attempt before deleting the SQL files. Original 12:48pm leak only affected this conversation's prior /clear'd context, but proactive rotation across all 3 envs is the right defensive posture.
+              Both sub-batches are Tier 1-2 (5 files each, ~40-50K main-session tokens). Closes 5.1e stub deferral + provides UI foundation for future map preview + map drawing + 5.1d Area A.
 
-              **Carry-forward candidates (unchanged from prior STATE.md):**
-              - **Batch 6+ feature candidates**: Area Boundary Management UI, Sync Health page, FuelEntry UI + receipt photo upload (now possible with MinIO live), FuelEntry ER ingest, real-BullMQ-or-ioredis-mock integration test in packages/jobs.
+              **Outstanding from this session (deferred — needs user follow-through outside dev sessions):**
+              - **Staging+prod demo-site admin rotation** (defect d follow-through). Run `bash scripts/rotate-demo-site-admin-password.sh staging` and `... prod` on this dev machine — script generates new passwords, updates CREDENTIALS.md rows + .env.{env} files locally, and writes SQL UPDATE statements to /tmp/rotate-sql-staging.sql + /tmp/rotate-sql-prod.sql. Then SCP/sync the updated .env.{env} files to the corresponding servers + run `psql "$DATABASE_URL" -f rotate-sql-{env}.sql` on each. Verify post-apply via a login attempt before deleting the SQL files.
+
+              **Carry-forward candidates (AFTER locked queue closes):**
+              - **Map preview + map drawing for area boundaries** — natural follow-ups to A.1+A.2. Leaflet/react-leaflet 5.x. Read-only render is Tier 1-2; drawing editor is Tier 2.
+              - **Other Batch 6+ feature candidates**: Sync Health page, FuelEntry UI + receipt photo upload (MinIO live), FuelEntry ER ingest, real-BullMQ-or-ioredis-mock integration test in packages/jobs.
               - **Batch 6+ breaking migrations** (unchanged list): Event.priority Int→enum, Event.state rename, Patrol.state enum expansion, AlertRule restructure, Tenant sync-engine fields, User.fullName rename, SyncLog enum additions, Subject column extraction.
               - **Batch 7+**: AuditLog impersonation fields, NotificationRecipient retention policy enforcement.
               - ONCE ALL DEFERRED WORK SHIPS: swap docs/v2/PRODUCT.md → canonical docs/PRODUCT.md (mechanical swap, no code changes).
 
-BLOCKERS:     none — defect basket complete. Awaiting user direction.
-GIT_BRANCH:   main (this commit pending; will land as the next commit after this STATE.md write)
+BLOCKERS:     none — Area Boundary Management UI locked queue ready for next session.
+GIT_BRANCH:   main (queue-file commit pending; will land as commit #25)
 PORTS:        unchanged (MinIO 45197 + 45198, app 45204, postgres 45194, valkey 45196, pgadmin 45201, mailhog 45199 + 45200, pgbouncer 45195, pdf_renderer internal-only on 4000)
 MODELS:
   planning:   claude-code (Phase 2 — V31 primary; main-session Opus 4.7 for Phase 8 sub-batches + Phase 7-style defect fixes + Locked Task Queue execution + post-queue defect cleanup)
