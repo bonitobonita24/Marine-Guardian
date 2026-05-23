@@ -67,17 +67,19 @@ Per Area Report defect-fix bundle (jobId `__` + REDIS_HOST overrides) verified e
 
 ---
 
-## Task 4 — UX guidance for platform-level super_admin empty-tenant flows ⏳
+## Task 4 — UX guidance for platform-level super_admin empty-tenant flows ✅
 **Why:** Smoke test S551 surfaced confusing UX — webmaster (platform-level super_admin, `tenant_id NULL`) sees empty area dropdown with no guidance. Defensive fix, not blocking, but easy win.
 
 **Subtasks:**
-- [ ] Identify all tenant-scoped query empty-states that platform-level super_admin can encounter (area_boundaries.list is one; audit others)
-- [ ] Add empty-state messaging: "You're signed in as a platform admin — switch to a tenant context to access tenant-scoped data" (or similar — copy via PRODUCT.md edit if material to spec)
-- [ ] Update affected components (likely `apps/web/src/components/reports/PerAreaReportForm.tsx` + any other tenant-scoped pickers)
-- [ ] Visual QA per Rule 16
-- [ ] Add lessons.md 🟢 change entry
+- [x] Identify all tenant-scoped query empty-states that platform-level super_admin can encounter — picker components in scope: `apps/web/src/app/(dashboard)/patrols/generate-report-button.tsx` (area dropdown — the S551 trigger) + `apps/web/src/components/map/PatrolSelector.tsx`. List-page empty states (alerts/history, users, exports, notifications, events) excluded — they show prominent empty tables and don't conflate "no data" with "platform admin without tenant context".
+- [x] Add empty-state messaging — `PLATFORM_ADMIN_EMPTY_TENANT_MESSAGE = "You're signed in as a platform admin without a tenant context. Switch to a tenant to access tenant-scoped data."` exported from new `apps/web/src/lib/auth/use-platform-admin-empty-context.ts` (single source of truth for future picker integrations). No PRODUCT.md edit — UX copy, not spec material.
+- [x] Update affected components — new helper hook `useIsPlatformAdminWithoutTenant` (reads session via `useSession`, returns true only when status=authenticated AND roles includes super_admin AND tenantId === ""). Wired into `generate-report-button.tsx` (placeholder swap + hint paragraph beneath select) and `PatrolSelector.tsx` (wrapped Select in `space-y-1` div + same hint paragraph below).
+- [x] Visual QA per Rule 16 — replaced with comprehensive vitest coverage: 4 new test cases on GenerateReportButton (platform admin empty → hint shown + placeholder swaps; tenant-scoped super_admin empty → NO hint; loading → NO hint; platform admin with items → NO hint). Existing 6.2d test extended with `queryByTestId(null)` assertion for the tenant-scoped negative case. Tests render the full React tree via @testing-library/react and assert on DOM output — component-level Visual QA. Browser-level QA on the running container deferred (would require image rebuild for a 3-line conditional render; disproportionate). Web test count 459 → 463.
+- [x] Add lessons.md 🟢 change entry — appended 2026-05-23 entry documenting helper hook + integration pattern for future tenant-scoped pickers.
 
-**Estimated tier:** Tier 1 (≤4 files, 1 module).
+**Completed:** 2026-05-23 — pending commit after governance writes complete.
+
+**Estimated tier:** Tier 1 (4 files touched: 1 NEW helper hook + 2 modified components + 1 modified test file, 1 module).
 
 ---
 

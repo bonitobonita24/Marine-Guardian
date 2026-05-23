@@ -30,6 +30,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc/client";
+import {
+  PLATFORM_ADMIN_EMPTY_TENANT_MESSAGE,
+  useIsPlatformAdminWithoutTenant,
+} from "@/lib/auth/use-platform-admin-empty-context";
 
 type ReportType =
   | "coverage"
@@ -58,6 +62,7 @@ const PAPER_SIZE_OPTIONS: { value: PaperSize; label: string }[] = [
 
 export function GenerateReportButton() {
   const { data: session } = useSession();
+  const isPlatformAdminWithoutTenant = useIsPlatformAdminWithoutTenant();
   const [open, setOpen] = useState(false);
   const [reportType, setReportType] = useState<ReportType>("coverage");
   const [paperSize, setPaperSize] = useState<PaperSize>("A4");
@@ -264,7 +269,9 @@ export function GenerateReportButton() {
                         ? "Loading areas…"
                         : (areaList.data?.items.length ?? 0) > 0
                           ? "Select an area…"
-                          : "No areas available"}
+                          : isPlatformAdminWithoutTenant
+                            ? "No tenant context"
+                            : "No areas available"}
                     </option>
                     {areaList.data?.items.map((area) => (
                       <option key={area.id} value={area.id}>
@@ -272,6 +279,16 @@ export function GenerateReportButton() {
                       </option>
                     ))}
                   </select>
+                  {!areaList.isLoading &&
+                    (areaList.data?.items.length ?? 0) === 0 &&
+                    isPlatformAdminWithoutTenant && (
+                      <p
+                        className="text-xs text-muted-foreground"
+                        data-testid="area-boundary-platform-admin-hint"
+                      >
+                        {PLATFORM_ADMIN_EMPTY_TENANT_MESSAGE}
+                      </p>
+                    )}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">

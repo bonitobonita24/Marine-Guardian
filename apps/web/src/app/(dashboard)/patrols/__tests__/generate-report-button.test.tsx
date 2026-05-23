@@ -10,6 +10,10 @@ type AreaListItem = { id: string; name: string };
 const { stubs } = vi.hoisted(() => {
   const s: {
     roles: Role[];
+    // Task 4 — tenantId is now mockable per-test. "" simulates a platform-level
+    // super_admin (tenant_id NULL in DB, marshalled as empty string by the
+    // Auth.js session callback). Default "t1" preserves prior test semantics.
+    tenantId: string;
     createMutate: ReturnType<typeof vi.fn<(input: unknown) => void>>;
     createReset: ReturnType<typeof vi.fn<() => void>>;
     createIsPending: boolean;
@@ -19,6 +23,7 @@ const { stubs } = vi.hoisted(() => {
     areaListIsLoading: boolean;
   } = {
     roles: ["field_coordinator"],
+    tenantId: "t1",
     createMutate: vi.fn<(input: unknown) => void>(),
     createReset: vi.fn<() => void>(),
     createIsPending: false,
@@ -38,7 +43,7 @@ vi.mock("next-auth/react", () => ({
         id: "u1",
         email: "u1@example.com",
         name: "Test",
-        tenantId: "t1",
+        tenantId: stubs.tenantId,
         roles: stubs.roles,
       },
       expires: "9999-01-01",
@@ -107,6 +112,7 @@ import { GenerateReportButton } from "../generate-report-button";
 describe("GenerateReportButton (5.3d + 6.2d)", () => {
   beforeEach(() => {
     stubs.roles = ["field_coordinator"];
+    stubs.tenantId = "t1";
     stubs.createMutate.mockClear();
     stubs.createReset.mockClear();
     stubs.createIsPending = false;
@@ -296,7 +302,7 @@ describe("GenerateReportButton (5.3d + 6.2d)", () => {
   it("6.2d: empty area list renders 'No areas available' placeholder", () => {
     stubs.roles = ["field_coordinator"];
     stubs.areaListItems = [];
-    const { getByTestId } = render(<GenerateReportButton />);
+    const { getByTestId, queryByTestId } = render(<GenerateReportButton />);
 
     fireEvent.click(getByTestId("generate-report-button"));
     fireEvent.change(getByTestId("report-type-select"), {
@@ -306,5 +312,80 @@ describe("GenerateReportButton (5.3d + 6.2d)", () => {
     const select = getByTestId("area-boundary-select") as HTMLSelectElement;
     expect(select.options.length).toBe(1);
     expect(select.options[0]?.textContent).toContain("No areas available");
+    // Task 4 — tenant-scoped user (tenantId="t1") must NOT see the platform
+    // admin hint; "No areas available" is the correct empty-state for them.
+    expect(queryByTestId("area-boundary-platform-admin-hint")).toBeNull();
+  });
+
+  it("Task 4: platform-level super_admin (tenantId='') sees empty-tenant guidance", () => {
+    stubs.roles = ["super_admin"];
+    stubs.tenantId = "";
+    stubs.areaListItems = [];
+    const { getByTestId } = render(<GenerateReportButton />);
+
+    fireEvent.click(getByTestId("generate-report-button"));
+    fireEvent.change(getByTestId("report-type-select"), {
+      target: { value: "area" },
+    });
+
+    const select = getByTestId("area-boundary-select") as HTMLSelectElement;
+    expect(select.options.length).toBe(1);
+    // Inline placeholder swaps to a tenancy-aware label.
+    expect(select.options[0]?.textContent).toContain("No tenant context");
+    // Full guidance copy renders beneath the select so the platform admin
+    // understands why the list is empty.
+    const hint = getByTestId("area-boundary-platform-admin-hint");
+    expect(hint.textContent).toContain("platform admin");
+    expect(hint.textContent).toContain("tenant context");
+  });
+
+  it("Task 4: tenant-scoped super_admin (tenantId set) sees the standard empty placeholder, not the platform hint", () => {
+    stubs.roles = ["super_admin"];
+    stubs.tenantId = "t1";
+    stubs.areaListItems = [];
+    const { getByTestId, queryByTestId } = render(<GenerateReportButton />);
+
+    fireEvent.click(getByTestId("generate-report-button"));
+    fireEvent.change(getByTestId("report-type-select"), {
+      target: { value: "area" },
+    });
+
+    const select = getByTestId("area-boundary-select") as HTMLSelectElement;
+    expect(select.options[0]?.textContent).toContain("No areas available");
+    expect(queryByTestId("area-boundary-platform-admin-hint")).toBeNull();
+  });
+
+  it("Task 4: hint does not render while the area list is loading", () => {
+    stubs.roles = ["super_admin"];
+    stubs.tenantId = "";
+    stubs.areaListItems = [];
+    stubs.areaListIsLoading = true;
+    const { getByTestId, queryByTestId } = render(<GenerateReportButton />);
+
+    fireEvent.click(getByTestId("generate-report-button"));
+    fireEvent.change(getByTestId("report-type-select"), {
+      target: { value: "area" },
+    });
+
+    const select = getByTestId("area-boundary-select") as HTMLSelectElement;
+    expect(select.options[0]?.textContent).toContain("Loading areas…");
+    expect(queryByTestId("area-boundary-platform-admin-hint")).toBeNull();
+  });
+
+  it("Task 4: hint does not render when the area list has items, even for platform admins", () => {
+    stubs.roles = ["super_admin"];
+    stubs.tenantId = "";
+    // Items present (e.g. global areas surfaced via overrideOfficial) — hint
+    // should stay hidden because the dropdown is usable.
+    const { getByTestId, queryByTestId } = render(<GenerateReportButton />);
+
+    fireEvent.click(getByTestId("generate-report-button"));
+    fireEvent.change(getByTestId("report-type-select"), {
+      target: { value: "area" },
+    });
+
+    const select = getByTestId("area-boundary-select") as HTMLSelectElement;
+    expect(select.options.length).toBeGreaterThan(1);
+    expect(queryByTestId("area-boundary-platform-admin-hint")).toBeNull();
   });
 });
