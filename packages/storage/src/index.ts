@@ -18,8 +18,16 @@
 //   getExportsBucketName — single source of truth for bucket name shape
 //   buildExportKey       — single source of truth for object key shape
 //
-// Bucket convention (locked in DECISIONS_LOG):
-//   marine-guardian-${APP_ENV}-exports
+// Bucket convention (locked in DECISIONS_LOG §142):
+//   marine-guardian-${env}-exports  where env ∈ {dev, staging, prod}
+// APP_ENV follows the NODE_ENV-mirroring convention (development | staging |
+// production) so it cannot be substituted directly. getExportsBucketName
+// translates APP_ENV → bucket env segment at the storage boundary:
+//   development → dev
+//   staging     → staging
+//   production  → prod
+//   (unset)     → dev   (safe default for local pnpm work)
+// Adding a new APP_ENV value? Extend APP_ENV_TO_BUCKET_ENV below.
 // Key shape (locked):
 //   ${tenantId}/${YYYY}/${MM}/${exportId}.pdf
 //   Per-tenant prefix gives us natural IAM scoping when we move to AWS S3.
@@ -103,10 +111,30 @@ export function __resetClientForTesting(): void {
   cachedClient = null;
 }
 
+// Maps APP_ENV (NODE_ENV-style) to the locked bucket env segment from
+// DECISIONS_LOG §142. Unknown values throw — silent fallthrough to "dev"
+// would risk writing prod data into a dev-named bucket if APP_ENV ever
+// drifts (e.g. "preview", "qa") and would mask the misconfiguration.
+const APP_ENV_TO_BUCKET_ENV: Record<string, string> = {
+  development: "dev",
+  staging: "staging",
+  production: "prod",
+};
+
 export function getExportsBucketName(): string {
-  const env = process.env.APP_ENV;
-  const resolved = env === undefined || env === "" ? "dev" : env;
-  return `marine-guardian-${resolved}-exports`;
+  const appEnv = process.env.APP_ENV;
+  if (appEnv === undefined || appEnv === "") {
+    return "marine-guardian-dev-exports";
+  }
+  const bucketEnv = APP_ENV_TO_BUCKET_ENV[appEnv];
+  if (bucketEnv === undefined) {
+    throw new Error(
+      `[storage] APP_ENV=${appEnv} is not mapped in APP_ENV_TO_BUCKET_ENV. Expected one of: ${Object.keys(
+        APP_ENV_TO_BUCKET_ENV,
+      ).join(", ")}`,
+    );
+  }
+  return `marine-guardian-${bucketEnv}-exports`;
 }
 
 export function buildExportKey(

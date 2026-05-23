@@ -58,7 +58,9 @@ describe("packages/storage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     __resetClientForTesting();
-    process.env.APP_ENV = "test";
+    // APP_ENV must be one of the mapped values (see APP_ENV_TO_BUCKET_ENV
+    // in ../index.ts). "development" mirrors local pnpm dev defaults.
+    process.env.APP_ENV = "development";
     process.env.STORAGE_ENDPOINT = "http://localhost:9000";
     process.env.STORAGE_ACCESS_KEY = "test-access";
     process.env.STORAGE_SECRET_KEY = "test-secret";
@@ -66,16 +68,31 @@ describe("packages/storage", () => {
   });
 
   describe("getExportsBucketName", () => {
-    it("derives bucket name from APP_ENV using marine-guardian-{env}-exports template", () => {
+    it("maps APP_ENV=development → marine-guardian-dev-exports (DECISIONS_LOG §142)", () => {
+      process.env.APP_ENV = "development";
+      expect(getExportsBucketName()).toBe("marine-guardian-dev-exports");
+    });
+
+    it("maps APP_ENV=staging → marine-guardian-staging-exports", () => {
       process.env.APP_ENV = "staging";
       expect(getExportsBucketName()).toBe("marine-guardian-staging-exports");
     });
 
-    it("defaults to 'dev' when APP_ENV is unset", () => {
+    it("maps APP_ENV=production → marine-guardian-prod-exports", () => {
+      process.env.APP_ENV = "production";
+      expect(getExportsBucketName()).toBe("marine-guardian-prod-exports");
+    });
+
+    it("defaults to marine-guardian-dev-exports when APP_ENV is unset", () => {
       delete process.env.APP_ENV;
       expect(getExportsBucketName()).toBe("marine-guardian-dev-exports");
       // beforeEach re-sets APP_ENV before every other test, so no manual
       // restore needed.
+    });
+
+    it("throws on unknown APP_ENV values (silent fallthrough would mask misconfig)", () => {
+      process.env.APP_ENV = "preview";
+      expect(() => getExportsBucketName()).toThrow(/APP_ENV=preview/);
     });
   });
 
