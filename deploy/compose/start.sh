@@ -2,7 +2,7 @@
 # Usage: bash deploy/compose/start.sh [dev|stage|prod] [up -d|down|restart|...]
 # Dev:        rebuilds the app image from source on every up (--build flag)
 # Stage/Prod: pulls pre-built image from Docker Hub — never builds from source
-# No storage service — storage.enabled: false in inputs.yml
+# Storage:    MinIO via docker-compose.storage.yml (dev only — stage/prod TBD)
 
 set -e
 
@@ -29,6 +29,13 @@ $COMPOSE $BASE/docker-compose.db.yml $CMD
 
 $COMPOSE $BASE/docker-compose.cache.yml $CMD
 $COMPOSE $BASE/docker-compose.pgadmin.yml $CMD
+
+# MinIO (S3-compatible storage) — dev only for now
+# Wired 2026-05-23 after the S551 Per Area Report smoke test exposed the gap:
+# packages/storage + reportExport pipeline expect this service to exist.
+if [ "$ENV" = "dev" ]; then
+  $COMPOSE $BASE/docker-compose.storage.yml $CMD
+fi
 
 # MailHog dev-only email catcher
 if [ "$ENV" = "dev" ]; then

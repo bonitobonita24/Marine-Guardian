@@ -59,10 +59,10 @@ describe("packages/storage", () => {
     vi.clearAllMocks();
     __resetClientForTesting();
     process.env.APP_ENV = "test";
-    process.env.MINIO_ENDPOINT = "http://localhost:9000";
-    process.env.MINIO_ACCESS_KEY = "test-access";
-    process.env.MINIO_SECRET_KEY = "test-secret";
-    process.env.MINIO_REGION = "us-east-1";
+    process.env.STORAGE_ENDPOINT = "http://localhost:9000";
+    process.env.STORAGE_ACCESS_KEY = "test-access";
+    process.env.STORAGE_SECRET_KEY = "test-secret";
+    process.env.STORAGE_REGION = "us-east-1";
   });
 
   describe("getExportsBucketName", () => {

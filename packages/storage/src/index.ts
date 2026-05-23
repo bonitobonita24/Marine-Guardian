@@ -2,8 +2,13 @@
 //
 // Targets MinIO in dev/staging/prod via Docker network, but uses the AWS SDK
 // (@aws-sdk/client-s3 + lib-storage) so the eventual migration to Amazon S3
-// is configuration-only — change MINIO_ENDPOINT to the S3 regional endpoint
+// is configuration-only — change STORAGE_ENDPOINT to the S3 regional endpoint
 // and the same code paths run unchanged.
+//
+// Env var convention: STORAGE_* (matches apps/web/src/env.ts + V31 framework
+// Phase 3 templates). The old MINIO_* names were deprecated 2026-05-23 when
+// the smoke test exposed a name mismatch between this module and the rest
+// of the stack — see lessons.md 🟤 entry on storage env var naming.
 //
 // Scope:
 //   uploadPdf            — write a PDF buffer to (bucket, key)
@@ -58,24 +63,24 @@ let cachedClient: S3Client | null = null;
 function getClient(): S3Client {
   if (cachedClient !== null) return cachedClient;
 
-  const endpoint = process.env.MINIO_ENDPOINT;
-  const accessKeyId = process.env.MINIO_ACCESS_KEY;
-  const secretAccessKey = process.env.MINIO_SECRET_KEY;
-  const region = process.env.MINIO_REGION ?? "us-east-1";
+  const endpoint = process.env.STORAGE_ENDPOINT;
+  const accessKeyId = process.env.STORAGE_ACCESS_KEY;
+  const secretAccessKey = process.env.STORAGE_SECRET_KEY;
+  const region = process.env.STORAGE_REGION ?? "us-east-1";
 
   if (endpoint === undefined || endpoint === "") {
     throw new Error(
-      "MINIO_ENDPOINT is not configured — packages/storage cannot create S3 client",
+      "STORAGE_ENDPOINT is not configured — packages/storage cannot create S3 client",
     );
   }
   if (accessKeyId === undefined || accessKeyId === "") {
     throw new Error(
-      "MINIO_ACCESS_KEY is not configured — packages/storage cannot create S3 client",
+      "STORAGE_ACCESS_KEY is not configured — packages/storage cannot create S3 client",
     );
   }
   if (secretAccessKey === undefined || secretAccessKey === "") {
     throw new Error(
-      "MINIO_SECRET_KEY is not configured — packages/storage cannot create S3 client",
+      "STORAGE_SECRET_KEY is not configured — packages/storage cannot create S3 client",
     );
   }
 
