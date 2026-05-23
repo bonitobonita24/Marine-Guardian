@@ -41,7 +41,15 @@ services:
     ports:
       - "${STORAGE_PORT}:9000"
       - "${STORAGE_CONSOLE_PORT}:9001"
-    networks: [app_network]
+    networks:
+      app_network:
+        # Alias without underscores — the AWS S3 SDK validates hostnames per
+        # RFC 1123 (no underscores allowed) before sending the request, so the
+        # default container hostname `${COMPOSE_PROJECT_NAME}_minio` is rejected
+        # with "Invalid Request (invalid hostname)". The hyphenated alias is
+        # what app + worker reach via INTERNAL_STORAGE_ENDPOINT.
+        aliases:
+          - minio-dev
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]

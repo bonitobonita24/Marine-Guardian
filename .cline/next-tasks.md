@@ -42,20 +42,28 @@ Per Area Report defect-fix bundle (jobId `__` + REDIS_HOST overrides) verified e
 
 ---
 
-## Task 3 — Re-run Per Area Report end-to-end smoke test ⏳
+## Task 3 — Re-run Per Area Report end-to-end smoke test ✅
 **Why:** Confirm Task 2 closes the loop. Validates full pipeline: Patrols UI → reportExport.create → BullMQ pdf-render → MinIO upload → /api/exports/reports/[id]/download.
 
 **Subtasks:**
-- [ ] Login as `demo-site` site_admin (creds in CREDENTIALS.md per S551)
-- [ ] Re-seed AreaBoundary `smoke-test-area-001` for demo-site tenant
-- [ ] Navigate /patrols → Generate Report → Per Area Report → pick area + dates → Generate
-- [ ] Confirm reportExport row created, BullMQ job enqueued, worker processes successfully
-- [ ] Confirm PDF lands in MinIO `marine-guardian-dev` bucket
-- [ ] Hit `/api/exports/reports/[id]/download` → confirm PDF downloads + renders all 3 pages
-- [ ] Update governance: lessons.md 🟢 change confirming Item 2 end-to-end ship-ready in container
+- [x] Login as `demo-site` site_admin (creds in CREDENTIALS.md per S551) — programmatic NextAuth credentials login via Node.js smoke test runner
+- [x] Re-seed AreaBoundary `smoke-test-area-001` for demo-site tenant (Polygon geometry, region=Demo Region, created_by webmaster id)
+- [x] Navigate /patrols → Generate Report → Per Area Report → pick area + dates → Generate — UI flow bypassed via direct tRPC `reportExport.create` mutation (paramsJson = { areaBoundaryId, startDate, endDate } per `buildParamsJson` in generate-report-button.tsx)
+- [x] Confirm reportExport row created, BullMQ job enqueued, worker processes successfully — row id=cmphvyrsh0001v101dr2iqbmk, status transitioned queued → rendering → ready in 10s
+- [x] Confirm PDF lands in MinIO `marine-guardian-development-exports` bucket — key=cmoruubw20000gmx3jx7zudmy/2026/05/cmphvyrsh0001v101dr2iqbmk.pdf (187KiB)
+- [x] Hit `/api/exports/reports/[id]/download` → confirm PDF downloads + renders all 3 pages — `file` confirms PDF v1.4, 3 pages, 191494 bytes match. EXPORT_DOWNLOAD audit_log row also written.
+- [x] Update governance: lessons.md 🟢 change confirming Item 2 end-to-end ship-ready in container — plus 2 new 🔴 gotchas (S3 SDK underscore-hostname rejection + INTERNAL_STORAGE_ENDPOINT missing dual-mode env)
 
-**If pass:** Batch 6 Item 2 is genuinely ship-complete. Move to Task 4.
-**If fail:** Triage via Phase 6.5 categories, update Task 2 subtasks, re-run.
+**Completed:** 2026-05-23 — pending commit after governance writes complete.
+
+**Task 2 left 3 storage layer gaps that this task closed inline:**
+1. Stale `packages/jobs/dist/start-workers.mjs` bundle baked into the worker Docker image (pre-Task-2 build had MINIO_* refs). Fix: rebuild jobs dist + Docker image + recreate worker container.
+2. Missing INTERNAL_STORAGE_ENDPOINT dual-mode env (worker had STORAGE_ENDPOINT=localhost:45197 which is unreachable from inside the container). Fix: added INTERNAL_STORAGE_ENDPOINT to .env.dev + STORAGE_ENDPOINT override on app + worker compose environment blocks.
+3. AWS S3 SDK rejects underscored Docker hostname `marine-guardian_dev_minio` per RFC 1123. Fix: added `networks.app_network.aliases:[minio-dev]` to MinIO compose service.
+
+**Bonus**: also created the `marine-guardian-development-exports` MinIO bucket (the code computes bucket from APP_ENV=development, NOT from STORAGE_BUCKET env var which is `marine-guardian-dev` — possible naming-convention cleanup candidate flagged in STATE.md as defect (a)).
+
+**Outcome:** Batch 6 Item 2 (Per Area Report) is genuinely ship-complete on dev container. Smoke test runner reusable via `bash scripts/smoke-tests/run-per-area-smoke.sh` for any future regression check.
 
 ---
 
