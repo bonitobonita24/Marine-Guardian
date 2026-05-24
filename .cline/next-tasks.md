@@ -14,19 +14,20 @@ Plumbing all exists: `areaBoundary.list / getById / create / update / delete / r
 2. **Raw GeoJSON textarea for create/edit.** Map preview (read-only Leaflet) and map drawing (polygon editor) are deferred — future sessions. Admin pastes GeoJSON from ArcGIS export or external source. Validation: parse JSON → confirm it matches the declared `geometryType` (Polygon → has `coordinates: [[[lng,lat],...]]`, LineString → has `coordinates: [[lng,lat],...]`).
 3. **Ship as 2 commits within next session.** A.1 first (foundation — list + delete + rebuild button relocation), then A.2 (create + edit dialogs). If session token budget gets tight at A.1 finish, stop and let user re-trigger A.2 in a fresh session.
 
-## Sub-batch A.1 — List + Delete + relocate rebuild button ⏳
+## Sub-batch A.1 — List + Delete + relocate rebuild button ✅ COMPLETE 2026-05-24
 
 **Scope:** Operators see read-only table of all enabled area boundaries for their tenant. Admins see same table plus edit/delete row actions + a "Create Area" button (disabled stub until A.2) + rebuild button moved to page header. Filter chips: region (text input), isEnabled (all/enabled/disabled), source (all/official/custom).
 
 **Subtasks:**
-- [ ] `apps/web/src/app/(dashboard)/patrol-areas/page.tsx` — restructure: header with title + RebuildAreaBoundariesButton + Create button (admin-only, disabled w/ tooltip "Available in A.2"). Body: filter row + table.
-- [ ] `apps/web/src/app/(dashboard)/patrol-areas/area-boundary-table.tsx` NEW — Client Component. Uses `trpc.areaBoundary.list.useQuery` with cursor-based pagination (matches existing users page pattern). Columns: Name, Region, Source (badge: official/custom), Geometry Type, Enabled (badge), Override Official (badge), Created By (user.fullName from include), Actions (admin-only: Edit button disabled stub w/ same tooltip + Delete button → DeleteAreaBoundaryDialog).
-- [ ] `apps/web/src/app/(dashboard)/patrol-areas/delete-area-boundary-dialog.tsx` NEW — Confirmation dialog. Shows boundary name + warning "Will fan out area-rederive to every Event + Patrol + FuelEntry in this tenant". Uses `trpc.areaBoundary.delete.useMutation`. Success: show "X jobs enqueued" feedback + close.
-- [ ] `apps/web/src/app/(dashboard)/patrol-areas/__tests__/area-boundary-table.test.tsx` NEW — vitest jsdom. Covers: operator sees no row actions, site_admin sees Edit (disabled) + Delete, super_admin same, filters work, empty state renders, pagination "Load more" reveals nextCursor.
-- [ ] `apps/web/src/app/(dashboard)/patrol-areas/__tests__/delete-area-boundary-dialog.test.tsx` NEW — vitest jsdom. Covers: confirm calls mutate, success shows job count, error shows message, cancel closes.
-- [ ] Run pnpm typecheck (web) + pnpm lint (web) + pnpm vitest run (web — should be 463 + new tests) — all green before commit.
-- [ ] Commit message: `feat(area-boundaries): Patrol Areas page table + delete + header rebuild button (A.1)` — follow existing conventional format.
-- [ ] Governance: append 🟢 change to lessons.md, rewrite STATE.md with PHASE updated.
+- [x] 2026-05-24 — `apps/web/src/app/(dashboard)/patrol-areas/page.tsx` rewritten: client component, useSession-gated isAdmin, header with disabled Create stub (admin-only, `title="Available in A.2"`) + RebuildAreaBoundariesButton, body = AreaBoundaryTable, root-level DeleteAreaBoundaryDialog on deleteTarget state.
+- [x] 2026-05-24 — `apps/web/src/app/(dashboard)/patrol-areas/area-boundary-table.tsx` NEW — cursor pagination matching users-page pattern, 3-filter row (region debounced + isEnabled tri-state + source tri-state), 7 columns + role-gated Actions column with Edit-stub (disabled, same A.2 tooltip) + Delete buttons.
+- [x] 2026-05-24 — `apps/web/src/app/(dashboard)/patrol-areas/delete-area-boundary-dialog.tsx` NEW — fan-out warning copy with boundary name in <strong>, invalidates list query on success, dedicated `data-testid="delete-success-close"` to avoid shadcn Dialog sr-only Close collision.
+- [x] 2026-05-24 — `apps/web/src/app/(dashboard)/patrol-areas/__tests__/area-boundary-table.test.tsx` NEW — 14 cases covering rendering, role gating, filter pass-through, debounce, empty/loading/Load-more states.
+- [x] 2026-05-24 — `apps/web/src/app/(dashboard)/patrol-areas/__tests__/delete-area-boundary-dialog.test.tsx` NEW — 11 cases covering confirm/cancel, mutation payload, success singular/plural copy + invalidate, error render, pending-state disables.
+- [x] 2026-05-24 — In-scope router addition (not in original queue text): `apps/web/src/server/trpc/routers/areaBoundary.ts` +2 lines: source filter added to list input + where clause, mirrors existing isEnabled.
+- [x] 2026-05-24 — pnpm typecheck (web) + pnpm lint (web) + pnpm vitest run (web): clean, 488/488 (was 463 → +25 new) — matches queue prediction.
+- [x] 2026-05-24 — Commit message: `feat(area-boundaries): Patrol Areas page table + delete + header rebuild button (A.1)`.
+- [x] 2026-05-24 — Governance: 🟢 change entry prepended to lessons.md; STATE.md rewritten with PHASE updated and A.2 reminder.
 
 **Estimated tier:** Tier 1-2 (5 files, 1 module).
 **Estimated token cost:** ~40-50K main-session tokens.

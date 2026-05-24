@@ -56,6 +56,7 @@ export const areaBoundaryRouter = router({
         limit: z.number().int().min(1).max(200).default(50),
         isEnabled: z.boolean().optional(),
         region: z.string().optional(),
+        source: z.enum(["official", "custom"]).optional(),
       })
     )
     .query(async ({ ctx, input }) => {
@@ -64,6 +65,7 @@ export const areaBoundaryRouter = router({
           tenantId: ctx.tenantId,
           ...(input.isEnabled !== undefined ? { isEnabled: input.isEnabled } : {}),
           ...(input.region !== undefined ? { region: input.region } : {}),
+          ...(input.source !== undefined ? { source: input.source } : {}),
         },
         take: input.limit + 1,
         ...(input.cursor !== undefined ? { cursor: { id: input.cursor } } : {}),
