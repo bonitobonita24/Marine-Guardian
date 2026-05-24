@@ -9,6 +9,8 @@ import {
   type AreaBoundaryRow,
 } from "./area-boundary-table";
 import { DeleteAreaBoundaryDialog } from "./delete-area-boundary-dialog";
+import { CreateAreaBoundaryDialog } from "./create-area-boundary-dialog";
+import { EditAreaBoundaryDialog } from "./edit-area-boundary-dialog";
 
 export default function PatrolAreasPage() {
   const { data: session } = useSession();
@@ -19,6 +21,8 @@ export default function PatrolAreasPage() {
   const [deleteTarget, setDeleteTarget] = useState<AreaBoundaryRow | null>(
     null,
   );
+  const [editTarget, setEditTarget] = useState<AreaBoundaryRow | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -27,9 +31,10 @@ export default function PatrolAreasPage() {
         <div className="flex items-center gap-2">
           {isAdmin && (
             <Button
-              data-testid="create-area-stub"
-              disabled
-              title="Available in A.2"
+              data-testid="create-area-button"
+              onClick={() => {
+                setShowCreate(true);
+              }}
             >
               Create Area
             </Button>
@@ -43,6 +48,9 @@ export default function PatrolAreasPage() {
         onDelete={(b) => {
           setDeleteTarget(b);
         }}
+        onEdit={(b) => {
+          setEditTarget(b);
+        }}
       />
 
       {deleteTarget !== null && (
@@ -54,6 +62,31 @@ export default function PatrolAreasPage() {
           }}
           onSuccess={() => {
             setDeleteTarget(null);
+          }}
+        />
+      )}
+
+      {editTarget !== null && (
+        <EditAreaBoundaryDialog
+          boundary={editTarget}
+          open={true}
+          onOpenChange={(v) => {
+            if (!v) setEditTarget(null);
+          }}
+          onSuccess={() => {
+            setEditTarget(null);
+          }}
+        />
+      )}
+
+      {showCreate && (
+        <CreateAreaBoundaryDialog
+          open={true}
+          onOpenChange={(v) => {
+            if (!v) setShowCreate(false);
+          }}
+          onSuccess={() => {
+            setShowCreate(false);
           }}
         />
       )}

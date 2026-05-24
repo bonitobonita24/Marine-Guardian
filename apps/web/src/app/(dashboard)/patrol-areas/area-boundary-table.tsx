@@ -49,9 +49,10 @@ const SOURCE_OPTIONS: { value: SourceFilter; label: string }[] = [
 interface Props {
   isAdmin: boolean;
   onDelete: (boundary: AreaBoundaryRow) => void;
+  onEdit: (boundary: AreaBoundaryRow) => void;
 }
 
-export function AreaBoundaryTable({ isAdmin, onDelete }: Props) {
+export function AreaBoundaryTable({ isAdmin, onDelete, onEdit }: Props) {
   const [regionInput, setRegionInput] = useState("");
   const [debouncedRegion, setDebouncedRegion] = useState("");
   const [enabledFilter, setEnabledFilter] = useState<EnabledFilter>("all");
@@ -237,8 +238,9 @@ export function AreaBoundaryTable({ isAdmin, onDelete }: Props) {
                             data-testid="row-action-edit"
                             variant="outline"
                             size="sm"
-                            disabled
-                            title="Available in A.2"
+                            onClick={() => {
+                              onEdit(b);
+                            }}
                           >
                             Edit
                           </Button>
