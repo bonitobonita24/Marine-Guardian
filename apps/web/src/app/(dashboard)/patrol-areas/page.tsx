@@ -11,6 +11,7 @@ import {
 import { DeleteAreaBoundaryDialog } from "./delete-area-boundary-dialog";
 import { CreateAreaBoundaryDialog } from "./create-area-boundary-dialog";
 import { EditAreaBoundaryDialog } from "./edit-area-boundary-dialog";
+import { PreviewAreaBoundaryDialog } from "./preview-area-boundary-dialog";
 
 export default function PatrolAreasPage() {
   const { data: session } = useSession();
@@ -22,6 +23,9 @@ export default function PatrolAreasPage() {
     null,
   );
   const [editTarget, setEditTarget] = useState<AreaBoundaryRow | null>(null);
+  const [previewTarget, setPreviewTarget] = useState<AreaBoundaryRow | null>(
+    null,
+  );
   const [showCreate, setShowCreate] = useState(false);
 
   return (
@@ -51,6 +55,7 @@ export default function PatrolAreasPage() {
         onEdit={(b) => {
           setEditTarget(b);
         }}
+        onPreview={setPreviewTarget}
       />
 
       {deleteTarget !== null && (
@@ -75,6 +80,16 @@ export default function PatrolAreasPage() {
           }}
           onSuccess={() => {
             setEditTarget(null);
+          }}
+        />
+      )}
+
+      {previewTarget && (
+        <PreviewAreaBoundaryDialog
+          boundary={previewTarget}
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) setPreviewTarget(null);
           }}
         />
       )}

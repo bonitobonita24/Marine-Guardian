@@ -50,9 +50,15 @@ interface Props {
   isAdmin: boolean;
   onDelete: (boundary: AreaBoundaryRow) => void;
   onEdit: (boundary: AreaBoundaryRow) => void;
+  onPreview: (boundary: AreaBoundaryRow) => void;
 }
 
-export function AreaBoundaryTable({ isAdmin, onDelete, onEdit }: Props) {
+export function AreaBoundaryTable({
+  isAdmin,
+  onDelete,
+  onEdit,
+  onPreview,
+}: Props) {
   const [regionInput, setRegionInput] = useState("");
   const [debouncedRegion, setDebouncedRegion] = useState("");
   const [enabledFilter, setEnabledFilter] = useState<EnabledFilter>("all");
@@ -234,6 +240,16 @@ export function AreaBoundaryTable({ isAdmin, onDelete, onEdit }: Props) {
                     {isAdmin && (
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
+                          <Button
+                            data-testid="row-action-preview"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              onPreview(b);
+                            }}
+                          >
+                            Preview
+                          </Button>
                           <Button
                             data-testid="row-action-edit"
                             variant="outline"
