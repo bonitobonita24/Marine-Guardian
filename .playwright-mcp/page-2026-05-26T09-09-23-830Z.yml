@@ -1,0 +1,191 @@
+- generic:
+  - generic:
+    - complementary:
+      - generic:
+        - generic: Marine Guardian
+      - navigation:
+        - list:
+          - listitem:
+            - link:
+              - /url: /dashboard
+              - img
+              - generic: Command Center
+          - listitem:
+            - link:
+              - /url: /map
+              - img
+              - generic: Live Map
+          - listitem:
+            - link:
+              - /url: /events
+              - img
+              - generic: Events
+          - listitem:
+            - link:
+              - /url: /patrols
+              - img
+              - generic: Patrols
+          - listitem:
+            - link:
+              - /url: /subjects
+              - img
+              - generic: Subjects
+          - listitem:
+            - link:
+              - /url: /patrol-areas
+              - img
+              - generic: Patrol Areas
+          - listitem:
+            - link:
+              - /url: /observations
+              - img
+              - generic: Observations
+          - listitem:
+            - link:
+              - /url: /alerts
+              - img
+              - generic: Alert Rules
+          - listitem:
+            - link:
+              - /url: /notifications
+              - img
+              - generic: Notifications
+          - listitem:
+            - link:
+              - /url: /sync
+              - img
+              - generic: Sync Status
+          - listitem:
+            - link:
+              - /url: /users
+              - img
+              - generic: Users
+          - listitem:
+            - link:
+              - /url: /settings
+              - img
+              - generic: Settings
+      - generic:
+        - button:
+          - img
+          - text: Sign Out
+    - generic:
+      - banner:
+        - generic:
+          - link:
+            - /url: /notifications
+            - img
+          - generic: admin@demo-site.local
+          - generic: site_admin
+      - main:
+        - generic:
+          - generic:
+            - heading [level=1]: Patrol Areas
+            - generic:
+              - button: Create Area
+              - button: Rebuild Area Derivation
+          - generic:
+            - generic:
+              - textbox:
+                - /placeholder: Filter by region
+              - combobox
+              - combobox
+            - generic:
+              - generic:
+                - table:
+                  - rowgroup:
+                    - row:
+                      - columnheader: Name
+                      - columnheader: Region
+                      - columnheader: Source
+                      - columnheader: Geometry
+                      - columnheader: Enabled
+                      - columnheader: Override Official
+                      - columnheader: Created By
+                      - columnheader: Actions
+                  - rowgroup:
+                    - row:
+                      - cell: Smoke Test Area 001
+                      - cell: Demo Region
+                      - cell:
+                        - generic: custom
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+  - alert
+  - dialog "Edit area boundary" [ref=e213]:
+    - generic [ref=e214]:
+      - heading "Edit area boundary" [level=2] [ref=e215]
+      - paragraph [ref=e216]: Source is locked after create. Geometry type cannot be changed — delete and re-create to change type. Saving fans out an area-rederive job for every Event, Patrol, and FuelEntry in this tenant.
+    - generic [ref=e217]:
+      - generic [ref=e218]:
+        - text: Name
+        - textbox "Name" [active] [ref=e219]: Smoke Test Area 001
+      - generic [ref=e220]:
+        - text: Region
+        - textbox "Region" [ref=e221]: Demo Region
+      - generic [ref=e222]:
+        - text: Aliases (comma-separated)
+        - textbox "Aliases (comma-separated)" [ref=e223]
+      - generic [ref=e224]:
+        - text: Source (locked)
+        - textbox [disabled] [ref=e225]: custom
+      - generic [ref=e226]:
+        - text: Boundary Geometry
+        - generic [ref=e228]:
+          - generic:
+            - generic:
+              - img
+            - generic:
+              - button [ref=e230] [cursor=pointer]
+              - button [ref=e231] [cursor=pointer]
+              - button [ref=e232] [cursor=pointer]
+              - button [ref=e233] [cursor=pointer]
+              - button [ref=e234] [cursor=pointer]
+              - button [ref=e235] [cursor=pointer]
+              - button [ref=e236] [cursor=pointer]
+              - button [ref=e237] [cursor=pointer]
+          - generic:
+            - generic:
+              - generic [ref=e238]:
+                - button "Zoom in" [ref=e239] [cursor=pointer]: +
+                - button "Zoom out" [ref=e240] [cursor=pointer]: −
+              - generic "Draw Polygons" [ref=e242]:
+                - button [ref=e243] [cursor=pointer]
+              - generic [ref=e245]:
+                - generic "Edit Layers" [ref=e246]:
+                  - button [ref=e247] [cursor=pointer]
+                - generic "Drag Layers" [ref=e249]:
+                  - button [ref=e250] [cursor=pointer]
+                - generic "Remove Layers" [ref=e252]:
+                  - button [ref=e253] [cursor=pointer]
+            - generic [ref=e255]:
+              - link "Leaflet" [ref=e256] [cursor=pointer]:
+                - /url: https://leafletjs.com
+                - img [ref=e257]
+                - text: Leaflet
+              - text: "| Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community"
+        - paragraph [ref=e261]: Drag vertices to refine, drag the whole shape to reposition, or use the toolbar (top-left) to remove and redraw. Geometry type cannot be changed on edit — delete and re-create to change type.
+      - generic [ref=e262]:
+        - text: ArcGIS reference ID (optional)
+        - textbox "ArcGIS reference ID (optional)" [ref=e263]
+      - generic [ref=e264]:
+        - generic [ref=e265]: Enabled
+        - switch "Enabled" [checked] [ref=e266] [cursor=pointer]
+      - generic [ref=e267]:
+        - generic [ref=e268]: Override official
+        - switch "Override official" [ref=e269] [cursor=pointer]
+    - generic [ref=e270]:
+      - button "Cancel" [ref=e271] [cursor=pointer]
+      - button "Save" [ref=e272] [cursor=pointer]
+    - button "Close" [ref=e273] [cursor=pointer]:
+      - img [ref=e274]
+      - generic [ref=e277]: Close

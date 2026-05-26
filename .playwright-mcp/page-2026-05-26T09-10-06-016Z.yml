@@ -1,0 +1,150 @@
+- generic:
+  - generic:
+    - complementary:
+      - generic:
+        - generic: Marine Guardian
+      - navigation:
+        - list:
+          - listitem:
+            - link:
+              - /url: /dashboard
+              - img
+              - generic: Command Center
+          - listitem:
+            - link:
+              - /url: /map
+              - img
+              - generic: Live Map
+          - listitem:
+            - link:
+              - /url: /events
+              - img
+              - generic: Events
+          - listitem:
+            - link:
+              - /url: /patrols
+              - img
+              - generic: Patrols
+          - listitem:
+            - link:
+              - /url: /subjects
+              - img
+              - generic: Subjects
+          - listitem:
+            - link:
+              - /url: /patrol-areas
+              - img
+              - generic: Patrol Areas
+          - listitem:
+            - link:
+              - /url: /observations
+              - img
+              - generic: Observations
+          - listitem:
+            - link:
+              - /url: /alerts
+              - img
+              - generic: Alert Rules
+          - listitem:
+            - link:
+              - /url: /notifications
+              - img
+              - generic: Notifications
+          - listitem:
+            - link:
+              - /url: /sync
+              - img
+              - generic: Sync Status
+          - listitem:
+            - link:
+              - /url: /users
+              - img
+              - generic: Users
+          - listitem:
+            - link:
+              - /url: /settings
+              - img
+              - generic: Settings
+      - generic:
+        - button:
+          - img
+          - text: Sign Out
+    - generic:
+      - banner:
+        - generic:
+          - link:
+            - /url: /notifications
+            - img
+          - generic: admin@demo-site.local
+          - generic: site_admin
+      - main:
+        - generic:
+          - generic:
+            - heading [level=1]: Patrol Areas
+            - generic:
+              - button: Create Area
+              - button: Rebuild Area Derivation
+          - generic:
+            - generic:
+              - textbox:
+                - /placeholder: Filter by region
+              - combobox
+              - combobox
+            - generic:
+              - generic:
+                - table:
+                  - rowgroup:
+                    - row:
+                      - columnheader: Name
+                      - columnheader: Region
+                      - columnheader: Source
+                      - columnheader: Geometry
+                      - columnheader: Enabled
+                      - columnheader: Override Official
+                      - columnheader: Created By
+                      - columnheader: Actions
+                  - rowgroup:
+                    - row:
+                      - cell: Smoke Test Area 001
+                      - cell: Demo Region
+                      - cell:
+                        - generic: custom
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+  - alert
+  - dialog "Smoke Test Area 001 Demo Region custom Polygon" [ref=e279]:
+    - generic [ref=e280]:
+      - heading "Smoke Test Area 001 Demo Region custom Polygon" [level=2] [ref=e281]:
+        - generic [ref=e282]: Smoke Test Area 001
+        - generic [ref=e283]:
+          - generic [ref=e284]: Demo Region
+          - generic [ref=e285]: custom
+          - generic [ref=e286]: Polygon
+      - paragraph [ref=e287]: Read-only map preview of Smoke Test Area 001
+    - generic [ref=e288]:
+      - generic:
+        - generic:
+          - img
+      - generic:
+        - generic [ref=e290]:
+          - button "Zoom in" [ref=e291] [cursor=pointer]: +
+          - button "Zoom out" [ref=e292] [cursor=pointer]: −
+        - generic [ref=e293]:
+          - link "Leaflet" [ref=e294] [cursor=pointer]:
+            - /url: https://leafletjs.com
+            - img [ref=e295]
+            - text: Leaflet
+          - text: "| Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community"
+    - button "Close" [active] [ref=e300] [cursor=pointer]
+    - button "Close" [ref=e301] [cursor=pointer]:
+      - img [ref=e302]
+      - generic [ref=e305]: Close

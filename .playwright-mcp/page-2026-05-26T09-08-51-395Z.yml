@@ -1,0 +1,185 @@
+- generic:
+  - generic:
+    - complementary:
+      - generic:
+        - generic: Marine Guardian
+      - navigation:
+        - list:
+          - listitem:
+            - link:
+              - /url: /dashboard
+              - img
+              - generic: Command Center
+          - listitem:
+            - link:
+              - /url: /map
+              - img
+              - generic: Live Map
+          - listitem:
+            - link:
+              - /url: /events
+              - img
+              - generic: Events
+          - listitem:
+            - link:
+              - /url: /patrols
+              - img
+              - generic: Patrols
+          - listitem:
+            - link:
+              - /url: /subjects
+              - img
+              - generic: Subjects
+          - listitem:
+            - link:
+              - /url: /patrol-areas
+              - img
+              - generic: Patrol Areas
+          - listitem:
+            - link:
+              - /url: /observations
+              - img
+              - generic: Observations
+          - listitem:
+            - link:
+              - /url: /alerts
+              - img
+              - generic: Alert Rules
+          - listitem:
+            - link:
+              - /url: /notifications
+              - img
+              - generic: Notifications
+          - listitem:
+            - link:
+              - /url: /sync
+              - img
+              - generic: Sync Status
+          - listitem:
+            - link:
+              - /url: /users
+              - img
+              - generic: Users
+          - listitem:
+            - link:
+              - /url: /settings
+              - img
+              - generic: Settings
+      - generic:
+        - button:
+          - img
+          - text: Sign Out
+    - generic:
+      - banner:
+        - generic:
+          - link:
+            - /url: /notifications
+            - img
+          - generic: admin@demo-site.local
+          - generic: site_admin
+      - main:
+        - generic:
+          - generic:
+            - heading [level=1]: Patrol Areas
+            - generic:
+              - button: Create Area
+              - button: Rebuild Area Derivation
+          - generic:
+            - generic:
+              - textbox:
+                - /placeholder: Filter by region
+              - combobox
+              - combobox
+            - generic:
+              - generic:
+                - table:
+                  - rowgroup:
+                    - row:
+                      - columnheader: Name
+                      - columnheader: Region
+                      - columnheader: Source
+                      - columnheader: Geometry
+                      - columnheader: Enabled
+                      - columnheader: Override Official
+                      - columnheader: Created By
+                      - columnheader: Actions
+                  - rowgroup:
+                    - row:
+                      - cell: Smoke Test Area 001
+                      - cell: Demo Region
+                      - cell:
+                        - generic: custom
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+  - alert
+  - dialog "Create area boundary" [ref=e154]:
+    - generic [ref=e155]:
+      - heading "Create area boundary" [level=2] [ref=e156]
+      - paragraph [ref=e157]: Create a new area boundary for this tenant. On save, an area-rederive job fans out for every Event, Patrol, and FuelEntry in this tenant (50/sec rate limiter).
+    - generic [ref=e158]:
+      - generic [ref=e159]:
+        - text: Name
+        - textbox "Name" [active] [ref=e160]
+      - generic [ref=e161]:
+        - text: Region
+        - textbox "Region" [ref=e162]
+      - generic [ref=e163]:
+        - text: Aliases (comma-separated)
+        - textbox "Aliases (comma-separated)" [ref=e164]:
+          - /placeholder: e.g. MPA-North, Northern MPA
+      - generic [ref=e165]:
+        - text: Source
+        - combobox "Source" [ref=e166]:
+          - option "Custom" [selected]
+          - option "Official"
+      - generic [ref=e167]:
+        - text: Boundary Geometry
+        - generic [ref=e169]:
+          - generic:
+            - generic:
+              - generic [ref=e170]:
+                - button "Zoom in" [ref=e171] [cursor=pointer]: +
+                - button "Zoom out" [ref=e172] [cursor=pointer]: −
+              - generic [ref=e173]:
+                - generic "Draw Polyline" [ref=e174]:
+                  - button [ref=e175] [cursor=pointer]
+                - generic "Draw Polygons" [ref=e177]:
+                  - button [ref=e178] [cursor=pointer]
+              - generic [ref=e180]:
+                - generic "Edit Layers" [ref=e181]:
+                  - button [ref=e182] [cursor=pointer]
+                - generic "Drag Layers" [ref=e184]:
+                  - button [ref=e185] [cursor=pointer]
+                - generic "Remove Layers" [ref=e187]:
+                  - button [ref=e188] [cursor=pointer]
+            - generic [ref=e190]:
+              - link "Leaflet" [ref=e191] [cursor=pointer]:
+                - /url: https://leafletjs.com
+                - img [ref=e192]
+                - text: Leaflet
+              - text: "| Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community"
+        - paragraph [ref=e196]: Draw a Polygon or Line on the map. Use the toolbar (top-left) to start drawing, drag vertices to refine, or remove and redraw.
+      - generic [ref=e197]:
+        - text: ArcGIS reference ID (optional)
+        - textbox "ArcGIS reference ID (optional)" [ref=e198]
+      - generic [ref=e199]:
+        - generic [ref=e200]: Enabled
+        - switch "Enabled" [checked] [ref=e201] [cursor=pointer]
+      - generic [ref=e202]:
+        - generic [ref=e203]: Override official
+        - switch "Override official" [ref=e204] [cursor=pointer]
+    - generic [ref=e205]:
+      - button "Cancel" [ref=e206] [cursor=pointer]
+      - button "Create" [disabled]
+    - button "Close" [ref=e207] [cursor=pointer]:
+      - img [ref=e208]
+      - generic [ref=e211]: Close

@@ -1,0 +1,88 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e5]: Marine Guardian
+      - navigation [ref=e6]:
+        - list [ref=e7]:
+          - listitem [ref=e8]:
+            - link "Command Center" [ref=e9] [cursor=pointer]:
+              - /url: /dashboard
+              - img [ref=e10]
+              - generic [ref=e15]: Command Center
+          - listitem [ref=e16]:
+            - link "Live Map" [ref=e17] [cursor=pointer]:
+              - /url: /map
+              - img [ref=e18]
+              - generic [ref=e20]: Live Map
+          - listitem [ref=e21]:
+            - link "Events" [ref=e22] [cursor=pointer]:
+              - /url: /events
+              - img [ref=e23]
+              - generic [ref=e27]: Events
+          - listitem [ref=e28]:
+            - link "Patrols" [ref=e29] [cursor=pointer]:
+              - /url: /patrols
+              - img [ref=e30]
+              - generic [ref=e34]: Patrols
+          - listitem [ref=e35]:
+            - link "Subjects" [ref=e36] [cursor=pointer]:
+              - /url: /subjects
+              - img [ref=e37]
+              - generic [ref=e42]: Subjects
+          - listitem [ref=e43]:
+            - link "Patrol Areas" [ref=e44] [cursor=pointer]:
+              - /url: /patrol-areas
+              - img [ref=e45]
+              - generic [ref=e48]: Patrol Areas
+          - listitem [ref=e49]:
+            - link "Observations" [ref=e50] [cursor=pointer]:
+              - /url: /observations
+              - img [ref=e51]
+              - generic [ref=e54]: Observations
+          - listitem [ref=e55]:
+            - link "Alert Rules" [ref=e56] [cursor=pointer]:
+              - /url: /alerts
+              - img [ref=e57]
+              - generic [ref=e60]: Alert Rules
+          - listitem [ref=e61]:
+            - link "Notifications" [ref=e62] [cursor=pointer]:
+              - /url: /notifications
+              - img [ref=e63]
+              - generic [ref=e68]: Notifications
+          - listitem [ref=e69]:
+            - link "Sync Status" [ref=e70] [cursor=pointer]:
+              - /url: /sync
+              - img [ref=e71]
+              - generic [ref=e76]: Sync Status
+          - listitem [ref=e77]:
+            - link "Users" [ref=e78] [cursor=pointer]:
+              - /url: /users
+              - img [ref=e79]
+              - generic [ref=e91]: Users
+          - listitem [ref=e92]:
+            - link "Settings" [ref=e93] [cursor=pointer]:
+              - /url: /settings
+              - img [ref=e94]
+              - generic [ref=e97]: Settings
+      - button "Sign Out" [ref=e99] [cursor=pointer]:
+        - img
+        - text: Sign Out
+    - generic [ref=e100]:
+      - banner [ref=e101]:
+        - link "0 unread notifications" [ref=e103] [cursor=pointer]:
+          - /url: /notifications
+          - img
+      - main [ref=e104]:
+        - generic [ref=e105]:
+          - heading "Patrol Areas" [level=1] [ref=e107]
+          - generic [ref=e109]:
+            - textbox "Filter by region" [ref=e110]
+            - combobox "Filter by enabled status" [ref=e111]:
+              - option "All" [selected]
+              - option "Enabled"
+              - option "Disabled"
+            - combobox "Filter by source" [ref=e112]:
+              - option "All Sources" [selected]
+              - option "Official"
+              - option "Custom"
+  - alert [ref=e117]
