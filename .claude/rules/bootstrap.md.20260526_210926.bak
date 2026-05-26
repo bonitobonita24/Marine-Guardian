@@ -1,7 +1,7 @@
 # Spec-Driven Platform V31 — Bootstrap (Phase 0)
 
 > Loaded contextually when user says 'Bootstrap' in a fresh project.
-> Contains all 19 bootstrap steps including credential collection gate (Step 18) and Loading Library Lock (Step 19 V31.3).
+> Contains all 18 bootstrap steps including credential collection gate.
 
 ---
 
@@ -418,39 +418,7 @@ Step 9 — WSL2 dev environment validation (MODE A only)
   Locked: yes — do not re-ask or scaffold devcontainer files.
   ```
 
-Step 10 — MCP config (V31.3 dual-write — .mcp.json for Claude Code + .vscode/mcp.json for VS Code Copilot)
-
-  CRITICAL (V31.3 fix): Claude Code reads PROJECT-scope MCP servers from `.mcp.json`
-  at project root using the `mcpServers` key. VS Code Copilot (and historically Cline)
-  reads `.vscode/mcp.json` using the `servers` key. Both files must be written so
-  Claude Code (primary) AND any legacy VS Code Copilot users get the same MCPs.
-  Bootstrap writes BOTH files. They reference the same binaries — no resource cost.
-
-  --- File 1: .mcp.json (Claude Code primary — committed, project-scope) ---
-  {
-    "mcpServers": {
-      "socraticode": {
-        "type": "stdio",
-        "command": "npx",
-        "args": ["-y", "socraticode"],
-        "env": {}
-      },
-      "context7": {
-        "type": "stdio",
-        "command": "npx",
-        "args": ["-y", "@upstash/context7-mcp@latest"],
-        "env": {}
-      },
-      "shadcn": {
-        "type": "stdio",
-        "command": "npx",
-        "args": ["-y", "shadcn@latest", "mcp"],
-        "env": {}
-      }
-    }
-  }
-
-  --- File 2: .vscode/mcp.json (VS Code Copilot — legacy compatibility only) ---
+Step 10 — .vscode/mcp.json (MCP entries — V10 + Context7 V23 + shadcn V29)
   {
     "servers": {
       "socraticode": {
@@ -467,21 +435,8 @@ Step 10 — MCP config (V31.3 dual-write — .mcp.json for Claude Code + .vscode
       }
     }
   }
-
-  RATIONALE for project-scope (V31.3): SocratiCode indexes code into a local Qdrant
-  vector DB. For sensitive client projects (payroll, banking, government), indexing
-  must be an EXPLICIT per-project decision — never a machine-wide default. Project-scope
-  .mcp.json makes the wiring visible in git history, contains blast radius if SocratiCode
-  upgrades break, and forces opt-in per repo. NEVER wire SocratiCode at user scope for
-  Spec-Driven projects.
-
   SocratiCode: runs as system-level service. Docker must be running.
-  On first use: SocratiCode auto-pulls Qdrant Docker image (~140 MB one-time).
-  Ollama: framework prefers NATIVE Ollama install (WSL2 / macOS / Linux) over Dockered
-  Ollama — Docker on macOS/Windows can't passthrough GPU. Install native Ollama from
-  https://ollama.com/download then run: `ollama pull nomic-embed-text` (default model,
-  ~274 MB). SocratiCode auto-detects native Ollama on http://localhost:11434.
-
+  On first use: SocratiCode auto-pulls Qdrant + Ollama Docker images (~5 min one-time).
   Context7 (NEW V23): injects live version-specific docs from source repos into prompts.
   Prevents hallucinated deprecated APIs when working with Next.js, Prisma, Auth.js, tRPC, Valkey.
   Usage: append "use context7" to any prompt involving external libraries.
@@ -494,15 +449,6 @@ Step 10 — MCP config (V31.3 dual-write — .mcp.json for Claude Code + .vscode
   Example: "Add a date picker, dialog, and sidebar to my project"
   → shadcn MCP resolves the components and installs them via CLI.
   No API key needed. Free. MIT. Reference: https://ui.shadcn.com/docs/mcp
-
-  VERIFICATION after writing both files:
-    cd <project_root>
-    claude mcp get socraticode    # MUST show "Scope: Project config (shared via .mcp.json)"
-    claude mcp list               # MUST show socraticode, context7, shadcn all "✓ Connected"
-
-  COMMIT POLICY: .mcp.json IS committed (team gets the same MCP setup).
-                 .vscode/mcp.json IS committed too (for VS Code Copilot users on the team).
-                 Both files must stay in sync — if you add/remove an MCP entry, update both.
 
 Step 11 — .specstory/config.json (NEW V11 — SpecStory passive capture config)
   {
@@ -600,7 +546,7 @@ Step 16 — Git init + STATE.md (NEW V14)
   # Updated: [timestamp] by BOOTSTRAP
 
   PHASE:        Phase 0 — Bootstrap complete
-  LAST_DONE:    Project structure created. All 19 bootstrap steps complete.
+  LAST_DONE:    Project structure created. All 18 bootstrap steps complete.
   NEXT:         Phase 1 — Set up dev environment (optional — skip if already done)
   BLOCKERS:     none
   GIT_BRANCH:   main
@@ -1049,63 +995,7 @@ Step 18 — Credential Scaffold (V30 — non-blocking — no interview)
   D) Output the "Bootstrap complete" message below. Bootstrap is non-blocking —
      human can proceed to Phase 2 immediately even with unfilled placeholders.
 
-Step 19 — Loading Library Lock (NEW V31.3 — UI dual-path decision)
-
-  After Step 18 completes — execute the following automatically:
-
-  A) Append the following entry to docs/DECISIONS_LOG.md (LOCKED):
-     ```
-     ## LOCKED: Loading state library — DUAL-PATH (V31.3)
-
-     Decision: ui-rules.md Rule 11 is the authoritative loading-state policy.
-       - PATH A: shadcn <Skeleton> for shadcn-composed UI (Card, Table, Form, Dialog,
-         Tabs, Sheet, Avatar, and other shadcn primitives + compositions).
-       - PATH B: @aejkatappaja/phantom-ui (MIT, Lit Web Component) for bespoke /
-         non-shadcn UI (custom viz, third-party widgets, custom layouts).
-
-     Hard constraint: NEVER hand-roll a *Skeleton.tsx twin file for a custom component.
-       If tempted, use phantom-ui per PATH B.
-
-     Pin policy:
-       - Initial install accepts ^0.10.1.
-       - After install, pin the resolved exact version in package.json (lockfile-equivalent).
-       - Bump only via explicit Feature Update (Phase 7) with DECISIONS_LOG entry.
-
-     Classification source:
-       - Phase 2.8 mockup tags each rendered component as `shadcn` or `custom`.
-       - Phase 4 Part 2 reads those tags to pick the correct path automatically.
-
-     Locked at Bootstrap Step 19. No re-asking allowed.
-     ```
-
-  B) Append the following entry to .cline/memory/lessons.md
-     (Rule 18 typed format, type = 🟤 decision):
-     ```
-     ## {{DATE}} — 🟤 decision Loading library locked to dual-path (shadcn Skeleton + phantom-ui)
-     - Type:      🟤 decision
-     - Phase:     Bootstrap Step 19
-     - Files:     docs/DECISIONS_LOG.md, .claude/rules/ui-rules.md
-     - Concepts:  loading-state, skeleton, phantom-ui, shadcn, ui-rules.Rule-11, dual-path
-     - Narrative: V31.3 locks loading states to a dual-path policy. shadcn primitives use
-       shadcn <Skeleton> inline. Custom (non-shadcn) components MUST wrap in <phantom-ui>
-       — never hand-roll a skeleton twin. Phase 4 Part 2 installs both libraries and picks
-       the right path per component using Phase 2.8 mockup classification tags.
-     ```
-
-  C) Append to .cline/memory/agent-log.md:
-     ```
-     {{TIMESTAMP}}  BOOTSTRAP  Step 19 — Loading library dual-path locked in DECISIONS_LOG.md.
-     ```
-
-  Note: NO npm install runs here. package.json does not yet exist at Bootstrap.
-  The actual installs happen in Phase 4 Part 2 (UI scaffold):
-    - `npx shadcn@latest add skeleton` (added to the shadcn add list)
-    - `npm i @aejkatappaja/phantom-ui` (postinstall auto-wires ssr.css into app/layout.tsx)
-    - Pin phantom-ui to resolved exact version after install completes.
-
-  Step 19 is non-blocking. Bootstrap proceeds to completion.
-
-After Claude Code finishes all 19 steps, OUTPUT THE FOLLOWING TEXT TO THE HUMAN. Do not execute these instructions yourself — they are for the human to read:
+After Claude Code finishes all 18 steps, OUTPUT THE FOLLOWING TEXT TO THE HUMAN. Do not execute these instructions yourself — they are for the human to read:
 ```
 ✅ Bootstrap complete — CREDENTIALS.md written with AI-generated secrets + blank placeholders.
 

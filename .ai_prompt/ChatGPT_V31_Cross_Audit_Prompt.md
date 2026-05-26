@@ -36,6 +36,7 @@ You are an independent auditor reviewing the **Spec-Driven Platform V31** framew
 12. **Prompt 3.19** — Emergency Anti-Thrashing for any phase (Sonnet 4.6 calibrated, 3 variants)
 13. **Memory Governance Layer (V31.1)** — new file `memory-governance.md` with 5 sections: Tiered Decomposition Engine, Smart Checkpoint Protocol, Phase Hooks (13 hooks across all phases), Architect-Execute Model (Opus 4.6 plans → Sonnet 4.6 executes), Mid-Project Adoption
 14. **Prompts 3.20 + 3.21** — Memory Governance Baseline + Opus Planning Session
+15. **Dispatch Discipline Patch (V31.4)** — Architect-Execute Model extended to ALL phases + ad-hoc edits; Sonnet Scout sub-step added (§4 step 1.5); Tier 1 rewritten to mandate Sonnet dispatch; §3 hook MODEL line and phases.md MODEL: lines rewritten in imperative form
 
 I am attaching 16 V31 framework files. Your job is to verify ALL changes were implemented correctly AND that the foundational Spec-Driven Platform architecture remains intact.
 
@@ -48,7 +49,8 @@ I am attaching 16 V31 framework files. Your job is to verify ALL changes were im
 5. Memory system commands all still function (Resume Session, Governance Sync, Feature Update, Governance Retro, Log Lesson, Resume from handoff)
 6. Foundation intact: L1-L6 security stack, 9 governance docs, Rule 24 fresh context, file ownership model
 7. Post-lock patches are present in the correct files (Phase 3.5, anti-thrashing rules, Skill Installer, Prompt 4.13, attribution, prompt count)
-8. No regressions
+8. V31.4 Dispatch Discipline Patch present: universal Architect-Execute scope, Sonnet Scout step 1.5, Tier 1 dispatch mandate, imperative MODEL lines in §3 and phases.md
+9. No regressions
 
 ---
 
@@ -80,12 +82,12 @@ Bonito's user preference: keep Cline extension installed in VS Code as emergency
 - Post-lock patches add Phase 3.5 as a NEW phase (between Phase 3 and Phase 4) and anti-thrashing rules to Phase 4 and Phase 8. These are in phases.md and Master_Prompt_v31.md. They do NOT change the framework rule count, scenario count, or bootstrap step count.
 - Post-lock patches add a **Context Budget — Global Principle** to CLAUDE_v31_compact.md and Master_Prompt_v31.md. This is a Sonnet 4.6 model-aware task sizing principle (200K window, 120K practical, ≤80K SAFE zone, 12-file threshold). It governs how ALL work is scoped — not a new rule, but a non-negotiable behavioral principle.
 
-### V31 verified counts (must match in every file that quotes them)
+### V31.4 verified counts (must match in every file that quotes them)
 
 ```
-30 Rules · 34 Scenarios · 18 Bootstrap Steps · 8 Phase 4 Parts
+30 Rules · 35 Scenarios · 19 Bootstrap Steps · 8 Phase 4 Parts
 9 Phase 5 Commands · 16 Phase 6.5 Categories · 16 Secure Code Gen sub-sections
-10 UI Component Rules · 84 Security Checklist items (13 sections)
+11 UI Component Rules · 84 Security Checklist items (13 sections)
 59 Prompts (36 NEW ✨) in Prompt_References.md and Prompt_References.html
 17 deliverable files (16 in .ai_prompt/ + deploy-v31.sh at project root) · 4 MCP servers (3 wired + 1 plugin) · Node v22 · pnpm@10
 Phase count: 8 main phases + 2.5 + 2.6 + 2.7 + 2.8 (V31) + 3.5 (POST-LOCK) + 6.5
@@ -93,6 +95,14 @@ Phase count: 8 main phases + 2.5 + 2.6 + 2.7 + 2.8 (V31) + 3.5 (POST-LOCK) + 6.5
 9 governance docs (unchanged)
 Planning Assistant: 11 rules (Rule 11 = n8n+OpenClaw automation opt-in)
 ```
+
+Count diffs vs V31.3:
+- All counts unchanged. V31.4 is a behavioral/governance patch only (no new scenarios, bootstrap steps, rules, or prompts).
+
+Count diffs V31.2 → V31.3 (preserved for historical reference):
+- Scenarios: 34 → 35 (added Scenario 35 — Loading state for a custom (non-shadcn) component)
+- Bootstrap Steps: 18 → 19 (added Step 19 — Loading Library Lock)
+- UI Component Rules: 10 → 11 (added Rule 11 — Loading states dual-path)
 
 ### V31 post-lock additive patches (must be present in the files listed)
 
@@ -159,6 +169,48 @@ ChatGPT MUST verify each patch is present in the specified file(s):
     MUST BE IN: Master_Prompt_v31.md (changelog), CLAUDE_v31_compact.md (header),
     Framework_Feature_Index_v31.md (V31 row + footer), Prompt_References.html (hero stat)
     MUST NOT appear as "54 prompts" or "55 prompts" or "56 prompts" or "31 New" or "32 New" or "33 New" anywhere
+
+15. UI Loading-State Dual-Path (V31.3) — Rule 11 + Scenario 35 + Bootstrap Step 19 + phantom-ui integration
+    MUST BE IN:
+      - ui-rules.md (Rule 11 — Loading states dual-path; PATH A shadcn <Skeleton>, PATH B <phantom-ui>;
+        hard constraint forbidding hand-rolled *Skeleton.tsx twin files; classification source =
+        Phase 2.8 mockup tags)
+      - scenarios.md (Scenario 35 — Loading state for a custom (non-shadcn) component)
+      - bootstrap.md (Step 19 — Loading Library Lock; appends LOCKED entry to DECISIONS_LOG.md +
+        lessons.md typed entry + agent-log.md; NO npm install at Bootstrap)
+      - templates.md (UI LOADING STATE TEMPLATES section with PATH A snippets — Card/TableRow/
+        FormField — and PATH B snippets — basic wrapper / repeated rows / per-element opt-outs /
+        JSX intrinsic declaration / pin policy)
+      - Master_Prompt_v31.md (V31.2 → V31.3 changelog block; count refs "all 19 bootstrap steps"
+        and "all 19 steps")
+      - CLAUDE_v31_compact.md (NON-NEGOTIABLE BEHAVIORS — loading-state dual-path bullet)
+      - Product_md_Planning_Assistant_v31.md (Phase 2.8 mockup MUST tag every component with
+        data-loading-path="shadcn" or data-loading-path="custom" on its outer wrapper)
+      - Framework_Feature_Index_v31.md (V31.3 row + footer count updates: 35 scenarios · 19
+        bootstrap steps · 11 UI component rules · loading-state dual-path mention)
+
+    MUST NOT appear:
+      - "10 UI Component Rules" (now 11)
+      - "18 Bootstrap Steps" or "all 18 steps" or "all 18 bootstrap steps" (now 19)
+      - "34 Scenarios" (now 35)
+      - any "MyComponentSkeleton.tsx" twin file pattern recommended in templates or scenarios
+
+    PHANTOM-UI PACKAGE REFERENCE (must be consistent across all files):
+      - Package name: @aejkatappaja/phantom-ui (MIT, Lit Web Component)
+      - Initial install: ^0.10.1 — then pin resolved exact version after install
+      - Bundle: ~22KB / ~8KB gzip (CDN); ESM externalises Lit
+      - Post-install: auto-detects Next.js/Nuxt/SvelteKit/Remix/Qwik and wires
+        `import "@aejkatappaja/phantom-ui/ssr.css"` into the layout file
+      - Required: "use client" boundary; JSX intrinsic element declaration for React + TS
+
+    LIBRARIES_DB / SCAN-PROJECT SURFACE ADDITION (must exist):
+      - `src/data/` LIBRARIES_DB entry for @aejkatappaja/phantom-ui under category
+        "Loading States / Structure-Aware Skeletons"
+      - Match signal: project package.json has shadcn deps AND custom components outside
+        `components/ui/`
+      - /scan-project Phase 2.6 surfaces it
+      - /scan-project Phase 1.5 Part C (Spec-Driven Fit) recommends during Phase 4 Part 2 +
+        Phase 7 Feature Update
 ```
 
 ---
@@ -168,11 +220,11 @@ ChatGPT MUST verify each patch is present in the specified file(s):
 ```
 1.  CLAUDE_v31_compact.md              — compact rules card (~200 lines)
 2.  Master_Prompt_v31.md               — full monolithic prompt (~8000 lines)
-3.  bootstrap.md                       — Phase 0 Bootstrap (18 steps)
+3.  bootstrap.md                       — Phase 0 Bootstrap (19 steps; Step 19 = Loading Library Lock V31.3)
 4.  phases.md                          — All phase details (Phases 1–8 + 2.5, 2.6, 2.7, 2.8, 3.5, 6.5 + anti-thrashing rules)
 5.  security.md                        — Secure Code Generation (16 sub-sections)
-6.  ui-rules.md                        — UI Component Rules (10 rules, shadcn/ui enforced)
-7.  scenarios.md                       — Scenarios 1–34 (Scenario 33: DESIGN.md integration; Scenario 34: CREDENTIALS.md Agent-Proof Upgrade)
+6.  ui-rules.md                        — UI Component Rules (11 rules, shadcn/ui enforced; Rule 11 = loading-state dual-path V31.3)
+7.  scenarios.md                       — Scenarios 1–35 (Scenario 33: DESIGN.md integration; Scenario 34: CREDENTIALS.md Agent-Proof Upgrade; Scenario 35: Loading state for a custom (non-shadcn) component V31.3)
 8.  templates.md                       — Output types, .clinerules template, file ownership
 9.  Product_md_Planning_Assistant_v31.md — Planning interview + Phase 2.8 (biggest V31 change)
 10. Framework_Feature_Index_v31.md     — Feature + version history reference
@@ -593,6 +645,57 @@ Verify each is present in the specified locations.
 □ J.23 Prompt count is 59 (not 54, 55, or 56) across all files that state a count
        MUST NOT find "54 prompts" or "55 prompts" or "56 prompts" or
        "31 New" or "32 New" or "33 New" anywhere
+
+□ J.24 (V31.4) Architect-Execute Model scope universality — ALL phases + ad-hoc edits
+       LOOK FOR in memory-governance.md §4: language that says the model applies to
+       ALL phases AND ad-hoc edits — NOT limited to Phase 4/7/8 only.
+       Grep across all 17 files: zero matches for scope-limiting phrase "Phase 4/7/8"
+       OUTSIDE of historical changelog blocks. Any such match outside a changelog is a FAIL.
+       ALSO CHECK: CLAUDE_v31_compact.md and AI_Tools_Skills_MCPs_Reference_v31.md
+       must NOT contain scope-limiting "Phase 4/7/8" language in the Architect-Execute description.
+
+□ J.25 (V31.4) Sonnet Scout sub-step exists in §4 Execution Flow
+       LOOK FOR in memory-governance.md §4 Execution Flow: a step 1.5 (or equivalent
+       numbered sub-step) that mandates dispatching a Sonnet "scout" subagent
+       BEFORE the main decomposition when ANY of these thresholds are met:
+         - reading >2 PRODUCT.md sections, OR
+         - reading >2 governance docs, OR
+         - touching >5 source files.
+       The scout's job: read and summarize, then return results to Opus for decomposition.
+       FAIL if step 1.5 is absent, or if the thresholds listed above are not present.
+
+□ J.26 (V31.4) Tier 1 mandates Sonnet dispatch — NOT "proceed directly"
+       LOOK FOR in memory-governance.md §1 Tiered Decomposition Engine:
+       Tier 1 action text MUST read "Dispatch to single Sonnet subagent..." (or equivalent
+       imperative dispatch language). It MUST NOT say "Proceed directly."
+       ALSO CHECK Tier 2: must explicitly mandate Sonnet dispatch with a planned split
+       (not merely "consider splitting" or advisory language).
+       FAIL if either Tier 1 says "proceed directly" OR Tier 2 lacks a dispatch mandate.
+
+□ J.27 (V31.4) Phase hook MODEL line uses imperative "STOP" language
+       LOOK FOR in memory-governance.md §3 Phase Hooks: the MODEL line (or MODEL block)
+       MUST use imperative form — specifically "STOP before executing..." and MUST include
+       the restriction: "Opus's only allowed actions: read, plan, decompose, review."
+       And MUST state: "All file writes MUST be dispatched [to Sonnet]."
+       FAIL if MODEL line is advisory ("Use Architect-Execute Model...") rather than imperative.
+       FAIL if Opus write restriction is absent.
+
+□ J.28 (V31.4) phases.md MODEL: lines use imperative form — no advisory wording remaining
+       LOOK FOR in phases.md: ALL occurrences of "MODEL:" lines.
+       Each MUST match the imperative form from §3 (e.g., "STOP before executing...").
+       MUST NOT contain advisory phrases like "Use Architect-Execute Model for this phase"
+       or "Architect-Execute Model recommended."
+       MUST NOT contain phase-specific scope language like "for Phase X work" that would
+       imply the model only applies to that phase.
+       FAIL if any single MODEL: line in phases.md remains in advisory form.
+
+□ J.29 (V31.4) Framework_Feature_Index_v31.md V31.4 row exists + footer bumped
+       LOOK FOR: a V31.4 row in the version table of Framework_Feature_Index_v31.md
+       describing the Dispatch Discipline Patch (universal scope, Sonnet Scout, Tier 1
+       mandate, imperative hook MODEL line, phases.md MODEL line alignment).
+       ALSO CHECK: the footer / "current version" marker in Framework_Feature_Index_v31.md
+       must show V31.4 as the latest version — NOT V31.3.
+       FAIL if V31.4 row is missing. FAIL if footer still says V31.3.
 ```
 
 ---
@@ -630,7 +733,7 @@ SECTION H (Phase 2.8 Technical):               [X PASS / Y FAIL / Z PARTIAL]
 SECTION I (Automation Integration):            [X PASS / Y FAIL / Z PARTIAL]
 SECTION J (Post-Lock Additive Patches):        [X PASS / Y FAIL / Z PARTIAL]
 ───────────────────────────────────────────────────────────
-TOTAL:                                         [X PASS / Y FAIL / Z PARTIAL] out of ~115 items
+TOTAL:                                         [X PASS / Y FAIL / Z PARTIAL] out of ~121 items
 
 TOP 3 CRITICAL FAILS (must fix before release):
 1. [item] — [file] — [fix]
@@ -665,7 +768,7 @@ SECONDARY ISSUES (nice to fix but not blocking):
 
 10. **Memory system verification is critical.** If ANY memory command (Resume Session, Governance Sync, Feature Update, Governance Retro, Log Lesson, Resume from handoff) appears broken or has stale Cline routing as primary, flag as F.7 FAIL immediately — this is Bonito's most important concern.
 
-11. **Post-lock patches are NOT a new version.** They are additive changes applied to V31 files without bumping to V32. V31.1 is a minor version tag for the Memory Governance Layer — still within V31. V31.2 is the latest minor version, adding the 30K Token Budget Gate (Step 2.5: every Sonnet subagent task must have token estimate ≤30K; if over, split further regardless of tier/file count) and Opus Escalation (Step 2.5b: genuinely atomic unsplittable tasks >30K dispatch to Agent(model: "opus") as last resort, 100K budget, max 20% of tasks, logged in STATE.md). ChatGPT should verify patches exist in the correct files (Section J) but should NOT flag them as version inconsistencies. Phase 3.5 is a new phase — verify it appears in phase menus and counts. Anti-thrashing rules are in Phase 4 and Phase 8 sections. Context Budget is a global principle in CLAUDE_v31_compact.md and Master_Prompt_v31.md. Memory Governance Layer is in memory-governance.md with 13 hooks in phases.md. Architect-Execute Model uses Opus 4.6 (architect) and Sonnet 4.6 (executor). Prompt count is 59 (not 54, 55, or 56). Deliverable file count is 17 (not 16). Attribution chain is CLAUDE_CODE first (not CLINE).
+11. **Post-lock patches are NOT a new version.** They are additive changes applied to V31 files without bumping to V32. V31.1 is a minor version tag for the Memory Governance Layer — still within V31. V31.2 added the 30K Token Budget Gate (Step 2.5) and Opus Escalation (Step 2.5b). V31.3 added the UI Loading-State Dual-Path (Rule 11, Scenario 35, Bootstrap Step 19, phantom-ui). V31.4 is the Dispatch Discipline Patch — it extended the Architect-Execute Model from Phase 4/7/8 only to ALL phases + ad-hoc edits, added a Sonnet Scout sub-step (§4 step 1.5), rewrote Tier 1 to mandate Sonnet dispatch (removing "proceed directly"), and rewrote phase hook MODEL lines and all phases.md MODEL: lines in imperative form. ChatGPT should verify patches exist in the correct files (Section J) but should NOT flag them as version inconsistencies. Phase 3.5 is a new phase — verify it appears in phase menus and counts. Anti-thrashing rules are in Phase 4 and Phase 8 sections. Context Budget is a global principle in CLAUDE_v31_compact.md and Master_Prompt_v31.md. Memory Governance Layer is in memory-governance.md with 13 hooks in phases.md. Architect-Execute Model uses Opus 4.6 (architect) and Sonnet 4.6 (executor). Prompt count is 59 (not 54, 55, or 56). Deliverable file count is 17 (not 16). Attribution chain is CLAUDE_CODE first (not CLINE).
 
 ---
 

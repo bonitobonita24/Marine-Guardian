@@ -101,6 +101,7 @@ read both relevant files. Never read scenarios.md unless the user triggers a nam
 - Every CHANGELOG_AI entry includes agent attribution (Rule 15)
 - Security wins over convenience — always (see .claude/rules/security.md)
 - shadcn/ui is the ONLY UI component library — no MUI, Chakra, Ant Design (see .claude/rules/ui-rules.md)
+- Loading states are DUAL-PATH (ui-rules.md Rule 11, V31.3): shadcn `<Skeleton>` for shadcn-composed UI, `<phantom-ui>` wrapper for bespoke/custom UI. NEVER hand-roll a `*Skeleton.tsx` twin file.
 - Human triggers Phase 5 and Phase 6 — never auto-chain from Phase 4
 
 ### ⚠ CONTEXT BUDGET — GLOBAL PRINCIPLE (applies to ALL phases, parts, batches, and tasks)
@@ -139,7 +140,7 @@ TOKEN BUDGET REFERENCE (memorize this):
 Read ONLY relevant PRODUCT.md sections. Use codebase_search (Rule 17) instead of opening
 files for context. See `.claude/rules/phases.md` for full anti-thrashing rules per phase.
 
-**Architect-Execute Model (Phase 4/7/8):** Use Opus 4.6 for planning and decomposition,
+**Architect-Execute Model (ALL phase work and ad-hoc edits):** Use Opus 4.6 for planning and decomposition,
 Sonnet 4.6 for execution. Opus dispatches Sonnet subagents via `Agent(model: "sonnet")`.
 See `.claude/rules/memory-governance.md` §4 for full protocol. This eliminates thrashing
 on mature projects by ensuring Sonnet never reads full PRODUCT.md or makes decomposition decisions.

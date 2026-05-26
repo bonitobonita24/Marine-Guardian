@@ -100,7 +100,7 @@ This step requires a physical action on your machine — no agent can trigger it
 
 > **⚠ CONTEXT BUDGET:** Interview phase — lightweight context. If the interview produces a very large PRODUCT.md (>30K tokens), Phase 3 will handle it with section-by-section reads.
 >
-> **⚠ MEMORY GOVERNANCE** (memory-governance.md): PRE: Run Tiered Decomposition (§1) — classify scope before starting. POST: Run Smart Checkpoint (§2) if any files were created or modified. MODEL: Use Architect-Execute Model (§4) for Phase 4/7/8 work.
+> **⚠ MEMORY GOVERNANCE** (memory-governance.md): PRE: Run Tiered Decomposition (§1) — classify scope before starting. POST: Run Smart Checkpoint (§2) if any files were created or modified. MODEL: STOP before executing. Opus's only allowed actions in this session are: read context, plan, decompose, review Sonnet output. All file writes (code, configs, governance docs, tests) MUST be dispatched via Agent(model: "sonnet") per §4. If you find yourself about to call Edit/Write, stop and dispatch instead.
 
 Before any files are generated, Claude Code interviews you to understand your app.
 This locks in tech stack, tenancy model, entities, security, and infrastructure.
@@ -1465,7 +1465,7 @@ Output after completion:
 
 > **⚠ CONTEXT BUDGET:** This phase GENERATES the context budget plan for Phase 4+. Apply the Universal Context Budget pre-flight (top of this file) to this phase itself — Phase 3.5 reads the full PRODUCT.md to scan complexity, so if PRODUCT.md is very large (>30K tokens), read it in sections.
 >
-> **⚠ MEMORY GOVERNANCE** (memory-governance.md): PRE: Run Tiered Decomposition (§1). POST: Run Smart Checkpoint (§2) if files changed. MODEL: Use Architect-Execute Model (§4) — Opus should plan Phase 4 decomposition here.
+> **⚠ MEMORY GOVERNANCE** (memory-governance.md): PRE: Run Tiered Decomposition (§1). POST: Run Smart Checkpoint (§2) if files changed. MODEL: STOP before executing. Opus's only allowed actions in this session are: read context, plan, decompose, review Sonnet output. All file writes (code, configs, governance docs, tests) MUST be dispatched via Agent(model: "sonnet") per §4. If you find yourself about to call Edit/Write, stop and dispatch instead.
 
 **Purpose:** Analyze PRODUCT.md complexity and predict context cost per task BEFORE
 Phase 4 starts. Generates a pre-computed execution plan that right-sizes every session
@@ -1856,7 +1856,7 @@ Options:
 
 > **⚠ CONTEXT BUDGET:** Run the Universal Context Budget pre-flight (top of this file) at the START of every Part. Estimate files + tokens. If >12 files or >80K tokens, sub-divide by module per the anti-thrashing rule below. The execution plan from Phase 3.5 pre-computes this — follow it.
 >
-> **⚠ MEMORY GOVERNANCE** (memory-governance.md): PRE: Run Tiered Decomposition (§1) per Part. POST: Run Smart Checkpoint (§2) after each Part. MODEL: Use Architect-Execute Model (§4) — Opus dispatches Sonnet subagents per Part.
+> **⚠ MEMORY GOVERNANCE** (memory-governance.md): PRE: Run Tiered Decomposition (§1) per Part. POST: Run Smart Checkpoint (§2) after each Part. MODEL: STOP before executing. Opus's only allowed actions in this session are: read context, plan, decompose, review Sonnet output. All file writes (code, configs, governance docs, tests) MUST be dispatched via Agent(model: "sonnet") per §4. If you find yourself about to call Edit/Write, stop and dispatch instead.
 
 Each Part runs in a FRESH Claude Code session (Rule 24 — prevents context accumulation).
 Each Part stays under ~3,000 lines of context for best reliability.
@@ -3491,7 +3491,7 @@ Edit PRODUCT.md → trigger Phase 7 → agents implement everything and keep gov
 > Read ONLY the PRODUCT.md sections for the current feature — NEVER the full file.
 > Use `codebase_search` (Rule 17) before opening source files.
 >
-> **⚠ MEMORY GOVERNANCE** (memory-governance.md): PRE: Run Tiered Decomposition (§1) — classify this Feature Update's complexity before touching any files. POST: Run Smart Checkpoint (§2) on completion. MODEL: Use Architect-Execute Model (§4) — Opus plans the feature decomposition, Sonnet executes each scoped task. **CRITICAL for Phase 7 on mature projects** — this is where thrashing is most common.
+> **⚠ MEMORY GOVERNANCE** (memory-governance.md): PRE: Run Tiered Decomposition (§1) — classify this Feature Update's complexity before touching any files. POST: Run Smart Checkpoint (§2) on completion. MODEL: STOP before executing. Opus's only allowed actions in this session are: read context, plan, decompose, review Sonnet output. All file writes (code, configs, governance docs, tests) MUST be dispatched via Agent(model: "sonnet") per §4. If you find yourself about to call Edit/Write, stop and dispatch instead.
 
 **Trigger:**
 - Via Claude Code: say "Feature Update" — it reads all 9 governance docs automatically
@@ -3649,7 +3649,7 @@ IF ANY item fails → Feature Update = INCOMPLETE → fix before marking done
 
 > **⚠ CONTEXT BUDGET:** Run the Universal Context Budget pre-flight (top of this file) before every batch. Estimate files + tokens for the proposed batch. If >12 files or >80K tokens, split into per-feature sub-batches per the anti-thrashing rule below.
 >
-> **⚠ MEMORY GOVERNANCE** (memory-governance.md): PRE: Run Tiered Decomposition (§1) — classify this batch before starting. POST: Run Smart Checkpoint (§2) after each sub-batch. MODEL: Use Architect-Execute Model (§4) — Opus plans the batch decomposition, Sonnet executes each feature. **CRITICAL for Phase 8** — multiple features per batch makes thrashing almost certain without Opus planning.
+> **⚠ MEMORY GOVERNANCE** (memory-governance.md): PRE: Run Tiered Decomposition (§1) — classify this batch before starting. POST: Run Smart Checkpoint (§2) after each sub-batch. MODEL: STOP before executing. Opus's only allowed actions in this session are: read context, plan, decompose, review Sonnet output. All file writes (code, configs, governance docs, tests) MUST be dispatched via Agent(model: "sonnet") per §4. If you find yourself about to call Edit/Write, stop and dispatch instead.
 
 Cross-references PRODUCT.md vs IMPLEMENTATION_MAP.md and proposes the next batch.
 Repeats until PRODUCT.md is fully implemented.

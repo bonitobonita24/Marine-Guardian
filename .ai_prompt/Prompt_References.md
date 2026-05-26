@@ -682,7 +682,7 @@ Drop your finalized `PRODUCT.md` from the claude.ai planning session into `docs/
 Bootstrap
 ```
 
-**What happens:** Runs all 18 Bootstrap steps — folder structure, governance docs, `.vscode/mcp.json`, `.specstory/config.json`, typed `lessons.md`, and `CREDENTIALS.md` with AI-generated secrets + `⏳ FILL LATER` placeholders. **Does not block on credentials.**
+**What happens:** Runs all 19 Bootstrap steps — folder structure, governance docs, `.vscode/mcp.json`, `.specstory/config.json`, typed `lessons.md`, `CREDENTIALS.md` with AI-generated secrets + `⏳ FILL LATER` placeholders, and the Loading Library Lock (DECISIONS_LOG.md entry for ui-rules.md Rule 11 dual-path V31.3). **Does not block on credentials.**
 
 ### 1.3.2 — Phase 2 discovery
 ```

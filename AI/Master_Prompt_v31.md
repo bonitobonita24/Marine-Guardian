@@ -147,7 +147,7 @@ token-efficient session & task management system:
 - §4 Architect-Execute Model — Opus 4.6 plans, Sonnet 4.6 executes via subagents
 - §5 Mid-Project Adoption — works on projects already in Phase 7/8
 
-**Architect-Execute Model (Phase 4/7/8):** Use Opus 4.6 for planning and decomposition,
+**Architect-Execute Model (ALL phases + ad-hoc edits):** Use Opus 4.6 for planning and decomposition,
 Sonnet 4.6 for execution. Opus dispatches Sonnet subagents via `Agent(model: "sonnet")`.
 This eliminates thrashing on mature projects by ensuring Sonnet never reads full PRODUCT.md
 or makes decomposition decisions. See memory-governance.md §4 for full protocol.
@@ -2111,7 +2111,7 @@ Step 16 — Git init + STATE.md (NEW V14)
   # Updated: [timestamp] by BOOTSTRAP
 
   PHASE:        Phase 0 — Bootstrap complete
-  LAST_DONE:    Project structure created. All 18 bootstrap steps complete.
+  LAST_DONE:    Project structure created. All 19 bootstrap steps complete.
   NEXT:         Phase 1 — Set up dev environment (optional — skip if already done)
   BLOCKERS:     none
   GIT_BRANCH:   main
@@ -2560,7 +2560,7 @@ Step 18 — Credential Scaffold (V30 — non-blocking — no interview)
   D) Output the "Bootstrap complete" message below. Bootstrap is non-blocking —
      human can proceed to Phase 2 immediately even with unfilled placeholders.
 
-After Claude Code finishes all 18 steps, OUTPUT THE FOLLOWING TEXT TO THE HUMAN. Do not execute these instructions yourself — they are for the human to read:
+After Claude Code finishes all 19 steps, OUTPUT THE FOLLOWING TEXT TO THE HUMAN. Do not execute these instructions yourself — they are for the human to read:
 ```
 ✅ Bootstrap complete — CREDENTIALS.md written with AI-generated secrets + blank placeholders.
 
@@ -7823,6 +7823,34 @@ Version stays same for: wording fixes, clarifications, side note updates.
 - POST-LOCK ADDITIVE UPDATES (documentation + 1 scenario + 1 planning step — no version bump): Added Scenario 33 (DESIGN.md integration with shadcn/ui — VoltAgent/awesome-design-md catalog). Added prompts 1.1.5 (Re-deploy V31), 1.2.5 (Credentials Setup Kit), 1.2.6 (Top Up CREDENTIALS.md), 1.2.7 (Add New Credential Section via Phase 7), 1.4.0 (Deep Pre-Upgrade Analysis), 1.7 (Build code-review-graph), **1.8 (Combined Upgrade: Framework + Planning Assistant)**, 2.11 (Review Changes Since Last Commit), 2.12 (Architecture Map), 3.15 (Pre-Merge Blast-Radius Check), 3.16 (Debug Unknown Issue), 3.17 (Onboard to Unknown Codebase), 3.18 (Rebuild Stale Graph), 4.6 (Upgrade Planning Assistant Mid-Chat), 4.7 (Save Mockup Continuity Workflow), 4.8 (Adopt a DESIGN.md Aesthetic), 4.9 (New PA: spec done not built), 4.10 (New PA: mid-build), 4.11 (New PA: production), 4.12 (New PA: backfill one section). Expanded prompt 3.11 (Future framework upgrade safety workflow). **Step 8b added to Planning Assistant interview** — per-page Mobile First / Mobile Ready classification with auto-heuristics, user review table, written into PRODUCT.md Mobile Needs section. Phase 2.8 mockup now renders mobile strategy badge on every screen. **Two sidebar decision-tree menus** added to Prompt_References: "🆕 New Planning Assistant arrived?" (routes to 4.6 / 4.9 / 4.10 / 4.11 / 4.12) and "🔀 Two upgrades pending?" (routes to 1.8 combined upgrade). Current totals: 59 prompts (36 NEW ✨), 34 scenarios. Post-lock audit state: 85 PASS / 0 FAIL / 1 PARTIAL (G.8 resolved by exhaustive scan).
 - Rule count: 30 (unchanged). Scenario count: 32 → 34 (+1 for Scenario 33 DESIGN.md integration, +1 for Scenario 34 CREDENTIALS.md Agent-Proof Upgrade). Bootstrap: 18 steps (unchanged). Security Checklist: 84 items (unchanged). Secure Code Gen: 16 sub-sections (unchanged). UI Component Rules: 10 (unchanged). Phase count: 8 main phases + 2.5, 2.6, 2.7, **2.8 (NEW)**, **3.5 (NEW)**, 6.5. Version bump: V30 → V31 ✅
 - POST-LOCK ADDITIVE UPDATES (continued — phases.md additions, no version bump): **Phase 3.5 — Execution Plan Generation** added to phases.md (auto-runs after Phase 3). 7 steps: complexity scan → context cost estimation (120K budget, ≤80K SAFE) → task decomposition → dependency ordering → write execution-plan.md → skill activation (/scan-project first, then framework verifies Primary Group) → human review. **Anti-thrashing rule** added to Phase 4: mandatory scope assessment at start of every Part, auto-subdivide if >12 files, Part 8 always subdivides, module-by-module sub-sessions with per-module commits. **Skill Installer integration**: Primary Group 6 slots (superpowers, code-review-graph, planning-with-files, frontend-design+design-auditor+owasp-security, git-pushing, claude-skills-65), per-phase supplementary skills, /scan-project workflow, conflict registry verified. **code-review-graph setup signal**: Phase 6 completion message includes reminder, Phase 7 pre-flight Step 0 check. **Prompt 4.13** added — Add Automation to Existing Project (n8n / OpenClaw / Hybrid) 7-step flow for projects past initial planning. Prompt count: 54 → 59 (36 NEW ✨). **Phase 8 anti-thrashing rule** added to phases.md: same 12-file threshold as Phase 4, per-feature sub-batches, mandatory completeness check before committing (verifies every user flow, data field, permission guard, validation rule, and UI element from PRODUCT.md is actually implemented), STATE.md progress tracking with dependencies for next sub-batch. Critical principle: anti-thrashing protects the build — changes how many per session, never what gets built.
+
+**v31.2 → v31.3 upgrade notes — UI loading-state dual-path (Rule 11) + phantom-ui integration:**
+- NEW UI COMPONENT RULE: **ui-rules.md Rule 11 — Loading states are dual-path.** PATH A: shadcn `<Skeleton>` for shadcn-composed UI (Card, Table, Form, Dialog, Tabs, Sheet, Avatar — RSC-safe, default). PATH B: `<phantom-ui>` wrapper from `@aejkatappaja/phantom-ui` (MIT, Lit Web Component, ~8 KB gzip) for bespoke / non-shadcn UI — structure-aware skeleton measured from real DOM at runtime, must live inside a `"use client"` boundary. HARD CONSTRAINT: NEVER hand-roll a `*Skeleton.tsx` twin file for a custom component.
+- NEW SCENARIO: **Scenario 35 — Loading state for a custom (non-shadcn) component.** Step-by-step procedure for applying Rule 11 PATH B: classify component, install + pin phantom-ui, add JSX intrinsic declaration, wrap with `<phantom-ui>`, verify SSR pre-hydration CSS is wired. Pushback rule: if user requests a hand-rolled skeleton twin, push back once with Rule 11 PATH B; if user insists, log deviation in DECISIONS_LOG.md before proceeding.
+- NEW BOOTSTRAP STEP: **Step 19 — Loading Library Lock.** Bootstrap appends LOCKED entry to DECISIONS_LOG.md recording the dual-path policy + pin policy + classification source. Logs to lessons.md (Rule 18 typed format) + agent-log.md. NO npm install at Bootstrap (package.json doesn't exist yet) — actual installs deferred to Phase 4 Part 2.
+- PHASE 4 PART 2 UPDATE: `npx shadcn@latest add skeleton` is now in the default shadcn add list. After shadcn primitives are installed, run `npm i @aejkatappaja/phantom-ui` (postinstall auto-wires `import "@aejkatappaja/phantom-ui/ssr.css"` into `app/layout.tsx`). After install, pin the resolved exact version in `package.json` (overrides caret until explicit Phase 7 bump).
+- PLANNING ASSISTANT UPDATE: **Phase 2.8 mockup now tags every rendered component as `shadcn` or `custom`** in a `data-loading-path` attribute on the outer wrapper. Phase 4 Part 2 reads these tags to pick the correct loading path (PATH A vs PATH B) per component automatically.
+- NEW TEMPLATES: **templates.md UI LOADING STATE TEMPLATES section.** Canonical snippets for Card/TableRow/FormField (PATH A) + basic wrapper + repeated rows + per-element opt-outs (PATH B) + JSX intrinsic declaration + pin policy.
+- SURFACE ADDITIONS POLICY COMPLIANCE: `@aejkatappaja/phantom-ui` added to `src/data/` LIBRARIES_DB with match signal (project has shadcn deps AND custom components outside `components/ui/`). `/scan-project` Phase 2.6 surfaces it under "Loading States / Structure-Aware Skeletons". Phase 1.5 Part C (Spec-Driven Fit) recommends during Phase 4 Part 2 and Phase 7 Feature Update.
+- Rule count: 30 (unchanged — framework rules are separate from UI component rules). Scenario count: 34 → 35 (+1 for Scenario 35 custom loading state). Bootstrap: 18 → 19 steps (+1 for Step 19 Loading Library Lock). **UI Component Rules: 10 → 11 (+1 for Rule 11 dual-path).** Security Checklist: 84 items (unchanged). Secure Code Gen: 16 sub-sections (unchanged). Prompts: 59 (unchanged). Phase count: 8 main phases + 2.5, 2.6, 2.7, 2.8, 3.5, 6.5 (unchanged). Version bump: V31.2 → V31.3 ✅
+- **V31.3 PATCH — Bootstrap Step 10 MCP scope policy (project-scope mandatory):** Bootstrap Step 10 now writes BOTH `.mcp.json` (Claude Code primary — `mcpServers` schema) AND `.vscode/mcp.json` (VS Code Copilot legacy — `servers` schema). Reason: Claude Code reads project-scope MCPs from `.mcp.json`, NOT `.vscode/mcp.json`. Prior versions only wrote `.vscode/mcp.json` which Claude Code silently ignored. NEW POLICY: **SocratiCode MUST be wired at project-scope only — NEVER at user-scope.** Rationale: SocratiCode builds a local Qdrant semantic index over the entire codebase. For sensitive client projects (payroll, banking, government), indexing must be an explicit per-project decision visible in git history — not a machine-wide default. Project-scope contains blast radius if SocratiCode upgrades break, forces opt-in per repo, and aligns with the framework's locked-decision philosophy. Step 10 verification now includes `claude mcp get socraticode` returning "Scope: Project config (shared via .mcp.json)". Both `.mcp.json` and `.vscode/mcp.json` are committed (team gets the same MCP setup). No count changes — refines existing Step 10.
+
+### V31.4 (2026-05-26) — Dispatch Discipline Patch
+
+**Why:** Audit found Opus token usage was disproportionately high (24% monthly quota burned) while Sonnet usage was near-zero, despite the Architect-Execute Model being in place. Root causes: (1) Architect-Execute scope only mandated for Phases 4/7/8 — all other work defaulted to Opus executing inline; (2) Opus performed all discovery reads itself before dispatching; (3) Tier 1 "Proceed directly" was ambiguous — readable as "Opus executes inline."
+
+**Changes:**
+- `memory-governance.md §1`: Tier 1 Action now reads "Dispatch to single Sonnet subagent via Agent(model: "sonnet") per §4." Tier 2 Action now reads "Dispatch to Sonnet subagent(s) per §4" instead of "proceed as single session."
+- `memory-governance.md §4`: Added optional Sonnet Scout sub-step (step 1.5) for large discovery reads (>2 PRODUCT.md sections, >2 governance docs, or >5 source files). Saves ~40-60% of Opus discovery tokens on mature projects. Extended Architect-Execute scope from "Phase 4/7/8" to ALL phases and ALL ad-hoc edits.
+- `memory-governance.md §3`: Phase hook MODEL line rewritten in imperative form — "STOP before executing… all file writes MUST be dispatched via Agent(model: 'sonnet') per §4."
+- `memory-governance.md §5 Step 3`: "If Tier 3" replaced with "ALL tiers" — no tier is exempt from dispatch discipline.
+- `CLAUDE_v31_compact.md`: Architect-Execute scope updated from "Phase 4/7/8" to "ALL phase work and ad-hoc edits."
+- `phases.md`: All 5 phase pre-flight MODEL lines updated to imperative form matching the §3 hook rewrite.
+- `Framework_Feature_Index_v31.md`: V31.4 row added, footer bumped to V31.4.
+
+**Expected impact:** Token billing shifts ~45% of work from Opus to Sonnet. Opus baseline floor (planning, decomposition, post-Sonnet review, cross-module analysis, governance sync, Sonnet Scout dispatching) is ~55%.
+
+**Counts unchanged:** 30 Rules · 35 Scenarios · 19 Bootstrap Steps · 59 Prompts · 11 UI Rules · 17 deliverable files. This is a behavioral patch, not a structural one.
 
 **v21 → v22 upgrade notes — Docker image build pipeline + COMMANDS.md:**
 - docker-compose.app.yml (dev): now includes build: + image: keys — builds from source, tags locally for push

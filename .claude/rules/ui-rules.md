@@ -6,10 +6,11 @@
 
 ---
 
-## UI COMPONENT RULES — MANDATORY FOR ALL UI GENERATION (NEW V29)
+## UI COMPONENT RULES — MANDATORY FOR ALL UI GENERATION (NEW V29 — Rule 11 added V31.3)
 
 Every UI component, page, and layout MUST use the shadcn/ui ecosystem. No exceptions.
 shadcn/ui is MIT licensed, free, open source, and the framework's locked UI component library.
+Rule 11 (Loading States — dual-path) was added in V31.3 to eliminate hand-rolled skeleton twins for custom components.
 
 ```
 1. shadcn/ui is the ONLY component library. NEVER import MUI, Ant Design, Chakra UI,
@@ -74,6 +75,35 @@ shadcn/ui is MIT licensed, free, open source, and the framework's locked UI comp
     In the framework's monorepo: packages/ui/ contains shared shadcn/ui components.
     App-specific components live in apps/[app]/src/components/.
     Phase 4 Part 2 runs shadcn init on the packages/ui workspace.
+
+11. Loading states — DUAL-PATH (NEW V31.3). Every async/suspense boundary MUST use one of:
+
+    PATH A — shadcn primitives (Card, Table, Form, Dialog, Tabs, Sheet, Avatar, etc.):
+      → Compose shadcn <Skeleton> inline, one block per visible field.
+      → RSC-safe (pure CSS, no browser-only APIs). Default path.
+      → Install: npx shadcn@latest add skeleton  (added to Bootstrap Step 12 shadcn list)
+      → Pattern templates live in templates.md (Card / TableRow / Form Field).
+      → Skeleton docs: https://ui.shadcn.com/docs/components/skeleton
+
+    PATH B — bespoke / non-shadcn components (custom data viz, third-party widgets,
+    anything NOT composed from shadcn primitives):
+      → Wrap in <phantom-ui loading={isLoading} reveal={0.3}>...</phantom-ui>
+      → Structure-aware: measures real DOM at runtime, no skeleton twin to maintain.
+      → MUST live inside a "use client" boundary (browser DOM measurement required).
+      → Package: @aejkatappaja/phantom-ui (MIT, Lit-based Web Component, ~8KB gzip).
+      → Install: npm i @aejkatappaja/phantom-ui  (postinstall auto-wires ssr.css in layout)
+      → Initial install accepts ^0.10.1; pin to the exact resolved version in package.json
+        after install (lockfile equivalent — overrides caret until explicit upgrade).
+      → Per-element opt-outs available: data-shimmer-ignore, data-shimmer-no-children,
+        data-shimmer-width, data-shimmer-height, data-shimmer-text.
+      → Phantom UI docs: https://github.com/Aejkatappaja/phantom-ui
+
+    HARD CONSTRAINT: NEVER hand-roll a skeleton twin component for a custom component.
+    If you would otherwise build "MyChartSkeleton.tsx" as a second copy of "MyChart.tsx",
+    you MUST use phantom-ui instead.
+
+    CLASSIFICATION SOURCE: Phase 2.8 mockup tags each rendered component as `shadcn` or
+    `custom`. Phase 4 Part 2 picks the correct path automatically from those tags.
 ```
 
 **shadcn/ui MCP Server** — enables agents to search and install components via natural language.

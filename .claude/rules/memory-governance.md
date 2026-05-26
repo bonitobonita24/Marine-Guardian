@@ -23,14 +23,13 @@ Before reading any source files, answer these three questions:
 ```
 TIER 1 — LIGHTWEIGHT
   Condition: ≤4 files AND 1 module
-  Action:    Proceed directly. No split needed.
+  Action:    Dispatch to single Sonnet subagent via Agent(model: "sonnet") per §4. No decomposition split needed.
   Examples:  Fix a validation bug, add a field to one schema, update a single component.
 
 TIER 2 — MODERATE
   Condition: 5-12 files AND 2-3 modules
   Action:    Estimate tokens: files × 2.5K + loaded context.
-             If total < 80K → proceed as single session.
-             If total ≥ 80K → split into 2 sub-sessions by module boundary.
+             Dispatch to Sonnet subagent(s) per §4: single subagent if total < 80K, 2-3 subagents split by module boundary if total ≥ 80K.
   Examples:  New entity (schema + router + UI page), CRUD feature, new API endpoint with tests.
 
 TIER 3 — HEAVY
@@ -238,7 +237,7 @@ You do not need to read this section during execution — it documents where the
 ⚠ MEMORY GOVERNANCE (memory-governance.md):
   PRE:   Run Tiered Decomposition (§1) — classify scope before starting.
   POST:  Run Smart Checkpoint (§2) if any files were created or modified.
-  MODEL: Use Architect-Execute Model (§4) for Phase 4/7/8 work.
+  MODEL: STOP before executing. Opus's only allowed actions in this session are: read context, plan, decompose, review Sonnet output. All file writes (code, configs, governance docs, tests) MUST be dispatched via Agent(model: "sonnet") per §4. If you find yourself about to call Edit/Write, stop and dispatch instead.
 ```
 
 ### Injection Points
@@ -284,7 +283,13 @@ PHASE BOUNDARY REACHED
   ▼
 OPUS SESSION (Architect)
   1. Read STATE.md → orient to current phase position
-  2. Read relevant PRODUCT.md sections + governance docs
+  1.5. SONNET SCOUT (optional, recommended for large reads):
+       IF the task requires reading >2 PRODUCT.md sections, >2 governance docs, OR >5 source files for context:
+         Dispatch a Sonnet "scout" subagent: Agent(model: "sonnet") with a tight question
+         (e.g., "Summarize Module X in PRODUCT.md and list the schema entities it touches — under 300 words").
+         Opus receives the summary and plans from it instead of reading the files directly.
+       Saves ~40-60% of Opus discovery tokens on mature projects.
+  2. Read relevant PRODUCT.md sections + governance docs (or use Sonnet Scout summary from step 1.5)
   3. Run Tiered Decomposition (§1) → classify the work
   4. IF Tier 1: dispatch single Sonnet subagent directly
   5. IF Tier 2-3: write task scope(s), dispatch Sonnet subagent(s)
@@ -446,7 +451,7 @@ instead of re-reading 3+ governance docs (~5-10K tokens saved per session).
 
 Your next Phase 7 Feature Update or Phase 8 Batch:
 1. Run Tiered Decomposition (§1) at pre-flight
-2. If Tier 3: use Architect-Execute Model (§4) — Opus plans, Sonnet executes
+2. ALL tiers: use Architect-Execute Model (§4) — Opus plans and decomposes, Sonnet executes all file writes
 3. Run Smart Checkpoint (§2) on completion
 
 That's it. The governance layer is now active.
@@ -495,7 +500,7 @@ If you are experiencing thrashing RIGHT NOW in a Phase 7/8 project:
 BEFORE any task:
   1. Count files + modules + dependency depth
   2. Classify: Tier 1 (≤4/1) → proceed | Tier 2 (5-12/2-3) → estimate | Tier 3 (>12/4+) → score & split
-  3. If Phase 4/7/8 + Tier 2-3 → use Opus as Architect (§4)
+  3. ALL phases + ALL tiers → dispatch to Sonnet via §4. Opus only plans, reviews, and decomposes — never executes file writes.
 
 AFTER any task that modified files:
   1. Update STATE.md (enhanced fields)

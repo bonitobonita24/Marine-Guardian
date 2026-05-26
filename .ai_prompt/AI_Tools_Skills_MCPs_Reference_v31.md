@@ -355,7 +355,7 @@ Install:  Auto-installed by /scan-project on Spec-Driven projects
 **When it activates:**
 - Every phase pre-flight (Tiered Decomposition)
 - Every task completion that modified files (Smart Checkpoint)
-- Phase 4/7/8 work (Architect-Execute Model)
+- ALL phase work + ad-hoc edits (Architect-Execute Model)
 - Every subagent dispatch (30K Budget Gate check)
 
 **How it connects to PRODUCT.md:**

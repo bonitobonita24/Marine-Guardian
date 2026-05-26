@@ -102,6 +102,43 @@ REALISTIC DUMMY DATA RULES:
   - Dates spread 60% last 30 days / 30% last 90 days / 10% older
   - Status values: realistic mix (Active/Pending/Completed/Cancelled in sensible proportions)
   - Cross-reference consistency: same users/IDs across related tables
+
+LOADING PATH CLASSIFICATION (NEW V31.3 — supports ui-rules.md Rule 11):
+  Every rendered component in the mockup MUST be tagged with the loading path
+  the Spec-Driven framework will use in Phase 4 Part 2:
+
+    data-loading-path="shadcn"   — component is a shadcn primitive or composition
+                                   (Card, Table, Form, Dialog, Tabs, Sheet, Avatar,
+                                   Button, Input, Badge, Select, etc., or a layout
+                                   built entirely from those).
+                                   → Phase 4 Part 2 will use shadcn <Skeleton> inline.
+
+    data-loading-path="custom"   — component is bespoke / non-shadcn (custom data
+                                   viz, third-party widget, custom dashboard tile,
+                                   any layout NOT composable from shadcn primitives).
+                                   → Phase 4 Part 2 will wrap it in <phantom-ui>.
+
+  Apply the attribute on the OUTER wrapper of each distinct visual component.
+  Nested children inherit by default — only add the attribute again on a child
+  if its classification differs from its parent.
+
+  Example:
+    <div data-loading-path="shadcn" className="rounded-lg border bg-card ...">  {/* Card */}
+      <div className="p-6">
+        <h3 className="text-xl font-semibold">Revenue</h3>
+        <div data-loading-path="custom" className="h-64">                       {/* bespoke chart */}
+          <CustomRevenueChart data={...} />
+        </div>
+      </div>
+    </div>
+
+  DEFAULT WHEN AMBIGUOUS: pick "shadcn" if any shadcn primitive is present in
+  the composition; pick "custom" only when the component cannot be expressed
+  using shadcn primitives. When in doubt, prefer "shadcn".
+
+  Phase 4 Part 2 reads these tags from the saved mockup (Phase 2.8 Step 7a HTML
+  archive) and picks PATH A or PATH B per component automatically. Without these
+  tags, Phase 4 Part 2 must re-classify by hand — slower and more error-prone.
 ```
 
 This design capability is used ONLY in Phase 2.8. You do NOT do visual design during

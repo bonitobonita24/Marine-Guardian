@@ -1,4 +1,4 @@
-# Spec-Driven Platform V31 — Scenarios 1-35
+# Spec-Driven Platform V31 — Scenarios 1-34
 
 > Loaded contextually when user triggers a named scenario.
 > Read ONLY the scenario matching the user's request.
@@ -1782,7 +1782,7 @@ WHAT AGENTS DO NOT DO WITH docs/DESIGN.md:
      VoltAgent/awesome-design-md.
   ❌ NEVER reproduce the source website's layout pixel-for-pixel. This is
      inspiration, not replication.
-  ❌ NEVER override the 11 UI Component Rules (ui-rules.md) to match the source.
+  ❌ NEVER override the 10 UI Component Rules (ui-rules.md) to match the source.
      shadcn/ui wins on component behavior.
 
 CONFLICT RESOLUTION:
@@ -1877,77 +1877,6 @@ WHAT THIS IS NOT:
   - Not a bypass of the security rules — the rules are correct and stay enforced
   - Not a special permission for agents to read CREDENTIALS.md "just this once"
   - Not a workaround — it is the intended upgrade path for credential files
-```
-
----
-
-### SCENARIO 35 — Loading state for a custom (non-shadcn) component (NEW V31.3)
-```
-CONTEXT:
-  PRODUCT.md or a Phase 7 Feature Update introduces a component that is NOT built
-  from shadcn primitives — e.g. a custom data viz, a third-party widget, a bespoke
-  dashboard tile, or a non-standard layout. The async data behind it (tRPC,
-  react-query, Suspense) needs a loading placeholder.
-
-PROBLEM:
-  Hand-rolling a "<MyComponent>Skeleton.tsx" twin doubles the maintenance surface
-  and drifts out of sync whenever the real component changes. shadcn <Skeleton>
-  primitives don't match the bespoke layout pixel-for-pixel either.
-
-SOLUTION — Apply ui-rules.md Rule 11 PATH B:
-  Wrap the component in <phantom-ui> instead of building a skeleton twin.
-
-  1. Verify the component is genuinely custom (not assembled from Card/Table/Form
-     /Dialog/Tabs/Sheet/Avatar/etc.). If it IS a shadcn composition, use PATH A
-     (shadcn <Skeleton> inline) — do NOT use phantom-ui.
-  2. Confirm phantom-ui is installed (Bootstrap Step 12b — should already be present).
-     If missing: npm i @aejkatappaja/phantom-ui (pin exact version after install).
-  3. Add JSX intrinsic element declaration once per app (if not already present):
-        // src/types/phantom-ui.d.ts
-        import type { PhantomUiAttributes } from "@aejkatappaja/phantom-ui";
-        declare module "react/jsx-runtime" {
-          export namespace JSX {
-            interface IntrinsicElements {
-              "phantom-ui": PhantomUiAttributes;
-            }
-          }
-        }
-  4. Move the component into a "use client" boundary (phantom-ui measures real DOM).
-  5. Import the Web Component side-effect once at the top of the client file:
-        import "@aejkatappaja/phantom-ui";
-  6. Wrap with the appropriate attributes:
-        <phantom-ui loading={isPending} reveal={0.3}>
-          <MyCustomViz data={data} />
-        </phantom-ui>
-  7. For repeated rows (e.g. list of bespoke tiles), use `count` and `count-gap`:
-        <phantom-ui loading={isPending} count={6} count-gap={12}>
-          <MyTile {...firstTile} />
-        </phantom-ui>
-  8. For elements that should stay visible during loading (brand marks, logos,
-     live indicators), add data-shimmer-ignore on those children.
-
-AGENT BEHAVIOR:
-  IF user/PRODUCT.md asks for a loading state on a custom component:
-    → Classify the component (shadcn-composed vs custom).
-    → IF custom → apply PATH B (phantom-ui wrapper) above.
-    → IF shadcn-composed → apply PATH A (compose <Skeleton> inline).
-    → NEVER generate a "MyComponentSkeleton.tsx" twin file.
-  IF user explicitly asks for a hand-rolled skeleton twin:
-    → Push back once: explain Rule 11 PATH B and offer phantom-ui instead.
-    → If user insists, log the deviation in DECISIONS_LOG.md before proceeding.
-
-VERIFICATION:
-  - Loading state visually mirrors the real component's layout (no manual sizing).
-  - Real component renders cleanly when `loading` flips to false (no flicker).
-  - No `*Skeleton.tsx` twin file exists for the custom component.
-  - File contains "use client" directive at the top.
-  - SSR pre-hydration CSS is loaded (postinstall wires it into app/layout.tsx
-    automatically; verify the import line exists).
-
-WHAT THIS IS NOT:
-  - Not a replacement for shadcn <Skeleton> on shadcn-composed components.
-  - Not permission to use phantom-ui anywhere — only on bespoke custom components.
-  - Not an excuse to skip "use client" — phantom-ui requires browser DOM APIs.
 ```
 
 ---

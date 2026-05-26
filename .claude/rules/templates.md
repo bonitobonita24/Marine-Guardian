@@ -1342,3 +1342,180 @@ No separate installation needed per project. Zero API key required.
 
 ---
 
+## UI LOADING STATE TEMPLATES (NEW V31.3 — supports ui-rules.md Rule 11)
+
+Rule 11 mandates a dual-path loading-state policy. These are the canonical snippets
+agents use during Phase 4 Part 2 (UI scaffold), Phase 7 (Feature Update), and any
+async/suspense boundary.
+
+### PATH A — shadcn `<Skeleton>` (for shadcn-composed UI — DEFAULT)
+
+Install once per app (already covered by Bootstrap Step 19 + Phase 4 Part 2):
+```bash
+npx shadcn@latest add skeleton
+```
+
+Card skeleton:
+```tsx
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+
+export function CardLoading() {
+  return (
+    <Card>
+      <CardHeader className="space-y-2">
+        <Skeleton className="h-5 w-2/3" />
+        <Skeleton className="h-4 w-1/2" />
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-5/6" />
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+Table row skeleton (use inside `{Array.from({ length: pageSize }).map(...)}`):
+```tsx
+import { TableCell, TableRow } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
+
+export function TableRowLoading() {
+  return (
+    <TableRow>
+      <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+      <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+      <TableCell className="text-right"><Skeleton className="ml-auto h-8 w-8 rounded-full" /></TableCell>
+    </TableRow>
+  );
+}
+```
+
+Form field skeleton:
+```tsx
+import { Skeleton } from "@/components/ui/skeleton";
+
+export function FormFieldLoading() {
+  return (
+    <div className="space-y-2">
+      <Skeleton className="h-4 w-24" />        {/* label */}
+      <Skeleton className="h-10 w-full" />     {/* input */}
+      <Skeleton className="h-3 w-40" />        {/* helper text */}
+    </div>
+  );
+}
+```
+
+Conditional render pattern (tRPC + react-query):
+```tsx
+const { data, isPending } = trpc.users.list.useQuery();
+
+if (isPending) {
+  return (
+    <Card>
+      <CardLoading />
+    </Card>
+  );
+}
+return <UsersList data={data} />;
+```
+
+### PATH B — `<phantom-ui>` wrapper (for bespoke / non-shadcn UI)
+
+Install once per app (Phase 4 Part 2 — added after the shadcn add sequence):
+```bash
+npm i @aejkatappaja/phantom-ui
+# postinstall auto-detects Next.js and adds:
+#   import "@aejkatappaja/phantom-ui/ssr.css";
+# to app/layout.tsx (prevents pre-hydration content flash)
+```
+
+Pin policy (record in package.json after install):
+```jsonc
+// package.json — initial install
+"dependencies": {
+  "@aejkatappaja/phantom-ui": "^0.10.1"
+}
+// After install resolves the actual version, rewrite to the exact resolved value
+// (e.g. "0.10.1" without caret). Bump only via Phase 7 Feature Update with a
+// DECISIONS_LOG entry. Pre-1.0 packages may ship breaking changes per minor bump.
+```
+
+JSX intrinsic element declaration (one file per app — required for React + TS):
+```tsx
+// src/types/phantom-ui.d.ts
+import type { PhantomUiAttributes } from "@aejkatappaja/phantom-ui";
+
+declare module "react/jsx-runtime" {
+  export namespace JSX {
+    interface IntrinsicElements {
+      "phantom-ui": PhantomUiAttributes;
+    }
+  }
+}
+```
+
+Basic wrapper pattern:
+```tsx
+"use client";
+
+import "@aejkatappaja/phantom-ui";
+import { useQuery } from "@tanstack/react-query";
+import { MyCustomViz } from "@/components/custom/my-custom-viz";
+
+export function CustomVizPanel({ id }: { id: string }) {
+  const { data, isPending } = useQuery({
+    queryKey: ["viz", id],
+    queryFn: () => fetchVizData(id),
+  });
+
+  return (
+    <phantom-ui loading={isPending} reveal={0.3}>
+      <MyCustomViz data={data ?? PLACEHOLDER_VIZ_DATA} />
+    </phantom-ui>
+  );
+}
+```
+
+Repeated rows pattern (use `count` + `count-gap`):
+```tsx
+"use client";
+import "@aejkatappaja/phantom-ui";
+
+<phantom-ui loading={isPending} count={6} count-gap={12}>
+  <CustomTile {...firstTile} />
+</phantom-ui>
+```
+
+Per-element opt-outs (data attributes on children):
+```tsx
+"use client";
+import "@aejkatappaja/phantom-ui";
+
+<phantom-ui loading={isPending}>
+  <div className="dashboard">
+    <div className="logo" data-shimmer-ignore>ACME</div>
+    <div className="kpi-row" data-shimmer-no-children>
+      <span>{kpis?.revenue}</span>
+      <span>{kpis?.users}</span>
+      <span>{kpis?.latency}</span>
+    </div>
+    <img src={hero?.url} data-shimmer-width="600" data-shimmer-height="400" />
+  </div>
+</phantom-ui>
+```
+
+### HARD CONSTRAINTS (enforced by Rule 11)
+
+1. NEVER create a `*Skeleton.tsx` twin file for a custom component. Use phantom-ui.
+2. NEVER use phantom-ui to "improve" a shadcn-composed loading state. Use PATH A.
+3. ALWAYS classify the target component (shadcn vs custom) before picking the path.
+   Phase 2.8 mockup tags are the source of truth.
+4. ALWAYS keep phantom-ui usage inside a `"use client"` boundary.
+5. NEVER skip the JSX intrinsic element declaration — TypeScript will reject `<phantom-ui>`
+   without it.
+
+---
+
