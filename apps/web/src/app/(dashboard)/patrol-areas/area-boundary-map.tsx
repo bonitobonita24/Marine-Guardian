@@ -14,15 +14,11 @@ import "leaflet/dist/leaflet.css";
 
 import { useEffect, useMemo } from "react";
 import { MapContainer, Polygon, Polyline, TileLayer, useMap } from "react-leaflet";
+import { ESRI_ATTRIBUTION, ESRI_URL } from "./lib/esri-tile-config";
 import {
   geojsonToLeafletPositions,
   type LeafletPositions,
 } from "./lib/geojson-to-leaflet-positions";
-
-const ESRI_URL =
-  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
-const ESRI_ATTRIBUTION =
-  "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community";
 
 const STROKE = "#2563eb"; // blue-600
 const FILL = "#3b82f6";   // blue-500

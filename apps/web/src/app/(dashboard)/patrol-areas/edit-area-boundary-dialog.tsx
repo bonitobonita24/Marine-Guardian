@@ -14,7 +14,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { trpc } from "@/lib/trpc/client";
+import { AreaBoundaryEditor } from "./area-boundary-editor.dynamic";
 import type { AreaBoundaryRow } from "./area-boundary-table";
+
+type GeometryType = "Polygon" | "LineString";
 
 interface Props {
   boundary: AreaBoundaryRow;
@@ -42,6 +45,53 @@ function arraysEqual(a: string[], b: string[]): boolean {
   return true;
 }
 
+// Validate that a parsed object's `coordinates` field matches the expected
+// shape for the given geometryType. Polygon expects [[[lng,lat], ...], ...],
+// LineString expects [[lng,lat], ...]. Returns null on success, error string
+// on failure. Mirrors the Create dialog's defense-in-depth check.
+function validateGeoJsonShape(
+  geojson: unknown,
+  geometryType: GeometryType,
+): string | null {
+  if (geojson === null || typeof geojson !== "object" || Array.isArray(geojson)) {
+    return "GeoJSON must be an object.";
+  }
+  const obj = geojson as Record<string, unknown>;
+  const coords = obj.coordinates;
+  if (!Array.isArray(coords) || coords.length === 0) {
+    return "GeoJSON must have a non-empty `coordinates` array.";
+  }
+  if (geometryType === "Polygon") {
+    for (const ring of coords) {
+      if (!Array.isArray(ring) || ring.length === 0) {
+        return "Polygon `coordinates` must be an array of rings; each ring an array of [lng,lat] pairs.";
+      }
+      for (const point of ring) {
+        if (
+          !Array.isArray(point) ||
+          point.length < 2 ||
+          typeof point[0] !== "number" ||
+          typeof point[1] !== "number"
+        ) {
+          return "Polygon points must be [lng,lat] number pairs.";
+        }
+      }
+    }
+  } else {
+    for (const point of coords) {
+      if (
+        !Array.isArray(point) ||
+        point.length < 2 ||
+        typeof point[0] !== "number" ||
+        typeof point[1] !== "number"
+      ) {
+        return "LineString `coordinates` must be an array of [lng,lat] number pairs.";
+      }
+    }
+  }
+  return null;
+}
+
 export function EditAreaBoundaryDialog({
   boundary,
   open,
@@ -54,6 +104,21 @@ export function EditAreaBoundaryDialog({
   // we can compute the diff and submit only changed fields.
   const initial = boundary;
 
+  // Coerce initial.geometryGeojson (typed as `unknown` on AreaBoundaryRow)
+  // to a Record for stringify + state defaults. The DB shape is always an
+  // object — the `unknown` is a Prisma Json artifact.
+  const initialGeometryObject =
+    initial.geometryGeojson !== null &&
+    typeof initial.geometryGeojson === "object" &&
+    !Array.isArray(initial.geometryGeojson)
+      ? (initial.geometryGeojson as Record<string, unknown>)
+      : null;
+
+  const initialGeometryRaw =
+    initialGeometryObject !== null
+      ? JSON.stringify(initialGeometryObject)
+      : "";
+
   const [name, setName] = useState(initial.name);
   const [region, setRegion] = useState(initial.region);
   const [aliasesRaw, setAliasesRaw] = useState(aliasesToString(initial.aliases));
@@ -64,6 +129,14 @@ export function EditAreaBoundaryDialog({
   const [arcgisReferenceIdRaw, setArcgisReferenceIdRaw] = useState(
     initial.arcgisReferenceId ?? "",
   );
+  // Allow null mid-edit: the editor emits (null, null) when the admin
+  // removes the shape via the geoman toolbar. initial.geometryType
+  // itself is NOT NULL per the Prisma schema.
+  const [geometryType, setGeometryType] = useState<GeometryType | null>(
+    initial.geometryType,
+  );
+  const [geometryGeojsonRaw, setGeometryGeojsonRaw] =
+    useState(initialGeometryRaw);
 
   const [validationError, setValidationError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<
@@ -127,6 +200,7 @@ export function EditAreaBoundaryDialog({
       isEnabled?: boolean;
       overrideOfficial?: boolean;
       arcgisReferenceId?: string | null;
+      geometryGeojson?: Record<string, unknown>;
     } = {};
 
     if (trimmedName !== initial.name) patch.name = trimmedName;
@@ -140,6 +214,29 @@ export function EditAreaBoundaryDialog({
       patch.arcgisReferenceId = nextArcgis;
     }
 
+    // Geometry diff — only include geometryGeojson when the raw string
+    // differs from the initial serialized form. Validate before sending.
+    if (geometryGeojsonRaw !== initialGeometryRaw) {
+      if (geometryType === null) {
+        // Save button already gates on this — defense-in-depth.
+        setValidationError("Draw a boundary geometry before saving.");
+        return;
+      }
+      let parsedGeojson: unknown;
+      try {
+        parsedGeojson = JSON.parse(geometryGeojsonRaw);
+      } catch {
+        setValidationError("Geometry GeoJSON is not valid JSON.");
+        return;
+      }
+      const shapeError = validateGeoJsonShape(parsedGeojson, geometryType);
+      if (shapeError !== null) {
+        setValidationError(shapeError);
+        return;
+      }
+      patch.geometryGeojson = parsedGeojson as Record<string, unknown>;
+    }
+
     if (Object.keys(patch).length === 0) {
       setValidationError("No changes to save.");
       return;
@@ -147,14 +244,6 @@ export function EditAreaBoundaryDialog({
 
     update.mutate({ id: initial.id, ...patch });
   }
-
-  const lockedGeojsonDisplay = (() => {
-    try {
-      return JSON.stringify(initial.geometryGeojson, null, 2);
-    } catch {
-      return String(initial.geometryGeojson);
-    }
-  })();
 
   return (
     <Dialog
@@ -167,10 +256,10 @@ export function EditAreaBoundaryDialog({
         <DialogHeader>
           <DialogTitle>Edit area boundary</DialogTitle>
           <DialogDescription>
-            Source, geometry type, and geometry GeoJSON are locked after
-            create. To change geometry, delete this boundary and create a new
-            one. Saving fans out an area-rederive job for every Event, Patrol,
-            and FuelEntry in this tenant.
+            Source is locked after create. Geometry type cannot be changed —
+            delete and re-create to change type. Saving fans out an
+            area-rederive job for every Event, Patrol, and FuelEntry in this
+            tenant.
           </DialogDescription>
         </DialogHeader>
 
@@ -233,36 +322,33 @@ export function EditAreaBoundaryDialog({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label>Source (locked)</Label>
-                  <Input
-                    data-testid="edit-source-locked"
-                    value={initial.source}
-                    readOnly
-                    disabled
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Geometry type (locked)</Label>
-                  <Input
-                    data-testid="edit-geometry-type-locked"
-                    value={initial.geometryType}
-                    readOnly
-                    disabled
-                  />
-                </div>
+              <div className="space-y-1.5">
+                <Label>Source (locked)</Label>
+                <Input
+                  data-testid="edit-source-locked"
+                  value={initial.source}
+                  readOnly
+                  disabled
+                />
               </div>
 
-              <div className="space-y-1.5">
-                <Label>Geometry GeoJSON (locked)</Label>
-                <textarea
-                  data-testid="edit-geojson-locked"
-                  value={lockedGeojsonDisplay}
-                  readOnly
-                  rows={4}
-                  className="flex w-full rounded-md border border-input bg-muted px-3 py-2 font-mono text-xs"
+              <div className="space-y-1">
+                <Label>Boundary Geometry</Label>
+                <AreaBoundaryEditor
+                  mode="edit"
+                  initialGeometry={initialGeometryObject}
+                  initialType={initial.geometryType}
+                  onGeometryChange={(g, t) => {
+                    setGeometryGeojsonRaw(g === null ? "" : JSON.stringify(g));
+                    setGeometryType(t);
+                  }}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Drag vertices to refine, drag the whole shape to reposition,
+                  or use the toolbar (top-left) to remove and redraw. Geometry
+                  type cannot be changed on edit — delete and re-create to
+                  change type.
+                </p>
               </div>
 
               <div className="space-y-1.5">
@@ -329,7 +415,14 @@ export function EditAreaBoundaryDialog({
               >
                 Cancel
               </Button>
-              <Button onClick={handleSubmit} disabled={update.isPending}>
+              <Button
+                onClick={handleSubmit}
+                disabled={
+                  update.isPending ||
+                  geometryGeojsonRaw === "" ||
+                  geometryType === null
+                }
+              >
                 {update.isPending ? "Saving…" : "Save"}
               </Button>
             </DialogFooter>

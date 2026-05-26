@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { trpc } from "@/lib/trpc/client";
+import { AreaBoundaryEditor } from "./area-boundary-editor.dynamic";
 
 type GeometryType = "Polygon" | "LineString";
 type Source = "official" | "custom";
@@ -90,7 +91,7 @@ export function CreateAreaBoundaryDialog({
   const [region, setRegion] = useState("");
   const [aliasesRaw, setAliasesRaw] = useState("");
   const [source, setSource] = useState<Source>("custom");
-  const [geometryType, setGeometryType] = useState<GeometryType>("Polygon");
+  const [geometryType, setGeometryType] = useState<GeometryType | null>(null);
   const [geometryGeojsonRaw, setGeometryGeojsonRaw] = useState("");
   const [isEnabled, setIsEnabled] = useState(true);
   const [overrideOfficial, setOverrideOfficial] = useState(false);
@@ -118,7 +119,7 @@ export function CreateAreaBoundaryDialog({
     setRegion("");
     setAliasesRaw("");
     setSource("custom");
-    setGeometryType("Polygon");
+    setGeometryType(null);
     setGeometryGeojsonRaw("");
     setIsEnabled(true);
     setOverrideOfficial(false);
@@ -148,6 +149,10 @@ export function CreateAreaBoundaryDialog({
     }
     if (region.trim() === "") {
       setValidationError("Region is required.");
+      return;
+    }
+    if (geometryType === null) {
+      setValidationError("Draw a boundary geometry before saving.");
       return;
     }
 
@@ -254,55 +259,36 @@ export function CreateAreaBoundaryDialog({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="ab-create-source">Source</Label>
-                  <select
-                    id="ab-create-source"
-                    data-testid="create-source-select"
-                    value={source}
-                    onChange={(e) => {
-                      setSource(e.target.value as Source);
-                    }}
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  >
-                    <option value="custom">Custom</option>
-                    <option value="official">Official</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="ab-create-geometry-type">Geometry type</Label>
-                  <select
-                    id="ab-create-geometry-type"
-                    data-testid="create-geometry-type-select"
-                    value={geometryType}
-                    onChange={(e) => {
-                      setGeometryType(e.target.value as GeometryType);
-                    }}
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  >
-                    <option value="Polygon">Polygon</option>
-                    <option value="LineString">LineString</option>
-                  </select>
-                </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="ab-create-source">Source</Label>
+                <select
+                  id="ab-create-source"
+                  data-testid="create-source-select"
+                  value={source}
+                  onChange={(e) => {
+                    setSource(e.target.value as Source);
+                  }}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="custom">Custom</option>
+                  <option value="official">Official</option>
+                </select>
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="ab-create-geojson">
-                  Geometry GeoJSON (paste raw geometry with `coordinates`)
-                </Label>
-                <textarea
-                  id="ab-create-geojson"
-                  data-testid="create-geojson-textarea"
-                  value={geometryGeojsonRaw}
-                  onChange={(e) => {
-                    setGeometryGeojsonRaw(e.target.value);
+              <div className="space-y-1">
+                <Label>Boundary Geometry</Label>
+                <AreaBoundaryEditor
+                  mode="create"
+                  onGeometryChange={(g, t) => {
+                    setGeometryGeojsonRaw(g === null ? "" : JSON.stringify(g));
+                    setGeometryType(t);
                   }}
-                  rows={6}
-                  className="flex w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-xs"
-                  placeholder={'{"type":"Polygon","coordinates":[[[120.0,14.0],[120.1,14.0],[120.1,14.1],[120.0,14.0]]]}'}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Draw a Polygon or Line on the map. Use the toolbar (top-left)
+                  to start drawing, drag vertices to refine, or remove and
+                  redraw.
+                </p>
               </div>
 
               <div className="space-y-1.5">
@@ -369,7 +355,14 @@ export function CreateAreaBoundaryDialog({
               >
                 Cancel
               </Button>
-              <Button onClick={handleSubmit} disabled={create.isPending}>
+              <Button
+                onClick={handleSubmit}
+                disabled={
+                  create.isPending ||
+                  geometryGeojsonRaw === "" ||
+                  geometryType === null
+                }
+              >
                 {create.isPending ? "Creating…" : "Create"}
               </Button>
             </DialogFooter>

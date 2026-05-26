@@ -4,6 +4,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup, fireEvent } from "@testing-library/react";
 import type { AreaBoundaryRow } from "../area-boundary-table";
 
+// Stub out the editor island so vitest jsdom doesn't try to render Leaflet.
+// The shared stub (see __tests__/_helpers/area-boundary-editor-stub.tsx)
+// exposes 5 buttons that simulate the onGeometryChange callbacks the real
+// editor would emit. `vi.mock` is hoisted above imports, so the factory
+// loads the stub module via `await import(...)` inside the factory.
+vi.mock("../area-boundary-editor", async () => {
+  const mod = await import("./_helpers/area-boundary-editor-stub");
+  return { AreaBoundaryEditor: mod.AreaBoundaryEditorStub };
+});
+
 interface UpdateInput {
   id: string;
   name?: string;
@@ -12,6 +22,7 @@ interface UpdateInput {
   isEnabled?: boolean;
   overrideOfficial?: boolean;
   arcgisReferenceId?: string | null;
+  geometryGeojson?: Record<string, unknown>;
 }
 
 interface MutationOpts {
@@ -92,6 +103,7 @@ const baseBoundary: AreaBoundaryRow = {
         [120.0, 14.0],
         [120.1, 14.0],
         [120.1, 14.1],
+        [120.0, 14.1],
         [120.0, 14.0],
       ],
     ],
@@ -147,21 +159,18 @@ describe("EditAreaBoundaryDialog", () => {
     ).toBe("arc-123");
   });
 
-  it("displays locked source, geometryType, and geometryGeojson as read-only", () => {
+  it("displays locked source as read-only", () => {
     const c = renderOpen();
     const source = c.getByTestId("edit-source-locked") as HTMLInputElement;
-    const geomType = c.getByTestId(
-      "edit-geometry-type-locked",
-    ) as HTMLInputElement;
-    const geojson = c.getByTestId(
-      "edit-geojson-locked",
-    ) as HTMLTextAreaElement;
     expect(source.value).toBe("official");
-    expect(geomType.value).toBe("Polygon");
-    expect(geojson.readOnly).toBe(true);
-    expect(geojson.value).toContain("Polygon");
     expect(source.disabled).toBe(true);
-    expect(geomType.disabled).toBe(true);
+  });
+
+  it("mounts the editor with initialGeometry and initialType matching the boundary", async () => {
+    const c = renderOpen();
+    // editor-stub mounts via next/dynamic — first paint is the loading
+    // skeleton, so resolve the dynamic import before asserting.
+    expect(await c.findByTestId("editor-stub")).toBeTruthy();
   });
 
   it("blocks submit when nothing changed", () => {
@@ -199,6 +208,7 @@ describe("EditAreaBoundaryDialog", () => {
     expect(payload?.overrideOfficial).toBe(true);
     expect(payload?.name).toBeUndefined();
     expect(payload?.aliases).toBeUndefined();
+    expect(payload?.geometryGeojson).toBeUndefined();
   });
 
   it("submits aliases as parsed array when aliases input changes", () => {
@@ -231,6 +241,65 @@ describe("EditAreaBoundaryDialog", () => {
     expect(
       c.getByTestId("edit-validation-error").textContent,
     ).toMatch(/Name is required/i);
+  });
+
+  it("submits geometryGeojson when editor emits a new polygon", async () => {
+    stubs.nextOutcome = { kind: "success", enqueued: 3, count: 1 };
+    const c = renderOpen();
+    fireEvent.click(await c.findByTestId("editor-stub-emit-polygon"));
+    fireEvent.click(c.getByText("Save"));
+    expect(stubs.updateMutate).toHaveBeenCalledTimes(1);
+    const payload = stubs.updateMutate.mock.calls[0]?.[0];
+    expect(payload?.id).toBe("b-1");
+    expect(payload?.geometryGeojson).toEqual({
+      type: "Polygon",
+      coordinates: [
+        [
+          [121.0, 13.0],
+          [121.5, 13.0],
+          [121.5, 13.5],
+          [121.0, 13.5],
+          [121.0, 13.0],
+        ],
+      ],
+    });
+  });
+
+  it("blocks submit when editor clears the geometry", async () => {
+    const c = renderOpen();
+    fireEvent.click(await c.findByTestId("editor-stub-clear"));
+    fireEvent.change(c.getByLabelText("Name"), {
+      target: { value: "MPA North Renamed" },
+    });
+    // Save button should be disabled because geometryType is null
+    const save = c.getByText("Save") as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+    fireEvent.click(save);
+    expect(stubs.updateMutate).not.toHaveBeenCalled();
+  });
+
+  it("rejects mismatched polygon geometry on submit (defense-in-depth)", async () => {
+    const c = renderOpen();
+    fireEvent.click(
+      await c.findByTestId("editor-stub-emit-mismatched-polygon"),
+    );
+    fireEvent.click(c.getByText("Save"));
+    expect(stubs.updateMutate).not.toHaveBeenCalled();
+    expect(
+      c.getByTestId("edit-validation-error").textContent,
+    ).toMatch(/Polygon/i);
+  });
+
+  it("rejects mismatched linestring geometry on submit (defense-in-depth)", async () => {
+    const c = renderOpen();
+    fireEvent.click(
+      await c.findByTestId("editor-stub-emit-mismatched-linestring"),
+    );
+    fireEvent.click(c.getByText("Save"));
+    expect(stubs.updateMutate).not.toHaveBeenCalled();
+    expect(
+      c.getByTestId("edit-validation-error").textContent,
+    ).toMatch(/LineString/i);
   });
 
   it("shows success + invalidates list + calls onSuccess on Close", () => {

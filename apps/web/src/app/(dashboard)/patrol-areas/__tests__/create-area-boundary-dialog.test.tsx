@@ -3,6 +3,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup, fireEvent } from "@testing-library/react";
 
+// Stub out the editor island so vitest jsdom doesn't try to render Leaflet.
+// The shared stub (see __tests__/_helpers/area-boundary-editor-stub.tsx)
+// exposes 5 buttons that simulate the onGeometryChange callbacks the real
+// editor would emit. `vi.mock` is hoisted above imports, so the factory
+// loads the stub module via `await import(...)` inside the factory.
+vi.mock("../area-boundary-editor", async () => {
+  const mod = await import("./_helpers/area-boundary-editor-stub");
+  return { AreaBoundaryEditor: mod.AreaBoundaryEditorStub };
+});
+
 interface CreateInput {
   name: string;
   region: string;
@@ -76,26 +86,6 @@ vi.mock("@/lib/trpc/client", () => ({
 
 import { CreateAreaBoundaryDialog } from "../create-area-boundary-dialog";
 
-const validPolygonGeojson = JSON.stringify({
-  type: "Polygon",
-  coordinates: [
-    [
-      [120.0, 14.0],
-      [120.1, 14.0],
-      [120.1, 14.1],
-      [120.0, 14.0],
-    ],
-  ],
-});
-
-const validLineStringGeojson = JSON.stringify({
-  type: "LineString",
-  coordinates: [
-    [120.0, 14.0],
-    [120.1, 14.1],
-  ],
-});
-
 describe("CreateAreaBoundaryDialog", () => {
   const onOpenChange = vi.fn();
   const onSuccess = vi.fn();
@@ -126,30 +116,36 @@ describe("CreateAreaBoundaryDialog", () => {
 
   function fillRequired(
     container: ReturnType<typeof renderOpen>,
-    overrides?: { name?: string; region?: string; geojson?: string },
+    overrides?: {
+      name?: string;
+      region?: string;
+      emit?: "polygon" | "linestring" | "none";
+    },
   ) {
     const name = container.getByLabelText("Name") as HTMLInputElement;
     const region = container.getByLabelText("Region") as HTMLInputElement;
-    const geojson = container.getByTestId(
-      "create-geojson-textarea",
-    ) as HTMLTextAreaElement;
     fireEvent.change(name, { target: { value: overrides?.name ?? "MPA East" } });
     fireEvent.change(region, {
       target: { value: overrides?.region ?? "Region IV-A" },
     });
-    fireEvent.change(geojson, {
-      target: { value: overrides?.geojson ?? validPolygonGeojson },
-    });
+    const emit = overrides?.emit ?? "polygon";
+    if (emit === "polygon") {
+      fireEvent.click(container.getByTestId("editor-stub-emit-polygon"));
+    } else if (emit === "linestring") {
+      fireEvent.click(container.getByTestId("editor-stub-emit-linestring"));
+    }
+    // emit === "none" → leave geometry empty for negative-path tests
   }
 
-  it("renders all form fields", () => {
+  it("renders all form fields", async () => {
     const c = renderOpen();
     expect(c.getByLabelText("Name")).toBeTruthy();
     expect(c.getByLabelText("Region")).toBeTruthy();
     expect(c.getByLabelText(/Aliases/i)).toBeTruthy();
     expect(c.getByTestId("create-source-select")).toBeTruthy();
-    expect(c.getByTestId("create-geometry-type-select")).toBeTruthy();
-    expect(c.getByTestId("create-geojson-textarea")).toBeTruthy();
+    // editor-stub mounts via next/dynamic — first paint is the loading
+    // skeleton, so resolve the dynamic import before asserting.
+    expect(await c.findByTestId("editor-stub")).toBeTruthy();
     expect(c.getByLabelText(/ArcGIS reference ID/i)).toBeTruthy();
     expect(c.getByTestId("create-enabled-switch")).toBeTruthy();
     expect(c.getByTestId("create-override-switch")).toBeTruthy();
@@ -167,7 +163,7 @@ describe("CreateAreaBoundaryDialog", () => {
     expect(payload?.overrideOfficial).toBe(false);
   });
 
-  it("submits with parsed GeoJSON, trimmed name + region, and null ArcGIS when empty", () => {
+  it("submits with geometry from editor stub, trimmed name + region, and null ArcGIS when empty", () => {
     stubs.nextOutcome = { kind: "success", enqueued: 3 };
     const c = renderOpen();
     fillRequired(c, { name: "  MPA East  ", region: "  Region IV-A  " });
@@ -176,7 +172,19 @@ describe("CreateAreaBoundaryDialog", () => {
     expect(payload?.name).toBe("MPA East");
     expect(payload?.region).toBe("Region IV-A");
     expect(payload?.arcgisReferenceId).toBeNull();
-    expect(payload?.geometryGeojson).toEqual(JSON.parse(validPolygonGeojson));
+    expect(payload?.geometryGeojson).toEqual({
+      type: "Polygon",
+      coordinates: [
+        [
+          [121.0, 13.0],
+          [121.5, 13.0],
+          [121.5, 13.5],
+          [121.0, 13.5],
+          [121.0, 13.0],
+        ],
+      ],
+    });
+    expect(payload?.geometryType).toBe("Polygon");
   });
 
   it("parses comma-separated aliases into array", () => {
@@ -191,52 +199,38 @@ describe("CreateAreaBoundaryDialog", () => {
     expect(payload?.aliases).toEqual(["MPA-North", "Northern MPA"]);
   });
 
-  it("rejects invalid JSON in the GeoJSON textarea (validation error, no mutate)", () => {
+  it("Save is disabled until editor emits a non-null geometry", () => {
     const c = renderOpen();
-    fillRequired(c, { geojson: "not json {{" });
-    fireEvent.click(c.getByText("Create"));
-    expect(stubs.createMutate).not.toHaveBeenCalled();
-    expect(
-      c.getByTestId("create-validation-error").textContent,
-    ).toMatch(/valid JSON/i);
+    // Name + Region filled, but no emit yet.
+    const name = c.getByLabelText("Name") as HTMLInputElement;
+    const region = c.getByLabelText("Region") as HTMLInputElement;
+    fireEvent.change(name, { target: { value: "MPA East" } });
+    fireEvent.change(region, { target: { value: "Region IV-A" } });
+    const create = c.getByText("Create") as HTMLButtonElement;
+    expect(create.disabled).toBe(true);
+    // Emit a polygon → Save enables.
+    fireEvent.click(c.getByTestId("editor-stub-emit-polygon"));
+    expect(create.disabled).toBe(false);
+    // Clear geometry → Save disables again.
+    fireEvent.click(c.getByTestId("editor-stub-clear"));
+    expect(create.disabled).toBe(true);
   });
 
-  it("rejects Polygon geometry whose coordinates is flat (LineString shape)", () => {
-    const c = renderOpen();
-    fillRequired(c, { geojson: validLineStringGeojson });
-    // Default geometryType is Polygon — flat coords should fail shape check.
-    fireEvent.click(c.getByText("Create"));
-    expect(stubs.createMutate).not.toHaveBeenCalled();
-    expect(
-      c.getByTestId("create-validation-error").textContent,
-    ).toMatch(/Polygon/i);
-  });
-
-  it("rejects LineString geometry whose coordinates is nested (Polygon shape)", () => {
-    const c = renderOpen();
-    fillRequired(c, { geojson: validPolygonGeojson });
-    // Switch to LineString — nested coords should now fail shape check.
-    fireEvent.change(c.getByTestId("create-geometry-type-select"), {
-      target: { value: "LineString" },
-    });
-    fireEvent.click(c.getByText("Create"));
-    expect(stubs.createMutate).not.toHaveBeenCalled();
-    expect(
-      c.getByTestId("create-validation-error").textContent,
-    ).toMatch(/LineString/i);
-  });
-
-  it("accepts a valid LineString geometry when geometryType is LineString", () => {
+  it("submits a LineString geometry when editor emits LineString", () => {
     stubs.nextOutcome = { kind: "success", enqueued: 1 };
     const c = renderOpen();
-    fillRequired(c, { geojson: validLineStringGeojson });
-    fireEvent.change(c.getByTestId("create-geometry-type-select"), {
-      target: { value: "LineString" },
-    });
+    fillRequired(c, { emit: "linestring" });
     fireEvent.click(c.getByText("Create"));
     expect(stubs.createMutate).toHaveBeenCalledTimes(1);
     const payload = stubs.createMutate.mock.calls[0]?.[0];
     expect(payload?.geometryType).toBe("LineString");
+    expect(payload?.geometryGeojson).toEqual({
+      type: "LineString",
+      coordinates: [
+        [121.0, 13.0],
+        [121.5, 13.5],
+      ],
+    });
   });
 
   it("rejects when name is blank", () => {
@@ -257,6 +251,40 @@ describe("CreateAreaBoundaryDialog", () => {
     expect(
       c.getByTestId("create-validation-error").textContent,
     ).toMatch(/Region is required/i);
+  });
+
+  it("rejects Polygon geometry whose coordinates is flat (LineString shape)", () => {
+    const c = renderOpen();
+    // Fill required fields so the validation reaches the shape check.
+    fireEvent.change(c.getByLabelText("Name"), {
+      target: { value: "Test Area" },
+    });
+    fireEvent.change(c.getByLabelText("Region"), {
+      target: { value: "Test Region" },
+    });
+    // Emit a Polygon with flat (LineString-shaped) coordinates via the stub.
+    fireEvent.click(c.getByTestId("editor-stub-emit-mismatched-polygon"));
+    // Submit — the disabled gate is now lifted because geometry is non-null;
+    // the validateGeoJsonShape defense catches it.
+    fireEvent.click(c.getByText("Create"));
+    expect(stubs.createMutate).not.toHaveBeenCalled();
+    const err = c.getByTestId("create-validation-error");
+    expect(err.textContent).toMatch(/Polygon/i);
+  });
+
+  it("rejects LineString geometry whose coordinates is nested (Polygon shape)", () => {
+    const c = renderOpen();
+    fireEvent.change(c.getByLabelText("Name"), {
+      target: { value: "Test Area" },
+    });
+    fireEvent.change(c.getByLabelText("Region"), {
+      target: { value: "Test Region" },
+    });
+    fireEvent.click(c.getByTestId("editor-stub-emit-mismatched-linestring"));
+    fireEvent.click(c.getByText("Create"));
+    expect(stubs.createMutate).not.toHaveBeenCalled();
+    const err = c.getByTestId("create-validation-error");
+    expect(err.textContent).toMatch(/LineString/i);
   });
 
   it("shows success feedback + invalidates list + calls onSuccess on Close", () => {
