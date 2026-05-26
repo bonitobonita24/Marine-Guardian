@@ -9,6 +9,7 @@
 // events and convert results back to GeoJSON for the parent form.
 
 import "leaflet/dist/leaflet.css";
+import "./lib/leaflet-globals";
 import "@geoman-io/leaflet-geoman-free";
 import "@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css";
 

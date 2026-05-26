@@ -34,6 +34,11 @@ vi.mock("react-leaflet", () => ({
 // Geoman registers globally on L; mock it as a no-op import.
 vi.mock("@geoman-io/leaflet-geoman-free", () => ({}));
 
+// The leaflet-globals side-effect module assigns window.L = leaflet so geoman
+// can register. Stubbing it here keeps the editor's seed effect short-circuited
+// (window.L stays undefined) — tests cover wiring, not Leaflet draw behavior.
+vi.mock("../lib/leaflet-globals", () => ({}));
+
 // CSS import is a no-op under vitest.
 vi.mock("@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css", () => ({}));
 vi.mock("leaflet/dist/leaflet.css", () => ({}));
