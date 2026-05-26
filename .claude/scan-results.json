@@ -1,7 +1,7 @@
 {
-  "scannedAt": "2026-05-22",
-  "previousScan": "2026-05-17",
-  "rescanReason": "Re-scan during Phase 8 Batch 6 Item 2 Sub-batch 6.2c queue (Per Area Report Page 3 / Fuel Consumption). CLEAN — no install actions required. 20 project skills + 4 plugins (superpowers, context-mode, claude-mem, code-review-graph) + 3 MCPs (socraticode, context7, shadcn) + Memory Governance rules file all confirmed in place. 0 conflicts, 0 stale folders, 0 pending installs. Project progressed from Phase 8 Batch 2 SSE-2 (last scan) → Batch 6 Item 2 Sub-batch 6.2b-ii heatmap UI shipped → 6.2c queued. No new dependencies in package.json since 2026-05-17 — heatmap work used existing Leaflet + heatmap-sample library per locked Heatmap Renderer Choice decision. Stack unchanged: Next.js 15 + tRPC v11 + Prisma 6 + shadcn/ui + Recharts + vitest + ioredis/BullMQ + next-intl. No library suggestions (LIBRARIES-INDEX signals unmet — no langchain, no local RAG candidates).",
+  "scannedAt": "2026-05-26T15:59+08:00",
+  "previousScan": "2026-05-26 (same-day rescan)",
+  "rescanReason": "Same-day re-scan after Area Boundary Map Drawing Editor commits landed (cd91b42, ea4088f, f70d13e). Confirmed Part A foundation still optimal, Part B empty, Part C nil. User approved scheduling andrej-karpathy-skills install (marketplace already cached). Action recorded: install command to be executed by user via Claude Code CLI slash command; karpathy moved from pendingPluginInstalls to installedPlugins (verifiedVia: pending next-session namespace check). context-mode v1.0.111 → v1.0.151 upgrade still available (deferred; /ctx-upgrade when convenient).",
   "techStack": [
     "TypeScript strict",
     "Next.js 15",
@@ -59,7 +59,19 @@
     { "name": "superpowers", "installedAt": "2026-05-09", "reason": "Slot 1 — bundle of TDD + systematic-debugging + root-cause-tracing + brainstorming + git-worktrees + finishing-branch + parallel-agents + code-review + defense-in-depth. Verified active via superpowers:* namespace." },
     { "name": "context-mode", "verifiedAt": "2026-05-17", "verifiedVia": "context-mode:* skill namespace + mcp__plugin_context-mode_context-mode__* MCP tools active in session", "reason": "98% token reduction on tool outputs. Was listed as pending in prior scans; 2026-05-17 re-scan confirmed it is in fact active. Marketplace registration may have been removed (re-install via /plugin marketplace add mksglu/context-mode would re-register marketplace if needed)." },
     { "name": "claude-mem", "verifiedAt": "2026-05-17", "verifiedVia": "claude-mem:* skill namespace (mem-search, do, pathfinder, knowledge-agent, learn-codebase, timeline-report, etc.) + mcp__plugin_claude-mem_mcp-search__* MCP tools active in session", "reason": "Cross-session compressed memory. Was listed as pending in prior scans; 2026-05-17 re-scan confirmed it is in fact active. Marketplace registration appears to have been removed (re-running /plugin install claude-mem@claude-mem returned 'Marketplace not found' — but the plugin tools work)." },
-    { "name": "code-review-graph", "verifiedAt": "2026-05-17", "verifiedVia": "28 mcp__code-review-graph__* MCP tools active in session (build_or_update_graph_tool, get_impact_radius_tool, get_review_context_tool, semantic_search_nodes_tool, etc.) + .code-review-graph/ directory present at project root", "reason": "Slot 2 — SQLite knowledge graph for blast-radius analysis. Was listed as pending in prior scans; 2026-05-17 re-scan confirmed it is in fact active as MCP server. Run 'code-review-graph build' in WSL2 terminal if graph is stale." }
+    { "name": "code-review-graph", "verifiedAt": "2026-05-17", "verifiedVia": "28 mcp__code-review-graph__* MCP tools active in session (build_or_update_graph_tool, get_impact_radius_tool, get_review_context_tool, semantic_search_nodes_tool, etc.) + .code-review-graph/ directory present at project root", "reason": "Slot 2 — SQLite knowledge graph for blast-radius analysis. Was listed as pending in prior scans; 2026-05-17 re-scan confirmed it is in fact active as MCP server. Run 'code-review-graph build' in WSL2 terminal if graph is stale." },
+    {
+      "name": "andrej-karpathy-skills",
+      "skillInside": "karpathy-guidelines",
+      "installScheduledAt": "2026-05-26T15:59+08:00",
+      "installCommand": "/plugin install andrej-karpathy-skills@karpathy-skills",
+      "ifMarketplaceMissing": "/plugin marketplace add forrestchang/andrej-karpathy-skills && /plugin install andrej-karpathy-skills@karpathy-skills",
+      "marketplaceCached": "~/.claude/plugins/marketplaces/karpathy-skills (verified present 2026-05-26)",
+      "githubRepo": "forrestchang/andrej-karpathy-skills",
+      "verifiedAt": "2026-05-26",
+      "verifiedVia": "User confirmed /plugin install completed 2026-05-26 4:26pm GMT+8. Marketplace cache verified present at ~/.claude/plugins/marketplaces/karpathy-skills. Skill namespace karpathy-guidelines:* will activate on next Claude Code session restart (skills load at session start, not mid-session).",
+      "reason": "Universal behavioral advisory — 4 Karpathy-derived principles (Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution). 2.3KB CLAUDE.md merge. No mutex with superpowers/spartan-ai-toolkit/claude-mem. User approved + executed install 2026-05-26 via /scan-project workflow."
+    }
   ],
   "pendingPluginInstalls": [],
   "skipped": [
