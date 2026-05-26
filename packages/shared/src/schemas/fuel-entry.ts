@@ -74,3 +74,23 @@ export const updateFuelEntryInputSchema = z.object({
 export const deleteFuelEntryInputSchema = z.object({
   id: z.string(),
 });
+
+export const fuelPeriodGrainSchema = z.enum([
+  "day",
+  "week",
+  "month",
+  "quarter",
+  "year",
+]);
+export type FuelPeriodGrain = z.infer<typeof fuelPeriodGrainSchema>;
+
+/**
+ * Input for the cross-area /fuel analytics page. areaBoundaryIds undefined or
+ * empty → no filter (all tenant areas). dateTo is exclusive.
+ */
+export const fuelConsumptionAnalyticsInputSchema = z.object({
+  areaBoundaryIds: z.array(z.string().cuid()).optional(),
+  dateFrom: z.coerce.date(),
+  dateTo: z.coerce.date(),
+  periodGrain: fuelPeriodGrainSchema,
+});

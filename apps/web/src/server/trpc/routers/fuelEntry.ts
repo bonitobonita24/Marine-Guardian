@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import {
   createFuelEntryInputSchema,
   deleteFuelEntryInputSchema,
+  fuelConsumptionAnalyticsInputSchema,
   getFuelEntryByIdInputSchema,
   listFuelEntriesInputSchema,
   updateFuelEntryInputSchema,
@@ -14,6 +15,7 @@ import {
   operatorProcedure,
 } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
+import { getFuelConsumption } from "../../fuel-analytics/get-fuel-consumption";
 
 /**
  * FuelEntry router — full CRUD lifecycle per v2 PRODUCT.md §167-196, §492-493.
@@ -166,6 +168,39 @@ export const fuelEntryRouter = router({
     .mutation(async ({ ctx, input }) => {
       return prisma.fuelEntry.deleteMany({
         where: { id: input.id, tenantId: ctx.tenantId },
+      });
+    }),
+
+  /**
+   * consumptionAnalytics — cross-area aggregation for the /fuel page.
+   *
+   * Wraps the fuel-analytics module. Resolves the tenant's currency +
+   * timezone once per call so the aggregation surfaces the right
+   * defaults even when the entries list is empty (e.g. empty state UI).
+   */
+  consumptionAnalytics: tenantProcedure
+    .input(fuelConsumptionAnalyticsInputSchema)
+    .query(async ({ ctx, input }) => {
+      const tenant = await prisma.tenant.findFirst({
+        where: { id: ctx.tenantId },
+        select: { currency: true, timezone: true },
+      });
+      if (!tenant) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Tenant not found.",
+        });
+      }
+      return getFuelConsumption({
+        tenantId: ctx.tenantId,
+        ...(input.areaBoundaryIds !== undefined
+          ? { areaBoundaryIds: input.areaBoundaryIds }
+          : {}),
+        dateFrom: input.dateFrom,
+        dateTo: input.dateTo,
+        periodGrain: input.periodGrain,
+        timezone: tenant.timezone,
+        defaultCurrency: tenant.currency,
       });
     }),
 });

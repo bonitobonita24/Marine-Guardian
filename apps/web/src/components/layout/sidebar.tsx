@@ -18,6 +18,7 @@ import {
   UserCog,
   Settings,
   LogOut,
+  Fuel,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
@@ -32,6 +33,7 @@ const navItems = [
   { href: "/patrols", icon: Ship, labelKey: "patrols" },
   { href: "/subjects", icon: Users, labelKey: "subjects" },
   { href: "/patrol-areas", icon: MapPin, labelKey: "patrolAreas" },
+  { href: "/fuel", icon: Fuel, labelKey: "fuel" },
   { href: "/observations", icon: Eye, labelKey: "observations" },
   { href: "/alerts", icon: Bell, labelKey: "alerts" },
   { href: "/notifications", icon: BellRing, labelKey: "notifications" },

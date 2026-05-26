@@ -10,6 +10,9 @@ vi.mock("@marine-guardian/db", () => ({
       updateMany: vi.fn(),
       deleteMany: vi.fn(),
     },
+    patrol: {
+      findMany: vi.fn(),
+    },
     tenant: {
       findFirst: vi.fn(),
     },
@@ -255,5 +258,78 @@ describe("fuelEntry.create / update / delete (RBAC)", () => {
     expect(vi.mocked(prisma.fuelEntry.deleteMany)).toHaveBeenCalledWith({
       where: { id: "fe-1", tenantId: TENANT_ID },
     });
+  });
+});
+
+describe("fuelEntry.consumptionAnalytics", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.fuelEntry.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+  });
+
+  const VALID_INPUT = {
+    dateFrom: new Date("2026-05-01T00:00:00.000Z"),
+    dateTo: new Date("2026-06-01T00:00:00.000Z"),
+    periodGrain: "month" as const,
+  };
+
+  it("resolves tenant timezone + currency once and forwards to aggregation", async () => {
+    vi.mocked(prisma.tenant.findFirst).mockResolvedValue({
+      currency: "IDR",
+      timezone: "Asia/Jakarta",
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    const r = await caller.consumptionAnalytics(VALID_INPUT);
+
+    expect(vi.mocked(prisma.tenant.findFirst)).toHaveBeenCalledWith({
+      where: { id: TENANT_ID },
+      select: { currency: true, timezone: true },
+    });
+    expect(r.summary.currency).toBe("IDR");
+    expect(r.summary.totalLiters).toBe(0);
+  });
+
+  it("throws INTERNAL_SERVER_ERROR when tenant not found", async () => {
+    vi.mocked(prisma.tenant.findFirst).mockResolvedValue(null);
+    const caller = createCaller(makeCtx());
+    await expect(caller.consumptionAnalytics(VALID_INPUT)).rejects.toThrow(
+      TRPCError,
+    );
+  });
+
+  it("scopes both fuelEntry and patrol queries to tenant", async () => {
+    vi.mocked(prisma.tenant.findFirst).mockResolvedValue({
+      currency: "PHP",
+      timezone: "Asia/Manila",
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    await caller.consumptionAnalytics(VALID_INPUT);
+
+    const fuelCall = vi.mocked(prisma.fuelEntry.findMany).mock.calls[0]?.[0];
+    const patrolCall = vi.mocked(prisma.patrol.findMany).mock.calls[0]?.[0];
+    expect(fuelCall?.where?.tenantId).toBe(TENANT_ID);
+    expect(patrolCall?.where?.tenantId).toBe(TENANT_ID);
+    expect(patrolCall?.where?.patrolType).toBe("seaborne");
+  });
+
+  it("forwards areaBoundaryIds to both queries when provided", async () => {
+    vi.mocked(prisma.tenant.findFirst).mockResolvedValue({
+      currency: "PHP",
+      timezone: "Asia/Manila",
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    await caller.consumptionAnalytics({
+      ...VALID_INPUT,
+      areaBoundaryIds: [AB_ID],
+    });
+
+    const fuelCall = vi.mocked(prisma.fuelEntry.findMany).mock.calls[0]?.[0];
+    const patrolCall = vi.mocked(prisma.patrol.findMany).mock.calls[0]?.[0];
+    expect(fuelCall?.where?.areaBoundaryId).toEqual({ in: [AB_ID] });
+    expect(patrolCall?.where?.areaBoundaryId).toEqual({ in: [AB_ID] });
   });
 });

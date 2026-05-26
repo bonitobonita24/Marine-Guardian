@@ -3,6 +3,38 @@
 # NEVER re-ask anything listed here.
 # ---
 
+## Receipt photo upload deferred from initial Fuel Logging UI ship
+Decision: First /fuel ship lands without receipt photo upload UI. Schema field receiptPhotoUrl
+remains nullable (no schema change). No upload pipeline, no presigned URL helper, no
+camera/file picker in either Create or Edit dialog. Display in list also omits photo.
+Follow-up batch will add the full pipeline (packages/storage presigned URL helper +
+new tRPC procedure + camera/file picker UI).
+Rationale: packages/storage exports only PDF helpers — there is no presigned URL
+infrastructure to point a client-side file upload at. Building it would add 3-5 files
+(storage helper + bucket assertion + Route Handler for upload + camera/file picker
+client component + tests), pushing the Fuel Logging UI from Tier 2 (~40K tokens,
+single-session safe) to Tier 3 (~70K+, likely needs subagent dispatch or split).
+PRODUCT.md §118 lists photo as a field but it is optional. Splitting the ship
+preserves the core L/km math + list + analytics value without rework.
+Locked: yes — committed 2026-05-26. Follow-up batch may revisit storage strategy
+(presigned URLs vs Route Handler proxy vs Vercel Blob if Vercel migration ever happens).
+
+## Cross-area Fuel Consumption analytics built as a new module, not extracted from Per Area Report Page 3
+Decision: /fuel page analytics uses a NEW server-side aggregator at
+apps/web/src/server/fuel-analytics/get-fuel-consumption.ts. The Per Area Report
+Page 3 buildFuelConsumption helper in apps/web/src/server/per-area-report/
+get-per-area-report-data.ts stays untouched (locked design — funder-deliverable PDF
+2026-05-22, monthly-grain + single-area only).
+Rationale: Per Area Report's helper is single-area + month-grain-only by locked
+design. /fuel needs cross-area summary + 5 grains (day/week/month/quarter/year)
+per PRODUCT.md §124. The bucketing function signatures differ enough that
+extracting a shared helper would force changes to both call sites + risk
+regressing the PDF Page 3 layout that funders already consume. The duplicated
+5-line resolveTenantOffsetMinutes is intentional — proper extract to a shared
+util deferred until a 3rd consumer or DST-observing tenant arrives (whichever
+comes first), per the inline TODO comment.
+Locked: yes — committed 2026-05-26.
+
 ## Dev Environment Mode
 Decision: MODE A — WSL2 native (the only supported mode as of V25)
 Rationale: Devcontainer adds 4 virtualisation layers on WSL2 + Docker Desktop causing
