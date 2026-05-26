@@ -345,3 +345,70 @@ Future report families that need heatmaps (Quarterly Report, ad-hoc analytics ex
 consume the same wrapper hook + sample-track-points library — no second-source heatmap renderer.
 Bumping leaflet.heat or pivoting to a vector renderer requires explicit re-decision +
 DECISIONS_LOG.md entry with reason.
+
+
+## Area boundary geometry is editable after create — supersedes prior "locked-after-create" design (Phase 7 Feature Update — Area Boundary Map Drawing Editor, 2026-05-26)
+Decision: AreaBoundary geometry IS in-place editable on the Edit dialog. Admin can drag
+vertices, drag the whole shape, or remove + redraw via the leaflet-geoman toolbar. The
+geometry TYPE (Polygon vs LineString) remains locked at the editor level on Edit — the
+editor enables only the draw tool matching the original geometryType. To change the geometry
+TYPE, the admin must still delete the boundary and create a new one with the desired type.
+The Source field also remains locked on Edit (out of scope for this decision — Source semantics
+have not changed and the Source field's lock-after-create rationale (provenance integrity for
+EarthRanger-imported boundaries) still holds).
+Status: LOCKED — 2026-05-26
+Context: The Edit dialog at apps/web/src/app/(dashboard)/patrol-areas/edit-area-boundary-dialog.tsx
+originally enforced a "delete + recreate to change geometry" workflow via a disabled
+geometry-type `<select>` + helper text explaining the lock. This was a deliberate prior
+design intended to preserve referential integrity with derived data (AreaCoverage rows
+produced by the coverage-clip library shipped in Batch 6 Item 1, patrol reports
+referencing the boundary by ID, etc.). The Map Drawing Editor feature (commit cd93cd9)
+needed the Edit dialog to mount a live editor — which only makes sense if geometry can
+actually be edited in place. Escalated mid-session to the product owner; resolved in
+favor of removing the lock.
+Rationale: "Delete + recreate to change a polygon" was hostile UX for the actual user
+(site admin, not GIS analyst — the typical edit is "I drew the boundary 5 meters off
+the actual MPA corner, let me drag that one vertex"). The locked-after-create design also
+did not actually protect downstream referential integrity in the way the original design
+implied: boundary updates have ALWAYS been permitted for the name, region, aliases, and
+isEnabled fields, so a boundary's identity-as-referenced-record was never frozen — the
+geometry lock was an inconsistent half-measure. Downstream consumers of boundary
+geometry (AreaCoverage derivation in the coverage-clip library, Patrol records that
+reference areaBoundaryId, future Quarterly Report aggregations) all re-derive on demand
+or are point-in-time snapshots — none require the boundary's geometry to be immutable
+for correctness. Removing the lock simplifies the mental model: a boundary record's
+geometry can change in place; downstream consumers re-derive as needed.
+Implications:
+  • Edit dialog mounts the AreaBoundaryEditor with mode="edit" + initialGeometry +
+    initialType props. The editor seeds the map with the existing geometry, fits viewport
+    via map.fitBounds with 16px padding, and enables only the toolbar draw tool matching
+    the original geometryType (so the admin can re-draw the same kind of geometry but
+    not switch Polygon↔LineString).
+  • Edit dialog handleSubmit gains the same defense-in-depth validation as Create:
+    null guard on editor emit + JSON parse of the leaflet-positions-to-geojson result
+    + validateGeoJsonShape on the parsed Geometry. Previously trusted because the field
+    was UI-locked; now the field is editable so the validation must run.
+  • The Source field remains locked on Edit (out of scope for this decision).
+  • Any future audit-trail / referential-integrity requirements for boundary geometry
+    changes (e.g. "log every geometry mutation to AuditLog with before/after GeoJSON for
+    funder traceability") should be added as separate AuditLog entries on the
+    boundary.update tRPC path — not by reinstating the UI lock.
+  • Boundary-deletion semantics are unchanged. The Delete action still cascades through
+    the existing referential checks (cannot delete a boundary with active patrols, etc.);
+    Edit is now the lower-friction path for the "this polygon needs to shift 5m" use case.
+Files affected:
+  • apps/web/src/app/(dashboard)/patrol-areas/edit-area-boundary-dialog.tsx
+    (locked-state UI removed: disabled geometryType `<select>` deleted, "geometry locked
+    after create — delete and recreate to change" helper paragraph deleted; editor mount
+    + handleSubmit defense-in-depth validation added)
+  • apps/web/src/app/(dashboard)/patrol-areas/__tests__/edit-area-boundary-dialog.test.tsx
+    (locked-state assertions removed: disabled-select, helper-text, "edit name only"
+    flow tests deleted; editor mount + emit-flow tests added covering initialGeometry
+    seeding, edited geometry submit, validation rejection + inline error, Polygon +
+    LineString row types)
+Locked by: Bonito (product owner) via mid-session decision during the Map Drawing Editor
+implementation, 2026-05-26. Resolved a design conflict surfaced during Task 5 (Edit
+dialog implementation) of the feat/area-boundary-map-drawing-editor branch. Bundled
+atomically with the Editor feature ship (cd93cd9); governance entries (this DECISIONS_LOG
+entry + the paired CHANGELOG_AI entry) follow in the next commit per Rule 3 non-blocking
+governance writes.
