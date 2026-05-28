@@ -1,4 +1,4 @@
-# SPEC-DRIVEN PLATFORM — V32
+# SPEC-DRIVEN PLATFORM — V31
 
 > **WHAT THIS FILE IS**
 > This is the master prompt for building TypeScript apps with AI agents.
@@ -23,9 +23,6 @@
 > The framework ships two versions of CLAUDE.md:
 > - `CLAUDE.md` — compact (~200 lines). For Claude Code. References `.claude/rules/` for details.
 > - `AI/Master_Prompt_v31.md` — full monolithic (~8000 lines). Reference copy + Copilot/paste workflows.
->
-> **VERSION + FILENAME POLICY (added V32.1.2 — 2026-05-28)**
-> The framework's active behavior version is **V32.1**. Filenames and body labels retain `V31` as the base-version anchor for two reasons: (1) deploy-v31.sh and target-project file paths depend on the existing names for backward compatibility, and (2) V31 is the architectural baseline that V32 / V32.1 patches build on additively. When you read "V31 primary" or "V31 STRICTEST" in body text, interpret it as "the base-V31 role/discipline, with V32 dispatch patches and V32.1 operational notes layered on top." V32 = Zero Opus Execution (Opus is architect-only; Sonnet executes all file writes). V32.1 = Sonnet subagent context-overhead operational note. The Framework_Feature_Index_v31.md footer always reflects the current canonical version.
 > Both contain identical rules and behavior. The compact version just loads details on demand.
 > `.claude/rules/` contains: `phases.md`, `security.md`, `ui-rules.md`, `bootstrap.md`, `scenarios.md`, `templates.md`.
 >
@@ -144,14 +141,16 @@ See Phase 4 and Phase 8 anti-thrashing rules for phase-specific details.
 
 **Memory Governance Layer (NEW):** See `.claude/rules/memory-governance.md` for the full
 token-efficient session & task management system:
-- §1 Tiered Decomposition (V32) — classify task complexity (Tier 1/2/3) by file-size via `wc -l`; ≤ 500 total lines per Sonnet task; files > 300 lines need explicit line ranges. NO Opus executor escalation — V32 removes that path entirely.
+- §1 Tiered Decomposition — classify task complexity (Tier 1/2/3) with scoring formula; Step 2.5: 30K token budget gate per Sonnet task (split if over); Step 2.5b: Opus escalation for genuinely atomic tasks (100K budget, max 20% of tasks)
 - §2 Smart Checkpoint — auto-persist progress to STATE.md + Claude Code memory + lessons.md
 - §3 Phase Hooks — every phase pre-flight references memory governance
-- §4 Architect-Execute Model (V32 Zero Opus Execution) — Opus 4.6 plans/reviews ONLY; Sonnet 4.6 executes ALL file writes via subagents
+- §4 Architect-Execute Model — Opus 4.6 plans, Sonnet 4.6 executes via subagents
 - §5 Mid-Project Adoption — works on projects already in Phase 7/8
 
-**Architect-Execute Model — Zero Opus Execution (V32 — ALL phases + ad-hoc edits):** Use Opus 4.6 for planning, decomposition, and review. Use Sonnet 4.6 for ALL execution. Opus dispatches Sonnet via `Agent(model: "sonnet")` and NEVER calls Edit/Write on project files (STATE.md checkpoint is the only Opus write).
-See `.claude/rules/memory-governance.md` §4 for full protocol. This eliminates thrashing on mature projects and enforces the file-size dispatch gate mechanically.
+**Architect-Execute Model (ALL phases + ad-hoc edits):** Use Opus 4.6 for planning and decomposition,
+Sonnet 4.6 for execution. Opus dispatches Sonnet subagents via `Agent(model: "sonnet")`.
+This eliminates thrashing on mature projects by ensuring Sonnet never reads full PRODUCT.md
+or makes decomposition decisions. See memory-governance.md §4 for full protocol.
 
 **If thrashing occurs mid-session:**
 1. STOP immediately — do NOT read more files
@@ -789,7 +788,7 @@ This prevents Part N's incomplete scaffold from breaking Part N+1's validation.
 
 **The context accumulation problem:** When Claude Code runs all 8 Phase 4 Parts in one continuous session, early scaffold decisions bleed into later ones, quality degrades across the session, and errors in Part 3 corrupt Parts 4–8. V14 solves this by treating each Part as an independent task.
 
-**Memory Governance integration (V32):** Rule 24's fresh-context principle is now reinforced by the Memory Governance Layer (`.claude/rules/memory-governance.md`). The Tiered Decomposition Engine (§1) runs at each Part's pre-flight to classify complexity. **500-Line Dispatch Gate (V32 §1 Step 4):** before dispatching ANY Sonnet task, run `wc -l` on every file in scope. Total ≤ 500 lines per task. Files > 300 lines need explicit line ranges. NO Opus executor escalation — that path is REMOVED in V32. **THRASHING status:** Opus monitors for Sonnet agents re-reading files, producing partial output, or contradicting prior edits — stop and re-decompose via Step 2.5. The Smart Checkpoint (§2) persists progress to Claude Code memory after each Part, enabling zero-cost resume. The Architect-Execute Model (§4) uses Opus 4.6 to plan Part decomposition and dispatch Sonnet 4.6 subagents for execution. This extends Rule 24 from "fresh context per Part" to "intelligently scoped context per task."
+**Memory Governance integration (V31.2):** Rule 24's fresh-context principle is now reinforced by the Memory Governance Layer (`.claude/rules/memory-governance.md`). The Tiered Decomposition Engine (§1) runs at each Part's pre-flight to classify complexity. **30K Token Budget Gate (§1 Step 2.5):** every Sonnet subagent task must estimate ≤30K tokens before dispatch — split further if over. **Opus Escalation (Step 2.5b):** if a task is genuinely atomic and cannot be split, dispatch to `Agent(model: "opus")` as last resort (100K budget, log justification, max 20% of tasks). **THRASHING status:** Opus monitors for Sonnet agents re-reading files, producing partial output, or contradicting prior edits — stop and re-decompose via Step 2.5. The Smart Checkpoint (§2) persists progress to Claude Code memory after each Part, enabling zero-cost resume. The Architect-Execute Model (§4) uses Opus 4.6 to plan Part decomposition and dispatch Sonnet 4.6 subagents for execution. This extends Rule 24 from "fresh context per Part" to "intelligently scoped context per task."
 
 **STATE.md — the quick-read session file (NEW V14):**
 Bootstrap Step 16 creates `.cline/STATE.md`. Every agent reads this FIRST (before the 9 governance docs) to orient instantly.
@@ -7821,7 +7820,7 @@ Version stays same for: wording fixes, clarifications, side note updates.
 - INTERACTIVE HTML UI ADDED: New `Prompt_References.html` companion file — browser-friendly presentation of the same content as `Prompt_References.md`. Features sidebar navigation with live search, expandable prompt cards (click to expand one, or expand/collapse whole groups), one-click copy on every code block, mobile-responsive layout, anchor links for sharing specific prompts. Additive deliverable — zero behavioral change to framework. Markdown version remains authoritative for version control and diffs; HTML is optimized for daily reference and onboarding. Both share the same content and version number.
 - NO NEW RULES. NO NEW BOOTSTRAP STEPS. NO PRODUCT.md FORMAT CHANGES. ADDS 1 NEW SCENARIO (Scenario 33). POST-LOCK PATCH: Added Scenario 34 (CREDENTIALS.md Agent-Proof Upgrade). Expanded .gitignore entries (Step 8) with comprehensive AI + third-party tool artifacts.
 - DELIVERABLE SET: 13 → 16 files (added ChatGPT_V31_Cross_Audit_Prompt.md, Prompt_References.md, Prompt_References.html in `.ai_prompt/` + deploy-v31.sh at project root).
-- POST-LOCK ADDITIVE UPDATES (documentation + 1 scenario + 1 planning step — no version bump): Added Scenario 33 (DESIGN.md integration with shadcn/ui — VoltAgent/awesome-design-md catalog). Added prompts 1.1.5 (Re-deploy V31), 1.2.5 (Credentials Setup Kit), 1.2.6 (Top Up CREDENTIALS.md), 1.2.7 (Add New Credential Section via Phase 7), 1.4.0 (Deep Pre-Upgrade Analysis), 1.7 (Build code-review-graph), **1.8 (Combined Upgrade: Framework + Planning Assistant)**, 2.11 (Review Changes Since Last Commit), 2.12 (Architecture Map), 3.15 (Pre-Merge Blast-Radius Check), 3.16 (Debug Unknown Issue), 3.17 (Onboard to Unknown Codebase), 3.18 (Rebuild Stale Graph), 4.6 (Upgrade Planning Assistant Mid-Chat), 4.7 (Save Mockup Continuity Workflow), 4.8 (Adopt a DESIGN.md Aesthetic), 4.9 (New PA: spec done not built), 4.10 (New PA: mid-build), 4.11 (New PA: production), 4.12 (New PA: backfill one section). Expanded prompt 3.11 (Future framework upgrade safety workflow). **Step 8b added to Planning Assistant interview** — per-page Mobile First / Mobile Ready classification with auto-heuristics, user review table, written into PRODUCT.md Mobile Needs section. Phase 2.8 mockup now renders mobile strategy badge on every screen. **Two sidebar decision-tree menus** added to Prompt_References: "🆕 New Planning Assistant arrived?" (routes to 4.6 / 4.9 / 4.10 / 4.11 / 4.12) and "🔀 Two upgrades pending?" (routes to 1.8 combined upgrade). Current totals **(V31 lock snapshot — superseded; see V32.1 verified counts in `ChatGPT_V31_Cross_Audit_Prompt.md` around line 85 for current authoritative values)**: 59 prompts (36 NEW ✨), 34 scenarios *(Scenario 35 added later in V31.x; Bootstrap step 19 added later in V31.x)*. Post-lock audit state: 85 PASS / 0 FAIL / 1 PARTIAL (G.8 resolved by exhaustive scan).
+- POST-LOCK ADDITIVE UPDATES (documentation + 1 scenario + 1 planning step — no version bump): Added Scenario 33 (DESIGN.md integration with shadcn/ui — VoltAgent/awesome-design-md catalog). Added prompts 1.1.5 (Re-deploy V31), 1.2.5 (Credentials Setup Kit), 1.2.6 (Top Up CREDENTIALS.md), 1.2.7 (Add New Credential Section via Phase 7), 1.4.0 (Deep Pre-Upgrade Analysis), 1.7 (Build code-review-graph), **1.8 (Combined Upgrade: Framework + Planning Assistant)**, 2.11 (Review Changes Since Last Commit), 2.12 (Architecture Map), 3.15 (Pre-Merge Blast-Radius Check), 3.16 (Debug Unknown Issue), 3.17 (Onboard to Unknown Codebase), 3.18 (Rebuild Stale Graph), 4.6 (Upgrade Planning Assistant Mid-Chat), 4.7 (Save Mockup Continuity Workflow), 4.8 (Adopt a DESIGN.md Aesthetic), 4.9 (New PA: spec done not built), 4.10 (New PA: mid-build), 4.11 (New PA: production), 4.12 (New PA: backfill one section). Expanded prompt 3.11 (Future framework upgrade safety workflow). **Step 8b added to Planning Assistant interview** — per-page Mobile First / Mobile Ready classification with auto-heuristics, user review table, written into PRODUCT.md Mobile Needs section. Phase 2.8 mockup now renders mobile strategy badge on every screen. **Two sidebar decision-tree menus** added to Prompt_References: "🆕 New Planning Assistant arrived?" (routes to 4.6 / 4.9 / 4.10 / 4.11 / 4.12) and "🔀 Two upgrades pending?" (routes to 1.8 combined upgrade). Current totals: 59 prompts (36 NEW ✨), 34 scenarios. Post-lock audit state: 85 PASS / 0 FAIL / 1 PARTIAL (G.8 resolved by exhaustive scan).
 - Rule count: 30 (unchanged). Scenario count: 32 → 34 (+1 for Scenario 33 DESIGN.md integration, +1 for Scenario 34 CREDENTIALS.md Agent-Proof Upgrade). Bootstrap: 18 steps (unchanged). Security Checklist: 84 items (unchanged). Secure Code Gen: 16 sub-sections (unchanged). UI Component Rules: 10 (unchanged). Phase count: 8 main phases + 2.5, 2.6, 2.7, **2.8 (NEW)**, **3.5 (NEW)**, 6.5. Version bump: V30 → V31 ✅
 - POST-LOCK ADDITIVE UPDATES (continued — phases.md additions, no version bump): **Phase 3.5 — Execution Plan Generation** added to phases.md (auto-runs after Phase 3). 7 steps: complexity scan → context cost estimation (120K budget, ≤80K SAFE) → task decomposition → dependency ordering → write execution-plan.md → skill activation (/scan-project first, then framework verifies Primary Group) → human review. **Anti-thrashing rule** added to Phase 4: mandatory scope assessment at start of every Part, auto-subdivide if >12 files, Part 8 always subdivides, module-by-module sub-sessions with per-module commits. **Skill Installer integration**: Primary Group 6 slots (superpowers, code-review-graph, planning-with-files, frontend-design+design-auditor+owasp-security, git-pushing, claude-skills-65), per-phase supplementary skills, /scan-project workflow, conflict registry verified. **code-review-graph setup signal**: Phase 6 completion message includes reminder, Phase 7 pre-flight Step 0 check. **Prompt 4.13** added — Add Automation to Existing Project (n8n / OpenClaw / Hybrid) 7-step flow for projects past initial planning. Prompt count: 54 → 59 (36 NEW ✨). **Phase 8 anti-thrashing rule** added to phases.md: same 12-file threshold as Phase 4, per-feature sub-batches, mandatory completeness check before committing (verifies every user flow, data field, permission guard, validation rule, and UI element from PRODUCT.md is actually implemented), STATE.md progress tracking with dependencies for next sub-batch. Critical principle: anti-thrashing protects the build — changes how many per session, never what gets built.
 
@@ -7835,65 +7834,6 @@ Version stays same for: wording fixes, clarifications, side note updates.
 - SURFACE ADDITIONS POLICY COMPLIANCE: `@aejkatappaja/phantom-ui` added to `src/data/` LIBRARIES_DB with match signal (project has shadcn deps AND custom components outside `components/ui/`). `/scan-project` Phase 2.6 surfaces it under "Loading States / Structure-Aware Skeletons". Phase 1.5 Part C (Spec-Driven Fit) recommends during Phase 4 Part 2 and Phase 7 Feature Update.
 - Rule count: 30 (unchanged — framework rules are separate from UI component rules). Scenario count: 34 → 35 (+1 for Scenario 35 custom loading state). Bootstrap: 18 → 19 steps (+1 for Step 19 Loading Library Lock). **UI Component Rules: 10 → 11 (+1 for Rule 11 dual-path).** Security Checklist: 84 items (unchanged). Secure Code Gen: 16 sub-sections (unchanged). Prompts: 59 (unchanged). Phase count: 8 main phases + 2.5, 2.6, 2.7, 2.8, 3.5, 6.5 (unchanged). Version bump: V31.2 → V31.3 ✅
 - **V31.3 PATCH — Bootstrap Step 10 MCP scope policy (project-scope mandatory):** Bootstrap Step 10 now writes BOTH `.mcp.json` (Claude Code primary — `mcpServers` schema) AND `.vscode/mcp.json` (VS Code Copilot legacy — `servers` schema). Reason: Claude Code reads project-scope MCPs from `.mcp.json`, NOT `.vscode/mcp.json`. Prior versions only wrote `.vscode/mcp.json` which Claude Code silently ignored. NEW POLICY: **SocratiCode MUST be wired at project-scope only — NEVER at user-scope.** Rationale: SocratiCode builds a local Qdrant semantic index over the entire codebase. For sensitive client projects (payroll, banking, government), indexing must be an explicit per-project decision visible in git history — not a machine-wide default. Project-scope contains blast radius if SocratiCode upgrades break, forces opt-in per repo, and aligns with the framework's locked-decision philosophy. Step 10 verification now includes `claude mcp get socraticode` returning "Scope: Project config (shared via .mcp.json)". Both `.mcp.json` and `.vscode/mcp.json` are committed (team gets the same MCP setup). No count changes — refines existing Step 10.
-
-### V32.1 (2026-05-27) — Sonnet Subagent Context Overhead — Operational Note + Dispatch Sizing Tip
-
-**WHY:** Production finding from Yelli Phase 8 Task 3 (2026-05-27): Sonnet subagents dispatched via `Agent(model: "sonnet")` inherit ~30–50K tokens of baseline context (auto-loaded skills + MCP server descriptions) BEFORE any task work begins. This consumes a large portion of Sonnet's working budget and can trigger "Autocompact is thrashing" *earlier* than V32 R2's 500-line file-size gate alone would predict. Operational guidance is needed alongside the mechanical gate.
-
-**WHAT V32.1 ADDS (operational guidance — no rule changes):**
-
-1. **`memory-governance.md` §1** — new "Operational Note — Sonnet Subagent Context Overhead (V32.1)" subsection after the anti-pattern block. Documents:
-   - **Symptoms:** thrash within 6–10 tool uses on tasks that look small on paper; re-dispatch at same scope thrashes again.
-   - **Mitigation:** dispatch prompts ≤ ~1K tokens; per-dispatch tool-use budget ≤ 5; verification runs on Opus side via `ctx_execute`; decompose by surface (file/import/test block) not by feature; **after-thrash check** — run `git status` + `git diff` before re-dispatching so recovery picks up FROM current state, not redo (added from Yelli Phase 8 Task 5).
-   - **R4 relationship:** if thrash persists after re-decomposition, shrink scope further — never retry the same scope.
-   - **When it matters most:** Phase 4 Parts with heavy test infrastructure; Phase 8 Tasks touching 200–300L files; any task that must read existing test mocks/fixtures before editing.
-
-2. **Prompt 3.21 (Opus Planning)** — new "V32.1 Dispatch Sizing Tip" callout in `Prompt_References.md` + `.html`, under the existing "Why Opus?" rationale, linking back to the governance note.
-
-**Rules unchanged.** R1–R5 remain authoritative. R2's 500-line file-size gate is still the primary dispatch check; V32.1 adds a tighter ceiling on prompt size + tool-use budget *within* a dispatch when baseline overhead bites.
-
-**Counts unchanged:** 30 Rules · 35 Scenarios · 19 Bootstrap Steps · 59 Prompts · 11 UI Rules · 17 deliverable files.
-
-**Files changed (full V32.1 propagation):** `memory-governance.md` (§1 new subsection), `Prompt_References.md` (Prompt 3.21 callout), `Prompt_References.html` (Prompt 3.21 callout), `Master_Prompt_v31.md` (this changelog), `Framework_Feature_Index_v31.md` (V32.1 row + footer), `CLAUDE_v31_compact.md` (title + one-line reference), `ChatGPT_V31_Cross_Audit_Prompt.md` (K.11–K.15 verification items + verified counts header + footer).
-
-**Commits:** `ab0578a` (Prompts 3.21/3.22 V32 alignment), `69e9190` (operational note shipped), plus this propagation commit.
-
-**Migration:** No action needed in target projects — V32.1 is documentation/operational only. Restart Claude Code after `deploy-v31.sh` to pick up the updated `memory-governance.md`.
-
-- **V32.1.1 (2026-05-28):** Planning Assistant Step 7d corrected. Old text routed users from Phase 2.8 confirmation directly to "Start Phase 3" in Claude Code, skipping Bootstrap (Phase 0) and Phase 2's operational interview. This left CREDENTIALS.md uncreated (Phase 2 hard gate), Docker Hub credentials/model routing/dev ports unanswered, and DECISIONS_LOG.md entries for image name + model routing unlocked. New text routes: place handoff files in docs/ → Bootstrap → Start Phase 2 (operational questions only) → confirmed → auto-chain 2.5/2.6/2.7 (Phase 2.8 skipped — done in Planning Assistant) → Start Phase 3. Propagated to Prompt_References.md (Prerequisites, Starting State, 1.2 Check 1, 1.3.1, 1.3.2, 1.3.3) and Prompt_References.html. Rationale: Master Prompt is sole authority (CLAUDE.md §SOLE AUTHORITY); when Planning Assistant disagrees, Planning Assistant must match.
-
-- **V32.1.2 (2026-05-28):** Cross-file consistency fix flagged by ChatGPT cross-audit. AI_Tools_Skills_MCPs_Reference_v31.md Claude Code agent row rewritten to describe V32 Zero Opus Execution (was still describing V31.2-era Step 2.5/2.5b 30K-budget gate + Opus executor escalation as live behavior); Framework_Feature_Index_v31.md header bumped to V32.1 with naming policy note; CLAUDE_v31_compact.md role block bumped to V32.1 STRICTEST; **VERSION + FILENAME POLICY** block added to Master_Prompt_v31.md header explaining that body labels saying "V31 primary" / "V31 STRICTEST" should be interpreted as base-V31 with V32/V32.1 patches layered on. Audit K.21–K.25 verification items added. Counts unchanged.
-
-- **V32.1.3 (2026-05-28):** Deploy script count drift fix. deploy-v31.sh missing-folder error path said "15 V32 reference files" — corrected to "16 V32 reference files" (canonical: 16 in .ai_prompt/ + deploy-v31.sh at project root = 17 total). Framework_Feature_Index_v31.md §1.2 subsection title "current in V31" updated to "current V32.1 behavior, V31 base". Audit K.26 verification item added for deploy script count consistency. Counts unchanged.
-
-- **V32.1.4 (2026-05-29):** Deploy script post-install routing fix. deploy-v31.sh "Next steps" message always recommended pasting prompt 1.2 (Universal Analyzer), which contradicted V32.1.1's Planning Assistant Step 7d guidance ("type Bootstrap" for fresh-from-PA projects). Users coming from Planning Assistant received two contradictory entry-point instructions. New behavior: deploy script detects Planning Assistant artifacts (`docs/PRODUCT.md` AND (`docs/DESIGN.md` OR `docs/MOCKUP.jsx`)) and conditionally routes — if PA signal present, displays V32.1.1 Bootstrap → Phase 2 → Phase 3 sequence with operational interview context; otherwise falls back to existing prompt 1.2 Universal Analyzer guidance. Both paths remain valid; deploy script now picks the right one based on observable state. Audit K.27 verification item added for conditional Next-steps routing. Counts unchanged.
-
----
-
-### V32 (2026-05-27) — Zero Opus Execution Dispatch System
-
-**WHY:** V31.4 failed in production (Yelli project, 2026-05-26): token estimation was guesswork (Sonnet plan write consumed 164.5K vs 30K "limit"), Step 2.5b Opus escalation was used routinely as a shortcut, and 1200+ line files made "simple" tasks thrash for hours. Behavioral prompt rules cannot fix structural design flaws.
-
-**WHAT V32 CHANGES (mechanically enforceable replacements):**
-
-1. **Token estimation → `wc -l` file-size checks.** Tier classification now uses verifiable line counts: Tier 1 ≤ 500 total + ≤ 4 files + 1 module; Tier 2 = 501-1500; Tier 3 > 1500. No more estimation.
-
-2. **Step 2.5b deleted entirely.** The Opus executor escalation path is REMOVED. No "last resort." No "small justified escalation." If a task can't be done by Sonnet, it hasn't been decomposed enough.
-
-3. **Five V32 Rules formalized:**
-   - R1 Zero Opus Execution — Opus NEVER calls Edit/Write on project files (STATE.md exception only)
-   - R2 File-Size Dispatch — ≤ 500 total lines per Sonnet task
-   - R3 Large-File Guard — Files > 300 lines require explicit line ranges in scope
-   - R4 Failure = Split — BLOCKED/thrash → re-decompose (max 3) → defer. NEVER escalate to Opus.
-   - R5 Scout-Before-Edit — Files > 200 lines → Sonnet Scout extracts context first
-
-4. **MODEL phase hooks rewritten** — all 5 hooks in `phases.md` now state "ZERO OPUS EXECUTION (V32)" and reference the 500-line file-size gate explicitly.
-
-**Files changed:** `memory-governance.md` (§1 + §3 + §4 rewritten), `CLAUDE_v31_compact.md` (budget gate + agent stack), `phases.md` (5 MODEL hooks), `Master_Prompt_v31.md` (this changelog + scope updates), `Framework_Feature_Index_v31.md` (V32 row + footer), `ChatGPT_V31_Cross_Audit_Prompt.md` (K.1-K.6 verification block + verified counts bumped), `deploy-v31.sh` (version refs).
-
-**Counts unchanged:** 30 Rules · 35 Scenarios · 19 Bootstrap Steps · 59 Prompts · 11 UI Rules · 17 deliverable files. This is a governance/dispatch patch, not a structural one — the framework's deliverable set is identical to V31.4.
-
-**Migration:** Same `deploy-v31.sh` (file set unchanged). Restart Claude Code in each project. No reconciliation needed — V31.4 → V32 is a governance upgrade.
 
 ### V31.4 (2026-05-26) — Dispatch Discipline Patch
 

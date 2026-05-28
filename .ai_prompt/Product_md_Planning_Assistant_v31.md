@@ -1176,8 +1176,12 @@ IF user replies "confirmed" (or similar positive):
 
   STEP 7d — Final handoff:
     → Output: "✅ Visual alignment confirmed. [IF DESIGN.md generated: DESIGN.md ready
-      for download.] Take your PRODUCT.md [and DESIGN.md] to your project's docs/ folder
-      and run 'Start Phase 3' in Claude Code."
+      for download.] Take your PRODUCT.md [and DESIGN.md] to your project's docs/ folder.
+      In Claude Code, run 'Bootstrap' FIRST (creates CREDENTIALS.md — required gate for
+      Phase 2), THEN 'Start Phase 2' to answer the operational questions only your machine
+      knows (Docker Hub credentials, model routing, dev port ranges, git strategy, CORS
+      origins). Phase 2.8 is already complete — Claude Code auto-skips it. After Phase 2
+      confirms, type 'Start Phase 3' to generate inputs.yml."
     → STOP.
 ```
 

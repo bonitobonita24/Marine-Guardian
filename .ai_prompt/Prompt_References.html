@@ -1102,6 +1102,11 @@ ul.checklist li:last-child { border-bottom: none; }
       <a class="nav-link" href="#file-ownership"><span class="nav-num">📁</span>File Ownership</a>
       <a class="nav-link" href="#decision-tree"><span class="nav-num">🗺</span>Decision Tree</a>
     </div>
+    <div class="nav-group">
+      <div class="nav-group-title"><span class="group-num">A</span> Appendix</div>
+      <a class="nav-link" href="#appendix-deployment"><span class="nav-num">A.1</span>Framework Deployment Ops (V32)</a>
+      <a class="nav-link" href="#appendix-rule-of-thumb"><span class="nav-num">A.2b</span>Rule of Thumb — spec-update</a>
+    </div>
   </aside>
 
   <!-- ===== MAIN ===== -->
@@ -1146,7 +1151,7 @@ ul.checklist li:last-child { border-bottom: none; }
           <strong>WSL2 Ubuntu</strong> installed, Node 22 + pnpm + Docker Desktop all working<br>
           <strong>VS Code + Claude Code CLI</strong> installed (Cline extension optional — deprecated V31, kept only as emergency fallback)<br>
           <strong>PRODUCT.md</strong> finalized in claude.ai using <code>Product_md_Planning_Assistant_v31.md</code><br>
-          <strong>All 16 V31 files</strong> available
+          <strong>All 17 V32 framework files</strong> available (16 in <code>.ai_prompt/</code> + <code>deploy-v31.sh</code>) — see Appendix A for the V32 <code>spec-update</code> deployment workflow
         </div>
       </div>
 
@@ -1157,7 +1162,7 @@ ul.checklist li:last-child { border-bottom: none; }
           <button class="copy-btn" onclick="copyCode(this)">Copy</button>
         </div>
         <div class="code-body">your-project/                      ← empty folder (or existing project)
-├── .ai_prompt/                    ← you drop all 15 V31 reference files in here
+├── .ai_prompt/                    ← you drop all 16 V32 reference files in here
 │   ├── CLAUDE_v31_compact.md
 │   ├── Master_Prompt_v31.md
 │   ├── bootstrap.md
@@ -1166,6 +1171,7 @@ ul.checklist li:last-child { border-bottom: none; }
 │   ├── ui-rules.md
 │   ├── scenarios.md
 │   ├── templates.md
+│   ├── memory-governance.md       ← V31.1 Memory Governance Layer (NEW)
 │   ├── Product_md_Planning_Assistant_v31.md
 │   ├── Framework_Feature_Index_v31.md
 │   ├── AI_Tools_Skills_MCPs_Reference_v31.md
@@ -1173,9 +1179,13 @@ ul.checklist li:last-child { border-bottom: none; }
 │   ├── ChatGPT_V31_Cross_Audit_Prompt.md
 │   ├── Prompt_References.md       ← markdown version
 │   └── Prompt_References.html     ← you are reading this
-├── deploy-v31.sh                  ← you drop this at project root (16th file)
+├── deploy-v31.sh                  ← you drop this at project root (17th file)
 └── docs/
-    └── PRODUCT.md                 ← already ready from claude.ai planning session</div>
+    ├── PRODUCT.md                 ← from Planning Assistant — required
+    ├── DESIGN.md                  ← from Planning Assistant Step 7b — if you picked a getdesign.md aesthetic
+    └── mockups/                   ← from prompt 4.7 — if you saved the Phase 2.8 mockup HTML archive
+        └── [appname]-phase-2.8-mockup.html</div>
+      <p style="margin-top:0.75em;font-size:0.9em;color:var(--muted)">Tip: on V32 machines, skip the manual <code>.ai_prompt/</code> copy step — use <code>spec-update .</code> (Appendix A) which syncs all 16 files + runs deploy in one command.</p>
       </div>
     </div>
 
@@ -1325,7 +1335,7 @@ DETECTION — run all checks, do not modify any file
 
 Check 1 — V31 framework files in place:
   [ ] CLAUDE.md at project root — confirm it's the compact (~200 line) version
-  [ ] .claude/rules/ contains 6 files: phases, security, ui-rules, bootstrap, scenarios, templates
+  [ ] .claude/rules/ contains 7 files: phases, security, ui-rules, bootstrap, scenarios, templates, memory-governance
   [ ] AI/Master_Prompt_v31.md exists
 
 Check 2 — PRODUCT.md state:
@@ -1892,27 +1902,33 @@ grep -c "⏳" CREDENTIALS.md  # should be 0 for REQUIRED sections</div>
         </div>
         <div class="prompt-body">
           <div class="prompt-content">
-            <h4>1.3.1 — Place PRODUCT.md + Bootstrap</h4>
-            <p>Drop your finalized <code>PRODUCT.md</code> from claude.ai into <code>docs/PRODUCT.md</code>, then in Claude Code:</p>
+            <h4>1.3.1 — Place PRODUCT.md (+ DESIGN.md + mockup) + run Bootstrap</h4>
+            <p>Drop the Planning Assistant deliverables into your project's <code>docs/</code> folder:</p>
+            <ul>
+              <li><code>docs/PRODUCT.md</code> (always — required)</li>
+              <li><code>docs/DESIGN.md</code> (if you picked a getdesign.md aesthetic in Phase 2.8 Step 7b)</li>
+              <li><code>docs/mockups/[appname]-phase-2.8-mockup.html</code> (if you saved the HTML archive per prompt 4.7)</li>
+            </ul>
+            <p>Then in Claude Code:</p>
             <div class="code-block">
               <div class="code-header"><span class="code-lang">Prompt</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
               <div class="code-body">Bootstrap</div>
             </div>
-            <p>Runs all 19 Bootstrap steps — folder structure, governance docs, <code>.vscode/mcp.json</code>, <code>.specstory/config.json</code>, typed <code>lessons.md</code>, <code>CREDENTIALS.md</code> with AI-generated secrets + <code>⏳ FILL LATER</code> placeholders, and the Loading Library Lock (DECISIONS_LOG.md entry for ui-rules.md Rule 11 dual-path V31.3). <strong>Does not block on credentials.</strong></p>
+            <p>Runs all 19 Bootstrap steps — folder structure, governance docs, <code>.vscode/mcp.json</code>, <code>.specstory/config.json</code>, typed <code>lessons.md</code>, <code>CREDENTIALS.md</code> with AI-generated secrets + <code>⏳ FILL LATER</code> placeholders, and the Loading Library Lock (DECISIONS_LOG.md entry for ui-rules.md Rule 11 dual-path). <strong>Does not block on credentials.</strong> CREDENTIALS.md is the required gate for Phase 2 — Phase 2 will refuse to start without it.</p>
 
-            <h4>1.3.2 — Phase 2 discovery</h4>
+            <h4>1.3.2 — Phase 2 operational interview</h4>
             <div class="code-block">
               <div class="code-header"><span class="code-lang">Prompt</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
               <div class="code-body">Start Phase 2</div>
             </div>
-            <p>Paste your <code>docs/PRODUCT.md</code> when prompted. Claude only asks remaining open questions.</p>
+            <p>Paste your <code>docs/PRODUCT.md</code> when prompted. Phase 2 is NOT a duplicate of the Planning Assistant interview — it asks ONLY the operational/machine-local questions Planning Assistant couldn't know: Docker Hub username + image name (must be unique on your account), model routing (which Claude model runs which phase), dev port ranges to avoid on this machine, git worktree preference, CORS allowed origins per environment, Komodo webhook config, Turnstile widget hostname strategy. Skip-logic auto-removes sections not applicable to your PRODUCT.md (e.g. no payments declared → skip payment gateway questions).</p>
 
             <h4>1.3.3 — Confirm Phase 2.5 summary</h4>
             <div class="code-block">
               <div class="code-header"><span class="code-lang">Prompt</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
               <div class="code-body">confirmed</div>
             </div>
-            <p>Auto-chains into Phase 2.6 (design system) and Phase 2.7 (spec stress-test).</p>
+            <p>Auto-chains into Phase 2.6 (design system — reads <code>docs/DESIGN.md</code> if present) and Phase 2.7 (spec stress-test). Phase 2.8 is SKIPPED in Claude Code — it already ran in the Planning Assistant chat.</p>
 
             <h4>1.3.3b — Phase 2.8 Clickable Mockup Review <span style="color:var(--green);font-size:0.8em">NEW V31</span></h4>
             <p>This phase runs INSIDE the Planning Assistant chat on Claude.ai — BEFORE you bring PRODUCT.md to your project. After Phase 2.7, the Planning Assistant auto-generates a clickable HTML mockup with realistic industry-appropriate data.</p>
@@ -4013,8 +4029,8 @@ Then decompose my current task using Tiered Decomposition (§1).</div>
         <div class="prompt-header" onclick="togglePrompt(this)">
           <div class="prompt-num">3.21</div>
           <div class="prompt-title-wrap">
-            <div class="prompt-title">Opus Planning Session — Architect-Execute Model (V31.1)</div>
-            <div class="prompt-summary">Opus 4.6 decomposes tasks, dispatches Sonnet 4.6 subagents — for Phase 4/7/8 work</div>
+            <div class="prompt-title">Opus Planning Session — Architect-Execute Model (V32)</div>
+            <div class="prompt-summary">Opus 4.6 decomposes tasks (zero execution), dispatches Sonnet 4.6 subagents via file-size gate — Phase 4/7/8</div>
           </div>
           <div class="prompt-toggle">›</div>
         </div>
@@ -4031,11 +4047,16 @@ Then decompose my current task using Tiered Decomposition (§1).</div>
 Read STATE.md and relevant PRODUCT.md sections.
 Run Tiered Decomposition (§1) on this task.
 If Tier 2-3: decompose into scoped sub-tasks.
-Dispatch Sonnet 4.6 subagents via Agent(model: "sonnet") for each sub-task.
+Step 2.5 (V32) — File-Size Dispatch Gate: run `wc -l` on every file in scope.
+  - If each file ≤500 lines AND scope ≤12 files: dispatch as Sonnet subagent via Agent(model: "sonnet").
+  - If any file >500 lines: use Sonnet scout-then-edit or split by section until each task is ≤500 lines.
+[V32 — Zero Opus Execution]: Opus NEVER executes code edits — planning/decomposition only. After 3 re-decomposition attempts → checkpoint to STATE.md and defer to next session.
+Dispatch approved sub-tasks to Sonnet via Agent(model: "sonnet").
 Review each subagent's output (spec compliance then code quality).
 Run Smart Checkpoint (§2) after all tasks complete.</div>
             </div>
-            <div class="callout"><strong>Why Opus?</strong> One Opus planning session saves 3-5 Sonnet sessions from thrashing. Sonnet never reads full PRODUCT.md — it gets pre-scoped task instructions from Opus.</div>
+            <div class="callout"><strong>Why Opus for planning only? (V32)</strong> Opus decomposes — it NEVER executes code edits under V32 R1. One Opus planning session saves 3-5 Sonnet sessions from thrashing. Sonnet never reads full PRODUCT.md — it gets pre-scoped task instructions from Opus. The 500-line file-size dispatch gate (V32 R2) enforces task granularity mechanically.</div>
+            <div class="callout"><strong>V32.1 Dispatch Sizing Tip</strong> (2026-05-27, production-validated): Sonnet subagents inherit ~30-50K baseline tokens from auto-loaded skills + MCP descriptions before any task work begins. To avoid thrash on otherwise small tasks: keep dispatch prompts ≤ 1K tokens, per-dispatch tool uses ≤ 5, and run verifications (<code>vitest</code>, <code>tsc</code>, lint) on the Opus side via <code>ctx_execute</code> rather than asking Sonnet to run them. If a Sonnet dispatch thrashes, re-decompose to a smaller surface (single file, then sub-file) — never retry the same scope. See <code>memory-governance.md</code> §1 Operational Note for the full pattern.</div>
           </div>
         </div>
       </div>
@@ -4045,7 +4066,7 @@ Run Smart Checkpoint (§2) after all tasks complete.</div>
         <div class="prompt-header" onclick="togglePrompt(this)">
           <div class="prompt-num">3.22</div>
           <div class="prompt-title-wrap">
-            <div class="prompt-title">Thrashing Recovery — Emergency Opus Session (V31.1)</div>
+            <div class="prompt-title">Thrashing Recovery — Emergency Opus Session (V32)</div>
             <div class="prompt-summary">Emergency mid-session rescue — open NEW Opus session to decompose interrupted work</div>
           </div>
           <div class="prompt-toggle">›</div>
@@ -4063,7 +4084,8 @@ Run Smart Checkpoint (§2) after all tasks complete.</div>
 1. I've already stopped and committed partial work.
 2. Run the memory governance baseline (§5 Step 2) to capture current state.
 3. Decompose my interrupted task using Tiered Decomposition (§1).
-4. Output a split plan with numbered sub-sessions I can execute with Sonnet.
+4. Apply Step 2.5 (V32) File-Size Dispatch Gate — run `wc -l` on each file; ensure each sub-task is ≤500 lines per file and ≤12 files in scope for Sonnet.
+5. Output a split plan with numbered sub-sessions I can execute with Sonnet.
 I was working on: [describe what you were doing]</div>
             </div>
             <div class="callout warning"><strong>Critical:</strong> Open this in a NEW session with Opus 4.6, not in the thrashing session. The thrashing session's context is corrupted — starting fresh is the only reliable recovery.</div>
@@ -5112,6 +5134,186 @@ bash scripts/log-lesson.sh</div>
           <div class="decision-arrow">→</div>
           <div class="decision-target">Group 4</div>
         </div>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         Appendix A — Framework Deployment Operations (V32)
+         ============================================================ -->
+    <div class="section" id="appendix-deployment">
+      <div class="section-header">
+        <div class="section-eyebrow">Appendix A</div>
+        <h2 class="section-title">Framework Deployment Operations (V32)</h2>
+        <p class="section-subtitle">How maintainers update target Spec-Driven projects to the latest framework version. Added V32 — 2026-05-27.</p>
+      </div>
+
+      <div class="callout callout-success">
+        <span class="callout-icon">✓</span>
+        <div>
+          <strong>Audience:</strong> Framework maintainers updating one or more target projects to the latest V32 source.<br>
+          <strong>Prerequisite:</strong> A working clone of <code>AI-Skills-Repo</code> on this machine.<br>
+          <strong>Goal:</strong> A repeatable, safe, one-command sync from repo → target project.
+        </div>
+      </div>
+
+      <h4>A.1 — One-Time Setup (per development machine)</h4>
+
+      <p><strong>Step 1.</strong> Symlink <code>sync-to-project</code> globally so it's on <code>$PATH</code>:</p>
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">Bash</span>
+          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+        </div>
+        <div class="code-body">ln -s /home/me/UbuntuDevFiles/1_COMPANY_DEV/AI-Skills-Repo/sync-to-project.sh ~/.local/bin/sync-to-project</div>
+      </div>
+      <p>Verify: <code>which sync-to-project</code> → <code>/home/me/.local/bin/sync-to-project</code></p>
+
+      <p><strong>Step 2.</strong> Install the <code>spec-update</code> shell function in <code>~/.zshrc</code>:</p>
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">~/.zshrc</span>
+          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+        </div>
+        <div class="code-body"># ----- Spec-Driven AI Framework: one-command update per project -----
+spec-update() {
+  local target="$1"
+  if [ -z "$target" ]; then
+    echo "Usage: spec-update /path/to/target-project"
+    return 1
+  fi
+  if [ ! -d "$target" ]; then
+    echo "ERROR: target directory does not exist: $target" &gt;&amp;2
+    return 1
+  fi
+  (cd /home/me/UbuntuDevFiles/1_COMPANY_DEV/AI-Skills-Repo &amp;&amp; git pull) &amp;&amp; \
+    sync-to-project "$target" &amp;&amp; \
+    (cd "$target" &amp;&amp; bash deploy-v31.sh) &amp;&amp; \
+    echo "" &amp;&amp; \
+    echo "✓ Spec-Driven framework updated in $target" &amp;&amp; \
+    echo "  Next: restart Claude Code in this project (hooks load at session start)."
+}</div>
+      </div>
+      <p>Then activate: <code>source ~/.zshrc</code> (or open a fresh terminal).</p>
+
+      <h4>A.2 — Per-Project Update Workflow — Three Flavors</h4>
+      <p>Pick one each time you need to update a target project. Flavor C is the recommended default.</p>
+
+      <p><strong>Flavor A — Minimal</strong> <span class="meta-value">(use when your local AI-Skills-Repo is already up-to-date)</span></p>
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">Bash</span>
+          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+        </div>
+        <div class="code-body">cd /path/to/target-project
+sync-to-project
+bash deploy-v31.sh</div>
+      </div>
+
+      <p><strong>Flavor B — Explicit <code>git pull</code></strong> <span class="meta-value">(use after working on another machine)</span></p>
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">Bash</span>
+          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+        </div>
+        <div class="code-body">cd /home/me/UbuntuDevFiles/1_COMPANY_DEV/AI-Skills-Repo &amp;&amp; git pull
+cd /path/to/target-project
+sync-to-project
+bash deploy-v31.sh</div>
+      </div>
+
+      <p><strong>Flavor C — One-shot via <code>spec-update</code></strong> <span class="meta-value">(recommended default — wraps A + git pull)</span></p>
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">Bash</span>
+          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+        </div>
+        <div class="code-body">cd /path/to/target-project
+spec-update .</div>
+      </div>
+
+      <h4 id="appendix-rule-of-thumb">A.2b — Rule of Thumb: When to Use spec-update</h4>
+      <p><code>spec-update &lt;target&gt;</code> is the right tool for <strong>both</strong> scenarios below. It handles upgrade and fresh-install symmetrically — no separate first-install script needed.</p>
+
+      <p><strong>1. Upgrade case</strong> — existing project on an older framework version (V31.x or V32.x older than current):</p>
+      <ul>
+        <li><code>git pull</code> → fetches the latest framework from <code>origin/main</code></li>
+        <li><code>sync-to-project</code> → overwrites <code>&lt;target&gt;/.ai_prompt/*.md</code> and <code>&lt;target&gt;/deploy-v31.sh</code> with the current versions (<code>cp -p</code> overwrite; backups happen in the next deploy step, not here)</li>
+        <li><code>bash deploy-v31.sh</code> → re-fans out to <code>.claude/rules/</code>, backing up any user-modified rule files with timestamped <code>.bak</code></li>
+      </ul>
+
+      <p><strong>2. Fresh install case</strong> — brand-new project with only Planning Assistant artifacts (<code>docs/PRODUCT.md</code>, <code>docs/DESIGN.md</code>, <code>docs/MOCKUP.jsx</code>) and no <code>.ai_prompt/</code> yet:</p>
+      <ul>
+        <li><code>sync-to-project</code> detects the missing <code>.ai_prompt/</code> folder and prompts: <em>"Directory does not exist. Create it? [y/N]"</em></li>
+        <li>Answer <strong>y</strong> → creates the folder, copies all 16 V32 reference files in, drops <code>deploy-v31.sh</code> at project root</li>
+        <li><code>deploy-v31.sh</code> then bootstraps <code>.claude/rules/</code>, <code>AI/</code>, and <code>CLAUDE.md</code> cleanly from zero</li>
+      </ul>
+
+      <p><strong>Workflow for a fresh project:</strong></p>
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">Bash</span>
+          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+        </div>
+        <div class="code-body">cd ~/new-app                    # has only docs/ from Planning Assistant
+spec-update .                   # answer 'y' when prompted to create .ai_prompt/
+# Framework is now installed → ready for Bootstrap → Phase 2 → Phase 3</div>
+      </div>
+
+      <p><strong>One pre-step for brand-new projects:</strong> initialize git (<code>git init</code> + first commit) before or after <code>spec-update</code> — the script does not initialize git for you. After <code>spec-update</code>, your next prompt to Claude Code is <code>Bootstrap</code> per the V32.1.1 Step 7d sequence.</p>
+
+      <h4>A.3 — Verification (run inside target after deploy)</h4>
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-lang">Bash</span>
+          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+        </div>
+        <div class="code-body">grep -c "ZERO OPUS EXECUTION (V32)" .claude/rules/phases.md   # expect: 5
+grep -c "V32" CLAUDE.md                                        # expect: 7
+head -1 CLAUDE.md                                              # expect: # SPEC-DRIVEN PLATFORM — V32</div>
+      </div>
+      <p>All three checks pass → V32 is live on disk.</p>
+
+      <h4>A.4 — Always: Restart Claude Code After Any Flavor</h4>
+      <div class="callout callout-warn">
+        <span class="callout-icon">⚠</span>
+        <div><strong>Restart Claude Code in the target project after every deploy.</strong> Hooks load at session start only — without a restart you're running the OLD hooks even though new files are on disk.</div>
+      </div>
+
+      <h4>A.5 — Anti-Patterns to Avoid</h4>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr><th>Anti-pattern</th><th>Why it's wrong</th><th>Do instead</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Run <code>deploy-v31.sh</code> without <code>sync-to-project</code> first when a new framework version exists</td><td>Deploys the OLD <code>.ai_prompt/</code> staging files into final locations</td><td>Always pair sync + deploy</td></tr>
+            <tr><td>Run Flavor A then Flavor C back-to-back</td><td>Idempotent but creates duplicate <code>.bak</code> files</td><td>Pick one flavor per update</td></tr>
+            <tr><td>Edit framework files inside a target project's <code>.ai_prompt/</code> directly</td><td>Changes get overwritten on next sync</td><td>Edit in <code>AI-Skills-Repo/specdrivenprompt/</code>, commit, sync</td></tr>
+            <tr><td><code>cp -r specdrivenprompt/* target/.ai_prompt/</code> blindly</td><td>Leaks repo-internal files (<code>CLAUDE_framework_repo.md</code>, <code>ClaudeCodeChanges-*.md</code>)</td><td>Use <code>sync-to-project</code> — whitelisted, 16 files only</td></tr>
+            <tr><td>Forget to restart Claude Code after deploy</td><td>Files updated but hooks still use OLD rules</td><td>Always restart after deploy</td></tr>
+            <tr><td>Run <code>spec-update</code> without an argument</td><td>Function exits with usage error (safety guard)</td><td>Always pass target dir or <code>.</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>A.6 — Adding New Development Machines</h4>
+      <ul class="checklist">
+        <li>Clone AI-Skills-Repo: <code>git clone git@github.com:bonitobonita24/AI-Skills-Repo.git</code></li>
+        <li>Adjust the hard-coded path in the <code>spec-update</code> function body (currently <code>/home/me/UbuntuDevFiles/1_COMPANY_DEV/AI-Skills-Repo</code>) to match the new machine's checkout location</li>
+        <li>Symlink <code>sync-to-project</code> in that machine's <code>~/.local/bin/</code></li>
+      </ul>
+
+      <h4>A.7 — Safety Guarantees (built into the scripts)</h4>
+      <ul class="checklist">
+        <li><code>sync-to-project</code> validates source files exist before copying; refuses self-sync; whitelist-based</li>
+        <li><code>deploy-v31.sh</code> backs up every overwritten file with a timestamped <code>.bak</code> suffix; aborts if it would touch NEVER-TOUCH files (<code>PRODUCT.md</code>, <code>DECISIONS_LOG.md</code>, codebase, <code>.env*</code>)</li>
+        <li>Both scripts use <code>set -euo pipefail</code> — refuse to proceed on validation failure</li>
+        <li>Easy rollback: <code>cp foo.md.20260527_120000.bak foo.md</code></li>
+      </ul>
+
+      <div class="callout callout-tip">
+        <span class="callout-icon">ⓘ</span>
+        <div><strong>Reference:</strong> Source of truth for this appendix is the markdown twin at <code>specdrivenprompt/Prompt_References.md</code> § Appendix A. Keep both in sync when changing the deploy toolchain.</div>
       </div>
     </div>
 

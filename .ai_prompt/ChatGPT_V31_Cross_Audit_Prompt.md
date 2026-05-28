@@ -1,13 +1,15 @@
-# Spec-Driven Platform V31 — Cross-AI Audit Prompt (for ChatGPT)
+# Spec-Driven Platform V32.1 — Cross-AI Audit Prompt (for ChatGPT)
 
-> **Purpose:** Hand this prompt to ChatGPT along with the 16 V31 framework files. ChatGPT independently audits V31 to verify:
+> **Purpose:** Hand this prompt to ChatGPT along with the 17 V32.1 framework files. ChatGPT independently audits V32.1 to verify the framework remains internally consistent across all canonical files. Items 1-7 below are historical V31-era audit goals (still verified as baseline); V32 and V32.1 verification items live in **Section K (K.1-K.15)** with the V32.1 verified counts block:
 > 1. Phase 2.8 (Clickable Mockup Review — added V31) is correctly documented
 > 2. Cline deprecation (in-place V31 update) is consistent across all files
 > 3. Historical V30 changelog references are preserved
 > 4. Memory system (Resume Session, Governance Sync, Feature Update, Log Lesson, Governance Retro) still works with Claude Code as primary
 > 5. Foundation intact: L1-L6 security stack, 9 governance docs, Rule 24 fresh context, file ownership model
 > 6. No regressions introduced during the updates
-> 7. Post-lock additive patches: Phase 3.5, Phase 4+8 anti-thrashing, Skill Installer, Prompt 4.13, attribution cleanup, prompt count 55
+> 7. Post-lock additive patches: Phase 3.5, Phase 4+8 anti-thrashing, Skill Installer, Prompt 4.13, attribution cleanup, prompt count 55 (V31 era — V32.1 current: **59 prompts (36 NEW ✨)**, **35 scenarios**, **19 bootstrap steps**)
+>
+> **How to interpret counts:** The **V32.1 verified counts block** (around line 85 below) is authoritative for current totals. Historical changelog entries and items 1-7 above may reference older totals reflecting their version-at-time-of-writing (e.g., 55 prompts, 34 scenarios, 18 bootstrap steps for V31 lock) — those are correct for their version and **MUST NOT be treated as current**. When a count appears without a V32.1 annotation, cross-check against the verified counts block before reporting.
 >
 > **Use case:** Run this after every major framework update to catch mistakes Claude missed.
 >
@@ -82,7 +84,7 @@ Bonito's user preference: keep Cline extension installed in VS Code as emergency
 - Post-lock patches add Phase 3.5 as a NEW phase (between Phase 3 and Phase 4) and anti-thrashing rules to Phase 4 and Phase 8. These are in phases.md and Master_Prompt_v31.md. They do NOT change the framework rule count, scenario count, or bootstrap step count.
 - Post-lock patches add a **Context Budget — Global Principle** to CLAUDE_v31_compact.md and Master_Prompt_v31.md. This is a Sonnet 4.6 model-aware task sizing principle (200K window, 120K practical, ≤80K SAFE zone, 12-file threshold). It governs how ALL work is scoped — not a new rule, but a non-negotiable behavioral principle.
 
-### V31.4 verified counts (must match in every file that quotes them)
+### V32.1 verified counts (must match in every file that quotes them)
 
 ```
 30 Rules · 35 Scenarios · 19 Bootstrap Steps · 8 Phase 4 Parts
@@ -629,14 +631,12 @@ Verify each is present in the specified locations.
        LOOK FOR: overwrite_with_backup line for memory-governance.md → .claude/rules/
        File count should say 17 deliverable files (not 16)
 
-□ J.21 memory-governance.md contains V31.2 additions: Step 2.5 (30K token budget gate) and Step 2.5b (Opus escalation)
-       LOOK FOR in §1 (Tiered Decomposition Engine):
-       "Step 2.5" with a 30K token budget gate — every Sonnet subagent task must have token estimate ≤30K;
-       split further if over, regardless of tier or file count.
-       "Step 2.5b" with Opus escalation — genuinely atomic unsplittable tasks >30K dispatch to
-       Agent(model: "opus") as last resort; 100K budget cap; max 20% of tasks per session; logged in STATE.md.
-       Also check §4 (Architect-Execute Model) references THRASHING as a new Sonnet status (re-reads files,
-       partial output, contradicts edits → stop agent, re-decompose via Step 2.5).
+□ J.21 [V31.2 historical — SUPERSEDED by V32 K.2/K.3] memory-governance.md originally added (V31.2) Step 2.5
+       (30K token budget gate) and Step 2.5b (Opus escalation). V32 has SUPERSEDED both: token estimation
+       replaced by `wc -l` file-size checks (Step 2.5 gone, see K.2); Step 2.5b deleted entirely (see K.3).
+       For V32 verification, use K.2 and K.3 instead. This item is retained for V31.2-history audits only.
+       LOOK FOR: V32 changelog block in Master_Prompt_v31.md explaining the supersession of Step 2.5 and Step 2.5b.
+       PASS if K.2 and K.3 both pass. Do NOT fail V32 for the absence of Step 2.5b — its removal is intentional.
 
 □ J.22 Prompts 3.20 + 3.21 exist in Prompt_References.md and .html
        LOOK FOR: "## 3.20 — Memory Governance Baseline" and "## 3.21 — Opus Planning Session"
@@ -697,6 +697,153 @@ Verify each is present in the specified locations.
        must show V31.4 as the latest version — NOT V31.3.
        FAIL if V31.4 row is missing. FAIL if footer still says V31.3.
 ```
+
+---
+
+### Section K — V32 / V32.1 Verification (Zero Opus Execution Dispatch System + Sonnet Subagent Context Overhead)
+
+□ K.1 (V32) — Zero Opus Execution rule (R1) is documented in memory-governance.md §4
+       LOOK FOR in `memory-governance.md` §4 "Opus Role (strictly limited — V32 R1)": an explicit
+       "OPUS MAY NOT" block listing: Edit on project files, Write on project files (except STATE.md),
+       "small justified escalation" (banned phrase), Agent(model: "opus") for execution.
+       FAIL if Opus is allowed to call Edit/Write on project files for any reason.
+
+□ K.2 (V32) — File-Size Dispatch (R2) replaces token estimation
+       LOOK FOR in `memory-governance.md` §1: tier classification based on `wc -l` line counts,
+       NOT estimated tokens. Tier 1 ≤ 500 total lines AND ≤ 4 files AND 1 module.
+       Tier 2 = 501-1500. Tier 3 > 1500.
+       FAIL if §1 still references "30K token budget" or "Step 2.5" token estimation.
+
+□ K.3 (V32) — Step 2.5b deleted
+       LOOK FOR: `memory-governance.md` should NOT have a "Step 2.5b" subsection.
+       The Opus executor escalation path is REMOVED in V32.
+       Historical mentions in changelog blocks (explaining what was removed) are acceptable.
+       FAIL if §1 or §4 still describes Opus escalation as an operational path.
+
+□ K.4 (V32) — Large-File Guard (R3) — files > 300 lines need line ranges
+       LOOK FOR in `memory-governance.md` §1 Step 4 and §4 Task Scope Format:
+       Files > 300 lines MUST have explicit line ranges in the task scope.
+       FAIL if Task Scope Format does not mention line ranges for large files.
+
+□ K.5 (V32) — Failure = Split (R4) — no Opus fallback
+       LOOK FOR in `memory-governance.md` §1 "Failure Protocol" and §4 "BLOCKED" / "THRASHING":
+       3 re-decomposition attempts → defer to next session. NEVER fall back to Opus execution.
+       FAIL if BLOCKED handling allows Opus to take over implementation.
+
+□ K.6 (V32) — Scout-Before-Edit (R5) — files > 200 lines
+       LOOK FOR in `memory-governance.md` §4 step 1.5: Sonnet Scout is mandatory (not just optional)
+       for files > 200 lines, > 2 PRODUCT.md sections, > 2 governance docs, OR > 5 source files.
+       FAIL if Scout is described as fully optional or limited to "large reads" without size threshold.
+
+□ K.7 (V32) — All 5 MODEL hooks in phases.md updated to V32 form
+       LOOK FOR in `phases.md`: 5 MODEL hooks (Phase 2, 3.5, 4, 7, 8) all begin
+       "MODEL: ZERO OPUS EXECUTION (V32)." and reference the 500-line `wc -l` gate explicitly.
+       FAIL if any of the 5 still uses pre-V32 language ("STOP before executing" without "ZERO OPUS EXECUTION").
+
+□ K.8 (V32) — CLAUDE_v31_compact.md Agent Stack reflects V32
+       LOOK FOR in `CLAUDE_v31_compact.md` Agent Stack: Opus 4.6 = Architect ONLY (planning,
+       decomposition, review, STATE.md checkpoint), NEVER calls Edit/Write on project files.
+       FAIL if there is still a line listing "Opus 4.6 = Executor (last resort)" or Step 2.5b.
+
+□ K.9 (V32) — Framework_Feature_Index_v31.md V32 row exists + footer bumped
+       LOOK FOR: a V32 row in the version table above the V31.4 row, describing the
+       Zero Opus Execution Dispatch System. Footer reads "Last updated: V32 (...)".
+       FAIL if V32 row is missing. FAIL if footer still says V31.4.
+
+□ K.10 (V32) — Master_Prompt_v31.md V32 changelog block present
+       LOOK FOR: a `### V32 (2026-05-27) — Zero Opus Execution Dispatch System` section in
+       the changelog, appearing BEFORE the V31.4 entry. Contains: WHY (V31.4 failed in Yelli),
+       WHAT V32 CHANGES (5 rules R1-R5), Files changed, Counts unchanged.
+       FAIL if no V32 changelog block exists.
+□ K.11 (V32.1) — memory-governance.md §1 contains "Operational Note — Sonnet Subagent Context Overhead (V32.1)" subsection (symptoms, mitigation, R4 relationship, when-it-matters)
+□ K.12 (V32.1) — Prompt 3.21 (Opus Planning) in Prompt_References.md AND Prompt_References.html contains "V32.1 Dispatch Sizing Tip" callout linking to memory-governance.md V32.1 note
+□ K.13 (V32.1) — Master_Prompt_v31.md changelog contains V32.1 entry positioned above the V32 entry
+□ K.14 (V32.1) — Framework_Feature_Index_v31.md contains V32.1 table row above V32 row, footer bumped to "Last updated: V32.1"
+□ K.15 (V32.1) — CLAUDE_v31_compact.md title bumped to "V32.1", and V32.1 Operational Note paragraph present after the dispatch gate paragraph
+□ K.16 (V32.1.1) — Product_md_Planning_Assistant_v31.md Step 7d (Final handoff) routes Bootstrap FIRST → "Start Phase 2" → "Start Phase 3"
+       LOOK FOR in `Product_md_Planning_Assistant_v31.md` Step 7d Final handoff Output text:
+       the phrase "run 'Bootstrap' FIRST (creates CREDENTIALS.md — required gate for Phase 2)"
+       followed by "THEN 'Start Phase 2'" and the operational-questions list (Docker Hub credentials,
+       model routing, dev port ranges, git strategy, CORS origins), and finally
+       "After Phase 2 confirms, type 'Start Phase 3' to generate inputs.yml".
+       FAIL if Step 7d still tells users to run "Start Phase 3" directly without Bootstrap + Phase 2 first.
+       FAIL if Step 7d does not mention CREDENTIALS.md as the Phase 2 gate.
+□ K.17 (V32.1.1) — Prompt_References.md Prerequisites lists 17 V32 framework files + Planning Assistant deliverables include DESIGN.md + mockup HTML
+       LOOK FOR in `Prompt_References.md` Prerequisites section: a bullet stating
+       "17 V32 framework files (16 in `.ai_prompt/` + `deploy-v31.sh` at project root)"
+       AND a bullet mentioning DESIGN.md + mockup HTML archive as optional Planning Assistant deliverables
+       AND a cross-reference to Appendix A for the V32 `spec-update` workflow.
+       FAIL if Prereqs still says "16 V31 files" or omits DESIGN.md/mockup mention.
+□ K.18 (V32.1.1) — Prompt_References.md Starting State diagram contains memory-governance.md AND docs/DESIGN.md AND docs/mockups/
+       LOOK FOR in `Prompt_References.md` "## The Starting State" ascii block:
+       row for `memory-governance.md` inside `.ai_prompt/`, AND
+       row for `docs/DESIGN.md` with annotation "from Planning Assistant Step 7b — if you picked a getdesign.md aesthetic", AND
+       row for `docs/mockups/` with annotation "from prompt 4.7 — if you saved the Phase 2.8 mockup HTML archive".
+       FAIL if any of the three rows is missing.
+       FAIL if the diagram still says "15 V31 reference files".
+□ K.19 (V32.1.1) — Prompt_References.md 1.3.2 renamed "Phase 2 operational interview" + 1.3.3 contains Phase 2.8 SKIPPED note
+       LOOK FOR in `Prompt_References.md`:
+       (a) `### 1.3.2 — Phase 2 operational interview` (NOT "Phase 2 discovery") followed by body text explaining
+           Phase 2 is NOT a duplicate of Planning Assistant and listing the operational questions it asks
+           (Docker Hub, model routing, dev ports, git, CORS, Komodo, Turnstile).
+       (b) Section 1.3.3 auto-chain line contains "Phase 2.8 is SKIPPED in Claude Code — it already ran in the Planning Assistant chat".
+       FAIL if 1.3.2 still says "Phase 2 discovery" or "Claude only asks remaining open questions".
+       FAIL if 1.3.3 does not explicitly say Phase 2.8 is skipped in Claude Code.
+□ K.20 (V32.1.1) — Master_Prompt_v31.md changelog contains V32.1.1 entry dated 2026-05-28
+       LOOK FOR in `Master_Prompt_v31.md` changelog: a bullet beginning
+       "**V32.1.1 (2026-05-28):** Planning Assistant Step 7d corrected." inside the V32.1 changelog section
+       (positioned after the V32.1 entries, before the V32 entry).
+       The bullet must describe: old behavior (skipped Bootstrap + Phase 2), new behavior
+       (Bootstrap → Phase 2 → Phase 3), propagation to Prompt_References.md + .html, and rationale
+       (Master Prompt = sole authority, Planning Assistant must match).
+       FAIL if V32.1.1 entry is absent or dated differently.
+□ K.21 (V32.1.2) — AI_Tools_Skills_MCPs_Reference_v31.md Claude Code agent row describes V32 Zero Opus Execution
+       LOOK FOR in `AI_Tools_Skills_MCPs_Reference_v31.md` the Claude Code row of the agent table:
+       row must say "Opus 4.6 = Architect ONLY", "NEVER calls Edit/Write on project files",
+       "Sonnet 4.6 = Sole Executor", "`wc -l` ≤ 500 total lines per task", and explicitly call out
+       that "Step 2.5/2.5b (30K token budget gate + Opus executor escalation) was the V31.2-era model
+       and is REMOVED in V32" as a historical note.
+       FAIL if active row still describes "fallback Executor" or "30K token budget" as live behavior.
+□ K.22 (V32.1.2) — AI_Tools_Skills_MCPs_Reference_v31.md footer says 17-file V32.1 deliverable set
+       LOOK FOR: footer line "*This reference is part of the 17-file V32.1 deliverable set (16 files placed in `.ai_prompt/` + deploy script at project root):*"
+       followed by file listing that includes memory-governance.md and ChatGPT_V31_Cross_Audit_Prompt.md and Prompt_References.html.
+       FAIL if footer still says "13-file V31 deliverable set".
+□ K.23 (V32.1.2) — Framework_Feature_Index_v31.md header says current version V32.1
+       LOOK FOR near top: "> Current framework version: **V32.1**" with explanation that
+       filenames retain `_v31_` for deploy backward compatibility.
+       FAIL if header still says "Current framework version: **V31**".
+□ K.24 (V32.1.2) — Framework_Feature_Index_v31.md Note line at end says 17-file V32.1 deliverable set + memory-governance.md
+       LOOK FOR the "**Note:** This file is updated by Claude alongside every version bump..." paragraph
+       near the file end: must say "17-file V32.1 deliverable set — 16 files in `.ai_prompt/`"
+       and the file listing must include memory-governance.md.
+       FAIL if Note still says "16-file V31 deliverable set" or omits memory-governance.md.
+□ K.25 (V32.1.2) — CLAUDE_v31_compact.md role block says V32.1 STRICTEST + Master_Prompt header has V32.1.2 naming-policy note
+       LOOK FOR in `CLAUDE_v31_compact.md` near top: "operating under **V32.1 STRICTEST** discipline"
+       (NOT "V31 STRICTEST"). AND in `Master_Prompt_v31.md` header area: a block titled
+       "**VERSION + FILENAME POLICY (added V32.1.2 — 2026-05-28)**" explaining that body labels saying
+       "V31 primary" / "V31 STRICTEST" should be interpreted as base-V31 with V32/V32.1 patches layered on.
+       FAIL if either is absent.
+□ K.26 (V32.1.3) — deploy-v31.sh count messages consistent with 17-file canonical (16 in .ai_prompt/ + 1 deploy script)
+       LOOK FOR in `deploy-v31.sh`:
+       (a) Header layout block (around line 49) says "put all 16 V32 reference files in here".
+       (b) Footer comment (around line 66) says "this script at project root (17th file — total deliverable set)".
+       (c) Missing-folder error path says "put the 16 V32 reference files in it" — NOT "15 V32 reference files".
+       FAIL if any of the three messages uses 13, 14, 15, or 17 in the .ai_prompt/ reference count
+       (the .ai_prompt/ folder always holds 16 files; deploy-v31.sh is the 17th = total set).
+□ K.27 (V32.1.4) — deploy-v31.sh "Next steps" message conditionally routes based on Planning Assistant artifact detection
+       LOOK FOR in `deploy-v31.sh` (around the post-deploy "Next steps" block):
+       (a) A `pa_signal` variable initialized to 0 and set to 1 when
+           `[ -f "$PROJECT/docs/PRODUCT.md" ] && { [ -f "$PROJECT/docs/DESIGN.md" ] || [ -f "$PROJECT/docs/MOCKUP.jsx" ]; }` is true.
+       (b) An `if [ "$pa_signal" -eq 1 ]; then ... else ... fi` branch around the "Next steps" echo lines.
+       (c) PA-branch output mentions "Bootstrap" (Phase 0), "Start Phase 2" (operational interview), "Start Phase 3" (inputs.yml from PRODUCT.md),
+           AND explicitly states "Phase 2.8 is SKIPPED in Claude Code" (because the mockup already ran in Planning Assistant).
+       (d) PA-branch output offers prompt 1.2 (Universal Analyzer) as a fallback for users who'd rather auto-detect.
+       (e) Non-PA branch retains the previous behavior (recommend pasting prompt 1.2 from Prompt References).
+       FAIL if the Next-steps message is unconditional (always recommends 1.2 OR always recommends Bootstrap).
+       FAIL if PA-branch does not mention Bootstrap → Phase 2 → Phase 3 in that order.
+       FAIL if PA-branch does not mention "Phase 2.8 is SKIPPED" explicitly.
+       Rationale: deploy script now resolves the V32.1.1 (Planning Assistant "type Bootstrap") vs prior deploy-script
+       ("paste prompt 1.2") contradiction by picking the right entry point from observable target state.
 
 ---
 
@@ -768,8 +915,8 @@ SECONDARY ISSUES (nice to fix but not blocking):
 
 10. **Memory system verification is critical.** If ANY memory command (Resume Session, Governance Sync, Feature Update, Governance Retro, Log Lesson, Resume from handoff) appears broken or has stale Cline routing as primary, flag as F.7 FAIL immediately — this is Bonito's most important concern.
 
-11. **Post-lock patches are NOT a new version.** They are additive changes applied to V31 files without bumping to V32. V31.1 is a minor version tag for the Memory Governance Layer — still within V31. V31.2 added the 30K Token Budget Gate (Step 2.5) and Opus Escalation (Step 2.5b). V31.3 added the UI Loading-State Dual-Path (Rule 11, Scenario 35, Bootstrap Step 19, phantom-ui). V31.4 is the Dispatch Discipline Patch — it extended the Architect-Execute Model from Phase 4/7/8 only to ALL phases + ad-hoc edits, added a Sonnet Scout sub-step (§4 step 1.5), rewrote Tier 1 to mandate Sonnet dispatch (removing "proceed directly"), and rewrote phase hook MODEL lines and all phases.md MODEL: lines in imperative form. ChatGPT should verify patches exist in the correct files (Section J) but should NOT flag them as version inconsistencies. Phase 3.5 is a new phase — verify it appears in phase menus and counts. Anti-thrashing rules are in Phase 4 and Phase 8 sections. Context Budget is a global principle in CLAUDE_v31_compact.md and Master_Prompt_v31.md. Memory Governance Layer is in memory-governance.md with 13 hooks in phases.md. Architect-Execute Model uses Opus 4.6 (architect) and Sonnet 4.6 (executor). Prompt count is 59 (not 54, 55, or 56). Deliverable file count is 17 (not 16). Attribution chain is CLAUDE_CODE first (not CLINE).
+11. **V31.1 / V31.2 / V31.3 / V31.4 are post-lock patches inside the V31 line** — additive changes that did not bump the major version. **V32 (2026-05-27) IS a full version bump** — it replaces the dispatch model structurally (token estimation → file-size checks, Step 2.5b removed). Treat V31.x patches as historical; treat V32 as the current authoritative state. The K section verifies V32; the J section retains historical V31.x items for audit completeness. V31.1 is a minor version tag for the Memory Governance Layer — still within V31. V31.2 added the 30K Token Budget Gate (Step 2.5) and Opus Escalation (Step 2.5b) — both SUPERSEDED by V32. V31.3 added the UI Loading-State Dual-Path (Rule 11, Scenario 35, Bootstrap Step 19, phantom-ui). V31.4 is the Dispatch Discipline Patch — it extended the Architect-Execute Model from Phase 4/7/8 only to ALL phases + ad-hoc edits, added a Sonnet Scout sub-step (§4 step 1.5), rewrote Tier 1 to mandate Sonnet dispatch (removing "proceed directly"), and rewrote phase hook MODEL lines and all phases.md MODEL: lines in imperative form. ChatGPT should verify patches exist in the correct files (Section J) but should NOT flag them as version inconsistencies. Phase 3.5 is a new phase — verify it appears in phase menus and counts. Anti-thrashing rules are in Phase 4 and Phase 8 sections. Context Budget is a global principle in CLAUDE_v31_compact.md and Master_Prompt_v31.md. Memory Governance Layer is in memory-governance.md with 13 hooks in phases.md. Architect-Execute Model uses Sonnet 4.6 (executor); Opus dispatched only by explicit human instruction. Prompt count is 59 (not 54, 55, or 56). Deliverable file count is 17 (not 16). Attribution chain is CLAUDE_CODE first (not CLINE).
 
 ---
 
-*Part of the Spec-Driven Platform V31 deliverable set. Maintained by Claude on behalf of Bonito — Powerbyte IT Solutions, Lipa City, Philippines.*
+*Part of the Spec-Driven Platform V32.1 deliverable set. Maintained by Claude on behalf of Bonito — Powerbyte IT Solutions, Lipa City, Philippines.*

@@ -1,4 +1,4 @@
-# SPEC-DRIVEN PLATFORM — V31
+# SPEC-DRIVEN PLATFORM — V32.1.4
 
 > **WHAT THIS FILE IS**
 > Compact rules card for Claude Code. Auto-loaded every session.
@@ -10,7 +10,7 @@
 
 ## WHO YOU ARE
 
-You are a **Spec-Driven Platform Architect** operating under **V31 STRICTEST** discipline.
+You are a **Spec-Driven Platform Architect** operating under **V32.1.4 STRICTEST** discipline (V31 base discipline + V32 Zero Opus Execution + V32.1 Sonnet subagent context-overhead operational note + V32.1.4 deploy-script PA-artifact-aware Next-steps routing).
 Primary model: **Claude Sonnet 4.6** via Claude Code.
 
 ---
@@ -140,16 +140,19 @@ TOKEN BUDGET REFERENCE (memorize this):
 Read ONLY relevant PRODUCT.md sections. Use codebase_search (Rule 17) instead of opening
 files for context. See `.claude/rules/phases.md` for full anti-thrashing rules per phase.
 
-**Architect-Execute Model (ALL phase work and ad-hoc edits):** Use Opus 4.6 for planning and decomposition,
-Sonnet 4.6 for execution. Opus dispatches Sonnet subagents via `Agent(model: "sonnet")`.
-See `.claude/rules/memory-governance.md` §4 for full protocol. This eliminates thrashing
-on mature projects by ensuring Sonnet never reads full PRODUCT.md or makes decomposition decisions.
-**30K Token Budget Gate (§1 Step 2.5):** every Sonnet subagent task must have a token estimate
-≤30K — split further if over, regardless of tier. If a task is genuinely atomic and cannot be
-split, escalate to `Agent(model: "opus")` as last resort (Step 2.5b — 100K budget, log
-justification, max 20% of tasks). **THRASHING status:** if Opus detects a Sonnet agent
-re-reading files, producing partial output, or contradicting prior edits — stop the agent and
-re-decompose via Step 2.5.
+**Architect-Execute Model — Zero Opus Execution (V32, ALL phase work and ad-hoc edits):**
+Use Opus 4.6 for planning, decomposition, and review. Use Sonnet 4.6 for ALL execution.
+Opus dispatches Sonnet via `Agent(model: "sonnet")` and NEVER calls Edit/Write on project files
+(STATE.md checkpoint is the only Opus write). See `.claude/rules/memory-governance.md` §4 for
+full protocol.
+**500-Line Dispatch Gate (V32 §1 Step 4 — replaces token estimation):** before dispatching ANY
+Sonnet task, run `wc -l` on every file in scope. Total ≤ 500 lines per task. Files > 300 lines
+require explicit line ranges (V32 R3). Files > 200 lines need a Sonnet Scout first (V32 R5).
+If over budget → split further. **Failure protocol (V32 R4):** Sonnet BLOCKED or thrashing →
+Opus re-decomposes (max 3 attempts) → checkpoint and defer. NEVER fall back to Opus execution.
+The phrase "small justified escalation" is BANNED. The Opus executor path has been removed.
+
+**V32.1 Operational Note (2026-05-27 — Sonnet baseline overhead):** Sonnet subagents inherit ~30–50K tokens of auto-loaded skills + MCP context per dispatch BEFORE task work begins, which can trigger thrash earlier than the 500-line gate predicts. Mitigation: dispatch prompts ≤ ~1K tokens; per-dispatch tool-use budget ≤ 5; verification runs on Opus side via `ctx_execute`; decompose by surface (file/import/test block) not by feature. See `memory-governance.md` §1 "Operational Note — Sonnet Subagent Context Overhead (V32.1)".
 
 ---
 
@@ -198,12 +201,12 @@ Retro        "Governance Retro" → weekly health report
 ## AGENT STACK
 
 ```
-Claude Code       Primary — planning + execution (V31). Auto-loads this file.
+Claude Code       Primary — planning + execution (V32). Auto-loads this file.
                   Handles ALL phases. No handoff needed.
-                  Opus 4.6 = Architect (planning, decomposition, review).
-                  Sonnet 4.6 = Executor (implementation, tests, commits).
-                  Opus 4.6 = Executor (last resort — tasks exceeding Sonnet 30K budget, Step 2.5b).
-                  See memory-governance.md §4 for Architect-Execute Model.
+                  Opus 4.6 = Architect ONLY (planning, decomposition, review, STATE.md checkpoint).
+                                 NEVER calls Edit/Write on project files (V32 R1).
+                  Sonnet 4.6 = Executor (ALL implementation, tests, commits, governance docs).
+                  See memory-governance.md §4 for Architect-Execute Model (Zero Opus Execution).
 Cline             ⚠ DEPRECATED — do not use. Kept for historical reference only.
                   .clinerules still generated but unused. Claude Code handles all work.
 Copilot           Inline autocomplete + PR review. Attribution via SpecStory.

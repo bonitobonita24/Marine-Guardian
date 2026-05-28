@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# Spec-Driven Platform V31 — File Deployment Script
+# Spec-Driven Platform V32 — File Deployment Script
 # ============================================================
 # SAFETY CONTRACT (read this before running)
 # ============================================================
@@ -20,7 +20,7 @@
 #                                        is kept untouched; delete manually if desired)
 #
 #   2. ALWAYS-APPEND (project config — merge new entries, preserve existing)
-#         • .gitignore  — appends V31 entries ONLY if not already present.
+#         • .gitignore  — appends V32 entries ONLY if not already present.
 #                         Preserves all existing user entries verbatim.
 #                         Section header added only if missing.
 #
@@ -46,7 +46,7 @@
 # ============================================================
 # EXPECTED LAYOUT BEFORE RUNNING:
 #   your-project/
-#   ├── .ai_prompt/               ← put all 16 V31 reference files in here
+#   ├── .ai_prompt/               ← put all 16 V32 reference files in here
 #   │   ├── CLAUDE_v31_compact.md
 #   │   ├── Master_Prompt_v31.md
 #   │   ├── bootstrap.md
@@ -71,7 +71,7 @@
 #
 # WORKS FOR ALL SITUATIONS:
 #   • Greenfield (empty project):   creates everything fresh
-#   • V31 upgrade (prior version):  backs up old framework files, replaces with V31,
+#   • V32 upgrade (prior version):  backs up old framework files, replaces with V32,
 #                                    preserves all project data
 #   • Brownfield (non-Spec-Driven): adds framework files alongside existing code,
 #                                    preserves all existing code
@@ -92,7 +92,7 @@ if [ ! -d "$AI_PROMPT" ]; then
   echo ""
   echo "Expected layout:"
   echo "  $(basename "$PROJECT")/"
-  echo "  ├── .ai_prompt/            ← create this and put the 15 V31 reference files in it"
+  echo "  ├── .ai_prompt/            ← create this and put the 16 V32 reference files in it"
   echo "  └── deploy-v31.sh          ← this script"
   echo ""
   echo "Run this script from the directory containing .ai_prompt/"
@@ -100,7 +100,7 @@ if [ ! -d "$AI_PROMPT" ]; then
 fi
 
 echo "============================================================"
-echo "  Spec-Driven Platform V31 — Deployment"
+echo "  Spec-Driven Platform V32 — Deployment"
 echo "============================================================"
 echo "  Project root:  $PROJECT"
 echo "  Source folder: $AI_PROMPT"
@@ -175,7 +175,7 @@ done
 echo ""
 echo "APPEND (merge new entries only):"
 if [ -f "$PROJECT/.gitignore" ]; then
-  echo "    .gitignore  (exists → will append missing V31 entries only)"
+  echo "    .gitignore  (exists → will append missing V32 entries only)"
 else
   echo "    .gitignore  (new → will create)"
 fi
@@ -301,7 +301,7 @@ append_line_if_missing() {
   for candidate in "${equivalents[@]}"; do
     if echo "$normalized_content" | grep -qE "^[[:space:]]*#[[:space:]]*$(printf '%s' "$candidate" | sed 's/[].*[^$\/]/\\&/g')[[:space:]]*$"; then
       echo "  ⚠  Warning: '$line' exists but is COMMENTED OUT in $label."
-      echo "              V31 requires this to be active — appending enabled version."
+      echo "              V32 requires this to be active — appending enabled version."
       # fall through to append below
       break
     fi
@@ -311,8 +311,8 @@ append_line_if_missing() {
   for candidate in "${equivalents[@]}"; do
     if echo "$normalized_content" | grep -qxF "!$candidate"; then
       echo "  ⚠  Warning: '!$line' (negation) exists in $label."
-      echo "              User is force-including what V31 wants to hide."
-      echo "              Appending V31 rule — review manually to resolve conflict."
+      echo "              User is force-including what V32 wants to hide."
+      echo "              Appending V32 rule — review manually to resolve conflict."
       # fall through to append
       break
     fi
@@ -359,7 +359,7 @@ if [ -n "$old_masters" ]; then
   echo ""
   echo "  ℹ  Older Master Prompt versions detected in AI/ (left untouched):"
   echo "$old_masters" | sed 's|.*/|      |'
-  echo "      Delete these manually once V31 is confirmed working."
+  echo "      Delete these manually once V32 is confirmed working."
 fi
 echo ""
 
@@ -379,7 +379,7 @@ fi
 
 preserved_lines=$(wc -l < "$GITIGNORE" 2>/dev/null || echo 0)
 
-# V31 entries to ensure are present. Order preserved on append — duplicates never created.
+# V32 entries to ensure are present. Order preserved on append — duplicates never created.
 # The append_line_if_missing helper handles:
 #   - exact match        → skip
 #   - whitespace/CRLF    → normalized during match
@@ -387,7 +387,7 @@ preserved_lines=$(wc -l < "$GITIGNORE" 2>/dev/null || echo 0)
 #   - negation (!entry)  → warn + append, flag conflict
 #   - equivalent slashes → ".ai_prompt/" == ".ai_prompt" == "/.ai_prompt/" etc.
 GITIGNORE_ENTRIES=(
-  "# ─── Build + TypeScript cache (Spec-Driven V31) ───"
+  "# ─── Build + TypeScript cache (Spec-Driven V32) ───"
   "*.tsbuildinfo"
   "# ─── Environment files — NEVER commit real credentials ───"
   ".env"
@@ -426,7 +426,7 @@ final_lines=$(wc -l < "$GITIGNORE" 2>/dev/null || echo 0)
 added=$((final_lines - preserved_lines))
 echo ""
 if [ "$added" -le 0 ]; then
-  echo "  ℹ  All V31 entries already in .gitignore — nothing added"
+  echo "  ℹ  All V32 entries already in .gitignore — nothing added"
 else
   echo "  ✅ Added $added lines. Preserved $preserved_lines existing lines."
 fi
@@ -457,7 +457,7 @@ echo ""
 # SUMMARY
 # ============================================================
 echo "============================================================"
-echo "  ✅ V31 deployment complete — safety contract honored"
+echo "  ✅ V32 deployment complete — safety contract honored"
 echo "============================================================"
 echo ""
 echo "  Files deployed to project tree (OVERWRITE bucket):"
@@ -468,11 +468,11 @@ echo "    .claude/rules/ui-rules.md"
 echo "    .claude/rules/bootstrap.md"
 echo "    .claude/rules/scenarios.md"
 echo "    .claude/rules/templates.md"
-echo "    .claude/rules/memory-governance.md        ← Memory Governance Layer (V31.1)"
+echo "    .claude/rules/memory-governance.md        ← Memory Governance Layer (V32)"
 echo "    AI/Master_Prompt_v31.md                 ← full monolithic"
 echo ""
 echo "  Merged additively (APPEND bucket):"
-echo "    .gitignore                              ← V31 entries added, user entries preserved"
+echo "    .gitignore                              ← V32 entries added, user entries preserved"
 echo ""
 echo "  Protected (NEVER-TOUCH bucket):"
 echo "    All project data (PRODUCT.md, CREDENTIALS.md, .env.*, inputs.yml,"
@@ -499,11 +499,37 @@ if [ "$backup_count" -gt 0 ]; then
   echo ""
 fi
 
+# Detect Planning Assistant artifacts (V32.1.4):
+#   - docs/PRODUCT.md is necessary for any greenfield
+#   - docs/DESIGN.md OR docs/MOCKUP.jsx → strong signal user just came from Planning Assistant
+# If PA signal present, recommend Bootstrap-first path (V32.1.1 Step 7d sequence).
+# Otherwise, recommend prompt 1.2 (Universal Analyzer) which auto-routes by project state.
+pa_signal=0
+if [ -f "$PROJECT/docs/PRODUCT.md" ] && { [ -f "$PROJECT/docs/DESIGN.md" ] || [ -f "$PROJECT/docs/MOCKUP.jsx" ]; }; then
+  pa_signal=1
+fi
+
 echo "  Next steps:"
-echo "    1. Make sure docs/PRODUCT.md is in place (already done from claude.ai planning)"
-echo "    2. Open Prompt_References.html in a browser (or read Prompt_References.md)"
-echo "    3. Open Claude Code: type 'claude' in WSL2 terminal at project root"
-echo "    4. Paste prompt 1.2 (Universal Analyzer) from Prompt References"
-echo "       Claude will detect greenfield / V31 upgrade / brownfield and route you"
-echo "       to prompt 1.3 / 1.4 / 1.5 / 1.6 automatically."
+if [ "$pa_signal" -eq 1 ]; then
+  echo "    Detected Planning Assistant artifacts in docs/ (PRODUCT.md + DESIGN.md/MOCKUP.jsx)."
+  echo "    Routing to V32.1.1 fresh-project sequence:"
+  echo ""
+  echo "    1. Open Prompt_References.html in a browser (or read Prompt_References.md)"
+  echo "    2. Open Claude Code: type 'claude' in WSL2 terminal at project root"
+  echo "    3. Type 'Bootstrap' → runs Phase 0 (creates CREDENTIALS.md gate for Phase 2)"
+  echo "    4. Type 'Start Phase 2' → operational interview (Docker Hub, model routing,"
+  echo "       dev ports, git strategy, CORS origins) — NOT a duplicate of Planning Assistant"
+  echo "    5. Type 'Start Phase 3' → generates inputs.yml from docs/PRODUCT.md"
+  echo "       (Phase 2.8 is SKIPPED in Claude Code — the mockup already ran in Planning Assistant)"
+  echo ""
+  echo "    If you'd rather let Claude auto-detect project state, paste prompt 1.2"
+  echo "    (Universal Analyzer) instead — it will route greenfield to 1.3."
+else
+  echo "    1. Make sure docs/PRODUCT.md is in place (already done from claude.ai planning)"
+  echo "    2. Open Prompt_References.html in a browser (or read Prompt_References.md)"
+  echo "    3. Open Claude Code: type 'claude' in WSL2 terminal at project root"
+  echo "    4. Paste prompt 1.2 (Universal Analyzer) from Prompt References"
+  echo "       Claude will detect greenfield / V32 upgrade / brownfield and route you"
+  echo "       to prompt 1.3 / 1.4 / 1.5 / 1.6 automatically."
+fi
 echo "============================================================"

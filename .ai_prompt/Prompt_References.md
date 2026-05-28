@@ -35,14 +35,14 @@
 
 - ✅ WSL2 Ubuntu installed, Node 22 + pnpm + Docker Desktop all working
 - ✅ VS Code with Claude Code CLI installed (Cline extension optional — deprecated V31, kept installed only as emergency fallback)
-- ✅ You already ran `Product_md_Planning_Assistant_v31.md` in claude.ai — final `PRODUCT.md` is ready
-- ✅ You have the 16 V31 files (15 in `.ai_prompt/` + `deploy-v31.sh` at project root)
+- ✅ You already ran `Product_md_Planning_Assistant_v31.md` in claude.ai — final `PRODUCT.md` is ready (plus `DESIGN.md` if you picked an aesthetic from getdesign.md, plus the mockup HTML archive if you saved it per prompt 4.7)
+- ✅ You have the 17 V32 framework files (16 in `.ai_prompt/` + `deploy-v31.sh` at project root) — see Appendix A for the V32 `spec-update` deployment workflow
 
 ## The Starting State
 
 ```
 your-project/                      ← empty folder (or existing project)
-├── .ai_prompt/                    ← you drop all 15 V31 reference files in here
+├── .ai_prompt/                    ← you drop all 16 V32 reference files in here
 │   ├── CLAUDE_v31_compact.md
 │   ├── Master_Prompt_v31.md
 │   ├── bootstrap.md
@@ -51,6 +51,7 @@ your-project/                      ← empty folder (or existing project)
 │   ├── ui-rules.md
 │   ├── scenarios.md
 │   ├── templates.md
+│   ├── memory-governance.md       ← V31.1 Memory Governance Layer (NEW)
 │   ├── Product_md_Planning_Assistant_v31.md
 │   ├── Framework_Feature_Index_v31.md
 │   ├── AI_Tools_Skills_MCPs_Reference_v31.md
@@ -58,10 +59,15 @@ your-project/                      ← empty folder (or existing project)
 │   ├── ChatGPT_V31_Cross_Audit_Prompt.md
 │   ├── Prompt_References.md       ← this file (markdown version)
 │   └── Prompt_References.html     ← interactive UI (open in browser)
-├── deploy-v31.sh                  ← you drop this at project root (16th file)
+├── deploy-v31.sh                  ← you drop this at project root (17th file)
 └── docs/
-    └── PRODUCT.md                 ← already ready from claude.ai planning session
+    ├── PRODUCT.md                 ← from Planning Assistant — required
+    ├── DESIGN.md                  ← from Planning Assistant Step 7b — if you picked a getdesign.md aesthetic
+    └── mockups/                   ← from prompt 4.7 — if you saved the Phase 2.8 mockup HTML archive
+        └── [appname]-phase-2.8-mockup.html
 ```
+
+Tip: on V32 machines, skip the manual `.ai_prompt/` copy step — use `spec-update .` (Appendix A) which syncs all 16 files + runs deploy in one command.
 
 ---
 
@@ -153,7 +159,7 @@ DETECTION — run all checks, do not modify any file
 
 Check 1 — V31 framework files in place:
   [ ] CLAUDE.md at project root — confirm it's the compact (~200 line) version
-  [ ] .claude/rules/ contains 6 files: phases, security, ui-rules, bootstrap, scenarios, templates
+  [ ] .claude/rules/ contains 7 files: phases, security, ui-rules, bootstrap, scenarios, templates, memory-governance
   [ ] AI/Master_Prompt_v31.md exists
 
 Check 2 — PRODUCT.md state:
@@ -675,26 +681,31 @@ grep -c "⏳" CREDENTIALS.md  # should be 0 for REQUIRED sections
 
 Use this path when the Analyzer classifies your project as **Situation A** (empty or nearly empty).
 
-### 1.3.1 — Place PRODUCT.md + run Bootstrap
+### 1.3.1 — Place PRODUCT.md (+ DESIGN.md + mockup) + run Bootstrap
 
-Drop your finalized `PRODUCT.md` from the claude.ai planning session into `docs/PRODUCT.md`, then in Claude Code:
+Drop the Planning Assistant deliverables into your project's `docs/` folder:
+- `docs/PRODUCT.md` (always — required)
+- `docs/DESIGN.md` (if you picked a getdesign.md aesthetic in Phase 2.8 Step 7b)
+- `docs/mockups/[appname]-phase-2.8-mockup.html` (if you saved the HTML archive per prompt 4.7)
+
+Then in Claude Code:
 ```
 Bootstrap
 ```
 
-**What happens:** Runs all 19 Bootstrap steps — folder structure, governance docs, `.vscode/mcp.json`, `.specstory/config.json`, typed `lessons.md`, `CREDENTIALS.md` with AI-generated secrets + `⏳ FILL LATER` placeholders, and the Loading Library Lock (DECISIONS_LOG.md entry for ui-rules.md Rule 11 dual-path V31.3). **Does not block on credentials.**
+**What happens:** Runs all 19 Bootstrap steps — folder structure, governance docs, `.vscode/mcp.json`, `.specstory/config.json`, typed `lessons.md`, `CREDENTIALS.md` with AI-generated secrets + `⏳ FILL LATER` placeholders, and the Loading Library Lock (DECISIONS_LOG.md entry for ui-rules.md Rule 11 dual-path). **Does not block on credentials.** CREDENTIALS.md is the required gate for Phase 2 — Phase 2 will refuse to start without it.
 
-### 1.3.2 — Phase 2 discovery
+### 1.3.2 — Phase 2 operational interview
 ```
 Start Phase 2
 ```
-Paste your `docs/PRODUCT.md` when prompted. Claude only asks remaining open questions.
+Paste your `docs/PRODUCT.md` when prompted. Phase 2 is NOT a duplicate of the Planning Assistant interview — it asks ONLY the operational/machine-local questions Planning Assistant couldn't know: Docker Hub username + image name (must be unique on your account), model routing (which Claude model runs which phase), dev port ranges to avoid on this machine, git worktree preference, CORS allowed origins per environment, Komodo webhook config, Turnstile widget hostname strategy. Skip-logic auto-removes sections not applicable to your PRODUCT.md (e.g. no payments declared → skip payment gateway questions).
 
 ### 1.3.3 — Confirm Phase 2.5 summary
 ```
 confirmed
 ```
-Auto-chains into Phase 2.6 (design system) and Phase 2.7 (spec stress-test).
+Auto-chains into Phase 2.6 (design system — reads `docs/DESIGN.md` if present) and Phase 2.7 (spec stress-test). Phase 2.8 is SKIPPED in Claude Code — it already ran in the Planning Assistant chat.
 
 ### 1.3.3b — Phase 2.8 Clickable Mockup Review (NEW V31 — Planning Assistant chat only)
 
@@ -2393,17 +2404,18 @@ Use the Architect-Execute Model (memory-governance.md §4).
 Read STATE.md and relevant PRODUCT.md sections.
 Run Tiered Decomposition (§1) on this task.
 If Tier 2-3: decompose into scoped sub-tasks.
-Step 2.5 — Token Budget Gate: estimate tokens required per sub-task.
-  - If ≤30K: dispatch as Sonnet subagent via Agent(model: "sonnet").
-  - If >30K: split further until each task is ≤30K.
-Step 2.5b — Opus Escalation: if a task is genuinely atomic and unsplittable at >30K,
-  dispatch as Agent(model: "opus") as last resort.
+Step 2.5 (V32) — File-Size Dispatch Gate: run `wc -l` on every file in scope.
+  - If each file ≤500 lines AND scope ≤12 files: dispatch as Sonnet subagent via Agent(model: "sonnet").
+  - If any file >500 lines: use Sonnet scout-then-edit or split by section until each task is ≤500 lines.
+[V32 — Zero Opus Execution]: Opus NEVER executes code edits — planning/decomposition only. After 3 re-decomposition attempts → checkpoint to STATE.md and defer to next session. NEVER fall back to Opus execution. See `memory-governance.md` §1 Step 4 + §4 Failure Protocol.
 Dispatch approved sub-tasks to Sonnet via Agent(model: "sonnet").
 Review each subagent's output (spec compliance then code quality).
 Run Smart Checkpoint (§2) after all tasks complete.
 ```
 
-> 💡 **Why Opus?** Opus excels at reading large context and making decomposition decisions. One Opus planning session saves 3-5 Sonnet sessions from thrashing. Sonnet never reads full PRODUCT.md — it gets pre-scoped task instructions from Opus. The 30K token budget gate prevents Sonnet subagents from thrashing on oversized tasks.
+> 💡 **Why Opus for planning only? (V32)** Opus excels at reading large context and making decomposition decisions — but under V32 R1 it NEVER executes code edits. One Opus planning session saves 3-5 Sonnet sessions from thrashing. Sonnet never reads full PRODUCT.md — it gets pre-scoped task instructions from Opus. The 500-line file-size dispatch gate (V32 R2) enforces task granularity mechanically, not behaviorally.
+
+> ⚙ **V32.1 Dispatch Sizing Tip** (added 2026-05-27 from production findings): Sonnet subagents inherit ~30-50K baseline tokens from auto-loaded skills + MCP descriptions before any task work begins. To avoid thrash on otherwise small tasks: keep dispatch prompts ≤ 1K tokens, per-dispatch tool uses ≤ 5, and run verifications (`vitest`, `tsc`, lint) on the Opus side via `ctx_execute` rather than asking Sonnet to run them. If a Sonnet dispatch thrashes, re-decompose to a smaller surface (single file, then sub-file) — never retry the same scope. See `memory-governance.md` §1 Operational Note for full pattern.
 
 ---
 
@@ -2423,7 +2435,7 @@ I'm experiencing context thrashing. Follow memory-governance.md §5 Thrashing Re
 1. I've already stopped and committed partial work.
 2. Run the memory governance baseline (§5 Step 2) to capture current state.
 3. Decompose my interrupted task using Tiered Decomposition (§1).
-4. Apply Step 2.5 Token Budget Gate — ensure each sub-task is ≤30K tokens for Sonnet.
+4. Apply Step 2.5 (V32) File-Size Dispatch Gate — run `wc -l` on each file; ensure each sub-task is ≤500 lines per file and ≤12 files in scope for Sonnet.
 5. Output a split plan with numbered sub-sessions I can execute with Sonnet.
 I was working on: [describe what you were doing]
 ```
@@ -3336,6 +3348,131 @@ bash scripts/log-lesson.sh
 - All 84 security checklist items referenced in 3.5
 - Planning Assistant: 11 rules (Rule 11 = n8n + OpenClaw automation opt-in)
 - Scenario count: 34 (Scenario 33 DESIGN.md + Scenario 34 CREDENTIALS.md Agent-Proof Upgrade)
+
+---
+
+## Appendix A — Framework Deployment Operations (V32)
+
+> Reference for maintainers of Spec-Driven projects. How to upgrade target projects to the latest framework version. Added V32 (2026-05-27).
+
+### One-Time Setup (per development machine)
+
+**1. Symlink `sync-to-project` globally:**
+```bash
+ln -s /home/me/UbuntuDevFiles/1_COMPANY_DEV/AI-Skills-Repo/sync-to-project.sh ~/.local/bin/sync-to-project
+```
+Verify: `which sync-to-project` → `/home/me/.local/bin/sync-to-project`
+
+**2. Install `spec-update` shell function in `~/.zshrc`:**
+```bash
+# ----- Spec-Driven AI Framework: one-command update per project -----
+spec-update() {
+  local target="$1"
+  if [ -z "$target" ]; then
+    echo "Usage: spec-update /path/to/target-project"
+    return 1
+  fi
+  if [ ! -d "$target" ]; then
+    echo "ERROR: target directory does not exist: $target" >&2
+    return 1
+  fi
+  (cd /home/me/UbuntuDevFiles/1_COMPANY_DEV/AI-Skills-Repo && git pull) && \
+    sync-to-project "$target" && \
+    (cd "$target" && bash deploy-v31.sh) && \
+    echo "" && \
+    echo "✓ Spec-Driven framework updated in $target" && \
+    echo "  Next: restart Claude Code in this project (hooks load at session start)."
+}
+```
+Then activate: `source ~/.zshrc` (or open a fresh terminal).
+
+### Per-Project Update Workflow — Three Flavors
+
+Pick one each time you need to update a target project.
+
+**Flavor A — Minimal** (use when your local AI-Skills-Repo is already up-to-date):
+```bash
+cd /path/to/target-project
+sync-to-project
+bash deploy-v31.sh
+```
+
+**Flavor B — Explicit `git pull`** (use after working on another machine):
+```bash
+cd /home/me/UbuntuDevFiles/1_COMPANY_DEV/AI-Skills-Repo && git pull
+cd /path/to/target-project
+sync-to-project
+bash deploy-v31.sh
+```
+
+**Flavor C — One-shot via `spec-update`** (recommended default — wraps A + git pull):
+```bash
+cd /path/to/target-project
+spec-update .
+```
+
+### Rule of Thumb — When to Use `spec-update`
+
+`spec-update <target>` is the right tool for **both** scenarios below. It handles upgrade and fresh-install symmetrically — no separate first-install script needed.
+
+**1. Upgrade case — existing project on an older framework version (V31.x or V32.x older than current):**
+- `git pull` → fetches the latest framework from `origin/main`
+- `sync-to-project` → overwrites `<target>/.ai_prompt/*.md` and `<target>/deploy-v31.sh` with the current versions (`cp -p` overwrite; backups happen in the next deploy step, not here)
+- `bash deploy-v31.sh` → re-fans out to `.claude/rules/`, backing up any user-modified rule files with timestamped `.bak`
+
+**2. Fresh install case — brand-new project with only Planning Assistant artifacts (`docs/PRODUCT.md`, `docs/DESIGN.md`, `docs/MOCKUP.jsx`) and no `.ai_prompt/` yet:**
+- `sync-to-project` detects the missing `.ai_prompt/` folder and prompts: *"Directory does not exist. Create it? [y/N]"*
+- Answer **y** → creates the folder, copies all 16 V32 reference files in, drops `deploy-v31.sh` at project root
+- `deploy-v31.sh` then bootstraps `.claude/rules/`, `AI/`, and `CLAUDE.md` cleanly from zero
+
+**Workflow for a fresh project:**
+```bash
+cd ~/new-app                    # has only docs/ from Planning Assistant
+spec-update .                   # answer 'y' when prompted to create .ai_prompt/
+# Framework is now installed → ready for Bootstrap → Phase 2 → Phase 3
+```
+
+**One pre-step for brand-new projects:** initialize git (`git init` + first commit) before or after `spec-update` — the script does not initialize git for you. After `spec-update`, your next prompt to Claude Code is `Bootstrap` per the V32.1.1 Step 7d sequence.
+
+### Verification (run inside target after deploy)
+
+```bash
+grep -c "ZERO OPUS EXECUTION (V32)" .claude/rules/phases.md   # expect: 5
+grep -c "V32" CLAUDE.md                                        # expect: 7
+head -1 CLAUDE.md                                              # expect: # SPEC-DRIVEN PLATFORM — V32
+```
+
+All three pass → V32 is live on disk.
+
+### Always — After Any Flavor
+
+**Restart Claude Code in the target project.** Hooks load at session start only. Without a restart, you're running the OLD hooks even though new files are on disk.
+
+### Anti-Patterns to Avoid
+
+| Anti-pattern | Why it's wrong | Do instead |
+|---|---|---|
+| Run `deploy-v31.sh` without `sync-to-project` first when a new framework version exists | Deploys the OLD `.ai_prompt/` staging files into final locations | Always pair sync + deploy |
+| Run Flavor A then Flavor C back-to-back | Idempotent but creates duplicate `.bak` files in `.claude/rules/` | Pick one flavor per update |
+| Edit framework files inside a target project's `.ai_prompt/` directly | Changes get overwritten on next sync | Edit in `AI-Skills-Repo/specdrivenprompt/`, commit, then sync |
+| `cp -r specdrivenprompt/* target/.ai_prompt/` blindly | Leaks repo-internal files (`CLAUDE_framework_repo.md`, `ClaudeCodeChanges-*.md`) into target | Use `sync-to-project` — whitelisted, 16 files only |
+| Forget to restart Claude Code after deploy | Files updated on disk but hooks still use OLD rules | Always restart after deploy |
+| Run `spec-update` without an argument | Function exits with usage error (safety guard) | Always pass target dir or `.` |
+
+### Adding New Development Machines
+
+If you add a new machine (second laptop, fresh WSL2 install):
+
+1. Clone AI-Skills-Repo: `git clone git@github.com:bonitobonita24/AI-Skills-Repo.git`
+2. Adjust the hard-coded path in the `spec-update` function body (currently `/home/me/UbuntuDevFiles/1_COMPANY_DEV/AI-Skills-Repo`) to match the new machine's checkout location
+3. Symlink `sync-to-project` in that machine's `~/.local/bin/`
+
+### Safety Guarantees (already built into the scripts)
+
+- `sync-to-project` validates source files exist before copying; refuses self-sync onto AI-Skills-Repo root; whitelist-based (no leakage of internal files)
+- `deploy-v31.sh` backs up every overwritten file with a `.bak` suffix; aborts if it would touch NEVER-TOUCH files (PRODUCT.md, DECISIONS_LOG.md, your codebase, `.env*`)
+- Both scripts use `set -euo pipefail` and refuse to proceed on validation failures
+- `.bak` files are timestamped — easy to roll back: `cp foo.md.20260527_120000.bak foo.md`
 
 ---
 

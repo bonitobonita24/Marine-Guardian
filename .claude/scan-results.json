@@ -1,7 +1,7 @@
 {
-  "scannedAt": "2026-05-26T15:59+08:00",
-  "previousScan": "2026-05-26 (same-day rescan)",
-  "rescanReason": "Same-day re-scan after Area Boundary Map Drawing Editor commits landed (cd91b42, ea4088f, f70d13e). Confirmed Part A foundation still optimal, Part B empty, Part C nil. User approved scheduling andrej-karpathy-skills install (marketplace already cached). Action recorded: install command to be executed by user via Claude Code CLI slash command; karpathy moved from pendingPluginInstalls to installedPlugins (verifiedVia: pending next-session namespace check). context-mode v1.0.111 → v1.0.151 upgrade still available (deferred; /ctx-upgrade when convenient).",
+  "scannedAt": "2026-05-26T21:18+08:00",
+  "previousScan": "2026-05-26T15:59+08:00 (same-day, ~5h earlier)",
+  "rescanReason": "Same-day re-scan after Fuel Logging UI shipped (Phase 7 / Phase 8 Batch 6.2c — commits bec437e + c69eab7). Confirmed Part A foundation still optimal (20 skills + 5 plugins + memory-governance + socraticode MCP = 24 components, 0 conflicts). Part B empty, Part C nil. andrej-karpathy-skills now confirmed in installedPlugins (install completed 2026-05-26 4:26pm GMT+8). Memory Governance V31.1 verified at .claude/rules/memory-governance.md. No installation actions required. Outstanding: context-mode v1.0.111 → v1.0.151 upgrade still available (deferred; /ctx-upgrade when convenient).",
   "techStack": [
     "TypeScript strict",
     "Next.js 15",
