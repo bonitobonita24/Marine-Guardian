@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
-import { adminProcedure } from "../middleware/rbac";
+import { coordinatorProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
 
 export const patrolScheduleRouter = router({
@@ -41,7 +41,7 @@ export const patrolScheduleRouter = router({
       return { items, nextCursor };
     }),
 
-  create: adminProcedure
+  create: coordinatorProcedure
     .input(
       z.object({
         patrolAreaId: z.string(),
@@ -67,7 +67,7 @@ export const patrolScheduleRouter = router({
       });
     }),
 
-  update: adminProcedure
+  update: coordinatorProcedure
     .input(
       z.object({
         id: z.string(),
@@ -92,7 +92,7 @@ export const patrolScheduleRouter = router({
       return prisma.patrolSchedule.update({ where: { id }, data });
     }),
 
-  delete: adminProcedure
+  delete: coordinatorProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const schedule = await prisma.patrolSchedule.findFirst({
