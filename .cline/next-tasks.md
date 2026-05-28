@@ -1,99 +1,117 @@
-# 🔒 LOCKED NEXT TASK — Fuel Logging UI
+# 🔒 LOCKED NEXT TASK — Patrol Schedule (Gantt)
 
-**Generated:** 2026-05-26 5:15pm GMT+8
+**Generated:** 2026-05-29 1:00am GMT+8 (supersedes Fuel Logging UI queue — shipped 2026-05-26 commit bec437e)
 **Trigger this in a FRESH Claude Code session.** Read this file BEFORE STATE.md.
 
 ---
 
-## Scope: Build the Fuel Logging UI module
+## Scope: Build the Patrol Schedule Gantt UI module
 
-PRODUCT.md declares Fuel Logging (line 111) but no `/fuel` route exists.
-Backend is ~80% done — only UI is missing.
+PRODUCT.md lines 102-109 declare Patrol Schedule (Gantt) but no `/patrol-schedule` route exists.
+Backend is ~90% done — only frontend + one permission fix needed.
 
 ### What's already shipped
 
-**Schema** (`packages/db/prisma/schema.prisma` line 468):
-- `FuelEntry` model with: tenantId, areaName (NOT NULL), dateReceived, litersReceived, totalPrice, receiptPhotoUrl, notes, loggedByUserId
-- Relations: Tenant.fuelEntries, User.loggedFuelEntries, AreaBoundary.fuelEntries
-- Area-keyed allocation locked (decision in obs 3885 + 6.2c)
+**Schema** (`packages/db/prisma/schema.prisma` line 516):
+- `PatrolSchedule` model: tenantId, patrolAreaId, rangerUserId (optional), rangerName, scheduledStart, scheduledEnd, notes, createdBy
+- Relations: Tenant.patrolSchedules, PatrolArea.schedules, User."PatrolScheduleRanger" + "PatrolScheduleCreatedBy"
+- Indexed on tenantId, patrolAreaId, rangerUserId
 
-**tRPC router** (`apps/web/src/server/trpc/routers/fuelEntry.ts`):
-- `list` (tenantProcedure) — filter by area + date range
-- `getById` (tenantProcedure)
-- `create` (operatorProcedure) — operator+ can log fuel
-- `update` (operatorProcedure) — own entries
-- `updateAny` (coordinatorProcedure) — coordinator+ can edit any
-- `delete` (adminProcedure)
+**tRPC router** (`apps/web/src/server/trpc/routers/patrolSchedule.ts`):
+- `list` (tenantProcedure) — cursor pagination, filters: patrolAreaId, rangerUserId, from, to
+- `create` / `update` / `delete` — currently `adminProcedure` (⚠ needs fix — see 7.1a)
 
-**Area derivation** (`packages/jobs/src/lib/area-derivation.ts` line 94):
-- FuelEntry has areaName NOT NULL, derives areaBoundaryId on save
-- area-rederive job already fans out to FuelEntry on boundary change
+**PatrolArea** — already has colorHex for zone color-coding (used in router `include`).
 
-**Reports integration** (Per Area Report — Batch 6.2c, shipped):
-- Average L/km KPI = sum(litersReceived in area+period) ÷ sum(seabornePatrolKm in area+period)
-- PatrolTrack materialization shipped (Batch 5 item 2)
-- All math wired — UI just needs to surface the entries
+### Backend gap (fix in 7.1a)
 
-### What this session must build
+PRODUCT.md line 229 grants Field Coordinator scheduling rights ("schedule ranger assignments (Gantt)").
+Router uses `adminProcedure` for create/update/delete — should be `coordinatorProcedure`.
+Fix in sub-batch 7.1a alongside the page scaffold.
 
-PRODUCT.md spec (lines 111-128) requires:
+### Library choice — locked
 
-1. **`/fuel` route** — fuel log list + analytics dashboard
-   - Chronological table: date, area, liters, price, logger, photo thumbnail, notes
-   - Filters: area, date range
-   - Photo upload via MinIO presigned URL (storage helper exists)
+PRODUCT.md line 484: "Kibo UI (Kanban board, **Gantt chart**, rich text editor, file dropzone)".
+Install via: `npx kibo-ui add gantt` (MIT, shadcn-native, already aligned with ui-rules.md Rule 7).
 
-2. **Fuel entry form (dialog)**
-   - Fields: area (select from tenant's AreaBoundary list), dateReceived, litersReceived, totalPrice, receiptPhoto (camera capture or file), notes
-   - Calls fuelEntry.create
+### Sub-batch decomposition (Tier 2 — V32 §1)
 
-3. **Edit/delete actions** per row (role-gated per existing router)
+#### 7.1a — Gantt skeleton + permission fix (~400 lines)
 
-4. **Fuel consumption analytics**
-   - Average L/km per area for selected period
-   - Period selectors: daily, weekly, monthly, quarterly, annually
-   - Trend chart (line): L/km over time
-   - Summary KPIs: total liters, total cost, total seaborne km, average L/km
-   - Per-area breakdown table
-   - DECISION NEEDED: new tRPC procedure `fuelEntry.consumptionAnalytics` or reuse Per Area Report logic? Check Batch 6.2c implementation first.
+Goal: Read-only Gantt page renders existing schedules. No mutations yet.
 
-### Out of scope for the first ship
+Files:
+- CREATE `apps/web/src/app/(dashboard)/patrol-schedule/page.tsx` — page orchestrator, fetches list, RBAC gate (coordinator+ for write actions)
+- CREATE `apps/web/src/app/(dashboard)/patrol-schedule/_components/gantt-view.tsx` — Kibo Gantt wrapper, rows=rangers, cols=days, cells colored by PatrolArea.colorHex
+- MODIFY `apps/web/src/server/trpc/routers/patrolSchedule.ts` — change `adminProcedure` → `coordinatorProcedure` on create/update/delete (3 occurrences, lines 44, 70, 95)
+- MODIFY `apps/web/src/components/sidebar.tsx` — add "Patrol Schedule" nav link with calendar icon
+- MODIFY `apps/web/src/server/trpc/routers/patrolSchedule.test.ts` — update perm test expectations (admin→coordinator)
+- Install Kibo Gantt component
 
-- Mobile fuel logging (PRODUCT.md Mobile Needs — check if declared, may be v2)
-- Multi-currency conversion (tenant currency assumed single per deployment)
-- Cross-tenant analytics (super admin panel)
+Verify:
+- pnpm typecheck clean
+- vitest passes (router tests with new perm)
+- /patrol-schedule renders existing seeded schedules as Gantt blocks
 
-### Files to create (estimate)
+#### 7.1b — Assignment CRUD dialogs (~350 lines)
 
-- `apps/web/src/app/(dashboard)/fuel/page.tsx` — list + filters + analytics
-- `apps/web/src/app/(dashboard)/fuel/_components/fuel-entry-dialog.tsx` — create/edit form
-- `apps/web/src/app/(dashboard)/fuel/_components/fuel-analytics-panel.tsx` — KPIs + trend chart
-- Sidebar nav update — add "Fuel" link in `apps/web/src/components/sidebar.tsx`
-- Possibly: `apps/web/src/server/trpc/routers/fuelEntry.ts` — add `consumptionAnalytics` procedure
+Goal: Create + edit + delete assignments via dialog flow.
 
-### Tier classification (per memory-governance.md §1)
+Files:
+- CREATE `apps/web/src/app/(dashboard)/patrol-schedule/_components/assignment-dialog.tsx` — shared create/edit dialog with ranger picker (User list), patrol area picker (PatrolArea list), date range picker, notes
+- CREATE `apps/web/src/app/(dashboard)/patrol-schedule/_components/delete-assignment-dialog.tsx` — confirmation + delete mutation
+- MODIFY `apps/web/src/app/(dashboard)/patrol-schedule/page.tsx` — wire "Add assignment" button + per-cell edit/delete actions, cache invalidation
 
-Tier 2 likely: 4-7 files, 1-2 modules, depth 2. Estimate <40K tokens.
-Single session feasible. Read PRODUCT.md only Fuel Logging section + Mobile Needs lines for mobile flag.
+Verify:
+- Create flow works end-to-end
+- Edit pre-fills correctly
+- Delete confirms before deletion
+- Coordinator-gated (operators see read-only)
+
+#### 7.1c — Drag-resize + view toggles + period nav (~300 lines)
+
+Goal: Full interactive Gantt per PRODUCT.md 102-109.
+
+Files:
+- MODIFY `apps/web/src/app/(dashboard)/patrol-schedule/_components/gantt-view.tsx` — wire Kibo onDrag/onResize handlers calling `update` mutation
+- CREATE `apps/web/src/app/(dashboard)/patrol-schedule/_components/period-toolbar.tsx` — prev/next nav, date range picker, bi-weekly/monthly toggle (default: bi-weekly per locked decision)
+- MODIFY page.tsx — wire period state, pass `from`/`to` to list query
+- CREATE tests for drag handler logic + period bucketing
+
+Verify:
+- Drag block on timeline → update mutation fires → schedule moves
+- Resize edge → update changes scheduledEnd
+- Bi-weekly toggle = 14-day window, monthly = calendar month
+- Prev/next steps by current view's window size
+
+### Out of scope for first ship
+
+- Recurring schedule templates (PRODUCT.md does not declare)
+- Conflict detection (overlapping ranger assignments) — defer to v2 unless trivial
+- Bulk assignment import — defer
+- Mobile Gantt — desktop-only per PRODUCT.md line 304
+
+### Locked decisions
+
+- **Library:** Kibo UI Gantt (PRODUCT.md line 484, ui-rules.md Rule 7)
+- **Default view:** bi-weekly (14-day cycle matches typical patrol planning cadence)
+- **Permission:** Coordinator+ for write, all authenticated for read (PRODUCT.md line 229)
+- **Color source:** PatrolArea.colorHex (already wired in router include)
 
 ### Pre-flight checklist (run in fresh session before any code)
 
-- [ ] Read `docs/PRODUCT.md` lines 111-128 (Fuel Logging section) AND grep for "fuel" in Mobile Needs (line 288-316)
-- [ ] Read `apps/web/src/server/trpc/routers/fuelEntry.ts` in full to confirm router shape
-- [ ] Read Per Area Report fuel rate logic — likely in `packages/jobs/src/lib/` or `apps/web/src/server/trpc/routers/reportExport.ts`
-- [ ] Check if photo upload helper exists (MinIO storage package) — likely `packages/storage/`
-- [ ] Check sidebar component for nav pattern
-- [ ] Confirm decision on consumptionAnalytics procedure location
-
-### Blocked / NOT this session
-
-- **5.1d Area A inline re-derive on areaName change** — verified 2026-05-26: ER sync (`packages/jobs/src/processors/er-sync.processor.ts`) + ER client (`packages/jobs/src/lib/earthranger-client.ts`) have **zero** area references. ER does not emit area_name. Still BLOCKED until ER sync wires it. Separate work item.
+- [ ] Read `docs/PRODUCT.md` lines 102-109 (Patrol Schedule section) + line 229 (Coordinator permissions) + line 304 (Mobile Ready clarification) + line 484 (Kibo Gantt locked)
+- [ ] Read `apps/web/src/server/trpc/routers/patrolSchedule.ts` in full
+- [ ] Read `apps/web/src/server/trpc/middleware/rbac.ts` to confirm `coordinatorProcedure` export shape
+- [ ] Verify Kibo UI Gantt API: https://www.kibo-ui.com/components/gantt (use context7 if uncertain)
+- [ ] Read sidebar component for nav pattern + icon convention
+- [ ] Run `wc -l` on all files in scope before dispatching each sub-batch (V32 R2 — ≤500L/task)
 
 ---
 
 ## Out of immediate scope (next backlog)
 
-After Fuel Logging UI ships:
-1. **Patrol Schedule (Gantt)** — PRODUCT.md line 102-109. Net new. Higher complexity.
-2. **Super Admin Panel** — PRODUCT.md line 210. Cross-tenant ops, narrow audience.
-3. **5.1d Area A re-derive on areaName change** — unblocked once ER sync emits area_name.
+After Patrol Schedule (Gantt) ships:
+1. **Super Admin Panel** — PRODUCT.md line 210. Cross-tenant ops, narrow audience.
+2. **5.1d Area A re-derive on areaName change** — still BLOCKED (ER sync doesn't emit area_name).
+3. **Schedule conflict detection** — overlapping ranger assignments, v2 enhancement.
