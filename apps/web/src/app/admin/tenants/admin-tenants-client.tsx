@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
 import {
   Card,
@@ -42,10 +43,17 @@ interface Props {
 }
 
 export function AdminTenantsClient({ email, roles }: Props) {
+  const router = useRouter();
   const list = trpc.platform.list.useQuery();
 
   const [editTenant, setEditTenant] = useState<TenantRow | null>(null);
   const [deactivateTenant, setDeactivateTenant] = useState<TenantRow | null>(null);
+
+  const enter = trpc.platformImpersonation.enter.useMutation({
+    onSuccess: () => {
+      router.push("/dashboard");
+    },
+  });
 
   return (
     <div className="space-y-6">
@@ -129,6 +137,15 @@ export function AdminTenantsClient({ email, roles }: Props) {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={() => { enter.mutate({ tenantId: tenant.id }); }}
+                          disabled={!tenant.isActive || enter.isPending}
+                          data-testid={`manage-tenant-${tenant.slug}`}
+                        >
+                          Manage
+                        </Button>
                         <Button
                           size="sm"
                           variant="outline"

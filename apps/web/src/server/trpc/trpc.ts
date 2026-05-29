@@ -25,13 +25,25 @@ export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
   }
   const token = ctx.session.user.id;
   rateLimiters.api.check(token);
+
+  const sessionTenantId = ctx.session.user.tenantId;
+  const roles = ctx.session.user.roles;
+  const isPlatformImpersonating =
+    roles.includes("super_admin") &&
+    sessionTenantId === "" &&
+    ctx.impersonationTenantId !== null;
+  const effectiveTenantId = isPlatformImpersonating
+    ? (ctx.impersonationTenantId as string)
+    : sessionTenantId;
+
   return next({
     ctx: {
       ...ctx,
       session: ctx.session,
       userId: ctx.session.user.id,
-      tenantId: ctx.session.user.tenantId,
-      roles: ctx.session.user.roles,
+      tenantId: effectiveTenantId,
+      roles,
+      isPlatformImpersonating,
     },
   });
 });

@@ -61,6 +61,7 @@ function makeCtx(tenantId = "", roles: string[] = ["super_admin"]) {
       expires: "9999-01-01",
     },
     ip: "127.0.0.1",
+    impersonationTenantId: null,
   };
 }
 
@@ -86,7 +87,7 @@ describe("platform — auth gate", () => {
   });
 
   it("throws UNAUTHORIZED when no session", async () => {
-    const caller = createCaller({ session: null, ip: "127.0.0.1" });
+    const caller = createCaller({ session: null, ip: "127.0.0.1", impersonationTenantId: null });
     await expect(caller.list()).rejects.toMatchObject({
       code: "UNAUTHORIZED",
     });

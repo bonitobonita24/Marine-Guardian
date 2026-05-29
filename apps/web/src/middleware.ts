@@ -60,6 +60,18 @@ export default async function middleware(request: NextRequest) {
     session.user.roles.includes("super_admin");
   const isAdminPath = pathname === "/admin" || pathname.startsWith("/admin/");
 
+  const impersonationCookie = request.cookies.get("mg-impersonate-tenant")?.value ?? null;
+  // keep in sync with IMPERSONATION_COOKIE_NAME in src/lib/auth/impersonation.ts
+  const isImpersonating = isPlatformAdmin && impersonationCookie !== null;
+
+  // Impersonation bypass — super_admin viewing a tenant retains access to both
+  // /admin/* (to swap or exit) and tenant routes (the impersonated tenant app).
+  // The impersonation cookie is set/cleared exclusively through
+  // trpc.platformImpersonation.{enter,exit}, which validates super_admin + audit.
+  if (isImpersonating) {
+    return NextResponse.next();
+  }
+
   if (isPlatformAdmin && !isAdminPath) {
     return NextResponse.redirect(new URL("/admin", request.url));
   }

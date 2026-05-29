@@ -2,6 +2,7 @@ import { SessionProvider } from "next-auth/react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { RealtimeProvider } from "@/components/realtime/realtime-provider";
+import { ImpersonationBanner } from "@/components/impersonation-banner";
 
 export default function DashboardLayout({
   children,
@@ -11,6 +12,7 @@ export default function DashboardLayout({
   return (
     <SessionProvider>
       <RealtimeProvider>
+        <ImpersonationBanner />
         <div className="flex h-screen overflow-hidden">
           <Sidebar />
           <div className="flex flex-1 flex-col overflow-hidden">

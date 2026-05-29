@@ -60,6 +60,7 @@ function makeCtx(
       expires: "9999-01-01",
     },
     ip: "127.0.0.1",
+    impersonationTenantId: null,
   };
 }
 

@@ -20,12 +20,20 @@ const { stubs } = vi.hoisted(() => {
   const s: {
     listData: TenantRow[] | undefined;
     listIsLoading: boolean;
+    enterMutate: ReturnType<typeof vi.fn>;
+    enterOnSuccess: (() => void) | undefined;
   } = {
     listData: undefined,
     listIsLoading: false,
+    enterMutate: vi.fn(),
+    enterOnSuccess: undefined,
   };
   return { stubs: s };
 });
+
+vi.mock("next/navigation", () => ({
+  useRouter: vi.fn(() => ({ push: vi.fn(), refresh: vi.fn() })),
+}));
 
 vi.mock("@/lib/trpc/client", () => ({
   trpc: {
@@ -49,6 +57,17 @@ vi.mock("@/lib/trpc/client", () => ({
         useMutation: () => ({ mutate: vi.fn(), isPending: false }),
       },
       deactivate: {
+        useMutation: () => ({ mutate: vi.fn(), isPending: false }),
+      },
+    },
+    platformImpersonation: {
+      enter: {
+        useMutation: (opts?: { onSuccess?: () => void }) => {
+          stubs.enterOnSuccess = opts?.onSuccess;
+          return { mutate: stubs.enterMutate, isPending: false };
+        },
+      },
+      exit: {
         useMutation: () => ({ mutate: vi.fn(), isPending: false }),
       },
     },
@@ -82,6 +101,7 @@ vi.mock("../deactivate-tenant-dialog", () => ({
 }));
 
 import { AdminTenantsClient } from "../admin-tenants-client";
+import { useRouter } from "next/navigation";
 
 const baseTenants: TenantRow[] = [
   {
@@ -113,6 +133,8 @@ const baseTenants: TenantRow[] = [
 beforeEach(() => {
   stubs.listData = undefined;
   stubs.listIsLoading = false;
+  stubs.enterMutate = vi.fn();
+  stubs.enterOnSuccess = undefined;
   cleanup();
 });
 
@@ -190,5 +212,37 @@ describe("AdminTenantsClient", () => {
     fireEvent.click(firstEdit);
 
     expect(screen.getByTestId("edit-tenant-dialog")).toBeTruthy();
+  });
+
+  it("renders Manage button for active tenant and disables for inactive", () => {
+    stubs.listData = baseTenants;
+    render(
+      <AdminTenantsClient email="admin@marine.test" roles={["super_admin"]} />
+    );
+
+    const activeManage = screen.getByTestId("manage-tenant-coral-bay");
+    const inactiveManage = screen.getByTestId("manage-tenant-reef-watch-south");
+
+    expect(activeManage.hasAttribute("disabled")).toBe(false);
+    expect(inactiveManage.hasAttribute("disabled")).toBe(true);
+  });
+
+  it("Manage click calls enter mutation with tenantId and navigates on success", () => {
+    stubs.listData = baseTenants;
+    const pushMock = vi.fn();
+    vi.mocked(useRouter).mockReturnValue({ push: pushMock, refresh: vi.fn() } as unknown as ReturnType<typeof useRouter>);
+
+    render(
+      <AdminTenantsClient email="admin@marine.test" roles={["super_admin"]} />
+    );
+
+    const manageBtn = screen.getByTestId("manage-tenant-coral-bay");
+    fireEvent.click(manageBtn);
+
+    expect(stubs.enterMutate).toHaveBeenCalledWith({ tenantId: "t-1" });
+
+    // Simulate onSuccess callback
+    stubs.enterOnSuccess?.();
+    expect(pushMock).toHaveBeenCalledWith("/dashboard");
   });
 });
