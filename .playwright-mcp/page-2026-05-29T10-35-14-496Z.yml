@@ -1,0 +1,16 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: Platform Admin Console
+      - generic [ref=e6]: Marine Guardian — Super Admin
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - generic [ref=e9]: Logged in as
+        - generic [ref=e10]: webmaster@marine-guardian.local
+        - generic [ref=e11]: super_admin
+      - paragraph [ref=e12]:
+        - text: This account has no tenant context (
+        - code [ref=e13]: tenantId = ""
+        - text: ). Tenant-scoped pages are not accessible from this session. The full Super Admin Panel (PRODUCT.md §210) is deferred. To manage tenant data, sign out and re-login as a tenant-scoped user, or use the user-management API directly.
+      - button "Sign out" [ref=e15] [cursor=pointer]
+  - alert [ref=e16]
