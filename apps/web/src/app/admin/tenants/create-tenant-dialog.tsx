@@ -91,7 +91,7 @@ export function CreateTenantDialog() {
                 onChange={(e) => { setSlug(e.target.value); }}
                 placeholder="coral-bay-reserve"
                 required
-                pattern="^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$"
+                pattern="^[a-z0-9](?:[a-z0-9\-]*[a-z0-9])?$"
               />
               <p className="text-xs text-muted-foreground">
                 Lowercase letters, digits, and hyphens only. Used in URLs.
