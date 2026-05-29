@@ -50,6 +50,23 @@ export default async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  // Bug #6 — Platform-admin (super_admin without tenant context) is redirected
+  // to the /admin landing because every tenant-scoped tRPC procedure throws
+  // FORBIDDEN with tenantId === "". The empty-string marshalling happens in
+  // the session callback at auth.config.ts:24 (null → ""). Non-platform users
+  // accessing /admin/* are bounced to /dashboard.
+  const isPlatformAdmin =
+    session.user.tenantId === "" &&
+    session.user.roles.includes("super_admin");
+  const isAdminPath = pathname === "/admin" || pathname.startsWith("/admin/");
+
+  if (isPlatformAdmin && !isAdminPath) {
+    return NextResponse.redirect(new URL("/admin", request.url));
+  }
+  if (!isPlatformAdmin && isAdminPath) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+
   return NextResponse.next();
 }
 
