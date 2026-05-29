@@ -1,0 +1,95 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e5]: Marine Guardian
+      - navigation [ref=e6]:
+        - list [ref=e7]:
+          - listitem [ref=e8]:
+            - link "Command Center" [ref=e9] [cursor=pointer]:
+              - /url: /dashboard
+              - img [ref=e10]
+              - generic [ref=e15]: Command Center
+          - listitem [ref=e16]:
+            - link "Live Map" [ref=e17] [cursor=pointer]:
+              - /url: /map
+              - img [ref=e18]
+              - generic [ref=e20]: Live Map
+          - listitem [ref=e21]:
+            - link "Events" [ref=e22] [cursor=pointer]:
+              - /url: /events
+              - img [ref=e23]
+              - generic [ref=e27]: Events
+          - listitem [ref=e28]:
+            - link "Patrols" [ref=e29] [cursor=pointer]:
+              - /url: /patrols
+              - img [ref=e30]
+              - generic [ref=e34]: Patrols
+          - listitem [ref=e35]:
+            - link "Patrol Schedule" [ref=e36] [cursor=pointer]:
+              - /url: /patrol-schedule
+              - img [ref=e37]
+              - generic [ref=e39]: Patrol Schedule
+          - listitem [ref=e40]:
+            - link "Subjects" [ref=e41] [cursor=pointer]:
+              - /url: /subjects
+              - img [ref=e42]
+              - generic [ref=e47]: Subjects
+          - listitem [ref=e48]:
+            - link "Patrol Areas" [ref=e49] [cursor=pointer]:
+              - /url: /patrol-areas
+              - img [ref=e50]
+              - generic [ref=e53]: Patrol Areas
+          - listitem [ref=e54]:
+            - link "Fuel" [ref=e55] [cursor=pointer]:
+              - /url: /fuel
+              - img [ref=e56]
+              - generic [ref=e59]: Fuel
+          - listitem [ref=e60]:
+            - link "Observations" [ref=e61] [cursor=pointer]:
+              - /url: /observations
+              - img [ref=e62]
+              - generic [ref=e65]: Observations
+          - listitem [ref=e66]:
+            - link "Alert Rules" [ref=e67] [cursor=pointer]:
+              - /url: /alerts
+              - img [ref=e68]
+              - generic [ref=e71]: Alert Rules
+          - listitem [ref=e72]:
+            - link "Notifications" [ref=e73] [cursor=pointer]:
+              - /url: /notifications
+              - img [ref=e74]
+              - generic [ref=e79]: Notifications
+          - listitem [ref=e80]:
+            - link "Sync Status" [ref=e81] [cursor=pointer]:
+              - /url: /sync
+              - img [ref=e82]
+              - generic [ref=e87]: Sync Status
+          - listitem [ref=e88]:
+            - link "Users" [ref=e89] [cursor=pointer]:
+              - /url: /users
+              - img [ref=e90]
+              - generic [ref=e102]: Users
+          - listitem [ref=e103]:
+            - link "Settings" [ref=e104] [cursor=pointer]:
+              - /url: /settings
+              - img [ref=e105]
+              - generic [ref=e108]: Settings
+      - button "Sign Out" [ref=e110] [cursor=pointer]:
+        - img
+        - text: Sign Out
+    - generic [ref=e111]:
+      - banner [ref=e112]:
+        - link "0 unread notifications" [ref=e114] [cursor=pointer]:
+          - /url: /notifications
+          - img
+      - main [ref=e115]:
+        - generic [ref=e116]:
+          - generic [ref=e117]:
+            - heading "Patrols" [level=1] [ref=e118]
+            - generic [ref=e119]:
+              - link "Export CSV" [ref=e120] [cursor=pointer]:
+                - /url: /api/exports/patrols?format=csv
+              - link "Export PDF" [ref=e121] [cursor=pointer]:
+                - /url: /api/exports/patrols?format=pdf
+          - paragraph [ref=e122]: Patrol management — data table pending
+  - alert [ref=e123]
