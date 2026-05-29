@@ -1,0 +1,4780 @@
+- generic:
+  - generic:
+    - complementary:
+      - generic:
+        - generic: Marine Guardian
+      - navigation:
+        - list:
+          - listitem:
+            - link:
+              - /url: /dashboard
+              - img
+              - generic: Command Center
+          - listitem:
+            - link:
+              - /url: /map
+              - img
+              - generic: Live Map
+          - listitem:
+            - link:
+              - /url: /events
+              - img
+              - generic: Events
+          - listitem:
+            - link:
+              - /url: /patrols
+              - img
+              - generic: Patrols
+          - listitem:
+            - link:
+              - /url: /patrol-schedule
+              - img
+              - generic: Patrol Schedule
+          - listitem:
+            - link:
+              - /url: /subjects
+              - img
+              - generic: Subjects
+          - listitem:
+            - link:
+              - /url: /patrol-areas
+              - img
+              - generic: Patrol Areas
+          - listitem:
+            - link:
+              - /url: /fuel
+              - img
+              - generic: Fuel
+          - listitem:
+            - link:
+              - /url: /observations
+              - img
+              - generic: Observations
+          - listitem:
+            - link:
+              - /url: /alerts
+              - img
+              - generic: Alert Rules
+          - listitem:
+            - link:
+              - /url: /notifications
+              - img
+              - generic: Notifications
+          - listitem:
+            - link:
+              - /url: /sync
+              - img
+              - generic: Sync Status
+          - listitem:
+            - link:
+              - /url: /users
+              - img
+              - generic: Users
+          - listitem:
+            - link:
+              - /url: /settings
+              - img
+              - generic: Settings
+      - generic:
+        - button:
+          - img
+          - text: Sign Out
+    - generic:
+      - banner:
+        - generic:
+          - link:
+            - /url: /notifications
+            - img
+          - generic: admin@demo-site.local
+          - generic: site_admin
+      - main:
+        - generic:
+          - generic:
+            - heading [level=1]: Patrol Schedule
+            - button:
+              - img
+              - text: Add assignment
+          - generic:
+            - generic:
+              - button:
+                - img
+              - generic:
+                - img
+                - generic: May 29 – Jun 11, 2026
+              - button: Today
+              - button:
+                - img
+            - generic:
+              - tablist:
+                - tab [selected]: Bi-weekly
+                - tab: Monthly
+          - generic:
+            - generic:
+              - generic:
+                - generic:
+                  - paragraph: Rangers
+                  - paragraph: Span
+                - generic:
+                  - generic:
+                    - paragraph: Rangers
+                    - generic:
+                      - button:
+                        - paragraph: Ranger Alice
+                        - paragraph: 3 days
+              - generic:
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: January 2025
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "31"
+                            - paragraph: F
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: February 2025
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: F
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: March 2025
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "31"
+                            - paragraph: M
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: April 2025
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: W
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: May 2025
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "31"
+                            - paragraph: S
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: June 2025
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: M
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: July 2025
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "31"
+                            - paragraph: T
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: August 2025
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "31"
+                            - paragraph: S
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: September 2025
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: T
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: October 2025
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "31"
+                            - paragraph: F
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: November 2025
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: S
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: December 2025
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "31"
+                            - paragraph: W
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: January 2026
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "31"
+                            - paragraph: S
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: February 2026
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: S
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: March 2026
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "31"
+                            - paragraph: T
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: April 2026
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: T
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: May 2026
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "31"
+                            - paragraph: S
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: June 2026
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: T
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: July 2026
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "31"
+                            - paragraph: F
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: August 2026
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "31"
+                            - paragraph: M
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: September 2026
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: W
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: October 2026
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "31"
+                            - paragraph: S
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: November 2026
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: M
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: December 2026
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "31"
+                            - paragraph: T
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: January 2027
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "31"
+                            - paragraph: S
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: February 2027
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: S
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: March 2027
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "31"
+                            - paragraph: W
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: April 2027
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: F
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: May 2027
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "31"
+                            - paragraph: M
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: June 2027
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: W
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: July 2027
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "31"
+                            - paragraph: S
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: August 2027
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "31"
+                            - paragraph: T
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: September 2027
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: T
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: October 2027
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "31"
+                            - paragraph: S
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: November 2027
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: T
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - paragraph: December 2027
+                      - generic:
+                        - generic:
+                          - generic:
+                            - paragraph: "1"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "2"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "3"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "4"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "5"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "6"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "7"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "8"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "9"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "10"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "11"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "12"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "13"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "14"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "15"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "16"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "17"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "18"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "19"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "20"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "21"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "22"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "23"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "24"
+                            - paragraph: F
+                        - generic:
+                          - generic:
+                            - paragraph: "25"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "26"
+                            - paragraph: S
+                        - generic:
+                          - generic:
+                            - paragraph: "27"
+                            - paragraph: M
+                        - generic:
+                          - generic:
+                            - paragraph: "28"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "29"
+                            - paragraph: W
+                        - generic:
+                          - generic:
+                            - paragraph: "30"
+                            - paragraph: T
+                        - generic:
+                          - generic:
+                            - paragraph: "31"
+                            - paragraph: F
+                - generic [ref=e177]:
+                  - button [ref=e178]
+                  - status [ref=e180]
+                  - button [ref=e182] [cursor=pointer]:
+                    - paragraph [ref=e183]: Demo Patrol Zone Alpha
+                  - status [ref=e184]
+                  - button [ref=e185]
+                  - status [ref=e187]
+                - generic [ref=e188]: Today
+          - generic:
+            - heading [level=2]: Manage assignments
+            - list:
+              - listitem:
+                - generic:
+                  - generic:
+                    - paragraph: Ranger Alice
+                    - paragraph: Demo Patrol Zone Alpha · 6/2/2026 – 6/5/2026
+                - generic:
+                  - button:
+                    - img
+                  - button:
+                    - img
+  - alert
+  - dialog "Schedule patrol assignment" [ref=e143]:
+    - generic [ref=e144]:
+      - heading "Schedule patrol assignment" [level=2] [ref=e145]
+      - paragraph [ref=e146]: Assign a ranger to a patrol area for a scheduled date range. Ranger selection is optional — enter a name manually if the ranger is not yet registered. Start and end dates are required.
+    - generic [ref=e147]:
+      - generic [ref=e148]:
+        - text: Patrol area
+        - combobox "Patrol area" [ref=e149] [cursor=pointer]:
+          - generic: Demo Patrol Zone Alpha
+          - img [ref=e150]
+      - generic [ref=e152]:
+        - text: Ranger (optional)
+        - combobox "Ranger (optional)" [ref=e153] [cursor=pointer]:
+          - generic: Unassigned
+          - img [ref=e154]
+      - generic [ref=e156]:
+        - text: Ranger name
+        - textbox "Ranger name" [active] [ref=e157]:
+          - /placeholder: Enter ranger name
+          - text: Ranger Alice
+      - generic [ref=e158]:
+        - generic [ref=e159]:
+          - text: Start date
+          - textbox "Start date" [ref=e160]: 2026-06-02
+        - generic [ref=e161]:
+          - text: End date
+          - textbox "End date" [ref=e162]: 2026-06-05
+      - generic [ref=e163]:
+        - text: Notes (optional)
+        - textbox "Notes (optional)" [ref=e164]:
+          - /placeholder: Additional instructions or context…
+    - paragraph [ref=e189]: Assignment scheduled.
+    - button "Close" [ref=e190] [cursor=pointer]
+    - button "Close" [ref=e168] [cursor=pointer]:
+      - img [ref=e169]
+      - generic [ref=e172]: Close

@@ -1,0 +1,152 @@
+- generic:
+  - generic:
+    - complementary:
+      - generic:
+        - generic: Marine Guardian
+      - navigation:
+        - list:
+          - listitem:
+            - link:
+              - /url: /dashboard
+              - img
+              - generic: Command Center
+          - listitem:
+            - link:
+              - /url: /map
+              - img
+              - generic: Live Map
+          - listitem:
+            - link:
+              - /url: /events
+              - img
+              - generic: Events
+          - listitem:
+            - link:
+              - /url: /patrols
+              - img
+              - generic: Patrols
+          - listitem:
+            - link:
+              - /url: /patrol-schedule
+              - img
+              - generic: Patrol Schedule
+          - listitem:
+            - link:
+              - /url: /subjects
+              - img
+              - generic: Subjects
+          - listitem:
+            - link:
+              - /url: /patrol-areas
+              - img
+              - generic: Patrol Areas
+          - listitem:
+            - link:
+              - /url: /fuel
+              - img
+              - generic: Fuel
+          - listitem:
+            - link:
+              - /url: /observations
+              - img
+              - generic: Observations
+          - listitem:
+            - link:
+              - /url: /alerts
+              - img
+              - generic: Alert Rules
+          - listitem:
+            - link:
+              - /url: /notifications
+              - img
+              - generic: Notifications
+          - listitem:
+            - link:
+              - /url: /sync
+              - img
+              - generic: Sync Status
+          - listitem:
+            - link:
+              - /url: /users
+              - img
+              - generic: Users
+          - listitem:
+            - link:
+              - /url: /settings
+              - img
+              - generic: Settings
+      - generic:
+        - button:
+          - img
+          - text: Sign Out
+    - generic:
+      - banner:
+        - generic:
+          - link:
+            - /url: /notifications
+            - img
+          - generic: admin@demo-site.local
+          - generic: site_admin
+      - main:
+        - generic:
+          - generic:
+            - heading [level=1]: Patrol Schedule
+            - button:
+              - img
+              - text: Add assignment
+          - generic:
+            - generic:
+              - button:
+                - img
+              - generic:
+                - img
+                - generic: May 29 – Jun 11, 2026
+              - button: Today
+              - button:
+                - img
+            - generic:
+              - tablist:
+                - tab [selected]: Bi-weekly
+                - tab: Monthly
+          - generic:
+            - paragraph: No scheduled patrols found. Add patrol schedules to see them here.
+  - alert
+  - dialog:
+    - generic:
+      - heading [level=2]: Schedule patrol assignment
+      - paragraph: Assign a ranger to a patrol area for a scheduled date range. Ranger selection is optional — enter a name manually if the ranger is not yet registered. Start and end dates are required.
+    - generic:
+      - generic:
+        - text: Patrol area
+        - combobox [expanded]:
+          - generic: Select area
+          - img
+      - generic:
+        - text: Ranger (optional)
+        - combobox:
+          - generic: Unassigned
+          - img
+      - generic:
+        - text: Ranger name
+        - textbox:
+          - /placeholder: Enter ranger name
+      - generic:
+        - generic:
+          - text: Start date
+          - textbox
+        - generic:
+          - text: End date
+          - textbox
+      - generic:
+        - text: Notes (optional)
+        - textbox:
+          - /placeholder: Additional instructions or context…
+    - generic:
+      - button: Cancel
+      - button: Save
+    - button:
+      - img
+      - generic: Close
+  - listbox [ref=e173]:
+    - option "Demo Patrol Zone Alpha" [active] [ref=e174]:
+      - generic [ref=e176]: Demo Patrol Zone Alpha

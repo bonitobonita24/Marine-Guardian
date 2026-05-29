@@ -1,0 +1,149 @@
+- generic:
+  - generic:
+    - complementary:
+      - generic:
+        - generic: Marine Guardian
+      - navigation:
+        - list:
+          - listitem:
+            - link:
+              - /url: /dashboard
+              - img
+              - generic: Command Center
+          - listitem:
+            - link:
+              - /url: /map
+              - img
+              - generic: Live Map
+          - listitem:
+            - link:
+              - /url: /events
+              - img
+              - generic: Events
+          - listitem:
+            - link:
+              - /url: /patrols
+              - img
+              - generic: Patrols
+          - listitem:
+            - link:
+              - /url: /patrol-schedule
+              - img
+              - generic: Patrol Schedule
+          - listitem:
+            - link:
+              - /url: /subjects
+              - img
+              - generic: Subjects
+          - listitem:
+            - link:
+              - /url: /patrol-areas
+              - img
+              - generic: Patrol Areas
+          - listitem:
+            - link:
+              - /url: /fuel
+              - img
+              - generic: Fuel
+          - listitem:
+            - link:
+              - /url: /observations
+              - img
+              - generic: Observations
+          - listitem:
+            - link:
+              - /url: /alerts
+              - img
+              - generic: Alert Rules
+          - listitem:
+            - link:
+              - /url: /notifications
+              - img
+              - generic: Notifications
+          - listitem:
+            - link:
+              - /url: /sync
+              - img
+              - generic: Sync Status
+          - listitem:
+            - link:
+              - /url: /users
+              - img
+              - generic: Users
+          - listitem:
+            - link:
+              - /url: /settings
+              - img
+              - generic: Settings
+      - generic:
+        - button:
+          - img
+          - text: Sign Out
+    - generic:
+      - banner:
+        - generic:
+          - link:
+            - /url: /notifications
+            - img
+          - generic: admin@demo-site.local
+          - generic: site_admin
+      - main:
+        - generic:
+          - generic:
+            - heading [level=1]: Patrol Schedule
+            - button:
+              - img
+              - text: Add assignment
+          - generic:
+            - generic:
+              - button:
+                - img
+              - generic:
+                - img
+                - generic: May 29 – Jun 11, 2026
+              - button: Today
+              - button:
+                - img
+            - generic:
+              - tablist:
+                - tab [selected]: Bi-weekly
+                - tab: Monthly
+          - generic:
+            - paragraph: No scheduled patrols found. Add patrol schedules to see them here.
+  - alert
+  - dialog "Schedule patrol assignment" [ref=e143]:
+    - generic [ref=e144]:
+      - heading "Schedule patrol assignment" [level=2] [ref=e145]
+      - paragraph [ref=e146]: Assign a ranger to a patrol area for a scheduled date range. Ranger selection is optional — enter a name manually if the ranger is not yet registered. Start and end dates are required.
+    - generic [ref=e147]:
+      - generic [ref=e148]:
+        - text: Patrol area
+        - combobox "Patrol area" [active] [ref=e149] [cursor=pointer]:
+          - generic: Demo Patrol Zone Alpha
+          - img [ref=e150]
+      - generic [ref=e152]:
+        - text: Ranger (optional)
+        - combobox "Ranger (optional)" [ref=e153] [cursor=pointer]:
+          - generic: Unassigned
+          - img [ref=e154]
+      - generic [ref=e156]:
+        - text: Ranger name
+        - textbox "Ranger name" [ref=e157]:
+          - /placeholder: Enter ranger name
+      - generic [ref=e158]:
+        - generic [ref=e159]:
+          - text: Start date
+          - textbox "Start date" [ref=e160]
+        - generic [ref=e161]:
+          - text: End date
+          - textbox "End date" [ref=e162]
+      - generic [ref=e163]:
+        - text: Notes (optional)
+        - textbox "Notes (optional)" [ref=e164]:
+          - /placeholder: Additional instructions or context…
+    - generic [ref=e165]:
+      - button "Cancel" [ref=e166] [cursor=pointer]
+      - button "Save" [ref=e167] [cursor=pointer]
+    - button "Close" [ref=e168] [cursor=pointer]:
+      - img [ref=e169]
+      - generic [ref=e172]: Close

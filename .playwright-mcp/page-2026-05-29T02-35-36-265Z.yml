@@ -1,0 +1,129 @@
+- generic [active] [ref=e1]:
+  - alert [ref=e2]
+  - generic [ref=e15]:
+    - complementary [ref=e16]:
+      - generic [ref=e18]: Marine Guardian
+      - navigation [ref=e19]:
+        - list [ref=e20]:
+          - listitem [ref=e21]:
+            - link "Command Center" [ref=e22] [cursor=pointer]:
+              - /url: /dashboard
+              - img [ref=e23]
+              - generic [ref=e28]: Command Center
+          - listitem [ref=e29]:
+            - link "Live Map" [ref=e30] [cursor=pointer]:
+              - /url: /map
+              - img [ref=e31]
+              - generic [ref=e33]: Live Map
+          - listitem [ref=e34]:
+            - link "Events" [ref=e35] [cursor=pointer]:
+              - /url: /events
+              - img [ref=e36]
+              - generic [ref=e40]: Events
+          - listitem [ref=e41]:
+            - link "Patrols" [ref=e42] [cursor=pointer]:
+              - /url: /patrols
+              - img [ref=e43]
+              - generic [ref=e47]: Patrols
+          - listitem [ref=e48]:
+            - link "Patrol Schedule" [ref=e49] [cursor=pointer]:
+              - /url: /patrol-schedule
+              - img [ref=e50]
+              - generic [ref=e52]: Patrol Schedule
+          - listitem [ref=e53]:
+            - link "Subjects" [ref=e54] [cursor=pointer]:
+              - /url: /subjects
+              - img [ref=e55]
+              - generic [ref=e60]: Subjects
+          - listitem [ref=e61]:
+            - link "Patrol Areas" [ref=e62] [cursor=pointer]:
+              - /url: /patrol-areas
+              - img [ref=e63]
+              - generic [ref=e66]: Patrol Areas
+          - listitem [ref=e67]:
+            - link "Fuel" [ref=e68] [cursor=pointer]:
+              - /url: /fuel
+              - img [ref=e69]
+              - generic [ref=e72]: Fuel
+          - listitem [ref=e73]:
+            - link "Observations" [ref=e74] [cursor=pointer]:
+              - /url: /observations
+              - img [ref=e75]
+              - generic [ref=e78]: Observations
+          - listitem [ref=e79]:
+            - link "Alert Rules" [ref=e80] [cursor=pointer]:
+              - /url: /alerts
+              - img [ref=e81]
+              - generic [ref=e84]: Alert Rules
+          - listitem [ref=e85]:
+            - link "Notifications" [ref=e86] [cursor=pointer]:
+              - /url: /notifications
+              - img [ref=e87]
+              - generic [ref=e92]: Notifications
+          - listitem [ref=e93]:
+            - link "Sync Status" [ref=e94] [cursor=pointer]:
+              - /url: /sync
+              - img [ref=e95]
+              - generic [ref=e100]: Sync Status
+          - listitem [ref=e101]:
+            - link "Users" [ref=e102] [cursor=pointer]:
+              - /url: /users
+              - img [ref=e103]
+              - generic [ref=e115]: Users
+          - listitem [ref=e116]:
+            - link "Settings" [ref=e117] [cursor=pointer]:
+              - /url: /settings
+              - img [ref=e118]
+              - generic [ref=e121]: Settings
+      - button "Sign Out" [ref=e123] [cursor=pointer]:
+        - img
+        - text: Sign Out
+    - generic [ref=e124]:
+      - banner [ref=e125]:
+        - generic [ref=e126]:
+          - link "0 unread notifications" [ref=e127] [cursor=pointer]:
+            - /url: /notifications
+            - img
+          - generic [ref=e128]: admin@demo-site.local
+          - generic [ref=e129]: site_admin
+      - main [ref=e130]:
+        - generic [ref=e131]:
+          - heading "Command Center" [level=1] [ref=e132]
+          - generic [ref=e133]:
+            - generic [ref=e134]:
+              - generic [ref=e136]: Active Events
+              - paragraph [ref=e138]: "0"
+            - generic [ref=e139]:
+              - generic [ref=e141]: Active Patrols
+              - paragraph [ref=e143]: "0"
+            - generic [ref=e144]:
+              - generic [ref=e146]: Rangers on Duty
+              - paragraph [ref=e148]: "0"
+            - generic [ref=e149]:
+              - generic [ref=e151]: Events This Month
+              - generic [ref=e152]:
+                - paragraph [ref=e153]: "0"
+                - paragraph [ref=e154]: 0 vs last month
+          - generic [ref=e155]:
+            - generic [ref=e156]:
+              - generic [ref=e158]: Law Enforcement Events
+              - paragraph [ref=e160]: No law enforcement events recorded
+            - generic [ref=e161]:
+              - generic [ref=e163]: Monitoring & Surveillance
+              - paragraph [ref=e165]: No monitoring events recorded
+          - generic [ref=e166]:
+            - generic [ref=e167]:
+              - generic [ref=e169]: Recent Events
+              - paragraph [ref=e171]: No events recorded yet
+            - generic [ref=e172]:
+              - generic [ref=e174]: Quick Stats
+              - generic [ref=e175]:
+                - generic [ref=e176]:
+                  - generic [ref=e177]: Law Enforcement
+                  - generic [ref=e178]: "0"
+                - generic [ref=e179]:
+                  - generic [ref=e180]: Monitoring
+                  - generic [ref=e181]: "0"
+                - generic [ref=e183]:
+                  - generic [ref=e184]: Total Events
+                  - generic [ref=e185]: "0"
