@@ -25,6 +25,7 @@ type ScheduleItem = {
 
 type Props = {
   items: ScheduleItem[];
+  onMove?: (id: string, startAt: Date, endAt: Date | null) => void;
 };
 
 /** Group items by rangerName for sidebar rows. */
@@ -57,13 +58,13 @@ function toGanttFeature(item: ScheduleItem): GanttFeature {
   };
 }
 
-export function GanttView({ items }: Props) {
+export function GanttView({ items, onMove }: Props) {
   const grouped = groupByRanger(items);
   const rangers = Array.from(grouped.keys());
 
   return (
     <div className="h-[600px] overflow-hidden rounded-lg border">
-      <GanttProvider range="monthly">
+      <GanttProvider range="daily">
         <GanttSidebar>
           <GanttSidebarGroup name="Rangers">
             {rangers.map((rangerName) => {
@@ -86,7 +87,7 @@ export function GanttView({ items }: Props) {
               const features = rangerItems.map(toGanttFeature);
               return (
                 <GanttFeatureListGroup key={rangerName}>
-                  <GanttFeatureRow features={features} />
+                  <GanttFeatureRow features={features} {...(onMove ? { onMove } : {})} />
                 </GanttFeatureListGroup>
               );
             })}

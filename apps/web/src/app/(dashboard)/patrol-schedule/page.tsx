@@ -8,9 +8,33 @@ import { trpc } from "@/lib/trpc/client";
 import { GanttView } from "./_components/gantt-view";
 import { AssignmentDialog } from "./_components/assignment-dialog";
 import { DeleteAssignmentDialog } from "./_components/delete-assignment-dialog";
+import { PeriodToolbar } from "./_components/period-toolbar";
+import { buildPeriod, type Period } from "./_components/period";
 
 export default function PatrolSchedulePage() {
-  const { data, isPending } = trpc.patrolSchedule.list.useQuery({ limit: 200 });
+  const [period, setPeriod] = useState<Period>(() => buildPeriod(new Date(), "biweekly"));
+  const utils = trpc.useUtils();
+  const { data, isPending } = trpc.patrolSchedule.list.useQuery({
+    limit: 200,
+    from: period.from,
+    to: period.to,
+  });
+  const updateMutation = trpc.patrolSchedule.update.useMutation({
+    onSuccess: () => {
+      void utils.patrolSchedule.list.invalidate();
+    },
+  });
+
+  const handleMove = (id: string, startAt: Date, endAt: Date | null): void => {
+    if (endAt === null) {
+      return;
+    }
+    updateMutation.mutate({
+      id,
+      scheduledStart: startAt,
+      scheduledEnd: endAt,
+    });
+  };
 
   type ScheduleRow = NonNullable<typeof data>["items"][number];
 
@@ -31,6 +55,8 @@ export default function PatrolSchedulePage() {
         </Button>
       </div>
 
+      <PeriodToolbar period={period} onChange={setPeriod} />
+
       {isPending ? (
         <div className="space-y-3">
           <Skeleton className="h-10 w-full" />
@@ -45,7 +71,7 @@ export default function PatrolSchedulePage() {
           </p>
         </div>
       ) : (
-        <GanttView items={data.items} />
+        <GanttView items={data.items} onMove={handleMove} />
       )}
 
       {!isPending && data !== undefined && data.items.length > 0 ? (
