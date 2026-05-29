@@ -25,10 +25,11 @@ type ScheduleItem = {
 
 type Props = {
   items: ScheduleItem[];
+  fromDate: Date;
+  range?: "daily" | "monthly";
   onMove?: (id: string, startAt: Date, endAt: Date | null) => void;
 };
 
-/** Group items by rangerName for sidebar rows. */
 function groupByRanger(items: ScheduleItem[]): Map<string, ScheduleItem[]> {
   const map = new Map<string, ScheduleItem[]>();
   for (const item of items) {
@@ -43,7 +44,6 @@ function groupByRanger(items: ScheduleItem[]): Map<string, ScheduleItem[]> {
   return map;
 }
 
-/** Convert a schedule item to a GanttFeature. Color comes from the patrol area. */
 function toGanttFeature(item: ScheduleItem): GanttFeature {
   return {
     id: item.id,
@@ -58,23 +58,40 @@ function toGanttFeature(item: ScheduleItem): GanttFeature {
   };
 }
 
-export function GanttView({ items, onMove }: Props) {
+/** One synthetic sidebar feature per ranger — drives the sidebar row label. */
+function toRangerSidebarFeature(
+  rangerName: string,
+  items: ScheduleItem[],
+): GanttFeature {
+  const first = items[0];
+  const startAt = first ? new Date(first.scheduledStart) : new Date();
+  const endAt = first ? new Date(first.scheduledEnd) : new Date();
+  return {
+    id: `ranger:${rangerName}`,
+    name: rangerName,
+    startAt,
+    endAt,
+    status: { id: "ranger", name: "Ranger", color: "#94a3b8" },
+  };
+}
+
+export function GanttView({ items, fromDate, range = "daily", onMove }: Props) {
   const grouped = groupByRanger(items);
   const rangers = Array.from(grouped.keys());
 
   return (
     <div className="h-[600px] overflow-hidden rounded-lg border">
-      <GanttProvider range="daily">
+      <GanttProvider range={range} scrollToDate={fromDate}>
         <GanttSidebar>
           <GanttSidebarGroup name="Rangers">
             {rangers.map((rangerName) => {
               const rangerItems = grouped.get(rangerName) ?? [];
-              return rangerItems.map((item) => (
+              return (
                 <GanttSidebarItem
-                  key={item.id}
-                  feature={toGanttFeature(item)}
+                  key={`ranger:${rangerName}`}
+                  feature={toRangerSidebarFeature(rangerName, rangerItems)}
                 />
-              ));
+              );
             })}
           </GanttSidebarGroup>
         </GanttSidebar>

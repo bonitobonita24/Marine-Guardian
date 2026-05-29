@@ -533,8 +533,8 @@ export const GanttSidebarHeader: FC = () => (
     style={{ height: "var(--gantt-header-height)" }}
   >
     {/* <Checkbox className="shrink-0" /> */}
-    <p className="flex-1 truncate text-left">Issues</p>
-    <p className="shrink-0">Duration</p>
+    <p className="flex-1 truncate text-left">Rangers</p>
+    <p className="shrink-0">Span</p>
   </div>
 );
 
@@ -1167,6 +1167,7 @@ export type GanttProviderProps = {
   onAddItem?: (date: Date) => void;
   children: ReactNode;
   className?: string;
+  scrollToDate?: Date;
 };
 
 export const GanttProvider: FC<GanttProviderProps> = ({
@@ -1175,6 +1176,7 @@ export const GanttProvider: FC<GanttProviderProps> = ({
   onAddItem,
   children,
   className,
+  scrollToDate,
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [timelineData, setTimelineData] = useState<TimelineData>(
@@ -1213,6 +1215,32 @@ export const GanttProvider: FC<GanttProviderProps> = ({
       setScrollX(scrollRef.current.scrollLeft);
     }
   }, [setScrollX]);
+
+  useEffect(() => {
+    if (!scrollToDate) return;
+    if (!scrollRef.current) return;
+    const timelineStartDate = new Date(
+      timelineData[0]?.year ?? new Date().getFullYear(),
+      0,
+      1,
+    );
+    const offset = getOffset(scrollToDate, timelineStartDate, {
+      zoom,
+      range,
+      columnWidth,
+      sidebarWidth,
+      headerHeight,
+      rowHeight,
+      onAddItem,
+      placeholderLength: 2,
+      timelineData,
+      ref: scrollRef,
+    });
+    scrollRef.current.scrollTo({
+      left: Math.max(0, offset),
+      behavior: "smooth",
+    });
+  }, [scrollToDate, timelineData, zoom, range, columnWidth, sidebarWidth, onAddItem]);
 
   // Update sidebar width when DOM is ready
   useEffect(() => {

@@ -71,7 +71,12 @@ export default function PatrolSchedulePage() {
           </p>
         </div>
       ) : (
-        <GanttView items={data.items} onMove={handleMove} />
+        <GanttView
+          items={data.items}
+          fromDate={period.from}
+          range={period.view === "monthly" ? "monthly" : "daily"}
+          onMove={handleMove}
+        />
       )}
 
       {!isPending && data !== undefined && data.items.length > 0 ? (

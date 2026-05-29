@@ -1,117 +1,131 @@
-# 🔒 LOCKED NEXT TASK — Patrol Schedule (Gantt)
+# 🔒 LOCKED NEXT TASK — Patrol Schedule (Gantt) 7.1d — Visual QA fixes
 
-**Generated:** 2026-05-29 1:00am GMT+8 (supersedes Fuel Logging UI queue — shipped 2026-05-26 commit bec437e)
+**Generated:** 2026-05-29 9:45am GMT+8 (supersedes 7.1a/b/c queue — 7.1a+7.1b+7.1c shipped to main, infra fix 3fa0321 shipped)
+**Branch:** `feat/patrol-schedule-7-1d` (already created, checked out)
 **Trigger this in a FRESH Claude Code session.** Read this file BEFORE STATE.md.
 
 ---
 
-## Scope: Build the Patrol Schedule Gantt UI module
+## Scope: fix three Gantt rendering bugs surfaced by 2026-05-29 Visual QA
 
-PRODUCT.md lines 102-109 declare Patrol Schedule (Gantt) but no `/patrol-schedule` route exists.
-Backend is ~90% done — only frontend + one permission fix needed.
+7.1a/b/c shipped correct backend + dialog flow + period-toolbar wiring, but the Kibo
+Gantt component wasn't fully wired into the page's period state. Visual QA found 3
+real bugs that block the module from being usable.
 
-### What's already shipped
+### What's already shipped (verified by Visual QA on 2026-05-29)
 
-**Schema** (`packages/db/prisma/schema.prisma` line 516):
-- `PatrolSchedule` model: tenantId, patrolAreaId, rangerUserId (optional), rangerName, scheduledStart, scheduledEnd, notes, createdBy
-- Relations: Tenant.patrolSchedules, PatrolArea.schedules, User."PatrolScheduleRanger" + "PatrolScheduleCreatedBy"
-- Indexed on tenantId, patrolAreaId, rangerUserId
+✅ **Route + auth** — `/patrol-schedule` accessible to tenant users (`site_admin`, `coordinator`)
+✅ **Period toolbar** — prev/next nav, Today reset, Bi-weekly↔Monthly toggle, tRPC query refires with correct from/to
+✅ **CRUD dialogs (7.1b)** — Create (ranger autofill from user.fullName), Edit (pre-fills 5 fields), Delete (confirmation + cleanup)
+✅ **Manage assignments list** — correctly shows "Ranger / Area · date range" with Edit/Delete actions
+✅ **Empty state** — "No scheduled patrols found. Add patrol schedules to see them here."
+✅ **Sidebar nav link** — "Patrol Schedule" between Patrols and Subjects
+✅ **Production build** — unblocked by infra fix 3fa0321 (vendor folder lint ignores + context-menu modernization)
 
-**tRPC router** (`apps/web/src/server/trpc/routers/patrolSchedule.ts`):
-- `list` (tenantProcedure) — cursor pagination, filters: patrolAreaId, rangerUserId, from, to
-- `create` / `update` / `delete` — currently `adminProcedure` (⚠ needs fix — see 7.1a)
+### Bugs to fix in 7.1d
 
-**PatrolArea** — already has colorHex for zone color-coding (used in router `include`).
+#### Bug A — Gantt viewport unsynced with period toolbar (HIGH)
 
-### Backend gap (fix in 7.1a)
+File: `apps/web/src/app/(dashboard)/patrol-schedule/_components/gantt-view.tsx:67`
 
-PRODUCT.md line 229 grants Field Coordinator scheduling rights ("schedule ranger assignments (Gantt)").
-Router uses `adminProcedure` for create/update/delete — should be `coordinatorProcedure`.
-Fix in sub-batch 7.1a alongside the page scaffold.
+Current:
+```tsx
+<GanttProvider range="daily">
+```
 
-### Library choice — locked
+Problem: GanttProvider receives no `scrollDate`/`from`/`to` props, so Kibo defaults to
+an internal anchor — visible timeline shows ~June 20+ even when period toolbar selects
+"May 29 – Jun 11, 2026". Schedules in the period render off-screen left, drag/resize
+untestable, "Today" indicator visible but unrelated to selected period.
 
-PRODUCT.md line 484: "Kibo UI (Kanban board, **Gantt chart**, rich text editor, file dropzone)".
-Install via: `npx kibo-ui add gantt` (MIT, shadcn-native, already aligned with ui-rules.md Rule 7).
+Fix: pass period range to GanttProvider. Check Kibo UI Gantt docs (use context7) for the
+exact prop name — likely `scrollDate`, `currentDate`, or a `range`/`startDate` combination.
 
-### Sub-batch decomposition (Tier 2 — V32 §1)
+Add `Props.fromDate: Date` + `Props.toDate: Date` (or `period: { from, to }`) to
+`GanttViewProps` and have `page.tsx` pass its period state down. Then pipe into Kibo's
+viewport anchor prop. Verify: with toolbar "May 29 – Jun 11" and a schedule for Jun 2-5,
+the bar renders inside the visible timeline at the correct column.
 
-#### 7.1a — Gantt skeleton + permission fix (~400 lines)
+#### Bug B — Gantt rows labeled by PatrolArea instead of Ranger (HIGH)
 
-Goal: Read-only Gantt page renders existing schedules. No mutations yet.
+File: `apps/web/src/app/(dashboard)/patrol-schedule/_components/gantt-view.tsx:73-76`
 
-Files:
-- CREATE `apps/web/src/app/(dashboard)/patrol-schedule/page.tsx` — page orchestrator, fetches list, RBAC gate (coordinator+ for write actions)
-- CREATE `apps/web/src/app/(dashboard)/patrol-schedule/_components/gantt-view.tsx` — Kibo Gantt wrapper, rows=rangers, cols=days, cells colored by PatrolArea.colorHex
-- MODIFY `apps/web/src/server/trpc/routers/patrolSchedule.ts` — change `adminProcedure` → `coordinatorProcedure` on create/update/delete (3 occurrences, lines 44, 70, 95)
-- MODIFY `apps/web/src/components/sidebar.tsx` — add "Patrol Schedule" nav link with calendar icon
-- MODIFY `apps/web/src/server/trpc/routers/patrolSchedule.test.ts` — update perm test expectations (admin→coordinator)
-- Install Kibo Gantt component
+Current renders `<GanttSidebarItem feature={toGanttFeature(item)} />` per schedule item.
+`toGanttFeature(item)` evidently sets `feature.name = item.patrolArea.name` (or similar),
+so each schedule row's sidebar label is the area name, not the ranger.
 
-Verify:
-- pnpm typecheck clean
-- vitest passes (router tests with new perm)
-- /patrol-schedule renders existing seeded schedules as Gantt blocks
+Per 7.1a spec (`next-tasks.md` line 45 in the v1 queue): "rows=rangers, cols=days,
+cells colored by PatrolArea.colorHex".
 
-#### 7.1b — Assignment CRUD dialogs (~350 lines)
+Fix: render ONE sidebar row PER RANGER (not per schedule). Group schedules by
+`rangerName`, render `<GanttSidebarItem feature={{ id: rangerKey, name: rangerName, ... }}>`
+once per ranger. Then in `<GanttFeatureRow features={features}>`, pass all that ranger's
+schedule items — each feature gets the PatrolArea.colorHex.
 
-Goal: Create + edit + delete assignments via dialog flow.
+Check `toGanttFeature()` definition in same file or `kibo-ui/gantt/index.tsx`. The
+feature shape likely has `{ id, name, startAt, endAt, color, ... }`. Sidebar reads
+`name`, timeline draws bars from `startAt/endAt` colored by `color`.
 
-Files:
-- CREATE `apps/web/src/app/(dashboard)/patrol-schedule/_components/assignment-dialog.tsx` — shared create/edit dialog with ranger picker (User list), patrol area picker (PatrolArea list), date range picker, notes
-- CREATE `apps/web/src/app/(dashboard)/patrol-schedule/_components/delete-assignment-dialog.tsx` — confirmation + delete mutation
-- MODIFY `apps/web/src/app/(dashboard)/patrol-schedule/page.tsx` — wire "Add assignment" button + per-cell edit/delete actions, cache invalidation
+#### Bug C — Kibo default "Issues" / "Duration" column headers (LOW polish)
 
-Verify:
-- Create flow works end-to-end
-- Edit pre-fills correctly
-- Delete confirms before deletion
-- Coordinator-gated (operators see read-only)
+The Kibo UI Gantt sidebar header reads "Issues" + "Duration" out of the box. Domain
+mismatch for patrol scheduling.
 
-#### 7.1c — Drag-resize + view toggles + period nav (~300 lines)
+Fix paths (pick one):
+1. Check if `<GanttSidebar>` accepts a `headerLabel` or similar prop
+2. Wrap sidebar with a custom header div above `<GanttSidebar>` and CSS-hide the
+   default Kibo header row
+3. Override directly in `apps/web/src/components/kibo-ui/gantt/index.tsx` (vendor file,
+   already excluded from lint by 3fa0321 — safe to modify) — change literal strings
+   "Issues" → "Patrols", "Duration" → "Span"
 
-Goal: Full interactive Gantt per PRODUCT.md 102-109.
+### Out of scope for 7.1d
 
-Files:
-- MODIFY `apps/web/src/app/(dashboard)/patrol-schedule/_components/gantt-view.tsx` — wire Kibo onDrag/onResize handlers calling `update` mutation
-- CREATE `apps/web/src/app/(dashboard)/patrol-schedule/_components/period-toolbar.tsx` — prev/next nav, date range picker, bi-weekly/monthly toggle (default: bi-weekly per locked decision)
-- MODIFY page.tsx — wire period state, pass `from`/`to` to list query
-- CREATE tests for drag handler logic + period bucketing
-
-Verify:
-- Drag block on timeline → update mutation fires → schedule moves
-- Resize edge → update changes scheduledEnd
-- Bi-weekly toggle = 14-day window, monthly = calendar month
-- Prev/next steps by current view's window size
-
-### Out of scope for first ship
-
-- Recurring schedule templates (PRODUCT.md does not declare)
-- Conflict detection (overlapping ranger assignments) — defer to v2 unless trivial
-- Bulk assignment import — defer
-- Mobile Gantt — desktop-only per PRODUCT.md line 304
-
-### Locked decisions
-
-- **Library:** Kibo UI Gantt (PRODUCT.md line 484, ui-rules.md Rule 7)
-- **Default view:** bi-weekly (14-day cycle matches typical patrol planning cadence)
-- **Permission:** Coordinator+ for write, all authenticated for read (PRODUCT.md line 229)
-- **Color source:** PatrolArea.colorHex (already wired in router include)
+- Bug #6 (super_admin gets 403/401 on tenant pages) — defer to dedicated PR for layout-
+  level role gate. Affects all tenant pages, not just patrol-schedule. Separate scope.
+- Bug #7 (empty seed) — defer to dedicated seed-expansion PR covering all 10+ missing
+  entity types. Separate scope.
+- Drag-resize verification — was blocked by Bug A. After Bug A fixed, Visual QA needs
+  to verify: (i) drag block on timeline → update mutation fires → schedule moves to new
+  start date, (ii) resize right edge → update changes scheduledEnd, (iii) optimistic UI
+  reverts on server error.
 
 ### Pre-flight checklist (run in fresh session before any code)
 
-- [ ] Read `docs/PRODUCT.md` lines 102-109 (Patrol Schedule section) + line 229 (Coordinator permissions) + line 304 (Mobile Ready clarification) + line 484 (Kibo Gantt locked)
-- [ ] Read `apps/web/src/server/trpc/routers/patrolSchedule.ts` in full
-- [ ] Read `apps/web/src/server/trpc/middleware/rbac.ts` to confirm `coordinatorProcedure` export shape
-- [ ] Verify Kibo UI Gantt API: https://www.kibo-ui.com/components/gantt (use context7 if uncertain)
-- [ ] Read sidebar component for nav pattern + icon convention
-- [ ] Run `wc -l` on all files in scope before dispatching each sub-batch (V32 R2 — ≤500L/task)
+- [ ] Confirm on branch `feat/patrol-schedule-7-1d` (already created)
+- [ ] Read `apps/web/src/app/(dashboard)/patrol-schedule/page.tsx` to understand period state shape
+- [ ] Read `apps/web/src/app/(dashboard)/patrol-schedule/_components/gantt-view.tsx` in full
+- [ ] Read `apps/web/src/components/kibo-ui/gantt/index.tsx` — find GanttProvider props, GanttSidebar header, toGanttFeature equivalent
+- [ ] Run `wc -l` on all files in scope — confirm Tier 1 (≤500 lines per V32 R2)
+- [ ] Verify dev container has 3fa0321 (the lint-vendor-ignores fix) — if not, rebuild: `bash deploy/compose/start.sh dev up -d`
+
+### Tier classification (V32 §1)
+
+Files to read: ~3 (page.tsx + gantt-view.tsx + kibo-ui/gantt/index.tsx)
+Files to modify: ~2 (gantt-view.tsx + maybe page.tsx) + 1 (kibo-ui/gantt/index.tsx if Bug C taken)
+Estimated lines: page.tsx ~150L + gantt-view.tsx ~100L + targeted edits to kibo gantt (vendor, scoped to header literals)
+**Tier 1 — dispatch single Sonnet task per V32 R2.**
+
+### Verification before squash-merge
+
+- [ ] `pnpm typecheck` clean in apps/web
+- [ ] `pnpm test` — gantt-view test (if added) passes
+- [ ] Rebuild dev container (`bash deploy/compose/start.sh dev up -d`) — production `next build` succeeds
+- [ ] Visual QA: login as `site_admin`, create a 4-day schedule in current bi-weekly window, verify:
+  - Bar renders in visible Gantt timeline at correct date column
+  - Sidebar row label = ranger name (not patrol area)
+  - Bar color = PatrolArea.colorHex
+  - Drag bar 2 days right → mutation fires → bar moves + persists on refresh
+  - Resize right edge → mutation fires → bar extends
+- [ ] Squash-merge `feat/patrol-schedule-7-1d` → main, delete branch, push origin/main
+- [ ] After ship: Patrol Schedule module COMPLETE per PRODUCT.md 102-109
 
 ---
 
-## Out of immediate scope (next backlog)
+## Out of immediate scope (next backlog after 7.1d)
 
-After Patrol Schedule (Gantt) ships:
-1. **Super Admin Panel** — PRODUCT.md line 210. Cross-tenant ops, narrow audience.
-2. **5.1d Area A re-derive on areaName change** — still BLOCKED (ER sync doesn't emit area_name).
-3. **Schedule conflict detection** — overlapping ranger assignments, v2 enhancement.
+1. **Bug #6** — super_admin tenant-page redirect (`(dashboard)/layout.tsx` role gate)
+2. **Bug #7** — Seed expansion (PatrolSchedule + Event + Patrol + Subject + FuelEntry + Observation + Alert + AreaBoundary + ReportExport fixtures)
+3. **Super Admin Panel** — PRODUCT.md line 210, cross-tenant ops (deferred from prior queue)
+4. **5.1d Area A re-derive on areaName change** — still BLOCKED (ER sync doesn't emit area_name)
+5. **Schedule conflict detection** — overlapping ranger assignments, v2 enhancement
