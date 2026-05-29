@@ -19,8 +19,10 @@ import { mapRouter } from "./map";
 import { rangerRouter } from "./ranger";
 import { fuelEntryRouter } from "./fuelEntry";
 import { reportExportRouter } from "./reportExport";
+import { platformRouter } from "./platform";
 
 export const appRouter = router({
+  platform: platformRouter,
   event: eventRouter,
   patrol: patrolRouter,
   subject: subjectRouter,
