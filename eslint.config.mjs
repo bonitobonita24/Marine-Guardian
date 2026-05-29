@@ -22,6 +22,16 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['**/node_modules/**', '**/dist/**', '**/.next/**', '**/.turbo/**', '*.mjs', '**/*.js', '**/next-env.d.ts'],
+    ignores: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/.next/**',
+      '**/.turbo/**',
+      '*.mjs',
+      '**/*.js',
+      '**/next-env.d.ts',
+      'apps/web/src/components/ui/**',
+      'apps/web/src/components/kibo-ui/**',
+    ],
   },
 );
