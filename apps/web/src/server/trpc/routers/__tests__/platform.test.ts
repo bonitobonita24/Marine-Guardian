@@ -16,7 +16,7 @@ vi.mock("@marine-guardian/db", () => ({
       count: vi.fn(),
     },
     user: { count: vi.fn() },
-    event: { count: vi.fn() },
+    event: { count: vi.fn(), groupBy: vi.fn() },
   },
   writeAuditLog: vi.fn(),
 }));
@@ -135,6 +135,7 @@ describe("platform.list", () => {
     vi.mocked(platformPrisma.event.count)
       .mockResolvedValueOnce(12 as never)
       .mockResolvedValueOnce(3 as never);
+    vi.mocked(platformPrisma.event.groupBy).mockResolvedValue([] as never);
 
     const caller = createCaller(makeCtx());
     const result = await caller.list();
@@ -161,12 +162,102 @@ describe("platform.list", () => {
 
   it("handles empty tenant list", async () => {
     vi.mocked(platformPrisma.tenant.findMany).mockResolvedValue([] as never);
+    vi.mocked(platformPrisma.event.groupBy).mockResolvedValue([] as never);
 
     const caller = createCaller(makeCtx());
     const result = await caller.list();
 
     expect(result).toEqual([]);
     expect(vi.mocked(platformPrisma.event.count)).not.toHaveBeenCalled();
+  });
+
+  it("includes earthrangerUrl on each tenant", async () => {
+    const now = new Date("2026-01-01T00:00:00Z");
+    vi.mocked(platformPrisma.tenant.findMany).mockResolvedValue([
+      {
+        id: "cln1111111111aaaaaa",
+        name: "Demo MPA",
+        slug: "demo-mpa",
+        isActive: true,
+        earthrangerUrl: "https://er.demo.mpa",
+        currency: "PHP",
+        timezone: "Asia/Manila",
+        createdAt: now,
+        _count: { users: 1 },
+      },
+      {
+        id: "cln2222222222bbbbbb",
+        name: "No ER",
+        slug: "no-er",
+        isActive: true,
+        earthrangerUrl: null,
+        currency: "IDR",
+        timezone: "UTC",
+        createdAt: now,
+        _count: { users: 0 },
+      },
+    ] as never);
+    vi.mocked(platformPrisma.event.count)
+      .mockResolvedValueOnce(0 as never)
+      .mockResolvedValueOnce(0 as never);
+    vi.mocked(platformPrisma.event.groupBy).mockResolvedValue([] as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.list();
+
+    expect(result[0]?.earthrangerUrl).toBe("https://er.demo.mpa");
+    expect(result[1]?.earthrangerUrl).toBeNull();
+  });
+
+  it("computes lastSyncedAt as MAX(event.syncedAt) per tenant", async () => {
+    const now = new Date("2026-01-01T00:00:00Z");
+    const syncDate = new Date("2026-01-15T12:00:00Z");
+    vi.mocked(platformPrisma.tenant.findMany).mockResolvedValue([
+      {
+        id: "cln1111111111aaaaaa",
+        name: "Demo MPA",
+        slug: "demo-mpa",
+        isActive: true,
+        earthrangerUrl: null,
+        currency: "PHP",
+        timezone: "Asia/Manila",
+        createdAt: now,
+        _count: { users: 3 },
+      },
+    ] as never);
+    vi.mocked(platformPrisma.event.count).mockResolvedValueOnce(5 as never);
+    vi.mocked(platformPrisma.event.groupBy).mockResolvedValue([
+      { tenantId: "cln1111111111aaaaaa", _max: { syncedAt: syncDate } },
+    ] as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.list();
+
+    expect(result[0]?.lastSyncedAt).toEqual(syncDate);
+  });
+
+  it("returns lastSyncedAt: null when tenant has no events", async () => {
+    const now = new Date("2026-01-01T00:00:00Z");
+    vi.mocked(platformPrisma.tenant.findMany).mockResolvedValue([
+      {
+        id: "cln3333333333cccccc",
+        name: "Empty Site",
+        slug: "empty-site",
+        isActive: true,
+        earthrangerUrl: null,
+        currency: "IDR",
+        timezone: "UTC",
+        createdAt: now,
+        _count: { users: 0 },
+      },
+    ] as never);
+    vi.mocked(platformPrisma.event.count).mockResolvedValueOnce(0 as never);
+    vi.mocked(platformPrisma.event.groupBy).mockResolvedValue([] as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.list();
+
+    expect(result[0]?.lastSyncedAt).toBeNull();
   });
 });
 

@@ -14,6 +14,7 @@ interface TenantRow {
   createdAt: Date;
   userCount: number;
   eventCount30d: number;
+  lastSyncedAt: Date | null;
 }
 
 const { stubs } = vi.hoisted(() => {
@@ -115,6 +116,7 @@ const baseTenants: TenantRow[] = [
     createdAt: new Date("2026-01-15T00:00:00Z"),
     userCount: 8,
     eventCount30d: 42,
+    lastSyncedAt: null,
   },
   {
     id: "t-2",
@@ -127,6 +129,7 @@ const baseTenants: TenantRow[] = [
     createdAt: new Date("2026-02-20T00:00:00Z"),
     userCount: 3,
     eventCount30d: 5,
+    lastSyncedAt: null,
   },
 ];
 
@@ -244,5 +247,41 @@ describe("AdminTenantsClient", () => {
     // Simulate onSuccess callback
     stubs.enterOnSuccess?.();
     expect(pushMock).toHaveBeenCalledWith("/dashboard");
+  });
+
+  it("renders ER URL column with tenant.earthrangerUrl", () => {
+    stubs.listData = [
+      { ...baseTenants[0]!, earthrangerUrl: "https://er.coralbaympa.org" },
+    ];
+    render(
+      <AdminTenantsClient email="admin@marine.test" roles={["super_admin"]} />
+    );
+    expect(screen.getByText("https://er.coralbaympa.org")).toBeTruthy();
+  });
+
+  it("renders em-dash for tenant with no earthrangerUrl", () => {
+    stubs.listData = [{ ...baseTenants[0]!, earthrangerUrl: null }];
+    render(
+      <AdminTenantsClient email="admin@marine.test" roles={["super_admin"]} />
+    );
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("renders Last sync column with relative time when tenant has lastSyncedAt", () => {
+    const recent = new Date(Date.now() - 5 * 60 * 1000); // 5 minutes ago
+    stubs.listData = [{ ...baseTenants[0]!, lastSyncedAt: recent }];
+    render(
+      <AdminTenantsClient email="admin@marine.test" roles={["super_admin"]} />
+    );
+    // Intl.RelativeTimeFormat produces text like "5 minutes ago"
+    expect(screen.getByText(/minutes ago/i)).toBeTruthy();
+  });
+
+  it("renders em-dash when tenant has no lastSyncedAt", () => {
+    stubs.listData = [{ ...baseTenants[0]!, lastSyncedAt: null }];
+    render(
+      <AdminTenantsClient email="admin@marine.test" roles={["super_admin"]} />
+    );
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(1);
   });
 });

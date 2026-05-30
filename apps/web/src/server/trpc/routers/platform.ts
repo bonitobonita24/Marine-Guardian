@@ -31,12 +31,22 @@ export const platformRouter = router({
 
     const cutoff = thirtyDaysAgo();
 
-    const eventCounts = await Promise.all(
-      tenants.map((t) =>
-        platformPrisma.event.count({
-          where: { tenantId: t.id, createdAt: { gte: cutoff } },
-        }),
+    const [eventCounts, eventSyncAgg] = await Promise.all([
+      Promise.all(
+        tenants.map((t) =>
+          platformPrisma.event.count({
+            where: { tenantId: t.id, createdAt: { gte: cutoff } },
+          }),
+        ),
       ),
+      platformPrisma.event.groupBy({
+        by: ["tenantId"],
+        _max: { syncedAt: true },
+      }),
+    ]);
+
+    const lastSyncByTenant = new Map(
+      eventSyncAgg.map((r) => [r.tenantId, r._max.syncedAt]),
     );
 
     return tenants.map((t, i) => ({
@@ -50,6 +60,7 @@ export const platformRouter = router({
       createdAt: t.createdAt,
       userCount: t._count.users,
       eventCount30d: eventCounts[i] ?? 0,
+      lastSyncedAt: lastSyncByTenant.get(t.id) ?? null,
     }));
   }),
 

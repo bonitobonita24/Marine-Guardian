@@ -35,7 +35,21 @@ type TenantRow = {
   createdAt: Date;
   userCount: number;
   eventCount30d: number;
+  lastSyncedAt: Date | null;
 };
+
+function formatRelativeTime(date: Date): string {
+  const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+  const diffMs = date.getTime() - Date.now();
+  const diffSec = Math.round(diffMs / 1000);
+  const diffMin = Math.round(diffMs / 60000);
+  const diffHr = Math.round(diffMs / 3600000);
+  const diffDay = Math.round(diffMs / 86400000);
+  if (Math.abs(diffSec) < 60) return rtf.format(diffSec, "second");
+  if (Math.abs(diffMin) < 60) return rtf.format(diffMin, "minute");
+  if (Math.abs(diffHr) < 24) return rtf.format(diffHr, "hour");
+  return rtf.format(diffDay, "day");
+}
 
 interface Props {
   email: string;
@@ -90,10 +104,11 @@ export function AdminTenantsClient({ email, roles }: Props) {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Slug</TableHead>
+                <TableHead>ER URL</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Users</TableHead>
                 <TableHead>Events (30d)</TableHead>
-                <TableHead>Created</TableHead>
+                <TableHead>Last sync</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -101,7 +116,7 @@ export function AdminTenantsClient({ email, roles }: Props) {
               {list.isLoading ? (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={8}
                     className="text-center text-sm text-muted-foreground"
                   >
                     Loading tenants…
@@ -110,7 +125,7 @@ export function AdminTenantsClient({ email, roles }: Props) {
               ) : list.data && list.data.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={8}
                     className="text-center text-sm text-muted-foreground"
                   >
                     No tenants yet.
@@ -124,6 +139,11 @@ export function AdminTenantsClient({ email, roles }: Props) {
                       {tenant.slug}
                     </TableCell>
                     <TableCell>
+                      <span className="font-mono text-xs truncate max-w-[200px] block">
+                        {tenant.earthrangerUrl ?? "—"}
+                      </span>
+                    </TableCell>
+                    <TableCell>
                       <Badge
                         variant={tenant.isActive ? "default" : "secondary"}
                       >
@@ -133,7 +153,9 @@ export function AdminTenantsClient({ email, roles }: Props) {
                     <TableCell>{tenant.userCount}</TableCell>
                     <TableCell>{tenant.eventCount30d}</TableCell>
                     <TableCell className="text-muted-foreground text-sm">
-                      {new Date(tenant.createdAt).toLocaleDateString()}
+                      {tenant.lastSyncedAt != null
+                        ? formatRelativeTime(new Date(tenant.lastSyncedAt))
+                        : "—"}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
