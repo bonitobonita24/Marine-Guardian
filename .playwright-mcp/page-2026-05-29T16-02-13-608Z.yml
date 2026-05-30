@@ -1,0 +1,84 @@
+- generic:
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - heading [level=1]: Tenant Management
+          - paragraph: Marine Guardian — Super Admin
+        - generic:
+          - generic: webmaster@marine-guardian.local
+          - generic: super_admin
+          - button: Sign out
+      - generic:
+        - generic:
+          - generic: All Tenants
+          - button [expanded]: Add Tenant
+        - generic:
+          - generic:
+            - table:
+              - rowgroup:
+                - row:
+                  - columnheader: Name
+                  - columnheader: Slug
+                  - columnheader: Status
+                  - columnheader: Users
+                  - columnheader: Events (30d)
+                  - columnheader: Created
+                  - columnheader: Actions
+              - rowgroup:
+                - row:
+                  - cell: Coral Bay Marine Reserve
+                  - cell: coral-bay-reserve
+                  - cell:
+                    - generic: Inactive
+                  - cell: "0"
+                  - cell: "0"
+                  - cell: 5/29/2026
+                  - cell:
+                    - generic:
+                      - button: Edit
+                      - button [disabled]: Deactivate
+                - row:
+                  - cell: Demo Site
+                  - cell: demo-site
+                  - cell:
+                    - generic: Active
+                  - cell: "1"
+                  - cell: "4"
+                  - cell: 5/5/2026
+                  - cell:
+                    - generic:
+                      - button: Edit
+                      - button: Deactivate
+  - alert
+  - dialog "Add Tenant" [ref=e56]:
+    - generic [ref=e57]:
+      - generic [ref=e58]:
+        - heading "Add Tenant" [level=2] [ref=e59]
+        - paragraph [ref=e60]: Create a new tenant. The slug is permanent and used in URLs.
+      - generic [ref=e61]:
+        - generic [ref=e62]:
+          - text: Name
+          - textbox "Name" [active] [ref=e63]:
+            - /placeholder: Coral Bay Reserve
+        - generic [ref=e64]:
+          - text: Slug
+          - textbox "Slug" [ref=e65]:
+            - /placeholder: coral-bay-reserve
+          - paragraph [ref=e66]: Lowercase letters, digits, and hyphens only. Used in URLs.
+        - generic [ref=e67]:
+          - text: Timezone
+          - textbox "Timezone" [ref=e68]:
+            - /placeholder: UTC
+            - text: UTC
+        - generic [ref=e69]:
+          - text: Currency
+          - textbox "Currency" [ref=e70]:
+            - /placeholder: IDR
+            - text: IDR
+      - generic [ref=e71]:
+        - button "Cancel" [ref=e72] [cursor=pointer]
+        - button "Create Tenant" [ref=e73] [cursor=pointer]
+    - button "Close" [ref=e74] [cursor=pointer]:
+      - img [ref=e75]
+      - generic [ref=e78]: Close

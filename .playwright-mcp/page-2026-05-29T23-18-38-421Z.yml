@@ -1,0 +1,40 @@
+- generic [active] [ref=e1]:
+  - alert [ref=e31]
+  - generic [ref=e273]: Illegal Fishing
+  - generic [ref=e275]:
+    - generic [ref=e276]:
+      - generic [ref=e277]:
+        - heading "Tenant Management" [level=1] [ref=e278]
+        - paragraph [ref=e279]: Marine Guardian — Super Admin
+      - generic [ref=e280]:
+        - generic [ref=e281]: webmaster@marine-guardian.local
+        - generic [ref=e282]: super_admin
+        - button "Sign out" [ref=e283] [cursor=pointer]
+    - generic [ref=e284]:
+      - generic [ref=e285]:
+        - generic [ref=e286]: All Tenants
+        - button "Add Tenant" [ref=e287] [cursor=pointer]
+      - table [ref=e290]:
+        - rowgroup [ref=e291]:
+          - row "Name Slug Status Users Events (30d) Created Actions" [ref=e292]:
+            - columnheader "Name" [ref=e293]
+            - columnheader "Slug" [ref=e294]
+            - columnheader "Status" [ref=e295]
+            - columnheader "Users" [ref=e296]
+            - columnheader "Events (30d)" [ref=e297]
+            - columnheader "Created" [ref=e298]
+            - columnheader "Actions" [ref=e299]
+        - rowgroup [ref=e300]:
+          - row "Demo Site demo-site Active 1 4 5/5/2026 Manage Edit Deactivate" [ref=e301]:
+            - cell "Demo Site" [ref=e302]
+            - cell "demo-site" [ref=e303]
+            - cell "Active" [ref=e304]:
+              - generic [ref=e305]: Active
+            - cell "1" [ref=e306]
+            - cell "4" [ref=e307]
+            - cell "5/5/2026" [ref=e308]
+            - cell "Manage Edit Deactivate" [ref=e309]:
+              - generic [ref=e310]:
+                - button "Manage" [ref=e311] [cursor=pointer]
+                - button "Edit" [ref=e312] [cursor=pointer]
+                - button "Deactivate" [ref=e313] [cursor=pointer]

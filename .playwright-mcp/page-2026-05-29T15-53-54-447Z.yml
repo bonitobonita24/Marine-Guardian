@@ -1,0 +1,77 @@
+- generic:
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - heading [level=1]: Tenant Management
+          - paragraph: Marine Guardian — Super Admin
+        - generic:
+          - generic: webmaster@marine-guardian.local
+          - generic: super_admin
+          - button: Sign out
+      - generic:
+        - generic:
+          - generic: All Tenants
+          - button: Add Tenant
+        - generic:
+          - generic:
+            - table:
+              - rowgroup:
+                - row:
+                  - columnheader: Name
+                  - columnheader: Slug
+                  - columnheader: Status
+                  - columnheader: Users
+                  - columnheader: Events (30d)
+                  - columnheader: Created
+                  - columnheader: Actions
+              - rowgroup:
+                - row:
+                  - cell: Coral Bay Reserve
+                  - cell: coral-bay-reserve
+                  - cell:
+                    - generic: Active
+                  - cell: "0"
+                  - cell: "0"
+                  - cell: 5/29/2026
+                  - cell:
+                    - generic:
+                      - button: Edit
+                      - button: Deactivate
+                - row:
+                  - cell: Demo Site
+                  - cell: demo-site
+                  - cell:
+                    - generic: Active
+                  - cell: "1"
+                  - cell: "4"
+                  - cell: 5/5/2026
+                  - cell:
+                    - generic:
+                      - button: Edit
+                      - button: Deactivate
+  - alert
+  - dialog "Edit Tenant" [ref=e81]:
+    - generic [ref=e82]:
+      - generic [ref=e83]:
+        - heading "Edit Tenant" [level=2] [ref=e84]
+        - paragraph [ref=e85]: Editing “Coral Bay Reserve”. The slug cannot be changed.
+      - generic [ref=e86]:
+        - generic [ref=e87]:
+          - text: Name
+          - textbox "Name" [active] [ref=e88]: Coral Bay Reserve
+        - generic [ref=e89]:
+          - text: Timezone
+          - textbox "Timezone" [ref=e90]: UTC
+        - generic [ref=e91]:
+          - text: Currency
+          - textbox "Currency" [ref=e92]: IDR
+        - generic [ref=e93]:
+          - text: Sync Frequency (seconds)
+          - spinbutton "Sync Frequency (seconds)" [ref=e94]
+      - generic [ref=e95]:
+        - button "Cancel" [ref=e96] [cursor=pointer]
+        - button "Save" [ref=e97] [cursor=pointer]
+    - button "Close" [ref=e98] [cursor=pointer]:
+      - img [ref=e99]
+      - generic [ref=e102]: Close

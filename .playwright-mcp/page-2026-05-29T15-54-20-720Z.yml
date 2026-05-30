@@ -1,0 +1,63 @@
+- generic:
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - heading [level=1]: Tenant Management
+          - paragraph: Marine Guardian — Super Admin
+        - generic:
+          - generic: webmaster@marine-guardian.local
+          - generic: super_admin
+          - button: Sign out
+      - generic:
+        - generic:
+          - generic: All Tenants
+          - button: Add Tenant
+        - generic:
+          - generic:
+            - table:
+              - rowgroup:
+                - row:
+                  - columnheader: Name
+                  - columnheader: Slug
+                  - columnheader: Status
+                  - columnheader: Users
+                  - columnheader: Events (30d)
+                  - columnheader: Created
+                  - columnheader: Actions
+              - rowgroup:
+                - row:
+                  - cell: Coral Bay Marine Reserve
+                  - cell: coral-bay-reserve
+                  - cell:
+                    - generic: Active
+                  - cell: "0"
+                  - cell: "0"
+                  - cell: 5/29/2026
+                  - cell:
+                    - generic:
+                      - button: Edit
+                      - button: Deactivate
+                - row:
+                  - cell: Demo Site
+                  - cell: demo-site
+                  - cell:
+                    - generic: Active
+                  - cell: "1"
+                  - cell: "4"
+                  - cell: 5/5/2026
+                  - cell:
+                    - generic:
+                      - button: Edit
+                      - button: Deactivate
+  - alert
+  - dialog "Deactivate Tenant" [ref=e106]:
+    - generic [ref=e107]:
+      - heading "Deactivate Tenant" [level=2] [ref=e108]
+      - paragraph [ref=e109]: Deactivate “Coral Bay Marine Reserve”? Users will lose access immediately. This cannot be undone from the UI.
+    - generic [ref=e110]:
+      - button "Cancel" [active] [ref=e111] [cursor=pointer]
+      - button "Deactivate" [ref=e112] [cursor=pointer]
+    - button "Close" [ref=e113] [cursor=pointer]:
+      - img [ref=e114]
+      - generic [ref=e117]: Close

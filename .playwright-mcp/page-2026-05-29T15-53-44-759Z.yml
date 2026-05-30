@@ -1,0 +1,50 @@
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - heading "Tenant Management" [level=1] [ref=e6]
+        - paragraph [ref=e7]: Marine Guardian — Super Admin
+      - generic [ref=e8]:
+        - generic [ref=e9]: webmaster@marine-guardian.local
+        - generic [ref=e10]: super_admin
+        - button "Sign out" [ref=e11] [cursor=pointer]
+    - generic [ref=e12]:
+      - generic [ref=e13]:
+        - generic [ref=e14]: All Tenants
+        - button "Add Tenant" [active] [ref=e15] [cursor=pointer]
+      - table [ref=e18]:
+        - rowgroup [ref=e19]:
+          - row "Name Slug Status Users Events (30d) Created Actions" [ref=e20]:
+            - columnheader "Name" [ref=e21]
+            - columnheader "Slug" [ref=e22]
+            - columnheader "Status" [ref=e23]
+            - columnheader "Users" [ref=e24]
+            - columnheader "Events (30d)" [ref=e25]
+            - columnheader "Created" [ref=e26]
+            - columnheader "Actions" [ref=e27]
+        - rowgroup [ref=e28]:
+          - row "Coral Bay Reserve coral-bay-reserve Active 0 0 5/29/2026 Edit Deactivate" [ref=e68]:
+            - cell "Coral Bay Reserve" [ref=e69]
+            - cell "coral-bay-reserve" [ref=e70]
+            - cell "Active" [ref=e71]:
+              - generic [ref=e72]: Active
+            - cell "0" [ref=e73]
+            - cell "0" [ref=e74]
+            - cell "5/29/2026" [ref=e75]
+            - cell "Edit Deactivate" [ref=e76]:
+              - generic [ref=e77]:
+                - button "Edit" [ref=e78] [cursor=pointer]
+                - button "Deactivate" [ref=e79] [cursor=pointer]
+          - row "Demo Site demo-site Active 1 4 5/5/2026 Edit Deactivate" [ref=e32]:
+            - cell "Demo Site" [ref=e33]
+            - cell "demo-site" [ref=e34]
+            - cell "Active" [ref=e35]:
+              - generic [ref=e36]: Active
+            - cell "1" [ref=e37]
+            - cell "4" [ref=e38]
+            - cell "5/5/2026" [ref=e39]
+            - cell "Edit Deactivate" [ref=e40]:
+              - generic [ref=e41]:
+                - button "Edit" [ref=e42] [cursor=pointer]
+                - button "Deactivate" [ref=e43] [cursor=pointer]
+  - alert [ref=e31]
