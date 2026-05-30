@@ -1,8 +1,36 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
 import { coordinatorProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
+
+// Half-open interval overlap: A.start < B.end AND B.start < A.end
+async function findOverlappingSchedules(
+  tenantId: string,
+  rangerUserId: string,
+  start: Date,
+  end: Date,
+  excludeId?: string,
+) {
+  return prisma.patrolSchedule.findMany({
+    where: {
+      tenantId,
+      rangerUserId,
+      ...(excludeId !== undefined ? { id: { not: excludeId } } : {}),
+      scheduledStart: { lt: end },
+      scheduledEnd: { gt: start },
+    },
+    select: {
+      id: true,
+      scheduledStart: true,
+      scheduledEnd: true,
+      rangerName: true,
+      patrolArea: { select: { id: true, name: true } },
+    },
+    orderBy: { scheduledStart: "asc" },
+  });
+}
 
 export const patrolScheduleRouter = router({
   list: tenantProcedure
@@ -41,6 +69,29 @@ export const patrolScheduleRouter = router({
       return { items, nextCursor };
     }),
 
+  checkConflicts: tenantProcedure
+    .input(
+      z.object({
+        rangerUserId: z.string().optional(),
+        scheduledStart: z.date(),
+        scheduledEnd: z.date(),
+        excludeId: z.string().optional(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      if (!input.rangerUserId) {
+        return { conflicts: [] };
+      }
+      const conflicts = await findOverlappingSchedules(
+        ctx.tenantId,
+        input.rangerUserId,
+        input.scheduledStart,
+        input.scheduledEnd,
+        input.excludeId,
+      );
+      return { conflicts };
+    }),
+
   create: coordinatorProcedure
     .input(
       z.object({
@@ -50,9 +101,25 @@ export const patrolScheduleRouter = router({
         scheduledStart: z.date(),
         scheduledEnd: z.date(),
         notes: z.string().max(2000).optional(),
+        overrideConflicts: z.boolean().default(false),
       })
     )
     .mutation(async ({ ctx, input }) => {
+      if (input.rangerUserId !== undefined && !input.overrideConflicts) {
+        const conflicts = await findOverlappingSchedules(
+          ctx.tenantId,
+          input.rangerUserId,
+          input.scheduledStart,
+          input.scheduledEnd,
+        );
+        if (conflicts.length > 0) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Ranger has overlapping assignments",
+            cause: { conflictingSchedules: conflicts },
+          });
+        }
+      }
       return prisma.patrolSchedule.create({
         data: {
           tenantId: ctx.tenantId,
@@ -76,10 +143,11 @@ export const patrolScheduleRouter = router({
         scheduledStart: z.date().optional(),
         scheduledEnd: z.date().optional(),
         notes: z.string().max(2000).optional(),
+        overrideConflicts: z.boolean().default(false),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const { id, ...rest } = input;
+      const { id, overrideConflicts, ...rest } = input;
       const data = Object.fromEntries(
         Object.entries(rest).filter(([, v]) => v !== undefined)
       );
@@ -88,6 +156,27 @@ export const patrolScheduleRouter = router({
       });
       if (!schedule) {
         throw new Error("Not found");
+      }
+      // Resolve effective values for conflict check
+      const effectiveRangerId =
+        input.rangerUserId !== undefined ? input.rangerUserId : schedule.rangerUserId;
+      const effectiveStart = input.scheduledStart ?? schedule.scheduledStart;
+      const effectiveEnd = input.scheduledEnd ?? schedule.scheduledEnd;
+      if (effectiveRangerId !== null && !overrideConflicts) {
+        const conflicts = await findOverlappingSchedules(
+          ctx.tenantId,
+          effectiveRangerId,
+          effectiveStart,
+          effectiveEnd,
+          id,
+        );
+        if (conflicts.length > 0) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Ranger has overlapping assignments",
+            cause: { conflictingSchedules: conflicts },
+          });
+        }
       }
       return prisma.patrolSchedule.update({ where: { id }, data });
     }),

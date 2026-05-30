@@ -1,6 +1,23 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
+
+type ConflictItem = {
+  id: string;
+  scheduledStart: Date;
+  scheduledEnd: Date;
+  rangerName: string;
+  patrolArea: { id: string; name: string };
+};
+
+function formatRange(start: Date, end: Date): string {
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+  return `${fmt.format(start)} – ${fmt.format(end)}`;
+}
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -60,6 +77,7 @@ export function AssignmentDialog({
   const [feedback, setFeedback] = useState<
     { kind: "success" } | { kind: "error"; message: string } | null
   >(null);
+  const [pendingConflicts, setPendingConflicts] = useState<ConflictItem[] | null>(null);
 
   // Track the last name auto-filled from a ranger selection so we know
   // whether the user has manually edited the rangerName field.
@@ -131,6 +149,23 @@ export function AssignmentDialog({
 
   const isPending = create.isPending || update.isPending;
 
+  async function checkSchedulingConflicts(payload: {
+    rangerUserId?: string;
+    scheduledStart: Date;
+    scheduledEnd: Date;
+    excludeId?: string;
+  }): Promise<ConflictItem[]> {
+    if (payload.rangerUserId === undefined || payload.rangerUserId === "") return [];
+    const result = await utils.patrolSchedule.checkConflicts.fetch({
+      rangerUserId: payload.rangerUserId,
+      scheduledStart: payload.scheduledStart,
+      scheduledEnd: payload.scheduledEnd,
+      ...(payload.excludeId !== undefined ? { excludeId: payload.excludeId } : {}),
+    });
+    // result.conflicts is typed by the tRPC router's return shape
+    return result.conflicts;
+  }
+
   function resetForm() {
     setPatrolAreaId(null);
     setRangerUserId(null);
@@ -141,6 +176,7 @@ export function AssignmentDialog({
     setNotes("");
     setValidationError(null);
     setFeedback(null);
+    setPendingConflicts(null);
     create.reset();
     update.reset();
   }
@@ -155,59 +191,94 @@ export function AssignmentDialog({
     onSuccess();
   }
 
-  function handleSubmit() {
-    setValidationError(null);
-    setFeedback(null);
-
+  function buildValidatedPayload():
+    | {
+        ok: true;
+        validPatrolAreaId: string;
+        trimmedName: string;
+        startDate: Date;
+        endDate: Date;
+        trimmedNotes: string;
+      }
+    | { ok: false } {
     if (patrolAreaId === null || patrolAreaId === "") {
       setValidationError("Patrol area is required.");
-      return;
+      return { ok: false };
     }
     const trimmedName = rangerName.trim();
     if (trimmedName.length < 1) {
       setValidationError("Ranger name is required.");
-      return;
+      return { ok: false };
     }
     if (trimmedName.length > 200) {
       setValidationError("Ranger name must be 200 characters or fewer.");
-      return;
+      return { ok: false };
     }
     if (scheduledStartRaw === "") {
       setValidationError("Scheduled start date is required.");
-      return;
+      return { ok: false };
     }
     if (scheduledEndRaw === "") {
       setValidationError("Scheduled end date is required.");
-      return;
+      return { ok: false };
     }
     const startDate = new Date(scheduledStartRaw);
     if (Number.isNaN(startDate.getTime())) {
       setValidationError("Scheduled start date is invalid.");
-      return;
+      return { ok: false };
     }
     const endDate = new Date(scheduledEndRaw);
     if (Number.isNaN(endDate.getTime())) {
       setValidationError("Scheduled end date is invalid.");
-      return;
+      return { ok: false };
     }
     if (endDate < startDate) {
       setValidationError("Scheduled end must be on or after the start date.");
-      return;
+      return { ok: false };
     }
     if (notes.length > 2000) {
       setValidationError("Notes must be 2000 characters or fewer.");
+      return { ok: false };
+    }
+    // patrolAreaId narrowed to string by the null/empty guard above
+    return { ok: true, validPatrolAreaId: patrolAreaId, trimmedName, startDate, endDate, trimmedNotes: notes.trim() };
+  }
+
+  async function handleSubmit() {
+    setValidationError(null);
+    setFeedback(null);
+
+    const validated = buildValidatedPayload();
+    if (!validated.ok) return;
+    const { validPatrolAreaId, trimmedName, startDate, endDate, trimmedNotes } = validated;
+
+    // Pre-flight conflict check (primary gate — server error is race-condition safety net)
+    const conflictPayload: {
+      rangerUserId?: string;
+      scheduledStart: Date;
+      scheduledEnd: Date;
+      excludeId?: string;
+    } = {
+      scheduledStart: startDate,
+      scheduledEnd: endDate,
+    };
+    if (rangerUserId !== null) conflictPayload.rangerUserId = rangerUserId;
+    if (mode === "edit" && initial !== undefined) conflictPayload.excludeId = initial.id;
+    const conflicts = await checkSchedulingConflicts(conflictPayload);
+    if (conflicts.length > 0) {
+      setPendingConflicts(conflicts);
       return;
     }
 
     if (mode === "create") {
-      const trimmedNotes = notes.trim();
       create.mutate({
-        patrolAreaId,
+        patrolAreaId: validPatrolAreaId,
         ...(rangerUserId !== null ? { rangerUserId } : {}),
         rangerName: trimmedName,
         scheduledStart: startDate,
         scheduledEnd: endDate,
         ...(trimmedNotes !== "" ? { notes: trimmedNotes } : {}),
+        overrideConflicts: false,
       });
     } else {
       if (initial === undefined) return;
@@ -225,10 +296,11 @@ export function AssignmentDialog({
         scheduledStart?: Date;
         scheduledEnd?: Date;
         notes?: string;
-      } = { id: initial.id };
+        overrideConflicts?: boolean;
+      } = { id: initial.id, overrideConflicts: false };
 
-      if (patrolAreaId !== initial.patrolAreaId) {
-        payload.patrolAreaId = patrolAreaId;
+      if (validPatrolAreaId !== initial.patrolAreaId) {
+        payload.patrolAreaId = validPatrolAreaId;
       }
       if (rangerUserId !== null && rangerUserId !== initial.rangerUserId) {
         payload.rangerUserId = rangerUserId;
@@ -242,7 +314,62 @@ export function AssignmentDialog({
       if (endDate.getTime() !== initial.scheduledEnd.getTime()) {
         payload.scheduledEnd = endDate;
       }
-      const trimmedNotes = notes.trim();
+      const initialNotes = initial.notes ?? "";
+      if (trimmedNotes !== initialNotes && trimmedNotes !== "") {
+        payload.notes = trimmedNotes;
+      }
+
+      update.mutate(payload);
+    }
+  }
+
+  function handleConfirmOverride() {
+    // Re-derive from current state — do not use stale cached payload
+    const validated = buildValidatedPayload();
+    if (!validated.ok) return;
+    const { validPatrolAreaId, trimmedName, startDate, endDate, trimmedNotes } = validated;
+
+    setPendingConflicts(null);
+
+    if (mode === "create") {
+      create.mutate({
+        patrolAreaId: validPatrolAreaId,
+        ...(rangerUserId !== null ? { rangerUserId } : {}),
+        rangerName: trimmedName,
+        scheduledStart: startDate,
+        scheduledEnd: endDate,
+        ...(trimmedNotes !== "" ? { notes: trimmedNotes } : {}),
+        overrideConflicts: true,
+      });
+    } else {
+      if (initial === undefined) return;
+
+      const payload: {
+        id: string;
+        patrolAreaId?: string;
+        rangerUserId?: string;
+        rangerName?: string;
+        scheduledStart?: Date;
+        scheduledEnd?: Date;
+        notes?: string;
+        overrideConflicts?: boolean;
+      } = { id: initial.id, overrideConflicts: true };
+
+      if (validPatrolAreaId !== initial.patrolAreaId) {
+        payload.patrolAreaId = validPatrolAreaId;
+      }
+      if (rangerUserId !== null && rangerUserId !== initial.rangerUserId) {
+        payload.rangerUserId = rangerUserId;
+      }
+      if (trimmedName !== initial.rangerName) {
+        payload.rangerName = trimmedName;
+      }
+      if (startDate.getTime() !== initial.scheduledStart.getTime()) {
+        payload.scheduledStart = startDate;
+      }
+      if (endDate.getTime() !== initial.scheduledEnd.getTime()) {
+        payload.scheduledEnd = endDate;
+      }
       const initialNotes = initial.notes ?? "";
       if (trimmedNotes !== initialNotes && trimmedNotes !== "") {
         payload.notes = trimmedNotes;
@@ -383,6 +510,29 @@ export function AssignmentDialog({
           </div>
         </div>
 
+        {pendingConflicts !== null && (
+          <div
+            className="rounded-md border border-amber-500/40 bg-amber-50 p-3 text-sm dark:bg-amber-900/10"
+            data-testid="conflict-confirm-view"
+          >
+            <p className="font-medium text-amber-900 dark:text-amber-200">
+              Ranger has {pendingConflicts.length} overlapping{" "}
+              {pendingConflicts.length === 1 ? "assignment" : "assignments"}:
+            </p>
+            <ul className="mt-2 space-y-1 text-amber-900 dark:text-amber-200">
+              {pendingConflicts.map((c) => (
+                <li key={c.id}>
+                  {c.patrolArea.name} —{" "}
+                  {formatRange(c.scheduledStart, c.scheduledEnd)}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-xs text-amber-900/80 dark:text-amber-200/80">
+              Save anyway?
+            </p>
+          </div>
+        )}
+
         {validationError !== null && (
           <p
             data-testid={`${testPrefix}-validation-error`}
@@ -418,6 +568,26 @@ export function AssignmentDialog({
             >
               Close
             </Button>
+          ) : pendingConflicts !== null ? (
+            <>
+              <Button variant="ghost" onClick={handleClose} disabled={isPending}>
+                Cancel
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => { setPendingConflicts(null); }}
+                disabled={isPending}
+              >
+                Back
+              </Button>
+              <Button
+                data-testid={`${testPrefix}-confirm-override`}
+                onClick={handleConfirmOverride}
+                disabled={isPending}
+              >
+                {isPending ? "Saving…" : "Save anyway"}
+              </Button>
+            </>
           ) : (
             <>
               <Button
@@ -429,7 +599,7 @@ export function AssignmentDialog({
               </Button>
               <Button
                 data-testid={`${testPrefix}-submit`}
-                onClick={handleSubmit}
+                onClick={() => void handleSubmit()}
                 disabled={isPending}
               >
                 {isPending ? "Saving…" : "Save"}
