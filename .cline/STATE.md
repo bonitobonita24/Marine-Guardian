@@ -70,29 +70,138 @@ LAST_DONE:    Resumed from prior session's UI-mid-flight checkpoint.
               Tests on main after merge: 71 files / 678 pass (regression
               gate run on feat/ branch pre-merge; main inherits same).
 
-NEXT:         Item 5 follow-ups (optional polish — none blocking):
-                a) Visual QA on dev container — drive Playwright through
-                   the assignment dialog: create overlapping schedule for
-                   ranger → confirm soft-override warning surfaces →
-                   confirm override allows save → confirm non-override
-                   blocks save. Dev compose has NO source mount, so run
-                   `docker compose build app && docker compose up -d
-                   --force-recreate` first (per Item-4 visual-QA learning).
-                   APP_PORT=45204 (not the stale 43000 in older docs).
+NEXT:         🎯 PREPPED FOR NEXT SESSION — Phase 7 Feature Update:
+              "/admin/tenants table column completion (PRODUCT.md §210
+              bullet 2)" on branch feat/admin-tenants-columns.
 
-                b) Add server-side audit row tag for override events
-                   (PATROL_SCHEDULE:OVERRIDE_CONFLICT) so super_admin can
-                   later filter the audit log for who bypassed conflicts.
-                   Deferred — not in Item 5 spec.
+              SCOPE (single Phase 7 Feature Update — Tier 2, ~1100L total):
 
-              PRODUCT.md §210 backlog — pick next:
-                Items 2, 7, 8 remain. Read docs/PRODUCT.md §210 to see
-                their definitions then pick one to ship.
+                PRODUCT.md §210 bullet 2 declares the tenant table must show:
+                  name | slug | EarthRanger server | user count |
+                  events (30d) | last sync | status
 
-              Recommended next session opener:
-                Read docs/PRODUCT.md §210 → pick remaining item to ship →
-                open Phase 7 with pre-flight (Universal Context Budget +
-                Tiered Decomposition §1) → start feat/[slug] branch.
+                Survey 2026-05-30 18:30 GMT+8 — current columns are:
+                  Name ✓ | Slug ✓ | Status ✓ | Users ✓ |
+                  Events (30d) ✓ | Created ❌ (should be Last sync) | Actions ✓
+
+                GAPS — exactly 2 columns to add:
+                  (1) EarthRanger server — Tenant.earthrangerUrl
+                      (String?, already on Prisma model line 150)
+                  (2) Last sync — needs computed aggregation
+                      (no dedicated Tenant.lastSyncedAt field exists;
+                       each synced entity has its own syncedAt — see
+                       schema.prisma L227/L255/L287/L308/L337/L365/L384)
+
+                §210 bullet 1 (Create/edit/deactivate tenants):
+                  ALREADY SHIPPED. Verified during prep survey:
+                  - create-tenant-dialog.tsx (135L) ✓
+                  - edit-tenant-dialog.tsx (145L) ✓
+                  - deactivate-tenant-dialog.tsx (80L) ✓
+                  - All 3 dialogs mounted in admin-tenants-client.tsx ✓
+                  - platform.ts router: list/create/update/deactivate ✓
+                  → No work needed on bullet 1.
+
+              FILES IN SCOPE (`wc -l` verified 2026-05-30):
+
+                READ for context (do NOT modify unless listed below):
+                  - apps/web/src/server/trpc/routers/platform.ts          216L
+                  - apps/web/src/app/admin/tenants/admin-tenants-client.tsx  190L
+                  - apps/web/src/server/trpc/routers/__tests__/platform.test.ts  462L  ⚠ >300L → line ranges required
+                  - apps/web/src/app/admin/tenants/__tests__/admin-tenants-client.test.tsx  248L
+                  - packages/db/prisma/schema.prisma — read only L143–185
+                    (Tenant model) + L220–390 (synced entities for syncedAt)
+
+                MODIFY:
+                  - platform.ts list procedure (~+30L):
+                      Extend the existing list query to include:
+                        * earthrangerUrl (simple include — no aggregation)
+                        * lastSyncedAt — recommended approach: a per-tenant
+                          MAX(syncedAt) across Event table only (highest-
+                          frequency ingest, most representative of liveness).
+                          Implement as a separate prisma.event.groupBy({
+                            by: ['tenantId'],
+                            _max: { syncedAt: true },
+                          }) call, then map results onto tenants in JS.
+                          This is the simplest correct approach for
+                          mono-server scale; if cross-table sync liveness
+                          matters later, extend to Subject + Patrol aggregations.
+                  - admin-tenants-client.tsx (~+12L):
+                      Add 2 TableHead + 2 TableCell entries:
+                        * Between Slug and Status: "ER URL" (tenant.earthrangerUrl
+                          shown as truncated mono-font; empty state "—")
+                        * Between Events (30d) and Created: "Last sync"
+                          (formatted with formatDistanceToNow or similar
+                          for "5m ago" / "2h ago" / "—" if null)
+                      Replace "Created" column with "Last sync" OR keep both
+                      — product decision needed at start of session.
+                      Recommended: replace Created (it's not in §210 spec)
+                      with Last sync to match the spec verbatim.
+                  - platform.test.ts (~+40L — append cases ~L450+):
+                      ⚠ File is 462L — Sonnet must use line ranges per V32 R3.
+                      Add cases under existing "list" describe:
+                        * "includes earthrangerUrl on each tenant"
+                        * "computes lastSyncedAt as MAX(event.syncedAt) per tenant"
+                        * "returns lastSyncedAt: null when tenant has no events"
+                  - admin-tenants-client.test.tsx (~+20L):
+                      Append cases:
+                        * "renders ER URL column with tenant.earthrangerUrl"
+                        * "renders Last sync column with relative time"
+                        * "renders em-dash for tenant with no earthrangerUrl"
+                        * "renders em-dash for tenant with no lastSyncedAt"
+
+                CREATE: none.
+                DELETE: none.
+
+              TOTAL ESTIMATED: ~1100 lines read+modify across 4 files.
+              No new files. All in 1 module. → Tier 2 — moderate (V32 §1).
+
+              V32 PROTOCOL FOR THIS TASK:
+
+                ✓ Pre-dispatch gate: Sonnet dispatch must include explicit
+                  line ranges for platform.test.ts (462L > 300L V32 R3 trigger).
+                  Recommended dispatch: scout-then-edit (V32 R5) — first
+                  Sonnet pass reads platform.test.ts + extracts the "list"
+                  describe block structure into a 50-line summary; second
+                  pass appends new cases using the summary + targeted Edit.
+                ✓ Total lines in scope ≤ 500 per Sonnet task per V32 R2:
+                  this scope is ~1100L total which exceeds the 500L cap.
+                  → SPLIT into 2 Sonnet dispatches:
+                     Dispatch 1: server layer (platform.ts + platform.test.ts
+                                 cases for new columns) — ~480L
+                     Dispatch 2: client layer (admin-tenants-client.tsx +
+                                 admin-tenants-client.test.tsx) — ~470L
+                  Each dispatch stays under 500L and touches one surface.
+                ✓ Verification on Opus side after each dispatch:
+                  pnpm --filter @marine-guardian/web typecheck +
+                  pnpm --filter @marine-guardian/web test
+                  (expect 678 → ~684 after both dispatches land)
+
+              PRE-FLIGHT CHECKLIST (run at session start):
+
+                □ Read this STATE.md NEXT block (= you are here)
+                □ Read .cline/memory/lessons.md ALL 🔴 + 🟤 entries
+                  (2 new 🔴 entries from 2026-05-30 about MockSelectTrigger +
+                   exactOptionalPropertyTypes — useful when writing the
+                   admin-tenants-client.test.tsx additions if shadcn Select
+                   gets involved)
+                □ Read docs/PRODUCT.md §210 (lines 210-216) and §232
+                  (Tenant entity definition with all the encrypted ER fields)
+                □ Confirm git status clean on main + `git checkout -b
+                  feat/admin-tenants-columns`
+                □ Apply the 2-dispatch split above
+
+              DEFERRED / NOT IN THIS TASK:
+
+                - Item 5 Visual QA follow-up (Playwright on assignment dialog
+                  conflict UX — dev container APP_PORT=45204 after rebuild)
+                - PATROL_SCHEDULE:OVERRIDE_CONFLICT audit row tag (Item 5
+                  audit polish)
+                - "Items 2, 7, 8" from internal sprint backlog — user holds
+                  this list; ask them to enumerate when this column work ships
+
+              Recommended next session opener (exact words to start with):
+                "Start Phase 7 Feature Update: /admin/tenants column
+                 completion per STATE.md NEXT block."
 
 BLOCKERS:     none
 
