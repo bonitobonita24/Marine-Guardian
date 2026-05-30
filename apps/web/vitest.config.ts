@@ -16,5 +16,6 @@ export default defineConfig({
     environment: "node",
     globals: false,
     pool: "vmForks",
+    setupFiles: ["./src/test-setup/next-headers-mock.ts"],
   },
 });
