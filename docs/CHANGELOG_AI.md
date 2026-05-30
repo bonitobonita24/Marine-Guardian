@@ -3,6 +3,20 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-05-30 — Super Admin Panel — Item 2: /admin/tenants table column completion (PRODUCT.md §210 bullet 2)
+- Agent:               CLAUDE_CODE (Opus 4.7 architect + Sonnet 4.6 executor ×3)
+- Phase:               Phase 7 Feature Update — PRODUCT.md §210 Item 2
+- Why:                 Complete /admin/tenants table column spec — EarthRanger server + Last sync columns. Prior to this ship the tenants table rendered only the columns delivered in Item 1; PRODUCT.md §210 bullet 2 requires EarthRanger server address and last-sync timestamp to be visible so platform admins can spot stale or misconfigured integrations at a glance.
+- Squash commit:       aedbcf7 (covers branch commits b65cf25 server + ae58b35 client)
+- Files added:         none
+- Files modified:      apps/web/src/server/trpc/routers/platform.ts; apps/web/src/server/trpc/routers/__tests__/platform.test.ts; apps/web/src/app/admin/tenants/admin-tenants-client.tsx; apps/web/src/app/admin/tenants/__tests__/admin-tenants-client.test.tsx
+- Files deleted:       none
+- Schema/migrations:   none — lastSyncedAt is a runtime aggregation via prisma.event.groupBy (MAX createdAt per tenantId); no Tenant.lastSyncedAt field added to schema
+- Tests:               web 678 → 685 pass (+7 new, 0 failures)
+- Errors encountered:  6 vitest failures after Dispatch 1: groupBy was missing from the vi.mock factory (only `event: { count: vi.fn() }` declared), causing (a) the 2 new EarthRanger+lastSync tests to throw at setup on undefined.mockResolvedValue, and (b) 2 pre-existing list tests + 1 metrics test to fail at runtime on undefined.map(). Resolved via 2 micro-dispatches before Dispatch 2.
+- Errors resolved:     Added `groupBy: vi.fn()` to mock factory shape; updated all pre-existing tests that exercise the same procedure to mock the new method explicitly.
+- Decisions locked:    none
+
 ## 2026-05-30 — Super Admin Panel — Item 5: Schedule Conflict Detection in patrol assignment dialog (PRODUCT.md §210 backlog item 5)
 - Agent:               CLAUDE_CODE (Opus 4.7 — multi-session ship spanning a power interruption mid-flight. Server layer (046630f) shipped in earlier session 2026-05-30 ~3pm GMT+8; client UI + test scaffold (3a1987a) authored under Sonnet dispatch on feat/schedule-conflict-detection then power loss interrupted mid-flight on 2026-05-30 ~5:30pm leaving 2 inherited defects (SelectMeta exactOptionalPropertyTypes widening + MockSelectTrigger useEffect ctx feedback loop OOM'ing vitest at 553s wall / 0ms test exec); resumed Opus 4.7 main-session 2026-05-30 ~5:46pm fixed both defects directly (small surgical edits — V32 strict zero-Opus-execution waived per project-locked feedback for atomic surgical fixes); resumed again 2026-05-30 ~6:11pm to execute the squash-merge to main + governance batch (this entry). Squash commit 4aa25b1 covers branch commits 046630f + 3a1987a.)
 - Why:                 PRODUCT.md §210 backlog item 5 — patrol schedule must surface when an assignment would put a ranger in two places at once. Prior to this ship, the assignment dialog accepted overlapping assignments silently, producing impossible schedules that the operator would only discover later in the Gantt view or in the field. This ship adds tRPC-level conflict detection with a soft-override UX: when the admin tries to create or update a PatrolSchedule whose ranger has overlapping assignments in the same window, the router throws BAD_REQUEST with a `conflicts: PendingConflict[]` array inlined into the TRPCError data; the assignment dialog renders the conflicts as warning rows, requires the admin to tick an override checkbox, then re-submits with `override: true` which the router accepts (audit captures the override decision via existing AuditLog write — no schema change). Soft override (not hard block) because legitimate cases exist: ranger reassignment between districts, schedule corrections after the fact, brief overlap during shift handoff. Hard block would force the operator to delete the old row first, losing audit trail. Soft override with explicit confirmation preserves both intent and lineage.

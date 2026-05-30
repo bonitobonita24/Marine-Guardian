@@ -4,6 +4,13 @@
 # READ ORDER: 🔴 first → 🟤 second → rest by relevance
 # ---
 
+## 2026-05-30 — 🟡 vitest mock factory must include every Prisma method called by the procedure under test
+- Type:      🟡 fix
+- Phase:     Phase 7 Feature Update — PRODUCT.md §210 Item 2 (/admin/tenants column completion)
+- Files:     apps/web/src/server/trpc/routers/__tests__/platform.test.ts
+- Concepts:  vitest, vi.mock, vi.fn, prisma, groupBy, mock-factory, test-setup
+- Narrative: When platform.list grew to call prisma.event.groupBy (new aggregation for lastSyncedAt), the vi.mock factory at L9-22 still only declared `event: { count: vi.fn() }`. Six tests failed — not just the new ones but two pre-existing list tests and the metrics test — because (a) the new tests' vi.mocked(...).mockResolvedValue on an undefined property threw at test setup, and (b) the existing list tests' code paths now exercised undefined.map() at runtime. Fix: add `groupBy: vi.fn()` to the factory shape AND update every existing test of the same procedure to mock the new method explicitly. Lesson: when adding a Prisma method call to a procedure, update the mock factory + every test that exercises that procedure in the same dispatch. Don't assume vi.clearAllMocks() between tests will paper over an incomplete factory shape — it preserves implementations but cannot fabricate methods that don't exist on the mocked surface.
+
 ## 2026-05-30 — 🔴 MockSelectTrigger useEffect: never list a useMemo'd context value in deps when the effect mutates the source of that memo
 - Type:      🔴 gotcha
 - Phase:     Phase 7 Feature Update — Item 5 Schedule Conflict Detection UI tests
