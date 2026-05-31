@@ -11,6 +11,13 @@ vi.mock("@marine-guardian/db", () => ({
       delete: vi.fn(),
     },
   },
+  platformPrisma: {
+    patrolSchedule: {
+      create: vi.fn(),
+      update: vi.fn(),
+    },
+    $transaction: vi.fn(),
+  },
   writeAuditLog: vi.fn(),
 }));
 
@@ -27,7 +34,7 @@ vi.mock("../../../auth", () => ({
   auth: vi.fn(),
 }));
 
-import { prisma, writeAuditLog } from "@marine-guardian/db";
+import { prisma, platformPrisma, writeAuditLog } from "@marine-guardian/db";
 import { createCallerFactory } from "../../trpc";
 import { patrolScheduleRouter } from "../patrolSchedule";
 
@@ -152,6 +159,8 @@ describe("patrolSchedule.checkConflicts", () => {
 describe("patrolSchedule.create — conflict detection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // eslint-disable-next-line @typescript-eslint/unbound-method, @typescript-eslint/no-unnecessary-type-assertion
+    vi.mocked(platformPrisma.$transaction).mockImplementation(async (cb) => cb(platformPrisma as never));
   });
 
   it("succeeds when no conflicts (findMany resolves [])", async () => {
@@ -205,7 +214,8 @@ describe("patrolSchedule.create — conflict detection", () => {
   });
 
   it("succeeds with overrideConflicts: true even when conflict present — findMany NOT called", async () => {
-    vi.mocked(prisma.patrolSchedule.create).mockResolvedValue(mockScheduleRow);
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    vi.mocked(platformPrisma.patrolSchedule.create).mockResolvedValue(mockScheduleRow);
     const caller = createCaller(makeCtx());
     const result = await caller.create({
       patrolAreaId: "area-1",
@@ -256,6 +266,8 @@ describe("patrolSchedule.create — conflict detection", () => {
 describe("patrolSchedule.update — conflict detection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // eslint-disable-next-line @typescript-eslint/unbound-method, @typescript-eslint/no-unnecessary-type-assertion
+    vi.mocked(platformPrisma.$transaction).mockImplementation(async (cb) => cb(platformPrisma as never));
   });
 
   it("throws CONFLICT and findMany was called with id: { not: input.id } filter", async () => {
@@ -288,7 +300,8 @@ describe("patrolSchedule.update — conflict detection", () => {
 
   it("succeeds with overrideConflicts: true even with conflict present", async () => {
     vi.mocked(prisma.patrolSchedule.findFirst).mockResolvedValue(mockScheduleRow);
-    vi.mocked(prisma.patrolSchedule.update).mockResolvedValue({
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    vi.mocked(platformPrisma.patrolSchedule.update).mockResolvedValue({
       ...mockScheduleRow,
       notes: "updated",
     });
