@@ -3,6 +3,23 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-05-31 — Super Admin Panel — Item 7: /admin/users page (PRODUCT.md §210 Item 7)
+- Agent:               CLAUDE_CODE (Opus 4.7 architect + Sonnet 4.6 executor x3)
+- Phase:               Phase 7 Feature Update — PRODUCT.md §210 Item 7
+- Why:                 Closes PRODUCT.md §210 Item 7. The platformUser router shipped in Item 3 had zero UI consumer. /admin/users now consumes list/create/updateRole/deactivate end-to-end, completing PRODUCT.md §351 `/admin/users    Super Admin platform user management`.
+- Squash commit:       8a30879 (covers branch commits 670dc9d Dispatch 1 + 97c4430 Dispatch 2 + f34b6bf micro-fix)
+- Files added:         apps/web/src/app/admin/users/page.tsx (23L — server gate, super_admin only, redirect("/") on fail); apps/web/src/app/admin/users/admin-users-client.tsx (209L — 7-col table + dialog state); apps/web/src/app/admin/users/create-user-dialog.tsx (201L — uncontrolled, useState); apps/web/src/app/admin/users/edit-user-role-dialog.tsx (116L — controlled-open, role-only); apps/web/src/app/admin/users/deactivate-user-dialog.tsx (89L — controlled-open confirm); apps/web/src/app/admin/users/__tests__/admin-users-client.test.tsx (265L — 8 cases)
+- Files modified:      none
+- Files deleted:       none
+- Schema/migrations:   none
+- Tests:               web suite 685 → 693 pass (+8 new cases in admin-users-client.test.tsx)
+- Errors encountered:  vitest fixture name collision ("Site Admin" as both fullName and role badge — resolved with getAllByText in 2 cases by Sonnet during Dispatch 1)
+- Errors resolved:     getAllByText substituted for getByText in the 2 collision cases
+- Decisions locked:    none
+- Deviation:           edit dialog omits tenant select; updateRole router schema is {id, role} only (apps/web/src/server/trpc/routers/platformUser.ts:170). Edit dialog ships role-only. Follow-up: extend updateRole input if tenant reassignment becomes a product requirement.
+- Dispatch sequence:   670dc9d (Dispatch 1 — server gate + client + create dialog + 5 tests) → 97c4430 (Dispatch 2 — edit + deactivate dialogs + wire + 3 tests) → f34b6bf (micro-fix — dialog description scope) → 8a30879 (squash to main)
+- V32 R1:              Opus wrote only STATE.md. All 6 files via Agent(model:"sonnet").
+
 ## 2026-05-30 — Super Admin Panel — Item 2: /admin/tenants table column completion (PRODUCT.md §210 bullet 2)
 - Agent:               CLAUDE_CODE (Opus 4.7 architect + Sonnet 4.6 executor ×3)
 - Phase:               Phase 7 Feature Update — PRODUCT.md §210 Item 2
