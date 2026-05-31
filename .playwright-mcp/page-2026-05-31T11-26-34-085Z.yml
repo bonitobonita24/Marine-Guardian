@@ -1,0 +1,57 @@
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - heading "Tenant Management" [level=1] [ref=e6]
+        - paragraph [ref=e7]: Marine Guardian — Super Admin
+      - generic [ref=e8]:
+        - generic [ref=e9]: webmaster@marine-guardian.local
+        - generic [ref=e10]: super_admin
+        - button "Sign out" [ref=e11] [cursor=pointer]
+    - generic [ref=e12]:
+      - generic [ref=e13]:
+        - generic [ref=e14]: All Tenants
+        - button "Add Tenant" [active] [ref=e15] [cursor=pointer]
+      - table [ref=e18]:
+        - rowgroup [ref=e19]:
+          - row "Name Slug ER URL Status Users Events (30d) Last sync Actions" [ref=e20]:
+            - columnheader "Name" [ref=e21]
+            - columnheader "Slug" [ref=e22]
+            - columnheader "ER URL" [ref=e23]
+            - columnheader "Status" [ref=e24]
+            - columnheader "Users" [ref=e25]
+            - columnheader "Events (30d)" [ref=e26]
+            - columnheader "Last sync" [ref=e27]
+            - columnheader "Actions" [ref=e28]
+        - rowgroup [ref=e29]:
+          - row "QA Test Reef qa-test-reef — Active 1 0 — Manage Edit Deactivate" [ref=e92]:
+            - cell "QA Test Reef" [ref=e93]
+            - cell "qa-test-reef" [ref=e94]
+            - cell "—" [ref=e95]:
+              - generic [ref=e96]: —
+            - cell "Active" [ref=e97]:
+              - generic [ref=e98]: Active
+            - cell "1" [ref=e99]
+            - cell "0" [ref=e100]
+            - cell "—" [ref=e101]
+            - cell "Manage Edit Deactivate" [ref=e102]:
+              - generic [ref=e103]:
+                - button "Manage" [ref=e104] [cursor=pointer]
+                - button "Edit" [ref=e105] [cursor=pointer]
+                - button "Deactivate" [ref=e106] [cursor=pointer]
+          - row "Demo Site demo-site — Active 1 4 2 days ago Manage Edit Deactivate" [ref=e33]:
+            - cell "Demo Site" [ref=e34]
+            - cell "demo-site" [ref=e35]
+            - cell "—" [ref=e36]:
+              - generic [ref=e37]: —
+            - cell "Active" [ref=e38]:
+              - generic [ref=e39]: Active
+            - cell "1" [ref=e40]
+            - cell "4" [ref=e41]
+            - cell "2 days ago" [ref=e42]
+            - cell "Manage Edit Deactivate" [ref=e43]:
+              - generic [ref=e44]:
+                - button "Manage" [ref=e45] [cursor=pointer]
+                - button "Edit" [ref=e46] [cursor=pointer]
+                - button "Deactivate" [ref=e47] [cursor=pointer]
+  - alert [ref=e32]

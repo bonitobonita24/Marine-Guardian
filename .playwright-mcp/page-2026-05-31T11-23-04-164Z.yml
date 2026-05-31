@@ -1,0 +1,28 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - heading "Platform Users" [level=1] [ref=e6]
+        - paragraph [ref=e7]: Manage users across all tenants
+      - generic [ref=e8]:
+        - generic [ref=e9]: webmaster@marine-guardian.local
+        - generic [ref=e10]: super_admin
+        - button "Sign out" [ref=e11] [cursor=pointer]
+    - generic [ref=e12]:
+      - generic [ref=e13]:
+        - generic [ref=e14]: All Users
+        - button "Add User" [ref=e15] [cursor=pointer]
+      - table [ref=e18]:
+        - rowgroup [ref=e19]:
+          - row "Name Email Role Tenant Status Created Actions" [ref=e20]:
+            - columnheader "Name" [ref=e21]
+            - columnheader "Email" [ref=e22]
+            - columnheader "Role" [ref=e23]
+            - columnheader "Tenant" [ref=e24]
+            - columnheader "Status" [ref=e25]
+            - columnheader "Created" [ref=e26]
+            - columnheader "Actions" [ref=e27]
+        - rowgroup [ref=e28]:
+          - row "Loading users…" [ref=e29]:
+            - cell "Loading users…" [ref=e30]
+  - alert [ref=e31]

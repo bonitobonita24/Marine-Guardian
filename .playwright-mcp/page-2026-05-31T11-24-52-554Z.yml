@@ -1,0 +1,29 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - heading "Tenant Management" [level=1] [ref=e6]
+        - paragraph [ref=e7]: Marine Guardian — Super Admin
+      - generic [ref=e8]:
+        - generic [ref=e9]: webmaster@marine-guardian.local
+        - generic [ref=e10]: super_admin
+        - button "Sign out" [ref=e11] [cursor=pointer]
+    - generic [ref=e12]:
+      - generic [ref=e13]:
+        - generic [ref=e14]: All Tenants
+        - button "Add Tenant" [ref=e15] [cursor=pointer]
+      - table [ref=e18]:
+        - rowgroup [ref=e19]:
+          - row "Name Slug ER URL Status Users Events (30d) Last sync Actions" [ref=e20]:
+            - columnheader "Name" [ref=e21]
+            - columnheader "Slug" [ref=e22]
+            - columnheader "ER URL" [ref=e23]
+            - columnheader "Status" [ref=e24]
+            - columnheader "Users" [ref=e25]
+            - columnheader "Events (30d)" [ref=e26]
+            - columnheader "Last sync" [ref=e27]
+            - columnheader "Actions" [ref=e28]
+        - rowgroup [ref=e29]:
+          - row "Loading tenants…" [ref=e30]:
+            - cell "Loading tenants…" [ref=e31]
+  - alert [ref=e32]

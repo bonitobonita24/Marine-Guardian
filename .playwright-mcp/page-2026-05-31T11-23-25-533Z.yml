@@ -1,0 +1,72 @@
+- generic:
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - heading [level=1]: Platform Users
+          - paragraph: Manage users across all tenants
+        - generic:
+          - generic: webmaster@marine-guardian.local
+          - generic: super_admin
+          - button: Sign out
+      - generic:
+        - generic:
+          - generic: All Users
+          - button: Add User
+        - generic:
+          - generic:
+            - table:
+              - rowgroup:
+                - row:
+                  - columnheader: Name
+                  - columnheader: Email
+                  - columnheader: Role
+                  - columnheader: Tenant
+                  - columnheader: Status
+                  - columnheader: Created
+                  - columnheader: Actions
+              - rowgroup:
+                - row:
+                  - cell: Demo Site Admin
+                  - cell: admin@demo-site.local
+                  - cell:
+                    - generic: Site Admin
+                  - cell: Demo Site
+                  - cell:
+                    - generic: Active
+                  - cell: 5/5/2026
+                  - cell:
+                    - generic:
+                      - button: Edit Role
+                      - button: Deactivate
+                - row:
+                  - cell: Webmaster
+                  - cell: webmaster@marine-guardian.local
+                  - cell:
+                    - generic: Super Admin
+                  - cell: Platform
+                  - cell:
+                    - generic: Active
+                  - cell: 5/5/2026
+                  - cell:
+                    - generic:
+                      - button: Edit Role
+                      - button: Deactivate
+  - alert
+  - dialog "Edit User Role" [ref=e59]:
+    - generic [ref=e60]:
+      - generic [ref=e61]:
+        - heading "Edit User Role" [level=2] [ref=e62]
+        - paragraph [ref=e63]: Change role for admin@demo-site.local.
+      - generic [ref=e65]:
+        - text: Role
+        - combobox "Role" [active] [ref=e66] [cursor=pointer]:
+          - generic: Site Admin
+          - img [ref=e67]
+        - combobox [ref=e69]
+      - generic [ref=e70]:
+        - button "Cancel" [ref=e71] [cursor=pointer]
+        - button "Save" [ref=e72] [cursor=pointer]
+    - button "Close" [ref=e73] [cursor=pointer]:
+      - img [ref=e74]
+      - generic [ref=e77]: Close

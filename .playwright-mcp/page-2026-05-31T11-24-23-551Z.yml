@@ -1,0 +1,93 @@
+- generic:
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - heading [level=1]: Platform Users
+          - paragraph: Manage users across all tenants
+        - generic:
+          - generic: webmaster@marine-guardian.local
+          - generic: super_admin
+          - button: Sign out
+      - generic:
+        - generic:
+          - generic: All Users
+          - button [expanded]: Add User
+        - generic:
+          - generic:
+            - table:
+              - rowgroup:
+                - row:
+                  - columnheader: Name
+                  - columnheader: Email
+                  - columnheader: Role
+                  - columnheader: Tenant
+                  - columnheader: Status
+                  - columnheader: Created
+                  - columnheader: Actions
+              - rowgroup:
+                - row:
+                  - cell: Demo Site Admin
+                  - cell: admin@demo-site.local
+                  - cell:
+                    - generic: Site Admin
+                  - cell: Demo Site
+                  - cell:
+                    - generic: Active
+                  - cell: 5/5/2026
+                  - cell:
+                    - generic:
+                      - button: Edit Role
+                      - button: Deactivate
+                - row:
+                  - cell: Webmaster
+                  - cell: webmaster@marine-guardian.local
+                  - cell:
+                    - generic: Super Admin
+                  - cell: Platform
+                  - cell:
+                    - generic: Active
+                  - cell: 5/5/2026
+                  - cell:
+                    - generic:
+                      - button: Edit Role
+                      - button: Deactivate
+  - alert
+  - dialog "Add User" [ref=e115]:
+    - generic [ref=e116]:
+      - generic [ref=e117]:
+        - heading "Add User" [level=2] [ref=e118]
+        - paragraph [ref=e119]: Create a new platform user. Assign a role and tenant as needed.
+      - generic [ref=e120]:
+        - generic [ref=e121]:
+          - text: Email
+          - textbox "Email" [active] [ref=e122]:
+            - /placeholder: user@example.com
+        - generic [ref=e123]:
+          - text: Full Name
+          - textbox "Full Name" [ref=e124]:
+            - /placeholder: Jane Doe
+        - generic [ref=e125]:
+          - text: Role
+          - combobox "Role" [ref=e126] [cursor=pointer]:
+            - generic: Operator
+            - img [ref=e127]
+          - combobox [ref=e129]
+        - generic [ref=e130]:
+          - text: Tenant
+          - combobox "Tenant" [ref=e131] [cursor=pointer]:
+            - generic: Select tenant
+            - img [ref=e132]
+          - combobox [ref=e134]
+        - generic [ref=e135]:
+          - text: Language
+          - combobox "Language" [ref=e136] [cursor=pointer]:
+            - generic: English
+            - img [ref=e137]
+          - combobox [ref=e139]
+      - generic [ref=e140]:
+        - button "Cancel" [ref=e141] [cursor=pointer]
+        - button "Create User" [ref=e142] [cursor=pointer]
+    - button "Close" [ref=e143] [cursor=pointer]:
+      - img [ref=e144]
+      - generic [ref=e147]: Close

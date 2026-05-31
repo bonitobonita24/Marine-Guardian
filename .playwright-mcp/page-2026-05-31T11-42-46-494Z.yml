@@ -1,0 +1,94 @@
+- generic:
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - heading [level=1]: Tenant Management
+          - paragraph: Marine Guardian — Super Admin
+        - generic:
+          - generic: webmaster@marine-guardian.local
+          - generic: super_admin
+          - button: Sign out
+      - generic:
+        - generic:
+          - generic: All Tenants
+          - button [expanded]: Add Tenant
+        - generic:
+          - generic:
+            - table:
+              - rowgroup:
+                - row:
+                  - columnheader: Name
+                  - columnheader: Slug
+                  - columnheader: ER URL
+                  - columnheader: Status
+                  - columnheader: Users
+                  - columnheader: Events (30d)
+                  - columnheader: Last sync
+                  - columnheader: Actions
+              - rowgroup:
+                - row:
+                  - cell: QA Test Reef
+                  - cell: qa-test-reef
+                  - cell:
+                    - generic: —
+                  - cell:
+                    - generic: Active
+                  - cell: "1"
+                  - cell: "0"
+                  - cell: —
+                  - cell:
+                    - generic:
+                      - button: Manage
+                      - button: Edit
+                      - button: Deactivate
+                - row:
+                  - cell: Demo Site
+                  - cell: demo-site
+                  - cell:
+                    - generic: —
+                  - cell:
+                    - generic: Active
+                  - cell: "1"
+                  - cell: "4"
+                  - cell: 2 days ago
+                  - cell:
+                    - generic:
+                      - button: Manage
+                      - button: Edit
+                      - button: Deactivate
+  - alert
+  - dialog "Add Tenant" [ref=e64]:
+    - generic [ref=e65]:
+      - generic [ref=e66]:
+        - heading "Add Tenant" [level=2] [ref=e67]
+        - paragraph [ref=e68]: Create a new tenant. The slug is permanent and used in URLs.
+      - generic [ref=e69]:
+        - generic [ref=e70]:
+          - text: Name
+          - textbox "Name" [active] [ref=e71]:
+            - /placeholder: Coral Bay Reserve
+        - generic [ref=e72]:
+          - text: Slug
+          - textbox "Slug" [ref=e73]:
+            - /placeholder: coral-bay-reserve
+          - paragraph [ref=e74]: Lowercase letters, digits, and hyphens only. Used in URLs.
+        - generic [ref=e75]:
+          - text: Timezone
+          - textbox "Timezone" [ref=e76]:
+            - /placeholder: UTC
+            - text: UTC
+        - generic [ref=e77]:
+          - text: Currency
+          - textbox "Currency" [ref=e78]:
+            - /placeholder: IDR
+            - text: IDR
+        - button "Initial Site Admin (recommended) Show" [ref=e80] [cursor=pointer]:
+          - generic [ref=e81]: Initial Site Admin (recommended)
+          - generic [ref=e82]: Show
+      - generic [ref=e83]:
+        - button "Cancel" [ref=e84] [cursor=pointer]
+        - button "Create Tenant" [ref=e85] [cursor=pointer]
+    - button "Close" [ref=e86] [cursor=pointer]:
+      - img [ref=e87]
+      - generic [ref=e90]: Close

@@ -1,0 +1,72 @@
+- generic:
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - heading [level=1]: Platform Users
+          - paragraph: Manage users across all tenants
+        - generic:
+          - generic: webmaster@marine-guardian.local
+          - generic: super_admin
+          - button: Sign out
+      - generic:
+        - generic:
+          - generic: All Users
+          - button: Add User
+        - generic:
+          - generic:
+            - table:
+              - rowgroup:
+                - row:
+                  - columnheader: Name
+                  - columnheader: Email
+                  - columnheader: Role
+                  - columnheader: Tenant
+                  - columnheader: Status
+                  - columnheader: Created
+                  - columnheader: Actions
+              - rowgroup:
+                - row:
+                  - cell: Demo Site Admin
+                  - cell: admin@demo-site.local
+                  - cell:
+                    - generic: Site Admin
+                  - cell: Demo Site
+                  - cell:
+                    - generic: Active
+                  - cell: 5/5/2026
+                  - cell:
+                    - generic:
+                      - button: Edit Role
+                      - button: Deactivate
+                - row:
+                  - cell: Webmaster
+                  - cell: webmaster@marine-guardian.local
+                  - cell:
+                    - generic: Super Admin
+                  - cell: Platform
+                  - cell:
+                    - generic: Active
+                  - cell: 5/5/2026
+                  - cell:
+                    - generic:
+                      - button: Edit Role
+                      - button: Deactivate
+  - alert
+  - dialog "Edit User Role" [ref=e95]:
+    - generic [ref=e96]:
+      - generic [ref=e97]:
+        - heading "Edit User Role" [level=2] [ref=e98]
+        - paragraph [ref=e99]: Change role for webmaster@marine-guardian.local.
+      - generic [ref=e101]:
+        - text: Role
+        - combobox "Role" [active] [ref=e102] [cursor=pointer]:
+          - generic: Super Admin
+          - img [ref=e103]
+        - combobox [ref=e105]
+      - generic [ref=e106]:
+        - button "Cancel" [ref=e107] [cursor=pointer]
+        - button "Save" [ref=e108] [cursor=pointer]
+    - button "Close" [ref=e109] [cursor=pointer]:
+      - img [ref=e110]
+      - generic [ref=e113]: Close

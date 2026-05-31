@@ -1,0 +1,79 @@
+- generic:
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - heading [level=1]: Tenant Management
+          - paragraph: Marine Guardian — Super Admin
+        - generic:
+          - generic: webmaster@marine-guardian.local
+          - generic: super_admin
+          - button: Sign out
+      - generic:
+        - generic:
+          - generic: All Tenants
+          - button [expanded]: Add Tenant
+        - generic:
+          - generic:
+            - table:
+              - rowgroup:
+                - row:
+                  - columnheader: Name
+                  - columnheader: Slug
+                  - columnheader: ER URL
+                  - columnheader: Status
+                  - columnheader: Users
+                  - columnheader: Events (30d)
+                  - columnheader: Last sync
+                  - columnheader: Actions
+              - rowgroup:
+                - row:
+                  - cell: Demo Site
+                  - cell: demo-site
+                  - cell:
+                    - generic: —
+                  - cell:
+                    - generic: Active
+                  - cell: "1"
+                  - cell: "4"
+                  - cell: 2 days ago
+                  - cell:
+                    - generic:
+                      - button: Manage
+                      - button: Edit
+                      - button: Deactivate
+  - alert
+  - dialog "Add Tenant" [ref=e49]:
+    - generic [ref=e50]:
+      - generic [ref=e51]:
+        - heading "Add Tenant" [level=2] [ref=e52]
+        - paragraph [ref=e53]: Create a new tenant. The slug is permanent and used in URLs.
+      - generic [ref=e54]:
+        - generic [ref=e55]:
+          - text: Name
+          - textbox "Name" [active] [ref=e56]:
+            - /placeholder: Coral Bay Reserve
+        - generic [ref=e57]:
+          - text: Slug
+          - textbox "Slug" [ref=e58]:
+            - /placeholder: coral-bay-reserve
+          - paragraph [ref=e59]: Lowercase letters, digits, and hyphens only. Used in URLs.
+        - generic [ref=e60]:
+          - text: Timezone
+          - textbox "Timezone" [ref=e61]:
+            - /placeholder: UTC
+            - text: UTC
+        - generic [ref=e62]:
+          - text: Currency
+          - textbox "Currency" [ref=e63]:
+            - /placeholder: IDR
+            - text: IDR
+        - button "Initial Site Admin (recommended) Show" [ref=e65] [cursor=pointer]:
+          - generic [ref=e66]: Initial Site Admin (recommended)
+          - generic [ref=e67]: Show
+      - generic [ref=e68]:
+        - button "Cancel" [ref=e69] [cursor=pointer]
+        - button "Create Tenant" [ref=e70] [cursor=pointer]
+    - button "Close" [ref=e71] [cursor=pointer]:
+      - img [ref=e72]
+      - generic [ref=e75]: Close
