@@ -1,38 +1,44 @@
 {
-  "scannedAt": "2026-05-26T21:18+08:00",
-  "previousScan": "2026-05-26T15:59+08:00 (same-day, ~5h earlier)",
-  "rescanReason": "Same-day re-scan after Fuel Logging UI shipped (Phase 7 / Phase 8 Batch 6.2c — commits bec437e + c69eab7). Confirmed Part A foundation still optimal (20 skills + 5 plugins + memory-governance + socraticode MCP = 24 components, 0 conflicts). Part B empty, Part C nil. andrej-karpathy-skills now confirmed in installedPlugins (install completed 2026-05-26 4:26pm GMT+8). Memory Governance V31.1 verified at .claude/rules/memory-governance.md. No installation actions required. Outstanding: context-mode v1.0.111 → v1.0.151 upgrade still available (deferred; /ctx-upgrade when convenient).",
+  "scannedAt": "2026-05-31T21:10+08:00",
+  "previousScan": "2026-05-26T21:18+08:00 (5 days earlier — Fuel Logging UI ship cycle)",
+  "rescanReason": "Re-scan after multi-cycle ship checkpoint: §210 Super Admin Panel Items 1-8 ALL CLOSED on origin/main (Item 1 admin landing e5cd29d → Item 2 tenants columns aedbcf7+990bff1 → Item 4 tenant switching c20190e+aa8fbef → Item 7 /admin/users 8a30879 → Item 8 Initial Site Admin a0d4d1f). Phase 7 Option D lint gate hardening shipped 2026-05-31 (19e4d4a) converting Step 19 to HARD pre-merge gate with mandatory `pnpm --filter @marine-guardian/web build`. PATROL_SCHEDULE:OVERRIDE_CONFLICT audit (Option C) shipped 5dfa8f5 with revert/recovery cycle. State checkpoints d39558b (Option C) + e318ad1 (Option D) on main. Confirmed Part A foundation still aligned with project decisions (20 skills + 3 plugins + memory-governance + 4 MCPs = 28 components, 0 conflicts, 0 stale). Part B empty, Part C nil. No install actions required. Outstanding: context-mode v1.0.111 → v1.0.151 upgrade available (deferred; /ctx-upgrade when convenient). Bonito's intentional skipped slots (superpowers, skillpilot) preserved across this scan — current stack has shipped clean through Items 1-8 + Option D. Warehouse signal: none (PostgreSQL is OLTP, not analytics warehouse — ktx not applicable).",
   "techStack": [
     "TypeScript strict",
     "Next.js 15",
     "React 19",
     "tRPC v11",
     "Prisma 6",
-    "PostgreSQL + PgBouncer + RLS",
-    "Valkey + BullMQ",
-    "ioredis",
-    "Auth.js v5 (credentials/JWT)",
+    "PostgreSQL + PgBouncer + RLS (OLTP, not warehouse)",
+    "Valkey 7 (ioredis)",
+    "MinIO S3",
+    "Auth.js v5 (Credentials/JWT)",
+    "bcryptjs",
     "shadcn/ui + Radix",
     "Tailwind 3",
     "next-intl (en/id/ms)",
     "Recharts",
     "react-hook-form + Zod",
+    "@react-pdf/renderer",
+    "Leaflet + leaflet.heat + @geoman-io/leaflet-geoman-free + MapLibre GL",
+    "@dnd-kit (core/sortable/modifiers/utilities)",
+    "@marsidev/react-turnstile (disabled — test keys dev/staging)",
     "isomorphic-dompurify",
     "lru-cache",
-    "@dnd-kit",
-    "@marsidev/react-turnstile (disabled)",
-    "vitest",
+    "jotai + zustand",
+    "BullMQ workers (pdf-render)",
+    "vitest + @testing-library/react + jsdom",
     "ESLint 9 strict",
     "Turborepo",
     "pnpm 10 monorepo",
-    "Docker Compose",
+    "Docker Compose (dev) + Traefik (staging/prod)",
     "AES-256-GCM column encryption",
     "EarthRanger socket.io realtime",
-    "Multi-tenant L1-L6 security"
+    "Multi-tenant L1-L6 security (extended Prisma client with tenant-guard + encryption extensions)"
   ],
   "projectType": "full-stack",
-  "specDrivenFramework": "V31",
-  "currentPhase": "Phase 8 Batch 2 SSE-2 GREEN complete on feat/sse-foundation (pending squash-merge to main per .cline/STATE.md 2026-05-16)",
+  "specDrivenFramework": "V32.1.4 (CLAUDE.md) / V32.1.3 upgrade marker",
+  "currentPhase": "POST-§210 BACKLOG awaiting next selection (A: Item 5 Visual QA / B: Item 7 tenantId extension / C-followup: 5dfa8f5 cast polish / E: fresh PRODUCT.md section incl. v2 adoption or PatrolTrack / F: dev tenant cleanup) — all 8 §210 Super Admin Panel items CLOSED + Phase 7 Option D lint gate shipped 2026-05-31",
+  "warehouseSignal": "none",
   "installedSkills": [
     { "name": "agnix", "category": "Development & DevOps", "tier": "T4", "reason": "Lints SKILL.md/CLAUDE.md/hooks/MCP — useful in this Spec-Driven framework project with extensive .claude/ tree" },
     { "name": "awesome-design-md", "category": "Design & UI", "tier": "T1", "reason": "docs/DESIGN.md exists per Scenario 33 — visual reference layer" },
@@ -40,88 +46,64 @@
     { "name": "claude-skills-65", "category": "Development & DevOps", "tier": "T1", "reason": "Slot 6 — 65 framework skills covering React, Next.js, tRPC, Prisma, etc." },
     { "name": "design-auditor", "category": "Design & UI", "tier": "T1", "reason": "Slot 4 — visual design validation, scores against 17 professional rules" },
     { "name": "frontend-design", "category": "Design & UI", "tier": "T1", "reason": "Slot 4 — Anthropic's production UI code generation, Phase 4 UI quality bar" },
-    { "name": "git-pushing", "category": "Development & DevOps", "tier": "T1", "reason": "Slot 5 — commit discipline, safe push workflow" },
-    { "name": "mcp-builder", "category": "Development & DevOps", "tier": "T4", "reason": "MCP server creation reference — 3 MCPs already wired (socraticode, context7, shadcn)" },
+    { "name": "git-pushing", "category": "Development & DevOps", "tier": "T1", "reason": "Slot 5 — commit discipline, safe push workflow (validated across §210 ship sequence)" },
+    { "name": "mcp-builder", "category": "Development & DevOps", "tier": "T4", "reason": "MCP server creation reference — 4 MCPs wired (socraticode, context7, shadcn, code-review-graph)" },
     { "name": "oiloil-ui-ux-guide", "category": "Design & UI", "tier": "T1", "reason": "Phase 4 Parts 5-6 UX theory — task-first UX, HCI laws" },
-    { "name": "owasp-security", "category": "Security & Testing", "tier": "T1", "reason": "Slot 4 — OWASP Top 10:2025, ASVS 5.0 — multi-tenant L1-L6 security review" },
+    { "name": "owasp-security", "category": "Security & Testing", "tier": "T1", "reason": "Slot 4 — OWASP Top 10:2025, ASVS 5.0 — multi-tenant L1-L6 security review (validated on platform.ts superadmin path + tenant-guard L6)" },
     { "name": "planning-with-files", "category": "Development & DevOps", "tier": "T1", "reason": "Slot 3 — persistent task_plan.md/findings.md, maps to STATE.md pattern" },
-    { "name": "playwright-skill", "category": "Security & Testing", "tier": "T1", "reason": "Phase 4 Parts 5-6 — E2E + component + visual + a11y testing" },
+    { "name": "playwright-skill", "category": "Security & Testing", "tier": "T1", "reason": "Phase 4 Parts 5-6 — E2E + component + visual + a11y testing (Item 8 Visual QA caught autofill + dialog overflow defects)" },
     { "name": "postgres", "category": "Data & Analytics", "tier": "T2", "reason": "PostgreSQL + PgBouncer + RLS — verify schema/seed data" },
     { "name": "review-implementing", "category": "Development & DevOps", "tier": "T1", "reason": "Phase 7 — systematic code review feedback implementation" },
-    { "name": "spartan-ai-toolkit", "category": "Development & DevOps", "tier": "T4", "reason": "V31 strict workflow, atomic commits, conventional commit style locked in inputs.yml" },
-    { "name": "test-fixing", "category": "Development & DevOps", "tier": "T1", "reason": "Phase 5 — smart error grouping for failing tests" },
-    { "name": "ui-ux-pro-max", "category": "Design & UI", "tier": "T1", "reason": "Phase 2.5/2.6 design system generation — Section K + Meta Dark Mode aesthetic" },
-    { "name": "varlock-claude-skill", "category": "Security & Testing", "tier": "T2", "reason": "Multi-tenant env var management across 3 environments + AES-256-GCM key handling" },
-    { "name": "vercel-agent-skills", "category": "Development & DevOps", "tier": "T1", "reason": "Stack — Next.js 15 App Router rules + React/TSX components" },
-    { "name": "webapp-testing", "category": "Security & Testing", "tier": "T2", "reason": "Localhost dev server at :45204 — interactive Playwright testing" }
+    { "name": "spartan-ai-toolkit", "category": "Development & DevOps", "tier": "T2", "reason": "Bonito's intentional substitute for superpowers TDD/commits layer — engineering workflow commands with quality gates" },
+    { "name": "test-fixing", "category": "Security & Testing", "tier": "T1", "reason": "Phase 5 — smart error grouping, systematic test repair (validated through vitest mock factory expansion cycles)" },
+    { "name": "ui-ux-pro-max", "category": "Design & UI", "tier": "T1", "reason": "Phase 2.5/2.6 design system + Section K — intentional Spec-Driven coexistence with frontend-design + oiloil" },
+    { "name": "varlock-claude-skill", "category": "Security & Testing", "tier": "T1", "reason": "Secure env var management — CREDENTIALS.md gitignored, secrets never in context" },
+    { "name": "vercel-agent-skills", "category": "Development & DevOps", "tier": "T1", "reason": "Next.js App Router rules + Vercel deploy — phases.md mandated" },
+    { "name": "webapp-testing", "category": "Security & Testing", "tier": "T2", "reason": "Playwright toolkit — used during Item 8 Visual QA browser session" }
   ],
   "installedPlugins": [
-    { "name": "superpowers", "installedAt": "2026-05-09", "reason": "Slot 1 — bundle of TDD + systematic-debugging + root-cause-tracing + brainstorming + git-worktrees + finishing-branch + parallel-agents + code-review + defense-in-depth. Verified active via superpowers:* namespace." },
-    { "name": "context-mode", "verifiedAt": "2026-05-17", "verifiedVia": "context-mode:* skill namespace + mcp__plugin_context-mode_context-mode__* MCP tools active in session", "reason": "98% token reduction on tool outputs. Was listed as pending in prior scans; 2026-05-17 re-scan confirmed it is in fact active. Marketplace registration may have been removed (re-install via /plugin marketplace add mksglu/context-mode would re-register marketplace if needed)." },
-    { "name": "claude-mem", "verifiedAt": "2026-05-17", "verifiedVia": "claude-mem:* skill namespace (mem-search, do, pathfinder, knowledge-agent, learn-codebase, timeline-report, etc.) + mcp__plugin_claude-mem_mcp-search__* MCP tools active in session", "reason": "Cross-session compressed memory. Was listed as pending in prior scans; 2026-05-17 re-scan confirmed it is in fact active. Marketplace registration appears to have been removed (re-running /plugin install claude-mem@claude-mem returned 'Marketplace not found' — but the plugin tools work)." },
-    { "name": "code-review-graph", "verifiedAt": "2026-05-17", "verifiedVia": "28 mcp__code-review-graph__* MCP tools active in session (build_or_update_graph_tool, get_impact_radius_tool, get_review_context_tool, semantic_search_nodes_tool, etc.) + .code-review-graph/ directory present at project root", "reason": "Slot 2 — SQLite knowledge graph for blast-radius analysis. Was listed as pending in prior scans; 2026-05-17 re-scan confirmed it is in fact active as MCP server. Run 'code-review-graph build' in WSL2 terminal if graph is stale." },
-    {
-      "name": "andrej-karpathy-skills",
-      "skillInside": "karpathy-guidelines",
-      "installScheduledAt": "2026-05-26T15:59+08:00",
-      "installCommand": "/plugin install andrej-karpathy-skills@karpathy-skills",
-      "ifMarketplaceMissing": "/plugin marketplace add forrestchang/andrej-karpathy-skills && /plugin install andrej-karpathy-skills@karpathy-skills",
-      "marketplaceCached": "~/.claude/plugins/marketplaces/karpathy-skills (verified present 2026-05-26)",
-      "githubRepo": "forrestchang/andrej-karpathy-skills",
-      "verifiedAt": "2026-05-26",
-      "verifiedVia": "User confirmed /plugin install completed 2026-05-26 4:26pm GMT+8. Marketplace cache verified present at ~/.claude/plugins/marketplaces/karpathy-skills. Skill namespace karpathy-guidelines:* will activate on next Claude Code session restart (skills load at session start, not mid-session).",
-      "reason": "Universal behavioral advisory — 4 Karpathy-derived principles (Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution). 2.3KB CLAUDE.md merge. No mutex with superpowers/spartan-ai-toolkit/claude-mem. User approved + executed install 2026-05-26 via /scan-project workflow."
-    }
+    { "name": "context-mode", "marketplace": "context-mode", "version": "1.0.111", "status": "ACTIVE", "upgradeAvailable": "1.0.151", "reason": "98% token reduction on tool outputs — protects 80K Sonnet SAFE zone" },
+    { "name": "claude-mem", "marketplace": "thedotmack", "status": "ACTIVE", "reason": "Compressed cross-session memory — replaces governance doc re-reads" },
+    { "name": "andrej-karpathy-skills", "marketplace": "karpathy-skills", "status": "ACTIVE", "reason": "4 behavioral principles: think before coding, simplicity first, surgical changes, goal-driven execution" }
   ],
-  "pendingPluginInstalls": [],
-  "skipped": [
-    { "name": "graphify", "reason": "HIGH conflict with code-review-graph; phases.md designates code-review-graph as the framework's code-intelligence skill" },
-    { "name": "debug-skill", "reason": "phases.md prohibits alongside superpowers; systematic-debugging (inside superpowers) covers this" },
-    { "name": "root-cause-tracing", "reason": "Already inside superpowers bundle" },
-    { "name": "sdd-skill", "reason": "V31 framework has its own SDD methodology (Phase 2 → Phase 8); would conflict with framework rules" },
-    { "name": "openspec", "reason": "Same as sdd-skill — V31 framework owns SDD methodology" },
-    { "name": "n8n-expression-syntax", "reason": "No n8n in this project" },
-    { "name": "n8n-mcp-tools-expert", "reason": "No n8n in this project" },
-    { "name": "n8n-workflow-patterns", "reason": "No n8n in this project" },
-    { "name": "aws-skills", "reason": "Deploys to Komodo + Docker Hub per V27, not AWS" },
-    { "name": "trailofbits-security-skills", "reason": "owasp-security already covers needs; CodeQL/Semgrep not declared in stack" },
-    { "name": "skillpilot", "reason": "2026-05-09: Referenced in framework Phase 1.5 doc as 'Context Mgmt' orchestrator slot, but no public Claude Code marketplace path exists — appears to be part of Powerbyte's own AI Skills Installer ecosystem (aiskills.powerbyte.app), not yet published as a CC plugin. User confirmed it cannot be located. Re-evaluate if it becomes available via a known marketplace. The orchestration role is partially covered by Rule 28 priority ladder + Rule 26 contextual skill loading." }
+  "installedRulesFiles": [
+    { "path": ".claude/rules/memory-governance.md", "version": "V32 Zero Opus Execution + V32.1 Sonnet subagent overhead note", "reason": "Tiered Decomposition (§1 file-size-based, ≤500 lines/Sonnet task) + Smart Checkpoint (§2) + Phase Hooks (§3) + Architect-Execute Model (§4 zero Opus execution) + Mid-Project Adoption (§5)" }
   ],
-  "resolvedConflicts": [
-    {
-      "domain": "Code intelligence layer",
-      "winner": "code-review-graph (skill) + socraticode (MCP-only)",
-      "loser": "graphify (excluded entirely)",
-      "severity": "HIGH",
-      "resolution": "Never install graphify in this Spec-Driven project. socraticode stays MCP-only in .vscode/mcp.json (verified — no plugin install)."
-    },
-    {
-      "domain": "Debugging/TDD/worktree methodology",
-      "winner": "superpowers bundle",
-      "loser": "individual systematic-debugging, test-driven-development, using-git-worktrees, defense-in-depth",
-      "severity": "RESOLVED",
-      "resolution": "2026-05-09 — superpowers installed, 4 redundant standalone skills removed from .claude/skills/. Capabilities now provided by superpowers:* namespace."
-    },
-    {
-      "domain": "Design guidance triad",
-      "winner": "All three coexist (frontend-design + ui-ux-pro-max + oiloil-ui-ux-guide)",
-      "loser": "(intentional)",
-      "severity": "Intentional coexistence",
-      "resolution": "Spec-Driven framework uses each in different phases — Phase 2.5/2.6 (ui-ux-pro-max), Phase 4 UI code (frontend-design), Phase 4 UX review (oiloil-ui-ux-guide). The general 'pick one' rule does not apply here."
-    },
-    {
-      "domain": "Context budget management (Sonnet 4.6, 80K SAFE zone)",
-      "winner": "context-mode + claude-mem (2-layer defense; skillpilot dropped — not publicly available)",
-      "loser": "(none — additive)",
-      "severity": "Pre-emptive against context thrashing",
-      "resolution": "2026-05-09 (re-scan) — user reported thrashing as project size grew. context-mode reduces tool-output drain; claude-mem reduces session-start governance-doc drain. skillpilot was originally proposed as a third layer but no public marketplace path exists (Powerbyte-internal); dropped from install set. Rule 28 priority ladder + Rule 26 contextual skill loading partially cover the orchestration role skillpilot would have played."
-    }
+  "mcpServers": [
+    { "name": "socraticode", "configPath": ".vscode/mcp.json", "type": "MCP-only (NOT plugin)", "reason": "Vector search — verified clean (no instructions field, zero behavioral directives), coexists with code-review-graph" },
+    { "name": "context7", "configPath": ".vscode/mcp.json", "reason": "Live version-matched docs for Next.js/Prisma/tRPC/Auth.js — Rule 30 'use context7' suffix" },
+    { "name": "shadcn", "configPath": ".vscode/mcp.json", "reason": "Search + install shadcn/ui components by natural language (used Phase 4 Parts 5-6 + Phase 7)" },
+    { "name": "code-review-graph", "configPath": ".mcp.json", "type": "Python CLI + MCP (uvx serve)", "reason": "SQLite knowledge graph + blast-radius — engine for Phase 7 step 3 impact analysis. .code-review-graph/ SQLite present" }
   ],
-  "mcpServersWired": [
-    { "name": "socraticode", "where": ".vscode/mcp.json", "purpose": "Vector codebase search — MCP-only, NEVER install as plugin" },
-    { "name": "context7", "where": ".vscode/mcp.json", "purpose": "Live version-matched docs (Rule 30 — append 'use context7' to library tasks)" },
-    { "name": "shadcn", "where": ".vscode/mcp.json", "purpose": "shadcn/ui component search + install via natural language" }
+  "excludedGlobals": [],
+  "resolvedConflicts": [],
+  "skippedFoundationSlots": [
+    { "name": "skillpilot", "reason": "Bonito's intentional decision preserved across multiple scans — current 20-skill stack has shipped §210 Items 1-8 + Phase 7 Option D successfully without orchestrator. Re-evaluate if next backlog cycle introduces multi-domain skill conflicts." },
+    { "name": "superpowers", "reason": "Bonito's intentional decision — spartan-ai-toolkit substitutes for TDD/commits layer; systematic-debugging + RCT covered by Opus reasoning + code-review-graph MCP. Re-evaluate if Phase 7 cycles start producing thrash that subagent-driven-development could prevent." }
   ],
-  "globalCleanupAdvised": false,
-  "globalCleanupReason": "~/.claude/skills/ is empty — no global skills to migrate."
+  "recommendedPlugins": [],
+  "skippedOptional": [
+    { "name": "n8n-expression-syntax", "category": "Development & DevOps", "reason": "No n8n signal in deps — automation layer not active" },
+    { "name": "n8n-mcp-tools-expert", "category": "Development & DevOps", "reason": "No n8n signal in deps" },
+    { "name": "n8n-workflow-patterns", "category": "Development & DevOps", "reason": "No n8n signal in deps" },
+    { "name": "ktx", "category": "Data & Analytics", "reason": "Warehouse signal NONE — PostgreSQL is OLTP (multi-tenant L1-L6 RLS), not analytics/BI warehouse. Re-evaluate if v2/PRODUCT.md adoption introduces separate analytics schema or BigQuery/Snowflake/ClickHouse driver." }
+  ],
+  "librarySuggestions": [],
+  "staleSkillsRemoved": [],
+  "specDriven": {
+    "detected": true,
+    "frameworkVersion": "V32.1.4 (CLAUDE.md) / V32.1.3 upgrade marker",
+    "memoryGovernanceInstalled": true,
+    "memoryGovernancePath": ".claude/rules/memory-governance.md",
+    "memoryGovernanceVersion": "V32 Zero Opus Execution + V32.1 Sonnet subagent context-overhead note",
+    "currentPhase": "POST-§210 BACKLOG awaiting Bonito's next selection",
+    "midProjectAdoption": false,
+    "phase7ShipCadence": "13+ consecutive clean main-session ships through §210 + Phase 7 Option D (no thrashing incidents requiring escalation)",
+    "primaryModel": "Claude Opus 4.7 (architect) → Sonnet 4.6 dispatch (executor) per V32 Zero Opus Execution"
+  },
+  "globalCleanupAdvised": true,
+  "globalSkillsState": "CLEAN — zero globals installed (best-practice — every skill scoped to project)",
+  "outstanding": [
+    { "item": "context-mode upgrade", "detail": "v1.0.111 → v1.0.151 available", "action": "Run /ctx-upgrade when convenient", "priority": "LOW (non-blocking)" }
+  ]
 }
