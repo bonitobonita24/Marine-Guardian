@@ -1,0 +1,35 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - heading "Platform Admin Console" [level=1] [ref=e6]
+        - paragraph [ref=e7]: Marine Guardian — Super Admin
+      - generic [ref=e8]:
+        - generic [ref=e9]: webmaster@marine-guardian.local
+        - generic [ref=e10]: super_admin
+        - button "Sign out" [ref=e11] [cursor=pointer]
+    - generic [ref=e12]:
+      - generic [ref=e13]:
+        - generic [ref=e15]: Total Tenants
+        - paragraph [ref=e17]: —
+      - generic [ref=e18]:
+        - generic [ref=e20]: Total Users
+        - paragraph [ref=e22]: —
+      - generic [ref=e23]:
+        - generic [ref=e25]: Total Events
+        - paragraph [ref=e27]: —
+    - generic [ref=e28]:
+      - generic [ref=e30]: Tenant Overview
+      - table [ref=e33]:
+        - rowgroup [ref=e34]:
+          - row "Name Slug Status Users Events (30d) Created" [ref=e35]:
+            - columnheader "Name" [ref=e36]
+            - columnheader "Slug" [ref=e37]
+            - columnheader "Status" [ref=e38]
+            - columnheader "Users" [ref=e39]
+            - columnheader "Events (30d)" [ref=e40]
+            - columnheader "Created" [ref=e41]
+        - rowgroup [ref=e42]:
+          - row "Loading tenants…" [ref=e43]:
+            - cell "Loading tenants…" [ref=e44]
+  - alert [ref=e45]

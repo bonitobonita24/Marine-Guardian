@@ -1,0 +1,168 @@
+- generic [active] [ref=e1]:
+  - alert [ref=e32]
+  - status [ref=e63]:
+    - generic [ref=e64]:
+      - generic [ref=e65]: Platform-admin view
+      - generic [ref=e66]: Viewing tenant demo-site (Demo Site)
+    - button "Exit tenant view" [ref=e67] [cursor=pointer]
+  - generic [ref=e68]:
+    - complementary [ref=e69]:
+      - generic [ref=e71]: Marine Guardian
+      - navigation [ref=e72]:
+        - list [ref=e73]:
+          - listitem [ref=e74]:
+            - link "Command Center" [ref=e75] [cursor=pointer]:
+              - /url: /dashboard
+              - img [ref=e76]
+              - generic [ref=e81]: Command Center
+          - listitem [ref=e82]:
+            - link "Live Map" [ref=e83] [cursor=pointer]:
+              - /url: /map
+              - img [ref=e84]
+              - generic [ref=e86]: Live Map
+          - listitem [ref=e87]:
+            - link "Events" [ref=e88] [cursor=pointer]:
+              - /url: /events
+              - img [ref=e89]
+              - generic [ref=e93]: Events
+          - listitem [ref=e94]:
+            - link "Patrols" [ref=e95] [cursor=pointer]:
+              - /url: /patrols
+              - img [ref=e96]
+              - generic [ref=e100]: Patrols
+          - listitem [ref=e101]:
+            - link "Patrol Schedule" [ref=e102] [cursor=pointer]:
+              - /url: /patrol-schedule
+              - img [ref=e103]
+              - generic [ref=e105]: Patrol Schedule
+          - listitem [ref=e106]:
+            - link "Subjects" [ref=e107] [cursor=pointer]:
+              - /url: /subjects
+              - img [ref=e108]
+              - generic [ref=e113]: Subjects
+          - listitem [ref=e114]:
+            - link "Patrol Areas" [ref=e115] [cursor=pointer]:
+              - /url: /patrol-areas
+              - img [ref=e116]
+              - generic [ref=e119]: Patrol Areas
+          - listitem [ref=e120]:
+            - link "Fuel" [ref=e121] [cursor=pointer]:
+              - /url: /fuel
+              - img [ref=e122]
+              - generic [ref=e125]: Fuel
+          - listitem [ref=e126]:
+            - link "Observations" [ref=e127] [cursor=pointer]:
+              - /url: /observations
+              - img [ref=e128]
+              - generic [ref=e131]: Observations
+          - listitem [ref=e132]:
+            - link "Alert Rules" [ref=e133] [cursor=pointer]:
+              - /url: /alerts
+              - img [ref=e134]
+              - generic [ref=e137]: Alert Rules
+          - listitem [ref=e138]:
+            - link "Notifications" [ref=e139] [cursor=pointer]:
+              - /url: /notifications
+              - img [ref=e140]
+              - generic [ref=e145]: Notifications
+          - listitem [ref=e146]:
+            - link "Sync Status" [ref=e147] [cursor=pointer]:
+              - /url: /sync
+              - img [ref=e148]
+              - generic [ref=e153]: Sync Status
+          - listitem [ref=e154]:
+            - link "Users" [ref=e155] [cursor=pointer]:
+              - /url: /users
+              - img [ref=e156]
+              - generic [ref=e168]: Users
+          - listitem [ref=e169]:
+            - link "Settings" [ref=e170] [cursor=pointer]:
+              - /url: /settings
+              - img [ref=e171]
+              - generic [ref=e174]: Settings
+      - button "Sign Out" [ref=e176] [cursor=pointer]:
+        - img
+        - text: Sign Out
+    - generic [ref=e177]:
+      - banner [ref=e178]:
+        - generic [ref=e179]:
+          - link "0 unread notifications" [ref=e180] [cursor=pointer]:
+            - /url: /notifications
+            - img
+          - generic [ref=e181]: webmaster@marine-guardian.local
+          - generic [ref=e182]: super_admin
+      - main [ref=e183]:
+        - generic [ref=e184]:
+          - heading "Command Center" [level=1] [ref=e185]
+          - generic [ref=e186]:
+            - generic [ref=e187]:
+              - generic [ref=e189]: Active Events
+              - paragraph [ref=e191]: "3"
+            - generic [ref=e192]:
+              - generic [ref=e194]: Active Patrols
+              - paragraph [ref=e196]: "1"
+            - generic [ref=e197]:
+              - generic [ref=e199]: Rangers on Duty
+              - paragraph [ref=e201]: "0"
+            - generic [ref=e202]:
+              - generic [ref=e204]: Events This Month
+              - generic [ref=e205]:
+                - paragraph [ref=e206]: "4"
+                - paragraph [ref=e207]: +4 vs last month
+          - generic [ref=e208]:
+            - generic [ref=e209]:
+              - generic [ref=e211]: Law Enforcement Events
+              - paragraph [ref=e213]: No law enforcement events recorded
+            - generic [ref=e214]:
+              - generic [ref=e216]: Monitoring & Surveillance
+              - img [ref=e221]:
+                - generic [ref=e223]:
+                  - generic [ref=e225]: Illegal Fishing
+                  - generic [ref=e227]: Wildlife Sighting
+                  - generic [ref=e229]: Equipment Damage
+                  - generic [ref=e231]: Vessel Intrusion
+          - generic [ref=e243]:
+            - generic [ref=e244]:
+              - generic [ref=e246]: Recent Events
+              - generic [ref=e248]:
+                - generic [ref=e249]:
+                  - generic [ref=e250]:
+                    - paragraph [ref=e251]: Vessel Intrusion
+                    - paragraph [ref=e252]: Vessel Intrusion · 5/29/2026
+                  - generic [ref=e253]:
+                    - generic [ref=e254]: active
+                    - generic [ref=e255]: Critical
+                - generic [ref=e256]:
+                  - generic [ref=e257]:
+                    - paragraph [ref=e258]: Wildlife Sighting — Sea Turtle
+                    - paragraph [ref=e259]: Wildlife Sighting · 5/28/2026
+                  - generic [ref=e260]:
+                    - generic [ref=e261]: new event
+                    - generic [ref=e262]: Critical
+                - generic [ref=e263]:
+                  - generic [ref=e264]:
+                    - paragraph [ref=e265]: Illegal Net Sighting
+                    - paragraph [ref=e266]: Illegal Fishing · 5/27/2026
+                  - generic [ref=e267]:
+                    - generic [ref=e268]: active
+                    - generic [ref=e269]: Critical
+                - generic [ref=e270]:
+                  - generic [ref=e271]:
+                    - paragraph [ref=e272]: Equipment Damage Resolved
+                    - paragraph [ref=e273]: Equipment Damage · 5/19/2026
+                  - generic [ref=e274]:
+                    - generic [ref=e275]: resolved
+                    - generic [ref=e276]: Critical
+            - generic [ref=e277]:
+              - generic [ref=e279]: Quick Stats
+              - generic [ref=e280]:
+                - generic [ref=e281]:
+                  - generic [ref=e282]: Law Enforcement
+                  - generic [ref=e283]: "0"
+                - generic [ref=e284]:
+                  - generic [ref=e285]: Monitoring
+                  - generic [ref=e286]: "4"
+                - generic [ref=e288]:
+                  - generic [ref=e289]: Total Events
+                  - generic [ref=e290]: "4"
+  - generic [ref=e291]: Illegal Fishing
