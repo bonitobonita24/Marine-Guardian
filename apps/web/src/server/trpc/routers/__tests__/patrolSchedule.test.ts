@@ -106,11 +106,11 @@ describe("patrolSchedule.checkConflicts", () => {
       scheduledEnd: END,
     });
     expect(result.conflicts).toHaveLength(1);
-    expect(result.conflicts[0]!.id).toBe("conflict-sched-1");
+    expect(result.conflicts[0]?.id).toBe("conflict-sched-1");
   });
 
   it("passes excludeId to findMany where clause", async () => {
-    vi.mocked(prisma.patrolSchedule.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.patrolSchedule.findMany).mockResolvedValue([] as never);
     const caller = createCaller(makeCtx());
     await caller.checkConflicts({
       rangerUserId: RANGER_ID,
@@ -120,6 +120,7 @@ describe("patrolSchedule.checkConflicts", () => {
     });
     expect(vi.mocked(prisma.patrolSchedule.findMany)).toHaveBeenCalledWith(
       expect.objectContaining({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         where: expect.objectContaining({
           id: { not: SCHEDULE_ID },
         }),
@@ -128,7 +129,7 @@ describe("patrolSchedule.checkConflicts", () => {
   });
 
   it("boundary: scheduledStart filter uses lt (not lte) against input.scheduledEnd — half-open interval", async () => {
-    vi.mocked(prisma.patrolSchedule.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.patrolSchedule.findMany).mockResolvedValue([] as never);
     const caller = createCaller(makeCtx());
     await caller.checkConflicts({
       rangerUserId: RANGER_ID,
@@ -137,6 +138,7 @@ describe("patrolSchedule.checkConflicts", () => {
     });
     expect(vi.mocked(prisma.patrolSchedule.findMany)).toHaveBeenCalledWith(
       expect.objectContaining({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         where: expect.objectContaining({
           scheduledStart: { lt: END },
           scheduledEnd: { gt: START },
@@ -152,8 +154,8 @@ describe("patrolSchedule.create — conflict detection", () => {
   });
 
   it("succeeds when no conflicts (findMany resolves [])", async () => {
-    vi.mocked(prisma.patrolSchedule.findMany).mockResolvedValue([]);
-    vi.mocked(prisma.patrolSchedule.create).mockResolvedValue(mockScheduleRow as never);
+    vi.mocked(prisma.patrolSchedule.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrolSchedule.create).mockResolvedValue(mockScheduleRow);
     const caller = createCaller(makeCtx());
     const result = await caller.create({
       patrolAreaId: "area-1",
@@ -202,7 +204,7 @@ describe("patrolSchedule.create — conflict detection", () => {
   });
 
   it("succeeds with overrideConflicts: true even when conflict present — findMany NOT called", async () => {
-    vi.mocked(prisma.patrolSchedule.create).mockResolvedValue(mockScheduleRow as never);
+    vi.mocked(prisma.patrolSchedule.create).mockResolvedValue(mockScheduleRow);
     const caller = createCaller(makeCtx());
     const result = await caller.create({
       patrolAreaId: "area-1",
@@ -217,7 +219,7 @@ describe("patrolSchedule.create — conflict detection", () => {
   });
 
   it("skips conflict check when rangerUserId not provided — findMany not called", async () => {
-    vi.mocked(prisma.patrolSchedule.create).mockResolvedValue(mockScheduleRow as never);
+    vi.mocked(prisma.patrolSchedule.create).mockResolvedValue(mockScheduleRow);
     const caller = createCaller(makeCtx());
     await caller.create({
       patrolAreaId: "area-1",
@@ -235,7 +237,7 @@ describe("patrolSchedule.update — conflict detection", () => {
   });
 
   it("throws CONFLICT and findMany was called with id: { not: input.id } filter", async () => {
-    vi.mocked(prisma.patrolSchedule.findFirst).mockResolvedValue(mockScheduleRow as never);
+    vi.mocked(prisma.patrolSchedule.findFirst).mockResolvedValue(mockScheduleRow);
     vi.mocked(prisma.patrolSchedule.findMany).mockResolvedValue([mockConflict] as never);
     const caller = createCaller(makeCtx());
     let caughtErr: unknown;
@@ -254,6 +256,7 @@ describe("patrolSchedule.update — conflict detection", () => {
     expect(err.code).toBe("CONFLICT");
     expect(vi.mocked(prisma.patrolSchedule.findMany)).toHaveBeenCalledWith(
       expect.objectContaining({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         where: expect.objectContaining({
           id: { not: SCHEDULE_ID },
         }),
@@ -262,11 +265,11 @@ describe("patrolSchedule.update — conflict detection", () => {
   });
 
   it("succeeds with overrideConflicts: true even with conflict present", async () => {
-    vi.mocked(prisma.patrolSchedule.findFirst).mockResolvedValue(mockScheduleRow as never);
+    vi.mocked(prisma.patrolSchedule.findFirst).mockResolvedValue(mockScheduleRow);
     vi.mocked(prisma.patrolSchedule.update).mockResolvedValue({
       ...mockScheduleRow,
       notes: "updated",
-    } as never);
+    });
     const caller = createCaller(makeCtx());
     const result = await caller.update({
       id: SCHEDULE_ID,

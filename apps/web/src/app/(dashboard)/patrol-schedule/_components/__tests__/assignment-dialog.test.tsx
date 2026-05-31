@@ -144,7 +144,6 @@ function MockSelectTrigger({
     // ctx omitted from deps: ctxVal recomputes on every meta change,
     // so including it here causes an infinite re-render loop.
     // setMeta itself is a stable useState dispatcher.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [testId, id]);
   return null;
 }

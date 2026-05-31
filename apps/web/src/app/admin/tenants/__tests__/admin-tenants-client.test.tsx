@@ -251,7 +251,7 @@ describe("AdminTenantsClient", () => {
 
   it("renders ER URL column with tenant.earthrangerUrl", () => {
     stubs.listData = [
-      { ...baseTenants[0]!, earthrangerUrl: "https://er.coralbaympa.org" },
+      { ...(baseTenants[0] as TenantRow), earthrangerUrl: "https://er.coralbaympa.org" },
     ];
     render(
       <AdminTenantsClient email="admin@marine.test" roles={["super_admin"]} />
@@ -260,7 +260,7 @@ describe("AdminTenantsClient", () => {
   });
 
   it("renders em-dash for tenant with no earthrangerUrl", () => {
-    stubs.listData = [{ ...baseTenants[0]!, earthrangerUrl: null }];
+    stubs.listData = [{ ...(baseTenants[0] as TenantRow), earthrangerUrl: null }];
     render(
       <AdminTenantsClient email="admin@marine.test" roles={["super_admin"]} />
     );
@@ -269,7 +269,7 @@ describe("AdminTenantsClient", () => {
 
   it("renders Last sync column with relative time when tenant has lastSyncedAt", () => {
     const recent = new Date(Date.now() - 5 * 60 * 1000); // 5 minutes ago
-    stubs.listData = [{ ...baseTenants[0]!, lastSyncedAt: recent }];
+    stubs.listData = [{ ...(baseTenants[0] as TenantRow), lastSyncedAt: recent }];
     render(
       <AdminTenantsClient email="admin@marine.test" roles={["super_admin"]} />
     );
@@ -278,7 +278,7 @@ describe("AdminTenantsClient", () => {
   });
 
   it("renders em-dash when tenant has no lastSyncedAt", () => {
-    stubs.listData = [{ ...baseTenants[0]!, lastSyncedAt: null }];
+    stubs.listData = [{ ...(baseTenants[0] as TenantRow), lastSyncedAt: null }];
     render(
       <AdminTenantsClient email="admin@marine.test" roles={["super_admin"]} />
     );

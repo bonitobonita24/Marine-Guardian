@@ -79,7 +79,7 @@ export const patrolScheduleRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      if (!input.rangerUserId) {
+      if (input.rangerUserId === undefined) {
         return { conflicts: [] };
       }
       const conflicts = await findOverlappingSchedules(

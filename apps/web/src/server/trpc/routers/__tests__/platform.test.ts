@@ -595,8 +595,8 @@ describe("platform.createTenantWithAdmin", () => {
     vi.mocked(platformPrisma.tenant.create).mockResolvedValue(createdTenant as never);
     vi.mocked(platformPrisma.user.create).mockResolvedValue(createdUser as never);
     vi.mocked(platformPrisma.$transaction).mockImplementation(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      async (cb: any) => cb(platformPrisma) as never,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call
+      ((cb: any) => cb(platformPrisma)) as never,
     );
 
     const caller = createCaller(makeCtx());

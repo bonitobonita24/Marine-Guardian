@@ -310,7 +310,7 @@ export const platformRouter = router({
           },
         });
 
-        await writeAuditLog(tx as typeof platformPrisma, {
+        await writeAuditLog(tx, {
           tenantId: null,
           userId: ctx.userId,
           action: "PLATFORM:CREATE_TENANT",
@@ -327,7 +327,7 @@ export const platformRouter = router({
           ipAddress: ctx.ip,
         });
 
-        await writeAuditLog(tx as typeof platformPrisma, {
+        await writeAuditLog(tx, {
           tenantId: tenant.id,
           userId: ctx.userId,
           action: "PLATFORM:CREATE_USER",

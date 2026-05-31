@@ -4,7 +4,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
 
 const { stubs } = vi.hoisted(() => {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const s: { createMutate: any; createWithAdminMutate: any } = {
     createMutate: vi.fn(),
     createWithAdminMutate: vi.fn(),
@@ -26,12 +25,14 @@ vi.mock("@/lib/trpc/client", () => ({
     platform: {
       create: {
         useMutation: (opts: any) => ({
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-call
           mutate: (input: any) => { stubs.createMutate(input, opts); },
           isPending: false,
         }),
       },
       createTenantWithAdmin: {
         useMutation: (opts: any) => ({
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-call
           mutate: (input: any) => { stubs.createWithAdminMutate(input, opts); },
           isPending: false,
         }),
@@ -56,7 +57,7 @@ function openDialog() {
 }
 
 function fillField(labelPattern: RegExp, value: string) {
-  const el = screen.getByLabelText(labelPattern) as HTMLInputElement;
+  const el = screen.getByLabelText(labelPattern);
   fireEvent.change(el, { target: { value } });
 }
 
@@ -95,6 +96,7 @@ describe("CreateTenantDialog", () => {
 
     expect(stubs.createMutate).toHaveBeenCalledTimes(1);
     expect(stubs.createWithAdminMutate).not.toHaveBeenCalled();
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
     const [payload] = (stubs.createMutate.mock.calls[0] ?? []) as [any, ...any[]];
     expect(payload).toMatchObject({ name: "Coral Bay", slug: "coral-bay" });
   });
@@ -122,6 +124,7 @@ describe("CreateTenantDialog", () => {
 
     expect(stubs.createWithAdminMutate).toHaveBeenCalledTimes(1);
     expect(stubs.createMutate).not.toHaveBeenCalled();
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
     const [payload] = (stubs.createWithAdminMutate.mock.calls[0] ?? []) as [any, ...any[]];
     expect(payload).toMatchObject({
       tenant: { name: "Filled Admin", slug: "filled-admin" },
