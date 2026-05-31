@@ -1,8 +1,12 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import bcrypt from "bcryptjs";
 import { router } from "../trpc";
 import { platformAdminProcedure } from "../middleware/require-platform-admin";
 import { platformPrisma, writeAuditLog } from "@marine-guardian/db";
+
+const BCRYPT_ROUNDS = 12;
+const languageSchema = z.enum(["en", "id", "ms"]);
 
 const thirtyDaysAgo = () => {
   const d = new Date();
@@ -223,5 +227,126 @@ export const platformRouter = router({
       });
 
       return { id: input.id, isActive: false };
+    }),
+
+  createTenantWithAdmin: platformAdminProcedure
+    .input(
+      z.object({
+        tenant: z.object({
+          name: z.string().min(1).max(255),
+          slug: z
+            .string()
+            .min(2)
+            .max(50)
+            .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/, {
+              message:
+                "Slug must be lowercase letters, digits, or hyphens and cannot start or end with a hyphen.",
+            }),
+          timezone: z.string().optional().default("UTC"),
+          currency: z.string().optional().default("IDR"),
+        }),
+        admin: z.object({
+          email: z.string().email().max(255),
+          fullName: z.string().min(1).max(255),
+          password: z.string().min(12).max(255),
+          languagePreference: languageSchema.default("en"),
+        }),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const existingTenant = await platformPrisma.tenant.findUnique({
+        where: { slug: input.tenant.slug },
+        select: { id: true },
+      });
+      if (existingTenant) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "A tenant with that slug already exists.",
+        });
+      }
+
+      const existingUser = await platformPrisma.user.findFirst({
+        where: { email: input.admin.email },
+        select: { id: true },
+      });
+      if (existingUser) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "A user with this email already exists.",
+        });
+      }
+
+      const passwordHash = await bcrypt.hash(input.admin.password, BCRYPT_ROUNDS);
+
+      const result = await platformPrisma.$transaction(async (tx) => {
+        const tenant = await tx.tenant.create({
+          data: {
+            name: input.tenant.name,
+            slug: input.tenant.slug,
+            timezone: input.tenant.timezone,
+            currency: input.tenant.currency,
+            isActive: true,
+          },
+        });
+
+        const user = await tx.user.create({
+          data: {
+            email: input.admin.email,
+            fullName: input.admin.fullName,
+            role: "site_admin",
+            tenantId: tenant.id,
+            languagePreference: input.admin.languagePreference,
+            passwordHash,
+            isActive: true,
+          },
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            role: true,
+            tenantId: true,
+            isActive: true,
+            createdAt: true,
+          },
+        });
+
+        await writeAuditLog(tx as typeof platformPrisma, {
+          tenantId: null,
+          userId: ctx.userId,
+          action: "PLATFORM:CREATE_TENANT",
+          entityType: "Tenant",
+          entityId: tenant.id,
+          changesJson: {
+            after: {
+              name: input.tenant.name,
+              slug: input.tenant.slug,
+              timezone: input.tenant.timezone,
+              currency: input.tenant.currency,
+            },
+          },
+          ipAddress: ctx.ip,
+        });
+
+        await writeAuditLog(tx as typeof platformPrisma, {
+          tenantId: tenant.id,
+          userId: ctx.userId,
+          action: "PLATFORM:CREATE_USER",
+          entityType: "User",
+          entityId: user.id,
+          changesJson: {
+            after: {
+              email: input.admin.email,
+              role: "site_admin",
+              tenantId: tenant.id,
+              fullName: input.admin.fullName,
+            },
+          },
+          ipAddress: ctx.ip,
+        });
+
+        return { tenant, user };
+      });
+
+      return result;
     }),
 });

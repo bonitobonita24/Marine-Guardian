@@ -15,8 +15,9 @@ vi.mock("@marine-guardian/db", () => ({
       update: vi.fn(),
       count: vi.fn(),
     },
-    user: { count: vi.fn() },
+    user: { count: vi.fn(), create: vi.fn(), findFirst: vi.fn() },
     event: { count: vi.fn(), groupBy: vi.fn() },
+    $transaction: vi.fn(),
   },
   writeAuditLog: vi.fn(),
 }));
@@ -549,5 +550,121 @@ describe("platform.deactivate", () => {
     await expect(
       caller.deactivate({ id: "cln8888888888hhhhhh" }),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// platform.createTenantWithAdmin
+// ---------------------------------------------------------------------------
+
+describe("platform.createTenantWithAdmin", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const validInput = {
+    tenant: { name: "New Reef", slug: "new-reef", timezone: "UTC", currency: "IDR" },
+    admin: {
+      email: "admin@newreef.test",
+      fullName: "Admin User",
+      password: "strong-password-123",
+      languagePreference: "en" as const,
+    },
+  };
+
+  it("creates tenant + site_admin user atomically and writes both audit logs", async () => {
+    const createdTenant = {
+      id: "cln-tenant-aaa",
+      name: "New Reef",
+      slug: "new-reef",
+      timezone: "UTC",
+      currency: "IDR",
+      isActive: true,
+      createdAt: new Date(),
+    };
+    const createdUser = {
+      id: "cln-user-bbb",
+      email: "admin@newreef.test",
+      fullName: "Admin User",
+      role: "site_admin",
+      tenantId: "cln-tenant-aaa",
+      isActive: true,
+      createdAt: new Date(),
+    };
+
+    vi.mocked(platformPrisma.tenant.findUnique).mockResolvedValue(null as never);
+    vi.mocked(platformPrisma.user.findFirst).mockResolvedValue(null as never);
+    vi.mocked(platformPrisma.tenant.create).mockResolvedValue(createdTenant as never);
+    vi.mocked(platformPrisma.user.create).mockResolvedValue(createdUser as never);
+    vi.mocked(platformPrisma.$transaction).mockImplementation(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      async (cb: any) => cb(platformPrisma) as never,
+    );
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.createTenantWithAdmin(validInput);
+
+    expect(result.tenant.id).toBe("cln-tenant-aaa");
+    expect(result.user.id).toBe("cln-user-bbb");
+    expect(result.user.role).toBe("site_admin");
+
+    expect(vi.mocked(platformPrisma.user.create)).toHaveBeenCalledWith(
+      partial({
+        data: partial<{ role: string; tenantId: string }>({
+          role: "site_admin",
+          tenantId: "cln-tenant-aaa",
+        }),
+      }),
+    );
+
+    expect(vi.mocked(writeAuditLog)).toHaveBeenCalledWith(
+      platformPrisma,
+      partial<{ action: string; entityType: string }>({
+        action: "PLATFORM:CREATE_TENANT",
+        entityType: "Tenant",
+      }),
+    );
+    expect(vi.mocked(writeAuditLog)).toHaveBeenCalledWith(
+      platformPrisma,
+      partial<{ action: string; entityType: string }>({
+        action: "PLATFORM:CREATE_USER",
+        entityType: "User",
+      }),
+    );
+  });
+
+  it("throws CONFLICT when tenant slug already exists (no user created)", async () => {
+    vi.mocked(platformPrisma.tenant.findUnique).mockResolvedValue({
+      id: "existing-tenant",
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    await expect(caller.createTenantWithAdmin(validInput)).rejects.toMatchObject({
+      code: "CONFLICT",
+    });
+    expect(vi.mocked(platformPrisma.$transaction)).not.toHaveBeenCalled();
+    expect(vi.mocked(platformPrisma.user.create)).not.toHaveBeenCalled();
+  });
+
+  it("throws CONFLICT when admin email already exists (no tenant created)", async () => {
+    vi.mocked(platformPrisma.tenant.findUnique).mockResolvedValue(null as never);
+    vi.mocked(platformPrisma.user.findFirst).mockResolvedValue({
+      id: "existing-user",
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    await expect(caller.createTenantWithAdmin(validInput)).rejects.toMatchObject({
+      code: "CONFLICT",
+    });
+    expect(vi.mocked(platformPrisma.$transaction)).not.toHaveBeenCalled();
+    expect(vi.mocked(platformPrisma.tenant.create)).not.toHaveBeenCalled();
+  });
+
+  it("rejects password shorter than 12 characters", async () => {
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.createTenantWithAdmin({
+        ...validInput,
+        admin: { ...validInput.admin, password: "short" },
+      }),
+    ).rejects.toThrow();
   });
 });
