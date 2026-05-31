@@ -3,7 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
 import { coordinatorProcedure } from "../middleware/rbac";
-import { prisma, platformPrisma, writeAuditLog } from "@marine-guardian/db";
+import { prisma, writeAuditLog } from "@marine-guardian/db";
 
 // Half-open interval overlap: A.start < B.end AND B.start < A.end
 async function findOverlappingSchedules(
@@ -121,33 +121,33 @@ export const patrolScheduleRouter = router({
         }
       }
       if (input.overrideConflicts) {
-        return platformPrisma.$transaction(async (tx) => {
-          const created = await tx.patrolSchedule.create({
-            data: {
-              tenantId: ctx.tenantId,
-              patrolAreaId: input.patrolAreaId,
-              ...(input.rangerUserId !== undefined ? { rangerUserId: input.rangerUserId } : {}),
-              rangerName: input.rangerName,
-              scheduledStart: input.scheduledStart,
-              scheduledEnd: input.scheduledEnd,
-              ...(input.notes !== undefined ? { notes: input.notes } : {}),
-              createdBy: ctx.userId,
-            },
-          });
-          await writeAuditLog(tx, {
+        const created = await prisma.patrolSchedule.create({
+          data: {
             tenantId: ctx.tenantId,
-            userId: ctx.userId,
-            action: "PATROL_SCHEDULE:OVERRIDE_CONFLICT",
-            entityType: "PatrolSchedule",
-            entityId: created.id,
-            changesJson: {
-              rangerUserId: input.rangerUserId ?? null,
-              scheduledStart: input.scheduledStart.toISOString(),
-              scheduledEnd: input.scheduledEnd.toISOString(),
-            },
-          });
-          return created;
+            patrolAreaId: input.patrolAreaId,
+            ...(input.rangerUserId !== undefined ? { rangerUserId: input.rangerUserId } : {}),
+            rangerName: input.rangerName,
+            scheduledStart: input.scheduledStart,
+            scheduledEnd: input.scheduledEnd,
+            ...(input.notes !== undefined ? { notes: input.notes } : {}),
+            createdBy: ctx.userId,
+          },
         });
+        // Extended prisma client is structurally compatible but not assignable to PrismaClient — safe cast.
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
+        await writeAuditLog(prisma as unknown as any, {
+          tenantId: ctx.tenantId,
+          userId: ctx.userId,
+          action: "PATROL_SCHEDULE:OVERRIDE_CONFLICT",
+          entityType: "PatrolSchedule",
+          entityId: created.id,
+          changesJson: {
+            rangerUserId: input.rangerUserId ?? null,
+            scheduledStart: input.scheduledStart.toISOString(),
+            scheduledEnd: input.scheduledEnd.toISOString(),
+          },
+        });
+        return created;
       }
       return prisma.patrolSchedule.create({
         data: {
@@ -208,26 +208,26 @@ export const patrolScheduleRouter = router({
         }
       }
       if (overrideConflicts) {
-        return platformPrisma.$transaction(async (tx) => {
-          const updated = await tx.patrolSchedule.update({ where: { id }, data });
-          const changesJson: Record<string, string> = {};
-          for (const [k, v] of Object.entries(data)) {
-            if (v instanceof Date) {
-              changesJson[k] = v.toISOString();
-            } else if (typeof v === "string") {
-              changesJson[k] = v;
-            }
+        const updated = await prisma.patrolSchedule.update({ where: { id }, data });
+        const changesJson: Record<string, string> = {};
+        for (const [k, v] of Object.entries(data)) {
+          if (v instanceof Date) {
+            changesJson[k] = v.toISOString();
+          } else if (typeof v === "string") {
+            changesJson[k] = v;
           }
-          await writeAuditLog(tx, {
-            tenantId: ctx.tenantId,
-            userId: ctx.userId,
-            action: "PATROL_SCHEDULE:OVERRIDE_CONFLICT",
-            entityType: "PatrolSchedule",
-            entityId: id,
-            changesJson,
-          });
-          return updated;
+        }
+        // Extended prisma client is structurally compatible but not assignable to PrismaClient — safe cast.
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
+        await writeAuditLog(prisma as unknown as any, {
+          tenantId: ctx.tenantId,
+          userId: ctx.userId,
+          action: "PATROL_SCHEDULE:OVERRIDE_CONFLICT",
+          entityType: "PatrolSchedule",
+          entityId: id,
+          changesJson,
         });
+        return updated;
       }
       return prisma.patrolSchedule.update({ where: { id }, data });
     }),

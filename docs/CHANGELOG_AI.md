@@ -3,15 +3,6 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
-## 2026-05-31 — Phase 7 post-§210 Option C follow-up: wrap OVERRIDE_CONFLICT audit in $transaction
-
-- Agent:               CLAUDE_CODE (Opus 4.7 architect + Sonnet 4.6 executor — V32 R1)
-- Why:                 Initial 5dfa8f5 called writeAuditLog sequentially after the mutation, requiring `as unknown as any` cast and leaving a non-atomic gap (create succeeds, audit fails → unaudited override). Switched to `platformPrisma.$transaction(async (tx) => ...)` matching platform.ts L281 pattern — tx is properly typed `Prisma.TransactionClient`, no cast. Tests updated: mock factory adds `platformPrisma.$transaction` + `platformPrisma.patrolSchedule.{create,update}`; beforeEach wires `$transaction` callback with `platformPrisma` as tx; override test mocks updated to use `platformPrisma` surface.
-- Files modified:      apps/web/src/server/trpc/routers/patrolSchedule.ts, apps/web/src/server/trpc/routers/__tests__/patrolSchedule.test.ts
-- Schema/migrations:   none
-- Errors encountered:  Extended PrismaClient (`prisma`) not assignable to `Prisma.TransactionClient` in writeAuditLog param — resolved by using `platformPrisma.$transaction` (base PrismaClient, same pattern as platform.ts L281).
-- Errors resolved:     All 3 gates clean: typecheck 0 errors, vitest 707/707, next build success.
-
 ## 2026-05-31 — Phase 7 post-§210 Option C: PATROL_SCHEDULE:OVERRIDE_CONFLICT audit row
 
 - Agent:               CLAUDE_CODE (Opus 4.7 architect + Sonnet 4.6 executor — V32 R1)
