@@ -3,6 +3,24 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-05-31 — Super Admin Panel — Item 8: Initial Site Admin in tenant create flow (PRODUCT.md §210 Item 8)
+- Agent:               CLAUDE_CODE (Opus 4.7 architect + Sonnet 4.6 executor — 3 dispatches total: D1 server + D2 client + this governance batch)
+- Phase:               Phase 7 Feature Update — PRODUCT.md §210 Item 8
+- Why:                 Closes PRODUCT.md §210 Item 8 — final item in Super Admin Panel backlog ("Assign initial Site Admin per tenant"). Tenant creation in /admin/tenants now accepts an optional admin section (name, email, password) that atomically provisions the tenant + its first user + 2 AuditLog rows in a single $transaction, so the operator can hand off credentials immediately without a separate user-creation step.
+- Squash commit:       a0d4d1f (squash from feat/admin-tenants-initial-admin, covers D1 6dd11a6 server + D2 75d98c3 client)
+- Files added:         apps/web/src/app/admin/tenants/__tests__/create-tenant-dialog.test.tsx (163L — 8 vitest cases for collapsible admin section UI, validation gating, and mutation payload)
+- Files modified:      apps/web/src/server/trpc/routers/platform.ts (+125L — createTenantWithAdmin procedure: bcrypt 12-round hash before $transaction, prisma.$transaction wrapping tenant.create + user.create + 2× writeAuditLog(tx, …), tx passed directly — Prisma.TransactionClient is permissive enough to satisfy writeAuditLog signature without cast); apps/web/src/server/trpc/routers/__tests__/platform.test.ts (+119L — mock factory extended with user.create + user.findFirst + $transaction; 4 new test cases); apps/web/src/app/admin/tenants/create-tenant-dialog.tsx (+157L — collapsible admin section via plain useState + conditional render; shadcn Collapsible not installed — fallback honored per STATE.md)
+- Files deleted:       none
+- Schema/migrations:   none
+- Tests:               web suite 693 → 705 pass (+12 new: 4 router + 8 dialog)
+- Errors encountered:  none (clean dispatch sequence)
+- Errors resolved:     none
+- Decisions locked:    none
+- Deviation:           client tests moved from admin-tenants-client.test.tsx (which stubs the dialog as <div data-testid />) to NEW create-tenant-dialog.test.tsx with 8 cases — broader coverage than original ~2-case plan. shadcn Collapsible not installed; plain useState + conditional render used instead.
+- Dispatch sequence:   6dd11a6 (Dispatch 1 — createTenantWithAdmin procedure + 4 router tests) → 75d98c3 (Dispatch 2 — dialog collapsible section + 8 dialog tests) → a0d4d1f (squash to main)
+- V32 R1:              Opus wrote only STATE.md. All 4 changed files via Agent(model:"sonnet").
+- §210 status:         ALL 8 ITEMS SHIPPED. Super Admin Panel feature complete per PRODUCT.md §351.
+
 ## 2026-05-31 — Super Admin Panel — Item 7: /admin/users page (PRODUCT.md §210 Item 7)
 - Agent:               CLAUDE_CODE (Opus 4.7 architect + Sonnet 4.6 executor x3)
 - Phase:               Phase 7 Feature Update — PRODUCT.md §210 Item 7
