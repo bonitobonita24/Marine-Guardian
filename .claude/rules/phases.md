@@ -3608,13 +3608,20 @@ Edit PRODUCT.md → trigger Phase 7 → agents implement everything and keep gov
     (CHANGELOG_AI with attribution per Rule 15, IMPLEMENTATION_MAP, DECISIONS_LOG if new decision,
     agent-log, lessons.md in Rule 18 typed format if error resolved or decision locked)
 18. Deliver: Claude Code writes directly. Others: delta ZIP with DELTA_MANIFEST.txt.
-19. Remind to verify: pnpm tools:check-product-sync && pnpm typecheck && pnpm test && pnpm build
+19. HARD PRE-MERGE GATE — run all of these and confirm exit 0 BEFORE step 16 squash-merge:
+    - pnpm tools:check-product-sync
+    - pnpm typecheck
+    - pnpm test
+    - pnpm --filter @marine-guardian/web build   (Next.js production build — runs ESLint; catches lint debt that workspace-level `turbo lint` misses per 2026-05-31 root cause)
+    IF any command fails → fix at source → re-run → do NOT squash-merge with a failing gate.
 
 ─────────────────────────────────────────────────────────
 PHASE 7 OUTPUT CONTRACT — MANDATORY
 Before reporting Feature Update complete, verify ALL of these:
 □ All 5 sub-steps (11a–11e) completed and confirmed
+□ HARD PRE-MERGE GATE (Step 19) — all 4 commands exit 0, including `pnpm --filter @marine-guardian/web build` (Next.js production build with ESLint)
 □ Two-stage code review: Stage 1 (spec compliance) PASS + Stage 2 (code quality) PASS
+□ Visual QA (Rule 16) — pages touched by this update load without console errors
 □ CHANGELOG_AI.md: entry written with this session's timestamp and Agent: CLAUDE_CODE
 □ IMPLEMENTATION_MAP.md: updated to reflect new feature state
 □ STATE.md: rewritten with PHASE="Phase 7 complete", LAST_DONE=[feature name], NEXT="Feature Update or Phase 8"

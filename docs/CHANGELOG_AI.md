@@ -3,6 +3,21 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-05-31 — Phase 7 lint gate hardening (Option D)
+
+### 2026-05-31 — `.claude/rules/phases.md` Phase 7 Step 19 + OUTPUT CONTRACT harden to require Next.js production build
+- Agent:               CLAUDE_CODE (Opus 4.7 architect + Sonnet 4.6 executor)
+- Phase:               Phase 7 — post-§210 backlog Option D (STATE.md NEXT block recommended opener)
+- Why:                 27 ESLint errors blocked Items 7+8 Visual QA dev rebuild on 2026-05-31 (commit 260493b). Lint debt accumulated across Items 2/5/7/8 because the Phase 7 pre-merge gate ran `pnpm typecheck` + `pnpm test` only — workspace-level `turbo lint` missed package-specific ESLint rules that only `next build` enforces. Step 19 was advisory ("Remind to verify"), not enforced; OUTPUT CONTRACT lacked a build checkbox. This change upgrades Step 19 to a HARD gate and adds `pnpm --filter @marine-guardian/web build` as an explicit OUTPUT CONTRACT item before squash-merge.
+- Files modified:      .claude/rules/phases.md (Step 19 line 3611 + OUTPUT CONTRACT block lines 3614-3624)
+- Files added:         none
+- Files deleted:       none
+- Schema/migrations:   none
+- Errors encountered:  none
+- Errors resolved:     none
+- Tests:               none (governance doc change only)
+- Verification:        Visual diff confirms Step 19 now lists 4 commands with "HARD PRE-MERGE GATE" prefix and OUTPUT CONTRACT now includes "HARD PRE-MERGE GATE" + "Visual QA (Rule 16)" checkboxes.
+
 ## 2026-05-31 — Items 7+8 Visual QA pass — defect fixes (commits 260439b + e9514e5)
 
 ### 2026-05-31 — Lint debt clearance (27 ESLint errors blocking rebuild)
