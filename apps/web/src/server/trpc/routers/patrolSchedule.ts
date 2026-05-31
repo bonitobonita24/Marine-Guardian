@@ -4,6 +4,7 @@ import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
 import { coordinatorProcedure } from "../middleware/rbac";
 import { prisma, writeAuditLog } from "@marine-guardian/db";
+import type { PrismaClient } from "@marine-guardian/db";
 
 // Half-open interval overlap: A.start < B.end AND B.start < A.end
 async function findOverlappingSchedules(
@@ -134,8 +135,7 @@ export const patrolScheduleRouter = router({
           },
         });
         // Extended prisma client is structurally compatible but not assignable to PrismaClient — safe cast.
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
-        await writeAuditLog(prisma as unknown as any, {
+        await writeAuditLog(prisma as unknown as PrismaClient, {
           tenantId: ctx.tenantId,
           userId: ctx.userId,
           action: "PATROL_SCHEDULE:OVERRIDE_CONFLICT",
@@ -218,8 +218,7 @@ export const patrolScheduleRouter = router({
           }
         }
         // Extended prisma client is structurally compatible but not assignable to PrismaClient — safe cast.
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
-        await writeAuditLog(prisma as unknown as any, {
+        await writeAuditLog(prisma as unknown as PrismaClient, {
           tenantId: ctx.tenantId,
           userId: ctx.userId,
           action: "PATROL_SCHEDULE:OVERRIDE_CONFLICT",
