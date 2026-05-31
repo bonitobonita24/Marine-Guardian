@@ -11,6 +11,7 @@ vi.mock("@marine-guardian/db", () => ({
       delete: vi.fn(),
     },
   },
+  writeAuditLog: vi.fn(),
 }));
 
 vi.mock("../../../lib/rate-limit", () => ({
@@ -26,7 +27,7 @@ vi.mock("../../../auth", () => ({
   auth: vi.fn(),
 }));
 
-import { prisma } from "@marine-guardian/db";
+import { prisma, writeAuditLog } from "@marine-guardian/db";
 import { createCallerFactory } from "../../trpc";
 import { patrolScheduleRouter } from "../patrolSchedule";
 
@@ -216,6 +217,27 @@ describe("patrolSchedule.create — conflict detection", () => {
     });
     expect(result.id).toBe(SCHEDULE_ID);
     expect(vi.mocked(prisma.patrolSchedule.findMany)).not.toHaveBeenCalled();
+    expect(vi.mocked(writeAuditLog)).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: "PATROL_SCHEDULE:OVERRIDE_CONFLICT",
+        entityType: "PatrolSchedule",
+      }),
+    );
+  });
+
+  it("does NOT write OVERRIDE_CONFLICT audit when overrideConflicts is false and no conflicts", async () => {
+    vi.mocked(prisma.patrolSchedule.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrolSchedule.create).mockResolvedValue(mockScheduleRow);
+    const caller = createCaller(makeCtx());
+    await caller.create({
+      patrolAreaId: "area-1",
+      rangerUserId: RANGER_ID,
+      rangerName: "John Doe",
+      scheduledStart: START,
+      scheduledEnd: END,
+    });
+    expect(vi.mocked(writeAuditLog)).not.toHaveBeenCalled();
   });
 
   it("skips conflict check when rangerUserId not provided — findMany not called", async () => {
@@ -278,5 +300,27 @@ describe("patrolSchedule.update — conflict detection", () => {
     });
     expect(result.notes).toBe("updated");
     expect(vi.mocked(prisma.patrolSchedule.findMany)).not.toHaveBeenCalled();
+    expect(vi.mocked(writeAuditLog)).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: "PATROL_SCHEDULE:OVERRIDE_CONFLICT",
+        entityType: "PatrolSchedule",
+      }),
+    );
+  });
+
+  it("does NOT write OVERRIDE_CONFLICT audit when overrideConflicts is false and no conflicts", async () => {
+    vi.mocked(prisma.patrolSchedule.findFirst).mockResolvedValue(mockScheduleRow);
+    vi.mocked(prisma.patrolSchedule.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrolSchedule.update).mockResolvedValue({
+      ...mockScheduleRow,
+      notes: "no-override",
+    });
+    const caller = createCaller(makeCtx());
+    await caller.update({
+      id: SCHEDULE_ID,
+      notes: "no-override",
+    });
+    expect(vi.mocked(writeAuditLog)).not.toHaveBeenCalled();
   });
 });

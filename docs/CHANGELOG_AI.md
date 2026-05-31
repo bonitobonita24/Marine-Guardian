@@ -3,6 +3,15 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-05-31 — Phase 7 post-§210 Option C: PATROL_SCHEDULE:OVERRIDE_CONFLICT audit row
+
+- Agent:               CLAUDE_CODE (Opus 4.7 architect + Sonnet 4.6 executor — V32 R1)
+- Why:                 Item 5 polish. Coordinator clicks "Override Anyway" in assignment-dialog.tsx (L342) — the only path that sets `overrideConflicts: true`. Audit row records who/when/what was overridden, surfacing the bypass in /admin Activity Log scans.
+- Files modified:      apps/web/src/server/trpc/routers/patrolSchedule.ts, apps/web/src/server/trpc/routers/__tests__/patrolSchedule.test.ts
+- Schema/migrations:   none — uses existing AuditLog table + writeAuditLog helper
+- Errors encountered:  (1) Extended prisma client not assignable to PrismaClient | TransactionClient — writeAuditLog type requires base client. (2) ESLint no-unsafe-argument on as any cast. (3) changesJson typed as Record<string,unknown> not assignable to Prisma.InputJsonValue. (4) no-unnecessary-condition on v === null in loop (data values are never null post-filter).
+- Errors resolved:     (1) Used `prisma as unknown as any` with dual eslint-disable comment. (2-4) Narrowed changesJson loop to emit only string/Date values as Record<string,string>, removing null branch. All 3 gates green: typecheck 0 errors, vitest 707/707, next build compiled successfully.
+
 ## 2026-05-31 — Phase 7 lint gate hardening (Option D)
 
 ### 2026-05-31 — `.claude/rules/phases.md` Phase 7 Step 19 + OUTPUT CONTRACT harden to require Next.js production build
