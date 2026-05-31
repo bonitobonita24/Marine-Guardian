@@ -167,7 +167,13 @@ export const platformUserRouter = router({
     }),
 
   updateRole: platformAdminProcedure
-    .input(z.object({ id: z.string(), role: userRoleSchema }))
+    .input(
+      z.object({
+        id: z.string(),
+        role: userRoleSchema,
+        tenantId: z.string().nullable().optional(),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
       const existing = await platformPrisma.user.findUnique({
         where: { id: input.id },
@@ -177,38 +183,71 @@ export const platformUserRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
       }
 
-      if (input.role === "super_admin" && existing.tenantId !== null) {
+      const effectiveTenantId =
+        input.tenantId === undefined ? existing.tenantId : input.tenantId;
+
+      if (input.role === "super_admin" && effectiveTenantId !== null) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Super admin users must not be tenant-scoped.",
         });
       }
-      if (input.role !== "super_admin" && existing.tenantId === null) {
+      if (input.role !== "super_admin" && effectiveTenantId === null) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Non-super-admin users must be assigned to a tenant.",
         });
       }
 
+      if (
+        input.tenantId !== undefined &&
+        input.tenantId !== null &&
+        input.tenantId !== existing.tenantId
+      ) {
+        const tenant = await platformPrisma.tenant.findUnique({
+          where: { id: input.tenantId },
+          select: { id: true, isActive: true },
+        });
+        if (!tenant || !tenant.isActive) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Tenant not found or inactive.",
+          });
+        }
+      }
+
+      const tenantChanged =
+        input.tenantId !== undefined && input.tenantId !== existing.tenantId;
+
       await platformPrisma.user.update({
         where: { id: input.id },
-        data: { role: input.role, securityVersion: { increment: 1 } },
+        data: {
+          role: input.role,
+          securityVersion: { increment: 1 },
+          ...(tenantChanged ? { tenantId: input.tenantId as string | null } : {}),
+        },
       });
 
       await writeAuditLog(platformPrisma, {
-        tenantId: existing.tenantId,
+        tenantId: effectiveTenantId,
         userId: ctx.userId,
         action: "PLATFORM:UPDATE_USER_ROLE",
         entityType: "User",
         entityId: input.id,
         changesJson: {
-          before: { role: existing.role },
-          after: { role: input.role },
+          before: {
+            role: existing.role,
+            ...(tenantChanged ? { tenantId: existing.tenantId } : {}),
+          },
+          after: {
+            role: input.role,
+            ...(tenantChanged ? { tenantId: input.tenantId as string | null } : {}),
+          },
         },
         ipAddress: ctx.ip,
       });
 
-      return { id: input.id, role: input.role };
+      return { id: input.id, role: input.role, tenantId: effectiveTenantId };
     }),
 
   deactivate: platformAdminProcedure

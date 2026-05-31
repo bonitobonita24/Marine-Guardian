@@ -252,7 +252,7 @@ describe("platformUser.updateRole", () => {
     const caller = createCaller(makeCtx());
     const result = await caller.updateRole({ id: "u1", role: "field_coordinator" });
 
-    expect(result).toEqual({ id: "u1", role: "field_coordinator" });
+    expect(result).toEqual({ id: "u1", role: "field_coordinator", tenantId: TENANT_ID });
     expect(vi.mocked(writeAuditLog)).toHaveBeenCalledWith(
       platformPrisma,
       partial({
@@ -260,6 +260,92 @@ describe("platformUser.updateRole", () => {
         entityType: "User",
         entityId: "u1",
         changesJson: { before: { role: "site_admin" }, after: { role: "field_coordinator" } },
+      }),
+    );
+  });
+
+  it("reassigns tenantId to a different tenant and audits the change", async () => {
+    vi.mocked(platformPrisma.user.findUnique).mockResolvedValue({
+      id: "u1",
+      role: "site_admin",
+      tenantId: TENANT_ID,
+    } as never);
+    vi.mocked(platformPrisma.tenant.findUnique).mockResolvedValue({
+      id: "tenant-other",
+      isActive: true,
+    } as never);
+    vi.mocked(platformPrisma.user.update).mockResolvedValue({} as never);
+    vi.mocked(writeAuditLog).mockResolvedValue(undefined as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.updateRole({
+      id: "u1",
+      role: "site_admin",
+      tenantId: "tenant-other",
+    });
+
+    expect(result).toEqual({ id: "u1", role: "site_admin", tenantId: "tenant-other" });
+    expect(vi.mocked(platformPrisma.user.update)).toHaveBeenCalledWith(
+      partial({
+        data: partial({ tenantId: "tenant-other" }),
+      }),
+    );
+    expect(vi.mocked(writeAuditLog)).toHaveBeenCalledWith(
+      platformPrisma,
+      partial({
+        action: "PLATFORM:UPDATE_USER_ROLE",
+        changesJson: {
+          before: { role: "site_admin", tenantId: TENANT_ID },
+          after: { role: "site_admin", tenantId: "tenant-other" },
+        },
+      }),
+    );
+  });
+
+  it("rejects reassignment to a non-existent tenant → NOT_FOUND", async () => {
+    vi.mocked(platformPrisma.user.findUnique).mockResolvedValue({
+      id: "u1",
+      role: "site_admin",
+      tenantId: TENANT_ID,
+    } as never);
+    vi.mocked(platformPrisma.tenant.findUnique).mockResolvedValue(null as never);
+
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.updateRole({ id: "u1", role: "site_admin", tenantId: "tenant-missing" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("omits tenantId in input → preserves existing tenantId (backward compat)", async () => {
+    vi.mocked(platformPrisma.user.findUnique).mockResolvedValue({
+      id: "u1",
+      role: "site_admin",
+      tenantId: TENANT_ID,
+    } as never);
+    vi.mocked(platformPrisma.user.update).mockResolvedValue({} as never);
+    vi.mocked(writeAuditLog).mockResolvedValue(undefined as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.updateRole({ id: "u1", role: "field_coordinator" });
+
+    expect(result).toEqual({ id: "u1", role: "field_coordinator", tenantId: TENANT_ID });
+    expect(vi.mocked(platformPrisma.user.update)).toHaveBeenCalledWith(
+      partial({
+        data: partial({ role: "field_coordinator" }),
+      }),
+    );
+    // tenantId NOT in update data (no reassignment)
+    expect(vi.mocked(platformPrisma.user.update).mock.calls[0]?.[0]).not.toHaveProperty(
+      "data.tenantId",
+    );
+    // changesJson does not include tenantId
+    expect(vi.mocked(writeAuditLog)).toHaveBeenCalledWith(
+      platformPrisma,
+      partial({
+        changesJson: {
+          before: { role: "site_admin" },
+          after: { role: "field_coordinator" },
+        },
       }),
     );
   });

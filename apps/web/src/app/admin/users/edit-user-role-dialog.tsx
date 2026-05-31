@@ -40,9 +40,12 @@ export function EditUserRoleDialog({
   onOpenChange,
 }: EditUserRoleDialogProps) {
   const [role, setRole] = useState<UserRole>(user.role);
+  const [tenantId, setTenantId] = useState<string | null>(user.tenantId);
+  const [tenantError, setTenantError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const utils = trpc.useUtils();
+  const tenantList = trpc.platform.list.useQuery();
 
   const updateRole = trpc.platformUser.updateRole.useMutation({
     onSuccess: () => {
@@ -54,16 +57,34 @@ export function EditUserRoleDialog({
     },
   });
 
+  function handleRoleChange(value: string) {
+    const next = value as UserRole;
+    setRole(next);
+    if (next === "super_admin") {
+      setTenantId(null);
+      setTenantError(null);
+    }
+  }
+
   function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
     setError(null);
-    updateRole.mutate({ id: user.id, role });
+    setTenantError(null);
+
+    if (role !== "super_admin" && tenantId === null) {
+      setTenantError("Select a tenant for this role.");
+      return;
+    }
+
+    updateRole.mutate({ id: user.id, role, tenantId });
   }
 
   function handleOpenChange(v: boolean) {
     if (!v) {
       setRole(user.role);
+      setTenantId(user.tenantId);
       setError(null);
+      setTenantError(null);
     }
     onOpenChange(v);
   }
@@ -81,7 +102,7 @@ export function EditUserRoleDialog({
           <div className="space-y-4 py-4">
             <div className="space-y-1.5">
               <Label htmlFor="edit-user-role">Role</Label>
-              <Select value={role} onValueChange={(v) => { setRole(v as UserRole); }}>
+              <Select value={role} onValueChange={handleRoleChange}>
                 <SelectTrigger id="edit-user-role">
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
@@ -93,6 +114,38 @@ export function EditUserRoleDialog({
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-user-tenant">Tenant</Label>
+              <Select
+                value={tenantId ?? ""}
+                onValueChange={(v) => {
+                  setTenantId(v === "" ? null : v);
+                  setTenantError(null);
+                }}
+                disabled={role === "super_admin"}
+              >
+                <SelectTrigger id="edit-user-tenant">
+                  <SelectValue
+                    placeholder={
+                      role === "super_admin"
+                        ? "Platform (no tenant)"
+                        : "Select tenant"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Platform (no tenant)</SelectItem>
+                  {tenantList.data?.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {tenantError !== null && (
+                <p className="text-sm text-destructive">{tenantError}</p>
+              )}
+            </div>
             {error !== null && (
               <p className="text-sm text-destructive">{error}</p>
             )}
@@ -101,7 +154,9 @@ export function EditUserRoleDialog({
             <Button
               type="button"
               variant="outline"
-              onClick={() => { onOpenChange(false); }}
+              onClick={() => {
+                onOpenChange(false);
+              }}
             >
               Cancel
             </Button>
