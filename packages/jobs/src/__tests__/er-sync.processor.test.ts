@@ -34,6 +34,10 @@ vi.mock("../queues/alerts.queue", () => ({
   enqueueAlert: vi.fn().mockResolvedValue("alert-job-1"),
 }));
 
+vi.mock("../queues/area-rederive.queue", () => ({
+  enqueueAreaRederive: vi.fn().mockResolvedValue("area-job-1"),
+}));
+
 const mockErClient = {
   getEventTypes: vi.fn().mockResolvedValue([
     { id: "et-1", value: "poaching", display: "Poaching Report", category: { value: "security" }, default_priority: 200, icon_id: "poaching-icon", schema: {} },
@@ -63,6 +67,7 @@ vi.mock("../lib/earthranger-client", () => {
 import { platformPrisma } from "@marine-guardian/db";
 import { processErSync } from "../processors/er-sync.processor";
 import { enqueueAlert } from "../queues/alerts.queue";
+import { enqueueAreaRederive } from "../queues/area-rederive.queue";
 
 const mockPrisma = platformPrisma as unknown as {
   tenant: { findUnique: ReturnType<typeof vi.fn> };
@@ -79,6 +84,7 @@ const mockPrisma = platformPrisma as unknown as {
 };
 
 const mockEnqueueAlert = enqueueAlert as ReturnType<typeof vi.fn>;
+const mockEnqueueAreaRederive = enqueueAreaRederive as ReturnType<typeof vi.fn>;
 
 function makeJob(overrides: Partial<ErSyncJobPayload> = {}) {
   return {
@@ -153,6 +159,12 @@ describe("processErSync", () => {
     expect(mockPrisma.event.findUnique).toHaveBeenCalledTimes(1);
     expect(mockPrisma.event.create).toHaveBeenCalledTimes(1);
     expect(mockPrisma.event.update).not.toHaveBeenCalled();
+    expect(mockEnqueueAreaRederive).toHaveBeenCalledWith({
+      tenantId: "tenant-1",
+      userId: "system",
+      entity: "event",
+      id: "evt-1",
+    });
   });
 
   it("syncs events: updates existing event without re-creating", async () => {
@@ -164,6 +176,12 @@ describe("processErSync", () => {
     expect(mockPrisma.event.findUnique).toHaveBeenCalledTimes(1);
     expect(mockPrisma.event.create).not.toHaveBeenCalled();
     expect(mockPrisma.event.update).toHaveBeenCalledTimes(1);
+    expect(mockEnqueueAreaRederive).toHaveBeenCalledWith({
+      tenantId: "tenant-1",
+      userId: "system",
+      entity: "event",
+      id: "evt-existing",
+    });
   });
 
   it("enqueues alert evaluation for newly created events only", async () => {
@@ -210,11 +228,17 @@ describe("processErSync", () => {
   });
 
   it("syncs patrols", async () => {
-    mockPrisma.patrol.upsert.mockResolvedValue({});
+    mockPrisma.patrol.upsert.mockResolvedValue({ id: "patrol-1" });
 
     await processErSync(makeJob({ syncType: "patrols" }));
 
     expect(mockPrisma.patrol.upsert).toHaveBeenCalledTimes(1);
+    expect(mockEnqueueAreaRederive).toHaveBeenCalledWith({
+      tenantId: "tenant-1",
+      userId: "system",
+      entity: "patrol",
+      id: "patrol-1",
+    });
   });
 
   it("syncs observations", async () => {

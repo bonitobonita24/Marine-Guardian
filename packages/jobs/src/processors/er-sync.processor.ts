@@ -5,6 +5,7 @@ import { platformPrisma, decrypt } from "@marine-guardian/db";
 import { Prisma } from "@prisma/client";
 import { EarthRangerClient } from "../lib/earthranger-client";
 import { enqueueAlert } from "../queues/alerts.queue";
+import { enqueueAreaRederive } from "../queues/area-rederive.queue";
 
 function toJsonOrNull(
   value: Record<string, unknown> | unknown[] | null | undefined,
@@ -177,7 +178,6 @@ async function syncEvents(
 ): Promise<number> {
   const events = await client.getEvents(since);
   const now = new Date();
-  const newlyCreated: Array<{ id: string; priority: number }> = [];
 
   for (const e of events) {
     const data = {
@@ -198,32 +198,45 @@ async function syncEvents(
       select: { id: true },
     });
 
+    let eventId: string;
     if (existing === null) {
       const created = await platformPrisma.event.create({
         data: { tenantId, erEventId: e.id, ...data },
         select: { id: true, priority: true },
       });
-      newlyCreated.push({ id: created.id, priority: created.priority });
+      eventId = created.id;
+      try {
+        await enqueueAlert({
+          tenantId,
+          userId: "system",
+          alertRuleId: "",
+          eventId: created.id,
+          priority: created.priority,
+        });
+      } catch (err) {
+        console.error(
+          `[er-sync] enqueueAlert failed for event ${created.id}:`,
+          err instanceof Error ? err.message : String(err),
+        );
+      }
     } else {
       await platformPrisma.event.update({
         where: { id: existing.id },
         data,
       });
+      eventId = existing.id;
     }
-  }
 
-  for (const created of newlyCreated) {
     try {
-      await enqueueAlert({
+      await enqueueAreaRederive({
         tenantId,
         userId: "system",
-        alertRuleId: "",
-        eventId: created.id,
-        priority: created.priority,
+        entity: "event",
+        id: eventId,
       });
     } catch (err) {
       console.error(
-        `[er-sync] enqueueAlert failed for event ${created.id}:`,
+        `[er-sync] enqueueAreaRederive failed for event ${eventId}:`,
         err instanceof Error ? err.message : String(err),
       );
     }
@@ -250,7 +263,7 @@ async function syncPatrols(
           ? "cancelled"
           : "open";
 
-    await platformPrisma.patrol.upsert({
+    const patrol = await platformPrisma.patrol.upsert({
       where: {
         tenantId_erPatrolId: { tenantId, erPatrolId: p.id },
       },
@@ -274,7 +287,22 @@ async function syncPatrols(
         endTime: p.end_time != null ? new Date(p.end_time) : null,
         syncedAt: now,
       },
+      select: { id: true },
     });
+
+    try {
+      await enqueueAreaRederive({
+        tenantId,
+        userId: "system",
+        entity: "patrol",
+        id: patrol.id,
+      });
+    } catch (err) {
+      console.error(
+        `[er-sync] enqueueAreaRederive failed for patrol ${patrol.id}:`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
   }
 
   return patrols.length;
