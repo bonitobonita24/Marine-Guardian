@@ -3,6 +3,36 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-05-31 — Items 7+8 Visual QA pass — defect fixes (commits 260439b + e9514e5)
+
+### 2026-05-31 — Lint debt clearance (27 ESLint errors blocking rebuild)
+- Agent:               CLAUDE_CODE (Opus 4.7 architect + Sonnet 4.6 executor)
+- Phase:               Phase 7 — post-ship lint clearance before Visual QA
+- Why:                 27 ESLint errors blocked dev container rebuild required for Items 7+8 Visual QA. Lint debt accumulated because recent ships (Items 2/5/7/8) gated on typecheck+vitest only — Next.js production build (which runs ESLint) was not enforced in those dispatch sequences.
+- Squash commit:       260439b
+- Files modified:      apps/web/src/server/trpc/routers/platform.ts; apps/web/src/server/trpc/routers/__tests__/platform.test.ts; apps/web/src/app/admin/tenants/__tests__/create-tenant-dialog.test.tsx; apps/web/src/app/(dashboard)/patrol-schedule/__tests__/patrolSchedule.test.ts; apps/web/src/server/trpc/routers/patrolSchedule.ts; apps/web/src/app/admin/tenants/__tests__/admin-tenants-client.test.tsx; apps/web/src/app/(dashboard)/patrol-schedule/_components/__tests__/assignment-dialog.test.tsx
+- Files added:         none
+- Files deleted:       none
+- Schema/migrations:   none
+- Tests:               suite stable (705 pass — no new tests, no regressions)
+- Errors resolved:     27 mechanical ESLint errors: 11 from Item 8 (unused vars, missing return types) + 16 pre-existing from Items 2/5 (same pattern)
+- V32 R1:              Opus wrote only STATE.md. All 7 changed files via Agent(model:"sonnet").
+
+### 2026-05-31 — Item 8 Visual QA defect fixes (autofill bleed + dialog overflow)
+- Agent:               CLAUDE_CODE (Opus 4.7 architect + Sonnet 4.6 executor)
+- Phase:               Phase 7 — Visual QA defect remediation (e9514e5)
+- Why:                 Visual QA on Item 8 caught 2 UX defects that vitest cannot detect. Defect #1 (autofill): Chrome auto-populated the admin-section email + password fields with the logged-in super_admin's credentials — production risk of accidental credential reuse. Defect #2 (overflow): Add Tenant dialog with admin section open overflows 1280x800 viewport, submit button unreachable (Playwright click timeout after 5s + 10 scroll-into-view retries). Both fixed inline before closing QA loop. Re-QA at 1280x800 confirmed both defects resolved.
+- Squash commit:       e9514e5
+- Files modified:      apps/web/src/app/admin/tenants/create-tenant-dialog.tsx (+5L net — autoComplete attrs on 3 inputs + unique name attr + max-h-[90vh] overflow-y-auto on DialogContent)
+- Files added:         none
+- Files deleted:       none
+- Schema/migrations:   none
+- Tests:               web suite 705 pass (unchanged — autofill + overflow are browser-layout defects; vitest jsdom cannot exercise them)
+- Errors resolved:     defect #17 autofill: autoComplete="new-password" on password input + autoComplete="off" on email + full-name inputs + name="initial-admin-password" (Chrome heuristic defense-in-depth); defect #18 overflow: max-h-[90vh] overflow-y-auto on DialogContent
+- Verification:        re-QA at 1280x800 — admin fields render empty (no autofill bleed) + submit click succeeds instantly (no scroll timeout)
+- Decisions locked:    pattern locked: ALWAYS set autoComplete hints explicitly on password inputs in user-creation dialogs; ALWAYS add max-h-[90vh] overflow-y-auto on DialogContent for dialogs with 5+ fields
+- V32 R1:              Opus wrote only STATE.md. 1 changed file via Agent(model:"sonnet").
+
 ## 2026-05-31 — Super Admin Panel — Item 8: Initial Site Admin in tenant create flow (PRODUCT.md §210 Item 8)
 - Agent:               CLAUDE_CODE (Opus 4.7 architect + Sonnet 4.6 executor — 3 dispatches total: D1 server + D2 client + this governance batch)
 - Phase:               Phase 7 Feature Update — PRODUCT.md §210 Item 8

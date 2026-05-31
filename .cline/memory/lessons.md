@@ -4,6 +4,47 @@
 # READ ORDER: 🔴 first → 🟤 second → rest by relevance
 # ---
 
+## 2026-05-31 — 🔴 gotcha + 🟡 fix Browser autofill bleeds login credentials into new-user creation forms
+
+- Type:       🔴 gotcha + 🟡 fix
+- Phase:      Phase 7 Item 8 Visual QA (e9514e5 fix)
+- Files:      apps/web/src/app/admin/tenants/create-tenant-dialog.tsx
+- Concepts:   autofill, browser-credentials, chrome-autocomplete, new-password,
+              create-form, security-ux, admin-creation
+- Narrative:  Caught by Playwright Visual QA on Item 8 ship. When the Add Tenant
+  dialog's optional "Initial Site Admin" section toggled open, Chrome auto-populated
+  the Admin Full Name field with the logged-in super_admin's email AND the Admin
+  Password field with the cached login password. Real production risk: super_admin
+  could accidentally reuse their own password for the new tenant admin without
+  noticing (Chrome shows obscured dots in password field, and Full Name field looks
+  pre-filled by user). Fix is mechanical: add autoComplete="new-password" to the
+  password input, autoComplete="off" to email + full-name inputs, and unique
+  name="initial-admin-password" attribute on the password input (defense-in-depth
+  signal to Chrome that this is NOT a login form). Applies to ANY future
+  user-creation dialog in this codebase — always set autoComplete hints explicitly
+  on password inputs, never rely on browser default heuristics. Vitest cannot catch
+  this — only real-browser Visual QA via Playwright finds autofill behaviour.
+
+## 2026-05-31 — 🔴 gotcha + 🟡 fix shadcn DialogContent overflows viewport without max-h
+
+- Type:       🔴 gotcha + 🟡 fix
+- Phase:      Phase 7 Item 8 Visual QA (e9514e5 fix)
+- Files:      apps/web/src/app/admin/tenants/create-tenant-dialog.tsx
+- Concepts:   shadcn-dialog, modal-overflow, max-h, overflow-y-auto, viewport,
+              submit-unreachable, modal-scroll, ui-trap
+- Narrative:  Caught by Playwright Visual QA on Item 8 ship. shadcn-ui Dialog's
+  DialogContent primitive has no default height cap or scroll. When the dialog body
+  grows past viewport height (e.g. Item 8's Add Tenant + Initial Site Admin section
+  open = 8 form fields + helper text), the submit button in DialogFooter renders
+  offscreen and is UNREACHABLE — clicking it via Playwright timed out after 5s
+  and 10+ scroll-into-view retries on a standard 1280x800 laptop viewport. Fix:
+  always add max-h-[90vh] overflow-y-auto to DialogContent for any dialog with 5+
+  fields. The dialog body becomes scrollable inside the modal while DialogFooter
+  stays anchored. Applies to ANY future dialog in this codebase with extensive
+  form content. Vitest jsdom doesn't render layout — only real-browser Visual QA
+  catches this. Pattern to verify pre-ship: open dialog at 1280x800, confirm
+  submit button reachable without page-level scroll.
+
 ## 2026-05-30 — 🟡 vitest mock factory must include every Prisma method called by the procedure under test
 - Type:      🟡 fix
 - Phase:     Phase 7 Feature Update — PRODUCT.md §210 Item 2 (/admin/tenants column completion)
