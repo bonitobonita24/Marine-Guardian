@@ -57,3 +57,4 @@ coverage/
 # ─── Build + TypeScript cache (Spec-Driven V31) ───
 
 # ─── Build + TypeScript cache (Spec-Driven V32) ───
+.playwright-mcp/
