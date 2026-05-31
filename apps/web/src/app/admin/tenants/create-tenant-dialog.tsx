@@ -120,7 +120,7 @@ export function CreateTenantDialog() {
       <DialogTrigger asChild>
         <Button onClick={() => { setOpen(true); }}>Add Tenant</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Add Tenant</DialogTitle>
@@ -203,6 +203,7 @@ export function CreateTenantDialog() {
                       onChange={(e) => { setAdminEmail(e.target.value); }}
                       placeholder="admin@example.org"
                       maxLength={255}
+                      autoComplete="off"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -213,6 +214,7 @@ export function CreateTenantDialog() {
                       onChange={(e) => { setAdminFullName(e.target.value); }}
                       placeholder="Jane Doe"
                       maxLength={255}
+                      autoComplete="off"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -220,10 +222,12 @@ export function CreateTenantDialog() {
                     <Input
                       id="create-admin-password"
                       type="password"
+                      name="initial-admin-password"
                       value={adminPassword}
                       onChange={(e) => { setAdminPassword(e.target.value); }}
                       placeholder="At least 12 characters"
                       maxLength={255}
+                      autoComplete="new-password"
                     />
                     <p className="text-xs text-muted-foreground">
                       Minimum 12 characters. The admin can change this after first sign-in.
