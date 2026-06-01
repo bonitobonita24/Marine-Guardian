@@ -38,6 +38,10 @@ vi.mock("../queues/area-rederive.queue", () => ({
   enqueueAreaRederive: vi.fn().mockResolvedValue("area-job-1"),
 }));
 
+vi.mock("../queues/patrol-track-materialize.queue", () => ({
+  enqueuePatrolTrackMaterialize: vi.fn().mockResolvedValue("ptm-job-1"),
+}));
+
 const mockErClient = {
   getEventTypes: vi.fn().mockResolvedValue([
     { id: "et-1", value: "poaching", display: "Poaching Report", category: { value: "security" }, default_priority: 200, icon_id: "poaching-icon", schema: {} },
@@ -68,6 +72,7 @@ import { platformPrisma } from "@marine-guardian/db";
 import { processErSync } from "../processors/er-sync.processor";
 import { enqueueAlert } from "../queues/alerts.queue";
 import { enqueueAreaRederive } from "../queues/area-rederive.queue";
+import { enqueuePatrolTrackMaterialize } from "../queues/patrol-track-materialize.queue";
 
 const mockPrisma = platformPrisma as unknown as {
   tenant: { findUnique: ReturnType<typeof vi.fn> };
@@ -85,6 +90,7 @@ const mockPrisma = platformPrisma as unknown as {
 
 const mockEnqueueAlert = enqueueAlert as ReturnType<typeof vi.fn>;
 const mockEnqueueAreaRederive = enqueueAreaRederive as ReturnType<typeof vi.fn>;
+const mockEnqueuePatrolTrackMaterialize = enqueuePatrolTrackMaterialize as ReturnType<typeof vi.fn>;
 
 function makeJob(overrides: Partial<ErSyncJobPayload> = {}) {
   return {
@@ -238,6 +244,11 @@ describe("processErSync", () => {
       userId: "system",
       entity: "patrol",
       id: "patrol-1",
+    });
+    expect(mockEnqueuePatrolTrackMaterialize).toHaveBeenCalledWith({
+      tenantId: "tenant-1",
+      userId: "system",
+      patrolId: "patrol-1",
     });
   });
 

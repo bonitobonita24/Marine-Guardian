@@ -6,6 +6,7 @@ import { Prisma } from "@prisma/client";
 import { EarthRangerClient } from "../lib/earthranger-client";
 import { enqueueAlert } from "../queues/alerts.queue";
 import { enqueueAreaRederive } from "../queues/area-rederive.queue";
+import { enqueuePatrolTrackMaterialize } from "../queues/patrol-track-materialize.queue";
 
 function toJsonOrNull(
   value: Record<string, unknown> | unknown[] | null | undefined,
@@ -300,6 +301,18 @@ async function syncPatrols(
     } catch (err) {
       console.error(
         `[er-sync] enqueueAreaRederive failed for patrol ${patrol.id}:`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+    try {
+      await enqueuePatrolTrackMaterialize({
+        tenantId,
+        userId: "system",
+        patrolId: patrol.id,
+      });
+    } catch (err) {
+      console.error(
+        `[er-sync] enqueuePatrolTrackMaterialize failed for patrol ${patrol.id}:`,
         err instanceof Error ? err.message : String(err),
       );
     }
