@@ -7,6 +7,7 @@ vi.mock("@marine-guardian/db", () => ({
       findMany: vi.fn(),
       findFirst: vi.fn(),
       create: vi.fn(),
+      update: vi.fn(),
       updateMany: vi.fn(),
     },
   },
@@ -34,7 +35,7 @@ vi.mock("bcryptjs", () => ({
   hash: vi.fn().mockResolvedValue("$2b$10$hashedpassword"),
 }));
 
-import { prisma } from "@marine-guardian/db";
+import { prisma, writeAuditLog } from "@marine-guardian/db";
 import { createCallerFactory } from "../../trpc";
 import { userRouter } from "../user";
 
@@ -156,5 +157,57 @@ describe("user.resetPassword", () => {
     await expect(
       caller.resetPassword({ id: "nonexistent-user" })
     ).rejects.toThrow(TRPCError);
+  });
+});
+
+describe("user.updateRole", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const TARGET_ID = "user-target";
+  const existingUser = {
+    id: TARGET_ID,
+    role: "operator" as const,
+    tenantId: TENANT_ID,
+  };
+
+  it("throws NOT_FOUND when target user belongs to a different tenant", async () => {
+    vi.mocked(prisma.user.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.updateRole({ id: TARGET_ID, role: "field_coordinator" })
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    expect(vi.mocked(prisma.user.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(writeAuditLog)).not.toHaveBeenCalled();
+  });
+
+  it("updates role and writes audit log on success", async () => {
+    vi.mocked(prisma.user.findFirst).mockResolvedValue(existingUser as never);
+    vi.mocked(prisma.user.update).mockResolvedValue({ ...existingUser, role: "field_coordinator" } as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.updateRole({ id: TARGET_ID, role: "field_coordinator" });
+
+    expect(result).toEqual({ id: TARGET_ID });
+
+    expect(vi.mocked(prisma.user.update)).toHaveBeenCalledWith({
+      where: { id: TARGET_ID },
+      data: partial<{ role: string; securityVersion: { increment: number } }>({
+        role: "field_coordinator",
+        securityVersion: { increment: 1 },
+      }),
+    });
+
+    expect(vi.mocked(writeAuditLog)).toHaveBeenCalledWith(
+      prisma,
+      partial({
+        action: "UPDATE_USER_ROLE",
+        tenantId: TENANT_ID,
+        entityType: "User",
+        entityId: TARGET_ID,
+        changesJson: { before: { role: "operator" }, after: { role: "field_coordinator" } },
+      })
+    );
   });
 });

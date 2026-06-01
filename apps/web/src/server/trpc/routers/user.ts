@@ -4,7 +4,8 @@ import bcrypt from "bcryptjs";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
 import { adminProcedure } from "../middleware/rbac";
-import { prisma } from "@marine-guardian/db";
+import { prisma, writeAuditLog } from "@marine-guardian/db";
+import type { PrismaClient } from "@marine-guardian/db";
 import { TRPCError } from "@trpc/server";
 
 const BCRYPT_ROUNDS = 12;
@@ -155,10 +156,33 @@ export const userRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      return prisma.user.updateMany({
+      const existing = await prisma.user.findFirst({
         where: { id: input.id, tenantId: ctx.tenantId },
+        select: { id: true, role: true, tenantId: true },
+      });
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
+      }
+
+      await prisma.user.update({
+        where: { id: input.id },
         data: { role: input.role, securityVersion: { increment: 1 } },
       });
+
+      await writeAuditLog(prisma as unknown as PrismaClient, {
+        tenantId: ctx.tenantId,
+        userId: ctx.userId,
+        action: "UPDATE_USER_ROLE",
+        entityType: "User",
+        entityId: input.id,
+        changesJson: {
+          before: { role: existing.role },
+          after: { role: input.role },
+        },
+        ipAddress: ctx.ip,
+      });
+
+      return { id: input.id };
     }),
 
   deactivate: adminProcedure
