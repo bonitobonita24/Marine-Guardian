@@ -59,6 +59,9 @@ export const platformImpersonationRouter = router({
           targetTenantName: tenant.name,
         },
         ipAddress: ctx.ip,
+        actingUserId: ctx.userId,
+        impersonatedAsTenantId: tenant.id,
+        severity: "high",
       });
 
       return { tenantId: tenant.id, tenantSlug: tenant.slug, tenantName: tenant.name };
@@ -92,6 +95,9 @@ export const platformImpersonationRouter = router({
       entityId: current,
       changesJson: { targetTenantSlug: tenant?.slug ?? null },
       ipAddress: ctx.ip,
+      actingUserId: ctx.userId,
+      impersonatedAsTenantId: current,
+      severity: "high",
     });
 
     return { wasImpersonating: true };

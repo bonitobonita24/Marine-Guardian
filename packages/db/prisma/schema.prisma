@@ -12,6 +12,13 @@ datasource db {
 // ENUMS
 // ─────────────────────────────────────────────────
 
+enum Severity {
+  info
+  warning
+  high
+  critical
+}
+
 enum UserRole {
   super_admin
   site_admin
@@ -172,7 +179,8 @@ model Tenant {
   alertHistory        AlertHistory[]
   notifications       Notification[]
   syncLogs            SyncLog[]
-  auditLogs           AuditLog[]
+  auditLogs                AuditLog[]           @relation("AuditLogTenant")
+  impersonatedAuditLogs    AuditLog[]           @relation("AuditLogImpersonatedAsTenant")
   accompanyingRangers AccompanyingRanger[]
   knownRangers        KnownRanger[]
   patrolSchedules     PatrolSchedule[]
@@ -205,7 +213,8 @@ model User {
   createdPatrolSchedules   PatrolSchedule[]        @relation("PatrolScheduleCreatedBy")
   addedAccompanyingRangers AccompanyingRanger[]    @relation("AccompanyingRangerAddedBy")
   registeredAsRanger       AccompanyingRanger[]    @relation("AccompanyingRangerRegistered")
-  auditLogs                AuditLog[]
+  auditLogs                AuditLog[]              @relation("AuditLogUser")
+  actingAuditLogs          AuditLog[]              @relation("AuditLogActingUser")
   loggedFuelEntries        FuelEntry[]             @relation("FuelEntryLoggedBy")
   requestedReportExports   ReportExport[]          @relation("ReportExportRequestedBy")
 
@@ -641,22 +650,31 @@ model SyncLog {
 }
 
 model AuditLog {
-  id          String   @id @default(cuid())
-  tenantId    String?  @map("tenant_id")
-  userId      String   @map("user_id")
-  action      String
-  entityType  String   @map("entity_type")
-  entityId    String   @map("entity_id")
-  changesJson Json?    @map("changes_json")
-  ipAddress   String?  @map("ip_address")
-  createdAt   DateTime @default(now()) @map("created_at")
+  id                     String   @id @default(cuid())
+  tenantId               String?  @map("tenant_id")
+  userId                 String   @map("user_id")
+  action                 String
+  entityType             String   @map("entity_type")
+  entityId               String   @map("entity_id")
+  changesJson            Json?    @map("changes_json")
+  ipAddress              String?  @map("ip_address")
+  actingUserId           String?  @map("acting_user_id")
+  impersonatedAsTenantId String?  @map("impersonated_as_tenant_id")
+  severity               Severity @default(info) @map("severity")
+  userAgent              String?  @map("user_agent")
+  createdAt              DateTime @default(now()) @map("created_at")
 
-  tenant Tenant? @relation(fields: [tenantId], references: [id])
-  user   User    @relation(fields: [userId], references: [id])
+  tenant               Tenant? @relation("AuditLogTenant", fields: [tenantId], references: [id])
+  user                 User    @relation("AuditLogUser", fields: [userId], references: [id])
+  actingUser           User?   @relation("AuditLogActingUser", fields: [actingUserId], references: [id])
+  impersonatedAsTenant Tenant? @relation("AuditLogImpersonatedAsTenant", fields: [impersonatedAsTenantId], references: [id])
 
   @@index([tenantId])
   @@index([userId])
   @@index([entityType, entityId])
+  @@index([actingUserId])
+  @@index([impersonatedAsTenantId])
+  @@index([severity])
   @@map("audit_logs")
 }
 

@@ -156,6 +156,9 @@ describe("platformImpersonation.enter", () => {
         action: "PLATFORM:ENTER_TENANT",
         entityType: "Tenant",
         entityId: TENANT_ID,
+        actingUserId: USER_ID,
+        impersonatedAsTenantId: TENANT_ID,
+        severity: "high",
       }),
     );
   });
@@ -227,6 +230,9 @@ describe("platformImpersonation.exit", () => {
         action: "PLATFORM:EXIT_TENANT",
         entityType: "Tenant",
         entityId: TENANT_ID,
+        actingUserId: USER_ID,
+        impersonatedAsTenantId: TENANT_ID,
+        severity: "high",
       }),
     );
   });

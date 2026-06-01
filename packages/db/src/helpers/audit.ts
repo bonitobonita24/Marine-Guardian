@@ -8,6 +8,11 @@ interface AuditLogEntry {
   entityId: string;
   changesJson?: Prisma.InputJsonValue | null;
   ipAddress?: string | null;
+  // v2 fields — optional, existing call sites unchanged
+  actingUserId?: string | null;
+  impersonatedAsTenantId?: string | null;
+  severity?: "info" | "warning" | "high" | "critical";
+  userAgent?: string | null;
 }
 
 export async function writeAuditLog(
@@ -25,6 +30,10 @@ export async function writeAuditLog(
         ? { changesJson: entry.changesJson }
         : {}),
       ipAddress: entry.ipAddress ?? null,
+      actingUserId: entry.actingUserId ?? null,
+      impersonatedAsTenantId: entry.impersonatedAsTenantId ?? null,
+      ...(entry.severity != null ? { severity: entry.severity } : {}),
+      userAgent: entry.userAgent ?? null,
     },
   });
 }
