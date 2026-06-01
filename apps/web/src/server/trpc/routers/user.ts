@@ -188,18 +188,64 @@ export const userRouter = router({
   deactivate: adminProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      return prisma.user.updateMany({
+      const existing = await prisma.user.findFirst({
         where: { id: input.id, tenantId: ctx.tenantId },
+        select: { id: true, isActive: true, tenantId: true },
+      });
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
+      }
+
+      await prisma.user.update({
+        where: { id: input.id },
         data: { isActive: false, securityVersion: { increment: 1 } },
       });
+
+      await writeAuditLog(prisma as unknown as PrismaClient, {
+        tenantId: ctx.tenantId,
+        userId: ctx.userId,
+        action: "DEACTIVATE_USER",
+        entityType: "User",
+        entityId: input.id,
+        changesJson: {
+          before: { isActive: existing.isActive },
+          after: { isActive: false },
+        },
+        ipAddress: ctx.ip,
+      });
+
+      return { id: input.id };
     }),
 
   activate: adminProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      return prisma.user.updateMany({
+      const existing = await prisma.user.findFirst({
         where: { id: input.id, tenantId: ctx.tenantId },
+        select: { id: true, isActive: true, tenantId: true },
+      });
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
+      }
+
+      await prisma.user.update({
+        where: { id: input.id },
         data: { isActive: true, securityVersion: { increment: 1 } },
       });
+
+      await writeAuditLog(prisma as unknown as PrismaClient, {
+        tenantId: ctx.tenantId,
+        userId: ctx.userId,
+        action: "ACTIVATE_USER",
+        entityType: "User",
+        entityId: input.id,
+        changesJson: {
+          before: { isActive: existing.isActive },
+          after: { isActive: true },
+        },
+        ipAddress: ctx.ip,
+      });
+
+      return { id: input.id };
     }),
 });

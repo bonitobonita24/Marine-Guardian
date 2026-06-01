@@ -211,3 +211,131 @@ describe("user.updateRole", () => {
     );
   });
 });
+
+describe("user.deactivate", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const TARGET_ID = "user-target";
+  const existingActiveUser = {
+    id: TARGET_ID,
+    isActive: true,
+    tenantId: TENANT_ID,
+  };
+
+  it("throws NOT_FOUND when target user belongs to a different tenant", async () => {
+    vi.mocked(prisma.user.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.deactivate({ id: TARGET_ID })
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    expect(vi.mocked(prisma.user.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(writeAuditLog)).not.toHaveBeenCalled();
+  });
+
+  it("throws NOT_FOUND when target user does not exist", async () => {
+    vi.mocked(prisma.user.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.deactivate({ id: "nonexistent-user" })
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    expect(vi.mocked(prisma.user.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(writeAuditLog)).not.toHaveBeenCalled();
+  });
+
+  it("updates isActive + writes audit log on success", async () => {
+    vi.mocked(prisma.user.findFirst).mockResolvedValue(existingActiveUser as never);
+    vi.mocked(prisma.user.update).mockResolvedValue({ ...existingActiveUser, isActive: false } as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.deactivate({ id: TARGET_ID });
+
+    expect(result).toEqual({ id: TARGET_ID });
+
+    expect(vi.mocked(prisma.user.update)).toHaveBeenCalledWith({
+      where: { id: TARGET_ID },
+      data: partial<{ isActive: boolean; securityVersion: { increment: number } }>({
+        isActive: false,
+        securityVersion: { increment: 1 },
+      }),
+    });
+
+    expect(vi.mocked(writeAuditLog)).toHaveBeenCalledWith(
+      prisma,
+      partial({
+        action: "DEACTIVATE_USER",
+        tenantId: TENANT_ID,
+        entityType: "User",
+        entityId: TARGET_ID,
+        changesJson: { before: { isActive: true }, after: { isActive: false } },
+      })
+    );
+  });
+});
+
+describe("user.activate", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const TARGET_ID = "user-target";
+  const existingInactiveUser = {
+    id: TARGET_ID,
+    isActive: false,
+    tenantId: TENANT_ID,
+  };
+
+  it("throws NOT_FOUND when target user belongs to a different tenant", async () => {
+    vi.mocked(prisma.user.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.activate({ id: TARGET_ID })
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    expect(vi.mocked(prisma.user.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(writeAuditLog)).not.toHaveBeenCalled();
+  });
+
+  it("throws NOT_FOUND when target user does not exist", async () => {
+    vi.mocked(prisma.user.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.activate({ id: "nonexistent-user" })
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    expect(vi.mocked(prisma.user.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(writeAuditLog)).not.toHaveBeenCalled();
+  });
+
+  it("updates isActive + writes audit log on success", async () => {
+    vi.mocked(prisma.user.findFirst).mockResolvedValue(existingInactiveUser as never);
+    vi.mocked(prisma.user.update).mockResolvedValue({ ...existingInactiveUser, isActive: true } as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.activate({ id: TARGET_ID });
+
+    expect(result).toEqual({ id: TARGET_ID });
+
+    expect(vi.mocked(prisma.user.update)).toHaveBeenCalledWith({
+      where: { id: TARGET_ID },
+      data: partial<{ isActive: boolean; securityVersion: { increment: number } }>({
+        isActive: true,
+        securityVersion: { increment: 1 },
+      }),
+    });
+
+    expect(vi.mocked(writeAuditLog)).toHaveBeenCalledWith(
+      prisma,
+      partial({
+        action: "ACTIVATE_USER",
+        tenantId: TENANT_ID,
+        entityType: "User",
+        entityId: TARGET_ID,
+        changesJson: { before: { isActive: false }, after: { isActive: true } },
+      })
+    );
+  });
+});
