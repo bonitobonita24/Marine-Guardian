@@ -56,12 +56,12 @@ const pdfColumns: PdfColumn[] = columnDefs.map((c) => ({
 }));
 
 function summarizeFilters(
-  filters: Record<string, string | number | undefined>,
+  filters: Record<string, unknown>,
 ): string {
   const parts: string[] = [];
   for (const [k, v] of Object.entries(filters)) {
     if (v === undefined || v === "") continue;
-    parts.push(`${k}=${String(v)}`);
+    parts.push(`${k}=${JSON.stringify(v)}`);
   }
   return parts.length > 0 ? parts.join(", ") : "(none)";
 }

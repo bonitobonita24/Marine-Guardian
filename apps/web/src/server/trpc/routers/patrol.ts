@@ -9,6 +9,8 @@ import { enqueuePatrolTrackMaterialize } from "@marine-guardian/jobs";
 export const patrolListFilters = z.object({
   state: z.enum(["open", "done", "cancelled"]).optional(),
   patrolType: z.enum(["foot", "seaborne"]).optional(),
+  // v2 spec L119: exclude test patrols by default (set includeTest=true to include)
+  includeTest: z.boolean().default(false),
 });
 
 export const patrolRouter = router({
@@ -25,6 +27,8 @@ export const patrolRouter = router({
           tenantId: ctx.tenantId,
           ...(input.state !== undefined ? { state: input.state } : {}),
           ...(input.patrolType !== undefined ? { patrolType: input.patrolType } : {}),
+          // v2 spec L119: exclude test patrols by default (set includeTest=true to include)
+          ...(input.includeTest ? {} : { isTestPatrol: false }),
         },
         take: input.limit + 1,
         ...(input.cursor !== undefined ? { cursor: { id: input.cursor } } : {}),

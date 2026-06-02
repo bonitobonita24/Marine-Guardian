@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { buildExportUrl } from "@/lib/exports";
 import { GenerateReportButton } from "./generate-report-button";
 import { RebuildTracksButton } from "./rebuild-tracks-button";
+import { PatrolsTable } from "./patrols-table";
 
 export default function PatrolsPage() {
   return (
@@ -23,7 +24,7 @@ export default function PatrolsPage() {
           <RebuildTracksButton />
         </div>
       </div>
-      <p className="text-muted-foreground">Patrol management — data table pending</p>
+      <PatrolsTable />
     </div>
   );
 }

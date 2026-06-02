@@ -345,3 +345,27 @@ describe("patrol.rebuildTracks (5.2c)", () => {
     expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("patrol.list — v2 spec L119 isTestPatrol filter (default exclude)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("default behavior — excludes test patrols (where isTestPatrol: false)", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50 });
+    expect(vi.mocked(prisma.patrol.findMany)).toHaveBeenCalledWith(
+      partial({ where: partial({ tenantId: TENANT_ID, isTestPatrol: false }) })
+    );
+  });
+
+  it("includeTest=true — passes no isTestPatrol constraint (returns all patrols)", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50, includeTest: true });
+    const call = vi.mocked(prisma.patrol.findMany).mock.calls[0];
+    expect(call?.[0]?.where).not.toHaveProperty("isTestPatrol");
+    expect(call?.[0]?.where).toMatchObject({ tenantId: TENANT_ID });
+  });
+});
