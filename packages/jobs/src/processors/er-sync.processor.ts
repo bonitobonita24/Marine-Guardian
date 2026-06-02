@@ -191,6 +191,7 @@ async function syncEvents(
       locationLon: e.location?.longitude ?? null,
       eventDetailsJson: toJsonOrNull(e.event_details),
       notesJson: toJsonOrNull(e.notes),
+      endTime: e.end_time != null ? new Date(e.end_time) : null,
       syncedAt: now,
     };
 

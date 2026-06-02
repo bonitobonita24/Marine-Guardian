@@ -314,6 +314,42 @@ describe("processErSync", () => {
     expect(mockPrisma.observation.upsert).toHaveBeenCalledTimes(1);
   });
 
+  it("syncs events: maps end_time string to endTime Date on create", async () => {
+    mockErClient.getEvents.mockResolvedValueOnce([
+      { id: "ev-2", serial_number: 1002, title: "Test event", priority: 100, state: "active", location: null, reported_by: null, time: "2026-06-01T08:00:00Z", end_time: "2026-06-01T10:00:00Z", event_type: "poaching", event_details: {}, notes: [] },
+    ]);
+    mockPrisma.event.findUnique.mockResolvedValue(null);
+    mockPrisma.event.create.mockResolvedValue({ id: "evt-2", priority: 100 });
+
+    await processErSync(makeJob({ syncType: "events" }));
+
+    expect(mockPrisma.event.create).toHaveBeenCalledWith(
+      expect.objectContaining<Record<string, unknown>>({
+        data: expect.objectContaining<Record<string, unknown>>({
+          endTime: new Date("2026-06-01T10:00:00Z"),
+        }),
+      }),
+    );
+  });
+
+  it("syncs events: maps end_time null to endTime null on create", async () => {
+    mockErClient.getEvents.mockResolvedValueOnce([
+      { id: "ev-3", serial_number: 1003, title: "No end event", priority: 100, state: "active", location: null, reported_by: null, time: "2026-06-01T08:00:00Z", end_time: null, event_type: "poaching", event_details: {}, notes: [] },
+    ]);
+    mockPrisma.event.findUnique.mockResolvedValue(null);
+    mockPrisma.event.create.mockResolvedValue({ id: "evt-3", priority: 100 });
+
+    await processErSync(makeJob({ syncType: "events" }));
+
+    expect(mockPrisma.event.create).toHaveBeenCalledWith(
+      expect.objectContaining<Record<string, unknown>>({
+        data: expect.objectContaining<Record<string, unknown>>({
+          endTime: null,
+        }),
+      }),
+    );
+  });
+
   it("records failed status on SyncLog when API errors", async () => {
     mockErClient.getEventTypes.mockRejectedValueOnce(new Error("API timeout"));
 

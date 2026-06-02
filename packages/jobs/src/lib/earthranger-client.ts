@@ -31,6 +31,7 @@ interface ErEvent {
   event_type?: string;
   event_details?: Record<string, unknown>;
   notes?: unknown[];
+  end_time?: string | null;
 }
 
 interface ErPatrol {
