@@ -50,6 +50,9 @@ interface ErPatrolSegment {
   scheduled_end?: string | null;
   time_range?: { start_time?: string; end_time?: string } | null;
   leader?: { name?: string; id?: string } | null;
+  // v2 additive — ER returns GeoJSON Point: { type: "Point", coordinates: [lon, lat] }
+  start_location?: { type?: string; coordinates?: [number, number] } | null;
+  end_location?: { type?: string; coordinates?: [number, number] } | null;
 }
 
 interface ErObservation {

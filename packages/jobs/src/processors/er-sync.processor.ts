@@ -264,6 +264,16 @@ async function syncPatrols(
           ? "cancelled"
           : "open";
 
+    const isTestPatrol = /test|qa|demo/i.test(p.title ?? "");
+    const segments = p.patrol_segments ?? [];
+    const firstSeg = segments[0];
+    const lastSeg = segments[segments.length - 1];
+    // GeoJSON Point coordinates = [lon, lat]
+    const startLon = firstSeg?.start_location?.coordinates?.[0] ?? null;
+    const startLat = firstSeg?.start_location?.coordinates?.[1] ?? null;
+    const endLon = lastSeg?.end_location?.coordinates?.[0] ?? null;
+    const endLat = lastSeg?.end_location?.coordinates?.[1] ?? null;
+
     const patrol = await platformPrisma.patrol.upsert({
       where: {
         tenantId_erPatrolId: { tenantId, erPatrolId: p.id },
@@ -278,6 +288,13 @@ async function syncPatrols(
         startTime: p.start_time != null ? new Date(p.start_time) : null,
         endTime: p.end_time != null ? new Date(p.end_time) : null,
         syncedAt: now,
+        startLocationLat: startLat,
+        startLocationLon: startLon,
+        endLocationLat: endLat,
+        endLocationLon: endLon,
+        isTestPatrol,
+        firstSeenAt: now,
+        lastSyncedAt: now,
       },
       update: {
         serialNumber: p.serial_number != null ? String(p.serial_number) : null,
@@ -287,6 +304,12 @@ async function syncPatrols(
         startTime: p.start_time != null ? new Date(p.start_time) : null,
         endTime: p.end_time != null ? new Date(p.end_time) : null,
         syncedAt: now,
+        startLocationLat: startLat,
+        startLocationLon: startLon,
+        endLocationLat: endLat,
+        endLocationLon: endLon,
+        isTestPatrol,
+        lastSyncedAt: now,
       },
       select: { id: true },
     });

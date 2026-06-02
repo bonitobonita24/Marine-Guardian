@@ -239,6 +239,17 @@ describe("processErSync", () => {
     await processErSync(makeJob({ syncType: "patrols" }));
 
     expect(mockPrisma.patrol.upsert).toHaveBeenCalledTimes(1);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const upsertCall = mockPrisma.patrol.upsert.mock.calls[0]![0] as { create: Record<string, unknown> };
+    expect(upsertCall.create).toMatchObject({
+      isTestPatrol: false,
+      startLocationLat: null,
+      startLocationLon: null,
+      endLocationLat: null,
+      endLocationLon: null,
+    });
+    expect(upsertCall.create.firstSeenAt).toBeInstanceOf(Date);
+    expect(upsertCall.create.lastSyncedAt).toBeInstanceOf(Date);
     expect(mockEnqueueAreaRederive).toHaveBeenCalledWith({
       tenantId: "tenant-1",
       userId: "system",
@@ -249,6 +260,49 @@ describe("processErSync", () => {
       tenantId: "tenant-1",
       userId: "system",
       patrolId: "patrol-1",
+    });
+  });
+
+  it("marks patrol as test when title matches /test|qa|demo/i", async () => {
+    mockErClient.getPatrols.mockResolvedValueOnce([
+      { id: "p-t", title: "QA Test Run", patrol_type: "foot", state: "open", patrol_segments: [] },
+    ]);
+    mockPrisma.patrol.upsert.mockResolvedValue({ id: "patrol-t" });
+
+    await processErSync(makeJob({ syncType: "patrols" }));
+
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const upsertCall = mockPrisma.patrol.upsert.mock.calls[0]![0] as { create: Record<string, unknown> };
+    expect(upsertCall.create).toMatchObject({ isTestPatrol: true });
+  });
+
+  it("populates start/end location from first/last segment", async () => {
+    mockErClient.getPatrols.mockResolvedValueOnce([
+      {
+        id: "p-loc",
+        title: "Location patrol",
+        patrol_type: "seaborne",
+        state: "open",
+        patrol_segments: [
+          {
+            id: "s1",
+            start_location: { type: "Point", coordinates: [120.5, 14.5] },
+            end_location: { type: "Point", coordinates: [120.8, 14.7] },
+          },
+        ],
+      },
+    ]);
+    mockPrisma.patrol.upsert.mockResolvedValue({ id: "patrol-loc" });
+
+    await processErSync(makeJob({ syncType: "patrols" }));
+
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const upsertCall = mockPrisma.patrol.upsert.mock.calls[0]![0] as { create: Record<string, unknown> };
+    expect(upsertCall.create).toMatchObject({
+      startLocationLon: 120.5,
+      startLocationLat: 14.5,
+      endLocationLon: 120.8,
+      endLocationLat: 14.7,
     });
   });
 
