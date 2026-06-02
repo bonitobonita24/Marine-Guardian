@@ -7,6 +7,7 @@ import { EarthRangerClient } from "../lib/earthranger-client";
 import { enqueueAlert } from "../queues/alerts.queue";
 import { enqueueAreaRederive } from "../queues/area-rederive.queue";
 import { enqueuePatrolTrackMaterialize } from "../queues/patrol-track-materialize.queue";
+import { resolveReportedBy } from "../lib/resolve-reported-by";
 
 function toJsonOrNull(
   value: Record<string, unknown> | unknown[] | null | undefined,
@@ -181,17 +182,21 @@ async function syncEvents(
   const now = new Date();
 
   for (const e of events) {
+    const resolved = await resolveReportedBy(platformPrisma, tenantId, e.reported_by);
     const data = {
       serialNumber: e.serial_number != null ? String(e.serial_number) : null,
       title: e.title ?? null,
       priority: e.priority ?? 0,
       reportedByName: e.reported_by?.name ?? null,
+      reportedByUserId: resolved.reportedByUserId,
+      reportedByKnownRangerId: resolved.reportedByKnownRangerId,
       reportedAt: e.time != null ? new Date(e.time) : null,
       locationLat: e.location?.latitude ?? null,
       locationLon: e.location?.longitude ?? null,
       eventDetailsJson: toJsonOrNull(e.event_details),
       notesJson: toJsonOrNull(e.notes),
       endTime: e.end_time != null ? new Date(e.end_time) : null,
+      hasPhoto: Array.isArray(e.photos) && e.photos.length > 0,
       syncedAt: now,
     };
 

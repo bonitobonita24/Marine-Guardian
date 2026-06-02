@@ -26,6 +26,8 @@ vi.mock("@marine-guardian/db", () => ({
     patrolSegment: { upsert: vi.fn() },
     observation: { upsert: vi.fn() },
     syncLog: { create: vi.fn(), update: vi.fn() },
+    user: { findFirst: vi.fn() },
+    knownRanger: { findFirst: vi.fn() },
   },
   decrypt: vi.fn((v: string) => `decrypted_${v}`),
 }));
@@ -86,6 +88,8 @@ const mockPrisma = platformPrisma as unknown as {
   patrol: { upsert: ReturnType<typeof vi.fn> };
   observation: { upsert: ReturnType<typeof vi.fn> };
   syncLog: { create: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
+  user: { findFirst: ReturnType<typeof vi.fn> };
+  knownRanger: { findFirst: ReturnType<typeof vi.fn> };
 };
 
 const mockEnqueueAlert = enqueueAlert as ReturnType<typeof vi.fn>;
@@ -115,6 +119,8 @@ describe("processErSync", () => {
     mockPrisma.tenant.findUnique.mockResolvedValue(mockTenant);
     mockPrisma.syncLog.create.mockResolvedValue({ id: "sl-1" });
     mockPrisma.syncLog.update.mockResolvedValue({ id: "sl-1" });
+    mockPrisma.user.findFirst.mockResolvedValue(null);
+    mockPrisma.knownRanger.findFirst.mockResolvedValue(null);
   });
 
   it("throws if tenant has no ER URL configured", async () => {
@@ -345,6 +351,121 @@ describe("processErSync", () => {
       expect.objectContaining<Record<string, unknown>>({
         data: expect.objectContaining<Record<string, unknown>>({
           endTime: null,
+        }),
+      }),
+    );
+  });
+
+  it("syncs events: maps photos array presence to hasPhoto=true on create", async () => {
+    mockErClient.getEvents.mockResolvedValueOnce([
+      { id: "ev-photo-1", serial_number: 2001, title: "With photo", priority: 100, state: "active", location: null, reported_by: null, time: "2026-06-01T08:00:00Z", end_time: null, event_type: "poaching", event_details: {}, notes: [], photos: [{ url: "https://example.com/p.jpg" }] },
+    ]);
+    mockPrisma.event.findUnique.mockResolvedValue(null);
+    mockPrisma.event.create.mockResolvedValue({ id: "evt-photo-1", priority: 100 });
+
+    await processErSync(makeJob({ syncType: "events" }));
+
+    expect(mockPrisma.event.create).toHaveBeenCalledWith(
+      expect.objectContaining<Record<string, unknown>>({
+        data: expect.objectContaining<Record<string, unknown>>({
+          hasPhoto: true,
+        }),
+      }),
+    );
+  });
+
+  it("syncs events: maps missing photos to hasPhoto=false on create", async () => {
+    mockErClient.getEvents.mockResolvedValueOnce([
+      { id: "ev-no-photo", serial_number: 2002, title: "No photo", priority: 100, state: "active", location: null, reported_by: null, time: "2026-06-01T08:00:00Z", end_time: null, event_type: "poaching", event_details: {}, notes: [] },
+    ]);
+    mockPrisma.event.findUnique.mockResolvedValue(null);
+    mockPrisma.event.create.mockResolvedValue({ id: "evt-no-photo", priority: 100 });
+
+    await processErSync(makeJob({ syncType: "events" }));
+
+    expect(mockPrisma.event.create).toHaveBeenCalledWith(
+      expect.objectContaining<Record<string, unknown>>({
+        data: expect.objectContaining<Record<string, unknown>>({
+          hasPhoto: false,
+        }),
+      }),
+    );
+  });
+
+  it("syncs events: resolves reported_by.email to reportedByUserId on create", async () => {
+    mockErClient.getEvents.mockResolvedValueOnce([
+      { id: "ev-by-user", serial_number: 2003, title: "By user", priority: 100, state: "active", location: null, reported_by: { name: "Ranger Alpha", email: "alpha@example.com" }, time: "2026-06-01T08:00:00Z", end_time: null, event_type: "poaching", event_details: {}, notes: [] },
+    ]);
+    mockPrisma.event.findUnique.mockResolvedValue(null);
+    mockPrisma.event.create.mockResolvedValue({ id: "evt-by-user", priority: 100 });
+    mockPrisma.user.findFirst.mockResolvedValueOnce({ id: "user-alpha" });
+
+    await processErSync(makeJob({ syncType: "events" }));
+
+    expect(mockPrisma.event.create).toHaveBeenCalledWith(
+      expect.objectContaining<Record<string, unknown>>({
+        data: expect.objectContaining<Record<string, unknown>>({
+          reportedByUserId: "user-alpha",
+          reportedByKnownRangerId: null,
+        }),
+      }),
+    );
+  });
+
+  it("syncs events: falls back to KnownRanger name match when email absent", async () => {
+    mockErClient.getEvents.mockResolvedValueOnce([
+      { id: "ev-by-ranger", serial_number: 2004, title: "By ranger", priority: 100, state: "active", location: null, reported_by: { name: "Ranger Bravo" }, time: "2026-06-01T08:00:00Z", end_time: null, event_type: "poaching", event_details: {}, notes: [] },
+    ]);
+    mockPrisma.event.findUnique.mockResolvedValue(null);
+    mockPrisma.event.create.mockResolvedValue({ id: "evt-by-ranger", priority: 100 });
+    mockPrisma.knownRanger.findFirst.mockResolvedValueOnce({ id: "kr-bravo" });
+
+    await processErSync(makeJob({ syncType: "events" }));
+
+    expect(mockPrisma.event.create).toHaveBeenCalledWith(
+      expect.objectContaining<Record<string, unknown>>({
+        data: expect.objectContaining<Record<string, unknown>>({
+          reportedByUserId: null,
+          reportedByKnownRangerId: "kr-bravo",
+        }),
+      }),
+    );
+  });
+
+  it("syncs events: leaves both reportedBy ids null when no match found", async () => {
+    mockErClient.getEvents.mockResolvedValueOnce([
+      { id: "ev-no-match", serial_number: 2005, title: "Unknown source", priority: 100, state: "active", location: null, reported_by: { name: "Stranger", email: "stranger@example.com" }, time: "2026-06-01T08:00:00Z", end_time: null, event_type: "poaching", event_details: {}, notes: [] },
+    ]);
+    mockPrisma.event.findUnique.mockResolvedValue(null);
+    mockPrisma.event.create.mockResolvedValue({ id: "evt-no-match", priority: 100 });
+    // user.findFirst + knownRanger.findFirst both return null (default in beforeEach)
+
+    await processErSync(makeJob({ syncType: "events" }));
+
+    expect(mockPrisma.event.create).toHaveBeenCalledWith(
+      expect.objectContaining<Record<string, unknown>>({
+        data: expect.objectContaining<Record<string, unknown>>({
+          reportedByUserId: null,
+          reportedByKnownRangerId: null,
+        }),
+      }),
+    );
+  });
+
+  it("syncs events: leaves both reportedBy ids null when reported_by is null", async () => {
+    mockErClient.getEvents.mockResolvedValueOnce([
+      { id: "ev-null-rb", serial_number: 2006, title: "No reporter", priority: 100, state: "active", location: null, reported_by: null, time: "2026-06-01T08:00:00Z", end_time: null, event_type: "poaching", event_details: {}, notes: [] },
+    ]);
+    mockPrisma.event.findUnique.mockResolvedValue(null);
+    mockPrisma.event.create.mockResolvedValue({ id: "evt-null-rb", priority: 100 });
+
+    await processErSync(makeJob({ syncType: "events" }));
+
+    expect(mockPrisma.event.create).toHaveBeenCalledWith(
+      expect.objectContaining<Record<string, unknown>>({
+        data: expect.objectContaining<Record<string, unknown>>({
+          reportedByUserId: null,
+          reportedByKnownRangerId: null,
         }),
       }),
     );

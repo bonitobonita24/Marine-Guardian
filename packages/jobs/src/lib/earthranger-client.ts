@@ -26,12 +26,13 @@ interface ErEvent {
   priority?: number;
   state?: string;
   location?: { latitude: number; longitude: number } | null;
-  reported_by?: { name: string } | null;
+  reported_by?: { name?: string; email?: string } | null;
   time?: string;
   event_type?: string;
   event_details?: Record<string, unknown>;
   notes?: unknown[];
   end_time?: string | null;
+  photos?: unknown[];
 }
 
 interface ErPatrol {
