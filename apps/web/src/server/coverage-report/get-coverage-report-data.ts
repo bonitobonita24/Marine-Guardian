@@ -331,7 +331,7 @@ export async function getCoverageReportData(
       state: p.state,
       startTime: p.startTime,
       endTime: p.endTime,
-      totalDistanceKm: p.totalDistanceKm,
+      totalDistanceKm: p.computedDistanceKm ?? p.totalDistanceKm,
       totalHours: p.totalHours,
       boatName: p.boatName,
       leaderName,

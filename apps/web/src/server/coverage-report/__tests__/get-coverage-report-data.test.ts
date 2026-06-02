@@ -279,6 +279,74 @@ describe("getCoverageReportData", () => {
     expect(arg?.where?.startTime?.lt).toBeInstanceOf(Date);
   });
 
+  it("prefers computedDistanceKm over totalDistanceKm when both present", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
+      TENANT_ROW as never,
+    );
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValueOnce({
+      tenantId: TENANT_ID,
+      reportType: "coverage",
+      paramsJson: { category: "monthly", year: 2026, month: 5 },
+      paperSize: "A4",
+      createdAt: new Date("2026-05-21T08:00:00.000Z"),
+    } as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([
+      {
+        id: "p1",
+        serialNumber: "MG-0042",
+        title: "Routine reef sweep",
+        patrolType: "foot",
+        state: "done",
+        startTime: new Date("2026-05-15T03:00:00.000Z"),
+        endTime: new Date("2026-05-15T07:30:00.000Z"),
+        computedDistanceKm: 12.5,
+        totalDistanceKm: 8.4,
+        totalHours: 4.5,
+        boatName: null,
+        areaName: "North Reef",
+        segments: [{ leaderName: "Maria Santos" }],
+        track: null,
+      },
+    ] as never);
+    vi.mocked(prisma.areaBoundary.findMany).mockResolvedValueOnce([] as never);
+    const r = await getCoverageReportData(TENANT_SLUG, EXPORT_ID);
+    expect(r?.patrols[0]?.totalDistanceKm).toBe(12.5);
+  });
+
+  it("falls back to totalDistanceKm when computedDistanceKm is null", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
+      TENANT_ROW as never,
+    );
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValueOnce({
+      tenantId: TENANT_ID,
+      reportType: "coverage",
+      paramsJson: { category: "monthly", year: 2026, month: 5 },
+      paperSize: "A4",
+      createdAt: new Date("2026-05-21T08:00:00.000Z"),
+    } as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([
+      {
+        id: "p1",
+        serialNumber: "MG-0042",
+        title: "Routine reef sweep",
+        patrolType: "foot",
+        state: "done",
+        startTime: new Date("2026-05-15T03:00:00.000Z"),
+        endTime: new Date("2026-05-15T07:30:00.000Z"),
+        computedDistanceKm: null,
+        totalDistanceKm: 8.4,
+        totalHours: 4.5,
+        boatName: null,
+        areaName: "North Reef",
+        segments: [{ leaderName: "Maria Santos" }],
+        track: null,
+      },
+    ] as never);
+    vi.mocked(prisma.areaBoundary.findMany).mockResolvedValueOnce([] as never);
+    const r = await getCoverageReportData(TENANT_SLUG, EXPORT_ID);
+    expect(r?.patrols[0]?.totalDistanceKm).toBe(8.4);
+  });
+
   it("falls back to current month when paramsJson is empty {}", async () => {
     vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
       TENANT_ROW as never,
