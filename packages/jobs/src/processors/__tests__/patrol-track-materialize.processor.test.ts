@@ -32,14 +32,19 @@ vi.mock("@marine-guardian/db", () => ({
 
 vi.mock("../../lib/patrol-track-materialization", () => ({
   materializePatrolTrack: vi.fn(),
+  recomputeDistanceAndDuration: vi.fn(),
 }));
 
 import { processPatrolTrackMaterialize } from "../patrol-track-materialize.processor";
 import { validateTenantContext } from "../../workers/base-worker";
-import { materializePatrolTrack } from "../../lib/patrol-track-materialization";
+import {
+  materializePatrolTrack,
+  recomputeDistanceAndDuration,
+} from "../../lib/patrol-track-materialization";
 import { platformPrisma } from "@marine-guardian/db";
 
 const mockMaterialize = materializePatrolTrack as ReturnType<typeof vi.fn>;
+const mockRecompute = recomputeDistanceAndDuration as ReturnType<typeof vi.fn>;
 const mockValidate = validateTenantContext as ReturnType<typeof vi.fn>;
 
 function makeJob(
@@ -153,6 +158,27 @@ describe("processPatrolTrackMaterialize", () => {
     await expect(processPatrolTrackMaterialize(makeJob())).rejects.toThrow(
       "EarthRanger fetch 502 Bad Gateway",
     );
+  });
+
+  it("calls recomputeDistanceAndDuration when materialize result is not skipped", async () => {
+    // beforeEach already sets mockMaterialize to return skipped:false
+    await processPatrolTrackMaterialize(makeJob({ patrolId: "patrol-42" }));
+    expect(mockRecompute).toHaveBeenCalledTimes(1);
+    expect(mockRecompute).toHaveBeenCalledWith(platformPrisma, "patrol-42");
+  });
+
+  it("does NOT call recomputeDistanceAndDuration when materialize result is skipped", async () => {
+    mockMaterialize.mockResolvedValueOnce({
+      patrolTrackId: null,
+      pointCount: 0,
+      hasTimestamps: false,
+      lastTrackTime: null,
+      patrolEnded: false,
+      skipped: true,
+      skipReason: "no_segment" as const,
+    });
+    await processPatrolTrackMaterialize(makeJob());
+    expect(mockRecompute).not.toHaveBeenCalled();
   });
 
   it("propagates exceptions from validateTenantContext (rejects empty tenantId)", async () => {

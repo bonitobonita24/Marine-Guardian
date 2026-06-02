@@ -299,3 +299,113 @@ export async function materializePatrolTrack(
     skipped: false,
   };
 }
+
+// ---------------------------------------------------------------------------
+// recomputeDistanceAndDuration (A2.1)
+// ---------------------------------------------------------------------------
+
+export interface RecomputeResult {
+  computedDistanceKm: number;
+  computedDurationHours: number;
+  pointCount: number;
+}
+
+/**
+ * Haversine great-circle distance between two [lon, lat] points in kilometres.
+ * R = 6371 km.
+ */
+function haversineKm(
+  [lon1, lat1]: [number, number],
+  [lon2, lat2]: [number, number],
+): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(a));
+}
+
+/**
+ * Reads the stored PatrolTrack GeoJSON for a patrol, recomputes
+ * `computedDistanceKm` and `computedDurationHours` from the coordinates +
+ * timestamps, then writes them back to the Patrol row.
+ *
+ * No-op (returns zeros, skips Patrol.update) when:
+ *   - no PatrolTrack row exists for the patrolId, OR
+ *   - trackGeojson is null / empty.
+ *
+ * Distance: pairwise haversine sum within each LineString feature.
+ *   Endpoints across separate features are NOT connected.
+ * Duration: |maxTime − minTime| across all coordinateProperties.times arrays.
+ *   Falls back to 0 when no times are present.
+ */
+export async function recomputeDistanceAndDuration(
+  prisma: PrismaClientLike,
+  patrolId: string,
+): Promise<RecomputeResult> {
+  const zero: RecomputeResult = {
+    computedDistanceKm: 0,
+    computedDurationHours: 0,
+    pointCount: 0,
+  };
+
+  // Step 1 — load the PatrolTrack row.
+  const row = await prisma.patrolTrack.findUnique({ where: { patrolId } });
+  if (!row?.trackGeojson) {
+    return zero;
+  }
+
+  // Step 2 — parse the stored GeoJSON (Prisma Json comes back as unknown).
+  const fc = row.trackGeojson as unknown as ErTrackResponse;
+  const features = fc.features ?? [];
+  if (features.length === 0) {
+    return zero;
+  }
+
+  // Step 3 — accumulate distance, duration anchors, and point count.
+  let computedDistanceKm = 0;
+  let pointCount = 0;
+  const allTimestamps: number[] = [];
+
+  for (const feature of features) {
+    const coords = feature.geometry.coordinates as Array<[number, number]>;
+    pointCount += coords.length;
+
+    // Pairwise haversine within this feature only.
+    for (let i = 1; i < coords.length; i++) {
+      computedDistanceKm += haversineKm(
+        coords[i - 1] as [number, number],
+        coords[i] as [number, number],
+      );
+    }
+
+    // Collect timestamps if present.
+    const times: unknown[] =
+      (feature.properties as { coordinateProperties?: { times?: unknown[] } })
+        ?.coordinateProperties?.times ?? [];
+    for (const t of times) {
+      if (typeof t === "string" && t.length > 0) {
+        const ms = Date.parse(t);
+        if (!isNaN(ms)) allTimestamps.push(ms);
+      }
+    }
+  }
+
+  // Step 4 — duration from timestamp spread.
+  let computedDurationHours = 0;
+  if (allTimestamps.length >= 2) {
+    const minTime = Math.min(...allTimestamps);
+    const maxTime = Math.max(...allTimestamps);
+    computedDurationHours = Math.abs(maxTime - minTime) / 3_600_000;
+  }
+
+  // Step 5 — write back to Patrol.
+  await prisma.patrol.update({
+    where: { id: patrolId },
+    data: { computedDistanceKm, computedDurationHours },
+  });
+
+  return { computedDistanceKm, computedDurationHours, pointCount };
+}

@@ -36,6 +36,7 @@ import type { PatrolTrackMaterializeJobPayload } from "../queues/types";
 import { validateTenantContext } from "../workers/base-worker";
 import {
   materializePatrolTrack,
+  recomputeDistanceAndDuration,
   type MaterializationResult,
 } from "../lib/patrol-track-materialization";
 
@@ -63,5 +64,9 @@ export async function processPatrolTrackMaterialize(
   validateTenantContext(job.data);
 
   const { patrolId } = job.data;
-  return materializePatrolTrack(prisma, patrolId);
+  const result = await materializePatrolTrack(prisma, patrolId);
+  if (!result.skipped) {
+    await recomputeDistanceAndDuration(prisma, patrolId);
+  }
+  return result;
 }
