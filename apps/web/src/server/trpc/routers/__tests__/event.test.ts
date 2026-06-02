@@ -7,6 +7,7 @@ vi.mock("@marine-guardian/db", () => ({
       findMany: vi.fn(),
       findFirst: vi.fn(),
       updateMany: vi.fn(),
+      update: vi.fn(),
       count: vi.fn(),
     },
     accompanyingRanger: {
@@ -17,8 +18,12 @@ vi.mock("@marine-guardian/db", () => ({
     tenant: {
       findUnique: vi.fn(),
     },
+    auditLog: {
+      create: vi.fn(),
+    },
   },
   decrypt: (value: string): string => value,
+  writeAuditLog: vi.fn(),
 }));
 
 vi.mock("../../../lib/earthranger-push", () => ({
@@ -38,7 +43,7 @@ vi.mock("../../../auth", () => ({
   auth: vi.fn(),
 }));
 
-import { prisma } from "@marine-guardian/db";
+import { prisma, writeAuditLog } from "@marine-guardian/db";
 import { pushEventUpdateToEarthRanger } from "../../../lib/earthranger-push";
 import { createCallerFactory } from "../../trpc";
 import { eventRouter } from "../event";
@@ -121,24 +126,37 @@ describe("event.updateState", () => {
 });
 
 describe("event.update", () => {
+  const existingEvent = {
+    id: "ev-1",
+    tenantId: TENANT_ID,
+    erEventId: "er-event-42",
+    title: "Old Title",
+    priority: 1,
+    notesJson: null,
+    eventDetailsJson: null,
+    offenderName: null,
+    vesselName: null,
+    vesselRegistration: null,
+    address: null,
+    actionTaken: null,
+  };
+
+  const updatedEventWithIncludes = {
+    ...existingEvent,
+    title: "Updated Title",
+    priority: 2,
+    eventType: null,
+    accompanyingRangers: [],
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(prisma.tenant.findUnique).mockResolvedValue(null);
   });
 
   it("updates editable fields and returns the updated event with accompanyingRangers", async () => {
-    const mockEvent = {
-      id: "ev-1",
-      tenantId: TENANT_ID,
-      erEventId: "er-1",
-      title: "Updated Title",
-      priority: 2,
-      notesJson: { text: "notes" },
-      eventDetailsJson: null,
-      accompanyingRangers: [],
-    };
-    vi.mocked(prisma.event.updateMany).mockResolvedValue({ count: 1 });
-    vi.mocked(prisma.event.findFirst).mockResolvedValue(mockEvent as never);
+    vi.mocked(prisma.event.findFirst).mockResolvedValueOnce(existingEvent as never);
+    vi.mocked(prisma.event.update).mockResolvedValueOnce(updatedEventWithIncludes as never);
 
     const caller = createCaller(makeCtx());
     const result = await caller.update({
@@ -147,15 +165,17 @@ describe("event.update", () => {
       priority: 2,
     });
 
-    expect(vi.mocked(prisma.event.updateMany)).toHaveBeenCalledWith({
-      where: { id: "ev-1", tenantId: TENANT_ID },
-      data: { title: "Updated Title", priority: 2 },
-    });
+    expect(vi.mocked(prisma.event.update)).toHaveBeenCalledWith(
+      partial({
+        where: { id: "ev-1" },
+        data: { title: "Updated Title", priority: 2 },
+      })
+    );
     expect(result).toMatchObject({ id: "ev-1", title: "Updated Title" });
   });
 
-  it("throws NOT_FOUND when updateMany count is 0 (event missing or wrong tenant)", async () => {
-    vi.mocked(prisma.event.updateMany).mockResolvedValue({ count: 0 });
+  it("throws NOT_FOUND when event is missing or belongs to another tenant", async () => {
+    vi.mocked(prisma.event.findFirst).mockResolvedValueOnce(null);
 
     const caller = createCaller(makeCtx());
     await expect(
@@ -179,11 +199,13 @@ describe("event.update", () => {
   });
 
   it("pushes the update to EarthRanger when tenant has credentials configured", async () => {
-    vi.mocked(prisma.event.updateMany).mockResolvedValue({ count: 1 });
-    vi.mocked(prisma.event.findFirst).mockResolvedValue({
-      id: "ev-1",
-      tenantId: TENANT_ID,
-      erEventId: "er-event-42",
+    vi.mocked(prisma.event.findFirst).mockResolvedValueOnce(existingEvent as never);
+    vi.mocked(prisma.event.update).mockResolvedValueOnce({
+      ...existingEvent,
+      title: "New Title",
+      priority: 3,
+      eventDetailsJson: { offenderName: "John Doe" },
+      eventType: null,
       accompanyingRangers: [],
     } as never);
     vi.mocked(prisma.tenant.findUnique).mockResolvedValue({
@@ -213,12 +235,12 @@ describe("event.update", () => {
   });
 
   it("local update succeeds even when EarthRanger push fails (best-effort)", async () => {
-    vi.mocked(prisma.event.updateMany).mockResolvedValue({ count: 1 });
-    vi.mocked(prisma.event.findFirst).mockResolvedValue({
-      id: "ev-1",
-      tenantId: TENANT_ID,
-      erEventId: "er-event-42",
+    vi.mocked(prisma.event.findFirst).mockResolvedValueOnce(existingEvent as never);
+    vi.mocked(prisma.event.update).mockResolvedValueOnce({
+      ...existingEvent,
       title: "Updated",
+      eventType: null,
+      accompanyingRangers: [],
     } as never);
     vi.mocked(prisma.tenant.findUnique).mockResolvedValue({
       earthrangerUrl: "https://er.example.com",
@@ -235,6 +257,110 @@ describe("event.update", () => {
 
     expect(result).toMatchObject({ id: "ev-1", title: "Updated" });
     expect(vi.mocked(pushEventUpdateToEarthRanger)).toHaveBeenCalled();
+  });
+
+  it("writes UPDATE_EVENT audit log with before/after diff of changed fields", async () => {
+    vi.mocked(prisma.event.findFirst).mockResolvedValueOnce(existingEvent as never);
+    vi.mocked(prisma.event.update).mockResolvedValueOnce({
+      ...existingEvent,
+      offenderName: "Acme",
+      eventType: null,
+      accompanyingRangers: [],
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    await caller.update({ id: "ev-1", offenderName: "Acme" });
+
+    expect(vi.mocked(writeAuditLog)).toHaveBeenCalledWith(
+      expect.anything(),
+      partial({
+        action: "UPDATE_EVENT",
+        entityType: "Event",
+        entityId: "ev-1",
+        changesJson: {
+          before: { offenderName: null },
+          after: { offenderName: "Acme" },
+        },
+        severity: "info",
+      })
+    );
+  });
+
+  it("updates all 5 operator-fill fields in one call", async () => {
+    vi.mocked(prisma.event.findFirst).mockResolvedValueOnce(existingEvent as never);
+    vi.mocked(prisma.event.update).mockResolvedValueOnce({
+      ...existingEvent,
+      offenderName: "John Doe",
+      vesselName: "MV Pinas",
+      vesselRegistration: "PH-001",
+      address: "Brgy. San Juan",
+      actionTaken: "Verbal warning issued",
+      eventType: null,
+      accompanyingRangers: [],
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    await caller.update({
+      id: "ev-1",
+      offenderName: "John Doe",
+      vesselName: "MV Pinas",
+      vesselRegistration: "PH-001",
+      address: "Brgy. San Juan",
+      actionTaken: "Verbal warning issued",
+    });
+
+    expect(vi.mocked(prisma.event.update)).toHaveBeenCalledWith(
+      partial({
+        data: partial({
+          offenderName: "John Doe",
+          vesselName: "MV Pinas",
+          vesselRegistration: "PH-001",
+          address: "Brgy. San Juan",
+          actionTaken: "Verbal warning issued",
+        }),
+      })
+    );
+  });
+
+  it("does NOT push to EarthRanger when only operator-fill fields change", async () => {
+    vi.mocked(prisma.event.findFirst).mockResolvedValueOnce(existingEvent as never);
+    vi.mocked(prisma.event.update).mockResolvedValueOnce({
+      ...existingEvent,
+      offenderName: "John Doe",
+      vesselName: "MV Pinas",
+      eventType: null,
+      accompanyingRangers: [],
+    } as never);
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValue({
+      earthrangerUrl: "https://er.example.com",
+      earthrangerDasToken: "secret-token",
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    await caller.update({ id: "ev-1", offenderName: "John Doe", vesselName: "MV Pinas" });
+
+    expect(vi.mocked(pushEventUpdateToEarthRanger)).not.toHaveBeenCalled();
+  });
+
+  it("skips audit and update when no fields change (empty mutation)", async () => {
+    vi.mocked(prisma.event.findFirst).mockResolvedValueOnce(existingEvent as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.update({ id: "ev-1" });
+
+    expect(vi.mocked(prisma.event.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(writeAuditLog)).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ id: "ev-1" });
+  });
+
+  it("cross-tenant id returns same NOT_FOUND message as missing id", async () => {
+    vi.mocked(prisma.event.findFirst).mockResolvedValueOnce(null);
+
+    const caller = createCaller(makeCtx());
+    const err = await caller.update({ id: "ev-cross-tenant", title: "X" }).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(TRPCError);
+    expect((err as TRPCError).message).toBe("Event not found.");
   });
 });
 

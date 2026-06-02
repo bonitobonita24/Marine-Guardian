@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc/client";
 import { AccompanyingRangersInput } from "./accompanying-rangers-input";
 import { EventTimeline } from "./event-timeline";
@@ -21,24 +22,9 @@ type EventDetailModalProps = {
   onClose: () => void;
 };
 
-type EventDetailsFields = {
-  offenderName?: string;
-  vesselName?: string;
-  registrationNumber?: string;
-  address?: string;
-  actionTaken?: string;
-};
-
 type NotesPayload = {
   text?: string;
 };
-
-function readDetails(value: unknown): EventDetailsFields {
-  if (value === null || value === undefined || typeof value !== "object") {
-    return {};
-  }
-  return value;
-}
 
 function readNotes(value: unknown): NotesPayload {
   if (value === null || value === undefined || typeof value !== "object") {
@@ -66,7 +52,11 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState(0);
   const [notes, setNotes] = useState("");
-  const [details, setDetails] = useState<EventDetailsFields>({});
+  const [offenderName, setOffenderName] = useState("");
+  const [vesselName, setVesselName] = useState("");
+  const [vesselRegistration, setVesselRegistration] = useState("");
+  const [address, setAddress] = useState("");
+  const [actionTaken, setActionTaken] = useState("");
 
   useEffect(() => {
     if (!eventQuery.data) return;
@@ -74,7 +64,11 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
     setTitle(ev.title ?? "");
     setPriority(ev.priority);
     setNotes(readNotes(ev.notesJson).text ?? "");
-    setDetails(readDetails(ev.eventDetailsJson));
+    setOffenderName(ev.offenderName ?? "");
+    setVesselName(ev.vesselName ?? "");
+    setVesselRegistration(ev.vesselRegistration ?? "");
+    setAddress(ev.address ?? "");
+    setActionTaken(ev.actionTaken ?? "");
   }, [eventQuery.data]);
 
   const handleSave = () => {
@@ -84,12 +78,12 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
       title,
       priority,
       notesJson: { text: notes },
-      eventDetailsJson: details,
+      offenderName,
+      vesselName,
+      vesselRegistration,
+      address,
+      actionTaken,
     });
-  };
-
-  const handleDetailsChange = (field: keyof EventDetailsFields, value: string) => {
-    setDetails((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleRangersChange = () => {
@@ -150,59 +144,27 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
             </div>
 
             <div className="space-y-2">
-              <h3 className="text-sm font-medium">Event Details</h3>
+              <h3 className="text-sm font-medium">Operator Fill</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label htmlFor="ed-offender" className="text-xs text-muted-foreground">
-                    Offender name
-                  </Label>
-                  <Input
-                    id="ed-offender"
-                    value={details.offenderName ?? ""}
-                    onChange={(e) => { handleDetailsChange("offenderName", e.target.value); }}
-                  />
+                  <Label htmlFor="ed-offender" className="text-xs text-muted-foreground">Offender name</Label>
+                  <Input id="ed-offender" value={offenderName} onChange={(e) => { setOffenderName(e.target.value); }} />
                 </div>
                 <div>
-                  <Label htmlFor="ed-vessel" className="text-xs text-muted-foreground">
-                    Vessel name
-                  </Label>
-                  <Input
-                    id="ed-vessel"
-                    value={details.vesselName ?? ""}
-                    onChange={(e) => { handleDetailsChange("vesselName", e.target.value); }}
-                  />
+                  <Label htmlFor="ed-vessel" className="text-xs text-muted-foreground">Vessel name</Label>
+                  <Input id="ed-vessel" value={vesselName} onChange={(e) => { setVesselName(e.target.value); }} />
                 </div>
                 <div>
-                  <Label htmlFor="ed-reg" className="text-xs text-muted-foreground">
-                    Registration number
-                  </Label>
-                  <Input
-                    id="ed-reg"
-                    value={details.registrationNumber ?? ""}
-                    onChange={(e) =>
-                      { handleDetailsChange("registrationNumber", e.target.value); }
-                    }
-                  />
+                  <Label htmlFor="ed-reg" className="text-xs text-muted-foreground">Vessel registration</Label>
+                  <Input id="ed-reg" value={vesselRegistration} onChange={(e) => { setVesselRegistration(e.target.value); }} />
                 </div>
                 <div>
-                  <Label htmlFor="ed-address" className="text-xs text-muted-foreground">
-                    Address
-                  </Label>
-                  <Input
-                    id="ed-address"
-                    value={details.address ?? ""}
-                    onChange={(e) => { handleDetailsChange("address", e.target.value); }}
-                  />
+                  <Label htmlFor="ed-address" className="text-xs text-muted-foreground">Address</Label>
+                  <Input id="ed-address" value={address} onChange={(e) => { setAddress(e.target.value); }} />
                 </div>
                 <div className="col-span-2">
-                  <Label htmlFor="ed-action" className="text-xs text-muted-foreground">
-                    Action taken
-                  </Label>
-                  <Input
-                    id="ed-action"
-                    value={details.actionTaken ?? ""}
-                    onChange={(e) => { handleDetailsChange("actionTaken", e.target.value); }}
-                  />
+                  <Label htmlFor="ed-action" className="text-xs text-muted-foreground">Action taken</Label>
+                  <Textarea id="ed-action" value={actionTaken} onChange={(e) => { setActionTaken(e.target.value); }} rows={4} />
                 </div>
               </div>
             </div>

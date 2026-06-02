@@ -2,7 +2,8 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
-import { prisma, decrypt } from "@marine-guardian/db";
+import { prisma, decrypt, writeAuditLog } from "@marine-guardian/db";
+import type { PrismaClient, Prisma } from "@marine-guardian/db";
 import { pushEventUpdateToEarthRanger } from "../../lib/earthranger-push";
 
 type PushFieldsInput = {
@@ -135,27 +136,79 @@ export const eventRouter = router({
           priority: z.number().int().min(0).max(3).optional(),
           notesJson: z.unknown().optional(),
           eventDetailsJson: z.unknown().optional(),
+          offenderName: z.string().min(1).max(200).optional(),
+          vesselName: z.string().min(1).max(200).optional(),
+          vesselRegistration: z.string().min(1).max(100).optional(),
+          address: z.string().min(1).max(500).optional(),
+          actionTaken: z.string().min(1).max(5000).optional(),
         })
         .strict()
     )
     .mutation(async ({ ctx, input }) => {
+      const existing = await prisma.event.findFirst({
+        where: { id: input.id, tenantId: ctx.tenantId },
+        select: {
+          id: true,
+          erEventId: true,
+          title: true,
+          priority: true,
+          notesJson: true,
+          eventDetailsJson: true,
+          offenderName: true,
+          vesselName: true,
+          vesselRegistration: true,
+          address: true,
+          actionTaken: true,
+        },
+      });
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Event not found." });
+      }
+
       const data: Record<string, unknown> = {};
       if (input.title !== undefined) data.title = input.title;
       if (input.priority !== undefined) data.priority = input.priority;
       if (input.notesJson !== undefined) data.notesJson = input.notesJson;
       if (input.eventDetailsJson !== undefined) data.eventDetailsJson = input.eventDetailsJson;
+      if (input.offenderName !== undefined) data.offenderName = input.offenderName;
+      if (input.vesselName !== undefined) data.vesselName = input.vesselName;
+      if (input.vesselRegistration !== undefined) data.vesselRegistration = input.vesselRegistration;
+      if (input.address !== undefined) data.address = input.address;
+      if (input.actionTaken !== undefined) data.actionTaken = input.actionTaken;
 
-      const result = await prisma.event.updateMany({
-        where: { id: input.id, tenantId: ctx.tenantId },
-        data,
-      });
-
-      if (result.count === 0) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Event not found." });
+      if (Object.keys(data).length === 0) {
+        return existing;
       }
 
-      const updated = await prisma.event.findFirst({
-        where: { id: input.id, tenantId: ctx.tenantId },
+      const before: Record<string, Prisma.JsonValue> = {};
+      const after: Record<string, Prisma.JsonValue> = {};
+      const scalarKeys = [
+        "title",
+        "priority",
+        "offenderName",
+        "vesselName",
+        "vesselRegistration",
+        "address",
+        "actionTaken",
+      ] as const;
+      for (const key of scalarKeys) {
+        if (input[key] !== undefined && input[key] !== existing[key]) {
+          before[key] = existing[key] ?? null;
+          after[key] = input[key];
+        }
+      }
+      if (input.notesJson !== undefined) {
+        before.notesJson = existing.notesJson ?? null;
+        after.notesJson = input.notesJson;
+      }
+      if (input.eventDetailsJson !== undefined) {
+        before.eventDetailsJson = existing.eventDetailsJson ?? null;
+        after.eventDetailsJson = input.eventDetailsJson;
+      }
+
+      const updated = await prisma.event.update({
+        where: { id: input.id },
+        data,
         include: {
           eventType: true,
           accompanyingRangers: {
@@ -167,8 +220,23 @@ export const eventRouter = router({
         },
       });
 
-      if (updated !== null) {
-        await pushUpdateToErIfConfigured(ctx.tenantId, updated.erEventId, {
+      await writeAuditLog(prisma as unknown as PrismaClient, {
+        tenantId: ctx.tenantId,
+        userId: ctx.userId,
+        action: "UPDATE_EVENT",
+        entityType: "Event",
+        entityId: input.id,
+        changesJson: { before, after },
+        ipAddress: ctx.ip,
+        severity: "info",
+      });
+
+      if (
+        input.title !== undefined ||
+        input.priority !== undefined ||
+        input.eventDetailsJson !== undefined
+      ) {
+        await pushUpdateToErIfConfigured(ctx.tenantId, existing.erEventId, {
           ...(input.title !== undefined ? { title: input.title } : {}),
           ...(input.priority !== undefined ? { priority: input.priority } : {}),
           ...(input.eventDetailsJson !== undefined

@@ -60,7 +60,11 @@ const baseEvent = {
   priority: 2,
   serialNumber: "MG-001",
   notesJson: { text: "Initial sighting" },
-  eventDetailsJson: { offenderName: "Unknown" },
+  offenderName: "Unknown",
+  vesselName: null,
+  vesselRegistration: null,
+  address: null,
+  actionTaken: null,
   locationLat: 14.5995,
   locationLon: 120.9842,
   reportedAt: new Date("2026-05-01T08:00:00Z"),
@@ -132,8 +136,15 @@ describe("EventDetailModal", () => {
         title: "Updated Title",
         priority: 2,
         notesJson: { text: "Initial sighting" },
+        offenderName: "Unknown",
+        vesselName: "",
+        vesselRegistration: "",
+        address: "",
+        actionTaken: "",
       }),
     );
+    const call = stubs.updateMutate.mock.calls[0]?.[0] as Record<string, unknown> | undefined;
+    expect(call).not.toHaveProperty("eventDetailsJson");
     expect(onClose).toHaveBeenCalled();
   });
 
@@ -154,5 +165,42 @@ describe("EventDetailModal", () => {
     );
     expect(getByText(/14.59950/)).toBeTruthy();
     expect(getByText(/120.98420/)).toBeTruthy();
+  });
+
+  it("populates all 5 operator-fill fields from event columns", () => {
+    stubs.getByIdData = {
+      ...baseEvent,
+      offenderName: "Juan Dela Cruz",
+      vesselName: "MV Sampaguita",
+      vesselRegistration: "PH-12345",
+      address: "Brgy. Uno, Palawan",
+      actionTaken: "Vessel impounded",
+    };
+    const { getByLabelText } = render(
+      <EventDetailModal eventId="ev-1" onClose={() => {}} />,
+    );
+    expect((getByLabelText("Offender name") as HTMLInputElement).value).toBe("Juan Dela Cruz");
+    expect((getByLabelText("Vessel name") as HTMLInputElement).value).toBe("MV Sampaguita");
+    expect((getByLabelText("Vessel registration") as HTMLInputElement).value).toBe("PH-12345");
+    expect((getByLabelText("Address") as HTMLInputElement).value).toBe("Brgy. Uno, Palawan");
+    expect((getByLabelText("Action taken") as HTMLTextAreaElement).value).toBe("Vessel impounded");
+  });
+
+  it("persists operator-fill field edits via top-level columns, not eventDetailsJson", () => {
+    stubs.getByIdData = baseEvent;
+    const { getByLabelText, getByText } = render(
+      <EventDetailModal eventId="ev-1" onClose={() => {}} />,
+    );
+    fireEvent.change(getByLabelText("Vessel registration"), {
+      target: { value: "ABC-123" },
+    });
+    fireEvent.click(getByText("Save"));
+
+    expect(stubs.updateMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ vesselRegistration: "ABC-123" }),
+    );
+    const call = stubs.updateMutate.mock.calls[0]?.[0] as Record<string, unknown> | undefined;
+    expect(call).toBeDefined();
+    expect(call).not.toHaveProperty("eventDetailsJson");
   });
 });
