@@ -217,6 +217,7 @@ model User {
   actingAuditLogs          AuditLog[]              @relation("AuditLogActingUser")
   loggedFuelEntries        FuelEntry[]             @relation("FuelEntryLoggedBy")
   requestedReportExports   ReportExport[]          @relation("ReportExportRequestedBy")
+  reportedEvents           Event[]                 @relation("EventReportedByUser")
 
   @@index([tenantId])
   @@map("users")
@@ -260,15 +261,26 @@ model Event {
   notesJson        Json?      @map("notes_json")
   areaName         String?    @map("area_name")
   areaBoundaryId   String?    @map("area_boundary_id")
-  areaDerivedAt    DateTime?  @map("area_derived_at")
-  syncedAt         DateTime   @map("synced_at")
+  areaDerivedAt                DateTime?  @map("area_derived_at")
+  endTime                      DateTime?  @map("end_time")
+  hasPhoto                     Boolean    @default(false) @map("has_photo")
+  reportedByUserId             String?    @map("reported_by_user_id")
+  reportedByKnownRangerId      String?    @map("reported_by_known_ranger_id")
+  offenderName                 String?    @map("offender_name")
+  vesselName                   String?    @map("vessel_name")
+  vesselRegistration           String?    @map("vessel_registration")
+  address                      String?
+  actionTaken                  String?    @map("action_taken") @db.Text
+  syncedAt                     DateTime   @map("synced_at")
   createdAt        DateTime   @default(now()) @map("created_at")
   updatedAt        DateTime   @updatedAt @map("updated_at")
 
   tenant              Tenant               @relation(fields: [tenantId], references: [id])
   eventType           EventType?           @relation(fields: [eventTypeId], references: [id])
-  areaBoundary        AreaBoundary?        @relation(fields: [areaBoundaryId], references: [id])
-  notifications       Notification[]
+  areaBoundary             AreaBoundary?        @relation(fields: [areaBoundaryId], references: [id])
+  reportedByUser           User?                @relation("EventReportedByUser", fields: [reportedByUserId], references: [id])
+  reportedByKnownRanger    KnownRanger?         @relation("EventReportedByKnownRanger", fields: [reportedByKnownRangerId], references: [id])
+  notifications            Notification[]
   alertHistory        AlertHistory[]
   accompanyingRangers AccompanyingRanger[] @relation("AccompanyingRangerEvent")
 
@@ -277,6 +289,8 @@ model Event {
   @@index([state])
   @@index([priority])
   @@index([tenantId, areaBoundaryId])
+  @@index([tenantId, reportedByUserId])
+  @@index([tenantId, reportedByKnownRangerId])
   @@map("events")
 }
 
@@ -715,6 +729,7 @@ model KnownRanger {
 
   tenant              Tenant               @relation(fields: [tenantId], references: [id])
   accompanyingRangers AccompanyingRanger[]
+  reportedEvents      Event[]              @relation("EventReportedByKnownRanger")
 
   @@unique([tenantId, erSubjectId])
   @@index([tenantId])
