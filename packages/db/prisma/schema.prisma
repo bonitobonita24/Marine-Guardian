@@ -357,6 +357,27 @@ model Patrol {
   areaName        String?     @map("area_name")
   areaBoundaryId  String?     @map("area_boundary_id")
   areaDerivedAt   DateTime?   @map("area_derived_at")
+
+  // v2 — location pairs (derived from first/last track point or segment start/end_location)
+  startLocationLat      Float?    @map("start_location_lat")
+  startLocationLon      Float?    @map("start_location_lon")
+  endLocationLat        Float?    @map("end_location_lat")
+  endLocationLon        Float?    @map("end_location_lon")
+
+  // v2 — computed metrics (recomputed from PatrolTrack; preferred over ER totals in reports)
+  computedDistanceKm    Float?    @map("computed_distance_km")
+  computedDurationHours Float?    @map("computed_duration_hours")
+
+  // v2 — flags
+  isTestPatrol          Boolean   @default(false) @map("is_test_patrol")
+  isDeleted             Boolean   @default(false) @map("is_deleted")
+  deletedAt             DateTime? @map("deleted_at")
+
+  // v2 — sync-engine state (drives Active Check candidate selection per spec §Sync Engine)
+  syncNeeded            Boolean   @default(false) @map("sync_needed")
+  firstSeenAt           DateTime? @map("first_seen_at")
+  lastSyncedAt          DateTime? @map("last_synced_at")
+
   syncedAt        DateTime    @map("synced_at")
   createdAt       DateTime    @default(now()) @map("created_at")
   updatedAt       DateTime    @updatedAt @map("updated_at")
@@ -372,6 +393,9 @@ model Patrol {
   @@index([tenantId])
   @@index([state])
   @@index([tenantId, areaBoundaryId])
+  @@index([tenantId, syncNeeded, lastSyncedAt])
+  @@index([tenantId, isDeleted])
+  @@index([tenantId, isTestPatrol])
   @@map("patrols")
 }
 
