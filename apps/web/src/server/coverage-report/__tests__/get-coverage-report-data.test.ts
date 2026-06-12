@@ -270,11 +270,14 @@ describe("getCoverageReportData", () => {
       | {
           where?: {
             tenantId?: string;
+            isDeleted?: boolean;
             startTime?: { gte?: Date; lt?: Date };
           };
         }
       | undefined;
     expect(arg?.where?.tenantId).toBe(TENANT_ID);
+    // Phase 7 soft-delete: deleted patrols excluded from funder report totals
+    expect(arg?.where?.isDeleted).toBe(false);
     expect(arg?.where?.startTime?.gte).toBeInstanceOf(Date);
     expect(arg?.where?.startTime?.lt).toBeInstanceOf(Date);
   });

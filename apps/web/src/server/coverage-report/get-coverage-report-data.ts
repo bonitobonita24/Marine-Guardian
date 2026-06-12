@@ -305,6 +305,8 @@ export async function getCoverageReportData(
   const patrolsRaw = await prisma.patrol.findMany({
     where: {
       tenantId: tenant.id,
+      // Phase 7 soft-delete: deleted patrols excluded from funder report totals
+      isDeleted: false,
       startTime: { gte: period.start, lt: period.end },
     },
     orderBy: { startTime: "asc" },

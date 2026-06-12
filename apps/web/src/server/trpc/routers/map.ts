@@ -92,8 +92,10 @@ const patrolTracksRouter = router({
   byPatrolId: tenantProcedure
     .input(patrolTracksInput)
     .query(async ({ ctx, input }) => {
-      const patrol = await prisma.patrol.findUnique({
-        where: { id: input.patrolId },
+      // Phase 7 soft-delete: map view must not render deleted patrol tracks.
+      // findFirst (not findUnique) so the non-unique isDeleted filter applies.
+      const patrol = await prisma.patrol.findFirst({
+        where: { id: input.patrolId, isDeleted: false },
         select: {
           id: true,
           tenantId: true,

@@ -755,6 +755,8 @@ export async function getPerAreaReportData(
     where: {
       tenantId: tenant.id,
       areaBoundaryId: area.id,
+      // Phase 7 soft-delete: deleted patrols excluded from per-area report totals
+      isDeleted: false,
       startTime: { gte: dateRange.start, lt: dateRange.end },
     },
     select: {

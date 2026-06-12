@@ -13,7 +13,7 @@ vi.mock("@marine-guardian/db", () => ({
       findMany: vi.fn(),
     },
     patrol: {
-      findUnique: vi.fn(),
+      findFirst: vi.fn(),
     },
     patrolArea: {
       findMany: vi.fn(),
@@ -178,7 +178,7 @@ describe("map.patrolTracks.byPatrolId", () => {
   });
 
   it("returns observations along a patrol track scoped to the patrol's leader and time window", async () => {
-    vi.mocked(prisma.patrol.findUnique).mockResolvedValue({
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValue({
       id: "patrol-1",
       tenantId: TENANT_ID,
       startTime: new Date("2026-05-10T08:00:00Z"),
@@ -213,7 +213,7 @@ describe("map.patrolTracks.byPatrolId", () => {
   });
 
   it("rejects access to a patrol that belongs to a different tenant", async () => {
-    vi.mocked(prisma.patrol.findUnique).mockResolvedValue({
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValue({
       id: "patrol-x",
       tenantId: "other-tenant",
       startTime: new Date(),
@@ -228,7 +228,7 @@ describe("map.patrolTracks.byPatrolId", () => {
   });
 
   it("returns empty points if patrol has no segments with leaders", async () => {
-    vi.mocked(prisma.patrol.findUnique).mockResolvedValue({
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValue({
       id: "patrol-2",
       tenantId: TENANT_ID,
       startTime: new Date(),

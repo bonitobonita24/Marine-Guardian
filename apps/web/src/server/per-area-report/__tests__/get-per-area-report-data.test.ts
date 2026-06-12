@@ -534,6 +534,8 @@ describe("getPerAreaReportData", () => {
     expect(patrolCall?.where).toMatchObject({
       tenantId: TENANT_ID,
       areaBoundaryId: AREA_ID,
+      // Phase 7 soft-delete: deleted patrols excluded from per-area report totals
+      isDeleted: false,
       startTime: {
         gte: new Date("2026-05-01T00:00:00.000Z"),
         lt: new Date("2026-06-01T00:00:00.000Z"),

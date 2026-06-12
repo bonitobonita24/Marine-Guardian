@@ -19,7 +19,7 @@ export const dashboardRouter = router({
         where: { tenantId: ctx.tenantId, state: { not: "resolved" } },
       }),
       prisma.patrol.count({
-        where: { tenantId: ctx.tenantId, state: "open" },
+        where: { tenantId: ctx.tenantId, state: "open", isDeleted: false },
       }),
       prisma.accompanyingRanger.findMany({
         where: {
@@ -28,7 +28,7 @@ export const dashboardRouter = router({
           entityId: {
             in: (
               await prisma.patrol.findMany({
-                where: { tenantId: ctx.tenantId, state: "open" },
+                where: { tenantId: ctx.tenantId, state: "open", isDeleted: false },
                 select: { id: true },
               })
             ).map((p) => p.id),

@@ -234,6 +234,24 @@ describe("patrol.stats", () => {
       partial({ where: partial({ tenantId: TENANT_ID }) })
     );
   });
+
+  it("excludes soft-deleted patrols from every stats tile (isDeleted: false on all counts)", async () => {
+    vi.mocked(prisma.patrol.count)
+      .mockResolvedValueOnce(10)
+      .mockResolvedValueOnce(4)
+      .mockResolvedValueOnce(5)
+      .mockResolvedValueOnce(1);
+
+    const caller = createCaller(makeCtx());
+    await caller.stats();
+
+    for (let i = 1; i <= 4; i++) {
+      expect(vi.mocked(prisma.patrol.count)).toHaveBeenNthCalledWith(
+        i,
+        partial({ where: partial({ tenantId: TENANT_ID, isDeleted: false }) })
+      );
+    }
+  });
 });
 
 // 5.2c — Admin manual patrol track rebuild. Re-fetches and materializes GPS
@@ -399,6 +417,30 @@ describe("patrol.list — v2 spec L119 isTestPatrol filter (default exclude)", (
     await caller.list({ limit: 50, includeTest: true });
     const call = vi.mocked(prisma.patrol.findMany).mock.calls[0];
     expect(call?.[0]?.where).not.toHaveProperty("isTestPatrol");
+    expect(call?.[0]?.where).toMatchObject({ tenantId: TENANT_ID });
+  });
+});
+
+describe("patrol.list — Phase 7 soft-delete filter (default exclude)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("default behavior — excludes soft-deleted patrols (where isDeleted: false)", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50 });
+    expect(vi.mocked(prisma.patrol.findMany)).toHaveBeenCalledWith(
+      partial({ where: partial({ tenantId: TENANT_ID, isDeleted: false }) })
+    );
+  });
+
+  it("includeDeleted=true — passes no isDeleted constraint (surfaces deleted rows)", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50, includeDeleted: true });
+    const call = vi.mocked(prisma.patrol.findMany).mock.calls[0];
+    expect(call?.[0]?.where).not.toHaveProperty("isDeleted");
     expect(call?.[0]?.where).toMatchObject({ tenantId: TENANT_ID });
   });
 });

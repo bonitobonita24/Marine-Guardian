@@ -12,6 +12,9 @@ export const patrolListFilters = z.object({
   patrolType: z.enum(["foot", "seaborne"]).optional(),
   // v2 spec L119: exclude test patrols by default (set includeTest=true to include)
   includeTest: z.boolean().default(false),
+  // Phase 7 soft-delete: exclude soft-deleted patrols by default. Admin "Show
+  // Deleted" UI sets includeDeleted=true to surface deleted rows for restore.
+  includeDeleted: z.boolean().default(false),
 });
 
 export const patrolRouter = router({
@@ -30,6 +33,8 @@ export const patrolRouter = router({
           ...(input.patrolType !== undefined ? { patrolType: input.patrolType } : {}),
           // v2 spec L119: exclude test patrols by default (set includeTest=true to include)
           ...(input.includeTest ? {} : { isTestPatrol: false }),
+          // Phase 7 soft-delete: exclude soft-deleted patrols by default
+          ...(input.includeDeleted ? {} : { isDeleted: false }),
         },
         take: input.limit + 1,
         ...(input.cursor !== undefined ? { cursor: { id: input.cursor } } : {}),
@@ -60,12 +65,14 @@ export const patrolRouter = router({
       });
     }),
 
+  // Phase 7 soft-delete: stats are operator-facing — deleted patrols never
+  // count toward any tile, so isDeleted:false is always applied (no toggle).
   stats: tenantProcedure.query(async ({ ctx }) => {
     const [total, open, done, cancelled] = await Promise.all([
-      prisma.patrol.count({ where: { tenantId: ctx.tenantId } }),
-      prisma.patrol.count({ where: { tenantId: ctx.tenantId, state: "open" } }),
-      prisma.patrol.count({ where: { tenantId: ctx.tenantId, state: "done" } }),
-      prisma.patrol.count({ where: { tenantId: ctx.tenantId, state: "cancelled" } }),
+      prisma.patrol.count({ where: { tenantId: ctx.tenantId, isDeleted: false } }),
+      prisma.patrol.count({ where: { tenantId: ctx.tenantId, isDeleted: false, state: "open" } }),
+      prisma.patrol.count({ where: { tenantId: ctx.tenantId, isDeleted: false, state: "done" } }),
+      prisma.patrol.count({ where: { tenantId: ctx.tenantId, isDeleted: false, state: "cancelled" } }),
     ]);
     return { total, open, done, cancelled };
   }),
