@@ -1,2 +1,2 @@
 Todo:
-  ☐ Item
+  ☐ "Resuming as framework-side guide for a NEW canary project: Marine-Guardian. Read MEMORY.md and project_v326_canary_plan.md for full V32.6.1 canary context. We're about to nuke + rebuild Marine-Guardian from scratch to test the cold-start path. Yelli-Basic canary continues in parallel in another window — don't touch its memory files."

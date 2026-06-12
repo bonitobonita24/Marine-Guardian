@@ -1029,3 +1029,15 @@
 - Verification:        Per-package per V31 precedent (shared/web/jobs/storage individually) — shared typecheck 0 / shared lint 0 / shared 108 tests pass (88→108 +20 net new), web typecheck 0 / web lint 0 strict --max-warnings 0 / web 376 tests pass (358→376 +18 net new), jobs typecheck 0 / jobs lint 0 / jobs 122 unchanged, storage typecheck 0 / storage lint 0 / storage 12 unchanged. Monorepo +38 net new vitest cases. Pre-existing @marine-guardian/db turbo-orchestration @types/node failure is unchanged baseline (identical to 4.1a-4.1e + 5.1d-B + 6.1a verification reports — not introduced by 6.1b).
 - Final ship:          Branch feat/6.1b-coverage-area-boundary-summary single commit cfae2fa → squash-merged to main as commit a8e44d9 (21 files, +1974 -2) → branch force-deleted with `git branch -D` per Rule 23 standard cleanup. Pre-impl: pushed prior 6.1a commits (7de30cf + f817d72) to origin/main per user authorization. Post-merge origin push pending after this CHANGELOG entry.
 - Item 1 progress:     2 of 3 sub-batches shipped for Coverage Report 3-page template. Remaining: 6.1c Page 3 (Area Covered — patrol track ∩ enabled boundary clipping for coverage_km/coverage_hrs per boundary, turf.js dependency decision + algorithm — estimated ~12 files, ~55K main-session tokens, Tier 2 MODERATE-HIGH). 6.1b sets the area-attribution + map-render infrastructure that 6.1c will reuse.
+
+## 2026-06-12 — Git hygiene: housekeep stale .specstory deletions + working-tree drift (Swarm S0)
+- Agent:               CLAUDE_CODE (Sonnet — swarm worker S0, branch swarm/phase7-per-area-report-flip)
+- Why:                 Commit long-standing working-tree drift so main is clean before the Per Area Report computed_distance_km flip (S1) and super_admin null-tenant redirect (S2). The .specstory/ tree was added to .gitignore (line 21) earlier but its already-tracked files lingered as staged deletions; this removes them from version control. Pure git hygiene — no source touched.
+- Files added:         none
+- Files modified:      .vscode/settings.json (removed defunct specstory.cloudSync.enabled setting → {}), TODO (scratch-file drift preserved as-is), docs/CHANGELOG_AI.md, .cline/STATE.md
+- Files deleted:       .specstory/.gitignore, .specstory/.project.json, .specstory/cli/config.toml, .specstory/config.json, .specstory/history/2026-04-30_05-52-33Z-add-specstory-and-vscode.md, .specstory/history/2026-04-30_07-57-58Z-analyze-this-project-s.md, .specstory/history/2026-05-01_02-09-53Z-i-renamed-the-github.md, .specstory/specs/v31-master-prompt.md, .specstory/statistics.json (9 stale tracked capture-layer files, now gitignored)
+- Schema/migrations:   none
+- Errors encountered:  none
+- Errors resolved:     none
+- Verification:        .specstory/ confirmed present in .gitignore (line 21) — no add needed. No source files in scope; lint/build/test N/A (changes are gitignored capture files + editor config + plain-text TODO, none enter the TS/build graph).
+- Final ship:          Single chore(repo) commit on branch swarm/phase7-per-area-report-flip. NO origin push (human reviews and pushes).
