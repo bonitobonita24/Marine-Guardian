@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import {
   Table,
   TableBody,
@@ -11,6 +12,14 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc/client";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@/server/trpc/routers";
@@ -20,18 +29,32 @@ type StateFilter = "all" | "open" | "done" | "cancelled";
 type TypeFilter = "all" | "foot" | "seaborne";
 
 export function PatrolsTable() {
+  const { data: session } = useSession();
+  const roles = session?.user.roles ?? [];
+  // Phase 7 soft-delete — delete/restore actions + the "Show deleted" toggle
+  // are admin-only. Mirrors the 5.2c rebuild-tracks-button gating pattern.
+  const canManage =
+    roles.includes("super_admin") || roles.includes("site_admin");
+
   const [stateFilter, setStateFilter] = useState<StateFilter>("all");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [includeTest, setIncludeTest] = useState(false);
+  const [includeDeleted, setIncludeDeleted] = useState(false);
   const [cursor, setCursor] = useState<string | undefined>(undefined);
 
   const [accumulated, setAccumulated] = useState<PatrolListItem[]>([]);
+
+  // Pending delete confirmation target (destructive op → confirm dialog).
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    title: string | null;
+  } | null>(null);
 
   // When filters change, reset accumulated + cursor
   useEffect(() => {
     setAccumulated([]);
     setCursor(undefined);
-  }, [stateFilter, typeFilter, includeTest]);
+  }, [stateFilter, typeFilter, includeTest, includeDeleted]);
 
   const listQuery = trpc.patrol.list.useQuery({
     limit: 50,
@@ -39,6 +62,28 @@ export function PatrolsTable() {
     ...(stateFilter !== "all" ? { state: stateFilter } : {}),
     ...(typeFilter !== "all" ? { patrolType: typeFilter } : {}),
     includeTest,
+    includeDeleted,
+  });
+
+  // After a delete or restore, reset to the first page and refetch so the
+  // mutated row disappears (or its Deleted badge updates) without a reload.
+  function refreshList() {
+    setAccumulated([]);
+    setCursor(undefined);
+    void listQuery.refetch();
+  }
+
+  const softDelete = trpc.patrol.softDelete.useMutation({
+    onSuccess: () => {
+      setDeleteTarget(null);
+      refreshList();
+    },
+  });
+
+  const restore = trpc.patrol.restore.useMutation({
+    onSuccess: () => {
+      refreshList();
+    },
   });
 
   // Append new pages to accumulated
@@ -92,6 +137,18 @@ export function PatrolsTable() {
           />
           Show test patrols
         </label>
+        {canManage && (
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              data-testid="include-deleted-toggle"
+              checked={includeDeleted}
+              onChange={(e) => { setIncludeDeleted(e.target.checked); }}
+              className="h-4 w-4 rounded border-input"
+            />
+            Show deleted
+          </label>
+        )}
       </div>
 
       {isInitialLoading ? (
@@ -118,6 +175,9 @@ export function PatrolsTable() {
                   <TableHead>State</TableHead>
                   <TableHead>Start</TableHead>
                   <TableHead>End</TableHead>
+                  {canManage && (
+                    <TableHead className="text-right">Actions</TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -134,6 +194,14 @@ export function PatrolsTable() {
                             Test
                           </Badge>
                         )}
+                        {p.isDeleted && (
+                          <Badge
+                            variant="destructive"
+                            data-testid={`deleted-badge-${p.id}`}
+                          >
+                            Deleted
+                          </Badge>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="capitalize">{p.patrolType}</TableCell>
@@ -148,6 +216,32 @@ export function PatrolsTable() {
                         ? new Date(p.endTime).toLocaleString()
                         : "—"}
                     </TableCell>
+                    {canManage && (
+                      <TableCell className="text-right">
+                        {p.isDeleted ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            data-testid={`restore-button-${p.id}`}
+                            disabled={restore.isPending}
+                            onClick={() => { restore.mutate({ id: p.id }); }}
+                          >
+                            Restore
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            data-testid={`delete-button-${p.id}`}
+                            onClick={() => {
+                              setDeleteTarget({ id: p.id, title: p.title });
+                            }}
+                          >
+                            Delete
+                          </Button>
+                        )}
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
@@ -167,6 +261,50 @@ export function PatrolsTable() {
           )}
         </>
       )}
+
+      <Dialog
+        open={deleteTarget !== null}
+        onOpenChange={(v) => {
+          if (!v && !softDelete.isPending) {
+            setDeleteTarget(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete this patrol?</DialogTitle>
+            <DialogDescription>
+              {deleteTarget !== null
+                ? `"${deleteTarget.title ?? "(untitled)"}" will be hidden from patrol lists, exports, and reports. An admin can restore it later via "Show deleted".`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {softDelete.error && (
+            <p className="text-sm text-destructive">{softDelete.error.message}</p>
+          )}
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => { setDeleteTarget(null); }}
+              disabled={softDelete.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              data-testid="confirm-delete-button"
+              disabled={softDelete.isPending}
+              onClick={() => {
+                if (deleteTarget !== null) {
+                  softDelete.mutate({ id: deleteTarget.id });
+                }
+              }}
+            >
+              {softDelete.isPending ? "Deleting…" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

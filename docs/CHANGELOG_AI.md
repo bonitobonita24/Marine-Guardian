@@ -3,6 +3,18 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-06-12 — Phase 7 Soft-delete UI: delete/restore actions + admin-only "Show deleted" toggle on /patrols (S3)
+
+- Agent:               CLAUDE_CODE (Opus 4.8 — headless Spec-Driven Swarm worker S3, branch swarm/phase7-soft-delete)
+- Why:                 Final session of the patrol soft-delete wave. Surfaces the write path (S1: patrol.softDelete/restore, 027db8d) and read filter (S2: includeDeleted toggle on patrol.list, e270152) in the operator UI. Admins can now soft-delete a patrol, reveal deleted rows, and restore them — without leaving the Patrols table.
+- Files modified:      apps/web/src/app/(dashboard)/patrols/patrols-table.tsx, apps/web/src/app/(dashboard)/patrols/__tests__/patrols-table.test.tsx
+- Files added:         none
+- Files deleted:       none
+- Schema/migrations:   none — consumes existing patrol.softDelete/restore mutations + patrol.list includeDeleted input.
+- Implementation:      Admin gating mirrors the same-directory 5.2c rebuild-tracks-button pattern: useSession() → roles.includes("super_admin") || roles.includes("site_admin") → canManage. New admin-only Actions column: non-deleted rows get a destructive Delete button → confirm Dialog → patrol.softDelete.mutate({id}) → refreshList() (reset accumulated+cursor, refetch); deleted rows get a Restore button (direct, non-destructive) → patrol.restore.mutate({id}) → refreshList(), plus a destructive "Deleted" Badge in the Title cell. Admin-only "Show deleted" checkbox added next to "Show test patrols" (wires to list input includeDeleted; reset-effect dependency added). DEVIATION (Rule 29 surfaced): the session scope referenced a shadcn "AlertDialog" primitive and "toast success", but neither AlertDialog nor any toast/sonner primitive exists in this codebase (only dialog.tsx) — and the scope also stated "No new shadcn primitives needed". Resolved deterministically from the established same-directory convention (rebuild-tracks-button.tsx): Dialog for the destructive confirm + inline refetch on success, no new primitive introduced.
+- Tests:               +6 cases. admin sees Delete button; operator does NOT see Delete button; admin sees "Show deleted" toggle (operator does not); deleted row shows Restore button + Deleted badge (and no Delete button); confirming delete calls patrol.softDelete with {id}; clicking Restore calls patrol.restore with {id}. Test harness extended: vi.mock("next-auth/react") with a mutable sessionRoles var, plus softDelete/restore useMutation mocks exposing mutate spies. Web suite 748 → 754.
+- Phase 7 gate:        Hard pre-merge gate green — pnpm --filter @marine-guardian/web build ✅ (Next.js production build, ESLint-strict, /patrols route emitted), pnpm --filter @marine-guardian/web test ✅ (754/754).
+
 ## 2026-06-12 — Phase 7 Soft-delete write path: patrol.softDelete + patrol.restore (S1)
 
 - Agent:               CLAUDE_CODE (Opus 4.8 — headless Spec-Driven Swarm worker S1, branch swarm/phase7-soft-delete)
