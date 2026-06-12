@@ -252,6 +252,16 @@ async function syncEvents(
   return events.length;
 }
 
+/**
+ * Sync patrols from EarthRanger into the canonical Patrol table.
+ *
+ * `syncNeeded` semantics:
+ *   - `false` = canonical patrol state is synced (the upsert itself IS the resync).
+ *   - `true`  = the upsert succeeded but a downstream materialization step
+ *               (area re-derive or patrol-track materialize) failed to enqueue,
+ *               so the row still needs a re-sync pass.
+ * Queryable via the (tenantId, syncNeeded, lastSyncedAt) index.
+ */
 async function syncPatrols(
   client: EarthRangerClient,
   tenantId: string,
@@ -301,6 +311,7 @@ async function syncPatrols(
         isTestPatrol,
         firstSeenAt: now,
         lastSyncedAt: now,
+        syncNeeded: false,
       },
       update: {
         serialNumber: p.serial_number != null ? String(p.serial_number) : null,
@@ -316,6 +327,7 @@ async function syncPatrols(
         endLocationLon: endLon,
         isTestPatrol,
         lastSyncedAt: now,
+        syncNeeded: false,
       },
       select: { id: true },
     });
@@ -332,6 +344,11 @@ async function syncPatrols(
         `[er-sync] enqueueAreaRederive failed for patrol ${patrol.id}:`,
         err instanceof Error ? err.message : String(err),
       );
+      // Upsert succeeded but downstream materialization failed — flag for re-sync.
+      await platformPrisma.patrol.update({
+        where: { id: patrol.id },
+        data: { syncNeeded: true },
+      });
     }
     try {
       await enqueuePatrolTrackMaterialize({
@@ -344,6 +361,11 @@ async function syncPatrols(
         `[er-sync] enqueuePatrolTrackMaterialize failed for patrol ${patrol.id}:`,
         err instanceof Error ? err.message : String(err),
       );
+      // Upsert succeeded but downstream materialization failed — flag for re-sync.
+      await platformPrisma.patrol.update({
+        where: { id: patrol.id },
+        data: { syncNeeded: true },
+      });
     }
   }
 

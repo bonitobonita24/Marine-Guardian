@@ -3,6 +3,18 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-06-12 — Phase 7 syncNeeded write path: syncPatrols sets/clears drift marker (S0)
+
+- Agent:               CLAUDE_CODE (Opus 4.8 — headless Spec-Driven Swarm worker S0, branch swarm/phase7-syncneeded)
+- Why:                 Activates the dormant Patrol.syncNeeded column (v2 a470e7a, indexed by @@index([tenantId, syncNeeded, lastSyncedAt])) on the ER write path. A patrol upsert is itself the canonical resync, so it clears syncNeeded; if a downstream materialization step fails to enqueue, the row is flagged for a re-sync pass. This is the write half — a candidate-query rescan consumer is a dependent follow-up session (S1), intentionally out of scope here.
+- Files modified:      packages/jobs/src/processors/er-sync.processor.ts, packages/jobs/src/__tests__/er-sync.processor.test.ts, packages/jobs/src/lib/patrol-track-materialization.ts (chore — see Phase 7 gate)
+- Files added:         none
+- Files deleted:       none
+- Schema/migrations:   none — syncNeeded Boolean @default(false) already present on Patrol (v2 a470e7a).
+- Implementation:      syncPatrols (L255-355): both the create and update branches of the patrol.upsert now write syncNeeded: false on every successful canonical-data write. The two downstream enqueue calls (enqueueAreaRederive + enqueuePatrolTrackMaterialize) each keep their existing try/catch + console.error logging; each catch block additionally runs platformPrisma.patrol.update({ where: { id: patrol.id }, data: { syncNeeded: true } }) so a row whose upsert succeeded but whose materialization failed is left flagged for re-sync. JSDoc added on syncPatrols documenting syncNeeded semantics (false = canonical state synced; true = upsert succeeded but a downstream materialization step failed; queryable via the (tenantId, syncNeeded, lastSyncedAt) index). syncEvents/syncObservations/syncFuel untouched.
+- Tests:               +3 cases in the syncPatrols area of er-sync.processor.test.ts: (a) successful upsert writes syncNeeded=false on the create branch (and patrol.update not called), (b) successful upsert writes syncNeeded=false on the update branch, (c) when enqueueAreaRederive rejects, patrol.update is called with { where: {id}, data: { syncNeeded: true } }. Mock factory extended with patrol.update (vi.fn) on both the vi.mock block and the typed mockPrisma view. Jobs suite 140 → 143.
+- Phase 7 gate:        Hard pre-merge gate green — jobs lint clean, pnpm --filter @marine-guardian/jobs test ✅ (143/143), pnpm --filter @marine-guardian/web build ✅ (Next.js production build, ESLint-strict), pnpm --filter @marine-guardian/web test ✅ (754/754), pnpm typecheck ✅ (7/7). CHORE (separate commit, gate-clearing): the jobs lint gate (eslint src/) surfaced 3 pre-existing strict-boolean-expressions / no-unnecessary-condition errors in patrol-track-materialization.ts (recompute helper, 2dad7a4) that block the package lint pass. Cleared surgically with zero behavior change (!row?.trackGeojson → row?.trackGeojson == null; dropped two type-redundant defensive guards the type contract already proves) per the documented "fix pre-existing package debt as a separate chore commit before the feature commit — never bypass the gate" pattern.
+
 ## 2026-06-12 — Phase 7 Soft-delete UI: delete/restore actions + admin-only "Show deleted" toggle on /patrols (S3)
 
 - Agent:               CLAUDE_CODE (Opus 4.8 — headless Spec-Driven Swarm worker S3, branch swarm/phase7-soft-delete)

@@ -22,7 +22,7 @@ vi.mock("@marine-guardian/db", () => ({
       create: vi.fn(),
       update: vi.fn(),
     },
-    patrol: { upsert: vi.fn() },
+    patrol: { upsert: vi.fn(), update: vi.fn() },
     patrolSegment: { upsert: vi.fn() },
     observation: { upsert: vi.fn() },
     syncLog: { create: vi.fn(), update: vi.fn() },
@@ -85,7 +85,7 @@ const mockPrisma = platformPrisma as unknown as {
     create: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
   };
-  patrol: { upsert: ReturnType<typeof vi.fn> };
+  patrol: { upsert: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
   observation: { upsert: ReturnType<typeof vi.fn> };
   syncLog: { create: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
   user: { findFirst: ReturnType<typeof vi.fn> };
@@ -309,6 +309,41 @@ describe("processErSync", () => {
       startLocationLat: 14.5,
       endLocationLon: 120.8,
       endLocationLat: 14.7,
+    });
+  });
+
+  it("writes syncNeeded=false on the create branch of a successful upsert", async () => {
+    mockPrisma.patrol.upsert.mockResolvedValue({ id: "patrol-1" });
+
+    await processErSync(makeJob({ syncType: "patrols" }));
+
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const upsertCall = mockPrisma.patrol.upsert.mock.calls[0]![0] as { create: Record<string, unknown> };
+    expect(upsertCall.create.syncNeeded).toBe(false);
+    expect(mockPrisma.patrol.update).not.toHaveBeenCalled();
+  });
+
+  it("writes syncNeeded=false on the update branch of a successful upsert", async () => {
+    mockPrisma.patrol.upsert.mockResolvedValue({ id: "patrol-1" });
+
+    await processErSync(makeJob({ syncType: "patrols" }));
+
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const upsertCall = mockPrisma.patrol.upsert.mock.calls[0]![0] as { update: Record<string, unknown> };
+    expect(upsertCall.update.syncNeeded).toBe(false);
+    expect(mockPrisma.patrol.update).not.toHaveBeenCalled();
+  });
+
+  it("flags patrol with syncNeeded=true when enqueueAreaRederive fails", async () => {
+    mockPrisma.patrol.upsert.mockResolvedValue({ id: "patrol-1" });
+    mockEnqueueAreaRederive.mockRejectedValueOnce(new Error("queue down"));
+    mockPrisma.patrol.update.mockResolvedValue({ id: "patrol-1" });
+
+    await processErSync(makeJob({ syncType: "patrols" }));
+
+    expect(mockPrisma.patrol.update).toHaveBeenCalledWith({
+      where: { id: "patrol-1" },
+      data: { syncNeeded: true },
     });
   });
 
