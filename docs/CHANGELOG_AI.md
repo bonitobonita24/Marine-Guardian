@@ -1054,3 +1054,16 @@
 - Errors resolved:     none
 - Verification:        .specstory/ confirmed present in .gitignore (line 21) — no add needed. No source files in scope; lint/build/test N/A (changes are gitignored capture files + editor config + plain-text TODO, none enter the TS/build graph).
 - Final ship:          Single chore(repo) commit on branch swarm/phase7-per-area-report-flip. NO origin push (human reviews and pushes).
+
+## 2026-06-12 — Bug #6: super_admin null-tenant layout redirect (Swarm S2)
+- Agent:               CLAUDE_CODE (Opus 4.8 — swarm worker S2, branch swarm/phase7-per-area-report-flip)
+- Why:                 super_admins have no home tenant — the Auth.js session callback normalizes their null DB tenantId to "" (auth/config.ts L102). Without a gate, navigating to any (dashboard) route rendered tenant-scoped pages with no tenant context (empty/broken UI). The (dashboard) layout now redirects them to the /admin platform console (shipped Item 1, e5cd29d) before any tenant-scoped child renders. Pure UX gate — no tenant routers touched.
+- Files added:         apps/web/src/app/(dashboard)/__tests__/layout.test.tsx (3 vitest cases — redirect on super_admin+empty-tenant+no-cookie; NO redirect while impersonating; NO redirect for regular tenant user)
+- Files modified:      apps/web/src/app/(dashboard)/layout.tsx (converted to async server component; calls auth() + redirect("/admin") for super_admin with session.tenantId === ""), docs/CHANGELOG_AI.md, .cline/STATE.md
+- Files deleted:       none
+- Schema/migrations:   none
+- Errors encountered:  Next.js production build (Phase 7 V31.4 gate) flagged @typescript-eslint/strict-boolean-expressions on `session?.user.roles.includes(...)` — optional chaining made the conditional a nullable boolean.
+- Errors resolved:     Replaced the optional-chain with an explicit `session !== null &&` guard (matches route-auth.ts style). Build re-ran clean.
+- Design note:         The gate is impersonation-aware. Item 4 (commit c20190e/aa8fbef) lets a super_admin browse a tenant's dashboard via the HttpOnly `mg-impersonate-tenant` cookie while session.tenantId stays "". An impersonation-blind redirect would have regressed that shipped flow, so the layout reads the cookie via next/headers and skips the redirect when parseImpersonationCookieFromHeader() returns a valid tenant id — mirroring requireRouteAuth() in server/lib/route-auth.ts. The scope's conceptual `tenantId == null` maps to the codebase's real `=== ""` session sentinel (== null never matches post-normalization).
+- Verification:        Phase 7 hard pre-merge gate — all 4 commands GREEN: pnpm tools:check-product-sync ✓ (5 docs, no private tags), pnpm typecheck ✓ (7/7 packages), pnpm test ✓ (737 web vitest, +3 new), pnpm --filter @marine-guardian/web build ✓ (Next.js production build, ESLint clean after the strict-boolean fix).
+- Final ship:          Single feat(phase-4-S2) commit on branch swarm/phase7-per-area-report-flip. NO origin push (human reviews and pushes).
