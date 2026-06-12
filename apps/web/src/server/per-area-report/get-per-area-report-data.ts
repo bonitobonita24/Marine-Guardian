@@ -762,12 +762,25 @@ export async function getPerAreaReportData(
       patrolType: true,
       startTime: true,
       totalDistanceKm: true,
+      computedDistanceKm: true,
       totalHours: true,
       track: { select: { trackGeojson: true } },
     },
   });
 
-  const patrolSummary = buildPatrolSummary(patrols);
+  // Patrol v2 (a470e7a / 2dad7a4): prefer the haversine-summed
+  // computedDistanceKm (set once PatrolTrack materialize has run) over the
+  // ER-supplied totalDistanceKm. When the recompute hasn't run yet (legacy
+  // patrols, or patrols with no PatrolTrack row), computedDistanceKm is
+  // null/undefined and ?? falls back to the original total. Resolved once
+  // here so both the patrol summary AND the seaborne fuel-consumption path
+  // consume the same effective distance. Mirrors Coverage Report (273635c).
+  const patrolsWithEffectiveDistance = patrols.map((p) => ({
+    ...p,
+    totalDistanceKm: p.computedDistanceKm ?? p.totalDistanceKm,
+  }));
+
+  const patrolSummary = buildPatrolSummary(patrolsWithEffectiveDistance);
   const patrolTracks = buildPatrolTracks(patrols);
 
   // ────────────────────────────────────────────────────────────────────
@@ -793,7 +806,7 @@ export async function getPerAreaReportData(
   });
 
   const seabornePatrols: SeabornePatrolBucketInput[] = [];
-  for (const p of patrols) {
+  for (const p of patrolsWithEffectiveDistance) {
     if (p.patrolType !== "seaborne") continue;
     seabornePatrols.push({
       startedAt: p.startTime,

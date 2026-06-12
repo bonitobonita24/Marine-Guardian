@@ -424,6 +424,64 @@ describe("getPerAreaReportData", () => {
     });
   });
 
+  it("prefers computedDistanceKm over totalDistanceKm when both present (Patrol v2 a470e7a)", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
+      TENANT_ROW as never,
+    );
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValueOnce(
+      EXPORT_ROW as never,
+    );
+    vi.mocked(prisma.areaBoundary.findUnique).mockResolvedValueOnce(
+      AREA_ROW as never,
+    );
+    vi.mocked(prisma.event.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([
+      {
+        id: "p1",
+        patrolType: "seaborne",
+        startTime: new Date("2026-02-10T00:00:00Z"),
+        totalDistanceKm: 8.4,
+        computedDistanceKm: 12.5,
+        totalHours: 4.0,
+        track: null,
+      },
+    ] as never);
+    const r = await getPerAreaReportData(TENANT_SLUG, EXPORT_ID);
+    // Both distance consumers resolve from the same effective value: the
+    // recomputed haversine total (12.5) is preferred over the ER-supplied 8.4.
+    expect(r?.patrolSummary.seaborne.totalDistanceKm).toBeCloseTo(12.5, 5);
+    expect(r?.fuelConsumption?.totalSeabornePatrolKm).toBeCloseTo(12.5, 5);
+  });
+
+  it("falls back to totalDistanceKm when computedDistanceKm is null (Patrol v2 a470e7a)", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
+      TENANT_ROW as never,
+    );
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValueOnce(
+      EXPORT_ROW as never,
+    );
+    vi.mocked(prisma.areaBoundary.findUnique).mockResolvedValueOnce(
+      AREA_ROW as never,
+    );
+    vi.mocked(prisma.event.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([
+      {
+        id: "p1",
+        patrolType: "seaborne",
+        startTime: new Date("2026-02-10T00:00:00Z"),
+        totalDistanceKm: 8.4,
+        computedDistanceKm: null,
+        totalHours: 4.0,
+        track: null,
+      },
+    ] as never);
+    const r = await getPerAreaReportData(TENANT_SLUG, EXPORT_ID);
+    // Recompute has not run (computedDistanceKm null) — ?? falls back to the
+    // original ER total on both consumers.
+    expect(r?.patrolSummary.seaborne.totalDistanceKm).toBeCloseTo(8.4, 5);
+    expect(r?.fuelConsumption?.totalSeabornePatrolKm).toBeCloseTo(8.4, 5);
+  });
+
   it("returns zero-row patrol summary when no patrols match", async () => {
     vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
       TENANT_ROW as never,

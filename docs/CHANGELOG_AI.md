@@ -3,6 +3,19 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-06-12 — Phase 7 Per Area Report prefers computed_distance_km (Patrol v2 a470e7a consumer #2)
+
+- Agent:               CLAUDE_CODE (Opus 4.8 — headless Spec-Driven Swarm worker S1, branch swarm/phase7-per-area-report-flip)
+- Why:                 Second read-consumer of the Patrol v2 computed_distance_km column (a470e7a schema, 2dad7a4 recompute helper), mirroring Coverage Report (273635c). The Per Area Report now prefers the haversine-summed actual-GPS distance over the ER-supplied total wherever it surfaces patrol distance — both the patrol summary AND the seaborne fuel-consumption (L/km) ratio.
+- Files modified:      apps/web/src/server/per-area-report/get-per-area-report-data.ts, apps/web/src/server/per-area-report/__tests__/get-per-area-report-data.test.ts
+- Files added:         none
+- Files deleted:       none
+- Schema/migrations:   none — computedDistanceKm added by a470e7a, populated by 2dad7a4
+- Implementation:      The patrol findMany uses `select:` (unlike Coverage Report's `include:`), so `computedDistanceKm: true` was added to the select block. This file has TWO distance consumers — buildPatrolSummary (patrolSummary output) and the seaborne loop feeding buildFuelConsumption (totalSeabornePatrolKm) — so the fallback is resolved ONCE into a `patrolsWithEffectiveDistance` array (`totalDistanceKm: p.computedDistanceKm ?? p.totalDistanceKm`) immediately after the query, keeping a single source of truth. buildPatrolTracks keeps raw patrols (it reads only track/id/type, no distance). All output interface field names unchanged (still `totalDistanceKm` / `totalSeabornePatrolKm`); the fallback resolves internally so downstream print-render/PDF consumers keep working. Null-safe both ways: when recompute has not run (legacy patrols, no PatrolTrack row) computedDistanceKm is null/undefined and `??` falls back to the ER total. Existing patrol mocks NOT updated to add computedDistanceKm — `undefined ?? total` falls back identically, so prior tests pass unchanged.
+- Tests:               +2 it blocks in the existing "getPerAreaReportData" describe — "prefers computedDistanceKm over totalDistanceKm when both present" (computed=12.5, total=8.4 → 12.5 on both patrolSummary.seaborne.totalDistanceKm AND fuelConsumption.totalSeabornePatrolKm) and "falls back to totalDistanceKm when computedDistanceKm is null" (computed=null, total=8.4 → 8.4 on both). Web suite 732 → 734.
+- Phase 7 gate:        All 4 hard pre-merge commands green — pnpm tools:check-product-sync ✅, pnpm typecheck ✅ (7/7), pnpm test ✅ (web 734/734), pnpm --filter @marine-guardian/web build ✅ (ESLint-strict, clean).
+- Errors encountered:  Pre-existing, out-of-scope: workspace `pnpm lint` fails on packages/jobs/src/lib/patrol-track-materialization.ts (3 errors at L356/362/387 — strict-boolean-expressions + 2 no-unnecessary-condition) introduced by the 2dad7a4 recompute helper ship. Verified pre-existing via `git stash` on HEAD 4d1681b (reproduces with this session's work removed). NOT part of the 4-command Phase 7 hard gate and outside this web-only scope — left untouched, flagged for a separate jobs-lint cleanup. The web build's own ESLint pass over the changed files is clean.
+
 ## 2026-05-31 — Phase 7 post-§210 Option C: PATROL_SCHEDULE:OVERRIDE_CONFLICT audit row
 
 - Agent:               CLAUDE_CODE (Opus 4.7 architect + Sonnet 4.6 executor — V32 R1)
