@@ -91,6 +91,25 @@ export interface PdfRenderJobPayload extends BaseJobPayload {
   exportId: string;
 }
 
+/**
+ * Sync-needed rescan job payload. Enqueued when:
+ *  - a scheduler (follow-up work — not wired in this session) periodically
+ *    fans out one rescan job per active tenant to drain drift-flagged patrols.
+ *
+ * Drives the consumer side of the `Patrol.syncNeeded` drift marker (set true
+ * by syncPatrols when a downstream materialization step fails to enqueue).
+ * The processor queries the (tenantId, syncNeeded, lastSyncedAt) compound
+ * index for flagged, non-deleted patrols and re-enqueues their downstream
+ * materialization jobs (area re-derive + patrol-track materialize) per id —
+ * no new EarthRanger client work required.
+ *
+ * tenantId scopes the candidate query. userId is set to the triggering
+ * scheduler/system sentinel — required by BaseJobPayload + validateTenantContext.
+ */
+export interface SyncNeededRescanJobPayload extends BaseJobPayload {
+  tenantId: string;
+}
+
 export type JobPayloadMap = {
   "er-sync": ErSyncJobPayload;
   alerts: AlertJobPayload;
@@ -99,6 +118,7 @@ export type JobPayloadMap = {
   "area-rederive": AreaRederiveJobPayload;
   "patrol-track-materialize": PatrolTrackMaterializeJobPayload;
   "pdf-render": PdfRenderJobPayload;
+  "sync-needed-rescan": SyncNeededRescanJobPayload;
 };
 
 export type QueueName = keyof JobPayloadMap;
@@ -111,4 +131,5 @@ export const QUEUE_NAMES = {
   AREA_REDERIVE: "area-rederive",
   PATROL_TRACK_MATERIALIZE: "patrol-track-materialize",
   PDF_RENDER: "pdf-render",
+  SYNC_NEEDED_RESCAN: "sync-needed-rescan",
 } as const satisfies Record<string, QueueName>;

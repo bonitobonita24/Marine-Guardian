@@ -20,6 +20,10 @@ export {
   enqueuePdfRender,
 } from "./pdf-render.queue";
 export {
+  getSyncNeededRescanQueue,
+  enqueueSyncNeededRescan,
+} from "./sync-needed-rescan.queue";
+export {
   QUEUE_NAMES,
   type QueueName,
   type JobPayloadMap,
@@ -31,4 +35,5 @@ export {
   type AreaRederiveJobPayload,
   type PatrolTrackMaterializeJobPayload,
   type PdfRenderJobPayload,
+  type SyncNeededRescanJobPayload,
 } from "./types";
