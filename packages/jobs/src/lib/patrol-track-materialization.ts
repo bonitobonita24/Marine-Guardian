@@ -353,13 +353,13 @@ export async function recomputeDistanceAndDuration(
 
   // Step 1 — load the PatrolTrack row.
   const row = await prisma.patrolTrack.findUnique({ where: { patrolId } });
-  if (!row?.trackGeojson) {
+  if (row?.trackGeojson == null) {
     return zero;
   }
 
   // Step 2 — parse the stored GeoJSON (Prisma Json comes back as unknown).
   const fc = row.trackGeojson as unknown as ErTrackResponse;
-  const features = fc.features ?? [];
+  const features = fc.features;
   if (features.length === 0) {
     return zero;
   }
@@ -384,7 +384,7 @@ export async function recomputeDistanceAndDuration(
     // Collect timestamps if present.
     const times: unknown[] =
       (feature.properties as { coordinateProperties?: { times?: unknown[] } })
-        ?.coordinateProperties?.times ?? [];
+        .coordinateProperties?.times ?? [];
     for (const t of times) {
       if (typeof t === "string" && t.length > 0) {
         const ms = Date.parse(t);
