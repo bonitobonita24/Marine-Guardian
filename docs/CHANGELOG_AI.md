@@ -3,6 +3,18 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-06-12 — Phase 7 Soft-delete write path: patrol.softDelete + patrol.restore (S1)
+
+- Agent:               CLAUDE_CODE (Opus 4.8 — headless Spec-Driven Swarm worker S1, branch swarm/phase7-soft-delete)
+- Why:                 First write-path session of the patrol soft-delete wave. Adds operator-triggered soft-delete + restore mutations over the Patrol v2 soft-delete columns (isDeleted/deletedAt, shipped additively in a470e7a). Read-path filtering (S2) and UI (S3) are dependent follow-up sessions and intentionally out of scope here.
+- Files modified:      apps/web/src/server/trpc/routers/patrol.ts, apps/web/src/server/trpc/routers/__tests__/patrol.test.ts
+- Files added:         none
+- Files deleted:       none
+- Schema/migrations:   none — isDeleted Boolean + deletedAt DateTime? already present on Patrol (v2 a470e7a, @@index([tenantId, isDeleted]))
+- Implementation:      Both mutations use adminProcedure (super_admin + site_admin) and mirror the Option B updateRole hardening (652d33d): findFirst tenant-scoped → throw NOT_FOUND with the SAME "Patrol not found." message for missing vs cross-tenant (enumeration-leak guard) → idempotence guard (softDelete BAD_REQUEST "Patrol already deleted." when isDeleted; restore BAD_REQUEST "Patrol not deleted." when !isDeleted) → prisma.patrol.update (softDelete sets isDeleted:true + deletedAt:new Date(); restore sets isDeleted:false + deletedAt:null) → writeAuditLog (DELETE_PATROL / RESTORE_PATROL, entityType "Patrol", before/after changesJson, ipAddress ctx.ip) → return { id }. DEVIATION (Rule 29 surfaced): the session scope specified severity='medium', but the deployed Prisma Severity enum is {info,warning,high,critical} — there is no 'medium'. A recoverable destructive op maps to severity='warning'; resolved deterministically from the deployed type system rather than blocking, and documented in-code. Read paths are NOT modified here.
+- Tests:               +8 cases across two new describe blocks. softDelete: happy path (update + audit + returns id), already-deleted BAD_REQUEST (no update/audit), cross-tenant NOT_FOUND (no update/audit), operator RBAC rejection (no DB read), audit-row assertion (DELETE_PATROL + warning severity + before/after). restore: happy path (clears flags + RESTORE_PATROL audit with deterministic before.deletedAt ISO string), not-deleted BAD_REQUEST, cross-tenant NOT_FOUND. Test mock factory extended with patrol.update + a faithful writeAuditLog forwarder (mirrors packages/db/src/helpers/audit.ts) so audit-row assertions land on the mocked prisma.auditLog.create. Web suite 737 → 745.
+- Phase 7 gate:        Hard pre-merge gate green — pnpm --filter @marine-guardian/web build ✅ (Next.js production build, ESLint-strict — caught and cleared test lint debt: typed mock forwarder instead of any, removed unnecessary null `as never` casts, replaced nested expect.any() matchers with partial()/deterministic values), pnpm --filter @marine-guardian/web test ✅ (745/745).
+
 ## 2026-06-12 — Phase 7 Per Area Report prefers computed_distance_km (Patrol v2 a470e7a consumer #2)
 
 - Agent:               CLAUDE_CODE (Opus 4.8 — headless Spec-Driven Swarm worker S1, branch swarm/phase7-per-area-report-flip)

@@ -6,12 +6,45 @@ vi.mock("@marine-guardian/db", () => ({
     patrol: {
       findMany: vi.fn(),
       findFirst: vi.fn(),
+      update: vi.fn(),
       count: vi.fn(),
     },
     auditLog: {
       create: vi.fn(),
     },
   },
+  // Faithful forwarder mirroring packages/db/src/helpers/audit.ts so audit-row
+  // assertions land on the mocked prisma.auditLog.create.
+  writeAuditLog: vi.fn(
+    async (
+      tx: { auditLog: { create: (args: unknown) => Promise<unknown> } },
+      entry: {
+        tenantId: string | null;
+        userId: string;
+        action: string;
+        entityType: string;
+        entityId: string;
+        changesJson?: unknown;
+        ipAddress?: string | null;
+        severity?: string;
+      },
+    ) => {
+      await tx.auditLog.create({
+        data: {
+          tenantId: entry.tenantId,
+          userId: entry.userId,
+          action: entry.action,
+          entityType: entry.entityType,
+          entityId: entry.entityId,
+          ...(entry.changesJson != null
+            ? { changesJson: entry.changesJson }
+            : {}),
+          ipAddress: entry.ipAddress ?? null,
+          ...(entry.severity != null ? { severity: entry.severity } : {}),
+        },
+      });
+    },
+  ),
 }));
 
 vi.mock("@marine-guardian/jobs", () => ({
@@ -367,5 +400,160 @@ describe("patrol.list — v2 spec L119 isTestPatrol filter (default exclude)", (
     const call = vi.mocked(prisma.patrol.findMany).mock.calls[0];
     expect(call?.[0]?.where).not.toHaveProperty("isTestPatrol");
     expect(call?.[0]?.where).toMatchObject({ tenantId: TENANT_ID });
+  });
+});
+
+// Phase 7 soft-delete — patrol.softDelete + patrol.restore (write path).
+// adminProcedure (super_admin + site_admin) Option B hardening: findFirst
+// tenant-scoped → NOT_FOUND (same message for missing vs cross-tenant) →
+// BAD_REQUEST idempotence guard → update → writeAuditLog (before/after).
+// NOTE: severity recorded as "warning" (deployed Severity enum has no "medium").
+describe("patrol.softDelete (Phase 7 soft-delete)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.patrol.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
+
+  it("happy path — sets isDeleted/deletedAt, writes audit, returns id", async () => {
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValue({
+      id: "pat-1",
+      isDeleted: false,
+    } as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const result = await caller.softDelete({ id: "pat-1" });
+
+    expect(result).toEqual({ id: "pat-1" });
+    expect(vi.mocked(prisma.patrol.findFirst)).toHaveBeenCalledWith(
+      partial({ where: partial({ id: "pat-1", tenantId: TENANT_ID }) })
+    );
+    expect(vi.mocked(prisma.patrol.update)).toHaveBeenCalledWith(
+      partial({ where: { id: "pat-1" }, data: partial({ isDeleted: true }) })
+    );
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledTimes(1);
+  });
+
+  it("already-deleted — throws BAD_REQUEST, no update, no audit", async () => {
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValue({
+      id: "pat-1",
+      isDeleted: true,
+    } as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    await expect(caller.softDelete({ id: "pat-1" })).rejects.toThrow(
+      "Patrol already deleted."
+    );
+    expect(vi.mocked(prisma.patrol.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.auditLog.create)).not.toHaveBeenCalled();
+  });
+
+  it("cross-tenant (findFirst null) — throws NOT_FOUND, no update, no audit", async () => {
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx("other-tenant", ["site_admin"]));
+    await expect(caller.softDelete({ id: "pat-1" })).rejects.toThrow(
+      "Patrol not found."
+    );
+    expect(vi.mocked(prisma.patrol.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.auditLog.create)).not.toHaveBeenCalled();
+  });
+
+  it("rejects non-admin role (operator) before any DB read", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["operator"]));
+    await expect(caller.softDelete({ id: "pat-1" })).rejects.toThrow(TRPCError);
+    expect(vi.mocked(prisma.patrol.findFirst)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.patrol.update)).not.toHaveBeenCalled();
+  });
+
+  it("writes audit row with DELETE_PATROL action + before/after + warning severity", async () => {
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValue({
+      id: "pat-1",
+      isDeleted: false,
+    } as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["super_admin"]));
+    await caller.softDelete({ id: "pat-1" });
+
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith(
+      partial({
+        data: partial({
+          action: "DELETE_PATROL",
+          entityType: "Patrol",
+          entityId: "pat-1",
+          severity: "warning",
+          changesJson: partial({
+            before: { isDeleted: false, deletedAt: null },
+            // after.deletedAt is a runtime ISO string (new Date()) — match isDeleted only
+            after: partial({ isDeleted: true }),
+          }),
+        }),
+      })
+    );
+  });
+});
+
+describe("patrol.restore (Phase 7 soft-delete)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.patrol.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
+
+  it("happy path — clears isDeleted/deletedAt, writes RESTORE_PATROL audit, returns id", async () => {
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValue({
+      id: "pat-1",
+      isDeleted: true,
+      deletedAt: new Date("2026-06-01T00:00:00Z"),
+    } as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const result = await caller.restore({ id: "pat-1" });
+
+    expect(result).toEqual({ id: "pat-1" });
+    expect(vi.mocked(prisma.patrol.update)).toHaveBeenCalledWith(
+      partial({
+        where: { id: "pat-1" },
+        data: { isDeleted: false, deletedAt: null },
+      })
+    );
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith(
+      partial({
+        data: partial({
+          action: "RESTORE_PATROL",
+          changesJson: {
+            // before.deletedAt is the fixture's deterministic ISO string
+            before: { isDeleted: true, deletedAt: "2026-06-01T00:00:00.000Z" },
+            after: { isDeleted: false, deletedAt: null },
+          },
+        }),
+      })
+    );
+  });
+
+  it("not-deleted — throws BAD_REQUEST, no update, no audit", async () => {
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValue({
+      id: "pat-1",
+      isDeleted: false,
+      deletedAt: null,
+    } as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    await expect(caller.restore({ id: "pat-1" })).rejects.toThrow(
+      "Patrol not deleted."
+    );
+    expect(vi.mocked(prisma.patrol.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.auditLog.create)).not.toHaveBeenCalled();
+  });
+
+  it("cross-tenant (findFirst null) — throws NOT_FOUND, no update, no audit", async () => {
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx("other-tenant", ["site_admin"]));
+    await expect(caller.restore({ id: "pat-1" })).rejects.toThrow(
+      "Patrol not found."
+    );
+    expect(vi.mocked(prisma.patrol.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.auditLog.create)).not.toHaveBeenCalled();
   });
 });

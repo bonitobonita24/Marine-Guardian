@@ -3,7 +3,8 @@ import { TRPCError } from "@trpc/server";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
 import { adminProcedure } from "../middleware/rbac";
-import { prisma } from "@marine-guardian/db";
+import { prisma, writeAuditLog } from "@marine-guardian/db";
+import type { PrismaClient } from "@marine-guardian/db";
 import { enqueuePatrolTrackMaterialize } from "@marine-guardian/jobs";
 
 export const patrolListFilters = z.object({
@@ -129,5 +130,99 @@ export const patrolRouter = router({
         enqueued: patrols.length,
         action,
       };
+    }),
+
+  // Phase 7 soft-delete — operator-triggered soft delete of a Patrol row.
+  // adminProcedure (super_admin + site_admin) per security.md Option B template /
+  // 652d33d updateRole hardening: findFirst tenant-scoped → throw NOT_FOUND with
+  // the SAME message for missing vs cross-tenant (enumeration-leak guard) →
+  // reject double-delete (BAD_REQUEST) → set isDeleted/deletedAt → writeAuditLog.
+  // DEVIATION: scope requested severity='medium', but the deployed Severity enum
+  // is {info,warning,high,critical} (no 'medium'). A recoverable destructive op
+  // maps to 'warning'. Read paths are intentionally NOT filtered here (handled
+  // in the dependent read-filter session S2).
+  softDelete: adminProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const existing = await prisma.patrol.findFirst({
+        where: { id: input.id, tenantId: ctx.tenantId },
+        select: { id: true, isDeleted: true },
+      });
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Patrol not found." });
+      }
+      if (existing.isDeleted) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Patrol already deleted.",
+        });
+      }
+
+      const deletedAt = new Date();
+      await prisma.patrol.update({
+        where: { id: input.id },
+        data: { isDeleted: true, deletedAt },
+      });
+
+      await writeAuditLog(prisma as unknown as PrismaClient, {
+        tenantId: ctx.tenantId,
+        userId: ctx.userId,
+        action: "DELETE_PATROL",
+        entityType: "Patrol",
+        entityId: input.id,
+        severity: "warning",
+        changesJson: {
+          before: { isDeleted: false, deletedAt: null },
+          after: { isDeleted: true, deletedAt: deletedAt.toISOString() },
+        },
+        ipAddress: ctx.ip,
+      });
+
+      return { id: input.id };
+    }),
+
+  // Phase 7 soft-delete — mirror of softDelete: restore a previously
+  // soft-deleted Patrol. Rejects (BAD_REQUEST) when the row is not currently
+  // deleted. Same NOT_FOUND enumeration-leak guard as softDelete.
+  restore: adminProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const existing = await prisma.patrol.findFirst({
+        where: { id: input.id, tenantId: ctx.tenantId },
+        select: { id: true, isDeleted: true, deletedAt: true },
+      });
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Patrol not found." });
+      }
+      if (!existing.isDeleted) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Patrol not deleted.",
+        });
+      }
+
+      await prisma.patrol.update({
+        where: { id: input.id },
+        data: { isDeleted: false, deletedAt: null },
+      });
+
+      await writeAuditLog(prisma as unknown as PrismaClient, {
+        tenantId: ctx.tenantId,
+        userId: ctx.userId,
+        action: "RESTORE_PATROL",
+        entityType: "Patrol",
+        entityId: input.id,
+        severity: "warning",
+        changesJson: {
+          before: {
+            isDeleted: true,
+            deletedAt: existing.deletedAt?.toISOString() ?? null,
+          },
+          after: { isDeleted: false, deletedAt: null },
+        },
+        ipAddress: ctx.ip,
+      });
+
+      return { id: input.id };
     }),
 });
