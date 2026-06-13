@@ -175,6 +175,7 @@ export function PatrolsTable() {
                   <TableHead>State</TableHead>
                   <TableHead>Start</TableHead>
                   <TableHead>End</TableHead>
+                  <TableHead>First seen</TableHead>
                   {canManage && (
                     <TableHead className="text-right">Actions</TableHead>
                   )}
@@ -214,6 +215,11 @@ export function PatrolsTable() {
                     <TableCell>
                       {p.endTime !== null
                         ? new Date(p.endTime).toLocaleString()
+                        : "—"}
+                    </TableCell>
+                    <TableCell>
+                      {p.firstSeenAt !== null
+                        ? new Date(p.firstSeenAt).toLocaleString()
                         : "—"}
                     </TableCell>
                     {canManage && (
