@@ -50,16 +50,28 @@ const REQUIRED_DEV = [
   'ENCRYPTION_KEY',
 ];
 
-if (!existsSync(ENV_FILE)) {
-  console.error(`❌ .env.dev not found. Run Phase 3 to generate it.`);
+// In CI the generated, gitignored .env.dev does not (and must not) exist, so
+// validate the committed .env.example template instead — that is the
+// meaningful contract: the template must declare every required env var.
+// Locally, validate the developer's actual .env.dev.
+const inCI = process.env.CI === 'true' || process.env.CI === '1';
+const targetFile = inCI ? EXAMPLE_FILE : ENV_FILE;
+const targetLabel = inCI ? '.env.example' : '.env.dev';
+
+if (!existsSync(targetFile)) {
+  if (inCI) {
+    console.error(`❌ .env.example not found — required to validate env contract in CI.`);
+  } else {
+    console.error(`❌ .env.dev not found. Run Phase 3 to generate it.`);
+  }
   process.exit(1);
 }
 
-const devKeys = loadEnvKeys(ENV_FILE);
+const devKeys = loadEnvKeys(targetFile);
 const missing = REQUIRED_DEV.filter(k => !devKeys.has(k));
 
 if (missing.length > 0) {
-  console.error(`❌ .env.dev is missing required env vars:`);
+  console.error(`❌ ${targetLabel} is missing required env vars:`);
   for (const k of missing) console.error(`   - ${k}`);
   process.exit(1);
 }
@@ -76,4 +88,4 @@ if (!existsSync(EXAMPLE_FILE)) {
   }
 }
 
-console.log(`✅ .env.dev has all ${REQUIRED_DEV.length} required env vars`);
+console.log(`✅ ${targetLabel} has all ${REQUIRED_DEV.length} required env vars`);
