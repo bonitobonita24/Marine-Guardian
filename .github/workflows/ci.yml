@@ -24,9 +24,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
+      - run: corepack enable
       - uses: actions/setup-node@v4
         with: { node-version: "${{ env.NODE_VERSION }}", cache: "pnpm" }
-      - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: pnpm tools:validate-inputs
       - run: pnpm tools:check-env
@@ -44,10 +44,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
+      - run: corepack enable
       - uses: actions/setup-node@v4
         with: { node-version: "${{ env.NODE_VERSION }}", cache: "pnpm" }
-      - run: corepack enable
       - run: pnpm install --frozen-lockfile
+      # Prisma Client is a generated artifact (gitignored); typecheck and build
+      # both import its types, so generate it before the turbo tasks run.
+      - run: pnpm --filter @marine-guardian/db db:generate
       - uses: actions/cache@v4
         with:
           path: .turbo
@@ -65,9 +68,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
+      - run: corepack enable
       - uses: actions/setup-node@v4
         with: { node-version: "${{ env.NODE_VERSION }}", cache: "pnpm" }
-      - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - name: Audit for high and critical vulnerabilities
         run: pnpm audit --audit-level=high

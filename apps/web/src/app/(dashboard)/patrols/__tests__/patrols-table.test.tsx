@@ -73,6 +73,7 @@ const basePatrol = {
   state: "open",
   startTime: null,
   endTime: null,
+  firstSeenAt: null,
   isDeleted: false,
   segments: [],
 };
