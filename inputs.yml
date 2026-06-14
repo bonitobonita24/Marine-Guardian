@@ -215,8 +215,8 @@ security:
     upload: 20
   cors:
     dev: "localhost:*"
-    staging: "https://ba-commandcenter-staging.powerbyte.app"
-    prod: "https://ba-commandcenter.powerbyte.app"
+    staging: "https://mg-staging.powerbyte.app"
+    prod: "https://mg.powerbyte.app"
   turnstile:
     enabled: false
   layers:
@@ -251,8 +251,8 @@ ports:
     prisma_studio: 45214
 
 domains:
-  staging: ba-commandcenter-staging.powerbyte.app
-  prod: ba-commandcenter.powerbyte.app
+  staging: mg-staging.powerbyte.app
+  prod: mg.powerbyte.app
 
 docker:
   publish: true

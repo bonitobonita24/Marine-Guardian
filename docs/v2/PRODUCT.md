@@ -739,7 +739,7 @@ GDPR/compliance:  none required for v1
 
 ## Security Requirements
 Rate limiting:    public: 30/min | auth: 60/min | api: 120/min | upload: 20/min
-CORS origins:     dev: localhost:* | staging: https://ba-commandcenter-staging.powerbyte.app | prod: https://ba-commandcenter.powerbyte.app
+CORS origins:     dev: localhost:* | staging: https://mg-staging.powerbyte.app | prod: https://mg.powerbyte.app
 Security layers:  L3 RBAC + L5 AuditLog + L6 Prisma guardrails always active
                   L1+L2+L4 activated for multi-tenant data isolation
 
@@ -748,8 +748,8 @@ dev / stage / prod
 
 ## Domain / Base URL Expectations
 Dev:     http://localhost:[port assigned by Phase 3 — do not specify a number here]
-Stage:   https://ba-commandcenter-staging.powerbyte.app
-Prod:    https://ba-commandcenter.powerbyte.app
+Stage:   https://mg-staging.powerbyte.app
+Prod:    https://mg.powerbyte.app
 
 ## Infrastructure Notes
 Default: all services run in Docker Compose — mono-server via Komodo for dev/staging/prod.
