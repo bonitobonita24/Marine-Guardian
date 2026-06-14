@@ -24,13 +24,18 @@ async function main() {
 
   const tenant = await prisma.tenant.upsert({
     where: { slug: "demo-site" },
-    update: {},
+    // Set currency on update too so existing dev DBs whose tenant row kept the
+    // schema default ("IDR") get corrected to PHP on re-seed. Without this the
+    // currency snapshot taken at fuel-entry create time (fuelEntry router,
+    // spec §196) diverges from the hardcoded "PHP" on seeded fuel rows.
+    update: { currency: "PHP" },
     create: {
       name: "Demo Site",
       slug: "demo-site",
       isActive: true,
       timezone: "Asia/Manila",
       syncFrequencySeconds: 300,
+      currency: "PHP",
     },
   });
 
