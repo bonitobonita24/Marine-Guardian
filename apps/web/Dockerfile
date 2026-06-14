@@ -42,6 +42,11 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # Patch OS-level CVEs in the shipping image (e.g. libcrypto3 HIGH 3.5.6-r0 -> 3.5.7-r0).
 # Runs in the final runtime stage so the running image carries patched apk libs.
 RUN apk upgrade --no-cache
+# Strip the global npm CLI from the runtime image. The standalone Next.js server runs
+# `node apps/web/server.js` and never invokes npm/pnpm, but node's bundled npm vendors
+# its own picomatch (HIGH ReDoS CVE-2026-33671) that no pnpm override can reach. Removing
+# npm clears the CVE at the source and shrinks the runtime attack surface.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static

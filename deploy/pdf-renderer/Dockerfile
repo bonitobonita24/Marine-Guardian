@@ -31,6 +31,11 @@ RUN npm install --omit=dev --no-audit --no-fund \
 
 COPY --chown=node:node src ./src
 
+# Strip the global npm CLI from the runtime image. This service runs `node src/server.js`
+# and never invokes npm at runtime, but node's bundled npm vendors its own picomatch
+# (HIGH ReDoS CVE-2026-33671) that no override can reach. Removing it clears the CVE.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+
 USER node
 EXPOSE 4000
 
