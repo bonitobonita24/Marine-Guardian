@@ -21,6 +21,10 @@ const securityHeaders = [
     value: [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com",
+      // MapLibre GL spawns its tile-decoding web worker from a blob: URL; without an
+      // explicit worker-src it falls back to script-src (no blob:) and the worker is
+      // blocked, degrading map rendering on /map.
+      "worker-src 'self' blob:",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
       "font-src 'self'",
