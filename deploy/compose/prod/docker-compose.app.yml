@@ -41,7 +41,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_app.rule=Host(`${APP_DOMAIN}`)"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_app.entrypoints=websecure"
-      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_app.tls.certresolver=letsEncrypt"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_app.tls.certresolver=letsencrypt"
       - "traefik.http.services.${COMPOSE_PROJECT_NAME}_app.loadbalancer.server.port=3000"
 
   worker:
