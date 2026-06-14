@@ -39,6 +39,9 @@ FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+# Patch OS-level CVEs in the shipping image (e.g. libcrypto3 HIGH 3.5.6-r0 -> 3.5.7-r0).
+# Runs in the final runtime stage so the running image carries patched apk libs.
+RUN apk upgrade --no-cache
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static

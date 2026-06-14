@@ -11,6 +11,9 @@
   "dependencies": {
     "puppeteer-core": "^23.11.1"
   },
+  "overrides": {
+    "picomatch": ">=4.0.4"
+  },
   "engines": {
     "node": ">=22.0.0"
   }

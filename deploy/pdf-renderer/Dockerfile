@@ -8,6 +8,7 @@ FROM node:22-slim AS runtime
 # Using debian chromium package (not Puppeteer's bundled binary) keeps the
 # image smaller and lets apt handle security patches.
 RUN apt-get update \
+    && apt-get -y upgrade \
     && apt-get install -y --no-install-recommends \
         chromium \
         ca-certificates \
