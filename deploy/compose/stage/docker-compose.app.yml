@@ -18,6 +18,10 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3000"
+      # DATABASE_URL / REDIS_URL in .env.staging point at localhost (host-side CLI). Containers
+      # reach postgres/valkey via the Docker service hostname instead (mirrors dev).
+      DATABASE_URL: ${INTERNAL_DATABASE_URL}
+      REDIS_URL: ${INTERNAL_REDIS_URL}
       # STORAGE_ENDPOINT in .env.staging is localhost:9000 (host-side mc tools).
       # Containers reach the per-stack MinIO via the Docker network alias instead.
       STORAGE_ENDPOINT: ${INTERNAL_STORAGE_ENDPOINT}
@@ -49,6 +53,8 @@ services:
     environment:
       NODE_ENV: production
       WORKER_MODE: "true"
+      DATABASE_URL: ${INTERNAL_DATABASE_URL}
+      REDIS_URL: ${INTERNAL_REDIS_URL}
       REDIS_HOST: ${COMPOSE_PROJECT_NAME}_valkey
       REDIS_PORT: "6379"
       # pdf-render worker reaches MinIO via the Docker network alias (see app).
