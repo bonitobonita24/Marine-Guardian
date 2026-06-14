@@ -60,6 +60,48 @@ async function main() {
     },
   });
 
+  // ── DEV-ONLY standardized login accounts ─────────────────────────────────
+  // Owner directive: predictable weak credentials for local development ONLY.
+  // GATED on SEED_DEV_ACCOUNTS=true, which is set ONLY in .env.dev — never in
+  // .env.staging / .env.prod. This guarantees staging/prod seeds are NOT
+  // weakened to these values even though they run the same seed script.
+  // admin@mail.com / admin  → site_admin (demo-site tenant)
+  // user@mail.com  / user   → operator   (lowest normal role, demo-site tenant)
+  if (process.env["SEED_DEV_ACCOUNTS"] === "true") {
+    const devAdminHash = await bcrypt.hash("admin", BCRYPT_ROUNDS);
+    const devUserHash = await bcrypt.hash("user", BCRYPT_ROUNDS);
+
+    await prisma.user.upsert({
+      where: { email: "admin@mail.com" },
+      update: { passwordHash: devAdminHash, isActive: true },
+      create: {
+        email: "admin@mail.com",
+        passwordHash: devAdminHash,
+        fullName: "Dev Admin",
+        role: "site_admin",
+        isActive: true,
+        tenantId: tenant.id,
+      },
+    });
+
+    await prisma.user.upsert({
+      where: { email: "user@mail.com" },
+      update: { passwordHash: devUserHash, isActive: true },
+      create: {
+        email: "user@mail.com",
+        passwordHash: devUserHash,
+        fullName: "Dev User",
+        role: "operator",
+        isActive: true,
+        tenantId: tenant.id,
+      },
+    });
+
+    console.log("Dev-only accounts seeded (SEED_DEV_ACCOUNTS=true):");
+    console.log("  admin@mail.com / admin  (site_admin)");
+    console.log("  user@mail.com  / user   (operator)");
+  }
+
   const now = new Date();
   const eventTypes = [
     {
