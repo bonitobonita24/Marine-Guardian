@@ -1,0 +1,48 @@
+# marine-guardian-pdf-renderer — PRODUCTION env.
+#
+# Sandboxed Puppeteer + Chromium HTML-to-PDF service. Unlike dev (which builds
+# from source on every up), stage/prod PULL a pre-built image from Docker Hub —
+# never build on the server. The image is built + pushed by deploy/compose/push.sh
+# (marine-guardian-pdf:<tag>) alongside the app image, with matching
+# dev → staging → prod tag promotion.
+#
+# Tag controlled by PDF_IMAGE_TAG in .env.prod (default: latest).
+#
+# No host `ports:` — only reachable from inside app_network. The BullMQ
+# pdf-render worker calls http://${COMPOSE_PROJECT_NAME}_pdf_renderer:4000/render
+# (PDF_RENDERER_SERVICE_URL in .env.prod). No public ingress — Traefik is
+# intentionally NOT wired to this service; the app calls it server-side only.
+
+networks:
+  app_network:
+    name: ${COMPOSE_PROJECT_NAME}_network
+    external: true
+
+services:
+  pdf-renderer:
+    # NO build: key — image pulled from Docker Hub only (never builds on server).
+    image: ${DOCKERHUB_USERNAME:-bonitobonita24}/marine-guardian-pdf:${PDF_IMAGE_TAG:-latest}
+    container_name: ${COMPOSE_PROJECT_NAME}_pdf_renderer
+    hostname: ${COMPOSE_PROJECT_NAME}_pdf_renderer
+    env_file: ../../../.env.prod
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+      PDF_RENDERER_SERVICE_TOKEN: ${PDF_RENDERER_SERVICE_TOKEN}
+      PDF_NAV_TIMEOUT_MS: "30000"
+    networks: [app_network]
+    restart: unless-stopped
+    healthcheck:
+      # node:22-slim has no wget. Use node itself (always present in this image)
+      # to hit /health — exit 0 on 200, 1 otherwise.
+      test:
+        - CMD-SHELL
+        - >-
+          node -e "require('http').get('http://127.0.0.1:4000/health',
+          r => process.exit(r.statusCode === 200 ? 0 : 1))
+          .on('error', () => process.exit(1))"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    # Chromium runs with --disable-dev-shm-usage (uses /tmp not /dev/shm) so no
+    # shm_size flag is needed. Matches the server.js launch args.

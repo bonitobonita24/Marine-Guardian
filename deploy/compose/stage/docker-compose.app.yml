@@ -18,6 +18,9 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3000"
+      # STORAGE_ENDPOINT in .env.staging is localhost:9000 (host-side mc tools).
+      # Containers reach the per-stack MinIO via the Docker network alias instead.
+      STORAGE_ENDPOINT: ${INTERNAL_STORAGE_ENDPOINT}
     networks: [app_network, proxy]
     restart: unless-stopped
     depends_on:
@@ -48,6 +51,8 @@ services:
       WORKER_MODE: "true"
       REDIS_HOST: ${COMPOSE_PROJECT_NAME}_valkey
       REDIS_PORT: "6379"
+      # pdf-render worker reaches MinIO via the Docker network alias (see app).
+      STORAGE_ENDPOINT: ${INTERNAL_STORAGE_ENDPOINT}
     command: ["node", "worker/start-workers.mjs"]
     networks: [app_network]
     restart: unless-stopped

@@ -1,0 +1,60 @@
+# marine-guardian storage — MinIO (S3-compatible) for PRODUCTION env.
+#
+# MinIO-per-stack: each environment runs its OWN MinIO container (matches the
+# chatpile per-stack storage pattern — NOT a shared/external S3). Joins the
+# shared app_network so the BullMQ pdf-render worker (packages/jobs) and Route
+# Handlers (apps/web) reach the API at http://minio-prod:9000.
+#
+# Env var convention is STORAGE_* (matches apps/web/src/env.ts + packages/storage).
+# The container itself wants MINIO_ROOT_USER / MINIO_ROOT_PASSWORD — those map
+# FROM STORAGE_ACCESS_KEY / STORAGE_SECRET_KEY below. MinIO requires the root
+# password to be ≥8 chars; STORAGE_SECRET_KEY is the 48-char value generated at
+# Phase 3 so this is fine.
+#
+# PROD HYGIENE — NO host `ports:` are published. The S3 API (9000) and the web
+# console (9001) are reachable only from inside app_network. Operators inspect
+# buckets via `docker compose exec` + the bundled `mc` client, or temporarily
+# port-forward over SSH. This keeps object storage off the public internet —
+# Traefik is intentionally NOT wired to MinIO.
+#
+# Mirrors deploy/compose/dev/docker-compose.storage.yml minus the dev console
+# exposure. Stage/prod compose for this service was deferred at scaffold
+# (Phase 4 Part 7) and is wired here as part of the deploy-gap closure.
+
+networks:
+  app_network:
+    name: ${COMPOSE_PROJECT_NAME}_network
+    external: true
+
+volumes:
+  minio_data:
+    name: ${COMPOSE_PROJECT_NAME}_minio_data
+
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: ${COMPOSE_PROJECT_NAME}_minio
+    hostname: ${COMPOSE_PROJECT_NAME}_minio
+    env_file: ../../../.env.prod
+    environment:
+      MINIO_ROOT_USER: ${STORAGE_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${STORAGE_SECRET_KEY}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    # No host `ports:` — S3 API + console stay internal to app_network.
+    networks:
+      app_network:
+        # Alias without underscores — the AWS S3 SDK validates hostnames per
+        # RFC 1123 (no underscores allowed) before sending the request, so the
+        # default container hostname `${COMPOSE_PROJECT_NAME}_minio` is rejected
+        # with "Invalid Request (invalid hostname)". The hyphenated alias is
+        # what app + worker reach via INTERNAL_STORAGE_ENDPOINT (minio-prod).
+        aliases:
+          - minio-prod
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
