@@ -3,6 +3,33 @@
 # NEVER re-ask anything listed here.
 # ---
 
+## 2026-06-16 — Phase 8 completeness sweep: Observations + Sync Status pages wired
+Decision: The /observations and /sync placeholder pages are now wired to their existing
+tenant-scoped read routers (observation.list, syncLog.list + syncLog.latest), following the
+already-merged /subjects data-table pattern exactly. /observations renders recorded-at,
+subject, type, source, lat/lon with cursor pagination. /sync renders a connection-health
+indicator (from syncLog.latest) + a sync-log table (data type × status × records synced ×
+started × completed × error) with a sync-type filter and pagination — matching PRODUCT.md
+§200-205. No router/schema changes, no DB writes, no migration. Read-only display of data
+that already exists.
+Rationale: These two were flagged as "intentional placeholders," but the backends already
+existed and were merely unwired — identical situation to /subjects, which was wired in the
+prior merge. PRODUCT.md §155/§200-205/§249 promise both surfaces. This is autonomous
+UI-wiring of existing endpoints, not a new product feature.
+Locked: yes
+
+## 2026-06-16 — Settings (Tenant ER Connection) page left as OWNER-GATED placeholder
+Decision: The /settings placeholder is intentionally NOT auto-built. PRODUCT.md §200-205,
+§462-470 specify it as the EarthRanger connection-configuration form that WRITES encrypted
+credentials (URL/username/password/DAS token/Track token) to the Tenant row and validates
+the connection by live-fetching from ER. No tenant/settings tRPC mutation router exists yet
+(only platform.ts for super-admin tenant mgmt). Building it requires decisions on: credential
+encryption-at-rest approach, the connection-validation UX, and a new write+audit mutation —
+all product/security-sensitive. Deferred to owner direction rather than built speculatively.
+Rationale: Credential-write + live ER validation is a behavior-changing product feature with
+security implications (Rule 1: WHAT/WHETHER-to-build = ask owner), not a dead-control wiring.
+Locked: no
+
 ## Receipt photo upload deferred from initial Fuel Logging UI ship
 Decision: First /fuel ship lands without receipt photo upload UI. Schema field receiptPhotoUrl
 remains nullable (no schema change). No upload pipeline, no presigned URL helper, no
