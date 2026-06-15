@@ -40,9 +40,7 @@ function KpiCard({
       <CardContent>
         <p className="text-2xl font-bold">{value}</p>
         {delta !== undefined && deltaLabel !== undefined && (
-          <p
-            className={`mt-1 text-xs ${delta > 0 ? "text-[hsl(var(--destructive))]" : delta < 0 ? "text-[hsl(var(--success))]" : "text-muted-foreground"}`}
-          >
+          <p className="mt-1 text-xs text-muted-foreground">
             {delta > 0 ? "+" : ""}
             {delta} {deltaLabel}
           </p>
@@ -259,7 +257,7 @@ export default function DashboardPage() {
               <span className="text-sm text-muted-foreground">
                 Law Enforcement
               </span>
-              <span className="text-lg font-semibold text-[hsl(var(--destructive))]">
+              <span className="text-lg font-semibold text-foreground">
                 {breakdown.data?.lawEnforcement.reduce(
                   (sum, e) => sum + e.count,
                   0
@@ -268,7 +266,7 @@ export default function DashboardPage() {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Monitoring</span>
-              <span className="text-lg font-semibold text-[hsl(var(--primary))]">
+              <span className="text-lg font-semibold text-foreground">
                 {breakdown.data?.monitoring.reduce(
                   (sum, e) => sum + e.count,
                   0
