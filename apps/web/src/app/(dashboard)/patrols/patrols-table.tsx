@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   Table,
@@ -29,6 +30,7 @@ type StateFilter = "all" | "open" | "done" | "cancelled";
 type TypeFilter = "all" | "foot" | "seaborne";
 
 export function PatrolsTable() {
+  const router = useRouter();
   const { data: session } = useSession();
   const roles = session?.user.roles ?? [];
   // Phase 7 soft-delete — delete/restore actions + the "Show deleted" toggle
@@ -183,7 +185,12 @@ export function PatrolsTable() {
               </TableHeader>
               <TableBody>
                 {rows.map((p) => (
-                  <TableRow key={p.id} data-testid={`patrol-row-${p.id}`}>
+                  <TableRow
+                    key={p.id}
+                    data-testid={`patrol-row-${p.id}`}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => { router.push(`/patrols/${p.id}`); }}
+                  >
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <span>{p.title ?? "(untitled)"}</span>
@@ -223,7 +230,10 @@ export function PatrolsTable() {
                         : "—"}
                     </TableCell>
                     {canManage && (
-                      <TableCell className="text-right">
+                      <TableCell
+                        className="text-right"
+                        onClick={(e) => { e.stopPropagation(); }}
+                      >
                         {p.isDeleted ? (
                           <Button
                             variant="outline"

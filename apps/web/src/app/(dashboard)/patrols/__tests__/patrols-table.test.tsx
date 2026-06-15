@@ -10,6 +10,10 @@ const restoreMutate = vi.fn();
 // Mutable session roles — tests set this before render.
 let sessionRoles: string[] = [];
 
+vi.mock("next/navigation", () => ({
+  useRouter: (): unknown => ({ push: vi.fn() }),
+}));
+
 vi.mock("next-auth/react", () => ({
   useSession: (): unknown => ({
     data: { user: { roles: sessionRoles } },
