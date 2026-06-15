@@ -1,14 +1,31 @@
 import { useState, useEffect } from "react";
 
+// 2026-06-15: Token object updated to match shipped shadcn stock neutral dark theme
+// (owner-approved reskin, commits e6ba66b/b8bbab4/b100389, merged to main).
+// Old Meta Dark values shown in comments → new neutral values active.
+// Semantic colors (green/red/orange/yellow/cyan) are UNCHANGED — operational meaning preserved.
 const T = {
-  bg: "#18191A", surface: "#242526", elevated: "#3A3B3C",
-  text: "#E4E6EB", textSecondary: "#B0B3B8", textMuted: "#8A8D91",
-  blue: "#0866FF", blueHover: "#1877F2", blueLight: "rgba(8,102,255,0.12)",
-  green: "#31A24C", greenBg: "rgba(49,162,76,0.15)",
-  red: "#F0284A", redBg: "rgba(240,40,74,0.15)",
-  orange: "#E8912D", orangeBg: "rgba(232,145,45,0.15)",
-  yellow: "#F7D154", yellowBg: "rgba(247,209,84,0.15)",
-  cyan: "#00C9DB", border: "#3E4042",
+  // Surface tiers — was: "#18191A" / "#242526" / "#3A3B3C"
+  bg: "#0A0A0A",       // --background: 0 0% 3.9%
+  surface: "#0A0A0A",  // --card: 0 0% 3.9%  (flat — card shares bg in shadcn stock dark)
+  elevated: "#262626", // --secondary/--muted/--accent: 0 0% 14.9%
+  // Text — was: "#E4E6EB" / "#B0B3B8" / "#8A8D91"
+  text: "#FAFAFA",           // --foreground: 0 0% 98%
+  textSecondary: "#A3A3A3",  // --muted-foreground: 0 0% 63.9%
+  textMuted: "#A3A3A3",      // --muted-foreground (same tier)
+  // Primary — was: blue "#0866FF". Now neutral white (no brand accent in shadcn stock dark).
+  blue: "#FAFAFA",                       // --primary: 0 0% 98%  (renamed to 'blue' for compatibility — neutral white)
+  blueHover: "#E5E5E5",                  // slightly dimmed neutral hover (~0 0% 90%)
+  blueLight: "rgba(250,250,250,0.12)",   // --primary tint for selected backgrounds
+  // Border / ring
+  border: "#262626", // --border: 0 0% 14.9%
+  ring: "#D4D4D4",   // --ring: 0 0% 83.1%
+  // Semantic operational colors — UNCHANGED (encode patrol/alert state, not decoration)
+  green: "#31A24C", greenBg: "rgba(49,162,76,0.15)",   // --success
+  red: "#F0284A",   redBg: "rgba(240,40,74,0.15)",     // --destructive
+  orange: "#E8912D", orangeBg: "rgba(232,145,45,0.15)", // --warning
+  yellow: "#F7D154", yellowBg: "rgba(247,209,84,0.15)", // --caution
+  cyan: "#00C9DB",                                       // --info (patrol tracks, seaborne)
   font: "'Segoe UI', Helvetica, Arial, sans-serif",
 };
 

@@ -132,15 +132,17 @@ export const eventRouter = router({
       z
         .object({
           id: z.string(),
-          title: z.string().min(1).max(500).optional(),
+          // Allow empty strings so optional text fields are clearable from the
+          // detail form (the UI sends "" for blank fields rather than omitting them).
+          title: z.string().max(500).optional(),
           priority: z.number().int().min(0).max(3).optional(),
           notesJson: z.unknown().optional(),
           eventDetailsJson: z.unknown().optional(),
-          offenderName: z.string().min(1).max(200).optional(),
-          vesselName: z.string().min(1).max(200).optional(),
-          vesselRegistration: z.string().min(1).max(100).optional(),
-          address: z.string().min(1).max(500).optional(),
-          actionTaken: z.string().min(1).max(5000).optional(),
+          offenderName: z.string().max(200).optional(),
+          vesselName: z.string().max(200).optional(),
+          vesselRegistration: z.string().max(100).optional(),
+          address: z.string().max(500).optional(),
+          actionTaken: z.string().max(5000).optional(),
         })
         .strict()
     )
