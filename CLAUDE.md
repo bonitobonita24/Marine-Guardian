@@ -265,3 +265,21 @@ Rules: 30 active. Contextual files in .claude/rules/.
 Phase menu ready — type a phase name or trigger to begin.
 Which phase are you starting from?
 ```
+## Powerbyte-Hostinger server access (infra source of truth)
+
+Server credentials + infra live in the **Server-Setups** repo:
+`~/UbuntuDevFiles/1_COMPANY_DEV/Server-Setups/Powerbyte-Hostinger/`. All secrets are **SOPS+age**
+encrypted — decrypt with `sops -d <file>` (needs `~/.config/sops/age/keys.txt`, mode 600, with
+`SOPS_AGE_KEY_FILE` exported; **same machine/user only** — the age + SSH keys live in `~`, not the repo).
+
+- **SSH:** `root@72.62.74.203`, key `~/.ssh/powerbyte_hostinger`. Non-secret facts:
+  `Powerbyte-Hostinger/server-info.md`; runbook `Powerbyte-Hostinger/runbooks/ssh-access.md`.
+- **Cloudflare / Hostinger / app secrets** (`Powerbyte-Hostinger/secrets/*.enc.yaml`):
+  `deploy-api` (CF DNS + Hostinger API tokens), `cloudflare` (CF DNS user token),
+  `cloudflare-r2` (CF account token + R2 S3 keys), `backrest*`, `watchtower`, `hermes-llm`, `uptime-kuma`.
+- **AWS — scoped PB backups (use this for PB):** `Powerbyte-Hostinger/secrets/backrest-s3.enc.yaml`.
+- **AWS — account admin, break-glass only** (acct `412381748925`): `Server-Setups/secrets/aws-bootstrap.enc.yaml`.
+
+Server-Setups is the **single source of truth** for all server credentials — read its `CLAUDE.md`
+→ "Secrets — SOPS + age" for the full workflow. Prefer the **scoped** keys; treat `aws-bootstrap`
+as break-glass/provisioning only. Don't copy secrets into this repo — point back to Server-Setups.
