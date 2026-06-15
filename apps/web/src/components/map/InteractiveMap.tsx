@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import maplibregl from "maplibre-gl";
 import {
   Map,
   MapControls,
@@ -8,6 +9,7 @@ import {
   MapRoute,
   MarkerContent,
   MarkerTooltip,
+  type MapRef,
 } from "@/components/ui/map";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
@@ -15,8 +17,9 @@ import { MapPolygon } from "./MapPolygon";
 import { PatrolSelector } from "./PatrolSelector";
 
 // MapLibre coordinate convention is [longitude, latitude] (locked in DECISIONS_LOG).
-// Banda Sea center spans Marine Guardian's primary operating area.
-const BANDA_SEA_CENTER: [number, number] = [127.5, -2.5];
+// Default view spans Marine Guardian's primary operating area; the map auto-fits
+// to the actual loaded data bounds once features arrive (see fit-bounds effect).
+const DEFAULT_CENTER: [number, number] = [121.5, 13.0];
 const DEFAULT_ZOOM = 6;
 
 // Event.priority is a raw EarthRanger integer (0/100/200/300 = low/med/high/crit).
@@ -61,9 +64,52 @@ export function InteractiveMap({ className }: InteractiveMapProps) {
     patrolTracksQuery.data?.points ?? []
   ).map((p) => [p.lon, p.lat]);
 
+  const mapRef = useRef<MapRef>(null);
+  // Track whether we've already auto-fit to the initial dataset so manual
+  // panning isn't overridden on every query refetch.
+  const didFitInitialRef = useRef(false);
+
+  // All point coordinates from the loaded data, used to auto-fit the viewport.
+  const dataCoordinates = useMemo<[number, number][]>(() => {
+    const coords: [number, number][] = [];
+    for (const s of subjects) coords.push([s.lastPositionLon, s.lastPositionLat]);
+    for (const e of events) {
+      if (e.locationLon != null && e.locationLat != null) {
+        coords.push([e.locationLon, e.locationLat]);
+      }
+    }
+    return coords;
+  }, [subjects, events]);
+
+  // Auto-fit the map to the data bounds once features have loaded, so the
+  // viewport always lands on where the real EarthRanger data actually is
+  // rather than a hardcoded center.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || didFitInitialRef.current || dataCoordinates.length === 0) return;
+    const bounds = new maplibregl.LngLatBounds();
+    for (const c of dataCoordinates) bounds.extend(c);
+    map.fitBounds(bounds, { padding: 60, maxZoom: 12, duration: 0 });
+    didFitInitialRef.current = true;
+  }, [dataCoordinates]);
+
+  // When a patrol track is selected, fly to its extent.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || trackCoordinates.length < 2) return;
+    const bounds = new maplibregl.LngLatBounds();
+    for (const c of trackCoordinates) bounds.extend(c);
+    map.fitBounds(bounds, { padding: 80, maxZoom: 14, duration: 800 });
+  }, [trackCoordinates]);
+
   return (
     <div className={cn("relative h-full w-full", className)}>
-      <Map center={BANDA_SEA_CENTER} zoom={DEFAULT_ZOOM} className="h-full w-full">
+      <Map
+        ref={mapRef}
+        center={DEFAULT_CENTER}
+        zoom={DEFAULT_ZOOM}
+        className="h-full w-full"
+      >
         <MapControls />
 
         {(patrolAreasQuery.data ?? []).map((area) => (
