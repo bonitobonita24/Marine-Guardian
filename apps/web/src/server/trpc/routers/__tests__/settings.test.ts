@@ -3,8 +3,8 @@ import { TRPCError } from "@trpc/server";
 
 // ── mocks ──────────────────────────────────────────────────────────────────────
 
-let _encryptImpl = (v: string) => `enc:${v}`;
-let _decryptImpl = (v: string) => v.replace(/^enc:/, "");
+const _encryptImpl = (v: string) => `enc:${v}`;
+const _decryptImpl = (v: string) => v.replace(/^enc:/, "");
 
 vi.mock("@marine-guardian/db", () => ({
   prisma: {
@@ -94,18 +94,18 @@ describe("settings.getErConnection", () => {
   });
 
   it("returns masked connection — apiTokenMasked is set, raw token NOT returned", async () => {
-    vi.mocked(prisma.tenantErConnection.findUnique).mockResolvedValue(mockConn as never);
+    vi.mocked(prisma.tenantErConnection.findUnique).mockResolvedValue(mockConn);
     const caller = createCaller(makeCtx());
     const result = await caller.getErConnection();
     expect(result).not.toBeNull();
-    expect(result!.apiTokenMasked).toBe("••••••••");
+    expect(result?.apiTokenMasked).toBe("••••••••");
     // The raw encrypted (or plain) token must never appear in the output
     expect(JSON.stringify(result)).not.toContain("secret-token");
     expect(JSON.stringify(result)).not.toContain("enc:");
   });
 
   it("returns baseUrl, status, lastValidatedAt correctly", async () => {
-    vi.mocked(prisma.tenantErConnection.findUnique).mockResolvedValue(mockConn as never);
+    vi.mocked(prisma.tenantErConnection.findUnique).mockResolvedValue(mockConn);
     const caller = createCaller(makeCtx());
     const result = await caller.getErConnection();
     expect(result).toMatchObject({
@@ -137,7 +137,7 @@ describe("settings.upsertErConnection", () => {
 
   it("encrypts the token and upserts the connection", async () => {
     vi.mocked(prisma.tenantErConnection.findUnique).mockResolvedValue(null);
-    vi.mocked(prisma.tenantErConnection.upsert).mockResolvedValue(mockConn as never);
+    vi.mocked(prisma.tenantErConnection.upsert).mockResolvedValue(mockConn);
 
     const caller = createCaller(makeCtx());
     const result = await caller.upsertErConnection({
@@ -165,8 +165,8 @@ describe("settings.upsertErConnection", () => {
   });
 
   it("preserves existing token when apiToken is omitted on update", async () => {
-    vi.mocked(prisma.tenantErConnection.findUnique).mockResolvedValue(mockConn as never);
-    vi.mocked(prisma.tenantErConnection.upsert).mockResolvedValue(mockConn as never);
+    vi.mocked(prisma.tenantErConnection.findUnique).mockResolvedValue(mockConn);
+    vi.mocked(prisma.tenantErConnection.upsert).mockResolvedValue(mockConn);
 
     const caller = createCaller(makeCtx());
     await caller.upsertErConnection({ baseUrl: "https://er2.example.com" });
@@ -179,7 +179,7 @@ describe("settings.upsertErConnection", () => {
 
   it("writes an audit log entry on success", async () => {
     vi.mocked(prisma.tenantErConnection.findUnique).mockResolvedValue(null);
-    vi.mocked(prisma.tenantErConnection.upsert).mockResolvedValue(mockConn as never);
+    vi.mocked(prisma.tenantErConnection.upsert).mockResolvedValue(mockConn);
 
     const caller = createCaller(makeCtx());
     await caller.upsertErConnection({
@@ -223,12 +223,12 @@ describe("settings.testErConnection", () => {
   });
 
   it("probes the ER URL with the decrypted token and marks status=connected on success", async () => {
-    vi.mocked(prisma.tenantErConnection.findUnique).mockResolvedValue(mockConn as never);
+    vi.mocked(prisma.tenantErConnection.findUnique).mockResolvedValue(mockConn);
     vi.mocked(prisma.tenantErConnection.update).mockResolvedValue({
       ...mockConn,
       status: "connected",
       lastValidatedAt: new Date(),
-    } as never);
+    });
     mockFetch.mockResolvedValue({ ok: true } as Response);
 
     const caller = createCaller(makeCtx());
@@ -245,12 +245,12 @@ describe("settings.testErConnection", () => {
   });
 
   it("marks status=error on failed probe", async () => {
-    vi.mocked(prisma.tenantErConnection.findUnique).mockResolvedValue(mockConn as never);
+    vi.mocked(prisma.tenantErConnection.findUnique).mockResolvedValue(mockConn);
     vi.mocked(prisma.tenantErConnection.update).mockResolvedValue({
       ...mockConn,
       status: "error",
       lastValidatedAt: new Date(),
-    } as never);
+    });
     mockFetch.mockResolvedValue({ ok: false, status: 401, statusText: "Unauthorized" } as Response);
 
     const caller = createCaller(makeCtx());
@@ -272,12 +272,12 @@ describe("settings.testErConnection", () => {
   });
 
   it("writes an audit log entry on test", async () => {
-    vi.mocked(prisma.tenantErConnection.findUnique).mockResolvedValue(mockConn as never);
+    vi.mocked(prisma.tenantErConnection.findUnique).mockResolvedValue(mockConn);
     vi.mocked(prisma.tenantErConnection.update).mockResolvedValue({
       ...mockConn,
       status: "connected",
       lastValidatedAt: new Date(),
-    } as never);
+    });
     mockFetch.mockResolvedValue({ ok: true } as Response);
 
     const caller = createCaller(makeCtx());

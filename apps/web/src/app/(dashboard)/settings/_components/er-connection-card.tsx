@@ -9,8 +9,6 @@ import { trpc } from "@/lib/trpc/client";
 
 const TOKEN_PLACEHOLDER = "••••••••";
 
-type ConnectionStatus = "unchecked" | "connected" | "error";
-
 function StatusBadge({ status }: { status: string }) {
   if (status === "connected") {
     return (
@@ -89,8 +87,6 @@ export function ErConnectionCard() {
     testMut.mutate();
   };
 
-  const isAdmin = true; // RBAC enforced server-side; page is admin-routed
-
   if (connQuery.isLoading) {
     return (
       <div className="rounded-lg border p-5">
@@ -155,7 +151,7 @@ export function ErConnectionCard() {
         </div>
       </div>
 
-      {saveError && (
+      {saveError !== null && saveError !== "" && (
         <p className="text-xs text-destructive" data-testid="er-save-error">
           {saveError}
         </p>
@@ -178,7 +174,7 @@ export function ErConnectionCard() {
         <Button
           type="button"
           onClick={handleSave}
-          disabled={!isAdmin || upsertMut.isPending || displayBaseUrl === ""}
+          disabled={upsertMut.isPending || displayBaseUrl === ""}
           data-testid="er-save-btn"
         >
           {upsertMut.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -190,7 +186,7 @@ export function ErConnectionCard() {
             type="button"
             variant="outline"
             onClick={handleTest}
-            disabled={!isAdmin || testMut.isPending}
+            disabled={testMut.isPending}
             data-testid="er-test-btn"
           >
             {testMut.isPending ? (

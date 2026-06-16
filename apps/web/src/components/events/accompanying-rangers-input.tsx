@@ -38,9 +38,9 @@ const SOURCE_LABELS: Record<Suggestion["source"], string> = {
 };
 
 function displayName(ranger: AttachedRanger): string {
-  if (ranger.knownRanger?.name) return ranger.knownRanger.name;
-  if (ranger.registeredUser?.fullName) return ranger.registeredUser.fullName;
-  if (ranger.freetextName) return ranger.freetextName;
+  if (ranger.knownRanger?.name != null && ranger.knownRanger.name !== "") return ranger.knownRanger.name;
+  if (ranger.registeredUser?.fullName != null && ranger.registeredUser.fullName !== "") return ranger.registeredUser.fullName;
+  if (ranger.freetextName != null && ranger.freetextName !== "") return ranger.freetextName;
   return "Unknown";
 }
 
@@ -145,7 +145,11 @@ export function AccompanyingRangersInput({
 
   // Rangers that were added as freetext (no known link) — eligible for promotion
   const promotableRangers = rangers.filter(
-    (r) => r.rangerType === "freetext" && !r.knownRangerId && r.freetextName
+    (r) =>
+      r.rangerType === "freetext" &&
+      (r.knownRangerId === null || r.knownRangerId === undefined || r.knownRangerId === "") &&
+      r.freetextName !== null &&
+      r.freetextName !== ""
   );
 
   const handlePromote = (name: string) => {
@@ -270,7 +274,7 @@ export function AccompanyingRangersInput({
                       <span className="flex-1">{s.name}</span>
                       {s.source === "known_ranger" && (
                         <span className="text-[10px] text-muted-foreground shrink-0">
-                          {s.erSubjectId ? "ER" : "manual"}
+                          {s.erSubjectId != null && s.erSubjectId !== "" ? "ER" : "manual"}
                         </span>
                       )}
                     </button>
@@ -318,7 +322,7 @@ export function AccompanyingRangersInput({
                 variant="outline"
                 size="sm"
                 className="h-6 px-2 text-xs"
-                onClick={() => { handlePromote(r.freetextName!); }}
+                onClick={() => { handlePromote(r.freetextName ?? ""); }}
                 disabled={promoteMutation.isPending}
                 data-testid={`promote-btn-${r.id}`}
               >

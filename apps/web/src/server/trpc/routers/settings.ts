@@ -37,7 +37,7 @@ async function probeErConnection(
     if (res.ok) return { ok: true };
     return {
       ok: false,
-      error: `EarthRanger returned HTTP ${res.status} ${res.statusText}`,
+      error: `EarthRanger returned HTTP ${String(res.status)} ${res.statusText}`,
     };
   } catch (err) {
     return {

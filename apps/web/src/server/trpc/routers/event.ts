@@ -362,7 +362,7 @@ export const eventRouter = router({
       const seenFreetext = new Set<string>();
       for (const ar of recentFreetext) {
         const name = ar.freetextName;
-        if (!name) continue;
+        if (name === null || name === "") continue;
         const key = norm(name);
         if (seen.has(key)) continue; // already covered by known / ER subject
         if (seenFreetext.has(key)) continue; // dedupe within source 2
