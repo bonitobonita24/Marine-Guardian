@@ -82,6 +82,14 @@ vi.mock("@/lib/trpc/client", () => ({
         }),
       },
     },
+    event: {
+      suggestAccompanyingRangers: {
+        useQuery: () => ({
+          data: { suggestions: [] },
+          isLoading: false,
+        }),
+      },
+    },
   },
 }));
 

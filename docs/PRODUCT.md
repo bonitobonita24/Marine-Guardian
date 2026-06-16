@@ -105,7 +105,7 @@ EarthRanger is an excellent field data collection platform but provides no repor
 - Drag-and-resize schedule blocks on the Gantt timeline
 - Legend showing zone colors
 - Navigation: previous/next period, date range selection
-- Add assignment button with ranger and zone selection
+- Add assignment button with ranger and zone selection. The **Ranger name** field in the assignment dialog is a **debounced combobox** (250 ms) calling `event.suggestAccompanyingRangers` — same 3-source autocomplete (KnownRanger registry / EarthRanger subjects / recent names) used on every ranger-name surface app-wide. Selecting a suggestion sets the `rangerName` string; freetext is still accepted. Implementation: `AssignmentDialog` (`apps/web/src/app/(dashboard)/patrol-schedule/_components/assignment-dialog.tsx`).
 - Bi-weekly or monthly view toggles
 
 ### Fuel Logging

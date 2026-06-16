@@ -1,23 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
-
-type ConflictItem = {
-  id: string;
-  scheduledStart: Date;
-  scheduledEnd: Date;
-  rangerName: string;
-  patrolArea: { id: string; name: string };
-};
-
-function formatRange(start: Date, end: Date): string {
-  const fmt = new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-  return `${fmt.format(start)} – ${fmt.format(end)}`;
-}
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -37,6 +21,46 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc/client";
+
+type ConflictItem = {
+  id: string;
+  scheduledStart: Date;
+  scheduledEnd: Date;
+  rangerName: string;
+  patrolArea: { id: string; name: string };
+};
+
+function formatRange(start: Date, end: Date): string {
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+  return `${fmt.format(start)} – ${fmt.format(end)}`;
+}
+
+/** Debounce hook — returns the debounced value after delayMs */
+function useDebounce<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState<T>(value);
+  useEffect(() => {
+    const id = setTimeout(() => { setDebounced(value); }, delayMs);
+    return () => { clearTimeout(id); };
+  }, [value, delayMs]);
+  return debounced;
+}
+
+type NameSuggestion = {
+  id: string | null;
+  name: string;
+  source: "known_ranger" | "recent_freetext" | "er_subject";
+  erSubjectId?: string | null;
+};
+
+const NAME_SOURCE_LABELS: Record<NameSuggestion["source"], string> = {
+  known_ranger: "Known Rangers",
+  er_subject: "EarthRanger Subjects",
+  recent_freetext: "Recent Names",
+};
 
 const UNASSIGNED_VALUE = "__none__";
 
@@ -83,6 +107,56 @@ export function AssignmentDialog({
   // whether the user has manually edited the rangerName field.
   const lastAutoFillName = useRef<string>("");
 
+  // ── ranger-name combobox state ─────────────────────────────────────────────
+  const [nameOpen, setNameOpen] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const nameDropdownRef = useRef<HTMLDivElement>(null);
+  const debouncedNameQuery = useDebounce(rangerName, 250);
+
+  const nameSuggestQuery = trpc.event.suggestAccompanyingRangers.useQuery(
+    { query: debouncedNameQuery },
+    { enabled: nameOpen },
+  );
+
+  // Close the name-combobox dropdown on outside click
+  useEffect(() => {
+    function handleOutsideClick(e: MouseEvent) {
+      if (
+        nameDropdownRef.current &&
+        !nameDropdownRef.current.contains(e.target as Node) &&
+        nameInputRef.current &&
+        !nameInputRef.current.contains(e.target as Node)
+      ) {
+        setNameOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => { document.removeEventListener("mousedown", handleOutsideClick); };
+  }, []);
+
+  const nameSuggestions: NameSuggestion[] = nameSuggestQuery.data?.suggestions ?? [];
+
+  // Group suggestions by source (known_ranger → er_subject → recent_freetext)
+  const nameGrouped = useMemo(
+    () =>
+      nameSuggestions.reduce<Map<NameSuggestion["source"], NameSuggestion[]>>(
+        (acc, s) => {
+          const arr = acc.get(s.source) ?? [];
+          arr.push(s);
+          acc.set(s.source, arr);
+          return acc;
+        },
+        new Map(),
+      ),
+    [nameSuggestions],
+  );
+
+  const handleSelectNameSuggestion = useCallback((s: NameSuggestion) => {
+    setRangerName(s.name);
+    lastAutoFillName.current = s.name;
+    setNameOpen(false);
+  }, []);
+
   // Prefill when editing
   useEffect(() => {
     if (mode === "edit" && initial !== undefined) {
@@ -124,6 +198,7 @@ export function AssignmentDialog({
     if (currentName === "" || currentName === lastAutoFillName.current) {
       setRangerName(user.fullName);
       lastAutoFillName.current = user.fullName;
+      setNameOpen(false);
     }
   }
 
@@ -171,6 +246,7 @@ export function AssignmentDialog({
     setRangerUserId(null);
     setRangerName("");
     lastAutoFillName.current = "";
+    setNameOpen(false);
     setScheduledStartRaw("");
     setScheduledEndRaw("");
     setNotes("");
@@ -449,20 +525,87 @@ export function AssignmentDialog({
             </Select>
           </div>
 
-          {/* Ranger name */}
+          {/* Ranger name — 3-source autocomplete combobox */}
           <div className="space-y-2">
             <Label htmlFor={`${testPrefix}-name`}>Ranger name</Label>
-            <Input
-              id={`${testPrefix}-name`}
-              data-testid={`${testPrefix}-name`}
-              placeholder="Enter ranger name"
-              value={rangerName}
-              onChange={(e) => {
-                setRangerName(e.target.value);
-                // If user manually edits, detach from auto-fill
-                lastAutoFillName.current = "";
-              }}
-            />
+            <div className="relative">
+              <Input
+                id={`${testPrefix}-name`}
+                ref={nameInputRef}
+                data-testid={`${testPrefix}-name`}
+                placeholder="Type or search known rangers…"
+                value={rangerName}
+                autoComplete="off"
+                onChange={(e) => {
+                  setRangerName(e.target.value);
+                  // Detach from auto-fill when user types manually
+                  lastAutoFillName.current = "";
+                  setNameOpen(true);
+                }}
+                onFocus={() => { setNameOpen(true); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") { setNameOpen(false); }
+                }}
+              />
+              <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+
+              {/* Name suggestion dropdown */}
+              {nameOpen && (
+                <div
+                  ref={nameDropdownRef}
+                  className="absolute z-50 mt-1 w-full rounded-md border bg-popover text-popover-foreground shadow-md"
+                  data-testid="ranger-name-suggestions"
+                >
+                  {nameSuggestQuery.isLoading && (
+                    <p className="px-3 py-2 text-xs text-muted-foreground">Searching…</p>
+                  )}
+
+                  {!nameSuggestQuery.isLoading && nameSuggestions.length === 0 && rangerName.trim() !== "" && (
+                    <p className="px-3 py-2 text-xs text-muted-foreground">
+                      No matches — name will be saved as typed.
+                    </p>
+                  )}
+
+                  {!nameSuggestQuery.isLoading && nameSuggestions.length === 0 && rangerName.trim() === "" && (
+                    <p className="px-3 py-2 text-xs text-muted-foreground">
+                      Start typing to search known rangers, EarthRanger subjects, and recent names.
+                    </p>
+                  )}
+
+                  {!nameSuggestQuery.isLoading && nameGrouped.size > 0 && (
+                    <div className="py-1">
+                      {(["known_ranger", "er_subject", "recent_freetext"] as NameSuggestion["source"][]).map(
+                        (source) => {
+                          const items = nameGrouped.get(source);
+                          if (!items || items.length === 0) return null;
+                          return (
+                            <div key={source}>
+                              <p className="px-3 pt-2 pb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                                {NAME_SOURCE_LABELS[source]}
+                              </p>
+                              {items.map((s) => (
+                                <button
+                                  key={`${s.source}-${s.id ?? s.name}`}
+                                  type="button"
+                                  className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-left hover:bg-accent"
+                                  onMouseDown={(e) => {
+                                    // Prevent the input blur from firing before onClick
+                                    e.preventDefault();
+                                    handleSelectNameSuggestion(s);
+                                  }}
+                                >
+                                  {s.name}
+                                </button>
+                              ))}
+                            </div>
+                          );
+                        },
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Date range */}

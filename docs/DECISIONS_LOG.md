@@ -560,3 +560,30 @@ dialog implementation) of the feat/area-boundary-map-drawing-editor branch. Bund
 atomically with the Editor feature ship (cd93cd9); governance entries (this DECISIONS_LOG
 entry + the paired CHANGELOG_AI entry) follow in the next commit per Rule 3 non-blocking
 governance writes.
+
+## 2026-06-16 — Ranger autocomplete everywhere a ranger is named (owner decision)
+Decision: The 3-source ranger autocomplete combobox (calling `event.suggestAccompanyingRangers`)
+must appear on EVERY surface in the app where a user types or selects a ranger/person name —
+not only on the Event Detail page.
+
+Surface inventory (2026-06-16):
+  • Event Detail — `AccompanyingRangersInput` combobox → ALREADY WIRED (prior session)
+  • Patrol Schedule assignment dialog — `rangerName` plain `<Input>` → WIRED in this change
+  • Patrol Detail page (`patrols/[id]/page.tsx`) — read-only display; no input → n/a
+  • Fuel Logging (create/edit dialogs) — no ranger/person name field → n/a
+  • Observations page — read-only ER-synced display → n/a
+  • Alert rules / patrol-areas / reports — no ranger name input → n/a
+
+Implementation for Patrol Schedule:
+  `AssignmentDialog` ranger-name `<Input>` replaced with an inline debounced combobox
+  (250 ms) calling `event.suggestAccompanyingRangers`. Selecting a suggestion sets
+  `rangerName` state — all downstream submit/validation logic is unchanged. No promote path
+  (patrol schedule stores a freetext name string, not an AccompanyingRanger entity). The
+  existing registered-user `<Select>` auto-fill still works and now also closes the dropdown.
+Rationale: Owner direction 2026-06-16 — KnownRanger suggestions should be available
+  everywhere a ranger name can be entered, not just on events.
+Files changed:
+  • apps/web/src/app/(dashboard)/patrol-schedule/_components/assignment-dialog.tsx
+  • docs/PRODUCT.md (patrol-schedule section updated)
+  • docs/DECISIONS_LOG.md (this entry)
+Locked: yes
