@@ -3,6 +3,8 @@
 # NEVER re-ask anything listed here.
 # ---
 
+## 2026-06-16 — Auth.js trustHost behind Traefik proxy → Decision: set trustHost: true in authConfig (config.ts) + AUTH_TRUST_HOST=true in .env.example → Rationale: Auth.js v5 returns HTTP 500 on /api/auth/* when running behind a reverse proxy (Traefik) unless it trusts the forwarded Host header; code-level fix (trustHost: true) is durable across all environments without relying on the env var; env var documented in .env.example for operator awareness → Locked: yes
+
 ## 2026-06-16 — Accompanying-ranger autocomplete: 3-source merge + dedupe + promotion (PRODUCT.md §82, §265, §270-271)
 Decision: The `event.addAccompanyingRanger` tRPC procedure gains an optional `knownRangerId`
 param (tenant-scoped, validated against KnownRanger table before create). Two new procedures
