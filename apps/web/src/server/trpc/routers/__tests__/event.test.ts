@@ -13,7 +13,16 @@ vi.mock("@marine-guardian/db", () => ({
     accompanyingRanger: {
       create: vi.fn(),
       findFirst: vi.fn(),
+      findMany: vi.fn(),
       delete: vi.fn(),
+    },
+    knownRanger: {
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
+      create: vi.fn(),
+    },
+    subject: {
+      findMany: vi.fn(),
     },
     tenant: {
       findUnique: vi.fn(),
@@ -470,6 +479,270 @@ describe("event.addAccompanyingRanger", () => {
         eventId: "ev-1",
         freetextName: "John Doe",
       })
+    ).rejects.toThrow(TRPCError);
+  });
+
+  it("links knownRangerId when provided and ranger belongs to tenant", async () => {
+    vi.mocked(prisma.event.findFirst).mockResolvedValue({
+      id: "ev-1",
+      tenantId: TENANT_ID,
+    } as never);
+    vi.mocked(prisma.knownRanger.findFirst).mockResolvedValue({
+      id: "kr-1",
+      tenantId: TENANT_ID,
+    } as never);
+    const mockRanger = {
+      id: "ar-3",
+      tenantId: TENANT_ID,
+      entityType: "event",
+      entityId: "ev-1",
+      rangerType: "freetext",
+      registeredUserId: null,
+      freetextName: "Maria Cruz",
+      knownRangerId: "kr-1",
+      addedByUserId: USER_ID,
+      knownRanger: { id: "kr-1", name: "Maria Cruz", source: "manual_entry" },
+    };
+    vi.mocked(prisma.accompanyingRanger.create).mockResolvedValue(mockRanger as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.addAccompanyingRanger({
+      eventId: "ev-1",
+      freetextName: "Maria Cruz",
+      knownRangerId: "kr-1",
+    });
+
+    expect(vi.mocked(prisma.knownRanger.findFirst)).toHaveBeenCalledWith(
+      partial({ where: partial({ id: "kr-1", tenantId: TENANT_ID }) })
+    );
+    expect(vi.mocked(prisma.accompanyingRanger.create)).toHaveBeenCalledWith(
+      partial({
+        data: partial({ knownRangerId: "kr-1", freetextName: "Maria Cruz" }),
+      })
+    );
+    expect(result).toMatchObject({ knownRangerId: "kr-1" });
+  });
+
+  it("throws NOT_FOUND when knownRangerId does not belong to tenant", async () => {
+    vi.mocked(prisma.event.findFirst).mockResolvedValue({
+      id: "ev-1",
+      tenantId: TENANT_ID,
+    } as never);
+    // knownRanger lookup returns null → cross-tenant or missing
+    vi.mocked(prisma.knownRanger.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.addAccompanyingRanger({
+        eventId: "ev-1",
+        freetextName: "Ghost Ranger",
+        knownRangerId: "kr-other-tenant",
+      })
+    ).rejects.toThrow(TRPCError);
+  });
+});
+
+describe("event.suggestAccompanyingRangers", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns known rangers matching the query (source 1)", async () => {
+    vi.mocked(prisma.knownRanger.findMany).mockResolvedValue([
+      { id: "kr-1", name: "Alice Reyes", source: "manual_entry", erSubjectId: null },
+    ] as never);
+    vi.mocked(prisma.accompanyingRanger.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.subject.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.suggestAccompanyingRangers({ query: "Alice" });
+
+    expect(result.suggestions).toHaveLength(1);
+    expect(result.suggestions[0]).toMatchObject({
+      id: "kr-1",
+      name: "Alice Reyes",
+      source: "known_ranger",
+    });
+  });
+
+  it("includes recent freetext names as source 2", async () => {
+    vi.mocked(prisma.knownRanger.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.accompanyingRanger.findMany).mockResolvedValue([
+      { freetextName: "Pedro Santos", knownRangerId: null },
+    ] as never);
+    vi.mocked(prisma.subject.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.suggestAccompanyingRangers({ query: "Pedro" });
+
+    expect(result.suggestions).toHaveLength(1);
+    expect(result.suggestions[0]).toMatchObject({
+      id: null,
+      name: "Pedro Santos",
+      source: "recent_freetext",
+    });
+  });
+
+  it("includes ER subjects not already in KnownRanger as source 3", async () => {
+    vi.mocked(prisma.knownRanger.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.accompanyingRanger.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.subject.findMany).mockResolvedValue([
+      { id: "subj-1", name: "Juan dela Cruz", erSubjectId: "er-subj-1" },
+    ] as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.suggestAccompanyingRangers({ query: "Juan" });
+
+    expect(result.suggestions).toHaveLength(1);
+    expect(result.suggestions[0]).toMatchObject({
+      id: null,
+      name: "Juan dela Cruz",
+      source: "er_subject",
+      erSubjectId: "er-subj-1",
+    });
+  });
+
+  it("dedupes: same name across all three sources appears only once — known_ranger wins", async () => {
+    vi.mocked(prisma.knownRanger.findMany).mockResolvedValue([
+      { id: "kr-1", name: "Ana Garcia", source: "earthranger_sync", erSubjectId: "er-1" },
+    ] as never);
+    vi.mocked(prisma.accompanyingRanger.findMany).mockResolvedValue([
+      { freetextName: "Ana Garcia", knownRangerId: null },
+    ] as never);
+    vi.mocked(prisma.subject.findMany).mockResolvedValue([
+      // Same erSubjectId — should be skipped (already in knownRangers by erSubjectId)
+      { id: "subj-1", name: "Ana Garcia", erSubjectId: "er-1" },
+    ] as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.suggestAccompanyingRangers({ query: "Ana" });
+
+    // Only one record, from source 1
+    expect(result.suggestions).toHaveLength(1);
+    expect(result.suggestions[0]).toMatchObject({ id: "kr-1", source: "known_ranger" });
+  });
+
+  it("dedupes: name-only collision between source 2 and source 3 — er_subject wins", async () => {
+    vi.mocked(prisma.knownRanger.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.accompanyingRanger.findMany).mockResolvedValue([
+      { freetextName: "Carlos Dizon", knownRangerId: null },
+    ] as never);
+    vi.mocked(prisma.subject.findMany).mockResolvedValue([
+      { id: "subj-2", name: "Carlos Dizon", erSubjectId: "er-2" },
+    ] as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.suggestAccompanyingRangers({ query: "Carlos" });
+
+    expect(result.suggestions).toHaveLength(1);
+    // er_subject processed before freetext, so it wins the slot
+    expect(result.suggestions[0]).toMatchObject({ source: "er_subject", erSubjectId: "er-2" });
+  });
+
+  it("scopes all three DB queries to the authenticated tenant", async () => {
+    vi.mocked(prisma.knownRanger.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.accompanyingRanger.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.subject.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.suggestAccompanyingRangers({ query: "" });
+
+    expect(vi.mocked(prisma.knownRanger.findMany)).toHaveBeenCalledWith(
+      partial({ where: partial({ tenantId: TENANT_ID }) })
+    );
+    expect(vi.mocked(prisma.accompanyingRanger.findMany)).toHaveBeenCalledWith(
+      partial({ where: partial({ tenantId: TENANT_ID }) })
+    );
+    expect(vi.mocked(prisma.subject.findMany)).toHaveBeenCalledWith(
+      partial({ where: partial({ tenantId: TENANT_ID }) })
+    );
+  });
+
+  it("throws FORBIDDEN when tenantId is absent from session", async () => {
+    const caller = createCaller(makeCtx(null));
+    await expect(
+      caller.suggestAccompanyingRangers({ query: "test" })
+    ).rejects.toThrow(TRPCError);
+  });
+});
+
+describe("event.promoteToKnownRanger", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("creates a new KnownRanger with source=manual_entry and returns created=true", async () => {
+    vi.mocked(prisma.knownRanger.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.knownRanger.create).mockResolvedValue({
+      id: "kr-new",
+      tenantId: TENANT_ID,
+      name: "Tomas Bautista",
+      source: "manual_entry",
+      erSubjectId: null,
+      isActive: true,
+      createdAt: new Date("2026-06-16"),
+      updatedAt: new Date("2026-06-16"),
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.promoteToKnownRanger({ name: "Tomas Bautista" });
+
+    expect(result.created).toBe(true);
+    expect(result.knownRanger).toMatchObject({ id: "kr-new", name: "Tomas Bautista" });
+    expect(vi.mocked(prisma.knownRanger.create)).toHaveBeenCalledWith(
+      partial({
+        data: partial({
+          name: "Tomas Bautista",
+          source: "manual_entry",
+          tenantId: TENANT_ID,
+        }),
+      })
+    );
+  });
+
+  it("returns existing KnownRanger with created=false (idempotent)", async () => {
+    const existingKr = {
+      id: "kr-existing",
+      tenantId: TENANT_ID,
+      name: "Tomas Bautista",
+      source: "manual_entry",
+      erSubjectId: null,
+      isActive: true,
+      createdAt: new Date("2026-06-10"),
+      updatedAt: new Date("2026-06-10"),
+    };
+    vi.mocked(prisma.knownRanger.findFirst).mockResolvedValue(existingKr as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.promoteToKnownRanger({ name: "Tomas Bautista" });
+
+    expect(result.created).toBe(false);
+    expect(result.knownRanger).toMatchObject({ id: "kr-existing" });
+    // create should NOT have been called
+    expect(vi.mocked(prisma.knownRanger.create)).not.toHaveBeenCalled();
+  });
+
+  it("scopes the existence check to the authenticated tenant", async () => {
+    vi.mocked(prisma.knownRanger.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.knownRanger.create).mockResolvedValue({
+      id: "kr-new",
+      name: "New Ranger",
+      source: "manual_entry",
+      tenantId: TENANT_ID,
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    await caller.promoteToKnownRanger({ name: "New Ranger" });
+
+    expect(vi.mocked(prisma.knownRanger.findFirst)).toHaveBeenCalledWith(
+      partial({ where: partial({ tenantId: TENANT_ID }) })
+    );
+  });
+
+  it("throws FORBIDDEN when tenantId is absent from session", async () => {
+    const caller = createCaller(makeCtx(null));
+    await expect(
+      caller.promoteToKnownRanger({ name: "Ghost" })
     ).rejects.toThrow(TRPCError);
   });
 });

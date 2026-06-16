@@ -250,6 +250,138 @@ export const eventRouter = router({
       return updated;
     }),
 
+  /**
+   * Autocomplete suggestions for the accompanying-ranger picker.
+   *
+   * Merges three tenant-scoped sources:
+   *   1. KnownRanger registry (source = earthranger_sync | manual_entry)
+   *   2. Recently-used ad-hoc freetext names on prior events (last 90 days)
+   *   3. EarthRanger-sourced subjects with subject_type "person" / "ranger"
+   *      (these are already in the KnownRanger table via earthranger_sync, but
+   *      the Subject table is checked separately to catch any not yet promoted)
+   *
+   * Results are deduped: same normalised name + any matching known_id wins
+   * the "known" side over ad-hoc. Max 20 suggestions.
+   */
+  suggestAccompanyingRangers: tenantProcedure
+    .input(
+      z.object({
+        query: z.string().max(200).default(""),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const q = input.query.trim();
+      const tenantId = ctx.tenantId;
+
+      // Source 1 — KnownRanger registry
+      const knownRangers = await prisma.knownRanger.findMany({
+        where: {
+          tenantId,
+          isActive: true,
+          ...(q !== ""
+            ? { name: { contains: q, mode: "insensitive" } }
+            : {}),
+        },
+        orderBy: { name: "asc" },
+        take: 20,
+        select: { id: true, name: true, source: true, erSubjectId: true },
+      });
+
+      // Source 2 — recent ad-hoc freetext names (last 90 days, event entity only)
+      const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+      const recentFreetext = await prisma.accompanyingRanger.findMany({
+        where: {
+          tenantId,
+          entityType: "event",
+          rangerType: "freetext",
+          freetextName: q !== "" ? { contains: q, mode: "insensitive" } : { not: null },
+          createdAt: { gte: since },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 40,
+        select: { freetextName: true, knownRangerId: true },
+      });
+
+      // Source 3 — EarthRanger subjects with person/ranger subject_type not yet
+      //            in knownRangers (they may be un-synced or type-filtered out)
+      const erSubjects = await prisma.subject.findMany({
+        where: {
+          tenantId,
+          isActive: true,
+          subjectType: { in: ["person", "ranger"] },
+          ...(q !== ""
+            ? { name: { contains: q, mode: "insensitive" } }
+            : {}),
+        },
+        orderBy: { name: "asc" },
+        take: 20,
+        select: { id: true, name: true, erSubjectId: true },
+      });
+
+      // ── Dedupe ────────────────────────────────────────────────────────────
+      // Normalise: lowercase + collapse whitespace
+      const norm = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
+
+      interface Suggestion {
+        id: string | null;         // knownRangerId when available, else null
+        name: string;
+        source: "known_ranger" | "recent_freetext" | "er_subject";
+        erSubjectId: string | null;
+      }
+
+      // Map: normalisedName → best suggestion (known beats ad-hoc)
+      const seen = new Map<string, Suggestion>();
+
+      for (const kr of knownRangers) {
+        const key = norm(kr.name);
+        seen.set(key, {
+          id: kr.id,
+          name: kr.name,
+          source: "known_ranger",
+          erSubjectId: kr.erSubjectId,
+        });
+      }
+
+      // ER subjects — only add if not already covered by a knownRanger by
+      // erSubjectId match OR by normalised name
+      const knownErSubjectIds = new Set(knownRangers.map((k) => k.erSubjectId).filter(Boolean));
+      for (const subj of erSubjects) {
+        if (knownErSubjectIds.has(subj.erSubjectId)) continue; // already in source 1
+        const key = norm(subj.name);
+        if (!seen.has(key)) {
+          seen.set(key, {
+            id: null,
+            name: subj.name,
+            source: "er_subject",
+            erSubjectId: subj.erSubjectId,
+          });
+        }
+      }
+
+      // Recent freetext — add only if not covered by name match in sources 1 or 3
+      const seenFreetext = new Set<string>();
+      for (const ar of recentFreetext) {
+        const name = ar.freetextName;
+        if (!name) continue;
+        const key = norm(name);
+        if (seen.has(key)) continue; // already covered by known / ER subject
+        if (seenFreetext.has(key)) continue; // dedupe within source 2
+        seenFreetext.add(key);
+        seen.set(key, {
+          id: ar.knownRangerId ?? null,
+          name,
+          source: "recent_freetext",
+          erSubjectId: null,
+        });
+      }
+
+      const suggestions = [...seen.values()]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .slice(0, 20);
+
+      return { suggestions };
+    }),
+
   addAccompanyingRanger: tenantProcedure
     .input(
       z
@@ -257,6 +389,10 @@ export const eventRouter = router({
           eventId: z.string(),
           registeredUserId: z.string().optional(),
           freetextName: z.string().min(1).max(200).optional(),
+          // Optional: when the user selects from the KnownRanger registry
+          // (source 1 of autocomplete), pass this to link the record directly.
+          // Keeps the ad-hoc freetext path working when omitted.
+          knownRangerId: z.string().optional(),
         })
         .strict()
         .refine(
@@ -275,6 +411,20 @@ export const eventRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Event not found." });
       }
 
+      // Validate knownRangerId belongs to this tenant when provided
+      if (input.knownRangerId !== undefined) {
+        const kr = await prisma.knownRanger.findFirst({
+          where: { id: input.knownRangerId, tenantId: ctx.tenantId },
+          select: { id: true },
+        });
+        if (!kr) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "KnownRanger not found.",
+          });
+        }
+      }
+
       const isRegistered = input.registeredUserId !== undefined;
 
       return prisma.accompanyingRanger.create({
@@ -288,11 +438,56 @@ export const eventRouter = router({
             ? { registeredUserId: input.registeredUserId }
             : {}),
           ...(input.freetextName !== undefined ? { freetextName: input.freetextName } : {}),
+          ...(input.knownRangerId !== undefined ? { knownRangerId: input.knownRangerId } : {}),
         },
         include: {
           registeredUser: { select: { id: true, fullName: true } },
+          knownRanger: { select: { id: true, name: true, source: true } },
         },
       });
+    }),
+
+  /**
+   * Promote an ad-hoc freetext accompanying ranger into the KnownRanger
+   * registry (source = manual_entry). Idempotent: if a KnownRanger with the
+   * same normalised name already exists for this tenant, returns the existing
+   * record rather than creating a duplicate.
+   *
+   * After promotion the caller should update the AccompanyingRanger row via
+   * addAccompanyingRanger (or a future updateAccompanyingRanger) to link the
+   * knownRangerId — the promotion itself does NOT mutate existing AR rows so
+   * that historical audit lineage is preserved.
+   */
+  promoteToKnownRanger: tenantProcedure
+    .input(
+      z.object({
+        name: z.string().min(1).max(200),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const tenantId = ctx.tenantId;
+      const normalisedName = input.name.trim();
+
+      // Idempotency: return existing record if name matches (case-insensitive)
+      const existing = await prisma.knownRanger.findFirst({
+        where: {
+          tenantId,
+          name: { equals: normalisedName, mode: "insensitive" },
+        },
+      });
+      if (existing) {
+        return { knownRanger: existing, created: false };
+      }
+
+      const knownRanger = await prisma.knownRanger.create({
+        data: {
+          tenantId,
+          name: normalisedName,
+          source: "manual_entry",
+        },
+      });
+
+      return { knownRanger, created: true };
     }),
 
   removeAccompanyingRanger: tenantProcedure

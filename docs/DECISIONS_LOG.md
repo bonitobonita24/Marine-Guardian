@@ -3,6 +3,36 @@
 # NEVER re-ask anything listed here.
 # ---
 
+## 2026-06-16 — Accompanying-ranger autocomplete: 3-source merge + dedupe + promotion (PRODUCT.md §82, §265, §270-271)
+Decision: The `event.addAccompanyingRanger` tRPC procedure gains an optional `knownRangerId`
+param (tenant-scoped, validated against KnownRanger table before create). Two new procedures
+added to `eventRouter`:
+  • `event.suggestAccompanyingRangers(query)` — merges (1) KnownRanger registry, (2) recent
+    freetext accompanying-ranger names (last 90 days, event entity), (3) EarthRanger Subject rows
+    with subject_type "person"/"ranger" not already covered by a knownRanger erSubjectId match.
+    Dedupe strategy: normalised name (lowercase + collapsed whitespace) is the primary key;
+    source-1 beats source-3 beats source-2 on collision; erSubjectId collision is detected before
+    name normalisation so ER subjects already in KnownRanger are skipped at the id level. Returns
+    up to 20 suggestions sorted by name; each entry carries id, name, source, erSubjectId.
+  • `event.promoteToKnownRanger(name)` — idempotent: case-insensitive name lookup scoped to
+    tenant; returns existing record + created=false if already present, else creates with
+    source="manual_entry" + created=true. Does NOT mutate existing AccompanyingRanger rows (audit
+    lineage preserved); caller links the knownRangerId on the next addAccompanyingRanger call.
+Rationale: Owner decision 2026-06-16. KnownRanger registry was server-side only and never
+surfaced in the accompanying-ranger flow. Three-source autocomplete was the owner-specified UX.
+Ad-hoc freetext path continues to work unchanged (knownRangerId is optional). No schema change
+required — knownRangerId column and KnownRanger FK already exist in AccompanyingRanger.
+Files affected:
+  • apps/web/src/server/trpc/routers/event.ts
+    (addAccompanyingRanger: added knownRangerId optional param + tenant-guard validation;
+    new suggestAccompanyingRangers query; new promoteToKnownRanger mutation)
+  • apps/web/src/server/trpc/routers/__tests__/event.test.ts
+    (mocks extended with knownRanger + subject; 17 net-new test cases across 3 new describes
+    + 2 cases added to addAccompanyingRanger describe)
+  • docs/PRODUCT.md §82, §265, §270-271
+  • docs/DECISIONS_LOG.md (this entry)
+Locked: yes
+
 ## 2026-06-16 — Phase 8 completeness sweep: Observations + Sync Status pages wired
 Decision: The /observations and /sync placeholder pages are now wired to their existing
 tenant-scoped read routers (observation.list, syncLog.list + syncLog.latest), following the
