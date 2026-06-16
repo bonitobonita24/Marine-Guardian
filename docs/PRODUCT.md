@@ -79,7 +79,7 @@ EarthRanger is an excellent field data collection platform but provides no repor
 - Location mini-map showing event position
 - Event timeline (created, synced, state changes, edits)
 - Link to reporter's ranger profile
-- **Accompanying Rangers:** Any Command Center user can tag additional rangers who participated in this event. Supports two modes: (1) select from the autocomplete dropdown which suggests from three sources — KnownRanger registry, recently-used ad-hoc freetext names (last 90 days), and EarthRanger-sourced subjects of type "person"/"ranger" — deduped so the same person never appears twice; (2) type a free-text name for someone not in the system (e.g., community volunteer, visiting ranger). When a freetext name is entered, the UI offers a **Promote** action to add the person to the KnownRanger registry (source = manual_entry), so they autocomplete from source 1 next time. The `addAccompanyingRanger` procedure accepts an optional `knownRangerId` param to link the AR record directly to the registry when the user selects from the autocomplete. All accompanying rangers receive equal performance credit as the reporter. Display as a tag/chip list with remove capability.
+- **Accompanying Rangers:** Any Command Center user can tag additional rangers who participated in this event. The UI is a **debounced combobox** (250 ms) that calls `event.suggestAccompanyingRangers` and shows suggestions grouped by source: (1) KnownRanger registry (`known_ranger`) — passes `knownRangerId` on selection; (2) EarthRanger subjects not yet promoted (`er_subject`) — freetext path; (3) recently-used ad-hoc names (`recent_freetext`) — freetext path. Server-side deduplication by normalised name + erSubjectId means the same person never appears in multiple groups. Typing a name not in the dropdown commits via Enter or an "Add as ad-hoc" button. After adding, any freetext rangers without a `knownRangerId` link surface a **Promote** affordance calling `event.promoteToKnownRanger` to add them to the KnownRanger registry (source = manual_entry). All accompanying rangers receive equal performance credit as the reporter. Display as a chip list with remove capability. Implementation: `AccompanyingRangersInput` component (`apps/web/src/components/events/accompanying-rangers-input.tsx`).
 
 ### Patrol Monitoring
 - Active patrols list with real-time progress (current position on map, elapsed time, distance covered)
@@ -198,14 +198,15 @@ EarthRanger is an excellent field data collection platform but provides no repor
 - Role-specific badges (color-coded)
 
 ### Tenant Settings
-- EarthRanger connection configuration: server URL, username, password, DAS Web Token (REST API), ER Track Token (WebSocket)
-- Test connection button with validation (attempts API call using DAS Web Token)
-- Connection health status indicator (connected/disconnected with last sync time)
+- **EarthRanger connection** — stored in a dedicated `TenantErConnection` table (one row per tenant, unique on tenant_id). Fields: base URL + AES-256-GCM encrypted API token (`api_token_enc`) + status (unchecked | connected | error) + `last_validated_at`. The plaintext token is **never** returned to the client after save — only a masked sentinel (`••••••••`) is shown. ENCRYPTION_KEY (32-byte hex, server env) is the encryption key.
+- **Save Connection / Update Connection** — admin-only upsert via `settings.upsertErConnection` (RBAC: super_admin | site_admin; L5 audit log).
+- **Test Connection** button — triggers `settings.testErConnection` which decrypts the token server-side, probes `GET /api/v1.0/subjects/?page_size=1`, and writes the result + timestamp back to the row. Audited. Reports success/failure in the UI without ever sending the token to the client.
+- Status badge: Connected / Connection error / Not yet verified.
+- Token field is always `type="password"`. After a save the field placeholder shows `••••••••`; leave blank on update to keep the existing token.
 - Data sync frequency configuration (default 30 seconds)
 - Sync status table: data type × last sync × records synced × status
 - Tenant profile (MPA site name, slug, description, timezone, **currency** — e.g., IDR, PHP, MYR)
 - Save and update buttons
-- Password and token fields masked by default with show/hide toggle
 
 ### Super Admin Panel
 - Create/edit/deactivate tenants

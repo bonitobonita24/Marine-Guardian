@@ -186,8 +186,28 @@ model Tenant {
   patrolSchedules     PatrolSchedule[]
   fuelEntries         FuelEntry[]
   reportExports       ReportExport[]
+  erConnection        TenantErConnection?
 
   @@map("tenants")
+}
+
+/// Per-tenant EarthRanger connection — one row per tenant (unique on tenant_id).
+/// The api_token column stores AES-256-GCM ciphertext (iv + authtag + encrypted),
+/// encrypted/decrypted by the server-side encrypt()/decrypt() helpers from
+/// @marine-guardian/db using ENCRYPTION_KEY. It is NEVER returned in plaintext to clients.
+model TenantErConnection {
+  id              String    @id @default(cuid())
+  tenantId        String    @unique @map("tenant_id")
+  baseUrl         String    @map("base_url")
+  apiTokenEnc     String    @map("api_token_enc")
+  status          String    @default("unchecked")
+  lastValidatedAt DateTime? @map("last_validated_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("tenant_er_connections")
 }
 
 model User {

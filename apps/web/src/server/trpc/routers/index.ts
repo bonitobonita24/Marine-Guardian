@@ -22,8 +22,10 @@ import { reportExportRouter } from "./reportExport";
 import { platformRouter } from "./platform";
 import { platformUserRouter } from "./platformUser";
 import { platformImpersonationRouter } from "./platformImpersonation";
+import { settingsRouter } from "./settings";
 
 export const appRouter = router({
+  settings: settingsRouter,
   platform: platformRouter,
   platformUser: platformUserRouter,
   platformImpersonation: platformImpersonationRouter,

@@ -33,6 +33,27 @@ Files affected:
   • docs/DECISIONS_LOG.md (this entry)
 Locked: yes
 
+## 2026-06-16 — Accompanying-ranger picker UI: debounced combobox replaces plain Input (Task 1 UI layer)
+Decision: `AccompanyingRangersInput` component fully rebuilt as a debounced combobox
+(250 ms) calling `event.suggestAccompanyingRangers`. Dropdown groups suggestions by source
+with section headers (Known Rangers / EarthRanger Subjects / Recent Names). Selecting a
+`known_ranger` suggestion passes `knownRangerId` to `addAccompanyingRanger`. Selecting
+`er_subject` or `recent_freetext` uses the freetext path (no knownRangerId). Typing a name
+not in the dropdown shows "Add as ad-hoc" inline; Enter commits the typed value. After
+attaching, freetext rangers without a `knownRangerId` link surface a "Promote" section
+calling `promoteToKnownRanger`. The old two-Input layout (registered-user search + freetext
+add) is fully replaced; the registered-user picker path (registeredUserId) is now reachable
+via the combobox if the user.list router is wired in a future iteration.
+Rationale: Owner-directed in architect task brief 2026-06-16. The server layer (3-source
+  suggestAccompanyingRangers + promoteToKnownRanger) was already merged at ed1e8e3; this
+  commit adds the matching UI layer.
+Files changed:
+  • apps/web/src/components/events/accompanying-rangers-input.tsx (rebuilt)
+  • apps/web/src/components/events/__tests__/accompanying-rangers-input.test.tsx (rebuilt, 11 tests)
+  • docs/PRODUCT.md §82 (combobox UX documented)
+  • docs/DECISIONS_LOG.md (this entry)
+Locked: yes
+
 ## 2026-06-16 — Phase 8 completeness sweep: Observations + Sync Status pages wired
 Decision: The /observations and /sync placeholder pages are now wired to their existing
 tenant-scoped read routers (observation.list, syncLog.list + syncLog.latest), following the
@@ -48,17 +69,53 @@ prior merge. PRODUCT.md §155/§200-205/§249 promise both surfaces. This is aut
 UI-wiring of existing endpoints, not a new product feature.
 Locked: yes
 
-## 2026-06-16 — Settings (Tenant ER Connection) page left as OWNER-GATED placeholder
-Decision: The /settings placeholder is intentionally NOT auto-built. PRODUCT.md §200-205,
-§462-470 specify it as the EarthRanger connection-configuration form that WRITES encrypted
-credentials (URL/username/password/DAS token/Track token) to the Tenant row and validates
-the connection by live-fetching from ER. No tenant/settings tRPC mutation router exists yet
-(only platform.ts for super-admin tenant mgmt). Building it requires decisions on: credential
-encryption-at-rest approach, the connection-validation UX, and a new write+audit mutation —
-all product/security-sensitive. Deferred to owner direction rather than built speculatively.
-Rationale: Credential-write + live ER validation is a behavior-changing product feature with
-security implications (Rule 1: WHAT/WHETHER-to-build = ask owner), not a dead-control wiring.
-Locked: no
+## 2026-06-16 — Settings (Tenant ER Connection) page left as OWNER-GATED placeholder [SUPERSEDED]
+Decision: SUPERSEDED by the entry below ("Settings: TenantErConnection model + /settings page built").
+The original deferral reason (no encryption approach, no router, no audit) has been resolved by
+the architect session that implemented Task 2 on 2026-06-16.
+Locked: no (superseded)
+
+## 2026-06-16 — Settings: TenantErConnection model + /settings page built (owner-directed Task 2)
+Decision: Built a dedicated `TenantErConnection` Prisma model (table: `tenant_er_connections`,
+unique on `tenant_id`) instead of using the existing inline Tenant fields. New fields: `base_url`,
+`api_token_enc` (AES-256-GCM ciphertext, ENCRYPTION_KEY env var), `status`, `last_validated_at`.
+The existing Tenant inline columns (`earthrangerUrl`, `earthrangerDasToken`, etc.) are left
+untouched to avoid a breaking migration — they are legacy and will be addressed in a separate
+cleanup sweep.
+Credentials strategy:
+  • Encryption: AES-256-GCM via the existing `encrypt()`/`decrypt()` helpers from `@marine-guardian/db`
+    (same key + format already used by the Tenant inline fields via `encryptionExtension`).
+  • The plaintext token is NEVER returned to the client. The `maskConnection()` helper replaces
+    `apiTokenEnc` with the sentinel `••••••••` before the payload leaves the server.
+  • Update UX: leaving the token field blank (or sending the sentinel) preserves the existing
+    encrypted token server-side — no need to re-enter it on URL-only updates.
+tRPC procedures (`settings` router, admin-only mutations, all L5 audited):
+  • `settings.getErConnection` — tenantProcedure, read-only, returns masked row or null.
+  • `settings.upsertErConnection(baseUrl, apiToken?)` — adminProcedure, create/update. Requires
+    apiToken on first create; preserves existing enc token when omitted on update.
+  • `settings.testErConnection` — adminProcedure, decrypts token server-side, probes
+    `GET /api/v1.0/subjects/?page_size=1` with 8 s timeout, updates status + lastValidatedAt.
+UI: `ErConnectionCard` client component at
+  `apps/web/src/app/(dashboard)/settings/_components/er-connection-card.tsx`.
+  Token field always `type="password"`. Test Connection button only visible after first save.
+  Status badge: connected (green) / error (red) / not yet verified (muted).
+Migration: `20260616113329_add_tenant_er_connection` (forward-only, no down migration).
+Tests: 18 router tests in `__tests__/settings.test.ts` — encrypt round-trip, RBAC gates
+  (field_coordinator/operator → FORBIDDEN), masked output, probe happy/fail paths, audit log.
+Rationale: Owner-directed in architect task brief 2026-06-16. Single-table approach over
+  Tenant-inline simplifies the unique constraint, makes encrypt/decrypt auditable per-row, and
+  avoids touching the encryption extension that wraps ALL Tenant mutations.
+Files added/changed:
+  • packages/db/prisma/schema.prisma (TenantErConnection model + Tenant.erConnection relation)
+  • packages/db/prisma/migrations/20260616113329_add_tenant_er_connection/migration.sql
+  • apps/web/src/server/trpc/routers/settings.ts (new)
+  • apps/web/src/server/trpc/routers/index.ts (settings router registered)
+  • apps/web/src/server/trpc/routers/__tests__/settings.test.ts (new, 18 tests)
+  • apps/web/src/app/(dashboard)/settings/page.tsx (wired to ErConnectionCard)
+  • apps/web/src/app/(dashboard)/settings/_components/er-connection-card.tsx (new)
+  • docs/PRODUCT.md §200-209 (Tenant Settings section updated)
+  • docs/DECISIONS_LOG.md (this entry)
+Locked: yes
 
 ## Receipt photo upload deferred from initial Fuel Logging UI ship
 Decision: First /fuel ship lands without receipt photo upload UI. Schema field receiptPhotoUrl
