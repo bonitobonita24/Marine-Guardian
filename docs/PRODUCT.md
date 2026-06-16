@@ -452,6 +452,8 @@ The user may have two separate tokens per server (DAS Web Token for REST API, ER
 | DATABASE_URL | PostgreSQL connection string (generated from Docker Compose config) |
 | NEXTAUTH_SECRET | Auth.js session encryption secret (randomly generated) |
 | NEXTAUTH_URL | App URL (derived from Domain config) |
+| AUTH_TRUST_HOST | Must be `true` when running behind Traefik/Nginx reverse proxy — tells Auth.js v5 to trust the forwarded Host header so `/api/auth/*` returns 200 not 500. Belt-and-suspenders alongside `trustHost: true` in authConfig. |
+| ENCRYPTION_KEY | 64-hex (32-byte) AES-256-GCM key for encrypting EarthRanger API tokens at rest in `tenant_er_connections.api_token_enc`. Generated once per deployment (staging and prod each get their own key). Stored in `Server-Setups/Powerbyte-Hostinger/secrets/marine-guardian-app.enc.yaml` (SOPS+age). |
 | VALKEY_URL | Valkey/Redis connection string (generated from Docker Compose config) |
 | PGADMIN_EMAIL | pgAdmin login email (auto-generated) |
 | PGADMIN_PASSWORD | pgAdmin login password (auto-generated) |
