@@ -37,7 +37,10 @@ services:
     hostname: ${COMPOSE_PROJECT_NAME}_pgbouncer
     env_file: ../../../.env.prod
     environment:
-      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@${COMPOSE_PROJECT_NAME}_postgres:5432/${DB_NAME}
+      # PGBOUNCER_DB_PASSWORD must be the URL-encoded form of DB_PASSWORD (e.g. / → %2F).
+      # PgBouncer's ini parser fails on special chars in the raw password. Set
+      # PGBOUNCER_DB_PASSWORD=<url-encoded-DB_PASSWORD> in .env.prod.
+      DATABASE_URL: postgresql://${DB_USER}:${PGBOUNCER_DB_PASSWORD}@${COMPOSE_PROJECT_NAME}_postgres:5432/${DB_NAME}
       POOL_MODE: transaction
       MAX_CLIENT_CONN: 100
       DEFAULT_POOL_SIZE: 20
