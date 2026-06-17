@@ -1,0 +1,20 @@
+# lefthook.yml — app repo variant
+# Skip: LEFTHOOK=0 git commit ...
+
+pre-commit:
+  parallel: true
+  commands:
+    shellcheck-staged:
+      glob: "*.sh"
+      run: shellcheck -S warning {staged_files}
+
+pre-push:
+  parallel: true
+  commands:
+    shellcheck-all:
+      glob: "*.sh"
+      run: >
+        find . -name "*.sh"
+        -not -path "./.git/*"
+        -not -path "./node_modules/*"
+        | xargs shellcheck -S warning
