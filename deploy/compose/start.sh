@@ -9,7 +9,7 @@
 set -e
 
 ENV=${1:-dev}
-CMD=${@:2}
+CMD="${*:2}"
 BASE=deploy/compose/$ENV
 ENV_FILE=".env.${ENV}"
 

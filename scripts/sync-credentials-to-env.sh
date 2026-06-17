@@ -72,7 +72,7 @@ echo ""
 echo "─── Syncing Third-Party API Keys (if any rows filled) ───"
 # Third-party keys are appended by reading the Third-Party section table rows.
 # Humans add their own rows — this loop reads each row and propagates.
-awk '/^## 🔑 Third-Party/,/^---$/' "$CREDS" | grep -E "^\| [A-Z_]+" | while IFS='|' read -r _ service key value envs _; do
+awk '/^## 🔑 Third-Party/,/^---$/' "$CREDS" | grep -E "^\| [A-Z_]+" | while IFS='|' read -r _ _ key value envs _; do
   key=$(echo "$key" | sed 's/^ *//;s/ *$//')
   value=$(echo "$value" | sed 's/^ *//;s/ *$//')
   envs=$(echo "$envs" | sed 's/^ *//;s/ *$//')
