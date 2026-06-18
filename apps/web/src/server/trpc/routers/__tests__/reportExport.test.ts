@@ -230,6 +230,35 @@ describe("reportExport.create (RBAC + 5.3b pipeline wiring)", () => {
     });
   });
 
+  it("does not fail the mutation when enqueue rejects (Valkey unreachable) — row stays queued, audit still written", async () => {
+    // Regression — Generate Report 524. If the BullMQ enqueue throws (e.g.
+    // bounded EnqueueTimeoutError because Valkey is down), create must still
+    // return the queued row (recoverable via the retry button) rather than
+    // hang or surface a 500.
+    vi.mocked(prisma.reportExport.create).mockResolvedValue({
+      id: "re-enqueue-fail",
+      tenantId: TENANT_ID,
+      requestedByUserId: USER_ID,
+      status: "queued",
+    } as never);
+    vi.mocked(enqueuePdfRender).mockRejectedValueOnce(
+      new Error("enqueuePdfRender timed out after 5000ms (Valkey/Redis unreachable?)")
+    );
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["field_coordinator"]));
+    const result = await caller.create({
+      reportType: "coverage",
+      paramsJson: {},
+      paperSize: "A4",
+    });
+
+    expect(result.id).toBe("re-enqueue-fail");
+    // Audit log is still written after a failed enqueue.
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledTimes(1);
+    errorSpy.mockRestore();
+  });
+
   it("writes an EXPORT_REQUESTED AuditLog with the new row's id as entityId (5.3b wiring)", async () => {
     vi.mocked(prisma.reportExport.create).mockResolvedValue({
       id: "re-audit-1",

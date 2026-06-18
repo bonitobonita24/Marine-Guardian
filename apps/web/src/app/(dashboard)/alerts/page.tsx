@@ -45,9 +45,6 @@ function channelBadges(channels: string[]) {
 
 export default function AlertsPage() {
   const rulesQuery = trpc.alertRule.list.useQuery({ limit: 100 });
-  const createMutation = trpc.alertRule.create.useMutation();
-  const updateMutation = trpc.alertRule.update.useMutation();
-  const deleteMutation = trpc.alertRule.delete.useMutation();
   const utils = trpc.useUtils();
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -57,13 +54,36 @@ export default function AlertsPage() {
   const [formName, setFormName] = useState("");
   const [formSeverity, setFormSeverity] = useState("critical");
   const [formChannels, setFormChannels] = useState<ChannelValue[]>(["in_app"]);
+  // Surface mutation failures in the dialog instead of leaving the Save button
+  // stuck on "Saving…" with no feedback when the request rejects (or hangs).
+  const [formError, setFormError] = useState<string | null>(null);
 
   function resetForm() {
     setFormName("");
     setFormSeverity("critical");
     setFormChannels(["in_app"]);
     setEditingId(null);
+    setFormError(null);
   }
+
+  // Success/error handling lives at the HOOK level so it always fires and
+  // deterministically closes the dialog + clears the saving state on success,
+  // or surfaces the error (dialog stays open) on failure. Relying only on the
+  // inline `.mutate(_, { onSuccess })` callback could leave the dialog stuck.
+  function handleMutationSuccess() {
+    void utils.alertRule.list.invalidate();
+    setDialogOpen(false);
+    resetForm();
+  }
+
+  const createMutation = trpc.alertRule.create.useMutation({
+    onSuccess: handleMutationSuccess,
+    onError: (err) => { setFormError(err.message); },
+  });
+  const updateMutation = trpc.alertRule.update.useMutation({
+    onError: (err) => { setFormError(err.message); },
+  });
+  const deleteMutation = trpc.alertRule.delete.useMutation();
 
   function openCreate() {
     resetForm();
@@ -101,32 +121,25 @@ export default function AlertsPage() {
 
   function handleSave() {
     if (formChannels.length === 0) return;
+    setFormError(null);
 
     const conditionJson = { severity: formSeverity };
     const notificationChannels = formChannels;
 
     if (editingId !== null) {
+      // Inline onSuccess closes the edit path (hook-level onSuccess is reserved
+      // by createMutation; updateMutation is shared with the row toggle which
+      // must NOT close the dialog). onError is handled at the hook level.
       updateMutation.mutate(
         { id: editingId, name: formName, conditionJson, notificationChannels },
-        {
-          onSuccess: () => {
-            void utils.alertRule.list.invalidate();
-            setDialogOpen(false);
-            resetForm();
-          },
-        }
+        { onSuccess: handleMutationSuccess }
       );
     } else {
-      createMutation.mutate(
-        { name: formName, conditionJson, notificationChannels },
-        {
-          onSuccess: () => {
-            void utils.alertRule.list.invalidate();
-            setDialogOpen(false);
-            resetForm();
-          },
-        }
-      );
+      createMutation.mutate({
+        name: formName,
+        conditionJson,
+        notificationChannels,
+      });
     }
   }
 
@@ -253,6 +266,15 @@ export default function AlertsPage() {
               </div>
 
               <Separator />
+
+              {formError !== null && (
+                <p
+                  data-testid="alert-rule-form-error"
+                  className="text-sm text-destructive"
+                >
+                  {formError}
+                </p>
+              )}
 
               <div className="flex justify-end gap-2">
                 <Button

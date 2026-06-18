@@ -25,6 +25,7 @@ vi.mock("../queue-factory", () => ({
 
 import {
   enqueuePdfRender,
+  EnqueueTimeoutError,
   getPdfRenderQueue,
 } from "../pdf-render.queue";
 import type { PdfRenderJobPayload } from "../types";
@@ -95,6 +96,33 @@ describe("pdf-render queue", () => {
     const opts1 = calls[1]?.[2] as { jobId: string };
     expect(opts0.jobId).toBe(opts1.jobId);
     expect(opts0.jobId).toBe("pdf-render__export-cuid-3");
+  });
+
+  // Regression — Generate Report 524 timeout. The shared Valkey connection
+  // uses maxRetriesPerRequest:null, so when Valkey is unreachable queue.add
+  // never resolves. enqueuePdfRender must NOT hang forever; it rejects with
+  // EnqueueTimeoutError so reportExport.create can degrade gracefully instead
+  // of holding the HTTP request open until the proxy 524s.
+  it("rejects with EnqueueTimeoutError when queue.add never resolves", async () => {
+    vi.useFakeTimers();
+    try {
+      // Never-resolving add simulates an unreachable Valkey under
+      // maxRetriesPerRequest:null (infinite retry, no rejection).
+      mockAdd.mockReturnValueOnce(new Promise<never>(() => {}));
+      const promise = enqueuePdfRender({
+        tenantId: "tenant-a",
+        userId: "user-1",
+        exportId: "export-hang",
+      });
+      // Attach a rejection handler before advancing timers.
+      const assertion = expect(promise).rejects.toBeInstanceOf(
+        EnqueueTimeoutError,
+      );
+      await vi.advanceTimersByTimeAsync(5000);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("different exportIds produce distinct jobIds", async () => {

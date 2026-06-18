@@ -118,11 +118,24 @@ export const reportExportRouter = router({
         },
       });
 
-      await enqueuePdfRender({
-        exportId: created.id,
-        tenantId: ctx.tenantId,
-        userId: ctx.userId,
-      });
+      // Enqueue is best-effort and must never hang or fail the request. The
+      // row already exists with status=queued; if Valkey/BullMQ is unreachable
+      // the bounded enqueue rejects quickly (see enqueuePdfRender), we log it,
+      // and the 5.3d admin "Retry" button re-enqueues from the queued state.
+      // Previously an unreachable Valkey made queue.add hang forever, which is
+      // what produced the 524 timeout on the Generate Report button.
+      try {
+        await enqueuePdfRender({
+          exportId: created.id,
+          tenantId: ctx.tenantId,
+          userId: ctx.userId,
+        });
+      } catch (err) {
+        console.error(
+          `[reportExport.create] enqueue failed for export ${created.id}; row remains queued and can be retried:`,
+          err,
+        );
+      }
 
       await prisma.auditLog.create({
         data: {

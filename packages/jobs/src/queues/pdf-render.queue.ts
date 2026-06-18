@@ -34,16 +34,51 @@ export function getPdfRenderQueue(): Queue<PdfRenderJobPayload> {
   return getQueue(QUEUE_NAMES.PDF_RENDER);
 }
 
+/**
+ * Max time we wait for the BullMQ producer `queue.add` to resolve before
+ * giving up. The shared Redis/Valkey connection uses `maxRetriesPerRequest:
+ * null` (required by BullMQ for blocking worker commands), which means a
+ * command issued while Valkey is unreachable retries FOREVER rather than
+ * reject. Without this bound, `enqueuePdfRender` — called inside the
+ * reportExport.create request path — hangs indefinitely, the tRPC request
+ * never returns, and the upstream proxy eventually 524s while the UI sits on
+ * "Queuing…". A bounded race converts an infinite hang into a fast, catchable
+ * failure the caller can degrade on gracefully.
+ */
+const ENQUEUE_TIMEOUT_MS = 5000;
+
+export class EnqueueTimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "EnqueueTimeoutError";
+  }
+}
+
 export async function enqueuePdfRender(
   payload: PdfRenderJobPayload,
 ): Promise<string> {
   const queue = getPdfRenderQueue();
-  const job = await queue.add(
-    "pdf-render",
-    payload,
-    {
-      jobId: `pdf-render__${payload.exportId}`,
-    },
-  );
-  return job.id ?? "";
+
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(
+        new EnqueueTimeoutError(
+          `enqueuePdfRender timed out after ${ENQUEUE_TIMEOUT_MS}ms (Valkey/Redis unreachable?)`,
+        ),
+      );
+    }, ENQUEUE_TIMEOUT_MS);
+  });
+
+  try {
+    const job = await Promise.race([
+      queue.add("pdf-render", payload, {
+        jobId: `pdf-render__${payload.exportId}`,
+      }),
+      timeout,
+    ]);
+    return job.id ?? "";
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }

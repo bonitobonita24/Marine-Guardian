@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { z } from "zod";
 import { CheckCircle, XCircle, Loader2, Wifi } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +9,27 @@ import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc/client";
 
 const TOKEN_PLACEHOLDER = "••••••••";
+
+// Mirrors the server contract (settings.upsertErConnection:
+// z.string().url().max(500)) so the user gets immediate inline feedback
+// instead of typing an arbitrary string and only learning it is invalid
+// after a failed round-trip. Restrict to http/https to reject inputs that
+// are technically URL-shaped (e.g. "javascript:…", "ftp://…").
+const ER_URL_SCHEMA = z
+  .string()
+  .trim()
+  .min(1, { message: "Server URL is required." })
+  .max(500, { message: "Server URL is too long (max 500 characters)." })
+  .url({ message: "Enter a valid URL (e.g. https://your-instance.pamdas.org)." })
+  .refine(
+    (v) => /^https?:\/\//i.test(v),
+    { message: "URL must start with http:// or https://." },
+  );
+
+function validateErUrl(value: string): string | null {
+  const result = ER_URL_SCHEMA.safeParse(value);
+  return result.success ? null : (result.error.issues[0]?.message ?? "Invalid URL.");
+}
 
 function StatusBadge({ status }: { status: string }) {
   if (status === "connected") {
@@ -65,6 +87,7 @@ export function ErConnectionCard() {
 
   const [baseUrl, setBaseUrl] = useState("");
   const [apiToken, setApiToken] = useState("");
+  const [urlError, setUrlError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null);
 
@@ -72,10 +95,23 @@ export function ErConnectionCard() {
   const conn = connQuery.data;
   const displayBaseUrl = baseUrl !== "" ? baseUrl : (conn?.baseUrl ?? "");
 
+  const handleBaseUrlChange = (value: string) => {
+    setBaseUrl(value);
+    // Clear the error as soon as the input becomes valid; otherwise keep the
+    // last message but do not nag on every keystroke for an empty field.
+    setUrlError(value.trim() === "" ? null : validateErUrl(value));
+  };
+
   const handleSave = () => {
     setSaveError(null);
+    const validationMessage = validateErUrl(displayBaseUrl);
+    if (validationMessage !== null) {
+      setUrlError(validationMessage);
+      return;
+    }
+    setUrlError(null);
     upsertMut.mutate({
-      baseUrl: displayBaseUrl,
+      baseUrl: displayBaseUrl.trim(),
       // Send empty string when the user hasn't changed the token
       // (server will keep existing enc token)
       apiToken: apiToken || undefined,
@@ -117,12 +153,24 @@ export function ErConnectionCard() {
           </Label>
           <Input
             id="er-base-url"
+            type="url"
+            inputMode="url"
             value={displayBaseUrl}
-            onChange={(e) => { setBaseUrl(e.target.value); }}
+            onChange={(e) => { handleBaseUrlChange(e.target.value); }}
+            onBlur={(e) => {
+              const v = e.target.value;
+              setUrlError(v.trim() === "" ? null : validateErUrl(v));
+            }}
             placeholder="https://your-instance.pamdas.org"
             autoComplete="off"
+            aria-invalid={urlError !== null}
             data-testid="er-base-url-input"
           />
+          {urlError !== null && (
+            <p className="mt-1 text-xs text-destructive" data-testid="er-base-url-error">
+              {urlError}
+            </p>
+          )}
         </div>
 
         <div className="sm:col-span-2">
@@ -174,7 +222,7 @@ export function ErConnectionCard() {
         <Button
           type="button"
           onClick={handleSave}
-          disabled={upsertMut.isPending || displayBaseUrl === ""}
+          disabled={upsertMut.isPending || displayBaseUrl === "" || urlError !== null}
           data-testid="er-save-btn"
         >
           {upsertMut.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
