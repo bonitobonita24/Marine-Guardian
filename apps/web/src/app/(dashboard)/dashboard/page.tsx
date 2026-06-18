@@ -40,7 +40,15 @@ function KpiCard({
       <CardContent>
         <p className="text-2xl font-bold">{value}</p>
         {delta !== undefined && deltaLabel !== undefined && (
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p
+            className={
+              delta > 0
+                ? "mt-1 text-xs text-[hsl(var(--success))]"
+                : delta < 0
+                  ? "mt-1 text-xs text-destructive"
+                  : "mt-1 text-xs text-muted-foreground"
+            }
+          >
             {delta > 0 ? "+" : ""}
             {delta} {deltaLabel}
           </p>
