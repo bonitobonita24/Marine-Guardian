@@ -27,13 +27,13 @@ export function StatusBadge({ status }: StatusBadgeProps) {
     return (
       <Badge
         className={cn(
-          "border-transparent bg-blue-100 text-blue-900 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-200",
+          "border-transparent bg-info/15 text-info hover:bg-info/15",
         )}
         data-testid="export-status-rendering"
       >
         <span
           aria-hidden="true"
-          className="mr-1 inline-block size-1.5 animate-pulse rounded-full bg-blue-600 dark:bg-blue-300"
+          className="mr-1 inline-block size-1.5 animate-pulse rounded-full bg-info"
         />
         Rendering
       </Badge>

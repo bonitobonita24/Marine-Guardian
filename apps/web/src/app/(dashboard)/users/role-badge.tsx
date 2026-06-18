@@ -21,7 +21,7 @@ const ROLE_CLASS: Record<UserRole, string> = {
   site_admin:
     "border-transparent bg-purple-100 text-purple-900 hover:bg-purple-100 dark:bg-purple-900/30 dark:text-purple-200",
   field_coordinator:
-    "border-transparent bg-blue-100 text-blue-900 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-200",
+    "border-transparent bg-primary/[0.12] text-foreground hover:bg-primary/[0.18]",
   operator: "",
 };
 
