@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# Spec-Driven Platform V32 — File Deployment Script
+# Spec-Driven Platform V32.8 — File Deployment Script
 # ============================================================
 # SAFETY CONTRACT (read this before running)
 # ============================================================
@@ -8,16 +8,32 @@
 #
 #   1. ALWAYS-OVERWRITE (framework files — agent-owned, safe to replace)
 #      Any existing file here is backed up with a .bak suffix, then replaced.
-#         • CLAUDE.md                    (project root)
-#         • .claude/rules/phases.md
-#         • .claude/rules/security.md
-#         • .claude/rules/ui-rules.md
-#         • .claude/rules/bootstrap.md
-#         • .claude/rules/scenarios.md
-#         • .claude/rules/templates.md
-#         • .claude/rules/memory-governance.md
+#         • CLAUDE.md                    (project root — the ONLY auto-loaded file)
+#      These 7 detail files are copied to .ai_prompt/ ONLY (load-on-demand, not auto-loaded):
+#         • .ai_prompt/phases.md            (← was .claude/rules/ in V32.6.1 and earlier)
+#         • .ai_prompt/memory-governance.md (← was .claude/rules/ in V32.6.1 and earlier)
+#         • .ai_prompt/security.md          (← was .claude/rules/ in V32.6.1 and earlier)
+#         • .ai_prompt/ui-rules.md          (← was .claude/rules/ in V32.6.1 and earlier)
+#         • .ai_prompt/bootstrap.md         (← was .claude/rules/ in V32.6.1 and earlier)
+#         • .ai_prompt/scenarios.md         (← was .claude/rules/ in V32.6.1 and earlier)
+#         • .ai_prompt/templates.md         (← was .claude/rules/ in V32.6.1 and earlier)
 #         • AI/Master_Prompt_v31.md      (new file — any old AI/Master_Prompt_v2*.md
 #                                        is kept untouched; delete manually if desired)
+#      These 2 new files deploy to .claude/ (framework-owned, overwrite-with-backup):
+#         • .claude/agents/spec-executor.md  (custom Sonnet executor subagent — V32.7.2)
+#         • .claude/settings.json            (framework settings — MERGED, never clobbed;
+#                                            existing keys preserved, keys injected)
+#      This file deploys to scripts/ (framework-owned, overwrite-with-backup — V32.7.5):
+#         • scripts/lint-deploy.sh           (pre-deploy footgun gate — deliverable #20;
+#                                            invoked by phases.md Phase 5/6 as
+#                                            `bash scripts/lint-deploy.sh deploy/compose`)
+#      V32.8 design toolkit (overwrite-with-backup, scaffold-if-absent):
+#         • scripts/design-stop-hook.sh      (Claude Code Stop hook — deliverable #21)
+#         • .ai_prompt/LESSONS_REGISTRY.md   (consult pointer — design drift lessons — deliverable #22)
+#         • tests/visual/                    (visual-test scaffold — .gitkeep created if absent)
+#         NOTE: sd.config.mjs, design-validate.mjs, and STATE.md evidence template are
+#         NOT deploy-copied — they are scaffolded by bootstrap.md Step 20 from templates.md
+#         (project-adjacent files, not standalone framework deliverables).
 #
 #   2. ALWAYS-APPEND (project config — merge new entries, preserve existing)
 #         • .gitignore  — appends V32 entries ONLY if not already present.
@@ -46,7 +62,7 @@
 # ============================================================
 # EXPECTED LAYOUT BEFORE RUNNING:
 #   your-project/
-#   ├── .ai_prompt/               ← put all 16 V32 reference files in here
+#   ├── .ai_prompt/               ← put all V32 reference files in here
 #   │   ├── CLAUDE_v31_compact.md
 #   │   ├── Master_Prompt_v31.md
 #   │   ├── bootstrap.md
@@ -56,6 +72,11 @@
 #   │   ├── scenarios.md
 #   │   ├── templates.md
 #   │   ├── memory-governance.md
+#   │   ├── spec-executor.md           ← NEW V32.7.2 — Sonnet executor subagent
+#   │   ├── settings.json              ← NEW V32.7.2 — framework settings (merge-deployed)
+#   │   ├── lint-deploy.sh             ← NEW V32.7.5 — pre-deploy footgun gate (→ scripts/, deliverable #20)
+#   │   ├── design-stop-hook.sh        ← NEW V32.8 — Claude Code Stop hook (→ scripts/, deliverable #21)
+#   │   ├── LESSONS_REGISTRY.md        ← NEW V32.8 — design-drift lessons registry (deliverable #22)
 #   │   ├── Product_md_Planning_Assistant_v31.md
 #   │   ├── Framework_Feature_Index_v31.md
 #   │   ├── AI_Tools_Skills_MCPs_Reference_v31.md
@@ -63,7 +84,19 @@
 #   │   ├── ChatGPT_V31_Cross_Audit_Prompt.md
 #   │   ├── Prompt_References.md
 #   │   └── Prompt_References.html     ← interactive HTML UI for prompt references
-#   └── deploy-v31.sh             ← this script at project root (17th file — total deliverable set)
+#   └── deploy-v31.sh             ← this script at project root (22nd file — total deliverable set)
+#
+# DEPLOYED TARGET LOCATIONS (V32.7.2 additions):
+#   .claude/agents/spec-executor.md    ← overwrite-with-backup (framework-owned)
+#   .claude/settings.json              ← create-or-merge (existing keys preserved)
+# DEPLOYED TARGET LOCATIONS (V32.7.5 addition):
+#   scripts/lint-deploy.sh             ← overwrite-with-backup (framework-owned), chmod +x
+# DEPLOYED TARGET LOCATIONS (V32.8 additions):
+#   scripts/design-stop-hook.sh        ← overwrite-with-backup (framework-owned), chmod +x (deliverable #21)
+#   .ai_prompt/LESSONS_REGISTRY.md     ← overwrite-with-backup (framework-owned) (deliverable #22)
+#   tests/visual/                      ← scaffold-if-absent (.gitkeep); existing files untouched
+#   NOTE: sd.config.mjs, design-validate.mjs, STATE.md.template — scaffolded by bootstrap.md
+#   Step 20 from templates.md (not deploy-copied).
 #
 # USAGE:
 #   cd your-project
@@ -92,7 +125,7 @@ if [ ! -d "$AI_PROMPT" ]; then
   echo ""
   echo "Expected layout:"
   echo "  $(basename "$PROJECT")/"
-  echo "  ├── .ai_prompt/            ← create this and put the 16 V32 reference files in it"
+  echo "  ├── .ai_prompt/            ← create this and put the V32 reference files in it"
   echo "  └── deploy-v31.sh          ← this script"
   echo ""
   echo "Run this script from the directory containing .ai_prompt/"
@@ -100,7 +133,7 @@ if [ ! -d "$AI_PROMPT" ]; then
 fi
 
 echo "============================================================"
-echo "  Spec-Driven Platform V32 — Deployment"
+echo "  Spec-Driven Platform V32.8 — Deployment"
 echo "============================================================"
 echo "  Project root:  $PROJECT"
 echo "  Source folder: $AI_PROMPT"
@@ -158,13 +191,8 @@ echo ""
 echo "OVERWRITE (backup .bak first, then replace):"
 for item in \
   "CLAUDE.md" \
-  ".claude/rules/phases.md" \
-  ".claude/rules/security.md" \
-  ".claude/rules/ui-rules.md" \
-  ".claude/rules/bootstrap.md" \
-  ".claude/rules/scenarios.md" \
-  ".claude/rules/templates.md" \
-  ".claude/rules/memory-governance.md" \
+  ".ai_prompt/phases.md" \
+  ".ai_prompt/memory-governance.md" \
   "AI/Master_Prompt_v31.md"; do
   if [ -f "$PROJECT/$item" ]; then
     echo "    $item  (exists → will back up, then overwrite)"
@@ -332,18 +360,20 @@ overwrite_with_backup "$AI_PROMPT/CLAUDE_v31_compact.md" "$PROJECT/CLAUDE.md"
 echo ""
 
 # ============================================================
-# GROUP 2 — OVERWRITE: Modular rule files (.claude/rules/)
+# GROUP 2 — OVERWRITE: All 7 detail files → .ai_prompt/ (load-on-demand, NOT auto-loaded)
+# V32.7: ALL detail files now live in .ai_prompt/ only. .claude/rules/ is intentionally
+# empty — no framework file deploys there. Only CLAUDE.md (Group 1) auto-loads.
+# The compact card's CONTEXTUAL FILE LOADING table contains explicit Read commands for each.
 # ============================================================
-echo "─── Group 2: .claude/rules/ (OVERWRITE — 6 modular files) ───"
-mkdir -p "$PROJECT/.claude/rules"
+echo "─── Group 2: .ai_prompt/ detail files (load-on-demand — 7 files, V32.7) ───"
 
-overwrite_with_backup "$AI_PROMPT/phases.md"    "$PROJECT/.claude/rules/phases.md"
-overwrite_with_backup "$AI_PROMPT/security.md"  "$PROJECT/.claude/rules/security.md"
-overwrite_with_backup "$AI_PROMPT/ui-rules.md"  "$PROJECT/.claude/rules/ui-rules.md"
-overwrite_with_backup "$AI_PROMPT/bootstrap.md" "$PROJECT/.claude/rules/bootstrap.md"
-overwrite_with_backup "$AI_PROMPT/scenarios.md" "$PROJECT/.claude/rules/scenarios.md"
-overwrite_with_backup "$AI_PROMPT/templates.md" "$PROJECT/.claude/rules/templates.md"
-overwrite_with_backup "$AI_PROMPT/memory-governance.md" "$PROJECT/.claude/rules/memory-governance.md"
+overwrite_with_backup "$AI_PROMPT/phases.md"             "$PROJECT/.ai_prompt/phases.md"
+overwrite_with_backup "$AI_PROMPT/memory-governance.md"  "$PROJECT/.ai_prompt/memory-governance.md"
+overwrite_with_backup "$AI_PROMPT/security.md"           "$PROJECT/.ai_prompt/security.md"
+overwrite_with_backup "$AI_PROMPT/ui-rules.md"           "$PROJECT/.ai_prompt/ui-rules.md"
+overwrite_with_backup "$AI_PROMPT/bootstrap.md"          "$PROJECT/.ai_prompt/bootstrap.md"
+overwrite_with_backup "$AI_PROMPT/scenarios.md"          "$PROJECT/.ai_prompt/scenarios.md"
+overwrite_with_backup "$AI_PROMPT/templates.md"          "$PROJECT/.ai_prompt/templates.md"
 echo ""
 
 # ============================================================
@@ -415,6 +445,10 @@ GITIGNORE_ENTRIES=(
   "# ─── Automation Handoff Docs (consumed by framework, not committed) ───"
   "n8n-handoff.md"
   "openclaw-handoff.md"
+  "# ─── V32.8 Design Toolkit artifacts ───"
+  "tokens/build/"
+  "tests/visual/__snapshots__/"
+  "tests/visual/diff/"
 )
 
 for entry in "${GITIGNORE_ENTRIES[@]}"; do
@@ -430,6 +464,116 @@ if [ "$added" -le 0 ]; then
 else
   echo "  ✅ Added $added lines. Preserved $preserved_lines existing lines."
 fi
+echo ""
+
+# ============================================================
+# GROUP 5 — .claude/ targets: spec-executor subagent + settings.json merge (V32.7.2)
+# ============================================================
+echo "─── Group 5: .claude/ targets — spec-executor + settings.json (V32.7.2) ───"
+
+# --- 5a: spec-executor.md → .claude/agents/spec-executor.md (overwrite-with-backup) ---
+mkdir -p "$PROJECT/.claude/agents"
+overwrite_with_backup "$AI_PROMPT/spec-executor.md" "$PROJECT/.claude/agents/spec-executor.md"
+
+# --- 5b: settings.json → .claude/settings.json (create-or-merge) ---
+SETTINGS_SRC="$AI_PROMPT/settings.json"
+SETTINGS_DEST="$PROJECT/.claude/settings.json"
+
+if [ ! -f "$SETTINGS_SRC" ]; then
+  echo "  ⚠  Source not found: .ai_prompt/settings.json — SKIPPED"
+else
+  guard_never_touch "$SETTINGS_DEST"
+
+  if [ ! -f "$SETTINGS_DEST" ]; then
+    # No existing settings.json — create fresh
+    mkdir -p "$PROJECT/.claude"
+    cp "$SETTINGS_SRC" "$SETTINGS_DEST"
+    echo "  ✅ settings.json  (created — framework settings written)"
+  else
+    # Existing settings.json — merge our 2 keys in, preserve all existing keys
+    if cmp -s "$SETTINGS_SRC" "$SETTINGS_DEST"; then
+      echo "  ⏭  settings.json  (identical — no change)"
+    else
+      # Guard: jq must be available for merge
+      if ! command -v jq &>/dev/null; then
+        echo "  ⚠  WARNING: jq not found — cannot auto-merge settings.json."
+        echo "              Please add the following 2 keys to $SETTINGS_DEST manually:"
+        echo "              $(cat "$SETTINGS_SRC")"
+        echo "              Continuing deploy without merging settings.json."
+      else
+        # Backup the original
+        cp "$SETTINGS_DEST" "${SETTINGS_DEST}.${TIMESTAMP}.bak"
+        # Deep-merge: existing file (.[0]) wins for any conflicts; our keys (.[1]) fill gaps
+        # We want our new keys to inject without overwriting user's existing keys,
+        # so we merge as: existing * ours (existing takes precedence on key collision)
+        # To ensure our keys are ADDED (not overwritten by existing), reverse the merge:
+        # .[0]=ours (base), .[1]=existing (wins on conflict) — existing keys always preserved
+        SETTINGS_TMP=$(mktemp)
+        jq -s '.[0] * .[1]' "$SETTINGS_SRC" "$SETTINGS_DEST" > "$SETTINGS_TMP"
+        mv "$SETTINGS_TMP" "$SETTINGS_DEST"
+        echo "  🔄 settings.json  (merged — framework keys injected, existing keys preserved;"
+        echo "                     backup saved as .${TIMESTAMP}.bak)"
+      fi
+    fi
+  fi
+fi
+echo ""
+
+# ============================================================
+# GROUP 6 — scripts/ target: lint-deploy.sh pre-deploy footgun gate (V32.7.5)
+# Deliverable #20. phases.md Phase 5 OUTPUT CONTRACT + Phase 6 PRE-DEPLOY FOOTGUN
+# GATE invoke it as `bash scripts/lint-deploy.sh deploy/compose`, so it must live at
+# the project-root scripts/ folder. Overwrite-with-backup (framework-owned) + chmod +x.
+# ============================================================
+echo "─── Group 6: scripts/lint-deploy.sh — pre-deploy footgun gate (V32.7.5) ───"
+mkdir -p "$PROJECT/scripts"
+overwrite_with_backup "$AI_PROMPT/lint-deploy.sh" "$PROJECT/scripts/lint-deploy.sh"
+if [ -f "$PROJECT/scripts/lint-deploy.sh" ]; then
+  chmod +x "$PROJECT/scripts/lint-deploy.sh"
+fi
+echo ""
+
+# ============================================================
+# GROUP 7 — V32.8 Design Toolkit (overwrite-with-backup + scaffold-if-absent)
+#
+# Deploys two standalone framework deliverables:
+#   scripts/design-stop-hook.sh    ← Claude Code Stop hook (deliverable #21)
+#   .ai_prompt/LESSONS_REGISTRY.md ← design-drift lessons registry (deliverable #22)
+#
+# Also scaffolds:
+#   tests/visual/                  ← visual-test scaffold (.gitkeep created if absent)
+#
+# NOT deployed here (project-adjacent, scaffolded by bootstrap.md Step 20 from templates.md):
+#   sd.config.mjs, scripts/design-validate.mjs, STATE.md evidence template
+#
+# All script files are chmod +x.  The tests/visual/ directory is a scaffold-only
+# operation — existing snapshots/test files inside are NEVER overwritten.
+# ============================================================
+echo "─── Group 7: V32.8 design toolkit (Stop hook + registry + visual scaffold) ───"
+# scripts/ already created by Group 6 — no mkdir needed here.
+# Design configs (sd.config.mjs, design-validate.mjs) + STATE.md evidence template are
+# scaffolded by bootstrap.md Step 20 from templates.md — not deploy-copied (they are
+# project-adjacent files generated per-app during Phase 0, not standalone deliverables).
+
+# 7a: design-stop-hook.sh → scripts/design-stop-hook.sh (Claude Code Stop hook, deliverable #21)
+overwrite_with_backup "$AI_PROMPT/design-stop-hook.sh" "$PROJECT/scripts/design-stop-hook.sh"
+if [ -f "$PROJECT/scripts/design-stop-hook.sh" ]; then
+  chmod +x "$PROJECT/scripts/design-stop-hook.sh"
+fi
+
+# 7b: LESSONS_REGISTRY.md → .ai_prompt/LESSONS_REGISTRY.md (consult pointer, deliverable #22)
+overwrite_with_backup "$AI_PROMPT/LESSONS_REGISTRY.md" "$PROJECT/.ai_prompt/LESSONS_REGISTRY.md"
+
+# 7c: tests/visual/ scaffold — create directory + .gitkeep ONLY if the directory is absent.
+# Never overwrite existing snapshot files inside tests/visual/.
+if [ ! -d "$PROJECT/tests/visual" ]; then
+  mkdir -p "$PROJECT/tests/visual"
+  touch "$PROJECT/tests/visual/.gitkeep"
+  echo "  ✅ tests/visual/  (scaffold created — add visual tests here)"
+else
+  echo "  ⏭  tests/visual/  (exists — scaffold skipped; existing snapshots preserved)"
+fi
+
 echo ""
 
 # ============================================================
@@ -457,29 +601,40 @@ echo ""
 # SUMMARY
 # ============================================================
 echo "============================================================"
-echo "  ✅ V32 deployment complete — safety contract honored"
+echo "  ✅ V32.8 deployment complete — safety contract honored"
 echo "============================================================"
 echo ""
 echo "  Files deployed to project tree (OVERWRITE bucket):"
-echo "    CLAUDE.md                               ← compact (~200 lines)"
-echo "    .claude/rules/phases.md"
-echo "    .claude/rules/security.md"
-echo "    .claude/rules/ui-rules.md"
-echo "    .claude/rules/bootstrap.md"
-echo "    .claude/rules/scenarios.md"
-echo "    .claude/rules/templates.md"
-echo "    .claude/rules/memory-governance.md        ← Memory Governance Layer (V32)"
+echo "    CLAUDE.md                               ← compact (~200 lines) — ONLY auto-loaded file"
 echo "    AI/Master_Prompt_v31.md                 ← full monolithic"
+echo "    .claude/agents/spec-executor.md         ← Sonnet executor subagent (V32.7.2)"
+echo "    scripts/lint-deploy.sh                  ← pre-deploy footgun gate, chmod +x (V32.7.5, deliverable #20)"
+echo "    scripts/design-stop-hook.sh             ← Claude Code Stop hook, chmod +x (V32.8, deliverable #21)"
 echo ""
-echo "  Merged additively (APPEND bucket):"
+echo "  Merged additively (APPEND/MERGE bucket):"
 echo "    .gitignore                              ← V32 entries added, user entries preserved"
+echo "    .claude/settings.json                   ← framework keys injected, existing keys preserved (V32.7.2)"
 echo ""
 echo "  Protected (NEVER-TOUCH bucket):"
 echo "    All project data (PRODUCT.md, CREDENTIALS.md, .env.*, inputs.yml,"
 echo "    governance docs, .cline/, .specstory/, apps/, packages/, deploy/) —"
 echo "    left exactly as-is. Script refuses to modify these by hard-coded guard."
 echo ""
-echo "  Files still in .ai_prompt/ (human reference — do not move):"
+echo "  ⚠  .claude/rules/ — intentionally EMPTY (V32.7)"
+echo "    No framework file deploys to .claude/rules/. Only CLAUDE.md auto-loads."
+echo "    If .claude/rules/ exists from a prior deploy, it is harmless but unused."
+echo ""
+echo "  Files in .ai_prompt/ — loaded on-demand by Claude Code or used by humans:"
+echo "    (Load-on-demand — compact card's CONTEXTUAL FILE LOADING table tells Claude Code"
+echo "     when to Read each one. Phase pre-flights issue explicit Read commands:)"
+echo "    phases.md                                 ← Any Phase 1-8 execution"
+echo "    memory-governance.md                      ← Context thrashing / task decomposition"
+echo "    security.md                               ← Writing secure code (any phase)"
+echo "    ui-rules.md                               ← Generating UI components"
+echo "    bootstrap.md                              ← Bootstrap Phase 0"
+echo "    scenarios.md                              ← Named scenarios (user-triggered only)"
+echo "    templates.md                              ← Templates (.env, compose, governance docs)"
+echo "    (Human reference — do not move:)"
 echo "    Product_md_Planning_Assistant_v31.md      ← claude.ai planning + Phase 2.8 mockup (already done before this script)"
 echo "    Framework_Feature_Index_v31.md            ← feature + capability reference"
 echo "    AI_Tools_Skills_MCPs_Reference_v31.md     ← tools + model routing reference"
@@ -487,6 +642,14 @@ echo "    Post_Generation_Security_Checklist_v31.md ← 84-item security audit"
 echo "    ChatGPT_V31_Cross_Audit_Prompt.md         ← cross-AI validation prompt"
 echo "    Prompt_References.md                      ← scenario-based prompt guide (markdown)"
 echo "    Prompt_References.html                    ← scenario-based prompt guide (interactive UI — START HERE)"
+echo "    LESSONS_REGISTRY.md                       ← design-drift lessons registry (V32.8, deliverable #22)"
+echo "    (Deployed to scripts/ — do not run from .ai_prompt/:)"
+echo "    lint-deploy.sh                            ← pre-deploy footgun gate (deploys to scripts/lint-deploy.sh, V32.7.5)"
+echo "    design-stop-hook.sh                       ← Claude Code Stop hook (deploys to scripts/, V32.8)"
+echo "    (Note: sd.config.mjs, design-validate.mjs, STATE.md.template are scaffolded by"
+echo "     bootstrap.md Step 20 from templates.md — not deployed by this script)"
+echo "    (Scaffold — created only if absent:)"
+echo "    tests/visual/                             ← visual-test snapshot directory (V32.8)"
 echo ""
 
 # Show backup files if any were created

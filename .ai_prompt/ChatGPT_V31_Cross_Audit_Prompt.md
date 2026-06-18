@@ -1,15 +1,15 @@
-# Spec-Driven Platform V32.1 — Cross-AI Audit Prompt (for ChatGPT)
+# Spec-Driven Platform V32.8 — Cross-AI Audit Prompt (for ChatGPT)
 
-> **Purpose:** Hand this prompt to ChatGPT along with the 17 V32.1 framework files. ChatGPT independently audits V32.1 to verify the framework remains internally consistent across all canonical files. Items 1-7 below are historical V31-era audit goals (still verified as baseline); V32 and V32.1 verification items live in **Section K (K.1-K.15)** with the V32.1 verified counts block:
+> **Purpose:** Hand this prompt to ChatGPT along with the 22 V32.8 framework files. ChatGPT independently audits V32.8 to verify the framework remains internally consistent across all canonical files. Items 1-7 below are historical V31-era audit goals (still verified as baseline); V32 / V32.1 / V32.2 / V32.3 / V32.4 / V32.4.1 / V32.5 / V32.5.1 / V32.5.2 / V32.5.3 / V32.5.4 / V32.5.5 / V32.6 / V32.6.1 / V32.7 / V32.7.1 / V32.7.2 / V32.7.3 / V32.7.4 / V32.7.5 / V32.8 verification items live in **Section K (K.1-K.51)** with the V32.8 verified counts block (V32.5.3 bumps Prompts 60→61 and NEW 37→38; V32.5.4 / V32.5.5 / V32.6 / V32.6.1 / V32.7 / V32.7.1 / V32.7.3 / V32.7.4 are no-count-change patches; deliverable files changed twice: 17→19 at V32.7.2 and 19→20 at V32.7.5; **V32.8 bumps Rules 30→32, Scenarios 35→39, UI Rules 11→12, Phase Hooks 14→17, Bootstrap Steps 19→20, memory-gov sections 5→6, deliverable files 20→22**):
 > 1. Phase 2.8 (Clickable Mockup Review — added V31) is correctly documented
 > 2. Cline deprecation (in-place V31 update) is consistent across all files
 > 3. Historical V30 changelog references are preserved
 > 4. Memory system (Resume Session, Governance Sync, Feature Update, Log Lesson, Governance Retro) still works with Claude Code as primary
 > 5. Foundation intact: L1-L6 security stack, 9 governance docs, Rule 24 fresh context, file ownership model
 > 6. No regressions introduced during the updates
-> 7. Post-lock additive patches: Phase 3.5, Phase 4+8 anti-thrashing, Skill Installer, Prompt 4.13, attribution cleanup, prompt count 55 (V31 era — V32.1 current: **59 prompts (36 NEW ✨)**, **35 scenarios**, **19 bootstrap steps**)
+> 7. Post-lock additive patches: Phase 3.5, Phase 4+8 anti-thrashing, Skill Installer, Prompt 4.13, attribution cleanup, prompt count 55 (V31 era — V32.5.3 current: **61 prompts (38 NEW ✨)**, **35 scenarios**, **19 bootstrap steps**, **9 V32 Dispatch Rules (R1-R9) + V32.3 R6 size qualifier (allow-list >200 lines via Scout with Governance Extraction Schema)**)
 >
-> **How to interpret counts:** The **V32.1 verified counts block** (around line 85 below) is authoritative for current totals. Historical changelog entries and items 1-7 above may reference older totals reflecting their version-at-time-of-writing (e.g., 55 prompts, 34 scenarios, 18 bootstrap steps for V31 lock) — those are correct for their version and **MUST NOT be treated as current**. When a count appears without a V32.1 annotation, cross-check against the verified counts block before reporting.
+> **How to interpret counts:** The **V32.8 verified counts block** (around line 85 below) is authoritative for current totals. Historical changelog entries and items 1-7 above may reference older totals reflecting their version-at-time-of-writing (e.g., 55 prompts, 34 scenarios, 18 bootstrap steps for V31 lock; 30 rules / 35 scenarios / 14 phase hooks for V32.7.5) — those are correct for their version and **MUST NOT be treated as current**. When a count appears without a V32.8 annotation, cross-check against the verified counts block before reporting.
 >
 > **Use case:** Run this after every major framework update to catch mistakes Claude missed.
 >
@@ -36,7 +36,7 @@ You are an independent auditor reviewing the **Spec-Driven Platform V31** framew
 10. **code-review-graph setup signal** — Phase 6 completion + Phase 7 pre-flight
 11. **Context Budget — Global Principle** — Sonnet 4.6 model-aware task sizing added to CLAUDE_v31_compact.md and Master_Prompt_v31.md. Every task must be scoped to ≤80K tokens SAFE zone.
 12. **Prompt 3.19** — Emergency Anti-Thrashing for any phase (Sonnet 4.6 calibrated, 3 variants)
-13. **Memory Governance Layer (V31.1)** — new file `memory-governance.md` with 5 sections: Tiered Decomposition Engine, Smart Checkpoint Protocol, Phase Hooks (13 hooks across all phases), Architect-Execute Model (Opus 4.6 plans → Sonnet 4.6 executes), Mid-Project Adoption
+13. **Memory Governance Layer (V31.1)** — new file `memory-governance.md` with 5 sections: Tiered Decomposition Engine, Smart Checkpoint Protocol, Phase Hooks (14 hooks across all phases — 13 pre-V32.6 + Phase 3.3), Architect-Execute Model (Opus 4.6 plans → Sonnet 4.6 executes), Mid-Project Adoption
 14. **Prompts 3.20 + 3.21** — Memory Governance Baseline + Opus Planning Session
 15. **Dispatch Discipline Patch (V31.4)** — Architect-Execute Model extended to ALL phases + ad-hoc edits; Sonnet Scout sub-step added (§4 step 1.5); Tier 1 rewritten to mandate Sonnet dispatch; §3 hook MODEL line and phases.md MODEL: lines rewritten in imperative form
 
@@ -61,7 +61,7 @@ I am attaching 16 V31 framework files. Your job is to verify ALL changes were im
 ### What V31 IS (Two-Part Change)
 
 **PART A — Phase 2.8 Addition**
-Runs in the **Planning Assistant chat (Claude.ai)** — NOT in Claude Code. Generates a clickable React (.jsx) mockup with realistic industry-appropriate data using shadcn/ui conventions. After user confirms, Step 7a generates an HTML archive version. User verifies spec interpretation BEFORE Phase 3 locks the architecture.
+Runs in the **Planning Assistant session** — a Claude Code PA session in the project folder (preferred) or a Claude.ai chat (V31 original: Claude.ai only; V32.7.1: dual-host). Generates a clickable React (.jsx) mockup with realistic industry-appropriate data using shadcn/ui conventions. After user confirms, Step 7a generates an HTML archive version (in Claude.ai: interactive artifact; in Claude Code PA: written `docs/MOCKUP.jsx` + Vite dev server preview). User verifies spec interpretation BEFORE Phase 3 locks the architecture.
 
 **PART B — Cline Deprecation (In-Place V31 Update)**
 Cline was the fallback builder in V30. In V31 in-place update, Cline is marked **⚠ DEPRECATED — do not use** across all framework files. Claude Code handles everything Cline used to handle. The `.cline/` folder structure AND `.clinerules` file are **retained** because:
@@ -84,22 +84,53 @@ Bonito's user preference: keep Cline extension installed in VS Code as emergency
 - Post-lock patches add Phase 3.5 as a NEW phase (between Phase 3 and Phase 4) and anti-thrashing rules to Phase 4 and Phase 8. These are in phases.md and Master_Prompt_v31.md. They do NOT change the framework rule count, scenario count, or bootstrap step count.
 - Post-lock patches add a **Context Budget — Global Principle** to CLAUDE_v31_compact.md and Master_Prompt_v31.md. This is a Sonnet 4.6 model-aware task sizing principle (200K window, 120K practical, ≤80K SAFE zone, 12-file threshold). It governs how ALL work is scoped — not a new rule, but a non-negotiable behavioral principle.
 
-### V32.1 verified counts (must match in every file that quotes them)
+### V32.8 verified counts (must match in every file that quotes them)
 
 ```
-30 Rules · 35 Scenarios · 19 Bootstrap Steps · 8 Phase 4 Parts
+32 Rules · 39 Scenarios · 20 Bootstrap Steps · 8 Phase 4 Parts
 9 Phase 5 Commands · 16 Phase 6.5 Categories · 16 Secure Code Gen sub-sections
-11 UI Component Rules · 84 Security Checklist items (13 sections)
-59 Prompts (36 NEW ✨) in Prompt_References.md and Prompt_References.html
-17 deliverable files (16 in .ai_prompt/ + deploy-v31.sh at project root) · 4 MCP servers (3 wired + 1 plugin) · Node v22 · pnpm@10
-Phase count: 8 main phases + 2.5 + 2.6 + 2.7 + 2.8 (V31) + 3.5 (POST-LOCK) + 6.5
+12 UI Component Rules · 84 Security Checklist items (13 sections)
+61 Prompts (38 NEW ✨) in Prompt_References.md and Prompt_References.html
+22 deliverable files (16 in .ai_prompt/ + deploy-v31.sh at project root + spec-executor.md → .claude/agents/ + settings.json → .claude/settings.json + lint-deploy.sh → scripts/lint-deploy.sh + design-stop-hook.sh → scripts/ + LESSONS_REGISTRY.md → .ai_prompt/) · 4 MCP servers (3 wired + 1 plugin) · Node v22 · pnpm@10
+Phase count: 8 main phases + 2.5 + 2.6 + 2.7 + 2.8 (V31) + 3.3 (V32.6) + 3.5 (POST-LOCK) + 6.5
 6 agents (Claude Code primary: Opus 4.6 Architect + Sonnet 4.6 Executor · Cline ⚠ DEPRECATED · Copilot · SpecStory · SocratiCode · code-review-graph)
 9 governance docs (unchanged)
 Planning Assistant: 11 rules (Rule 11 = n8n+OpenClaw automation opt-in)
+V32 Dispatch Rules: 9 total (R1-R5 file-size mechanics + R6-R9 dispatch discipline) — was 5 in V32 / V32.1 / V32.1.x. **V32.3 is an R6 extension (size qualifier on allow-list), NOT a new rule** — count stays at 9.
+Opus Write Allow-List (R8): 5 files (docs/STATE.md · docs/DECISIONS_LOG.md · docs/CHANGELOG_AI.md · docs/IMPLEMENTATION_MAP.md · .cline/STATE.md)
+Dispatch Ratio target (R9): sonnet_writes / opus_writes ≥ 3.0 (< 1.0 triggers lessons.md drift review). **V32.3:** direct Opus read of a >200-line allow-list governance doc counts as `opus_writes` for ratio purposes.
+**V32.3 Architect-Read Allow-List size threshold:** 200 lines (≤200 direct read; >200 via Scout with Governance Extraction Schema in `memory-governance.md §4`). **New V32.3 invariant.**
+Memory Governance sections: 6 (§1 Tiered Decomposition · §2 Smart Checkpoint · §3 Phase Hooks · §4 Governance Extraction Schema · §5 Architect-Execute Model · §6 Mid-Project Adoption) — V32.8 bumped from 5 to 6.
+Phase Hooks (memory-governance.md §3): 17 — V32.8 bumped from 14 (Rule 31 adds 3 new hooks: Phase 3.3 token-compile gate + Phase 4 baseline-capture gate + Phase 5/8 visual-gate pre-flight).
 ```
 
-Count diffs vs V31.3:
-- All counts unchanged. V31.4 is a behavioral/governance patch only (no new scenarios, bootstrap steps, rules, or prompts).
+Count diffs vs V32.2: all canonical counts unchanged. New invariant added (allow-list size threshold = 200 lines). V32.3 is an R6 extension, not a new rule. K.34 added (V32.3 verification).
+Count diffs vs V32.3: all canonical counts unchanged. V32.4 adds react-doctor as a per-phase supplementary skill (not a Primary Group slot, not a rule/scenario/prompt) at Phase 4 Parts 5-6 / Phase 5 / Phase 7. K.35 added (V32.4 verification). V32.4.1: post-ship consistency sweep — all canonical counts unchanged; no rule/scenario/prompt change. K.36 added (V32.4.1 verification).
+Count diffs vs V32.4.1: all canonical counts unchanged. V32.5 prescribes the `julianoczkowski/designer-skills` bundle at Phase 2.8 / Phase 4 Parts 5-6 / Phase 7 with INHERIT-not-REPLACE contract over PA's `docs/DESIGN.md` + `docs/MOCKUP.jsx`. Not a Primary Group slot; not a rule/scenario/prompt/bootstrap change. K.37 added (V32.5 verification).
+
+Count diffs vs V32.5: all canonical counts unchanged. V32.5.1 adds gate-closure language to the three V32.5 MODEL HOOKs (Phase 2.8 / Phase 4 Parts 5-6 / Phase 7) — phase close is now blocked until `/design-review` returns green. `memory-governance.md §3` hook template bumped (V32)→(V32.3); §3 enumerates 13 phase hooks (was 10 with Phase 4 collapsed); Output Equivalence Guarantee and Prompt 3.19 mid-session-rescue pointer documented. `Prompt_References.md`/`.html` gain a "How the Spec-Driven AI Mega Prompt Works" overview section (three activation windows + architectural-contract table) with sidebar nav-group `00 Overview`; HTML hero eyebrow bumped v31→v32.5.1. K.38 added (V32.5.1 verification).
+
+Count diffs vs V32.5.1: all canonical counts unchanged. V32.5.2 brings the `Prompt_References.html` "How the Spec-Driven AI Mega Prompt Works" section to full content parity with the markdown (HTML Gate-keepers/Memory Model cells regain annotations; "Why this prevents thrashing" callout restored to 4-bullet structure). No behavior change. K.39 added (V32.5.2 verification).
+
+Count diffs vs V32.5.2: Prompts 60 → 61; NEW ✨ 37 → 38; all other canonical counts unchanged (30 Rules · 35 Scenarios · 19 Bootstrap Steps · 11 UI Rules · 17 deliverable files · 9 V32 Dispatch Rules R1-R9 · 13 Phase Hooks). V32.5.3 adds Prompt 3.23 (Clean-Slate Rebuild from Preserved Spec) to Prompt_References Scenario Group 3 — three-stage paste-ready recovery flow for systemically-glitchy Phase 8 projects. K.40 added (V32.5.3 verification).
+
+Count diffs vs V32.5.3: all canonical counts unchanged (V32.5.4 is cosmetic-only). V32.5.4 closes 3 minor findings from the V32.5.3 5-Scout post-ship audit: (1) Prompt_References.html callout class parity for warning #4 in the 3.23 card, (2) this file's `### V32.5 verified counts` heading bumped to `### V32.5.3 verified counts` to label-match the version that last set the counts, (3) Master_Prompt_v31.md V32.4.1 changelog reordered above V32.5 (was below). K.41 added (V32.5.4 verification).
+
+Count diffs vs V32.5.4: all canonical counts unchanged (V32.5.5 is additive MODEL-hook language only — no count/rule/scenario/prompt change). V32.5.5 adds the DECISIONS_LOG ↔ PRODUCT.md Back-Port Surface Check — a non-blocking Sonnet-Scout pre-flight at Phase 7 + Phase 8 that surfaces "📋 Back-Port Candidates" (decisions locked in DECISIONS_LOG.md but never written back into PRODUCT.md). Surface-and-inform only; Rule 1 unchanged (PRODUCT.md stays human-only). K.42 added (V32.5.5 verification).
+
+Count diffs vs V32.5.5: **Phase Hooks 13 → 14** (Phase 3.3 adds a memory-governance pre-flight, so `memory-governance.md §3` now enumerates 14 injection points); all other canonical counts unchanged (V32.6 adds a sub-phase, not a rule/scenario/prompt/bootstrap). V32.6 adds **Phase 3.3 — Interactive Prototype & Simulation** (runs in Claude Code, between Phase 3 and Phase 3.5): builds a durable, client-validated interactive prototype with a project-defined simulated backend (browser-storage / in-memory mock service / static fixtures, mirroring the Phase 3 schema) from the PA baseline + Phase 3 spec; the prototype becomes the blueprint Phase 4 wires the production backend to. **Design-system finalization (designer-skills `/design-tokens` EXPAND, `/design-review`, `/design-refine`) MOVES from Phase 4 Parts 5-6 to Phase 3.3**; Phase 4 Parts 5-6 becomes wire-to-production-backend + regression `/design-review`. New outputs: `docs/PROTOTYPE.md` + `prototype/` + client sign-off in `docs/DECISIONS_LOG.md`. Hard gate-closure (mirrors V32.5.1): `/design-review` green + every Core User Flow walked + client sign-off before Phase 3.5. Rule 1 unchanged; top-level phases stay 0–8 (3.3 is a sub-phase). K.43 added (V32.6 verification). **V32.6.1** = Prompt 3.23.C Semantic Shift — replaces the original V32.5.3 paste-able "3.23.C — Full Rebuild from PRODUCT.md" mega-prompt with a "3.23.C — Resume the rebuild manually" handoff card that routes the human to Prompt 1.3.1 (Phase 0 Bootstrap) + optional Prompt 2.9 (Validate Spec Consistency) pre-check. Closes the autopilot/thrashing surface in clean-slate recovery + forces the rebuild back through the V32.6 Phase 3.3 hard gate. Zero count/rule/scenario/prompt/bootstrap/phase-hook change — Prompt 3.23 still occupies its catalog slot; only stage C's body shape changed (paste-able prompt → resume-card). K.44 added (V32.6.1 verification).
+
+Count diffs vs V32.6.1 → V32.7: **counts unchanged (deploy-location change only)**. V32.7 moves all 7 detail files (phases.md, memory-governance.md, security.md, ui-rules.md, bootstrap.md, scenarios.md, templates.md) from `.claude/rules/` to `.ai_prompt/` (read on-demand). Only `CLAUDE_v31_compact.md` auto-loads (deployed to app root as `CLAUDE.md`). `.claude/rules/` is intentionally empty after a V32.7 deploy. Root cause: subagent baseline-context inheritance was injecting ~100-130K tokens into every worker session — the 7 detail files (~130K tokens combined) were loaded unconditionally via `.claude/rules/` auto-injection. Counts: 30 Rules · 35 Scenarios · 19 Bootstrap Steps · 61 Prompts (38 NEW ✨) · 11 UI Rules · 17 deliverable files · 9 V32 Dispatch Rules · 14 Phase Hooks — all unchanged. K.45 added (V32.7 verification).
+
+Count diffs vs V32.7.1 → V32.7.2: **deliverable files 17 → 19** (added `spec-executor.md` → `.claude/agents/` and `settings.json` → jq-merged into `.claude/settings.json`); all other canonical counts unchanged (30 Rules · 35 Scenarios · 19 Bootstrap Steps · 61 Prompts (38 NEW ✨) · 11 UI Rules · 9 V32 Dispatch Rules · 14 Phase Hooks). V32.7.2 adds a custom Sonnet executor subagent (`spec-executor.md`, frontmatter `tools: Read,Write,Edit,Bash,Grep,Glob` + `model: sonnet` + `mcpServers: []`) and a `settings.json` with skill-listing context caps (`skillListingBudgetFraction: 0.01` + `maxSkillDescriptionChars: 1024`); framework executor dispatch (R1/R5/R7) now targets `Agent(subagent_type: "spec-executor")` with `Agent(model: "sonnet")` fallback. K.47 added (V32.7.2 verification). **NOTE: V32.7.2 re-bumped version markers V32.7.1 → V32.7.2 and the deliverable count 17 → 19 — supersedes K.45/K.46 count references.**
+
+Count diffs vs V32.1.5:
+- All canonical counts unchanged (Rules, Scenarios, Bootstrap, Prompts, UI Rules, deliverable files, Security Checklist).
+- **V32 Dispatch Rule count: 5 → 9** (R6 Scout-Before-Plan + R7 Default Parallel Fan-Out + R8 Opus Write Allow-List + R9 Dispatch Ratio Metric added).
+- Sonnet Status DONE protocol tightened: full diff review mandatory; review-by-summary FORBIDDEN.
+
+Count diffs vs V31.3 (historical):
+- All counts unchanged. V31.4 was a behavioral/governance patch only (no new scenarios, bootstrap steps, rules, or prompts).
 
 Count diffs V31.2 → V31.3 (preserved for historical reference):
 - Scenarios: 34 → 35 (added Scenario 35 — Loading state for a custom (non-shadcn) component)
@@ -154,11 +185,11 @@ ChatGPT MUST verify each patch is present in the specified file(s):
     quick version — all Sonnet 4.6 calibrated), Prompt_References.html (card p-3-19)
 
 11. Memory Governance Layer (V31.1) — new file memory-governance.md
-    MUST BE IN: .claude/rules/memory-governance.md (5 sections: §1-§5)
+    MUST BE IN: .ai_prompt/memory-governance.md (5 sections: §1-§5)
     MUST BE REFERENCED IN: CLAUDE_v31_compact.md (contextual file loading table + agent stack),
-    Master_Prompt_v31.md (context budget section + Rule 24), phases.md (13 memory governance hooks),
+    Master_Prompt_v31.md (context budget section + Rule 24), phases.md (14 memory governance hooks),
     Framework_Feature_Index_v31.md (feature domain entry), AI_Tools_Skills_MCPs_Reference_v31.md
-    deploy-v31.sh MUST copy memory-governance.md to .claude/rules/
+    deploy-v31.sh MUST copy memory-governance.md to .ai_prompt/
 
 12. Architect-Execute Model (Opus 4.6 → Sonnet 4.6)
     MUST BE IN: memory-governance.md §4, CLAUDE_v31_compact.md (agent stack + context budget),
@@ -167,7 +198,7 @@ ChatGPT MUST verify each patch is present in the specified file(s):
 13. Prompts 3.20 + 3.21 (Memory Governance Baseline + Opus Planning Session)
     MUST BE IN: Prompt_References.md, Prompt_References.html (cards p-3-20, p-3-21)
 
-14. Prompt count: 59 prompts, 36 NEW ✨
+14. Prompt count: 61 prompts, 38 NEW ✨
     MUST BE IN: Master_Prompt_v31.md (changelog), CLAUDE_v31_compact.md (header),
     Framework_Feature_Index_v31.md (V31 row + footer), Prompt_References.html (hero stat)
     MUST NOT appear as "54 prompts" or "55 prompts" or "56 prompts" or "31 New" or "32 New" or "33 New" anywhere
@@ -211,7 +242,7 @@ ChatGPT MUST verify each patch is present in the specified file(s):
       - Match signal: project package.json has shadcn deps AND custom components outside
         `components/ui/`
       - /scan-project Phase 2.6 surfaces it
-      - /scan-project Phase 1.5 Part C (Spec-Driven Fit) recommends during Phase 4 Part 2 +
+      - /scan-project Phase 1.5 Part C (Spec-Driven Fit) recommends during Phase 4 Part 5 +
         Phase 7 Feature Update
 ```
 
@@ -268,7 +299,8 @@ ChatGPT MUST verify each patch is present in the specified file(s):
        Preview Generator"
 
 □ A.9  Master_Prompt_v31.md, phases.md, CLAUDE_v31_compact.md all reference Phase 2.8
-       consistently as Planning Assistant chat only, NOT Claude Code, NOT Cline
+       consistently as the Planning Assistant ROLE — a Claude Code PA session (preferred) or a
+       Claude.ai chat — NOT the Phase 3+ Claude Code build session, NOT Cline (V32.7.1 dual-host)
 ```
 
 ### SECTION B — Cline Deprecation Consistency (15 items — NEW, verify carefully)
@@ -449,9 +481,9 @@ Platform foundation is compromised.
        5. SocratiCode (MCP semantic search)
        6. code-review-graph (MCP blast-radius)
 
-□ F.9  Phase 2.8 does not affect Claude Code / Cline behavior
-       Phase 2.8 runs in Planning Assistant chat ONLY
-       Zero Phase 3+ impact
+□ F.9  Phase 2.8 does not affect the Phase 3+ Claude Code build session / Cline behavior
+       Phase 2.8 runs in the PA session (Claude Code PA or Claude.ai) — NOT the Phase 3+ build session
+       Zero Phase 3+ build-session impact
 
 □ F.10 Bootstrap Step 3 still writes .clinerules (even though Cline deprecated)
        File marked "⚠ Cline DEPRECATED V31 — file still generated for historical parity but unused"
@@ -474,7 +506,7 @@ Platform foundation is compromised.
 □ G.5  No stale "use Cline fallback when Claude Code is unavailable" instructions —
        should now say "use Copilot as emergency fallback" (or similar)
 
-□ G.6  Phase 2.8 correctly scoped to Planning Assistant chat only
+□ G.6  Phase 2.8 correctly scoped to the PA session (Claude Code PA preferred, or Claude.ai) — NOT the Phase 3+ build session (V32.7.1 dual-host)
 
 □ G.7  No claim that V31 added rules / bootstrap steps / agents / MCP servers
        (post-lock additive scenarios ARE valid — current count: 34. Verify changelog documents them.)
@@ -618,7 +650,7 @@ Verify each is present in the specified locations.
        "## §4 — ARCHITECT-EXECUTE MODEL (Opus 4.6 → Sonnet 4.6)"
        "## §5 — MID-PROJECT ADOPTION"
 
-□ J.18 Memory governance hooks in phases.md (should be 13 hooks)
+□ J.18 Memory governance hooks in phases.md (should be 14 hooks — Phase 3.3 governance pre-flight added V32.6; was 13)
        LOOK FOR: "> **⚠ MEMORY GOVERNANCE**" blockquotes across phases.
        Must exist in: Phase 2, 2.5, 2.6, 2.7, 3, 3.5, 4, 5, 6, 6.5, 7, 7R, 8
        Phase 4/7/8 hooks must include "Architect-Execute Model (§4)"
@@ -628,8 +660,8 @@ Verify each is present in the specified locations.
        Also: "Architect-Execute Model" in Context Budget section
 
 □ J.20 deploy-v31.sh deploys memory-governance.md
-       LOOK FOR: overwrite_with_backup line for memory-governance.md → .claude/rules/
-       File count should say 17 deliverable files (not 16)
+       LOOK FOR: overwrite_with_backup line for memory-governance.md → .ai_prompt/
+       File count should say 19 deliverable files (not 16 or 17) — V32.7.2 added spec-executor.md + settings.json
 
 □ J.21 [V31.2 historical — SUPERSEDED by V32 K.2/K.3] memory-governance.md originally added (V31.2) Step 2.5
        (30K token budget gate) and Step 2.5b (Opus escalation). V32 has SUPERSEDED both: token estimation
@@ -649,7 +681,7 @@ Verify each is present in the specified locations.
 □ J.24 (V31.4) Architect-Execute Model scope universality — ALL phases + ad-hoc edits
        LOOK FOR in memory-governance.md §4: language that says the model applies to
        ALL phases AND ad-hoc edits — NOT limited to Phase 4/7/8 only.
-       Grep across all 17 files: zero matches for scope-limiting phrase "Phase 4/7/8"
+       Grep across all 19 files: zero matches for scope-limiting phrase "Phase 4/7/8"
        OUTSIDE of historical changelog blocks. Any such match outside a changelog is a FAIL.
        ALSO CHECK: CLAUDE_v31_compact.md and AI_Tools_Skills_MCPs_Reference_v31.md
        must NOT contain scope-limiting "Phase 4/7/8" language in the Architect-Execute description.
@@ -700,7 +732,7 @@ Verify each is present in the specified locations.
 
 ---
 
-### Section K — V32 / V32.1 Verification (Zero Opus Execution Dispatch System + Sonnet Subagent Context Overhead)
+### Section K — V32 / V32.1 / V32.2 Verification (Zero Opus Execution Dispatch System + Sonnet Subagent Context Overhead + Dispatch Discipline)
 
 □ K.1 (V32) — Zero Opus Execution rule (R1) is documented in memory-governance.md §4
        LOOK FOR in `memory-governance.md` §4 "Opus Role (strictly limited — V32 R1)": an explicit
@@ -786,7 +818,7 @@ Verify each is present in the specified locations.
        (a) `### 1.3.2 — Phase 2 operational interview` (NOT "Phase 2 discovery") followed by body text explaining
            Phase 2 is NOT a duplicate of Planning Assistant and listing the operational questions it asks
            (Docker Hub, model routing, dev ports, git, CORS, Komodo, Turnstile).
-       (b) Section 1.3.3 auto-chain line contains "Phase 2.8 is SKIPPED in Claude Code — it already ran in the Planning Assistant chat".
+       (b) Section 1.3.3 auto-chain line acknowledges Phase 2.8 is SKIPPED in the Phase 3+ build session — already completed in the PA session (Claude Code PA or Claude.ai) (V32.7.1 dual-host).
        FAIL if 1.3.2 still says "Phase 2 discovery" or "Claude only asks remaining open questions".
        FAIL if 1.3.3 does not explicitly say Phase 2.8 is skipped in Claude Code.
 □ K.20 (V32.1.1) — Master_Prompt_v31.md changelog contains V32.1.1 entry dated 2026-05-28
@@ -804,25 +836,31 @@ Verify each is present in the specified locations.
        that "Step 2.5/2.5b (30K token budget gate + Opus executor escalation) was the V31.2-era model
        and is REMOVED in V32" as a historical note.
        FAIL if active row still describes "fallback Executor" or "30K token budget" as live behavior.
-□ K.22 (V32.1.2) — AI_Tools_Skills_MCPs_Reference_v31.md footer says 17-file V32.1 deliverable set
-       LOOK FOR: footer line "*This reference is part of the 17-file V32.1 deliverable set (16 files placed in `.ai_prompt/` + deploy script at project root):*"
+□ K.22 (V32.1.2; V32.2 note; V32.4-bumped — file re-edited) — AI_Tools_Skills_MCPs_Reference_v31.md footer says 17-file deliverable set (V32.4 marker — file genuinely re-edited in V32.4: new §3.7 react-doctor)
+       LOOK FOR: footer line "*This reference is part of the 17-file V32.4 deliverable set (16 files placed in `.ai_prompt/` + deploy script at project root):*"
        followed by file listing that includes memory-governance.md and ChatGPT_V31_Cross_Audit_Prompt.md and Prompt_References.html.
-       FAIL if footer still says "13-file V31 deliverable set".
-□ K.23 (V32.1.2) — Framework_Feature_Index_v31.md header says current version V32.1
-       LOOK FOR near top: "> Current framework version: **V32.1**" with explanation that
-       filenames retain `_v31_` for deploy backward compatibility.
-       FAIL if header still says "Current framework version: **V31**".
-□ K.24 (V32.1.2) — Framework_Feature_Index_v31.md Note line at end says 17-file V32.1 deliverable set + memory-governance.md
+       V32.2 NOTE: This file is intentionally untouched in V32.2 (R6-R9 do not change MCP/tools/skills set), so the V32.1 marker is the correct last-modified version. Bumping to V32.2 only when AI_Tools is genuinely re-edited.
+       V32.3 NOTE: Also untouched in V32.3 (Smart Governance Hydration changes Rule 4 / R6 allow-list — does not change MCP/tools/skills set). V32.1 marker remained correct as last-modified version at that time.
+       V32.4 NOTE: AI_Tools IS genuinely re-edited in V32.4 — new §3.7 react-doctor subsection (with Domain Packs renumbered →3.8 and Memory Governance →3.9) + last-updated marker bumped V31→V32.4. The deliverable-set footer marker is therefore now V32.4 (no longer V32.1/V32.3).
+       FAIL if footer still says "13-file V31 deliverable set" OR if the file listing is missing memory-governance.md / ChatGPT_V31_Cross_Audit_Prompt.md / Prompt_References.html.
+□ K.23 (V32.1.2; V32.2 bumped; V32.3-bumped; V32.4-bumped) — Framework_Feature_Index_v31.md header says current version V32.4
+       LOOK FOR near top: "> Current framework version: **V32.4**" with explanation that
+       filenames retain `_v31_` for deploy backward compatibility, and that content describes current V32.4 behavior.
+       The explanation must mention the V32.4 patch chain (react-doctor Phase Integration — per-phase React diagnostics skill at Phase 4 Parts 5-6 / Phase 5 / Phase 7) layered on top of V32.3 (Smart Governance Hydration — R6 allow-list size qualifier) and V32.2 (R6-R9 Dispatch Discipline + tightened-DONE) over V32 base.
+       FAIL if header still says "Current framework version: **V31**" or "**V32**" or "**V32.1**" or any V32.1.x or "**V32.2**" or "**V32.3**" marker — current state must be V32.4.
+□ K.24 (V32.1.2; V32.2 bumped; V32.3-bumped; V32.4-bumped) — Framework_Feature_Index_v31.md Note line at end says 17-file V32.4 deliverable set + memory-governance.md
        LOOK FOR the "**Note:** This file is updated by Claude alongside every version bump..." paragraph
-       near the file end: must say "17-file V32.1 deliverable set — 16 files in `.ai_prompt/`"
+       near the file end: must say "17-file V32.4 deliverable set — 16 files in `.ai_prompt/`"
        and the file listing must include memory-governance.md.
-       FAIL if Note still says "16-file V31 deliverable set" or omits memory-governance.md.
-□ K.25 (V32.1.2) — CLAUDE_v31_compact.md role block says V32.1 STRICTEST + Master_Prompt header has V32.1.2 naming-policy note
-       LOOK FOR in `CLAUDE_v31_compact.md` near top: "operating under **V32.1 STRICTEST** discipline"
-       (NOT "V31 STRICTEST"). AND in `Master_Prompt_v31.md` header area: a block titled
+       FAIL if Note still says "16-file V31 deliverable set", "17-file V32.1 deliverable set", "17-file V32.1.5 deliverable set", "17-file V32.2 deliverable set", "17-file V32.3 deliverable set", or any pre-V32.4 marker. FAIL if memory-governance.md is missing from the listing.
+□ K.25 (V32.1.2; V32.2 bumped; V32.3-bumped; V32.4-bumped) — CLAUDE_v31_compact.md role block says V32.4 STRICTEST + Master_Prompt header has V32.1.2 naming-policy note
+       LOOK FOR in `CLAUDE_v31_compact.md` near top: "operating under **V32.4 STRICTEST** discipline"
+       (NOT "V31 STRICTEST" / "V32 STRICTEST" / "V32.1 STRICTEST" / any V32.1.x STRICTEST / "V32.2 STRICTEST" / "V32.3 STRICTEST"). The role-block parenthetical
+       must include the patch chain through V32.4 — V31 base + V32 ZOE + V32.1 + V32.1.4 + V32.1.5 + V32.2 Dispatch Discipline R6-R9 + V32.3 Smart Governance Hydration (R6 allow-list size qualifier) + V32.4 react-doctor Phase Integration.
+       AND in `Master_Prompt_v31.md` header area: a block titled
        "**VERSION + FILENAME POLICY (added V32.1.2 — 2026-05-28)**" explaining that body labels saying
-       "V31 primary" / "V31 STRICTEST" should be interpreted as base-V31 with V32/V32.1 patches layered on.
-       FAIL if either is absent.
+       "V31 primary" / "V31 STRICTEST" should be interpreted as base-V31 with V32/V32.1/V32.2/V32.3/V32.4 patches layered on.
+       FAIL if STRICTEST line is at any version below V32.4 or if naming-policy block is absent.
 □ K.26 (V32.1.3) — deploy-v31.sh count messages consistent with 17-file canonical (16 in .ai_prompt/ + 1 deploy script)
        LOOK FOR in `deploy-v31.sh`:
        (a) Header layout block (around line 49) says "put all 16 V32 reference files in here".
@@ -844,6 +882,601 @@ Verify each is present in the specified locations.
        FAIL if PA-branch does not mention "Phase 2.8 is SKIPPED" explicitly.
        Rationale: deploy script now resolves the V32.1.1 (Planning Assistant "type Bootstrap") vs prior deploy-script
        ("paste prompt 1.2") contradiction by picking the right entry point from observable target state.
+□ K.28 (V32.1.5) — Prompt 4.14 (Brownfield PA Adoption — Reverse-Extract PRODUCT.md) is present in Prompt_References.html AND Prompt_References.md, and counts are bumped 59→60 / 36→37 in every file that quotes them
+       LOOK FOR in `Prompt_References.html`:
+       (a) A prompt card `<div class="prompt-card group-4 new-badge" id="p-4-14" ...>` after `id="p-4-13"`
+           with title containing "Brownfield PA Adoption" and "Reverse-Extract PRODUCT.md"
+       (b) A nav-link `<a class="nav-link" href="#p-4-14">` inside the Planning Assistant nav-group
+       (c) Hero stats `<div class="stat-num">60</div>` (Prompts) and `<div class="stat-num">37</div>` (New ✨)
+           — NOT 59 and 36
+       LOOK FOR in `Prompt_References.md`:
+       (d) A `## 4.14 — Brownfield PA Adoption: Existing App / Mockup → Reverse-Extract PRODUCT.md (NEW)` heading
+       (e) The decision tree contains the line `"I have an existing app/mockup but no PRODUCT.md yet"       → 4.14`
+       (f) The "What's New in This Edition" summary lists `- 4.14: Brownfield PA Adoption — ...`
+       LOOK FOR in `Master_Prompt_v31.md`:
+       (g) A changelog entry beginning `- **V32.1.5 (2026-05-29):** Prompt 4.14 added — **Brownfield PA Adoption`
+       LOOK FOR in `Framework_Feature_Index_v31.md`:
+       (h) A row beginning `| V32.1.5 | Prompt 4.14 — Brownfield PA Adoption` (preserved as historical row, no longer the latest)
+       (i) Current footer reads `*Last updated: V32.4 (30 rules · 35 scenarios · 19 bootstrap steps · 60 prompts (37 New ✨)` — V32.3 footer marker superseded by V32.4 per K.35 bump
+       (j) Current note line reads `17-file V32.4 deliverable set` — V32.3 marker superseded
+       LOOK FOR in `CLAUDE_v31_compact.md`:
+       (k) Title/header line says `V32.4` (was V32.3 — superseded by V32.4)
+       (l) The "60 prompts total" string in the FOR HUMANS line
+       (m) STRICTEST role line contains `V32.4 STRICTEST` (was V32.3 — superseded by V32.4) and still references prompt 4.14 in the historical-chain parenthetical
+       LOOK FOR in this file (ChatGPT_V31_Cross_Audit_Prompt.md):
+       (n) Verified counts block has `60 Prompts (37 NEW ✨)` — NOT `59 Prompts (36 NEW ✨)`
+       (o) Header item 7 says `V32.4 current: **60 prompts (37 NEW ✨)**` (was V32.3 current — superseded by V32.4)
+       (p) Header line 1 says `Spec-Driven Platform V32.4 — Cross-AI Audit Prompt` (was V32.3)
+       FAIL if any of (a)-(p) is missing or shows the old 59/36 values, or if (i)/(j)/(k)/(m)/(o)/(p) still show V32.1.5 / V32.1 / V32.2 / V32.3 as the current-state marker.
+       Rationale: V32.1.5 was the first count change since V31.3 — V32.1.5 changelog rows and changelog entries remain as historical record; current-state markers (footer, note, header lines) bump forward with each release (now V32.2). Every count reference across the 17-file deliverable set must be in sync.
+
+□ K.29 (V32.2) — Rule R6 "Scout-Before-Plan" is documented in `memory-governance.md` §4 AND surfaced in `CLAUDE_v31_compact.md` CONTEXT BUDGET section
+       LOOK FOR in `memory-governance.md`:
+       (a) A subsection in §4 with heading containing "R6" and "Scout-Before-Plan"
+       (b) Text stating that Opus reads of non-allow-list files exceeding 100 lines MUST go through Scout-Sonnet
+       (c) Rationale tying R6 to the 71% Opus-burn diagnosis (exploratory reads + serial dispatch)
+       LOOK FOR in `CLAUDE_v31_compact.md`:
+       (d) A compact R6 line in the CONTEXT BUDGET section referencing Scout-Sonnet for non-allow-list reads > 100 lines
+       FAIL if R6 appears only as a one-liner with no code example or threshold definition.
+       FAIL if the 100-line threshold is missing or inconsistent between memory-governance.md and CLAUDE_v31_compact.md.
+       Rationale: R6 is the dispatch-discipline rule that prevents Opus from burning context on exploratory reads; threshold must be mechanical, not advisory.
+
+□ K.30 (V32.2) — Rule R7 "Default Parallel Fan-Out" is documented in `memory-governance.md` §4 AND surfaced in `CLAUDE_v31_compact.md`
+       LOOK FOR in `memory-governance.md`:
+       (a) A subsection in §4 with heading containing "R7" and "Parallel Fan-Out"
+       (b) Rule text stating ≥ 2 independent Sonnet dispatches MUST be parallel in one Opus response (single message, multiple tool-use blocks)
+       (c) Explicit exception clause: serial dispatch ALLOWED only when there is a real data dependency between dispatches
+       (d) A code example or pseudo-code showing the parallel-dispatch pattern
+       LOOK FOR in `CLAUDE_v31_compact.md`:
+       (e) A compact R7 line referencing parallel fan-out as the default for ≥ 2 independent dispatches
+       FAIL if R7 phrases parallelism as a preference instead of a requirement.
+       FAIL if no "serial only with data dependency" exception is documented.
+       Rationale: R7 closes serial-dispatch wall-clock waste; must be the default, not advisory.
+
+□ K.31 (V32.2) — Rule R8 "Opus Write Allow-List" enumerates exactly 5 files as a CLOSED list in `memory-governance.md` §4 AND `CLAUDE_v31_compact.md`
+       LOOK FOR in `memory-governance.md`:
+       (a) A subsection in §4 with heading containing "R8" and "Allow-List"
+       (b) The literal 5-file CLOSED list: `docs/STATE.md`, `docs/DECISIONS_LOG.md`, `docs/CHANGELOG_AI.md`, `docs/IMPLEMENTATION_MAP.md`, `.cline/STATE.md`
+       (c) Statement that any other Opus Edit/Write is a R8 violation
+       (d) Relationship to R1 (R8 closes R1 ambiguity by enumerating the allowed set)
+       LOOK FOR in `CLAUDE_v31_compact.md`:
+       (e) The same 5-file allow-list, identical wording
+       FAIL if the allow-list contains more or fewer than 5 files.
+       FAIL if the lists in memory-governance.md and CLAUDE_v31_compact.md disagree.
+       FAIL if R8 is phrased as an open-ended "things like" list instead of a CLOSED enumeration.
+       Rationale: R1 said "Opus never writes project files" but in practice required exceptions for governance docs; R8 makes the exception list explicit and bounded.
+
+□ K.32 (V32.2) — Rule R9 "Dispatch Ratio Metric" is added to `memory-governance.md` §2 Smart Checkpoint YAML AND §4 Dispatch Discipline subsection
+       LOOK FOR in `memory-governance.md`:
+       (a) A `dispatch_ratio:` field in the §2 Smart Checkpoint YAML example, computed as `sonnet_writes / opus_writes`
+       (b) Target threshold `≥ 3.0` stated explicitly
+       (c) Drift-review trigger when ratio `< 1.0` → mandatory `lessons.md` entry
+       (d) A subsection in §4 with heading containing "R9" and "Dispatch Ratio"
+       (e) Cross-reference between §2 (where the field is captured) and §4 (where the rule is defined)
+       FAIL if the field name is not `dispatch_ratio` (must be machine-greppable, exact).
+       FAIL if the 3.0 target or 1.0 drift threshold is missing or inconsistent.
+       FAIL if the field is added to §2 but R9 is not defined in §4 (orphaned metric).
+       Rationale: R9 makes dispatch discipline measurable; without the metric, R6-R8 are aspirational.
+
+□ K.33 (V32.2) — Sonnet Status Handling: DONE protocol tightened to require full diff review; review-by-summary FORBIDDEN
+       LOOK FOR in `memory-governance.md`:
+       (a) Sonnet Status section (or §3 equivalent) where DONE handling is defined
+       (b) Explicit text: when Sonnet returns DONE, Opus MUST read the full git diff (or full file diff) before accepting
+       (c) Explicit text marking "review-by-summary FORBIDDEN" (or equivalent prohibition language)
+       (d) Rationale tying the change to the V32.2 dogfooding observation that summary-only review hides drift
+       LOOK FOR in `CLAUDE_v31_compact.md`:
+       (e) The STRICTEST line (or equivalent header line) extended to mention "full diff review mandatory on DONE"
+       FAIL if the tightening is documented in only one of the two files.
+       FAIL if "review-by-summary FORBIDDEN" (or equivalent) is missing — soft language defeats the rule.
+       Rationale: review-by-summary was the failure mode that masked V32 R1 violations in earlier sessions; this audit item is the structural fix.
+
+□ K.34 (V32.3) — Smart Governance Hydration: R6 architect-read allow-list gets a size qualifier (≤200 lines direct; >200 lines via Scout with Governance Extraction Schema); Rule 4 reframed from "read" to "hydrate"
+       NOTE (V32.4 supersession): sub-items (p)/(q)/(s)/(t) below assert the V32.3-era current-state version markers (header version, §1.2 title, footer "Last updated:", deliverable-set note). V32.4 has since re-bumped each of these to V32.4 — verify their CURRENT values against K.35, not this item. K.34 otherwise verifies the V32.3 Smart Governance Hydration mechanics (Rule 4 hydrate-reframe, R6 size qualifier, Governance Extraction Schema), which remain in force unchanged.
+       LOOK FOR in `Master_Prompt_v31.md`:
+       (a) Rule 4 title bumped from "Read all 9 context documents" to "Hydrate the 9 governance docs" (with "(V32.3)" annotation)
+       (b) Rule 4 body declares per-doc hydration modes (keyword-filtered for lessons.md, domain-section-filtered for PRODUCT.md, recency+flag-filtered for CHANGELOG_AI.md, keyword+unresolved-filtered for DECISIONS_LOG.md, area-status-filtered for IMPLEMENTATION_MAP.md, session/task-scoped for agent-log.md, direct read for inputs.yml/inputs.schema.json/project.memory.md)
+       (c) R6 body in V32.2 changelog block updated to include the "≤ 200 lines direct; > 200 lines via Scout with Governance Extraction Schema" size qualifier with explicit `memory-governance.md §4` cross-reference
+       (d) New V32.3 changelog entry (2026-06-02) below V32.2 entry and above the V32 entry's `---` divider — states it is an R6 extension, NOT a new rule; declares counts unchanged; declares the new invariant (allow-list size threshold = 200 lines)
+       LOOK FOR in `memory-governance.md`:
+       (e) R6 block "Architect-read allow-list" line updated from "any size — no scout required" to "≤ 200 lines direct read; > 200 lines route through Scout-Sonnet with the Governance Extraction Schema below (V32.3)"
+       (f) New "**Governance Extraction Schema (V32.3 — Smart Governance Hydration)**" sub-section between R6 and R7, containing: per-doc YAML-shaped extraction contract for all 9 governance docs; dispatch template using `Agent(model: "sonnet", subagent_type: "Explore")`; explicit size threshold (200 lines) with `wc -l` rationale; explicit rationale for "200 not 100"; explicit "Why Rule 4 reframed from 'read' to 'hydrate'" paragraph
+       (g) Explicit R9 interaction text: direct Opus read of a >200-line allow-list governance doc counts as `opus_writes` for `dispatch_ratio`
+       LOOK FOR in `CLAUDE_v31_compact.md`:
+       (h) File header `V32.2 → V32.3`
+       (i) STRICTEST line extended with "V32.3 Smart Governance Hydration (R6 allow-list size qualifier: files > 200 lines route through Scout with the Governance Extraction Schema; Rule 4 reframed from 'read' to 'hydrate')"
+       (j) Rule 4 one-liner row reads "Hydrate 9 governance docs before changing anything — Scout if >200 lines (V32.3); lessons.md FIRST (🔴 then 🟤)" (was "Read 9 governance docs before changing anything")
+       (k) R6 line in the V32.2 Dispatch Discipline compact block extended with "(V32.3: ≤200 lines direct; >200 lines → Scout with Governance Extraction Schema)" — must NOT be a standalone new rule line
+       (l) R9 line in the same block extended with the V32.3 `opus_writes` count rule (>200-line allow-list direct read = `opus_writes`)
+       (m) New "**V32.3 Smart Governance Hydration**" bullet appended to the V32.2 block (NOT a new top-level section — it's a sub-bullet documenting per-doc hydration modes)
+       (n) `## 9 GOVERNANCE DOCS` section title bumped to "hydrate before any action — Rule 4 / V32.3 Smart Hydration" and per-doc table updated to declare each doc's hydration mode (Scout-if-> 200-lines vs. direct read)
+       (o) Non-negotiable behavior line: "Never generate files without reading 9 governance docs first" rewritten to "...without hydrating 9 governance docs first (Rule 4 — V32.3 Smart Hydration: Scout if >200 lines)"
+       LOOK FOR in `Framework_Feature_Index_v31.md`:
+       (p) Header version line bumped to V32.3 with V32.3 description appended
+       (q) §1.2 subsection title: "Claude Code (Primary Agent — current V32.3 behavior, V31 base)"
+       (r) New V32.3 row in the version timeline (just above the V32.2 row) — covers Smart Governance Hydration, R6 size qualifier, Rule 4 reframe, Governance Extraction Schema, 200-line threshold, R9 interaction, files changed, counts unchanged
+       (s) Footer "Last updated:" line bumped V32.2 → V32.3 with V32.3 features added to the feature-bullet train
+       (t) Deliverable set note bumped "17-file V32.2 deliverable set" → "17-file V32.3 deliverable set"
+       LOOK FOR in `phases.md`:
+       (u) Phase 7 MODEL hook updated (V32.2 → V32.3) with explicit governance-hydration guidance: when reading the 9 governance docs at Phase 7 start, files >200 lines route through Scout-Sonnet with Governance Extraction Schema; direct Opus read of a >200-line allow-list governance doc counts as `opus_writes` for R9
+       LOOK FOR in `deploy-v31.sh`:
+       (v) Line 3 header bumped V32.2 → V32.3 (cosmetic self-ID only)
+       FAIL if the new V32.3 changelog entry is missing from Master_Prompt_v31.md.
+       FAIL if memory-governance.md still says "any size — no scout required" anywhere in the R6 block.
+       FAIL if the Governance Extraction Schema sub-section is missing from memory-governance.md §4.
+       FAIL if any of the 7 files still references V32.2 as the current version in its header/title block.
+       FAIL if Rule 4 in Master_Prompt_v31.md still says "Read 9 context documents" (must be "Hydrate the 9 governance docs").
+       FAIL if the V32.3 row in Framework_Feature_Index_v31.md is placed above any V32 row other than V32.4 (chronological order matters — V32.4 is now the newest row; V32.3 must sit directly below V32.4 and above V32.2).
+       FAIL if V32 Dispatch Rule count changed from 9 to 10 anywhere — V32.3 is an R6 extension, not R10.
+       Rationale: V32.2's R6 allow-list said "any size" — that exemption inverts as governance docs grow past 200 lines, recreating the very Opus-burn V32.2 was designed to fight. V32.3 closes the loophole by routing large allow-list docs through Scout with a domain-aware extraction schema. This audit item verifies the closure is documented consistently across all 7 canonical files.
+
+□ K.35 (V32.4) — react-doctor Phase Integration: react-doctor added as a per-phase **supplementary** skill (NOT a Primary Group slot) at Phase 4 Parts 5-6, Phase 5, and Phase 7
+       LOOK FOR in `phases.md` Step 6 Skill Activation Plan:
+       (a) A `| react-doctor | React diagnostics | … |` row in the Phase 4 Parts 5-6 (Web UI) supplementary-skill table
+       (b) A `| react-doctor | React diagnostics | … |` row in the Phase 5 (Validation) table
+       (c) A `| react-doctor | React diagnostics | … |` row in the Phase 7 (Feature Updates) table
+       (d) A Note clarifying react-doctor is supplementary (NOT a Primary Group slot), surfaced by /scan-project after a read-only audit, installed only on approval
+       LOOK FOR in `CLAUDE.md` (repo root) "Skills Library Awareness" phase→skill table: `react-doctor` appended to the Phase 4 Parts 5-6 (UI), Phase 5 (validation), and Phase 7 (feature update) rows.
+       LOOK FOR in `AI_Tools_Skills_MCPs_Reference_v31.md`: a new `### 3.7 react-doctor` subsection (install `npx react-doctor@latest install`; loaded Phase 4 Parts 5-6 / Phase 5 / Phase 7; surfaced by /scan-project audit-driven recommendation); Domain Plugin Packs renumbered to §3.8 and Memory Governance Layer to §3.9; "Last updated:" bumped to V32.4.
+       LOOK FOR in `Master_Prompt_v31.md`: a `- **V32.4 (2026-06-02) — react-doctor Phase Integration:**` changelog entry below the V32.3 entry and above the V32 entry's `---` divider — states it is a per-phase supplementary skill, NOT a Primary Group slot, NOT a rule/scenario/prompt; declares counts unchanged.
+       LOOK FOR in `Framework_Feature_Index_v31.md`: a `| V32.4 | react-doctor Phase Integration |` row as the NEWEST row (directly above the V32.3 row); header version, §1.2 title, and footer all bumped to V32.4.
+       LOOK FOR in `deploy-v31.sh`: header comment (line ~3) and the echo banner (line ~103) read `Spec-Driven Platform V32.4` (cosmetic bump from V32.3).
+       FAIL if react-doctor is described as a Primary Group slot anywhere — it is supplementary only.
+       FAIL if /scan-project install is described as unattended/auto — react-doctor is an **approval-gated** external install (installs only on explicit "yes"); ktx remains the only signal-gated unattended auto-install.
+       FAIL if any canonical count changed — V32.4 adds a phase-contextual skill recommendation, NOT a rule/scenario/prompt. Counts stay: 30 Rules · 35 Scenarios · 19 Bootstrap Steps · 60 Prompts (37 NEW ✨) · 11 UI Rules · 17 deliverable files · 9 V32 Dispatch Rules.
+       Rationale: react-doctor is a deterministic React diagnostics linter wired at the three React-touching phases so framework-built apps catch AI-generated React anti-patterns (state/effects, perf, security, a11y, bundle size) before delivery. It rides as a supplementary skill surfaced by /scan-project, not a behavioral-contract change — hence no count movement.
+
+□ K.36 (V32.4.1) — Post-Ship Consistency Sweep: (a) no LIVE (non-changelog) "Phase 4 Part 2" reference ties UI / shadcn / loading-state work to Part 2 — only Part 2 = Shared-packages session headings + V31.3 historical changelog entries remain; (b) `CLAUDE_framework_repo.md` skill table lists react-doctor at Phase 4 Parts 5-6 / Phase 5 / Phase 7 (matches `CLAUDE.md`); (c) `deploy-v31.sh` Group 2 label reads "7 modular files"; (d) `Master_Prompt` VERSION+FILENAME POLICY block states active version V32.4.1 with the V32.2/V32.3/V32.4 decode; (e) `Prompt_References.md`/`.html` Appendix A.8/A.9 contain no hard-coded "V32.3.1"/"2106b5a" except the single labelled "as of this writing" snapshot, and the verification greps use sub-version-robust patterns; (f) current-version markers (compact title + STRICTEST line, Feature_Index header + footer, this audit header + verified-counts block, deploy-v31.sh header) all read V32.4.1, while historical V32.4 references (V32.4 changelog entry, K.35, Feature_Index V32.4 row) correctly remain V32.4.
+       NOTE (V32.5 supersession): the current-version markers asserted in sub-item (f) have been re-bumped V32.4.1 → V32.5 by K.37. Verify the CURRENT values against K.37, not this item. K.36 otherwise verifies the V32.4.1 sweep mechanics (Phase 4 part-numbering, CLAUDE_framework_repo react-doctor row, deploy Group 2 label "7", A.9 durability), which remain in force unchanged.
+
+□ K.37 (V32.5) — Designer-Skills Phase Integration: the `julianoczkowski/designer-skills` bundle is prescribed at Phase 2.8 (hand-off), Phase 4 Parts 5-6 (Web UI), and Phase 7 (Feature Update UI-delta) under an INHERIT-not-REPLACE contract over PA's `docs/DESIGN.md` + `docs/MOCKUP.jsx`.
+       LOOK FOR in `Master_Prompt_v31.md`: a `- **V32.5 (2026-06-04) — Designer-Skills Phase Integration:**` changelog entry placed ABOVE the V32.4.1 entry (chronological newest-first); VERSION+FILENAME POLICY block (line ~28) states active version V32.5 with the V32.5 decode appended after the V32.4.1 decode.
+       LOOK FOR in `phases.md`: (a) the Phase 2.8 reference paragraph (near the existing `See Product_md_Planning_Assistant_v31.md — Phase 2.8 section` line) gains a `**MODEL HOOK (V32.5 — Phase 2.8 → Phase 4 designer-skills hand-off):**` paragraph stating DESIGN.md + MOCKUP.jsx are the human-verified baseline; (b) the Phase 4 Parts 5-6 supplementary-skill table gains a `| designer-skills | Design system (V32.5) | ... |` row plus a `**MODEL HOOK (V32.5 — designer-skills, Phase 4 Parts 5-6):**` paragraph stating `/design-tokens` EXPANDS and never regenerates; (c) the Phase 7 supplementary-skill table gains a `| designer-skills | Design system (V32.5) | ... |` row plus a `**MODEL HOOK (V32.5 — designer-skills, Phase 7 UI-delta):**` paragraph stating `/design-refine` runs only on flagged components.
+       LOOK FOR in `Product_md_Planning_Assistant_v31.md`: Step 7b text ending in `apply the tokens automatically.` is followed by a `(V32.5: docs/DESIGN.md is the human-verified BASELINE. ... /design-tokens will EXPAND this token table — never regenerate it ...)` parenthetical.
+       LOOK FOR in `CLAUDE_v31_compact.md`: (a) title line reads `# SPEC-DRIVEN PLATFORM — V32.5`; (b) STRICTEST line is extended with `V32.5 Designer-Skills Phase Integration (... INHERIT-not-REPLACE ...)`; (c) Phase 2.8 menu line is annotated `V32.5: PA Step 7 emits docs/DESIGN.md + docs/MOCKUP.jsx as baseline — designer-skills INHERIT-not-REPLACE in later phases`.
+       LOOK FOR in `CLAUDE.md` (repo root): the Skills Library Awareness table has had the `†` advisory marker REMOVED from `designer-skills` in all three rows (Phase 2.8 / Phase 4 Parts 5-6 / Phase 7); the V32.5 deferral footnote is REPLACED by a `V32.5 — designer-skills is **framework-prescribed** ...` INHERIT-not-REPLACE one-liner.
+       LOOK FOR in `Framework_Feature_Index_v31.md`: a `| V32.5 | Designer-Skills Phase Integration |` row placed ABOVE the V32.4 row (the file's convention is parent-version-then-its-patches, so V32.5 sits above V32.4 which is followed by V32.4.1, then V32.3, etc.); header version line reads `Current framework version: **V32.5**` with the V32.5 decode appended; §1.2 subsection title reads `### 1.2 Claude Code (Primary Agent — current V32.5 behavior, V31 base)`; footer "Last updated:" reads `V32.5` and the feature-bullet train includes a V32.5 Designer-Skills Phase Integration bullet; deliverable-set note reads `17-file V32.5 deliverable set`.
+       LOOK FOR in `deploy-v31.sh`: header comment (line ~3) reads `Spec-Driven Platform V32.5 — File Deployment Script`; the echo banner (line ~103) reads `Spec-Driven Platform V32.5 — Deployment`.
+       LOOK FOR in this file (`ChatGPT_V31_Cross_Audit_Prompt.md`): header title line 1 reads `Spec-Driven Platform V32.5`; the purpose paragraph (line 3) references `17 V32.5 framework files`, audits `V32.5`, includes `V32.5` in the verification version list, and quotes Section K range as `K.1-K.37` with `V32.5 verified counts block`; the V32.5 verified counts heading is renamed accordingly; a `Count diffs vs V32.4.1:` line is appended below the existing V32.4.1 diff line.
+       FAIL if designer-skills is described as a Primary Group slot anywhere — it is supplementary only (V32.5 explicitly inherits the V32.4 react-doctor pattern: per-phase supplementary, NOT a Primary Group slot).
+       FAIL if any phases.md MODEL hook authorizes designer-skills to REGENERATE `docs/DESIGN.md` or `docs/MOCKUP.jsx` — the INHERIT-not-REPLACE contract is the V32.5 invariant; PA artifacts are the human-verified baseline and are owned by Rule 1.
+       FAIL if any canonical count changed — V32.5 adds a phase-contextual skill recommendation, NOT a rule/scenario/prompt/bootstrap. Counts stay: 30 Rules · 35 Scenarios · 19 Bootstrap Steps · 60 Prompts (37 NEW ✨) · 11 UI Rules · 17 deliverable files · 9 V32 Dispatch Rules (R1–R9).
+       FAIL if the V32.5 row in Framework_Feature_Index_v31.md is placed below the V32.4 row — V32.5 is newest and must sit at the top of the version timeline. (Note: the file's row order is parent-then-patch, so the sequence below V32.5 is V32.4 → V32.4.1 → V32.3 → V32.2 …; do NOT reorder V32.4 and V32.4.1.)
+       FAIL if any of the 7 canonical files still references V32.4.1 as the current version in its header/title block (current-version markers in compact title + STRICTEST line, Feature_Index header + §1.2 + footer + deliverable-set note, this audit header + verified-counts block, deploy-v31.sh header must read V32.5; historical V32.4.1 references — V32.4.1 changelog entry, K.36 item, Feature_Index V32.4.1 row — correctly remain V32.4.1).
+       FAIL if the `†` advisory marker remains on any designer-skills entry in `CLAUDE.md` Skills Library Awareness table.
+       NOTE (V32.5.1 supersession): the current-version markers asserted by K.37 have been re-bumped V32.5 → V32.5.1 by K.38. Verify the CURRENT values against K.38, not this item. K.37 otherwise verifies the V32.5 prescription mechanics (designer-skills bundle at the three phase entry points, INHERIT-not-REPLACE contract, three MODEL hooks in phases.md), which remain in force unchanged.
+       Rationale: V32.5 closes the discoverability → prescription gap. Phase A (2026-06-03) shipped designer-skills as an installable Phase A skill bundle — discoverable via /scan-project, displayed in the React SPA catalog, documented in Prompt_References Appendix B. But the framework did NOT auto-invoke them. V32.5 wires them into phases.md MODEL hooks so Claude Code is prescribed (not just permitted) to invoke `/design-tokens` / `/design-review` / `/design-refine` at Phase 4 Parts 5-6 and Phase 7. The INHERIT-not-REPLACE contract over PA's DESIGN.md + MOCKUP.jsx preserves Rule 1 (human owns PA artifacts) and the layered design model (PA establishes aesthetic → designer-skills sharpen). No new behavior contract — just three MODEL hooks pointing existing skills at existing phase entry points.
+
+□ K.38 (V32.5.1) — Designer-Skills Gate-Closure Enforcement + Governance Hook Repair: V32.5 wiring is structurally sound but lacked explicit gate-closure language in the three `phases.md` MODEL HOOKs. V32.5.1 fixes this and closes five other defects surfaced by the 4-Scout pre-ship audit (Scout A activation windows / Scout B Opus-Sonnet contract / Scout C context budget / Scout D cross-file consistency).
+       LOOK FOR in `phases.md`:
+         (a) Phase 2.8 MODEL HOOK (after the V32.5 paragraph) ends with `**Gate-closure (V32.5.1):** Phase 2.8 cannot close until `/design-review` returns green OR every flag has been resolved by `/design-refine`.`
+         (b) Phase 4 Parts 5-6 MODEL HOOK ends with `**Gate-closure (V32.5.1):** Phase 4 Parts 5-6 cannot close until `/design-review` returns green against the scaffolded components. Any flag MUST be resolved via `/design-refine` (surgical, flagged-only) before Part 7 (background jobs) begins.`
+         (c) Phase 7 MODEL HOOK ends with `**Gate-closure (V32.5.1):** A UI-touching Feature Update cannot be marked DONE until `/design-review` returns green against the delta. ... CHANGELOG_AI.md MUST record the gate verdict (`design-review: green` or `design-review: green-after-refine`) per Rule 15.`
+       LOOK FOR in `memory-governance.md §3`:
+         (d) Hook Text heading reads `### Hook Text (V32.3 — injected into each phase)` (was V32) and the `MODEL:` line reads `ZERO OPUS EXECUTION (V32.3)` with the R6 size-qualifier sentence about >200-line allow-list docs routing through Scout-Sonnet with the Governance Extraction Schema.
+         (e) Injection Points subsection header reads `### Injection Points (14 hooks total)` (was 13 at V32.5.1; bumped to 14 at V32.6 when Phase 3.3 added its governance pre-flight) and the list enumerates 14 entries: Phase 2, Phase 3, Phase 3.3, Phase 3.5, Phase 4 Parts 1-2, Phase 4 Parts 3-4, Phase 4 Parts 5-6, Phase 4 Parts 7-8, Phase 5, Phase 6, Phase 6.5, Phase 7, Phase 7R, Phase 8.
+         (f) New subsection `### Output Equivalence Guarantee (V32.5.1)` documents that Tiered Decomposition is result-preserving — N sub-batches produce the same final committed state as single-context.
+         (g) New subsection `### Mid-Session Thrash Rescue` references Prompt 3.19 (Emergency Anti-Thrashing) in `.ai_prompt/Prompt_References.md` and forbids Opus-executor escalation as workaround (R1 violation).
+       LOOK FOR in `Prompt_References.md`:
+         (h) New section `## How the Spec-Driven AI Mega Prompt Works` between the "What's new" block and `## Prerequisites` — contains the three activation windows ASCII diagram (Phase 2.8 / Phase 4 Parts 5-6 / Phase 7) with `cannot close until gate is green` language for each window, plus the architectural-contract table (Architect / Executor swarm / Gate-keepers / Memory roles with token-discipline column).
+       LOOK FOR in `Prompt_References.html`:
+         (i) New `<div class="section" id="how-it-works">` immediately before the Prerequisites section, mirroring the .md content with section-eyebrow `Mental model`, the three-window code-block, and the contract `<table>`.
+         (j) Sidebar contains a new nav-group `00 Overview` with one nav-link `★ How the Mega Prompt Works` pointing to `#how-it-works`, placed above the `01 Setup` group.
+         (k) Hero eyebrow reads `v32.5.1 locked · release ready` (was `v31 locked · release ready` — silently carried through every V32.x ship).
+       LOOK FOR current-version markers V32.5.1 in: `Master_Prompt_v31.md` VERSION+FILENAME POLICY block + V32.5.1 changelog entry, `CLAUDE_v31_compact.md` title + STRICTEST line, `Framework_Feature_Index_v31.md` header + §1.2 title + V32.5.1 row above V32.5 + footer "Last updated: V32.5.1" + "17-file V32.5.1 deliverable set" note, this file's header (title + purpose paragraph + version list + K.1-K.38 range), `deploy-v31.sh` header.
+       FAIL if any of the three `phases.md` MODEL HOOKs lacks the gate-closure sentence — the Scout A finding was that gate language existed only in user-facing Prompt_References, not in agent-loaded phases.md; this is the V32.5.1 invariant.
+       FAIL if `memory-governance.md §3` hook template still says `ZERO OPUS EXECUTION (V32)` without the `.3` — Scout B nit.
+       FAIL if `memory-governance.md §3` Injection Points list enumerates fewer than 13 entries or does not split Phase 4 into Part-pairs — Scout C count reconciliation.
+       FAIL if Output Equivalence Guarantee or Prompt 3.19 rescue pointer is absent from `memory-governance.md §3` — Scout C defects 2 and 3.
+       FAIL if `Prompt_References.html` hero eyebrow still reads `v31 locked` — Scout D cosmetic.
+       FAIL if any canonical count changed — V32.5.1 is a doc-clarity + enforcement patch. Counts stay: 30 Rules · 35 Scenarios · 19 Bootstrap Steps · 60 Prompts (37 NEW ✨) · 11 UI Rules · 17 deliverable files · 9 V32 Dispatch Rules (R1–R9) · 13 Phase Hooks (now enumerated, was previously stated).
+       FAIL if the V32.5.1 row in Framework_Feature_Index_v31.md is placed below the V32.5 row — V32.5.1 is newest and must sit at the top (parent-then-patch convention).
+       NOTE (V32.5.2 supersession): the current-version markers asserted by K.38 have been re-bumped V32.5.1 → V32.5.2 by K.39. Verify the CURRENT values against K.39, not this item. K.38 otherwise verifies the V32.5.1 gate-closure mechanics (3 phases.md MODEL HOOK gate-closure sentences, memory-governance.md §3 template bump, 13-hook enumeration, Output Equivalence Guarantee, Prompt 3.19 pointer, "How it Works" section), which remain in force unchanged.
+       Rationale: V32.5.1 makes the framework's design-gate contract enforceable by Claude Code at execution time, not just readable by humans in reference docs. Pre-V32.5.1, a Claude Code session running Phase 4 Parts 5-6 would read the designer-skills MODEL HOOK as conditional guidance ("when DESIGN.md is present, Opus dispatches..."), see no blocking language, and could complete the phase without invoking the audit gate at all. V32.5.1 closes that loophole by adding "cannot close until" sentences directly to the auto-loaded `phases.md` hooks. Companion fixes (§3 hook template version bump, 13-hook enumeration, Output Equivalence, Prompt 3.19 pointer, HTML hero) clean up the smaller drifts the same 4-Scout audit surfaced.
+
+□ K.39 (V32.5.2) — Prompt_References HTML Parity Fix: V32.5.1's 5-Scout post-ship audit (Scout 4) found three cosmetic HTML-only divergences in the new "How the Spec-Driven AI Mega Prompt Works" section — the markdown carried richer annotation than the HTML rendering. V32.5.2 brings the HTML to full content parity. Zero count/behavior change.
+       LOOK FOR in `Prompt_References.html` (around lines 1284-1304):
+         (a) Gate-keepers table row Model cell reads `designer-skills (Phase 2.8 / 4.5-6 / 7)` (not just `designer-skills`). The phase annotation is restored to match the .md.
+         (b) Memory table row Model cell reads `Smart Checkpoint Protocol (V31.1 → V32.3)` (not just `Smart Checkpoint Protocol`). The version range is restored to match the .md.
+         (c) "Why this prevents thrashing" callout uses a `<ul>` with 4 list items (Opus stays in window / Sonnet swarms parallelize + "Each Sonnet gets a slice it can hold whole" / Gate-keepers stop half-finished UI / Memory governance auto-persists). NOT a single paragraph.
+       LOOK FOR current-version markers V32.5.2 in: `Master_Prompt_v31.md` VERSION+FILENAME POLICY block + V32.5.2 changelog entry above V32.5.1, `CLAUDE_v31_compact.md` title + STRICTEST line extended, `Framework_Feature_Index_v31.md` header + §1.2 title + V32.5.2 row above V32.5.1 + footer "Last updated: V32.5.2" + "17-file V32.5.2 deliverable set" note, this file's header (title + purpose paragraph + version list + K.1-K.39 range), `deploy-v31.sh` header.
+       FAIL if any of the three HTML cells/callouts still shows the pre-V32.5.2 collapsed form — the .md was already canonical; this patch only catches the HTML up.
+       FAIL if `Prompt_References.html` hero eyebrow still reads `v32.5.1 locked` — must read `v32.5.2 locked · release ready`.
+       FAIL if any canonical count changed — V32.5.2 is HTML-only cosmetic parity. Counts stay: 30 Rules · 35 Scenarios · 19 Bootstrap Steps · 60 Prompts (37 NEW ✨) · 11 UI Rules · 17 deliverable files · 9 V32 Dispatch Rules (R1–R9) · 13 Phase Hooks.
+       FAIL if the V32.5.2 row in Framework_Feature_Index_v31.md is placed below the V32.5.1 row — V32.5.2 is newest and must sit at the top (parent-then-patch convention).
+       FAIL if the historical V32.5.1 row/changelog entry has been overwritten or renamed to V32.5.2 — V32.5.1 remains as a historical row, V32.5.2 is added above it as a new row.
+       NOTE (V32.5.3 supersession): the current-version markers asserted by K.39 have been re-bumped V32.5.2 → V32.5.3 by K.40. Verify the CURRENT values against K.40, not this item. K.39 otherwise verifies the V32.5.2 HTML parity mechanics (3 cell/callout fixes in the "How the Mega Prompt Works" section), which remain in force unchanged.
+       Rationale: V32.5.2 is the cleanest possible "the human-facing docs match each other" patch. The Scout 4 finding was that daily readers comparing the markdown reference to the HTML reference would see slightly different detail levels — not a defect that affects Claude Code's execution (it reads neither file at runtime) but a defect that affects the user's mental model of the framework. Bringing them to parity preserves the "Prompt_References.md is authoritative; HTML is derived" rule from CLAUDE.md.
+
+□ K.40 (V32.5.3) — Clean-Slate Rebuild Scenario (Prompt 3.23): V32.5.3 adds **Prompt 3.23 — Clean-Slate Rebuild from Preserved Spec** to Prompt_References.md and Prompt_References.html in Scenario Group 3 (Maintenance). This is the first canonical-count change since V32.1.5: Prompts 60 → 61, NEW ✨ 37 → 38. All other counts unchanged.
+       LOOK FOR in `Prompt_References.md`:
+         (a) Prompt 3.23 exists between Prompt 3.22 (Thrashing Recovery) and the SCENARIO GROUP 4 header.
+         (b) Title reads `## 3.23 — Clean-Slate Rebuild from Preserved Spec (NEW ✨ V32.5.3)`.
+         (c) Three numbered sub-prompts present: `3.23.A — Preserve + Nuke`, `3.23.B — Re-deploy Framework + Bootstrap Prep`, `3.23.C — Resume the rebuild manually` (renamed at V32.6.1 from `3.23.C — Full Rebuild from PRODUCT.md`; the auto-rebuild paste-prompt is intentionally removed — see K.44).
+         (d) Pre-flight bash block exists before 3.23.A (with `spec-update .` + `git tag pre-clean-slate-$(date +%Y%m%d-%H%M%S)`).
+         (e) "When to use this vs lighter alternatives" decision table present (references prompts 7 / 7R / 3.14 / 3.19 / 2.9 / 3.13 / 3.23).
+         (f) Four critical warnings present (verify PRODUCT.md is current; do NOT delete lessons.md; runs over multiple sessions; keep backup tar until Phase 6.5 passes).
+       LOOK FOR in `Prompt_References.html`:
+         (g) `<div class="prompt-card group-3 new-badge" id="p-3-23">` exists after the 3.22 card.
+         (h) Card title reads `Clean-Slate Rebuild from Preserved Spec (V32.5.3)`.
+         (i) Three `<h4>` sections for 3.23.A / 3.23.B / 3.23.C. 3.23.A + 3.23.B have code-block prompts inside; **3.23.C has a resume-card (no paste-able body) — V32.6.1**. See K.44 for the resume-card structure.
+         (j) Sidebar contains a new nav-link `<a class="nav-link" href="#p-3-23"><span class="nav-num">3.23</span>Clean-Slate Rebuild ✨</a>` directly after the 3.22 nav-link.
+         (k) Hero stats: `<div class="stat-num">61</div>` for Prompts (was 60) and `<div class="stat-num">38</div>` for New (was 37).
+         (l) Hero eyebrow reads `v32.5.3 locked · release ready`.
+       LOOK FOR current-version markers V32.5.3 in: `Master_Prompt_v31.md` VERSION+FILENAME POLICY block + V32.5.3 changelog entry above V32.5.2, `CLAUDE_v31_compact.md` title + STRICTEST line extended + "61 prompts total", `Framework_Feature_Index_v31.md` header + §1.2 title + V32.5.3 row above V32.5.2 + footer "Last updated: V32.5.3 (...61 prompts (38 New ✨)...)" + "17-file V32.5.3 deliverable set" note, this file's header (title + purpose paragraph + version list + K.1-K.40 range), `deploy-v31.sh` header.
+       LOOK FOR count propagation 60 → 61 and 37 → 38 in: CLAUDE_v31_compact.md FOR HUMANS line ("61 prompts total"); ChatGPT_V31_Cross_Audit_Prompt.md header item 7 ("V32.5.3 current: 61 prompts (38 NEW ✨)"); verified counts block ("61 Prompts (38 NEW ✨)"); checklist item 14 ("Prompt count: 61 prompts, 38 NEW ✨"); Prompt_References.html hero stats; Framework_Feature_Index_v31.md footer.
+       FAIL if any of the three stages (3.23.A / 3.23.B / 3.23.C) is missing from either the .md or .html — the three-stage flow is the V32.5.3 invariant. (V32.6.1: 3.23.A and 3.23.B remain paste-able prompts; 3.23.C is a manual-handoff section, NOT a paste-able prompt. See K.44.)
+       FAIL if Prompt_References.html sidebar lacks the 3.23 nav-link or it points to a `#p-3-23` anchor that does not exist.
+       FAIL if hero stats still show `60` or `37` — the count bump is the V32.5.3 visible signal.
+       FAIL if the V32.5.3 row in Framework_Feature_Index_v31.md is placed below the V32.5.2 row.
+       FAIL if the historical V32.5.2 row/changelog entry has been overwritten or renamed to V32.5.3.
+       FAIL if scenarios count was bumped (Prompt 3.23 is a PROMPT, NOT a new framework Scenario — scenarios.md is unchanged; scenarios count stays 35).
+       FAIL if any other canonical count changed (30 Rules · 35 Scenarios · 19 Bootstrap Steps · 11 UI Rules · 17 deliverable files · 9 V32 Dispatch Rules · 13 Phase Hooks — all stay).
+       NOTE (V32.5.4 supersession): the current-version markers asserted by K.40 have been re-bumped V32.5.3 → V32.5.4 by K.41. Verify the CURRENT values against K.41, not this item. K.40 otherwise verifies the V32.5.3 Clean-Slate Rebuild Scenario mechanics (Prompt 3.23 in .md and .html, sub-prompts A/B/C, sidebar nav, hero stats 61/38), which remain in force unchanged.
+       NOTE (V32.6.1 supersession — 3.23.C semantic shift): the 3.23.C **content** asserted by K.40 LOOK-FOR (c)/(i) has been replaced by V32.6.1 — 3.23.C is no longer a paste-able mega-prompt; it is a "Resume the rebuild manually" handoff card pointing at Prompt 1.3.1 (Phase 0 Bootstrap) with an optional Prompt 2.9 pre-check. Verify 3.23.C content per K.44, not the original K.40 (c)/(i) expectations. The three-stage A/B/C structural invariant + 60→61/37→38 count bump asserted by K.40 still hold; only stage C's body shape changed.
+       Rationale: V32.5.3 gives users a paste-ready, documented recovery path for the "Phase 8 project is glitchy across modules" failure mode. Before V32.5.3, the closest documented recovery was Prompt 3.19 (Emergency Anti-Thrashing — addresses Claude Code's own thrashing, not the app's systemic rot) or the Phase 7R Feature Rollback (surgical, not systemic). Prompt 3.23 fills the gap with a deliberate three-stage flow: shell pre-flight (snapshot tag + spec-update) → Claude Code preserve + nuke + ls verification → deploy + restart → manual phase-by-phase rebuild from PRODUCT.md (per V32.6.1 — see K.44; original V32.5.3 ship had 3.23.C as an auto-rebuild paste-prompt, replaced at V32.6.1 with a manual handoff). The flow is explicitly NOT optimized for speed — it's optimized for **certainty of recovery**, which is what the user needs when a project is genuinely broken.
+
+□ K.41 (V32.5.4) — Cosmetic Sweep + Changelog Reorder: V32.5.4 closes three minor findings from the V32.5.3 5-Scout post-ship audit. Zero count/behavior change.
+       LOOK FOR in `Prompt_References.html`:
+         (a) In the 3.23 prompt card, warning #4 ("The `~/clean-slate-backup-*.tar.gz` snapshot is your insurance.") now uses `<div class="callout warning">` (NOT plain `<div class="callout">`). All four warnings in the 3.23 card share the same `callout warning` CSS class for visual parity.
+         (b) Hero eyebrow reads `v32.5.4 locked · release ready`.
+       LOOK FOR in this file (`ChatGPT_V31_Cross_Audit_Prompt.md`):
+         (c) The verified-counts section heading reads `### V32.5.3 verified counts (must match in every file that quotes them)` (NOT `### V32.5 verified counts`). The block CONTENTS remain unchanged (61 / 38 / 30 / 35 / 19 / 11 / 17 / 9 / 13).
+       LOOK FOR in `Master_Prompt_v31.md` changelog ordering:
+         (d) V32.4.1 entry sits IMMEDIATELY AFTER V32.4 and BEFORE V32.5.3 (the top of the V32.5.x newest-first block). Order is: V32.4 → V32.4.1 → V32.5.5 → V32.5.4 → V32.5.3 → V32.5.2 → V32.5.1 → V32.5 → V32 base section header.
+         (e) NO V32.4.1 entry sits between V32.5 and the V32 base section header (the previous incorrect position).
+       LOOK FOR current-version markers V32.5.4 in: Master_Prompt_v31.md VERSION+FILENAME POLICY block + V32.5.4 changelog entry above V32.5.3, CLAUDE_v31_compact.md title + STRICTEST line, Framework_Feature_Index_v31.md header + §1.2 title + V32.5.4 row above V32.5.3 + footer "Last updated: V32.5.4" + "17-file V32.5.4 deliverable set", this file's header (title + purpose paragraph + K.1-K.41 range), deploy-v31.sh header.
+       FAIL if HTML warning #4 in the 3.23 card still uses plain `<div class="callout">` without `warning` — Scout 1 finding CP16.
+       FAIL if this file's verified-counts heading still reads `### V32.5 verified counts` — Scout 3 advisory.
+       FAIL if Master Prompt's V32.4.1 entry still sits below V32.5 or above V32.4 — Scout 4 finding (the chronologically/semantically correct slot is between V32.4 and the V32.5.x block).
+       FAIL if any canonical count changed — V32.5.4 is cosmetic-only. Counts stay at V32.5.3 values: 30 Rules · 35 Scenarios · 19 Bootstrap Steps · 61 Prompts (38 NEW ✨) · 11 UI Rules · 17 deliverable files · 9 V32 Dispatch Rules · 13 Phase Hooks.
+       FAIL if the V32.5.4 row in Framework_Feature_Index_v31.md is placed below the V32.5.3 row.
+       FAIL if the historical V32.5.3 row/changelog entry has been overwritten or renamed to V32.5.4.
+       Rationale: V32.5.4 is the smallest possible patch — three findings from V32.5.3's own post-ship audit, all cosmetic, all closeable with a single edit each. The HTML callout class brings the 3.23 card to visual parity. The verified-counts heading label keeps the audit cross-references coherent. The V32.4.1 reorder cleans up a pre-existing changelog inversion that predates V32.5.3 (the patch did not introduce it, but the V32.5.3 audit surfaced it). None of the three changes affect Claude Code's runtime behavior or the canonical count contract.
+       NOTE (V32.5.5 supersession): the current-version markers asserted by K.41 have been re-bumped V32.5.4 → V32.5.5 by K.42. Verify the CURRENT values against K.42, not this item. K.41 otherwise verifies the V32.5.4 cosmetic-sweep mechanics (HTML callout class parity, verified-counts heading label, Master Prompt V32.4.1 reorder), which remain in force unchanged.
+
+□ K.42 (V32.5.5) — DECISIONS_LOG ↔ PRODUCT.md Back-Port Surface Check: V32.5.5 adds a non-blocking pre-flight MODEL HOOK at Phase 7 and Phase 8 that surfaces decisions answered in `docs/DECISIONS_LOG.md` but never back-ported into `docs/PRODUCT.md`. Zero count / rule / scenario / prompt / behavior change beyond the new informational surface.
+       LOOK FOR in `phases.md`:
+         (a) A `**MODEL HOOK (V32.5.5 — Back-Port Surface Check, Phase 7 pre-flight):**` block immediately after the Phase 7 `⚠ MEMORY GOVERNANCE` pre-flight block (before the `**Trigger:**` line). It dispatches a Sonnet Scout to compare locked DECISIONS_LOG.md decisions against PRODUCT.md and surfaces a "📋 Back-Port Candidates" report.
+         (b) A near-identical `**MODEL HOOK (V32.5.5 — Back-Port Surface Check, Phase 8 pre-flight):**` block immediately after the Phase 8 `⚠ MEMORY GOVERNANCE` pre-flight block (before "Cross-references PRODUCT.md vs IMPLEMENTATION_MAP.md").
+         (c) Both hooks state the check is **non-blocking** (NEVER gates phase closure), **surface-and-inform only**, and that **Rule 1 is unchanged — Claude Code MUST NOT write to `docs/PRODUCT.md`**.
+         (d) Both hooks describe the `spec-divergent: <reason>` suppression escape valve and the conditional run (only when DECISIONS_LOG.md mtime is newer than the last report) with a collapsed `✅ no back-port candidates` clean-state line.
+       LOOK FOR current-version markers V32.5.5 in: Master_Prompt_v31.md VERSION+FILENAME POLICY block + V32.5.5 changelog entry above V32.5.4, CLAUDE_v31_compact.md title + STRICTEST line, Framework_Feature_Index_v31.md header + §1.2 title + V32.5.5 row above V32.5.4 + footer "Last updated: V32.5.5" + "17-file V32.5.5 deliverable set", this file's header (title + purpose paragraph + K.1-K.42 range), deploy-v31.sh header.
+       FAIL if either Phase 7 or Phase 8 MODEL HOOK is missing from `phases.md`.
+       FAIL if either hook implies Claude Code may edit PRODUCT.md, or makes the check blocking / gating (it must be non-blocking — Rule 1 invariance is the whole point).
+       FAIL if any canonical count changed — V32.5.5 is additive MODEL-hook language only. Counts stay: 30 Rules · 35 Scenarios · 19 Bootstrap Steps · 61 Prompts (38 NEW ✨) · 11 UI Rules · 17 deliverable files · 9 V32 Dispatch Rules · 13 Phase Hooks.
+       FAIL if the V32.5.5 row in Framework_Feature_Index_v31.md is placed below the V32.5.4 row, or if the historical V32.5.4 row/changelog entry has been overwritten or renamed to V32.5.5.
+       Rationale: clarifications get answered in DECISIONS_LOG.md but Rule 1 forbids AI from writing them back into PRODUCT.md, so the spec silently drifts behind the decision log. Phase 8's completeness check catches declared-but-unbuilt sections, not answered-but-unspecced decisions. V32.5.5 closes that gap with a surface-only Scout report that respects human authorship of PRODUCT.md — the human decides whether to back-port, defer, or mark a decision deliberately spec-divergent.
+
+□ K.43 (V32.6) — Interactive Prototype & Simulation Phase (Phase 3.3): V32.6 adds a new sub-phase between Phase 3 and Phase 3.5 that builds a durable, client-validated interactive prototype with a project-defined simulated backend, and MOVES design-system finalization out of Phase 4 Parts 5-6. Zero count / rule / scenario / prompt / bootstrap change (3.3 is a sub-phase).
+       LOOK FOR in `phases.md`:
+         (a) A `## PHASE 3.3 — INTERACTIVE PROTOTYPE & SIMULATION (NEW V32.6)` section positioned BETWEEN the Phase 3 Output Contract block and the `## PHASE 3.5` header.
+         (b) The section has a `⚠ MEMORY GOVERNANCE` pre-flight (ZERO OPUS EXECUTION — prototype + simulated layer + docs/PROTOTYPE.md dispatched via Sonnet), an 8-step build sequence, a `PHASE 3.3 GATE-CLOSURE — MANDATORY` block, and a `MODEL HOOK (V32.6 — designer-skills moves to Phase 3.3)`.
+         (c) Gate-closure requires ALL of: `/design-review` green (or flags resolved via `/design-refine`), every Core User Flow in PRODUCT.md §3 walkable, client sign-off logged to `docs/DECISIONS_LOG.md`, and `docs/PROTOTYPE.md` exists with the simulated→production swap boundary per screen.
+         (d) The Phase 3 completion pointer reads "Next: Phase 3.3 ... then Phase 3.5 ..."; the `## PHASE 3.5` header reads "(AUTO — runs at end of Phase 3.3)".
+         (e) The Phase 2.8 hand-off MODEL HOOK retargets design-system inheritance to "Phase 3.3" (moved from Phase 4 Parts 5-6); the Phase 4 Parts 5-6 MODEL HOOK now reads "WIRE + REGRESSION" — wire the validated prototype to the production backend + regression `/design-review` only, with a fallback to the full V32.5 design pass if no `prototype/` exists.
+       LOOK FOR in `Master_Prompt_v31.md`: a `## PHASE 3.3 — INTERACTIVE PROTOTYPE & SIMULATION (NEW V32.6)` section; a `→ Phase 3.3` line in the "Which phase are you starting from?" menu between Phase 3 and Phase 3.5; a V32.6 clause in the VERSION+FILENAME POLICY changelog paragraph; active-version marker reads **V32.6**.
+       LOOK FOR current-version markers V32.6 in: CLAUDE_v31_compact.md title + STRICTEST line + phase menu (Phase 3.3 between Phase 3 and Phase 3.5), Framework_Feature_Index_v31.md header + §1.2 title + V32.6 row above V32.5.5 + footer "Last updated: V32.6" + "17-file V32.6 deliverable set", this file's header (title + purpose paragraph + K.1-K.43 range + Phase count line includes "+ 3.3 (V32.6)"), deploy-v31.sh header, repo CLAUDE.md designer-skills phase-mapping table (Phase 3.3 row).
+       FAIL if the Phase 3.3 section is missing from `phases.md` or `Master_Prompt_v31.md`, or placed anywhere other than between Phase 3 and Phase 3.5.
+       FAIL if any hook implies Claude Code may write to PRODUCT.md (client sign-off goes to DECISIONS_LOG.md — Rule 1 unchanged).
+       FAIL if Phase 4 Parts 5-6 still describes running the FULL design-system pass as primary (it must be wire + regression, with the full pass only as the no-prototype fallback).
+       LOOK FOR in `memory-governance.md`: §3 "Injection Points" header reads "(14 hooks total)" and the numbered list includes "3. Phase 3.3 (Interactive Prototype & Simulation — NEW V32.6)" before Phase 3.5, renumbering through Phase 8 (14 total). Present-tense "phase hooks" facts in Prompt_References.md/.html ("How the Mega Prompt Works" memory row) and CLAUDE_framework_repo.md read 14, not 13.
+       FAIL if any count OTHER than Phase Hooks changed — V32.6 adds a sub-phase plus its governance pre-flight (**Phase Hooks 13 → 14**). Current counts: 30 Rules · 35 Scenarios · 19 Bootstrap Steps · 61 Prompts (38 NEW ✨) · 11 UI Rules · 17 deliverable files · 9 V32 Dispatch Rules · **14 Phase Hooks** (was 13).
+       FAIL if any HISTORICAL changelog entry's "13 phase hooks" (e.g. the V32.5.1 decode) was bumped to 14 — only the live/current count + the V32.6 entry move to 14; pre-V32.6 snapshots stay 13 (Rule 4).
+       FAIL if the historical V32.5.x rows/changelog entries have been overwritten or renamed to V32.6 (V32.6 content is ADDED above them, not substituted).
+       Rationale: the Orqafy lesson — spec completion ≠ a working app; large builds discovered wiring breakage (HTTP 500s, un-wired components) only at Phase 8, the costliest moment to fix. Phase 3.3 pulls behavior + wiring validation forward so Phase 4 builds from a validated blueprint, and consolidates design-system finalization into the one place the prototype is built.
+       NOTE (V32.6.1 supersession): the current-version markers asserted by K.43 have been re-bumped V32.6 → V32.6.1 by K.44. Verify the CURRENT values against K.44, not this item. K.43 otherwise verifies the V32.6 Phase 3.3 mechanics (Phase 3.3 section in phases.md + Master_Prompt, MODEL hooks, gate-closure, 14 phase hooks), which remain in force unchanged.
+
+□ K.44 (V32.6.1) — Prompt 3.23.C Semantic Shift — Auto-rebuild → Manual Handoff: V32.6.1 replaces the original V32.5.3 paste-able "3.23.C — Full Rebuild from PRODUCT.md" mega-prompt with a "3.23.C — Resume the rebuild manually" handoff card that points the human at Prompt 1.3.1 (Phase 0 Bootstrap) with an optional Prompt 2.9 (Validate Spec Consistency) pre-check. **Rationale:** a single paste-prompt driving Phase 0 → 6.5 is exactly the autopilot/thrashing surface the framework was built to prevent; it also recreates the integration-bug risk Phase 3.3 was added to eliminate. Manual phase-by-phase rebuild gets fresh context + explicit human gate at every boundary, which is faster AND safer. Also, after 3.23.B the project state is known (clean app dirs + preserved spec + redeployed framework) — there is no need for Prompt 1.2 Universal Analyzer detection; routing directly to Phase 0 Bootstrap is more honest. **Zero count / rule / scenario / prompt count / bootstrap / phase-hook change** — Prompt 3.23 still occupies its catalog slot; only stage C's body shape changed.
+       LOOK FOR in `Prompt_References.md`:
+         (a) `### 3.23.C — Resume the rebuild manually` heading (NOT "Full Rebuild from PRODUCT.md").
+         (b) Two bold anchor-link CTAs: `**Optional pre-check → [Prompt 2.9 — Validate Spec Consistency](#29--validate-spec-consistency-new--pre-feature-update-sanity-check)**` AND `**Next step (start here) → [Prompt 1.3.1 — Phase 0 Bootstrap](#131--place-productmd--designmd--mockup--run-bootstrap)**`.
+         (c) 4-row resume table (optional 2.9 → run 1.3.1 Bootstrap → continue Phase 2 → 3 → 3.3 → 3.5 → 4 → 5 → 6 → 6.5 → human authorizes each boundary).
+         (d) "Why skip Prompt 1.2 (Universal Analyzer)?" rationale blockquote present.
+         (e) "No autopilot" warning blockquote present.
+         (f) The 3.23.B tail line reads `(Close and reopen Claude Code, then resume MANUALLY at Phase 0 Bootstrap — see 3.23.C below.)` (NOT "paste Prompt 3.23.C").
+         (g) Sanity-check table row for 3.23.C reads "manual resume" naming Prompt 1.3.1 Phase 0 Bootstrap (optionally preceded by Prompt 2.9) — NOT a phase-by-phase row enumeration.
+         (h) "Manual rebuild runs over many sessions" warning blockquote present (replaces pre-V32.6.1 "3.23.C runs over multiple sessions" wording).
+         (i) NO `REBUILD SEQUENCE` mega-prompt code block exists anywhere in the 3.23 section.
+       LOOK FOR in `Prompt_References.html`:
+         (j) `<h4>3.23.C — Resume the rebuild manually</h4>` inside the `#p-3-23` card.
+         (k) A `<div class="resume-card">` containing TWO `<a class="resume-cta">` links: `href="#p-2-9"` (Prompt 2.9 — Validate Spec Consistency, blue-styled) AND `href="#p-1-3"` (Prompt 1.3.1 — Phase 0 Bootstrap, accent-styled).
+         (l) `<ol class="resume-steps">` with 4 numbered steps.
+         (m) Two `<div class="resume-rule">` blocks (1: "Why skip Prompt 1.2", 2: "No autopilot").
+         (n) The 3.23.B tail line reads "Close and reopen Claude Code, then resume the project MANUALLY at Phase 0 Bootstrap — see 3.23.C below."
+         (o) NO `<div class="code-body">` containing the REBUILD SEQUENCE mega-prompt inside the 3.23.C section.
+         (p) Hero eyebrow reads `v32.6.1 locked · release ready`.
+       LOOK FOR current-version markers V32.6.1 in: Master_Prompt_v31.md VERSION+FILENAME POLICY block + V32.6.1 changelog entry above V32.5.5 (V32.6 has no separate bullet — its definition is inline in the VERSION+FILENAME POLICY paragraph), CLAUDE_v31_compact.md title + STRICTEST line, Framework_Feature_Index_v31.md header + §1.2 title + V32.6.1 row above V32.6 + footer "Last updated: V32.6.1" + "17-file V32.6.1 deliverable set", this file's header (title + purpose paragraph + K.1-K.44 range), deploy-v31.sh header.
+       FAIL if Prompt_References.html still shows a `<div class="code-body">` containing the "REBUILD SEQUENCE" text inside the 3.23.C section.
+       FAIL if Prompt_References.md still contains a fenced code block whose body starts with "Project is clean-slate. docs/PRODUCT.md is the source of truth." inside the 3.23 section.
+       FAIL if either file still contains the literal string "paste Prompt 3.23.C" as a forward instruction (historical changelog references to "3.23.C Full Rebuild from PRODUCT.md" in V32.5.3 changelog rows ARE preserved per Rule 4 and are NOT a failure).
+       FAIL if any canonical count changed — V32.6.1 is a content/semantic patch with zero count impact. Counts stay: 30 Rules · 35 Scenarios · 19 Bootstrap Steps · 61 Prompts (38 NEW ✨) · 11 UI Rules · 17 deliverable files · 9 V32 Dispatch Rules · 14 Phase Hooks.
+       FAIL if the V32.6.1 row in Framework_Feature_Index_v31.md is placed below the V32.6 row, or if the historical V32.6 row/V32.5.x rows have been overwritten or renamed to V32.6.1.
+       FAIL if the historical V32.5.3 changelog entries in Master_Prompt_v31.md (line ~7973) or Framework_Feature_Index_v31.md (V32.5.3 row) were edited — they accurately describe what shipped at V32.5.3 and must remain frozen per Rule 4.
+       Rationale: the original V32.5.3 3.23.C drove Phase 0 → 6.5 from a single paste-prompt. Twin problems: (1) it recreates the autopilot/thrashing surface the framework exists to prevent — single context driving the whole rebuild is the failure mode V32, V32.2 R7, V32.3 R6, and Phase 3.3 were each designed to eliminate; (2) it routes around Phase 3.3, which is the V32.6 hard-gate behavioral blueprint — a rebuild that runs straight from Phase 3 to Phase 4 misses the integration-validation step Phase 3.3 was added to enforce. V32.6.1 fixes both by making 3.23.C an explicit human handoff back into the normal Phase 0 Bootstrap entry point (with an optional Prompt 2.9 sanity check on PRODUCT.md first). The three-stage 3.23 invariant survives — only stage C's surface changes from "paste-and-execute" to "you take the wheel from here."
+
+□ K.45 (V32.7) — Deploy-Location Migration: Detail Files Move to `.ai_prompt/`: V32.7 moves all 7 detail files (phases.md, memory-governance.md, security.md, ui-rules.md, bootstrap.md, scenarios.md, templates.md) out of `.claude/rules/` and into `.ai_prompt/` (read on-demand). `CLAUDE_v31_compact.md` remains the ONLY auto-loaded file, deployed as `CLAUDE.md` at the app root. `.claude/rules/` is intentionally empty after a V32.7 deploy. All canonical counts unchanged: 30 Rules · 35 Scenarios · 19 Bootstrap Steps · 61 Prompts (38 NEW ✨) · 11 UI Rules · 17 deliverable files · 9 V32 Dispatch Rules · 14 Phase Hooks.
+       **Root cause (informational):** `.claude/rules/` files are injected into every subagent's baseline context, causing ~100-130K tokens of unconditional injection per worker session. Moving to `.ai_prompt/` makes loading explicit and on-demand.
+       LOOK FOR in `deploy-v31.sh`:
+         (a) Files 2-8 (phases.md, memory-governance.md, security.md, ui-rules.md, bootstrap.md, scenarios.md, templates.md) deploy to `.ai_prompt/` — NOT `.claude/rules/`.
+         (b) `grep -c '\.claude/rules/' deploy-v31.sh` for detail-file deploy targets should return **0** (no `.claude/rules/` destination lines for any of the 7 detail files).
+         (c) File 1 (`CLAUDE_v31_compact.md`) deploys to `CLAUDE.md` at the app root (unchanged).
+         (d) Total deliverable file count in the script header still reads **17**.
+       LOOK FOR in `CLAUDE_v31_compact.md`:
+         (e) The file-loading table (contextual loading section) lists all 7 detail files under `.ai_prompt/` — NOT `.claude/rules/`.
+         (f) No auto-load claim for any detail file (phases.md, memory-governance.md, etc.) — only `CLAUDE.md` auto-loads.
+       LOOK FOR in `phases.md`:
+         (g) Every SHORT MEMORY GOVERNANCE pre-flight block (14 hooks) carries an explicit `Read .ai_prompt/memory-governance.md` instruction (not `.claude/rules/memory-governance.md`).
+       LOOK FOR in `memory-governance.md`:
+         (h) File path self-reference (if any) says `.ai_prompt/memory-governance.md`.
+       LOOK FOR in `Master_Prompt_v31.md`:
+         (i) V32.7 changelog entry documenting the deploy-location migration.
+         (j) Any file-loading map or context budget table that referenced `.claude/rules/` for detail files now says `.ai_prompt/`.
+       LOOK FOR in `Framework_Feature_Index_v31.md`:
+         (k) A V32.7 row documenting the deploy-location change.
+       FAIL if `deploy-v31.sh` still deploys any of the 7 detail files to `.claude/rules/`.
+       FAIL if `CLAUDE_v31_compact.md` file-loading table still lists any detail file under `.claude/rules/`.
+       FAIL if any of the 7 detail files' phase-hooks in `phases.md` still reference `.claude/rules/memory-governance.md`.
+       FAIL if any canonical count changed — V32.7 is a deploy-location change only.
+       PASS if `.claude/rules/` is empty (no `overwrite_with_backup` lines targeting `.claude/rules/` for detail files in `deploy-v31.sh`).
+       Note: Historical references to `.claude/rules/` in V31/V32.x changelog entries (e.g., K.44 rationale, J.20 historical note) ARE preserved per Rule 4 and are NOT a failure.
+       NOTE (V32.7.1 re-bump): current-version markers asserted by K.45 have been re-bumped V32.7 → V32.7.1; verify CURRENT values against K.46, not K.45.
+
+□ K.46 (V32.7.1) — PA Dual-Host Documentation Patch: V32.7.1 is an additive docs-only patch allowing the Planning
+       Assistant interviewer role to run in a dedicated Claude Code session in the project folder (preferred,
+       gains the skills library during planning) OR in a Claude.ai chat (V31 original). The PA role remains
+       distinct from Phase 3+ Claude Code build sessions. MOCKUP.jsx preview path differs by host: live artifact
+       in Claude.ai vs. written `docs/MOCKUP.jsx` + Vite dev server in a Claude Code PA session. Counts
+       unchanged: 30 Rules · 35 Scenarios · 61 Prompts (38 NEW ✨) · 17 deliverable files · 14 Phase Hooks.
+       LOOK FOR:
+         (a) `Product_md_Planning_Assistant_v31.md` preamble + Phase 2.8 "Who" section describe BOTH hosts:
+             Claude Code PA session in the project folder (preferred) AND Claude.ai chat; neither is excluded.
+         (b) `Master_Prompt_v31.md` Phase 2.8 section + phase-menu entry say "Claude Code PA session (preferred)
+             or Claude.ai" — NOT "chat only" / "NOT Claude Code".
+         (c) `Prompt_References.md` (and .html) Group 4 + prompt 1.3.3b describe both host paths, including the
+             `docs/MOCKUP.jsx` + Vite dev server path for Claude Code PA sessions.
+         (d) Role distinction preserved: PA session (either host) is NOT blessed for Phase 3+ build work;
+             a fresh Claude Code session begins at Phase 3 after the PA session concludes.
+         (e) FAIL if any framework file still hard-excludes Claude Code from the PA role with language such as
+             "Planning Assistant chat only" / "NOT Claude Code" / "runs in Claude.ai only" — in LIVE/current-state
+             prose. Historical V30→V31 changelog entries (e.g. the "v30 → v31 upgrade notes" block) that describe
+             what V31 originally shipped are EXEMPT per Rule 4 — do NOT fault those.
+         (f) Counts unchanged: 30 Rules · 35 Scenarios · 61 Prompts · 17 deliverable files · 14 Phase Hooks.
+       LOOK FOR in `Master_Prompt_v31.md`:
+         (g) V32.7.1 changelog entry documenting the PA dual-host addition.
+       LOOK FOR in `Framework_Feature_Index_v31.md`:
+         (h) A V32.7.1 row documenting the dual-host docs patch.
+       LOOK FOR in current-version markers (all 6 files that carry version markers):
+         (i) `Master_Prompt_v31.md`, `CLAUDE_v31_compact.md`, `Framework_Feature_Index_v31.md`,
+             `ChatGPT_V31_Cross_Audit_Prompt.md`, `Prompt_References.html`, `deploy-v31.sh`
+             all read V32.7.1 (not V32.7).
+       FAIL if any of the 6 canonical version-marker files still reads V32.7 instead of V32.7.1.
+       FAIL if `Product_md_Planning_Assistant_v31.md` still says "NOT Claude Code" for the PA host.
+       PASS if the PA file preamble and all Phase 2.8 references describe the dual-host model consistently.
+       Note: Historical changelog entries and K.45 items that reference V32.7 (the prior version) ARE preserved
+       per Rule 4 and are NOT a failure.
+       NOTE (V32.7.2 re-bump): current-version markers asserted by K.46 have been re-bumped V32.7.1 → V32.7.2
+       and the deliverable count 17 → 19; verify CURRENT values against K.47, not K.46. K.46 otherwise verifies
+       the V32.7.1 PA dual-host mechanics, which remain in force unchanged.
+
+□ K.47 (V32.7.2) — TODO-7a Levers 2-3: Custom Executor Subagent + Settings Context Caps: V32.7.2 adds two
+       new deliverable files (count 17 → 19): `spec-executor.md` (custom Sonnet executor subagent) and
+       `settings.json` (skill-listing context caps). Framework executor dispatch (R1/R5/R7) now targets
+       `Agent(subagent_type: "spec-executor")` as the primary dispatch form, with `Agent(model: "sonnet")`
+       retained as fallback for tasks outside the allow-list. Zero count change to Rules/Scenarios/Prompts/
+       Bootstrap/UI Rules/Dispatch Rules/Phase Hooks.
+       LOOK FOR:
+         (a) `spec-executor.md` exists in the deliverable set with YAML frontmatter containing:
+             `tools: Read, Write, Edit, Bash, Grep, Glob` AND `model: sonnet` AND `mcpServers: []`
+             (no MCP baseline — minimal footprint executor).
+         (b) `deploy-v31.sh` deploys `spec-executor.md` → `.claude/agents/` in the target project AND
+             jq-MERGES `settings.json` into the target `.claude/settings.json` (never clobbers — merge only);
+             total deliverable file count in script header reads **19**.
+         (c) `Master_Prompt_v31.md` + `CLAUDE_v31_compact.md` + `phases.md` dispatch rules / MODEL hooks
+             reference `Agent(subagent_type: "spec-executor")` as the primary executor dispatch target;
+             `Agent(model: "sonnet")` retained as fallback for out-of-allow-list tasks.
+         (d) `settings.json` deliverable contains `skillListingBudgetFraction: 0.01` AND
+             `maxSkillDescriptionChars: 1024` (skill-listing context caps).
+         (e) Deliverable count reads **19** everywhere it appears as a current-state assertion:
+             `Master_Prompt_v31.md`, `CLAUDE_v31_compact.md`, `Framework_Feature_Index_v31.md`,
+             repo `CLAUDE.md`, `CLAUDE_framework_repo.md`, this file (`ChatGPT_V31_Cross_Audit_Prompt.md`).
+             FAIL if any of these six files still states 17 as the current deliverable count.
+         (f) `Master_Prompt_v31.md` contains a `V32.7.2` changelog entry documenting the TODO-7a
+             Levers 2-3 addition (spec-executor + settings.json); `Framework_Feature_Index_v31.md`
+             contains a V32.7.2 row in the version table.
+         (g) All six canonical version-marker files read V32.7.2 (not V32.7.1):
+             `Master_Prompt_v31.md`, `CLAUDE_v31_compact.md`, `Framework_Feature_Index_v31.md`,
+             `ChatGPT_V31_Cross_Audit_Prompt.md`, `Prompt_References.html`, `deploy-v31.sh`.
+         (h) All other canonical counts unchanged: 30 Rules · 35 Scenarios · 19 Bootstrap Steps ·
+             61 Prompts (38 NEW ✨) · 11 UI Rules · 9 V32 Dispatch Rules · 14 Phase Hooks.
+       NOTE (V32.7.3): the framework's ACTIVE behavior version (Master_Prompt_v31.md VERSION+FILENAME
+       POLICY line + Framework_Feature_Index_v31.md header/footer) is re-bumped V32.7.2 → V32.7.3.
+       V32.7.3 is a partial-touch patch (like V32.5.5): it does NOT re-bump the version markers in
+       `CLAUDE_v31_compact.md`, `Prompt_References.html`, or `deploy-v31.sh`, which legitimately retain
+       their last-touched markers. K.47 (g)'s "all six read V32.7.2" assertion is superseded only for
+       the active-version files (Master Prompt + FFI now read V32.7.3); the deliverable count 19 and all
+       other K.47 LOOK-FORs remain CURRENT. Verify the active version against K.48, not K.47.
+
+□ K.48 (V32.7.3) — Design Baseline Back-Port Surface Check: V32.7.3 adds a NON-BLOCKING Phase 7 + Phase 8
+       pre-flight MODEL HOOK that dispatches a Sonnet Scout to diff the app's live theme tokens
+       (`apps/[web]/src/app/globals.css` CSS variables + Tailwind theme config) against the
+       `docs/DESIGN.md` / `docs/MOCKUP.jsx` baseline tokens and surfaces a "🎨 Design Back-Port Candidates"
+       report. It is the design analogue of the V32.5.5 spec Back-Port Surface Check (`docs/DECISIONS_LOG.md`
+       ↔ `docs/PRODUCT.md`) and shares its posture: surface-and-inform only, NEVER gates phase closure.
+       It is also the detection mechanism that CLOSES framework TODO-21 (per-wave `globals.css` ↔
+       `MOCKUP.jsx` token diff). Zero count change to Rules/Scenarios/Prompts/Bootstrap/UI Rules/
+       Dispatch Rules/Phase Hooks/deliverable files (mirrors V32.5.5: a non-blocking pre-flight MODEL HOOK
+       is not a new memory-governance.md §3 injection point).
+       LOOK FOR:
+         (a) `phases.md` contains a `MODEL HOOK (V32.7.3 — Design Baseline Back-Port Surface Check, Phase 7
+             pre-flight)` AND a `... Phase 8 pre-flight)` block, each placed alongside the existing
+             V32.5.5 Back-Port Surface Check hook in the same pre-flight region.
+         (b) Both hooks describe a Sonnet Scout token-diff of live `globals.css` / Tailwind theme tokens
+             vs the `docs/DESIGN.md` / `docs/MOCKUP.jsx` baseline, surfacing "🎨 Design Back-Port Candidates",
+             explicitly **non-blocking** and **never gating phase closure**.
+         (c) The back-port requirement is **INHERIT-not-REPLACE**: update `docs/DESIGN.md` tokens AND
+             annotate/expand `docs/MOCKUP.jsx` (full regenerate ONLY on a wholesale design change; the
+             mockup stays the UI source of truth). Claude Code MAY write the back-port (DESIGN.md/MOCKUP.jsx
+             are NOT human-only) but only to mirror an already-approved change — Rule 1 preserved (the design
+             *decision* is the human's; PRODUCT.md remains human-only). Suppression via `design-divergent:
+             <reason>` logged to DECISIONS_LOG.md.
+         (d) Each hook states it CLOSES framework TODO-21 (per-wave `globals.css` ↔ `MOCKUP.jsx` token diff).
+         (e) `Master_Prompt_v31.md` contains a `V32.7.3` changelog entry; the VERSION+FILENAME POLICY active
+             version reads **V32.7.3**; `Framework_Feature_Index_v31.md` contains a V32.7.3 row + header +
+             footer reading V32.7.3.
+         (f) `memory-governance.md §3` closing note documents the V32.7.3 design check as layering on the
+             Phase 7/8 governance hook and NOT a new injection point; the "14 hooks total" enumeration is
+             UNCHANGED.
+         (g) All canonical counts unchanged: 30 Rules · 35 Scenarios · 19 Bootstrap Steps · 61 Prompts
+             (38 NEW ✨) · 11 UI Rules · 19 deliverable files · 9 V32 Dispatch Rules · 14 Phase Hooks.
+       FAIL if: any V32.7.3 hook gates phase closure; the back-port is described as a full regenerate by
+       default; PRODUCT.md is made writable by Claude Code; the §3 phase-hook count is bumped above 14; or
+       the deliverable count changes from 19.
+       FAIL if spec-executor.md is missing or lacks the required frontmatter fields.
+       FAIL if deploy-v31.sh clobbers (overwrites) .claude/settings.json instead of merging.
+       FAIL if any current-state deliverable count reference reads 17 instead of 19.
+       FAIL if dispatch rules/MODEL hooks do not reference Agent(subagent_type: "spec-executor").
+       FAIL if any of the 6 canonical version-marker files still reads V32.7.1 instead of V32.7.2.
+       Note: Historical changelog entries and K.45/K.46 items that reference V32.7/V32.7.1 counts
+       of 17 deliverable files ARE preserved per Rule 4 and are NOT a failure.
+
+□ K.49 (V32.7.4) — lint-deploy.sh pre-deploy footgun gate wired into Phase 5/6: V32.7.4 adds
+       `scripts/lint-deploy.sh` as a named pre-deploy validation gate in `phases.md` Phase 5 OUTPUT
+       CONTRACT and Phase 6 opening. No new rule/scenario/prompt/bootstrap/count change — this is a
+       tooling gate reference, not a framework behavioral rule.
+       LOOK FOR:
+         (a) `phases.md` Phase 5 OUTPUT CONTRACT contains a `□ lint-deploy.sh: exit 0` checklist
+             item instructing: `bash scripts/lint-deploy.sh deploy/compose` before any staging/prod
+             push, listing the 8 footgun checks (C1–C8: compose parse, certresolver case, tls=true
+             label, 127.0.0.1 healthcheck, no build: in stage/prod, push.sh login guard, start.sh
+             project-name, shellcheck).
+         (b) `phases.md` Phase 6 opening (before Docker commands) contains a
+             `PRE-DEPLOY FOOTGUN GATE` block with the same `bash scripts/lint-deploy.sh deploy/compose`
+             command and a summary of C1–C8 checks, noting dev compose is excluded from TLS/build: checks.
+         (c) All canonical counts unchanged: 30 Rules · 35 Scenarios · 19 Bootstrap Steps · 61 Prompts
+             (38 NEW ✨) · 11 UI Rules · 19 deliverable files · 9 V32 Dispatch Rules · 14 Phase Hooks.
+       FAIL if lint-deploy.sh is presented as a new framework Rule or Scenario.
+       FAIL if canonical counts changed from their V32.7.3 values.
+       SUPERSEDED IN PART by K.50 (V32.7.5): the "deliverable files unchanged at 19" assertion in
+       (c) was correct AT V32.7.4 (the script was referenced but not yet shipped). At V32.7.5 the
+       deliverable count is **20** — verify the CURRENT count against K.50, not K.49(c). The Phase 5/6
+       phases.md wiring LOOK-FORs (a)+(b) remain CURRENT and authoritative.
+
+□ K.50 (V32.7.5) — lint-deploy.sh promoted to deliverable #20 (now shipped by deploy-v31.sh):
+       V32.7.5 promotes `lint-deploy.sh` from a referenced-but-unshipped tool (K.49 state) to framework
+       deliverable #20. `deploy-v31.sh` now copies it to the target app at `scripts/lint-deploy.sh`
+       (overwrite-with-backup + `chmod +x`), so the Phase 5/6 gate K.49 wired into phases.md now points
+       at a file that actually exists in target apps.
+       LOOK FOR:
+         (a) `deploy-v31.sh` contains a GROUP 6 block that `mkdir -p scripts/` then
+             `overwrite_with_backup` copies `$AI_PROMPT/lint-deploy.sh` → `$PROJECT/scripts/lint-deploy.sh`
+             and `chmod +x` the result; the header banner reads `V32.7.5`; the PRE-FLIGHT/SUMMARY and
+             expected-layout listings name `scripts/lint-deploy.sh` and `lint-deploy.sh`.
+         (b) `lint-deploy.sh` exists in `/specdrivenprompt/` as the deliverable source.
+         (c) Deliverable count reads **20** everywhere it appears as a current-state assertion:
+             repo `CLAUDE.md` (intro "20 deliverable files", "all 20 framework files", "20-file AI
+             governance framework", "The 20 Deliverable Files" heading + numbered item #20 lint-deploy.sh,
+             Canonical Counts "20 deliverable files", "all 20 files" audit/grep lines);
+             `Master_Prompt_v31.md` V32.7.5 changelog entry + VERSION+FILENAME POLICY active version
+             **V32.7.5**; `CLAUDE_v31_compact.md` title + STRICTEST line; `Framework_Feature_Index_v31.md`
+             header + V32.7.4 + V32.7.5 rows + footer "Last updated: V32.7.5" + "20-file deliverable set"
+             note; `AI_Tools_Skills_MCPs_Reference_v31.md` footer "20-file V32.7.5 deliverable set"; this
+             file's purpose paragraph ("20 V32.7.5 framework files") + verified-counts block ("20
+             deliverable files (... + lint-deploy.sh → scripts/lint-deploy.sh)").
+         (d) All other canonical counts unchanged: 30 Rules · 35 Scenarios · 19 Bootstrap Steps · 61
+             Prompts (38 NEW ✨) · 11 UI Rules · 9 V32 Dispatch Rules · 14 Phase Hooks.
+       FAIL if any current-state deliverable count reference reads 19 instead of 20.
+       FAIL if deploy-v31.sh does not copy lint-deploy.sh to scripts/lint-deploy.sh (or does not chmod +x).
+       FAIL if lint-deploy.sh is presented as a new framework Rule or Scenario.
+       FAIL if any of the 6 canonical version-marker files still reads V32.7.2/V32.7.3 instead of V32.7.5.
+       Note: Historical changelog entries and K.45/K.46/K.49 items that reference deliverable counts of
+       17 or 19 ARE preserved per Rule 4 and are NOT a failure.
+
+□ K.51 (V32.8) — Design-as-Contract (Rule 31) + Verifiable-Done + Learning Loop (Rule 32):
+       V32.8 adds two new framework rules (Rules 31 and 32, both NEW V32.8), four new scenarios
+       (Scenarios 36-39), one new UI rule (Rule 12 — Visual Token Gate), three new Phase Hooks
+       (§3 hooks 15-17), one new Bootstrap Step (Step 20 — Baseline Capture), one new memory-gov
+       section (§6 Mid-Project Adoption), and two new deliverable files (design-stop-hook.sh →
+       `scripts/` + LESSONS_REGISTRY.md → `.ai_prompt/`). Spike reference: commit `14a1813`.
+       **Count diffs vs V32.7.5:** Rules 30 → 32 · Scenarios 35 → 39 · Bootstrap Steps 19 → 20 ·
+       UI Rules 11 → 12 · Phase Hooks 14 → 17 · memory-gov sections 5 → 6 ·
+       deliverable files 20 → 22. All other canonical counts unchanged (Prompts 61 · Phase 4 Parts 8 ·
+       Phase 5 Commands 9 · Phase 6.5 Categories 16 · Security Checklist 84 · governance docs 9).
+       LOOK FOR — Rule 31 (Design-as-Contract):
+         (a) `Master_Prompt_v31.md` and `CLAUDE_v31_compact.md` both contain "Rule 31 — Design-as-Contract"
+             with the text "compiled constraint, not a prose nudge."
+         (b) The **mandatory three-layer token bridge** is documented: Style Dictionary generates
+             `--sd-color-*` vars (prefix `'sd'`) → `globals.css` semantic aliases `--sd-color-* →
+             --primary → --color-primary`. The `prefix:'sd'` is explicitly named (prevents circular
+             `var()` collision with shadcn's own `--color-*`). Spike commit `14a1813` referenced.
+         (c) **Default Tailwind palette disabled by explicit enumeration** (all ~22 color scales set to
+             `initial` in a `@theme` block). NOT the `--color-*: initial` wildcard (silently ignored in
+             Tailwind v4.3.1) — the framework ships an explicit templated snippet. Documented in
+             `templates.md` and `ui-rules.md`.
+         (d) The **Playwright `toHaveScreenshot` visual gate** is wired into `phases.md` Phase 5 OUTPUT
+             CONTRACT and Phase 8. The gate runs against a pinned Docker render image with animations
+             disabled, `maxDiffPixelRatio ≈ 0.0015`, against **deterministic fixture state** (seeded DB
+             snapshot / MSW-mocked responses in `tests/visual/fixtures/`) — never live data.
+         (e) **Two-stage baseline** documented: (i) Phase 3.3 signed-off prototype render = DESIGN
+             baseline; (ii) re-captured at end-of-Phase-4 against fixture state = PRODUCTION baseline.
+             The gate asserts against the production baseline (Phase 5/8 onward).
+         (f) A failed gate blocks phase completion and emits a diff image. Only two legal reconcile paths:
+             (1) fix code to match baseline; (2) update `docs/DESIGN.md` / `docs/tokens.json` / mockup
+             FIRST (Rule 1, human-owned) → recompile → re-capture as a reviewed human commit.
+         (g) `deploy-v31.sh` ships `design-stop-hook.sh` to `scripts/` as deliverable #21.
+         (h) `settings.json` (deliverable #19) includes a **Stop hook** in the valid harness-executed
+             command-type schema (NOT the invalid declarative matcher/action/message form). The hook
+             invokes `design-stop-hook.sh` and blocks via non-zero exit when a done-claim's evidence
+             field is empty. The schema uses the correct `{"hooks":{"Stop":[{"type":"command","command":
+             "..."}]}}` shape — NOT `{"matcher":..., "action":..., "message":...}` which is invalid.
+       LOOK FOR — Rule 32 (Verifiable-Done + Learning Loop):
+         (i) `Master_Prompt_v31.md` and `CLAUDE_v31_compact.md` both contain "Rule 32 — Verifiable-Done
+             + Learning Loop" with the text "a claim without evidence is not a status — it is a hope."
+         (j) **Evidence field `{contract, check_command, captured_output}`** required in `STATE.md` and
+             Smart Checkpoint (`memory-governance.md §2`). A done-claim with an empty evidence field is
+             described as "a structurally malformed artifact."
+         (k) **LESSONS_REGISTRY** is documented in `memory-governance.md` (and referenced in
+             `phases.md`). Registry entries have a two-part fingerprint: coarse structured tuple
+             `{scope.category.surface}` + optional machine-signature (CVE-ID, error-code, normalized
+             error string). `deploy-v31.sh` ships `LESSONS_REGISTRY.md` to `.ai_prompt/` as deliverable #22.
+         (l) **Three mandatory consult points** enumerated: (1) work-start/dispatch — scan for fingerprints
+             matching the target surface BEFORE working; (2) done-claim — run contract check AND scan
+             registry; (3) failure-time — fingerprint the failure → scan; if a standing check should have
+             caught it, STRENGTHEN it (not just re-fix).
+         (m) **Scope-routing table** present: project-scope → `lessons.md` (in-repo); framework-scope →
+             a deliverable (lint-deploy.sh Cn, templates.md rule, phase output contract) → propagated by
+             `deploy-v31.sh`; conductor-scope → `/memory` feedback file → auto-loads each session.
+       LOOK FOR — Cross-file consistency:
+         (n) Rule count reads **32** everywhere it appears as a current-state assertion: `Master_Prompt_v31.md`
+             (V32.8 changelog "30 → 32 Rules"), `CLAUDE_v31_compact.md` (header), `Framework_Feature_Index_v31.md`
+             (V32.8 row + footer), this file's verified-counts block. Historical entries that cite 30 rules
+             ARE preserved and are NOT a failure.
+         (o) Scenario count reads **39** in all current-state references. V32.8 adds Scenarios 36-39
+             (design-system compilation, visual-gate baseline, LESSONS_REGISTRY promotion, Verifiable-Done
+             evidence schema). Scenarios 1-35 unchanged.
+         (p) UI Rule count reads **12** in all current-state references. V32.8 adds UI Rule 12 — Visual
+             Token Gate (Playwright `toHaveScreenshot` wired to the three-layer token bridge).
+         (q) Bootstrap Step count reads **20** in all current-state references. V32.8 adds Step 20 —
+             Baseline Capture (runs after Phase 3.3 gate-closure, captures the DESIGN baseline render).
+         (r) Phase Hooks count reads **17** in `memory-governance.md §3` and all current-state references.
+         (s) `Framework_Feature_Index_v31.md` contains a V32.8 row documenting Rules 31+32, count changes,
+             and two new deliverables.
+       FAIL if Rule 31 or Rule 32 is absent from `Master_Prompt_v31.md` or `CLAUDE_v31_compact.md`.
+       FAIL if the three-layer bridge (`--sd-color-*` → `--primary` → `--color-primary`) is not documented
+             in `templates.md` or `ui-rules.md`.
+       FAIL if the default Tailwind palette disable uses the `--color-*: initial` wildcard instead of
+             explicit enumeration of all ~22 color scales.
+       FAIL if the `toHaveScreenshot` gate is missing from `phases.md` Phase 5 OUTPUT CONTRACT or Phase 8.
+       FAIL if the two-stage baseline (3.3 design → end-of-Phase-4 production against fixture state) is
+             not documented.
+       FAIL if the Stop hook in `settings.json` uses the invalid declarative matcher/action/message form
+             instead of the valid `{"type":"command","command":"..."}` harness-executed form.
+       FAIL if `LESSONS_REGISTRY.md` is absent from `deploy-v31.sh` (deliverable #22, deploys to `.ai_prompt/`).
+       FAIL if the three mandatory LESSONS_REGISTRY consult points are not documented.
+       FAIL if any current-state rule count reads 30 instead of 32.
+       FAIL if any current-state scenario count reads 35 instead of 39.
+       FAIL if spike commit `14a1813` is not referenced where the three-layer bridge is documented.
+       Note: Historical changelog entries that cite 30 rules, 35 scenarios, 11 UI rules, 14 phase hooks,
+       19 bootstrap steps, 20 deliverable files ARE preserved per Rule 4 and are NOT a failure.
 
 ---
 
@@ -879,8 +1512,9 @@ SECTION G (Regression Checks):                 [X PASS / Y FAIL / Z PARTIAL]
 SECTION H (Phase 2.8 Technical):               [X PASS / Y FAIL / Z PARTIAL]
 SECTION I (Automation Integration):            [X PASS / Y FAIL / Z PARTIAL]
 SECTION J (Post-Lock Additive Patches):        [X PASS / Y FAIL / Z PARTIAL]
+SECTION K (V32 / V32.8 Patches):              [X PASS / Y FAIL / Z PARTIAL]
 ───────────────────────────────────────────────────────────
-TOTAL:                                         [X PASS / Y FAIL / Z PARTIAL] out of ~121 items
+TOTAL:                                         [X PASS / Y FAIL / Z PARTIAL] out of ~145 items
 
 TOP 3 CRITICAL FAILS (must fix before release):
 1. [item] — [file] — [fix]
@@ -919,4 +1553,4 @@ SECONDARY ISSUES (nice to fix but not blocking):
 
 ---
 
-*Part of the Spec-Driven Platform V32.1 deliverable set. Maintained by Claude on behalf of Bonito — Powerbyte IT Solutions, Lipa City, Philippines.*
+*Part of the Spec-Driven Platform V32.7.2 deliverable set. Maintained by Claude on behalf of Bonito — Powerbyte IT Solutions, Lipa City, Philippines.*

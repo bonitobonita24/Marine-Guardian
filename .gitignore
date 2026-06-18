@@ -58,3 +58,8 @@ coverage/
 
 # ─── Build + TypeScript cache (Spec-Driven V32) ───
 .playwright-mcp/
+
+# ─── V32.8 Design Toolkit artifacts ───
+tokens/build/
+tests/visual/__snapshots__/
+tests/visual/diff/
