@@ -39,8 +39,8 @@ const TYPE_STYLES: Record<NotificationType, { dot: string; badge: string; label:
     label: "Warning",
   },
   info: {
-    dot: "bg-blue-500",
-    badge: "border-blue-500/50 text-blue-700 dark:text-blue-400",
+    dot: "bg-info",
+    badge: "border-info/50 text-info",
     label: "Info",
   },
   system: {

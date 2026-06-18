@@ -27,21 +27,48 @@ import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc/client";
 import { useNotificationStore } from "@/lib/realtime/notification-store";
 
-const navItems = [
-  { href: "/dashboard", icon: LayoutDashboard, labelKey: "dashboard" },
-  { href: "/map", icon: Map, labelKey: "map" },
-  { href: "/events", icon: CalendarClock, labelKey: "events" },
-  { href: "/patrols", icon: Ship, labelKey: "patrols" },
-  { href: "/patrol-schedule", icon: Calendar, labelKey: "patrolSchedule" },
-  { href: "/subjects", icon: Users, labelKey: "subjects" },
-  { href: "/patrol-areas", icon: MapPin, labelKey: "patrolAreas" },
-  { href: "/fuel", icon: Fuel, labelKey: "fuel" },
-  { href: "/observations", icon: Eye, labelKey: "observations" },
-  { href: "/alerts", icon: Bell, labelKey: "alerts" },
-  { href: "/notifications", icon: BellRing, labelKey: "notifications" },
-  { href: "/sync", icon: RefreshCw, labelKey: "sync" },
-  { href: "/users", icon: UserCog, labelKey: "users" },
-  { href: "/settings", icon: Settings, labelKey: "settings" },
+// Nav items grouped per mockup (mpa-command-center-v4.jsx navGroups):
+// COMMAND | OPERATIONS | PATROLS | LOGISTICS | REPORTS | ADMIN
+const navGroups = [
+  {
+    label: "COMMAND",
+    items: [
+      { href: "/dashboard", icon: LayoutDashboard, labelKey: "dashboard" },
+      { href: "/map", icon: Map, labelKey: "map" },
+    ],
+  },
+  {
+    label: "OPERATIONS",
+    items: [
+      { href: "/events", icon: CalendarClock, labelKey: "events" },
+      { href: "/observations", icon: Eye, labelKey: "observations" },
+      { href: "/notifications", icon: BellRing, labelKey: "notifications" },
+    ],
+  },
+  {
+    label: "PATROLS",
+    items: [
+      { href: "/patrols", icon: Ship, labelKey: "patrols" },
+      { href: "/patrol-areas", icon: MapPin, labelKey: "patrolAreas" },
+      { href: "/patrol-schedule", icon: Calendar, labelKey: "patrolSchedule" },
+    ],
+  },
+  {
+    label: "LOGISTICS",
+    items: [
+      { href: "/fuel", icon: Fuel, labelKey: "fuel" },
+    ],
+  },
+  {
+    label: "ADMIN",
+    items: [
+      { href: "/alerts", icon: Bell, labelKey: "alerts" },
+      { href: "/subjects", icon: Users, labelKey: "subjects" },
+      { href: "/sync", icon: RefreshCw, labelKey: "sync" },
+      { href: "/users", icon: UserCog, labelKey: "users" },
+      { href: "/settings", icon: Settings, labelKey: "settings" },
+    ],
+  },
 ] as const;
 
 export function Sidebar() {
@@ -65,50 +92,61 @@ export function Sidebar() {
   }, [notificationsLength, utils]);
 
   return (
-    <aside className="flex h-screen w-60 flex-col border-r bg-card">
+    <aside className="flex h-screen w-44 flex-col border-r bg-card">
       <div className="flex h-14 items-center border-b px-4">
-        <span className="text-sm font-semibold">Marine Guardian</span>
+        <span className="text-xs font-bold tracking-wide">Marine Guardian</span>
       </div>
-      <nav className="flex-1 overflow-y-auto p-2">
-        <ul className="space-y-1">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-            const showUnread = item.href === "/notifications" && unread > 0;
-            return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className={cn(
-                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
-                    isActive
-                      ? "bg-primary/10 text-primary font-medium"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  )}
-                >
-                  <item.icon className="h-4 w-4 shrink-0" />
-                  <span className="flex-1">{t(item.labelKey)}</span>
-                  {showUnread ? (
-                    <span
-                      className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground"
-                      aria-label={`${String(unread)} unread notifications`}
+      <nav className="flex-1 overflow-y-auto py-1">
+        {navGroups.map((group) => (
+          <div key={group.label} className="mt-2 first:mt-1">
+            {/* Group label — matches mockup: 7px, 700, muted, uppercase, letterSpacing */}
+            <div className="px-3 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-muted-foreground/60">
+              {group.label}
+            </div>
+            <ul>
+              {group.items.map((item) => {
+                const isActive =
+                  pathname === item.href ||
+                  pathname.startsWith(`${item.href}/`);
+                const showUnread =
+                  item.href === "/notifications" && unread > 0;
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      className={cn(
+                        "flex items-center gap-2 rounded-sm mx-1 px-2 py-1 text-[11px] transition-colors",
+                        isActive
+                          ? "bg-primary/10 text-primary font-semibold"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      )}
                     >
-                      {unread > 99 ? "99+" : String(unread)}
-                    </span>
-                  ) : null}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+                      <item.icon className="h-3 w-3 shrink-0" />
+                      <span className="flex-1">{t(item.labelKey)}</span>
+                      {showUnread ? (
+                        <span
+                          className="ml-auto inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-foreground"
+                          aria-label={`${String(unread)} unread notifications`}
+                        >
+                          {unread > 99 ? "99+" : String(unread)}
+                        </span>
+                      ) : null}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
       </nav>
-      <div className="border-t p-2">
+      <div className="border-t p-1.5">
         <Button
           variant="ghost"
           size="sm"
-          className="w-full justify-start gap-3 text-muted-foreground"
+          className="h-7 w-full justify-start gap-2 px-2 text-[11px] text-muted-foreground"
           onClick={() => void signOut({ callbackUrl: "/login" })}
         >
-          <LogOut className="h-4 w-4" />
+          <LogOut className="h-3 w-3" />
           {tAuth("signOut")}
         </Button>
       </div>

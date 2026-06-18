@@ -1,3 +1,14 @@
+> ⚠ DEPRECATED (2026-06-15): This file contains the original Meta Blue (pre-reskin) design.
+> The canonical design specification is `docs/DESIGN.md` (shadcn neutral dark reskin, owner-approved).
+> Do not use this file as a reference for new development.
+>
+> ⛔ getdesign.md is DROPPED fleet-wide (2026-06-18): getdesign.com / getdesign.md is no longer
+> used as a design source for any Powerbyte-fleet app. The sole design authority is shadcn/ui
+> default neutral-dark palette + project-specific tokens in `docs/DESIGN.md`. No getdesign
+> instructions in this file are active — treat all getdesign references as historical context only.
+
+---
+
 ---
 name: Marine Guardian — Command Center
 description: Meta Dark Mode design system for marine protected area operations intelligence. Binary dark surfaces, Meta Blue CTAs, pill-shaped interactive elements, data-dense dashboard aesthetics optimized for 24/7 command center monitoring on large displays.

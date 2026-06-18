@@ -10,18 +10,21 @@ const ROLE_LABELS: Record<UserRole, string> = {
   operator: "Operator",
 };
 
-// Color mapping per Sub-batch 3.1 spec:
-//   super_admin       = red
-//   site_admin        = purple
-//   field_coordinator = blue
-//   operator          = gray (muted/secondary)
+// Color mapping — reconciled against mockup (mpa-command-center-v4.jsx UserMgmt)
+// and docs/DESIGN.md semantic color tokens (2026-06-15 reskin baseline):
+//   super_admin       = danger/red  (mockup: red)
+//   site_admin        = purple      (mockup: red for "Site Admin"; purple kept as
+//                                    a distinct tier marker — OWNER DECISION NEEDED
+//                                    if strict mockup parity is required)
+//   field_coordinator = warning/orange (mockup: orange for "Coordinator")
+//   operator          = muted/secondary (mockup: blue pre-reskin → neutral post-reskin)
 const ROLE_CLASS: Record<UserRole, string> = {
   super_admin:
-    "border-transparent bg-red-100 text-red-900 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-200",
+    "border-transparent bg-destructive/15 text-destructive hover:bg-destructive/20",
   site_admin:
-    "border-transparent bg-purple-100 text-purple-900 hover:bg-purple-100 dark:bg-purple-900/30 dark:text-purple-200",
+    "border-transparent bg-purple-500/15 text-purple-400 hover:bg-purple-500/20",
   field_coordinator:
-    "border-transparent bg-blue-100 text-blue-900 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-200",
+    "border-transparent bg-[hsl(var(--warning))]/15 text-[hsl(var(--warning))] hover:bg-[hsl(var(--warning))]/20",
   operator: "",
 };
 
