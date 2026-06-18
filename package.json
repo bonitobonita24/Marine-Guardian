@@ -19,7 +19,9 @@
     "tools:validate-inputs": "node tools/validate-inputs.mjs",
     "tools:check-env": "node tools/check-env.mjs",
     "tools:check-product-sync": "node tools/check-product-sync.mjs",
-    "tools:hydration-lint": "node tools/hydration-lint.mjs"
+    "tools:hydration-lint": "node tools/hydration-lint.mjs",
+    "design:build": "node sd.config.mjs",
+    "design:validate": "node scripts/design-validate.mjs"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
