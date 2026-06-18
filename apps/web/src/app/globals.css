@@ -24,7 +24,7 @@
     --border: 0 0% 14.9%;
     --input: 0 0% 14.9%;
     --ring: 0 0% 83.1%;
-    --radius: 0.5rem;
+    --radius: 0.75rem;
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
@@ -36,6 +36,13 @@
     --warning: 25 80% 54%;
     --caution: 44 92% 60%;
     --info: 183 100% 43%;
+
+    /* Semantic opacity background variants (D3) */
+    --primary-light: rgba(250, 250, 250, 0.12);
+    --success-bg: rgba(49, 162, 76, 0.15);
+    --danger-bg: rgba(240, 40, 74, 0.15);
+    --warning-bg: rgba(232, 145, 45, 0.15);
+    --caution-bg: rgba(247, 209, 84, 0.15);
   }
   .maplibregl-popup-content {
     @apply bg-transparent! shadow-none! p-0! rounded-none!;
