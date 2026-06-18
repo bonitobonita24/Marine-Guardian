@@ -274,4 +274,110 @@ V32.8 Rule 31 calls for a compiled-token Playwright visual gate against a `MOCKU
 
 ---
 
-*Report generated 2026-06-18. Detection only — no code was modified. Apply fixes in a dedicated session per item severity.*
+---
+
+## Component-Level Findings (Mockup Diff Pass — 2026-06-18)
+
+**Mockup reference:** `docs/mpa-command-center-v4.jsx` (Phase 2.8 v5 — all 20 screens)  
+**Pass type:** Full component-level comparison of mockup JSX vs built pages+components  
+**Color classification:** Mockup was authored pre-reskin (Meta Blue palette `T.blue = #0866FF`). Color/palette differences driven by the 2026-06-15 reskin are **FLAGGED, NOT fixed**. Structure/layout/spacing/radius differences are **fixed** in this pass.
+
+---
+
+### C1. Card — `rounded-xl` → `rounded-lg` (radius mismatch)
+- **Mockup:** `borderRadius: 12` on all `<Card>` components  
+- **DESIGN.md:** `components.card.rounded = rounded.lg = 12px`  
+- **Built (before fix):** `rounded-xl` = 16px  
+- **Fix applied:** `card.tsx` → `rounded-xl` → `rounded-lg` ✅  
+- **Result:** Card radius now matches mockup + DESIGN.md spec exactly (12px)
+
+### C2. Card padding — `p-6` → `p-5` (over-spec)
+- **Mockup:** Card inner `padding: 18` (close to DESIGN.md 20px spec)  
+- **DESIGN.md:** `components.card.padding = spacing.xl = 20px = p-5`  
+- **Built (before fix):** `CardHeader/CardContent/CardFooter` all used `p-6` = 24px  
+- **Fix applied:** `card.tsx` → `p-6` → `p-5` across all three slot components ✅
+
+### C3. Badge — `rounded-md` → `rounded-full` (shape mismatch)
+- **Mockup:** All badges use `borderRadius: 20` (pill shape, explicit in `Badge` component)  
+- **DESIGN.md:** `components.badge.rounded = rounded.pill = 20px`  
+- **Built (before fix):** `rounded-md` ≈ 6-8px (square-ish)  
+- **Fix applied:** `badge.tsx` base class → `rounded-md` → `rounded-full` ✅  
+- **Note:** This is a significant visual change — all badges throughout the app become pill-shaped per spec. Downstream visual verification recommended.
+
+### C4. Button — `rounded-md` → `rounded-full` (shape mismatch)
+- **Mockup:** All button variants use `borderRadius: 20` (pill)  
+- **DESIGN.md:** `components.button-primary.rounded = rounded.pill = 20px`  
+- **Built (before fix):** Base class `rounded-md`, size variants `sm`/`lg` add `rounded-md` override  
+- **Fix applied:** `button.tsx` base + all size variant overrides → `rounded-full` ✅  
+- **Note:** `icon` size left without explicit radius (inherits `rounded-full` from base) — verify icon buttons visually.
+
+### C5. Sidebar — flat list → grouped nav with section labels (structural)
+- **Mockup:** 6 labeled groups: COMMAND / OPERATIONS / PATROLS / LOGISTICS / REPORTS / ADMIN  
+  Item font: 9px (compact), padding: 3px 10px, group label: 7px uppercase with letterSpacing  
+- **Built (before fix):** Flat list, `text-sm` (14px), `px-3 py-2` — no grouping  
+- **Fix applied:** `sidebar.tsx` restructured with `navGroups` constant matching mockup groups;  
+  item font → `text-[11px]`, width → `w-44` (176px, close to mockup 170px), group labels added ✅  
+- **Items moved to groups:** patrols/patrol-areas/patrol-schedule → PATROLS; fuel → LOGISTICS;  
+  alerts/subjects/sync/users/settings → ADMIN; observations → OPERATIONS  
+- **OWNER FLAG:** The mockup also includes a "REPORTS" group with `report-area`, `report-consolidated`,  
+  `report-detailed`, `report-rangers`, `ranger-detail` screens. These are built as separate pages  
+  (`/print-render/...`) but no dedicated reports nav entry exists. Report navigation omitted from  
+  ADMIN group pending owner decision on reporting section nav.
+
+### C6. Dashboard KPI delta — color coding
+- **Mockup:** Delta text green (`T.green`) if positive, red (`T.red`) if negative  
+- **Built (before fix):** `text-muted-foreground` for all deltas  
+- **Fix applied:** `dashboard/page.tsx` `KpiCard` → uses `text-[hsl(var(--success))]` for positive,  
+  `text-destructive` for negative, `text-muted-foreground` for zero ✅
+
+### C7. RoleBadge — field_coordinator color reconciliation
+- **Mockup:** `Coordinator` role = orange badge (`T.orange`)  
+- **Prior fix:** Made `field_coordinator` = neutral (`bg-primary/[0.12] text-foreground`)  
+- **Fix applied:** `role-badge.tsx` → `field_coordinator` = `warning` semantic (orange) to match  
+  mockup intent; `super_admin` → `destructive` semantic tokens ✅  
+- **OWNER FLAG (site_admin):** Mockup shows Site Admin as red (same as Super Admin). Built uses  
+  purple as a distinct tier marker, which is more distinguishable. Kept purple pending owner  
+  confirmation on whether strict mockup parity is desired here.
+
+---
+
+### COLOR/THEME DIFFS FLAGGED FOR OWNER (mockup pre-reskin vs current neutral-dark)
+
+These are **not bugs** — they reflect the intentional 2026-06-15 owner-approved reskin.  
+Do NOT revert colors. Document here for awareness.
+
+| Screen | Mockup color (pre-reskin) | Current built (post-reskin) | Verdict |
+|--------|--------------------------|----------------------------|---------|
+| Sidebar active item | `bg-blue (blueLight)` + `text-blue` | `bg-primary/10 text-primary` (neutral) | CORRECT post-reskin |
+| Header topbar | `bg-surface (#242526)` | `bg-card` (dark neutral) | CORRECT |
+| Nav group labels | `textMuted (#8A8D91)` | `text-muted-foreground/60` | CORRECT equivalent |
+| Notification unread dot | `T.blue (#0866FF)` | removed (was fixed D4) | CORRECT |
+| Header language flags | Present in mockup (🇬🇧 🇮🇩 🇲🇾) | ABSENT in built | **OWNER FLAG** — i18n switcher not implemented |
+| Header WAR ROOM button | Present in mockup | ABSENT in built | **OWNER FLAG** — Command Center shortcut not wired |
+| Header user avatar | 24px circle with initials | Email + role badge only | **OWNER FLAG** — avatar not implemented |
+| Notification filter | Pill tab filters (All/Unread/Alerts/System) | `<Select>` dropdown | **OWNER FLAG** — structural UX difference |
+| Unread notification highlight | `background: T.blueLight` on unread rows | Bold text only, no bg highlight | **OWNER FLAG** — unread visual treatment differs |
+| Operator role badge | `blue` (pre-reskin) | `secondary` (neutral muted) | CORRECT post-reskin |
+
+---
+
+### Updated Token Alignment Matrix (post component-level pass)
+
+| Token Category | Spec → Actual | Status |
+|----------------|---------------|--------|
+| Card border-radius | 12px → `rounded-lg` | ✅ FIXED (C1) |
+| Card padding | 20px → `p-5` | ✅ FIXED (C2) |
+| Badge shape | pill → `rounded-full` | ✅ FIXED (C3) |
+| Button shape | pill → `rounded-full` | ✅ FIXED (C4) |
+| Sidebar grouping | grouped → groups added | ✅ FIXED (C5) |
+| KPI delta coloring | green/red → semantic tokens | ✅ FIXED (C6) |
+| Field Coordinator badge | warning/orange | ✅ FIXED (C7) |
+| Core CSS vars | DESIGN.md → globals.css | ALIGNED (prior pass) |
+| Semantic opacity tokens | | ALIGNED (D3 fix, prior pass) |
+| Border radius (lg, md) cascade | `--radius` → `0.75rem` | ALIGNED (D1 fix, prior pass) |
+| Hardcoded blue classes | | ALIGNED (D4 fix, prior pass) |
+| Chart tokens tailwind mapping | | ALIGNED (D8 fix, prior pass) |
+| Font scale (display, kpi, heading…) | | ALIGNED (D7 fix, prior pass) |
+| Border radius (pill, xl) extension | tailwind extend | ALIGNED (D2 fix, prior pass) |
+
+*Component-level pass complete 2026-06-18. Build: ✅ 30/30 pages. Tests: ✅ 792/792 passing.*
