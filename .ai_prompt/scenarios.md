@@ -1,4 +1,4 @@
-# Spec-Driven Platform V31 — Scenarios 1-35
+# Spec-Driven Platform V31 — Scenarios 1-39
 
 > Loaded contextually when user triggers a named scenario.
 > Read ONLY the scenario matching the user's request.
@@ -12,7 +12,7 @@
 2. In Claude Code: say "Feature Update"
    In Copilot/Claude Code: say "Feature Update" + attach all 9 docs (Rule 4)
 3. Claude Code MUST:
-   a. Read all 9 governance docs (lessons.md first — ALL 🔴 gotchas → ALL 🟤 decisions)
+   a. Hydrate the 9 governance docs (Rule 4) (lessons.md first — ALL 🔴 gotchas → ALL 🟤 decisions)
    b. Run blast-radius check if code-review-graph installed (step 3 of Phase 7)
    c. Run codebase_search before opening any file (Rule 17)
    d. Implement only files in blast-radius scope
@@ -1782,7 +1782,7 @@ WHAT AGENTS DO NOT DO WITH docs/DESIGN.md:
      VoltAgent/awesome-design-md.
   ❌ NEVER reproduce the source website's layout pixel-for-pixel. This is
      inspiration, not replication.
-  ❌ NEVER override the 11 UI Component Rules (ui-rules.md) to match the source.
+  ❌ NEVER override the 12 UI Component Rules (ui-rules.md) to match the source.
      shadcn/ui wins on component behavior.
 
 CONFLICT RESOLUTION:
@@ -1948,6 +1948,265 @@ WHAT THIS IS NOT:
   - Not a replacement for shadcn <Skeleton> on shadcn-composed components.
   - Not permission to use phantom-ui anywhere — only on bespoke custom components.
   - Not an excuse to skip "use client" — phantom-ui requires browser DOM APIs.
+```
+
+---
+
+### SCENARIO 36 — Design change mid-project — re-baseline (NEW V32.8)
+```
+CONTEXT:
+  An owner-approved design change (palette swap, typography update, layout shift)
+  lands AFTER the Phase 3.3 gate has already closed — during Phase 4, Phase 7, or
+  Phase 8. The live app diverges from the frozen baseline captured in
+  docs/DESIGN.md / docs/MOCKUP.jsx and the Rule 31 Playwright visual gate will
+  start failing because the compiled tokens no longer match the baseline screenshots.
+
+PROBLEM:
+  Updating the app without re-compiling the design system and re-capturing the
+  baseline leaves the visual gate permanently red and the baseline stale — every
+  subsequent phase completion is blocked on a fixture that no longer reflects intent.
+
+SOLUTION — Re-baseline in four ordered steps (Rule 31 INHERIT-not-REPLACE):
+  1. UPDATE THE SOURCE FIRST (Rule 1).
+     Edit docs/tokens.json (DTCG v2025.10) with the approved token changes.
+     Also update docs/DESIGN.md to reflect the new palette/typography/layout and
+     annotate/expand docs/MOCKUP.jsx to match — NEVER regenerate from scratch;
+     expand the existing mockup only. The design decision stays the human's; Claude
+     Code may write the back-port only to mirror an already-approved change.
+
+  2. RECOMPILE.
+     Run: npm run design:build   (or: npx style-dictionary build --config sd.config.mjs)
+     Verify generated-tokens.css and tokens.d.ts are updated.
+     Verify globals.css bridge aliases still resolve (three-layer chain intact:
+       --sd-color-* → --primary → --color-primary).
+
+  3. RE-CAPTURE THE BASELINE.
+     Run: npx playwright test --update-snapshots
+     This overwrites the fixture screenshots with the new approved visual state.
+
+  4. COMMIT AS A REVIEWED HUMAN COMMIT.
+     The re-baseline commit MUST be a separate, human-reviewed git commit — NOT
+     bundled into a Feature Update. Commit message: "design: re-baseline <scope>"
+     Log the design change in docs/DECISIONS_LOG.md with rationale.
+
+AGENT BEHAVIOR:
+  IF a Phase 7 Feature Update is requested AND the design back-port surface check
+  (V32.7.3 MODEL HOOK) surfaces a "🎨 Design Back-Port Candidates" report:
+    → STOP. Surface the re-baseline scenario to the owner.
+    → Do NOT proceed with the feature update until steps 1-4 above are complete
+      OR the owner logs "design-divergent: <reason>" in DECISIONS_LOG.md.
+  IF the Rule 31 visual gate fails during phase completion:
+    → Determine whether the failure is a code drift or an approved design change.
+    → Code drift → fix the code (do not update the baseline).
+    → Approved design change → route to this scenario (steps 1-4 above).
+
+VERIFICATION:
+  - npm run design:build exits 0 with no token errors.
+  - npx playwright test exits 0 (all visual comparisons pass).
+  - The re-baseline commit exists as a discrete human-reviewed commit in git log.
+  - docs/DECISIONS_LOG.md has an entry for the design change.
+  - docs/DESIGN.md and docs/MOCKUP.jsx reflect the updated tokens.
+```
+
+---
+
+### SCENARIO 37 — Phase-7 feature needs a mockup first (NEW V32.8)
+```
+CONTEXT:
+  A Phase 7 Feature Update introduces a brand-new UI surface — a page, a dialog,
+  a dashboard section, or a novel component layout — that does not exist anywhere
+  in docs/DESIGN.md or docs/MOCKUP.jsx. Rule 31 mandates that compiled tokens drive
+  every surface; ad-hoc invention of new layouts or color usage is not permitted.
+
+PROBLEM:
+  Building the UI without a mockup means the agent invents layout, spacing, and
+  component structure on the fly. This creates surfaces that have never been
+  human-reviewed, may violate the design system, and cannot be visually baseline-
+  captured correctly (the baseline would encode the invented design, not the
+  intended one). The result is design drift that is expensive to unwind.
+
+SOLUTION — Mockup-first gate before any UI code is written (Rule 31):
+  1. IDENTIFY THE GAP.
+     Before writing any UI code, check whether the new surface is covered in
+     docs/MOCKUP.jsx / docs/DESIGN.md.
+     IF covered (even partially) → proceed with INHERIT-not-REPLACE.
+     IF NOT covered → STOP. Surface the gap to the owner.
+
+  2. OWNER PROVIDES OR APPROVES MOCKUP.
+     The owner either:
+     (a) Sketches/describes the new surface so Claude Code can ADD it to
+         docs/MOCKUP.jsx (annotate/expand — never regenerate from scratch), OR
+     (b) Signs off on a Claude-proposed layout that is logged in DECISIONS_LOG.md.
+     Either path results in a human-reviewed mockup commit before any app code.
+
+  3. COMPILE AND BASELINE (if the new surface has new tokens).
+     If new token values are introduced: update docs/tokens.json → npm run design:build.
+     Run: npx playwright test --update-snapshots   (capture the new surface baseline).
+     Commit as a reviewed human commit ("design: add mockup for <surface>").
+
+  4. THEN IMPLEMENT.
+     With the approved mockup in place, proceed with the Feature Update normally.
+     The new surface is wired to the compiled tokens; no ad-hoc invention permitted.
+
+AGENT BEHAVIOR:
+  AT THE START of any Phase 7 Feature Update that includes UI work:
+    → Scan the feature scope against docs/MOCKUP.jsx / docs/DESIGN.md.
+    → IF any new surface is not covered → surface this scenario immediately.
+    → DO NOT write a single UI file until the mockup gap is resolved.
+  IF the owner is unavailable and the gap is minor (e.g. a single new dialog):
+    → Propose a minimal layout grounded in existing design tokens.
+    → Write the proposal to docs/DECISIONS_LOG.md as a pending decision.
+    → Block the Feature Update pending owner confirmation — do not self-approve.
+
+VERIFICATION:
+  - docs/MOCKUP.jsx contains a representation of the new surface.
+  - docs/DECISIONS_LOG.md has a sign-off entry for the new surface.
+  - No UI component in the new surface uses off-palette colors or unsanctioned spacing.
+  - npm run design:build exits 0.
+  - npx playwright test exits 0 (new surface baseline captured).
+```
+
+---
+
+### SCENARIO 38 — Recurrence detected — strengthen the standing check (NEW V32.8)
+```
+CONTEXT:
+  An issue recurs — a bug, a lint failure, a deploy footgun, a visual regression —
+  AND a matching entry already exists in LESSONS_REGISTRY.md with a standing check
+  that was supposed to catch it. The standing check did not fire, or fired too late,
+  or was bypassed. Rule 32 defines this as a STRENGTHEN event, not a re-fix event.
+
+PROBLEM:
+  Treating a recurrence as just another bug fix perpetuates the cycle: fix → forget →
+  recur → fix again. The standing check exists precisely to prevent recurrence; if it
+  failed, re-fixing without strengthening the check guarantees the next recurrence.
+
+SOLUTION — Strengthen-before-fix protocol (Rule 32):
+  1. IDENTIFY THE REGISTRY ENTRY.
+     At failure time, consult LESSONS_REGISTRY.md.
+     Search by coarse fingerprint: {scope.category.surface} tuple.
+     Also search by machine-signature if the failure has a grep-able pattern.
+     IF a matching entry is found → this is a STRENGTHEN event. Proceed below.
+     IF no matching entry is found → fix normally, then ADD a new registry entry.
+
+  2. DIAGNOSE WHY THE STANDING CHECK FAILED.
+     Was the check not run at the right phase hook?
+     Was the check too broad / too narrow to catch this variant?
+     Was the check bypassed (skipped phase, no CI gate, manual override)?
+     Was the check's output not reviewed?
+     Document the failure mode in the registry entry update.
+
+  3. STRENGTHEN THE CHECK.
+     Update the LESSONS_REGISTRY.md entry:
+       - Tighten the trigger condition (earlier phase, narrower grep, harder gate).
+       - Add a machine-executable verification step if only prose existed before.
+       - Add a CI / lint-deploy.sh / Stop-hook binding if the check was prose-only.
+       - Bump the entry's `strengthened_at` timestamp and `recurrence_count`.
+     The strengthened check MUST be runnable NOW (not "we should add this later").
+
+  4. FIX THE IMMEDIATE ISSUE.
+     After the check is strengthened (or the PR is open to strengthen it), fix the
+     underlying problem normally. The fix and the check-strengthening are separate
+     commits so the registry is always in a coherent state.
+
+  5. VERIFY THE STRENGTHENED CHECK CATCHES THE CURRENT FAILURE.
+     Run the new/updated check against the broken state (before the fix) to confirm
+     it would have caught it. Record the output in the registry entry.
+
+AGENT BEHAVIOR:
+  AT FAILURE TIME — before writing any fix code:
+    → Search LESSONS_REGISTRY.md for a matching fingerprint.
+    → IF match found → apply STRENGTHEN protocol (steps 1-5 above).
+    → IF no match → fix first, then write a new registry entry with a standing check.
+  NEVER skip the registry search at failure time — Rule 32 makes it mandatory.
+  NEVER merge a recurrence fix without updating the registry entry.
+
+VERIFICATION:
+  - LESSONS_REGISTRY.md entry updated with strengthened check + recurrence_count bump.
+  - Strengthened check is machine-executable (not prose-only).
+  - The check passes on the fixed state and fails on the broken state (confirmed).
+  - Fix commit and check-strengthen commit are separate.
+```
+
+---
+
+### SCENARIO 39 — Promote a project lesson to framework/conductor scope (NEW V32.8)
+```
+CONTEXT:
+  A standing check in LESSONS_REGISTRY.md has proven itself on this project — it
+  caught a real issue, it survived a recurrence cycle, and it applies broadly enough
+  that every new app, or every fleet-conductor session, would benefit from it. Rule 32
+  defines this as a PROMOTE event: route the check to its scope's canonical home so it
+  propagates automatically rather than remaining siloed in one project.
+
+SCOPE ROUTING TABLE (Rule 32):
+  project scope   → stays in .cline/memory/lessons.md (already there, no action)
+  framework scope → a framework deliverable (deploy-v31.sh ships it to new apps)
+  conductor scope → /memory (MEMORY.md or a topic file in the conductor's memory dir)
+
+PROBLEM:
+  Keeping a broadly-applicable check in one project's lessons.md means every new
+  project re-discovers the same failure. The framework's deploy-v31.sh and the
+  conductor's /memory exist precisely to propagate durable lessons; bypassing them
+  is a governance gap that Rule 32 closes.
+
+SOLUTION — Promote protocol:
+  1. CLASSIFY THE SCOPE.
+     Ask: "Would a brand-new app project benefit from this check at bootstrap time?"
+       YES → framework scope → deliverable route.
+     Ask: "Would the fleet conductor (this Claude Code session) benefit from this
+           check across ALL future projects, regardless of framework use?"
+       YES → conductor scope → /memory route.
+     Ask: "Is this specific to this project's data model, team, or config?"
+       YES → project scope → stays in lessons.md, no promotion needed.
+
+  2. FRAMEWORK SCOPE — deliverable route.
+     Identify which deliverable file the check belongs in:
+       Phase gate / OUTPUT CONTRACT check → phases.md
+       Lint / static analysis / deploy check → scripts/lint-deploy.sh (deliverable #20)
+       Stop-hook binding → .claude/settings.json (deliverable #19)
+       Bootstrap step → bootstrap.md
+       Security pattern → security.md
+       General standing check with no better home → LESSONS_REGISTRY.md template
+         (so deploy-v31.sh seeds it into new apps from the start)
+     Edit the target deliverable file to embed the check.
+     Update deploy-v31.sh if a new file or template needs to be shipped.
+     Commit with message: "feat(framework): promote lesson to <deliverable> — <check-name>"
+
+  3. CONDUCTOR SCOPE — /memory route.
+     Write a topic file (or append to an existing one) in the conductor's memory dir:
+       ~/.claude/projects/<project-hash>/memory/<topic>.md
+     Include: what the check is, when it fires, the machine-executable command, and
+     the project/incident that surfaced it.
+     Optionally add a one-line index entry to MEMORY.md pointing to the topic file.
+     The check is now available to every future conductor session via "save session" /
+     "catch me up" context loading.
+
+  4. UPDATE THE REGISTRY ENTRY.
+     In LESSONS_REGISTRY.md, update the entry's `promoted_to` field:
+       promoted_to: "framework:phases.md" | "framework:lint-deploy.sh" | "conductor:/memory/<file>"
+     This marks the promotion as complete and prevents double-promotion.
+
+  5. VERIFY PROPAGATION.
+     Framework route: run deploy-v31.sh against a scratch folder and confirm the check
+       appears in the target location.
+     Conductor route: confirm the memory file exists and is loadable.
+
+AGENT BEHAVIOR:
+  AT DONE-CLAIM TIME (Rule 32 §b) for any task that produced or strengthened a
+  standing check — ask: "Does this check have framework or conductor scope?"
+    → IF yes → apply PROMOTE protocol before closing the task.
+    → IF uncertain → default to project scope; document the decision in the entry.
+  NEVER auto-promote without verifying the scope classification (step 1).
+  NEVER promote to framework scope without editing a real deliverable file —
+    a comment in lessons.md is not a framework promotion.
+
+VERIFICATION:
+  - LESSONS_REGISTRY.md entry has a non-empty promoted_to field.
+  - Framework route: the check is present in the target deliverable file + deploy-v31.sh
+    ships it (confirmed via dry-run or grep).
+  - Conductor route: memory topic file exists and contains a machine-executable check.
+  - No duplicate entries in the registry for the same check.
 ```
 
 ---

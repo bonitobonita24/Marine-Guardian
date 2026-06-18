@@ -6,11 +6,12 @@
 
 ---
 
-## UI COMPONENT RULES — MANDATORY FOR ALL UI GENERATION (NEW V29 — Rule 11 added V31.3)
+## UI COMPONENT RULES — MANDATORY FOR ALL UI GENERATION (NEW V29 — Rule 11 added V31.3 — Rule 12 added V32.8)
 
 Every UI component, page, and layout MUST use the shadcn/ui ecosystem. No exceptions.
 shadcn/ui is MIT licensed, free, open source, and the framework's locked UI component library.
 Rule 11 (Loading States — dual-path) was added in V31.3 to eliminate hand-rolled skeleton twins for custom components.
+Rule 12 (Compiled-tokens-only + palette disable) was added in V32.8 to enforce Design-as-Contract (Rule 31).
 
 ```
 1. shadcn/ui is the ONLY component library. NEVER import MUI, Ant Design, Chakra UI,
@@ -74,7 +75,7 @@ Rule 11 (Loading States — dual-path) was added in V31.3 to eliminate hand-roll
     Reference: https://ui.shadcn.com/docs/monorepo
     In the framework's monorepo: packages/ui/ contains shared shadcn/ui components.
     App-specific components live in apps/[app]/src/components/.
-    Phase 4 Part 2 runs shadcn init on the packages/ui workspace.
+    Phase 4 Part 5 runs shadcn init on the packages/ui workspace.
 
 11. Loading states — DUAL-PATH (NEW V31.3). Every async/suspense boundary MUST use one of:
 
@@ -103,7 +104,35 @@ Rule 11 (Loading States — dual-path) was added in V31.3 to eliminate hand-roll
     you MUST use phantom-ui instead.
 
     CLASSIFICATION SOURCE: Phase 2.8 mockup tags each rendered component as `shadcn` or
-    `custom`. Phase 4 Part 2 picks the correct path automatically from those tags.
+    `custom`. Phase 4 Part 5 picks the correct path automatically from those tags.
+
+12. Compiled design tokens are the ONLY legal visual primitives (NEW V32.8 — Design-as-Contract).
+    The framework compiles docs/tokens.json (DTCG) via Style Dictionary v5 at Phase 3.3, producing
+    generated-tokens.css (:root --sd-color-* vars). globals.css bridges these through a
+    hand-authored three-layer alias so both Tailwind v4 and shadcn/ui read the same vars:
+
+      --sd-color-*  →  --primary / --secondary / …  →  --color-primary / …
+                             (shadcn semantic vars)       (Tailwind @theme vars)
+
+    HARD RULES — no exceptions:
+    a. NEVER use raw hex (#0066ff), rgb(), hsl(), or oklch() literals in components.
+    b. NEVER use arbitrary value syntax for colors or spacing ([#0066ff], [12px], [1.5rem]).
+    c. NEVER use default Tailwind palette utilities (bg-red-500, text-slate-700, etc.).
+       The default palette is DISABLED by explicit enumeration (all ~22 color scales set to
+       `initial` in a @theme block). These utilities will produce no output — do not rely on them.
+    d. ALL colors, spacing, and radii MUST reference compiled token vars:
+         ✅  bg-primary / text-muted-foreground / border / ring / destructive
+         ✅  className="bg-[var(--sd-color-brand-500)]"  (direct SD var — only if no semantic alias)
+         ❌  bg-red-500 / text-slate-700 / bg-[#ff0000] / style={{ color: '#0066ff' }}
+
+    ORDERING CONSTRAINT: /design-refine runs BEFORE baseline capture at Phase 3.3.
+    A refinement after capture registers as drift and triggers a false gate failure.
+    Sequence: compile tokens → run /design-refine → sign off prototype → capture DESIGN baseline.
+
+    OFF-TOKEN SMUGGLING IS NOT POSSIBLE: with the default palette disabled and arbitrary
+    color values blocked by lint/CI, the only available primitives are the compiled vars.
+    This is the enforcement mechanism for Rule 31 (Design-as-Contract).
+    Reference: Master_Prompt_v31.md Rule 31 + templates.md (generated-tokens.css + globals.css bridge).
 ```
 
 **shadcn/ui MCP Server** — enables agents to search and install components via natural language.

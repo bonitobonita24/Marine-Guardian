@@ -4,7 +4,7 @@
 > **Four scenario groups match your actual lifecycle — no noise, no filler.**
 >
 > **What's new in this edition:**
-> - Added Group 4 — Planning Assistant Prompts (for the claude.ai Planning chat itself)
+> - Added Group 4 — Planning Assistant Prompts (for the Planning Assistant session — Claude Code or Claude.ai)
 > - Added 2.9 — Validate Spec Consistency (pre-Feature-Update sanity check)
 > - Added 2.10 — Pause/Resume Mid-Part (safely interrupt Phase 4)
 > - Added 3.12 — Lessons Audit (periodic lessons.md cleanup)
@@ -31,12 +31,83 @@
 
 ---
 
+## How the Spec-Driven AI Mega Prompt Works
+
+The framework runs as a sequence of **phases** (Phase 0 → 8). Each phase has a strict **output contract** — it cannot close until that contract is satisfied. Some phases embed **skill sub-routines** that act as quality gates: the parent phase blocks until the sub-routine completes.
+
+> **Mental model — the contract:** Phases drive the schedule. Skills are *gates inside* the phases. A phase does not advance until its gate is green.
+
+### The three skill-gated activation windows
+
+```
+Phase 0 → 1 → 2 → 2.5            (bootstrap + interview — no gate)
+                ↓
+   ┌──────────────────────────────────────────────────────────────┐
+   │  Phase 2.8   ▼ WINDOW 1 — visual baseline gate ▼             │
+   │              PA emits MOCKUP.jsx + DESIGN.md                  │
+   │              → /design-tokens   (expand tokens)               │
+   │              → /design-review   (audit mockup)                │
+   │              → /design-refine   (fix flagged components only) │
+   │              ▲ Phase 2.8 cannot close until gate is green ▲   │
+   └──────────────────────────────────────────────────────────────┘
+                ↓
+Phase 3 → 3.3 → 3.5              (spec files → prototype gate → exec plan)
+                ↓
+   ┌──────────────────────────────────────────────────────────────┐
+   │  Phase 3.3   ▼ WINDOW 1.5 — interactive prototype gate ▼     │
+   │              build client-validated prototype w/ simulated    │
+   │              backend from MOCKUP.jsx + Phase 3 schema          │
+   │              → /design-tokens · /design-review · /design-refine│
+   │                (design system FINALIZES here — V32.6)          │
+   │              ▲ cannot close until prototype is signed off ▲    │
+   └──────────────────────────────────────────────────────────────┘
+                ↓
+Phase 4.1 → 4.2 → 4.3 → 4.4      (monorepo, DB, tRPC, Auth — no gate)
+                ↓
+   ┌──────────────────────────────────────────────────────────────┐
+   │  Phase 4 Parts 5-6   ▼ WINDOW 2 — wire + regression gate ▼   │
+   │              wire validated prototype → production backend    │
+   │              (swap simulated layer for real tRPC/Prisma)       │
+   │              → regression /design-review (confirm no break)    │
+   │              ▲ Parts 5-6 cannot close until gate is green ▲   │
+   └──────────────────────────────────────────────────────────────┘
+                ↓
+Phase 4.7 → 4.8 → 5 → 6           (jobs, storage, validate, Docker — no gate)
+                ↓
+   ┌──────────────────────────────────────────────────────────────┐
+   │  Phase 7   ▼ WINDOW 3 — per-UI-feature gate ▼                 │
+   │            feature touches UI?                                 │
+   │              → re-run /design-review on diff                   │
+   │              → /design-refine on flagged                       │
+   │            ▲ feature cannot mark DONE until gate is green ▲   │
+   └──────────────────────────────────────────────────────────────┘
+                ↓
+Phase 8 → buildout loop (gate re-fires per UI gap detected)
+```
+
+### The architectural contract behind the windows
+
+| Role | Model | Job | Token Discipline |
+|------|-------|-----|------------------|
+| **Architect** | Opus 4.6 / 4.7 | Plan, decompose, dispatch — never execute writes > 200 lines directly | Stays in 200K window because it only plans |
+| **Executor swarm** | Sonnet 4.6 (parallel) | Receive scoped slices, write code, run validations | ≤ 12 files OR ≤ 80K tokens per Sonnet |
+| **Gate-keepers** | designer-skills (Phase 2.8 / 4.5-6 / 7) | Audit + refine UI tier; INHERIT-not-REPLACE the PA baseline | Reads MOCKUP.jsx + DESIGN.md, writes surgical refinements only |
+| **Memory** | Smart Checkpoint Protocol (V31.1 → V32.3) | Auto-persist progress at 17 phase hooks; rehydrate on resume | Tiered Decomposition (Tier 1/2/3) prevents overflow |
+
+**Why this prevents thrashing:**
+- Opus stays inside its 200K window because it only **plans and dispatches** — it never reads 19 files itself.
+- Sonnet swarms parallelize work without crossing each other's context. Each Sonnet gets a slice it can hold whole.
+- Gate-keepers stop half-finished UI from leaking forward, so later phases don't have to re-do work.
+- Memory governance auto-persists at every phase hook, so a `/clear` or autocompact never loses state.
+
+---
+
 ## Prerequisites (already done before any prompt below runs)
 
 - ✅ WSL2 Ubuntu installed, Node 22 + pnpm + Docker Desktop all working
 - ✅ VS Code with Claude Code CLI installed (Cline extension optional — deprecated V31, kept installed only as emergency fallback)
 - ✅ You already ran `Product_md_Planning_Assistant_v31.md` in claude.ai — final `PRODUCT.md` is ready (plus `DESIGN.md` if you picked an aesthetic from getdesign.md, plus the mockup HTML archive if you saved it per prompt 4.7)
-- ✅ You have the 17 V32 framework files (16 in `.ai_prompt/` + `deploy-v31.sh` at project root) — see Appendix A for the V32 `spec-update` deployment workflow
+- ✅ You have the 20 V32 framework files (16 in `.ai_prompt/` + `spec-executor.md` + `settings.json` deployed to `.claude/` + `deploy-v31.sh` at project root + `lint-deploy.sh` deployed to `scripts/`) — see Appendix A for the V32 `spec-update` deployment workflow
 
 ## The Starting State
 
@@ -59,7 +130,11 @@ your-project/                      ← empty folder (or existing project)
 │   ├── ChatGPT_V31_Cross_Audit_Prompt.md
 │   ├── Prompt_References.md       ← this file (markdown version)
 │   └── Prompt_References.html     ← interactive UI (open in browser)
-├── deploy-v31.sh                  ← you drop this at project root (17th file)
+├── .claude/
+│   ├── agents/
+│   │   └── spec-executor.md       ← V32.7.2 Sonnet executor subagent (deployed by script)
+│   └── settings.json              ← V32.7.2 framework settings caps (merge-deployed by script)
+├── deploy-v31.sh                  ← you drop this at project root (19th file)
 └── docs/
     ├── PRODUCT.md                 ← from Planning Assistant — required
     ├── DESIGN.md                  ← from Planning Assistant Step 7b — if you picked a getdesign.md aesthetic
@@ -83,13 +158,13 @@ Run these **once** to bootstrap the project and scaffold the full codebase.
 bash deploy-v31.sh
 ```
 
-**What it does:** Copies `CLAUDE.md`, `.claude/rules/*` (6 modular files), and `AI/Master_Prompt_v31.md` into the project. Appends V31 entries to `.gitignore` (preserves your existing entries). Intelligent — skips anything already present, backs up anything it overwrites, refuses to touch PRODUCT.md / CREDENTIALS.md / .env / your app code.
+**What it does:** Copies `CLAUDE.md` (to project root) and `.ai_prompt/*` (all 7 detail files: `phases.md`, `memory-governance.md`, `security.md`, `ui-rules.md`, `bootstrap.md`, `scenarios.md`, `templates.md` — read on-demand), and `AI/Master_Prompt_v31.md` into the project. `.claude/rules/` is intentionally left empty (V32.7) — CLAUDE.md auto-loads; detail files are Read explicitly per task. Appends V31 entries to `.gitignore` (preserves your existing entries). Intelligent — skips anything already present, backs up anything it overwrites, refuses to touch PRODUCT.md / CREDENTIALS.md / .env / your app code.
 
 ---
 
 ## 1.1.5 — Re-deploy V31 framework (restore clean state — NEW)
 
-**When:** You've hand-edited `CLAUDE.md` or files in `.claude/rules/` and want to restore stock V31 state. Also useful if framework files get corrupted, accidentally deleted, or you suspect they've drifted from canonical V31.
+**When:** You've hand-edited `CLAUDE.md` or files in `.ai_prompt/` and want to restore stock V31 state. Also useful if framework files get corrupted, accidentally deleted, or you suspect they've drifted from canonical V31.
 
 **Where:** WSL2 terminal at project root.
 
@@ -107,7 +182,7 @@ bash deploy-v31.sh
 
 **What it does:**
 - Backs up your current `CLAUDE.md` as `CLAUDE.md.YYYYMMDD_HHMMSS.bak`
-- Backs up each `.claude/rules/*.md` file the same way
+- Backs up each `.ai_prompt/*.md` file the same way
 - Copies stock V31 files from `.ai_prompt/` into their target locations
 - Leaves `.gitignore` alone if V31 entries already present (additive only)
 - **Never touches:** `docs/PRODUCT.md`, `CREDENTIALS.md`, `.env.*` files, `apps/`, `packages/`, `deploy/`
@@ -118,8 +193,11 @@ bash deploy-v31.sh
 # Check compact CLAUDE.md is stock (~200 lines)
 wc -l CLAUDE.md
 
-# Check .claude/rules/ contains 6 files
+# Check .claude/rules/ is empty (V32.7 — all detail files now in .ai_prompt/)
 ls .claude/rules/
+
+# Check .ai_prompt/ contains all 7 detail files (phases, memory-governance, security, ui-rules, bootstrap, scenarios, templates)
+ls .ai_prompt/
 
 # Check Master Prompt reference is present
 ls AI/Master_Prompt_v31.md
@@ -132,7 +210,7 @@ Once you're sure the restore worked:
 ```bash
 # Remove the auto-backups from this restore
 rm -f CLAUDE.md.*.bak
-rm -f .claude/rules/*.bak
+rm -f .ai_prompt/*.bak
 ```
 
 **Why this prompt exists:** Nothing in V31 actively prevents you from editing CLAUDE.md or the modular rules — those files are HUMAN-owned by design. But if you break something while editing, you need a safe, documented way back. This is it.
@@ -159,7 +237,8 @@ DETECTION — run all checks, do not modify any file
 
 Check 1 — V31 framework files in place:
   [ ] CLAUDE.md at project root — confirm it's the compact (~200 line) version
-  [ ] .claude/rules/ contains 7 files: phases, security, ui-rules, bootstrap, scenarios, templates, memory-governance
+  [ ] .claude/rules/ is empty (V32.7); all 7 detail files are in .ai_prompt/
+  [ ] .ai_prompt/ contains 7 detail files: phases.md, memory-governance.md, security.md, ui-rules.md, bootstrap.md, scenarios.md, templates.md
   [ ] AI/Master_Prompt_v31.md exists
 
 Check 2 — PRODUCT.md state:
@@ -604,7 +683,7 @@ Phase 5 will re-run its credential gate. If all REQUIRED sections are now filled
 - Adding a new MCP server → new API key
 - Integrating a new payment method beyond Xendit
 
-**Where:** Planning Assistant chat (to update PRODUCT.md) → then Claude Code (for Phase 7).
+**Where:** Planning Assistant session (Claude Code or Claude.ai) (to update PRODUCT.md) → then Claude Code (for Phase 7).
 
 **Approach:** Adding a new credential section is a feature change, not a config tweak. It flows through Phase 7 so governance stays clean (branch + CHANGELOG_AI + agent-log + lessons if tricky).
 
@@ -693,7 +772,7 @@ Then in Claude Code:
 Bootstrap
 ```
 
-**What happens:** Runs all 19 Bootstrap steps — folder structure, governance docs, `.vscode/mcp.json`, `.specstory/config.json`, typed `lessons.md`, `CREDENTIALS.md` with AI-generated secrets + `⏳ FILL LATER` placeholders, and the Loading Library Lock (DECISIONS_LOG.md entry for ui-rules.md Rule 11 dual-path). **Does not block on credentials.** CREDENTIALS.md is the required gate for Phase 2 — Phase 2 will refuse to start without it.
+**What happens:** Runs all 20 Bootstrap steps — folder structure, governance docs, `.vscode/mcp.json`, `.specstory/config.json`, typed `lessons.md`, `CREDENTIALS.md` with AI-generated secrets + `⏳ FILL LATER` placeholders, and the Loading Library Lock (DECISIONS_LOG.md entry for ui-rules.md Rule 11 dual-path). **Does not block on credentials.** CREDENTIALS.md is the required gate for Phase 2 — Phase 2 will refuse to start without it.
 
 ### 1.3.2 — Phase 2 operational interview
 ```
@@ -705,11 +784,11 @@ Paste your `docs/PRODUCT.md` when prompted. Phase 2 is NOT a duplicate of the Pl
 ```
 confirmed
 ```
-Auto-chains into Phase 2.6 (design system — reads `docs/DESIGN.md` if present) and Phase 2.7 (spec stress-test). Phase 2.8 is SKIPPED in Claude Code — it already ran in the Planning Assistant chat.
+Auto-chains into Phase 2.6 (design system — reads `docs/DESIGN.md` if present) and Phase 2.7 (spec stress-test). Phase 2.8 is SKIPPED in Claude Code — it already ran in the Planning Assistant session.
 
-### 1.3.3b — Phase 2.8 Clickable Mockup Review (NEW V31 — Planning Assistant chat only)
+### 1.3.3b — Phase 2.8 Clickable Mockup Review (NEW V31 — Planning Assistant session — Claude Code (preferred) or Claude.ai)
 
-This phase runs INSIDE the Planning Assistant chat on Claude.ai — BEFORE you bring PRODUCT.md to your project. After Phase 2.7 stress-test passes, the Planning Assistant first asks if you want to pick a design aesthetic from getdesign.md (optional), then auto-generates an interactive React (.jsx) mockup with realistic industry-appropriate data so you can verify the spec visually before Phase 3 locks the architecture. After you confirm, it generates an HTML archive version and (if you picked a design aesthetic) extracts tokens into docs/DESIGN.md.
+This phase runs in the Planning Assistant session — Claude Code (preferred) or Claude.ai — BEFORE you bring PRODUCT.md to your project. After Phase 2.7 stress-test passes, the Planning Assistant first asks if you want to pick a design aesthetic from getdesign.md (optional), then auto-generates an interactive React (.jsx) mockup with realistic industry-appropriate data so you can verify the spec visually before Phase 3 locks the architecture. After you confirm, it generates an HTML archive version and (if you picked a design aesthetic) extracts tokens into docs/DESIGN.md. **Claude Code PA path:** the mockup is written as `docs/MOCKUP.jsx` — preview it via `npm run dev` (Vite) or save the rendered HTML archive locally. **Claude.ai path:** Claude.ai renders MOCKUP.jsx as a live artifact; click the download button to save the HTML archive.
 
 You don't need to type a trigger — it runs automatically. To respond after viewing the mockup:
 ```
@@ -879,8 +958,8 @@ DIMENSION 0 — PRE-FLIGHT SANITY
 
 Before analyzing, verify V31 files are deployed:
   0.1  CLAUDE.md exists at project root AND is ~200 lines (compact V31)
-  0.2  .claude/rules/ directory exists with 6 files (phases, security,
-       ui-rules, bootstrap, scenarios, templates)
+  0.2  .claude/rules/ is empty (V32.7); .ai_prompt/ contains 7 detail files (phases.md,
+       memory-governance.md, security.md, ui-rules.md, bootstrap.md, scenarios.md, templates.md)
   0.3  AI/Master_Prompt_v31.md exists
 
 IF any of 0.1-0.3 is missing:
@@ -1153,7 +1232,7 @@ git tag "pre-v31-upgrade-$(date +%Y%m%d)"
 V31 Upgrade Reconciliation
 
 My project is already on a prior Spec-Driven version. The new V31 compact CLAUDE.md
-and .claude/rules/ files are in place via deploy-v31.sh. Execute this reconciliation:
+and .ai_prompt/ detail files are in place via deploy-v31.sh. Execute this reconciliation:
 
 1. Read project.memory.md + docs/IMPLEMENTATION_MAP.md + docs/DECISIONS_LOG.md.
    State what phase this project is in and what's been built.
@@ -1376,7 +1455,7 @@ code-review-graph watch
 
 This is the most common situation during version bumps because framework releases typically ship with matching Planning Assistant updates. Running them in the wrong order creates real problems.
 
-**Where:** Planning Assistant chat on Claude.ai (spec update) + WSL2 terminal (framework deploy) + Claude Code (reconciliation + Feature Updates).
+**Where:** Planning Assistant session (Claude Code or Claude.ai) (spec update) + WSL2 terminal (framework deploy) + Claude Code (reconciliation + Feature Updates).
 
 ### Why Order Matters
 
@@ -1443,7 +1522,7 @@ At end of 1.8.4: your project codebase is now on V31. Framework files (CLAUDE.md
 
 ### 1.8.5 — Step 4: Adopt New Planning Assistant (4.6 trigger)
 
-**Now and ONLY now** — switch to your Planning Assistant chat on Claude.ai:
+**Now and ONLY now** — switch to your Planning Assistant session (Claude Code or Claude.ai):
 
 1. Attach the new `Product_md_Planning_Assistant_v[XX].md` to your message
 2. Paste the 4.6 trigger:
@@ -2014,7 +2093,7 @@ rm -f .ai_prompt/Prompt_References.md .ai_prompt/Prompt_References.html
 bash deploy-v[NEW].sh
 ```
 
-The deploy script (analogous to `deploy-v31.sh`) handles backup of old `CLAUDE.md`, writes new `CLAUDE.md`, `.claude/rules/*`, and `AI/Master_Prompt_v[NEW].md`, and updates `.gitignore`.
+The deploy script (analogous to `deploy-v31.sh`) handles backup of old `CLAUDE.md`, writes new `CLAUDE.md`, `.ai_prompt/*` (all 7 detail files), and `AI/Master_Prompt_v[NEW].md`, and updates `.gitignore`. `.claude/rules/` is intentionally empty in V32.7+.
 
 ### 3.11.4 — Run the Universal Analyzer
 
@@ -2040,7 +2119,7 @@ Expected audit scope:
 ```bash
 # Once you've verified everything works, remove backups
 rm -rf .ai_prompt-v31-backup
-rm -f CLAUDE.md.*.bak .claude/rules/*.bak
+rm -f CLAUDE.md.*.bak .ai_prompt/*.bak
 # Keep the git tag — it's a permanent rollback anchor
 ```
 
@@ -2321,7 +2400,7 @@ consumes from this budget. Plan accordingly.
 
 1. List every file you'll need to create or modify for this task
 2. Estimate the token cost:
-   - CLAUDE.md + active .claude/rules/ file: ~5K tokens
+   - CLAUDE.md + active .ai_prompt/ file (read on-demand): ~5K tokens
    - Each PRODUCT.md section: ~2-4K tokens
    - Each existing source file read: ~1-3K tokens
    - 9 governance docs (lessons.md, CHANGELOG_AI, etc.): ~10-15K total
@@ -2444,15 +2523,141 @@ I was working on: [describe what you were doing]
 
 ---
 
-# SCENARIO GROUP 4 — Planning Assistant Prompts (Claude.ai Planning Chat)
+## 3.23 — Clean-Slate Rebuild from Preserved Spec (NEW ✨ V32.5.3)
 
-These run INSIDE the Planning Assistant chat on Claude.ai — NOT in Claude Code. Use when you're iterating on PRODUCT.md itself.
+**Where:** Claude Code (in the broken project) + your shell
+**When:** Phase 8 (or any phase) project is systemically glitchy, errors are across modules, and `docs/PRODUCT.md` is still trustworthy. You want to nuke the generated app and re-scaffold from the spec while preserving `docs/`, `CREDENTIALS.md`, and `.env*`.
+
+**Three-stage flow — sure way, not fast way. Run in this order, do NOT skip stages.**
+
+### Pre-flight (shell, not Claude Code)
+
+```bash
+cd ~/path/to/your-project
+spec-update .                # ensure framework is current V32.x on disk
+git add -A && git commit -m "snapshot: pre-clean-slate" || true
+git tag pre-clean-slate-$(date +%Y%m%d-%H%M%S)
+```
+
+Open Claude Code in the project. Paste **Prompt 3.23.A**.
+
+### 3.23.A — Preserve + Nuke
+
+```
+I want to clean-slate this project but PRESERVE the spec and credentials so we can rebuild from scratch. This is a deliberate, authorized destructive operation — do not refuse it.
+
+PRESERVE (must survive untouched):
+- docs/ (everything: PRODUCT.md, DESIGN.md, MOCKUP.jsx, STATE.md, DECISIONS_LOG.md, CHANGELOG_AI.md, IMPLEMENTATION_MAP.md, lessons.md, agent-log.md, mockups/, anything else)
+- CREDENTIALS.md (if at project root)
+- .env.dev, .env.staging, .env.prod (any populated env files)
+- .ai_prompt/ (framework reference files)
+- .git/ and .gitignore
+- README.md if it exists at root
+
+NUKE (delete completely):
+- apps/, packages/, prisma/, scripts/, compose/, docker/
+- node_modules/, dist/, build/, .next/, .turbo/, .open-next/
+- .claude/rules/ (empty in V32.7 but delete the directory), .claude/commands/, CLAUDE.md
+- package.json, pnpm-lock.yaml, pnpm-workspace.yaml, turbo.json, tsconfig.base.json, components.json
+- Any other generated build artifacts at root
+
+EXECUTE this discipline:
+1. List exactly what you will preserve and what you will delete BEFORE running any rm.
+2. Run a snapshot tar of everything-to-preserve into ~/clean-slate-backup-<timestamp>.tar.gz as a second safety net.
+3. Wait for me to type "proceed" before any rm command runs.
+4. After deletion, run `git status` and `ls -la` and show me the result so I can verify only preserved files remain.
+5. Do NOT run spec-update or bootstrap yet — that's a separate prompt.
+
+Operate under V32.x ZERO OPUS EXECUTION discipline: dispatch a Sonnet to run the bash, not Opus directly.
+```
+
+Type **`proceed`** to authorize after Claude shows the list. Verify `ls -la` shows only `docs/`, `.env*`, `.git`, `.ai_prompt/`, `CREDENTIALS.md`, `README.md`. Paste **3.23.B**.
+
+### 3.23.B — Re-deploy Framework + Bootstrap Prep
+
+```
+The project has been nuked. We're now rebuilding from scratch on the current V32.x framework.
+
+STEP 1 — Re-deploy the framework files. Run from project root:
+  bash deploy-v31.sh
+
+Verify after deploy:
+- .claude/rules/ is empty (V32.7 — all detail files are in .ai_prompt/)
+- .ai_prompt/ contains 7 detail files (phases.md / memory-governance.md / security.md / ui-rules.md / bootstrap.md / scenarios.md / templates.md)
+- CLAUDE.md is at root (the compact card — the ONLY auto-loaded file)
+- AI/Master_Prompt_v31.md exists
+- CLAUDE.md at root header reads the current V32.x version
+- docs/ is intact and untouched
+- CREDENTIALS.md is intact and untouched
+
+STEP 2 — RESTART CLAUDE CODE BEFORE PROCEEDING. The new compact CLAUDE.md needs a session restart to load.
+
+(Close and reopen Claude Code, then resume MANUALLY at Phase 0 Bootstrap — see 3.23.C below.)
+```
+
+Restart Claude Code. Resume MANUALLY per **3.23.C**.
+
+### 3.23.C — Resume the rebuild manually
+
+**Optional pre-check → [Prompt 2.9 — Validate Spec Consistency](#29--validate-spec-consistency-new--pre-feature-update-sanity-check)**
+*(Confirms `docs/PRODUCT.md` still reflects intent before you pour concrete against it. Skip if PRODUCT.md is known-current.)*
+
+**Next step (start here) → [Prompt 1.3.1 — Phase 0 Bootstrap](#131--place-productmd--designmd--mockup--run-bootstrap)**
+*(Open a fresh Claude Code session at the project root. Bootstrap re-establishes folder structure, governance docs, MCP wiring, and CREDENTIALS.md skeleton — using your existing `docs/PRODUCT.md` AS-IS.)*
+
+| # | What to do |
+|---|------------|
+| 1 | *(Optional)* Run **Prompt 2.9** first to confirm PRODUCT.md ↔ reality. Skip if you just edited it. |
+| 2 | Run **Prompt 1.3.1 — Phase 0 Bootstrap**. Existing `docs/PRODUCT.md` + `CREDENTIALS.md` are preserved; folder skeleton + governance docs are rebuilt. |
+| 3 | Continue with the normal per-phase prompts from Groups 1–3 in order: `Phase 2` → `3` → `3.3` → `3.5` → `4` (Parts 1–8, one per fresh dispatch) → `5` → `6` → `6.5`. |
+| 4 | At every phase boundary, you review output and explicitly authorize the next phase. The framework's normal gate-closure discipline does the heavy lifting. |
+
+> **Why skip Prompt 1.2 (Universal Analyzer)?** 1.2 exists to *detect unknown state* and route to Path A/B/C/D. After 3.23.B the state is known: clean app dirs + preserved spec + redeployed framework. You don't need an analyzer to tell you what 3.23.A/B just explicitly designed — you go straight to Bootstrap.
+
+> ⚠ **No autopilot.** There is intentionally no paste-able mega-prompt that drives the rebuild end-to-end. A single prompt driving Phase 0 → 6.5 is the exact thrashing surface that produced the rot you're recovering from. Manual, phase-by-phase is faster *and* safer because each phase gets fresh context + human sign-off.
+
+### Sanity-check checklist
+
+| After Prompt | What you should see |
+|--------------|---------------------|
+| 3.23.A | `ls -la` shows only `docs/ .env* .git .ai_prompt/ CREDENTIALS.md README.md`; backup tar exists in `~/clean-slate-backup-*.tar.gz` |
+| 3.23.B | `cat CLAUDE.md \| head -5` shows the current V32.x version; `ls .claude/rules/` shows empty (V32.7); `ls .ai_prompt/` shows 7 detail files; `docs/` untouched |
+| 3.23.C (manual resume) | You ran **Prompt 1.3.1 Phase 0 Bootstrap** in a fresh Claude Code session (optionally preceded by Prompt 2.9); existing `docs/PRODUCT.md` + `CREDENTIALS.md` were preserved; you then continued Phase 2 → 3 → 3.3 → 3.5 → 4 → 5 → 6 → 6.5 with explicit human authorization at every boundary |
+
+### When to use this vs lighter alternatives
+
+| Symptom | Better prompt |
+|---------|---------------|
+| One or two glitchy modules | Phase 7 Feature Update (per module) |
+| A bad recent change | Prompt 3.14 (Rollback Safely) or 7R (Feature Rollback) |
+| Claude Code itself thrashing | Prompt 3.19 (Emergency Anti-Thrashing) |
+| Stale PRODUCT.md ↔ code drift | Prompt 2.9 (Validate Spec Consistency) FIRST, then decide |
+| `pnpm audit` rot in Phase 8 | Prompt 3.13 (Dependency Health Check) |
+| **Systemic, multi-module, IMPLEMENTATION_MAP ≠ reality** | **3.23 (this prompt)** |
+
+### Critical warnings
+
+> ⚠ **Verify PRODUCT.md is current before nuking.** Whatever PRODUCT.md says is what gets rebuilt. If PRODUCT.md is behind reality, the rebuild reproduces the same gaps. Run Prompt 2.9 first OR Prompt 4.14 (brownfield reverse-extract) if you suspect drift.
+
+> ⚠ **Do NOT delete `docs/lessons.md`.** Phase 4 pre-flight reads it (V32.3 Smart Governance Hydration). Without it, prior failure modes recur. The 3.23.A PRESERVE list includes `docs/` in full — leave it alone.
+
+> ⚠ **Manual rebuild runs over many sessions.** Every phase (and every Phase 4 Part) is a fresh dispatch boundary. There is no shortcut — trying to fit Phase 0 → Phase 6.5 into one session is exactly the thrashing pattern V32 was built to prevent.
+
+> ⚠ **The `~/clean-slate-backup-*.tar.gz` snapshot is your insurance.** Keep it until Phase 6.5 passes cleanly. Then `rm` it if you want.
+
+> ⚠ **Phase 3.3 is a HARD GATE (V32.6).** Do not let Claude skip it or fold it into Phase 4. The Orqafy lesson: scaffolding before behavior is validated produces integration bugs that are expensive to find later. Client sign-off in `docs/DECISIONS_LOG.md` is the explicit gate-close signal.
+
+---
+
+# SCENARIO GROUP 4 — Planning Assistant Prompts (Claude Code PA session — preferred — or Claude.ai Planning Chat)
+
+These run in the Planning Assistant SESSION — a dedicated Claude Code session in the project folder (preferred — you get the skills library) or a Claude.ai chat. This is the PA interviewer role, distinct from Claude Code BUILD sessions (Phase 3+).
 
 ## 4.1 — Initial PRODUCT.md Interview (Situation A)
 
 **When:** Starting a fresh project, no PRODUCT.md yet.
 
-**Where:** New Claude.ai chat, with `Product_md_Planning_Assistant_v31.md` pasted as the first message.
+**Where:** A Claude Code PA session in the project folder with `Product_md_Planning_Assistant_v31.md` present (preferred), or a new Claude.ai chat with it pasted as the first message.
 
 **What happens:** Planning Assistant recognizes empty input and auto-runs all 9 interview steps in sequence. No trigger prompt needed. The Assistant asks questions one-by-one. When all 11 PRODUCT.md sections complete, it auto-runs Phase 2.7 stress-test, asks about design aesthetic (optional), then runs Phase 2.8 interactive React mockup. After confirmation, generates HTML archive + DESIGN.md (if aesthetic chosen).
 
@@ -2596,7 +2801,7 @@ Output all three to chat. I'll decide which to save to the project.
 
 **When:** You're deep into a Planning Assistant chat running an older template version and a newer `Product_md_Planning_Assistant_vXX.md` has been released. You want the running chat to adopt the new template without losing PRODUCT.md progress or starting over.
 
-**Where:** Same running Planning Assistant chat on Claude.ai.
+**Where:** Same running Planning Assistant session (Claude Code or Claude.ai).
 
 **Setup:** Attach the latest `Product_md_Planning_Assistant_vXX.md` to your message.
 
@@ -2620,11 +2825,15 @@ and continue where we left off.
 
 **Note:** Phase 2.8 now generates a React (.jsx) mockup first for iteration, then an HTML archive after you confirm. The HTML archive is the version you save for Phase 4/7 reference.
 
-**Where:** Claude.ai Planning Assistant chat (save step) + your project repo (reference step) + Claude Code (refinement step).
+**Where:** Planning Assistant session (Claude Code or Claude.ai) (save step) + your project repo (reference step) + Claude Code (refinement step).
 
-### Step A — Save the mockup HTML archive (Claude.ai)
+### Step A — Save the mockup HTML archive
 
-After Phase 2.8 confirms alignment (you reply "confirmed"), the Planning Assistant generates an HTML archive version. BEFORE closing the chat:
+After Phase 2.8 confirms alignment (you reply "confirmed"), the Planning Assistant generates an HTML archive version.
+
+**Claude Code PA path:** The Planning Assistant writes `docs/MOCKUP.jsx` to the project folder. Preview it live via `npm run dev` (Vite). To save the HTML archive locally, ask the PA to render and save it: `"Save the mockup as docs/mockups/[AppName]-phase-2.8-mockup.html"`.
+
+**Claude.ai PA path:** BEFORE closing the chat:
 
 1. Click the HTML archive artifact's built-in download button to save it locally
 2. Rename it meaningfully: `[AppName]-phase-2.8-mockup.html`
@@ -2718,7 +2927,7 @@ Use shadcn/ui components only. Update packages/ui if needed.
 
 **When:** You want to adopt a visual aesthetic from a well-known brand/website without reinventing colors + typography + layout from scratch. Sources: VoltAgent/awesome-design-md (GitHub) or getdesign.md (web catalog). Works at initial planning OR later when you decide to refresh the aesthetic.
 
-**Where:** Claude.ai Planning Assistant chat (NOT Claude Code).
+**Where:** Planning Assistant session — Claude Code (preferred) or Claude.ai.
 
 **Note:** For new projects, design aesthetic selection is now built into **Phase 2.8 Step 0**. The Planning Assistant asks you before generating the mockup, and extracts tokens into DESIGN.md automatically in Step 7b after you confirm. Use prompt 4.8 only when you want to **add or change** a design aesthetic for an existing project — or when Phase 2.8 was skipped.
 
@@ -2859,7 +3068,7 @@ Governance updates per standard Phase 7.
 
 **When:** You finished the Planning Assistant interview, PRODUCT.md is written, but you haven't run Phase 3 Bootstrap yet. A new Planning Assistant version arrives (e.g. adds Step 8b Mobile strategy classification). You want to update PRODUCT.md to include any new sections/fields from the new version BEFORE Bootstrap locks architecture.
 
-**Where:** Claude.ai Planning Assistant chat (same chat you wrote PRODUCT.md in) → then your project root.
+**Where:** Planning Assistant session (Claude Code or Claude.ai) (same session you wrote PRODUCT.md in) → then your project root.
 
 ### 4.9.1 — Swap the Planning Assistant template
 
@@ -2907,7 +3116,7 @@ Do NOT regenerate sections that are still valid — only add/update what's missi
 
 **Goal:** Align in-progress codebase with the new spec without breaking existing work or losing progress.
 
-**Where:** Claude.ai Planning Assistant chat (spec update) → WSL2 terminal (file copy + git) → Claude Code (delta analysis + Feature Updates).
+**Where:** Planning Assistant session (Claude Code or Claude.ai) (spec update) → WSL2 terminal (file copy + git) → Claude Code (delta analysis + Feature Updates).
 
 ### 4.10.A — Update PRODUCT.md (Claude.ai)
 
@@ -2991,7 +3200,7 @@ All commands should pass. Running services (dev compose) should still work. If a
 
 **Goal:** Bring production codebase up to the new spec version **safely** — no prod downtime, no data loss, rollback path preserved at every step.
 
-**Where:** WSL2 terminal (backup + deploys) → Claude.ai Planning Assistant chat (spec update) → Claude Code (delta analysis + tiered Feature Updates).
+**Where:** WSL2 terminal (backup + deploys) → Planning Assistant session (Claude Code or Claude.ai) (spec update) → Claude Code (delta analysis + tiered Feature Updates).
 
 ### 4.11.A — Safety backup first (WSL2)
 
@@ -3079,7 +3288,7 @@ If all PASS → production is aligned with the new spec. If any FAIL → address
 
 > **⚠ If unsure whether you only need one thing, use 4.9 instead for safety.** 4.9 audits the entire PRODUCT.md against the new template and catches everything. 4.12 is narrow and deliberate — you're telling Planning Assistant "I know exactly what's new, just that one thing, skip the rest."
 
-**Where:** Claude.ai Planning Assistant chat → project root (file copy) → optional Claude Code (if code change needed).
+**Where:** Planning Assistant session (Claude Code or Claude.ai) → project root (file copy) → optional Claude Code (if code change needed).
 
 ### 4.12.1 — Swap the template
 
@@ -3138,11 +3347,11 @@ If the new section is documentation-only (e.g. just new DECISIONS_LOG entries), 
 
 **When to use:** Your project is already mid-build or in production (Phase 3+ started), and you realize a workflow would be better handled by n8n, OpenClaw, or a hybrid of both — but you didn't set up automation during the initial planning interview.
 
-**Where:** Planning Assistant chat on Claude.ai (to update PRODUCT.md) → then Claude Code (for Phase 7 Feature Update wiring).
+**Where:** Planning Assistant session (Claude Code or Claude.ai) (to update PRODUCT.md) → then Claude Code (for Phase 7 Feature Update wiring).
 
 **Prerequisites:**
 - PRODUCT.md exists and is past Phase 3
-- The Planning Assistant is loaded in a Claude.ai chat (use 4.6 to swap to the latest template if needed — Rule 11 must be present)
+- The Planning Assistant is loaded in a session (Claude Code or Claude.ai — use 4.6 to swap to the latest template if needed — Rule 11 must be present)
 
 ### 4.13.1 — Describe the workflow to the Planning Assistant
 
@@ -3242,6 +3451,118 @@ Repeat 4.13.1–4.13.6 for each additional workflow. The Planning Assistant appe
 
 ---
 
+## 4.14 — Brownfield PA Adoption: Existing App / Mockup → Reverse-Extract PRODUCT.md (NEW)
+
+**When to use:** You built something *before* adopting the Spec-Driven framework — a working app, a half-finished prototype, or a clickable `.jsx` / `.html` mockup — and now you want to bring it under framework governance. The Planning Assistant has three native modes (A = blank interview, B = paste existing PRODUCT.md, C = resume an old chat) — it has no built-in mode for *"reverse-extract PRODUCT.md from existing artifacts."* This prompt injects that mode into the chat session as **Situation D**.
+
+**Where:** Planning Assistant session (Claude Code or Claude.ai).
+
+**Prerequisites:**
+- You have at least one of: source code, repo zip, README, screenshots, mockup file (`.jsx` / `.html`), Figma export, partial spec notes
+- Claude.ai access (Pro recommended — artifact bundle can be large) or a Claude Code PA session in the project folder
+- A copy of `Product_md_Planning_Assistant_v31.md` on hand
+
+### 4.14.1 — Gather the artifacts
+
+Pull together *everything that describes what the app does today*:
+- `Product_md_Planning_Assistant_v31.md` (required, uploaded as the first attachment)
+- Repo zip **or** the high-signal files: `README.md`, `package.json`, route map, Prisma schema, env example, key components
+- Screenshots of the running app (one per main screen)
+- Mockup file(s) — `.jsx`, `.html`, exported PNG / PDF
+- Any partial spec, BRD, or hand-written notes
+
+If the bundle is too big for one message, upload PA first and the artifacts in a second message — but keep them in the *same chat*.
+
+### 4.14.2 — Open the Planning Assistant in reverse-extraction mode
+
+In a fresh Claude.ai chat (or a Claude Code PA session in the project folder):
+1. Name the chat/session `[AppName] — PRODUCT.md Reverse-Extract (Brownfield)`
+2. Attach (Claude.ai) or place in the project folder (Claude Code) `Product_md_Planning_Assistant_v31.md` + every artifact from 4.14.1
+3. Paste the kickoff prompt below as the message body
+
+```
+I'm loading you (the Planning Assistant) in REVERSE-EXTRACTION mode.
+
+CONTEXT
+=======
+I have an existing [app / working prototype / clickable mockup] that was built
+BEFORE the Spec-Driven framework. There is no docs/PRODUCT.md for it yet.
+I've uploaded the project artifacts so you can reverse-engineer a PRODUCT.md
+that matches what already exists — instead of running a blank Situation A
+interview that ignores everything I've already built.
+
+YOUR JOB (deviates from Situations A / B / C — call this SITUATION D)
+=====================================================================
+1. Read every artifact I uploaded. Build an internal model of what the
+   app does today — entities, screens, roles, integrations, infra,
+   visual language. Note the apparent tech stack.
+
+2. Map every observation onto your 11 required PRODUCT.md sections:
+   App Identity · Problem Statement · Core User Flows · Modules & Features
+   · Roles & Permissions · Data Entities · Integrations
+   · Deployment Config · Mobile Needs · Non-functional Requirements
+   · Out of Scope.
+
+3. For EACH section, give me a 3-column triage table:
+   ✅ CONFIRMED  — clearly present in the artifacts, no question needed
+   🟡 INFERRED   — your best guess from indirect evidence; needs my OK
+   ❓ MISSING    — required by the template, no evidence in artifacts —
+                   must ask me
+
+4. Show me the triage tables FIRST. Do NOT write the final PRODUCT.md yet.
+
+5. Then walk me through 🟡 INFERRED and ❓ MISSING rows ONE AT A TIME,
+   in plain English, honoring your Rule 7 pacing. For each row I either
+   confirm, correct, or fill in.
+
+6. Only after every row is ✅ CONFIRMED:
+   - Run Rule 5 (verify spec quality — MANDATORY checklist)
+   - Run Phase 2.8 mockup ONLY if I did NOT upload a working UI artifact
+     (if I uploaded a mockup or screenshots, the visual checkpoint is
+     already satisfied — log that and skip)
+   - Output the final, complete docs/PRODUCT.md
+
+7. Honor your normal rules (2, 3, 4, 9, 10, 11) when writing the final file.
+   Specifically: the locked tech stack in Rule 4 is what PRODUCT.md targets,
+   even if the existing app uses a different stack — the migration from
+   existing stack → locked stack is handled later in Claude Code by prompt
+   1.5 (Brownfield Adoption). Note any stack mismatch in DECISIONS_LOG
+   guidance at the bottom of PRODUCT.md.
+
+BEGIN
+=====
+List every artifact you can see in this chat, then produce the Section 1
+(App Identity) triage table. Wait for my response before continuing.
+```
+
+### 4.14.3 — Drive the triage conversation
+
+The PA produces the triage table per section. Your job per row:
+- 🟡 INFERRED → say "confirm" or correct it
+- ❓ MISSING → fill it in (same plain-English style as a normal Situation A interview, but scoped to gaps only)
+
+**Brownfield gotchas to watch for:**
+- The existing app may have implemented multitenancy / auth / RBAC *differently* than the framework's L1-L6 stack — flag those rows for a DECISIONS_LOG entry rather than burying them in PRODUCT.md
+- If the existing app's stack differs from the locked stack (Next.js · tRPC · Prisma · Auth.js · PostgreSQL · Valkey · BullMQ · MinIO), PRODUCT.md is still written *against the locked stack*. The actual migration happens later via **prompt 1.5 (Brownfield Adoption)** inside Claude Code.
+- Visual artifacts (screenshots, mockup files) usually satisfy Phase 2.8 — explicitly tell PA to skip mockup generation if you uploaded any
+
+### 4.14.4 — Save outputs and route to the right next prompt
+
+Save the final `PRODUCT.md` (and `DESIGN.md` if PA extracted one) from the chat, then pick the right next prompt based on what you have:
+
+```
+You have working app code + new PRODUCT.md   → prompt 1.5 (Brownfield Adoption)
+You have only a mockup + new PRODUCT.md      → prompt 1.3 (Greenfield Full Setup)
+You have partial code mostly mockup-like     → prompt 1.6 (Manual Triage)
+Not sure                                     → prompt 1.2 (Universal Analyzer)
+```
+
+If PA generated a Phase 2.8 mockup (because you had no working UI to upload), save it per **prompt 4.7 (Mockup Continuity Workflow)** so Phase 4 Part 5 can read its `data-*` tags.
+
+**One-time gotcha:** the Planning Assistant file (`Product_md_Planning_Assistant_v31.md`) does not currently document Situation D natively — this prompt *injects* the mode into the chat session. If PA ever ships a version that supports brownfield extraction first-class, this prompt becomes a thin wrapper around the native flow.
+
+---
+
 # Quick Command Reference (WSL2 terminal)
 
 ```bash
@@ -3298,6 +3619,7 @@ bash scripts/log-lesson.sh
 "Something broke OR I need to test OR I need to audit"      → Group 3
 "I need to refine PRODUCT.md in Claude.ai Planning chat"    → Group 4
 "I need to add n8n/OpenClaw automation to an existing app"  → 4.13
+"I have an existing app/mockup but no PRODUCT.md yet"       → 4.14
 ```
 
 ---
@@ -3311,7 +3633,7 @@ bash scripts/log-lesson.sh
 - Planning Assistant v31 with Phase 2.8 mockup review
 
 **Added in this update (aligned to V31 final audit):**
-- 1.1.5: Re-deploy V31 framework (restore clean state after hand-edits to CLAUDE.md or .claude/rules/)
+- 1.1.5: Re-deploy V31 framework (restore clean state after hand-edits to CLAUDE.md or .ai_prompt/)
 - 1.2.5: Credentials Setup Kit — comprehensive guide to gathering GitHub + Docker Hub + SMTP + 3rd-party API credentials BEFORE Phase 3
 - 1.2.6: Top Up CREDENTIALS.md — routine ongoing fill (Phase 5 unblock, KYC approval, credential rotation, deferred fills)
 - 1.2.7: Add New Credential Section Mid-Project — via Phase 7 governance (new integrations introduced during Feature Updates)
@@ -3321,6 +3643,7 @@ bash scripts/log-lesson.sh
 - 1.8: Combined Upgrade — framework version + Planning Assistant version pending at once. Enforces correct order (framework FIRST, Planning Assistant SECOND) across all project states
 - **Planning Assistant Rule 11**: n8n + OpenClaw automation opt-in — signal detection (n8n for deterministic, OpenClaw for judgment, hybrid for both), ask-once behavior, Step 5 silent check, Step 7 conditional infra, conditional Integrations template. Zero footprint when unused.
 - 4.13: Add Automation to Existing Project — n8n / OpenClaw / Hybrid workflow addition mid-build or in production (Planning Assistant updates PRODUCT.md → handoff docs → Phase 7 Feature Update wires the app side)
+- 4.14: Brownfield PA Adoption — existing app / mockup → reverse-extract PRODUCT.md (injects **Situation D** into the PA chat for cases where there's already a working app or clickable prototype but no spec yet; produces a 3-column ✅ CONFIRMED / 🟡 INFERRED / ❓ MISSING triage per section before writing the final file)
 - **Scenario 33** (scenarios.md): DESIGN.md Integration with shadcn/ui — precedence, mapping rules, conflict resolution, legal posture, curated shortlist for enterprise SaaS
 - **Scenario 34** (scenarios.md): CREDENTIALS.md Format Upgrade (Agent-Proof) — local shell script pattern for credential file format upgrades that agents cannot read into context (count 32 → 34)
 - 1.7: Build the code-review-graph — one-time per-project setup after Phase 6
@@ -3359,7 +3682,7 @@ bash scripts/log-lesson.sh
 
 **1. Symlink `sync-to-project` globally:**
 ```bash
-ln -s /home/me/UbuntuDevFiles/1_COMPANY_DEV/AI-Skills-Repo/sync-to-project.sh ~/.local/bin/sync-to-project
+ln -s /home/me/UbuntuDevFiles/1_COMPANY_DEV/Powerbyte-AIEF/sync-to-project.sh ~/.local/bin/sync-to-project
 ```
 Verify: `which sync-to-project` → `/home/me/.local/bin/sync-to-project`
 
@@ -3376,7 +3699,7 @@ spec-update() {
     echo "ERROR: target directory does not exist: $target" >&2
     return 1
   fi
-  (cd /home/me/UbuntuDevFiles/1_COMPANY_DEV/AI-Skills-Repo && git pull) && \
+  (cd /home/me/UbuntuDevFiles/1_COMPANY_DEV/Powerbyte-AIEF && git pull) && \
     sync-to-project "$target" && \
     (cd "$target" && bash deploy-v31.sh) && \
     echo "" && \
@@ -3390,7 +3713,7 @@ Then activate: `source ~/.zshrc` (or open a fresh terminal).
 
 Pick one each time you need to update a target project.
 
-**Flavor A — Minimal** (use when your local AI-Skills-Repo is already up-to-date):
+**Flavor A — Minimal** (use when your local Powerbyte-AIEF is already up-to-date):
 ```bash
 cd /path/to/target-project
 sync-to-project
@@ -3399,7 +3722,7 @@ bash deploy-v31.sh
 
 **Flavor B — Explicit `git pull`** (use after working on another machine):
 ```bash
-cd /home/me/UbuntuDevFiles/1_COMPANY_DEV/AI-Skills-Repo && git pull
+cd /home/me/UbuntuDevFiles/1_COMPANY_DEV/Powerbyte-AIEF && git pull
 cd /path/to/target-project
 sync-to-project
 bash deploy-v31.sh
@@ -3413,33 +3736,61 @@ spec-update .
 
 ### Rule of Thumb — When to Use `spec-update`
 
-`spec-update <target>` is the right tool for **both** scenarios below. It handles upgrade and fresh-install symmetrically — no separate first-install script needed.
+`spec-update <target>` handles three project states symmetrically — no separate first-install script needed. Find the scenario that matches your target, then follow its **What to do after spec-update** line.
 
-**1. Upgrade case — existing project on an older framework version (V31.x or V32.x older than current):**
+---
+
+#### 🔵 Scenario 1 · Upgrade — existing project on an older V31/V32 version
+
+> Target already has `.ai_prompt/` from a previous deploy (`.claude/rules/` is empty in V32.7+). You're moving it forward to the current framework version.
+
 - `git pull` → fetches the latest framework from `origin/main`
-- `sync-to-project` → overwrites `<target>/.ai_prompt/*.md` and `<target>/deploy-v31.sh` with the current versions (`cp -p` overwrite; backups happen in the next deploy step, not here)
-- `bash deploy-v31.sh` → re-fans out to `.claude/rules/`, backing up any user-modified rule files with timestamped `.bak`
+- `sync-to-project` → overwrites `<target>/.ai_prompt/*.md` and `<target>/deploy-v31.sh` (backups happen in deploy step, not here)
+- `bash deploy-v31.sh` → re-fans out to `.ai_prompt/`, backing up user-modified detail files with timestamped `.bak`
 
-**2. Fresh install case — brand-new project with only Planning Assistant artifacts (`docs/PRODUCT.md`, `docs/DESIGN.md`, `docs/MOCKUP.jsx`) and no `.ai_prompt/` yet:**
-- `sync-to-project` detects the missing `.ai_prompt/` folder and prompts: *"Directory does not exist. Create it? [y/N]"*
-- Answer **y** → creates the folder, copies all 16 V32 reference files in, drops `deploy-v31.sh` at project root
-- `deploy-v31.sh` then bootstraps `.claude/rules/`, `AI/`, and `CLAUDE.md` cleanly from zero
+**What to do after spec-update:** **restart Claude Code in the target** (`cd <target> && claude`) so the new rules load. Then continue from whatever Phase you were on. **Skip prompt 1.4.2** — it's a V30→V31 reconciliation prompt and has nothing to check for V31.x or V32.x targets. See Scenario 3 below for the patch shortcut.
 
-**Workflow for a fresh project:**
+---
+
+#### 🟢 Scenario 2 · Fresh install — brand-new project from a Planning Assistant handoff
+
+> Target has only `docs/PRODUCT.md`, `docs/DESIGN.md`, `docs/MOCKUP.jsx` from the Planning Assistant session (Claude Code or Claude.ai). No `.ai_prompt/` yet. No framework files of any kind.
+
+- `sync-to-project` detects missing `.ai_prompt/` and prompts: *"Directory does not exist. Create it? [y/N]"*
+- Answer **y** → folder created, all 16 V32 reference files copied in, `deploy-v31.sh` dropped at project root
+- `deploy-v31.sh` bootstraps `.ai_prompt/`, `AI/`, and `CLAUDE.md` cleanly from zero (`.claude/rules/` is intentionally empty)
+- The V32.1.4 deploy script detects the PA artifacts and prints the Bootstrap → Phase 2 → Phase 3 path directly (instead of recommending prompt 1.2)
+
+**What to do after spec-update:** if you haven't yet, `git init` + first commit (the script doesn't do this for you). Then open Claude Code and type `Bootstrap` → `Start Phase 2` → `Start Phase 3` per the V32.1.1 Step 7d sequence. **Skip prompts 1.2 and 1.4.2** — neither applies to fresh PA projects.
+
 ```bash
 cd ~/new-app                    # has only docs/ from Planning Assistant
 spec-update .                   # answer 'y' when prompted to create .ai_prompt/
-# Framework is now installed → ready for Bootstrap → Phase 2 → Phase 3
+git init && git add -A && git commit -m "chore: initial framework install"
+claude                          # → type 'Bootstrap'
 ```
 
-**One pre-step for brand-new projects:** initialize git (`git init` + first commit) before or after `spec-update` — the script does not initialize git for you. After `spec-update`, your next prompt to Claude Code is `Bootstrap` per the V32.1.1 Step 7d sequence.
+---
+
+#### 🟡 Scenario 3 · Patch within V31/V32 — adopting a minor framework patch (e.g. V31.x → V31.y, V31.x → V32.x, V32.x → V32.y)
+
+> Target is already on V31 or V32. You're pulling a behavioral/governance patch — new rule text, dispatch tweaks, deploy script logic. **No new target-project artifacts are introduced** at the V31 line or above.
+
+- `spec-update .` as normal — files swap into `.ai_prompt/` (`.claude/rules/` stays empty)
+- That's it. No reconciliation needed in the target source tree.
+
+**What to do after spec-update:** **restart Claude Code** (`cd <target> && claude`) — rules load at session start only; without restart you're still running the OLD rules even though new files are on disk. **Skip prompts 1.2, 1.4.0, and 1.4.2** entirely — they're scoped to greenfield / brownfield / V30→V31 transitions, none of which apply.
+
+> When 1.4.2 IS still required: only when crossing the **V30 → V31 boundary**. Everything inside or above V31 is rules-file-only and restart-only.
+
+---
 
 ### Verification (run inside target after deploy)
 
 ```bash
-grep -c "ZERO OPUS EXECUTION (V32)" .claude/rules/phases.md   # expect: 5
-grep -c "V32" CLAUDE.md                                        # expect: 7
-head -1 CLAUDE.md                                              # expect: # SPEC-DRIVEN PLATFORM — V32
+grep -c "ZERO OPUS EXECUTION (V32)" .ai_prompt/phases.md   # expect: 5
+grep -c "V32" CLAUDE.md                                     # expect: 7
+head -1 CLAUDE.md                                           # expect: # SPEC-DRIVEN PLATFORM — V32
 ```
 
 All three pass → V32 is live on disk.
@@ -3453,8 +3804,8 @@ All three pass → V32 is live on disk.
 | Anti-pattern | Why it's wrong | Do instead |
 |---|---|---|
 | Run `deploy-v31.sh` without `sync-to-project` first when a new framework version exists | Deploys the OLD `.ai_prompt/` staging files into final locations | Always pair sync + deploy |
-| Run Flavor A then Flavor C back-to-back | Idempotent but creates duplicate `.bak` files in `.claude/rules/` | Pick one flavor per update |
-| Edit framework files inside a target project's `.ai_prompt/` directly | Changes get overwritten on next sync | Edit in `AI-Skills-Repo/specdrivenprompt/`, commit, then sync |
+| Run Flavor A then Flavor C back-to-back | Idempotent but creates duplicate `.bak` files in `.ai_prompt/` | Pick one flavor per update |
+| Edit framework files inside a target project's `.ai_prompt/` directly | Changes get overwritten on next sync | Edit in `Powerbyte-AIEF/specdrivenprompt/`, commit, then sync |
 | `cp -r specdrivenprompt/* target/.ai_prompt/` blindly | Leaks repo-internal files (`CLAUDE_framework_repo.md`, `ClaudeCodeChanges-*.md`) into target | Use `sync-to-project` — whitelisted, 16 files only |
 | Forget to restart Claude Code after deploy | Files updated on disk but hooks still use OLD rules | Always restart after deploy |
 | Run `spec-update` without an argument | Function exits with usage error (safety guard) | Always pass target dir or `.` |
@@ -3463,16 +3814,388 @@ All three pass → V32 is live on disk.
 
 If you add a new machine (second laptop, fresh WSL2 install):
 
-1. Clone AI-Skills-Repo: `git clone git@github.com:bonitobonita24/AI-Skills-Repo.git`
-2. Adjust the hard-coded path in the `spec-update` function body (currently `/home/me/UbuntuDevFiles/1_COMPANY_DEV/AI-Skills-Repo`) to match the new machine's checkout location
+1. Clone Powerbyte-AIEF: `git clone git@github.com:bonitobonita24/Powerbyte-AIEF.git`
+2. Adjust the hard-coded path in the `spec-update` function body (currently `/home/me/UbuntuDevFiles/1_COMPANY_DEV/Powerbyte-AIEF`) to match the new machine's checkout location
 3. Symlink `sync-to-project` in that machine's `~/.local/bin/`
 
 ### Safety Guarantees (already built into the scripts)
 
-- `sync-to-project` validates source files exist before copying; refuses self-sync onto AI-Skills-Repo root; whitelist-based (no leakage of internal files)
+- `sync-to-project` validates source files exist before copying; refuses self-sync onto Powerbyte-AIEF root; whitelist-based (no leakage of internal files)
 - `deploy-v31.sh` backs up every overwritten file with a `.bak` suffix; aborts if it would touch NEVER-TOUCH files (PRODUCT.md, DECISIONS_LOG.md, your codebase, `.env*`)
 - Both scripts use `set -euo pipefail` and refuse to proceed on validation failures
 - `.bak` files are timestamped — easy to roll back: `cp foo.md.20260527_120000.bak foo.md`
+
+---
+
+### Post-Update Rehydration — What to Say to Claude After `spec-update`
+
+> Reference for the most common confusion point: you ran `spec-update .`, files are on disk, but the Claude Code session in the target project still talks like the OLD framework. This is the exact handoff. Added V32.3 — 2026-06-02.
+
+`spec-update .` only puts new files on disk. It does NOT tell the running Claude Code session about them. Hooks load at session start; the running session is still bound to the OLD rules. This subsection covers exactly what to do (and what NOT to do) after the deploy completes.
+
+#### ❌ Don't say "Bootstrap"
+
+**`Bootstrap` = Phase 0 = empty folder only.** Telling Claude `Bootstrap` on an in-progress project would attempt to recreate the folder structure, governance docs, git repo, and MCP wiring from scratch — overwriting your work. `Bootstrap` is the path described in 🟢 Scenario 2 (Fresh install from PA handoff), NOT for mid-build or in-production projects.
+
+#### ✅ The correct post-update flow
+
+1. **Read what the deploy script printed.** V32.1.4 added conditional next-steps output — the script detects PA artifacts (`docs/PRODUCT.md` + (`docs/DESIGN.md` OR `docs/MOCKUP.jsx`)) and prints the right next-step for that project's state. Read the lines after `✓ Spec-Driven framework updated in …`.
+2. **Restart Claude Code in the target.** `cd <target> && claude` — CLAUDE.md loads at session start only. Without a restart, the new file sits on disk unread.
+3. **Run the right rehydrate prompt in the new session.** Pick from the routing table below.
+
+#### Rehydrate routing table
+
+| Project state | What to run | Why |
+|---|---|---|
+| Existing project, mid-build, V32.x → latest *(your most common case)* | **Prompt 1.4.0** — Framework Upgrade Rehydration | Re-reads CLAUDE.md + governance, picks up new rules without disturbing Phase progress |
+| Deploy script printed "fresh PA detected" routing | Follow 🟢 Scenario 2: `Bootstrap` → `Start Phase 2` → `Start Phase 3` | The project hasn't completed Phase 0 yet — Bootstrap IS correct here |
+| Project drifted across many versions (Claude responses visibly confused, mismatched terminology) | **Prompt 1.4.0** first; if Claude still seems off, **Prompt 1.4.2** | 1.4.2 is V30→V31 boundary; only reach for it if 1.4.0 isn't enough |
+| Cross-machine pull (you updated on machine A, now opening machine B) | `git pull` (in Powerbyte-AIEF) → `spec-update .` → restart → 1.4.0 | Same as patch flow, preceded by repo sync |
+
+#### Copy-paste phrasing — drop this into the fresh Claude Code session
+
+```text
+Framework has been updated to the latest version via `spec-update .`.
+
+Rehydrate context using prompt 1.4.0 (framework upgrade rehydration).
+Read CLAUDE.md, .ai_prompt/memory-governance.md, and confirm the
+V32.3 Governance Extraction Schema is loaded (memory-governance.md §4).
+
+Report back: active framework version + dispatch rule count
+(expect: the version in CLAUDE.md's header, with 9 rules R1-R9) before resuming prior work.
+```
+
+This phrasing gives Claude four things at once:
+- **Trigger** — framework was updated, with the version label
+- **Exact prompt to use** — 1.4.0, no ambiguity
+- **Verification gates** — read these specific files, confirm specific schema
+- **Return contract** — version + rule count must match before resuming
+
+#### Skip list — never run after a V32.x → V32.y patch
+
+- **Prompt 1.2** — fresh-install bootstrap path (brand-new empty folders only)
+- **Prompt 1.4.2** — V30→V31 boundary reconciliation only (in-band V32.x patches don't need it)
+- **`Bootstrap` command** — empties + reinitializes the project; destroys in-progress work
+
+#### TL;DR
+
+```bash
+spec-update .                  # deploys files into the target
+# [read deploy script output]  # tells you which scenario applies
+# [restart Claude Code]        # mandatory — rules cached at session start
+# In the new session, paste the rehydrate prompt above (or just say "Run prompt 1.4.0, rehydrate to the version shown in CLAUDE.md's header")
+```
+
+No `Bootstrap`. No prompt 1.2. No prompt 1.4.2. Just restart + rehydrate.
+
+---
+
+### Chronological Adoption Playbook — Step-by-Step Commands
+
+> Linear command sequence for adopting a framework patch on an existing project. Use this when you want to run the full V32.x → latest update without re-reading the appendix. Added V32.3 — 2026-06-02.
+
+This is the **patch flow** (🟡 Scenario 3) — your most common case. Steps run sequentially.
+
+---
+
+#### Step 1 · Sync framework source repo to latest
+
+```bash
+cd /home/me/UbuntuDevFiles/1_COMPANY_DEV/Powerbyte-AIEF
+git pull
+```
+
+**Expected:** `Already up to date.` OR a fast-forward summary. Latest commit on `main` should match `git log origin/main -1 --oneline` (run it to see the current HEAD).
+
+**Why first:** `spec-update` deploys from your local Powerbyte-AIEF. A stale repo deploys stale files.
+
+---
+
+#### Step 2 · Move into the target project
+
+```bash
+cd /path/to/your-app
+```
+
+Replace with your actual project path (e.g. `cd ~/Yelli`).
+
+---
+
+#### Step 3 · Run the deploy
+
+```bash
+spec-update .
+```
+
+**Behind the scenes:**
+1. `git pull` in Powerbyte-AIEF (idempotent re-check)
+2. `sync-to-project .` — copies 16 framework files to `<target>/.ai_prompt/` + drops `deploy-v31.sh` at project root (whitelist-based)
+3. `bash deploy-v31.sh` — fans the 7 detail files into `.ai_prompt/`, writes `AI/Master_Prompt_v31.md`, writes `CLAUDE.md` at root; `.claude/rules/` is intentionally empty (V32.7); backs up modified files with timestamped `.bak`
+4. Prints conditional next-steps based on PA artifact detection
+
+---
+
+#### Step 4 · READ the script's printed output
+
+Last 5–10 lines matter. Look for one of these:
+
+| Output line | Meaning |
+|---|---|
+| `✓ Spec-Driven framework updated in .` + `Next: restart Claude Code in this project` | ✅ Patch deploy successful → Step 5 |
+| `Fresh PA detected` + `Bootstrap → Phase 2 → Phase 3` | Project hasn't completed Phase 0 — different path (see 🟢 Scenario 2) |
+| `ERROR:` or `ABORT:` prefix | Stop. Read the message. Don't continue until resolved |
+
+---
+
+#### Step 5 · (Optional) Verify the new framework is on disk
+
+```bash
+grep -c "ZERO OPUS EXECUTION (V32" .ai_prompt/phases.md              # expect: 5
+grep -c "V32" CLAUDE.md                                               # expect: ≥1 (header + body references)
+head -1 CLAUDE.md                                                     # expect: # SPEC-DRIVEN PLATFORM — V32
+grep -c "Governance Extraction Schema" .ai_prompt/memory-governance.md  # expect: ≥1 (V32.3 marker)
+```
+
+All four pass → the latest framework version is live on disk. If any fail → re-run `spec-update .` and re-check Step 4.
+
+---
+
+#### Step 6 · Restart Claude Code
+
+**Most-missed step.** Files on disk ≠ files loaded.
+
+If you have a running session in the target:
+1. Exit (`/exit` or Ctrl+D)
+2. Re-launch: `claude` (in the target directory)
+
+Rules card (`CLAUDE.md`) is read once at session start. No restart = OLD rules still active.
+
+---
+
+#### Step 7 · Paste the rehydrate prompt as your FIRST message
+
+```text
+Framework has been updated to the latest version via `spec-update .`.
+
+Rehydrate context using prompt 1.4.0 (framework upgrade rehydration).
+Read CLAUDE.md, .ai_prompt/memory-governance.md, and confirm the
+V32.3 Governance Extraction Schema is loaded (memory-governance.md §4).
+
+Report back: active framework version + dispatch rule count
+(expect: the version in CLAUDE.md's header, with 9 rules R1-R9) before resuming prior work.
+```
+
+---
+
+#### Step 8 · Wait for Claude's verification reply
+
+Claude should respond with:
+
+> *Active framework version (as of this writing): V32.5 — run `git log origin/main -1` for the exact commit. Re-derive the live value from CLAUDE.md's header + `git log origin/main -1`.*
+> *Dispatch rule count: 9 (R1-R5 Zero-Opus-Execution + R6-R9 Dispatch Discipline)*
+> *Governance Extraction Schema: present in memory-governance.md §4 — confirmed*
+> *Ready to resume.*
+
+If those three lines don't match → **stop and re-run Step 7.** Don't proceed to real work until Claude confirms the version + rule count.
+
+---
+
+#### Step 9 · Resume your actual work
+
+You can now say things like:
+- `Continue Phase 7 feature: <your feature>`
+- `Feature Update: <new spec from PRODUCT.md>`
+- `Run prompt 2.x` (whatever was queued)
+
+Claude is now on the latest framework rules — Sonnet 4.6 is dispatched for any file >200 lines per R6 + Governance Extraction Schema.
+
+---
+
+#### Quick reference — the entire flow in one block
+
+```bash
+# Step 1 — sync source
+cd /home/me/UbuntuDevFiles/1_COMPANY_DEV/Powerbyte-AIEF && git pull
+
+# Step 2 + 3 — deploy
+cd /path/to/your-app
+spec-update .
+
+# Step 4 — read deploy script output (look for the ✓ line)
+# Step 5 — optional verify
+grep -c "ZERO OPUS EXECUTION (V32" .ai_prompt/phases.md   # expect: 5
+
+# Step 6 — restart Claude Code
+claude
+
+# Step 7 — paste the rehydrate prompt from A.8 above
+# Step 8 — wait for version + rule count confirmation
+# Step 9 — resume work
+```
+
+---
+
+#### Multiple projects in one session
+
+Loop Steps 2–8 per project. The source repo pull (Step 1) only needs to run once for the whole session.
+
+```bash
+# Pull once
+cd /home/me/UbuntuDevFiles/1_COMPANY_DEV/Powerbyte-AIEF && git pull
+
+# Then per project:
+cd ~/project-1 && spec-update . && claude   # restart + rehydrate
+cd ~/project-2 && spec-update . && claude   # restart + rehydrate
+cd ~/project-3 && spec-update . && claude   # restart + rehydrate
+```
+
+Each project needs its own restart + rehydrate prompt because each runs a separate Claude Code session.
+
+---
+
+#### Common mistakes to avoid
+
+| ❌ Don't | ✅ Do |
+|---|---|
+| Say `Bootstrap` to Claude after `spec-update` on a mid-build project | Use Prompt 1.4.0 rehydrate instead |
+| Run `bash deploy-v31.sh` without `sync-to-project` first | Always pair sync → deploy (or use `spec-update` which does both) |
+| Skip the restart, keep chatting in the old session | Always restart — rules are session-scoped |
+| Run prompt 1.2 or 1.4.2 on a V32.x project | Both are out-of-scope for in-band V32 patches |
+| Edit files inside `<target>/.ai_prompt/` directly | Edit in `Powerbyte-AIEF/specdrivenprompt/`, commit, re-run `spec-update` |
+| Forget to `git pull` Step 1 before deploying | Always pull first — deploys are only as fresh as your local repo |
+
+---
+
+## Appendix B — Designer-Skills Command Reference
+
+> Reference for the `julianoczkowski/designer-skills` supplementary bundle. Added 2026-06-03 as part of Phase A integration; shipped as Phase B in V32.5 (2026-06-04). Status: **framework-prescribed (V32.5)** at Phase 2.8 hand-off, Phase 4 Parts 5-6 (Web UI), and Phase 7 (Feature Update UI-delta) under an **INHERIT-not-REPLACE** contract over PA's `docs/DESIGN.md` + `docs/MOCKUP.jsx` — `/design-tokens` EXPANDS the baseline, `/design-review` audits, `/design-refine` runs only on flagged components. Never regenerates from scratch (Rule 1 preserved).
+
+### What it is
+
+An orchestrated 8-skill design bundle by Julian Oczkowski. The skills encode a deliberate design process so AI agents follow a structured path instead of producing random output. Mobile-first by default, dark mode by default, 8 named aesthetic philosophies. All artifacts are saved to `.design/<feature>/` — additive, never collides with `docs/PRODUCT.md` (Rule 1 still holds).
+
+### How to install
+
+The bundle is **approval-gated**. `/scan-project` surfaces it when the signal fires (frontend stack + Tailwind/CSS-in-JS + no `.design/` folder + no existing tokens + active UI files). If approved, the install command is:
+
+```bash
+npx skills add julianoczkowski/designer-skills
+```
+
+The Vercel skills CLI prompts interactively for which of the 8 skills to install, which agents to target (Claude Code / Cursor / Codex / etc.), and project vs. global scope. Skills land in `.agents/skills/`; a symlink to `.claude/skills/` is auto-created by `/scan-project` Phase 4 step 3d so Claude Code's harness discovers them.
+
+### The 8 slash commands
+
+| # | Slash command | Purpose | When it fires |
+|---|---|---|---|
+| 0 | **`/design-flow`** | Orchestrator — runs the full sequence (steps 1-7 below) with confirmation between each step. Start here for the complete process. | At the start of a new feature design, before any UI work. |
+| 1 | **`/grill-me`** | Interrogates you about your plan until every design decision is resolved. | First step — before writing any brief. |
+| 2 | **`/design-brief`** | Turns the grilling session into a structured design brief. Includes codebase exploration so the AI respects existing patterns, components, and tokens. | After `/grill-me`, before defining IA. |
+| 3 | **`/information-architecture`** | Defines the structural skeleton: navigation, content hierarchy, page structure, URL patterns, user flows. | After the design brief is captured. |
+| 4 | **`/design-tokens`** | Generates a complete token system (colors, spacing, typography, motion) with light and dark palettes, based on the chosen aesthetic philosophy. Compatible with shadcn/ui + Tailwind CSS variable pattern (Rule 9). | After IA, before frontend implementation. |
+| 5 | **`/brief-to-tasks`** | Breaks the design brief into an ordered checklist of independently buildable vertical slices. | Before Phase 7 Feature Update or any UI build session. |
+| 6 | **`/frontend-design`** | Builds UI with a named aesthetic philosophy. Mobile-first (375px baseline), dark mode by default. **Distinct from Anthropic's `frontend-design` skill** (this is the designer-skills variant). | During Phase 4 Parts 5-6 (UI build) or Phase 7 (UI-touching feature update). |
+| 7 | **`/design-review`** | Structured critique against the brief. Supports code review and screenshot-based review. **Runs on request, not automatically.** Checks dark-mode correctness, mobile-first compliance, token usage. | After UI is built, before commit. |
+
+### Aesthetic philosophies (used by `/frontend-design`)
+
+The 8 named philosophies — pick one explicitly, describe a vibe and let the skill map it, or stay silent and let the skill choose based on context:
+
+1. **Dieter Rams** — Less but better. Functional. No decoration without purpose.
+2. **Swiss / International Typographic** — Grid-locked. Strong type hierarchy. Objective.
+3. **Japanese Minimalism (Ma)** — Negative space is content. Quiet. Restrained.
+4. **Brutalist** — Raw structure visible. Anti-polish. Content-first.
+5. **Scandinavian** — Warmth plus restraint. Rounded. Accessible by default.
+6. **Art Deco** — Geometric luxury. Bold symmetry. Statement typography.
+7. **Neo-Memphis** — Playful chaos. Clashing color. Anti-corporate.
+8. **Editorial / Magazine** — Content-led. Display typography. Print-inspired.
+
+### Spec-Driven framework phase mapping (framework-prescribed since V32.5)
+
+| Framework phase | Prescribed designer-skills commands | Why |
+|---|---|---|
+| **Phase 2.8 → Phase 4 hand-off** | (PA Step 7 emits `docs/DESIGN.md` + `docs/MOCKUP.jsx`) → at Phase 4: `/design-tokens` EXPAND-not-replace | INHERIT-not-REPLACE contract: PA artifacts are the human-verified baseline; `/design-tokens` expands the DESIGN.md table, never regenerates. |
+| **Phase 4 Parts 5-6** (UI build) | `/design-review` against MOCKUP.jsx → `/frontend-design` per feature → `/design-refine` on flagged components only | Audit the PA visual baseline against expanded tokens, build with the named aesthetic, refine surgically. |
+| **Phase 7** (Feature Update) | `/design-review` of the UI delta → `/design-refine` only if regressions surface | Treat existing DESIGN.md as authoritative; flag drift, fix only what breaks. |
+
+Since V32.5 (2026-06-04), the framework PRESCRIBES these commands via MODEL hooks in `phases.md` (Phase 2.8 hand-off / Phase 4 Parts 5-6 / Phase 7). The contract is **INHERIT-not-REPLACE**: PA's `docs/DESIGN.md` + `docs/MOCKUP.jsx` are the human-verified baseline (Rule 1) — designer-skills sharpen them, never regenerate.
+
+### Anti-patterns
+
+| Anti-pattern | Fix |
+|---|---|
+| Treating `.design/<feature>/` artifacts as the source of truth | `docs/PRODUCT.md` is still the only file humans edit (Rule 1). `.design/` is working state — derived from PRODUCT.md, never replaces it. |
+| Running `/frontend-design` without first running `/design-tokens` | Tokens feed the build. Always tokens → build → review. |
+| Confusing Julian's `/frontend-design` with Anthropic's `frontend-design` skill | They coexist in the catalog (`designer-frontend-design` vs `frontend-design`). Both can be installed; the slash command from designer-skills uses its own brief + tokens flow. |
+| Skipping `/design-review` because "the code looks fine" | The review checks dark-mode, mobile-first, and token usage — things eye-review misses. |
+
+---
+
+## Appendix C — Session Continuity & Disaster Recovery
+
+> What survives when Claude becomes unresponsive, the internet drops, or you have to force-close a session mid-conversation — and how to make sure curated memory keeps up. Added 2026-06-07.
+
+**Audience:** Anyone running long Claude Code sessions on flaky connections, anyone worried about losing decision history between sessions.
+
+**Goal:** Understand the two memory layers (passive auto-save vs. active curated save), where the disaster-recovery backstop lives, and the habit that closes 95% of the risk window.
+
+### C.1 — What survives automatically (no action needed)
+
+**1. The raw conversation transcript — always saved per turn.**
+Claude Code writes every message exchange to a JSONL file under `~/.claude/projects/<project-slug>/<session-id>.jsonl`. This persists *as the conversation happens*, not at session end. Network drop, terminal crash, `kill -9` — the transcript is already on disk. This is your disaster-recovery backstop.
+
+**2. `claude-mem` auto-observations — fire on `PostToolUse`, not just on session close.**
+Every time Claude runs a tool (Read, Write, Edit, Bash), the hook fires and writes observations. A session that's 30 minutes deep with 20 tool calls already has ~20 checkpoints persisted. Only the very last unflushed observation could be lost on a crash. The numbered observations you see at the top of each new session prove this works.
+
+**3. `context-mode` auto-indexing — same per-tool-call cadence.**
+Command outputs are already indexed in FTS5 by the time the next message lands; 26 categories of session events (decisions, errors, blockers, plans, user prompts, rejected approaches, tool failures, compaction guides) are captured throughout.
+
+### C.2 — What's at risk
+
+**Layer 2 curated memory** (`MEMORY.md` + individual `feedback_*.md` / `project_*.md` / `user_*.md` files) is only written when Claude explicitly calls `Write` in response to **"save session"** or when Claude detects a clear durable fact during conversation. **This is the layer that loses if you can't type "save session" before a forced close.** The passive layer still recorded raw observations, but you lose the human-readable narrative distillation.
+
+### C.3 — Workarounds (ranked by reliability)
+
+**1. Mid-session checkpoint saves (cheapest insurance).**
+Don't wait until the end. Say **"checkpoint save"** or **"save session"** at meaningful milestones — after a major decision, after a long investigation concludes, ~30–45 min into any long session, right before you start something risky. Loss window shrinks from *entire session* to *last few minutes*. Treat it like a save in a video game.
+
+**2. Recover from the transcript on next session.**
+After a crash, in the new session, say:
+
+> "My last session crashed. Read the most recent JSONL in `~/.claude/projects/<this-project-slug>/` and save anything durable to memory."
+
+Claude can literally open the transcript file, extract decisions / discoveries / feedback from the conversation, and write them to memory. The raw bytes are there — they just weren't distilled.
+
+**3. Trust the passive layer for continuity.**
+Even with zero curated saves, the next session's startup context auto-loads recent observations (the big "recent context" block at the top of each new session). You won't be cold-started. You'll lose the *narrative summary* but not the *facts*.
+
+**4. Use shorter, more focused sessions.**
+Counterintuitive, but shorter sessions naturally have more "natural" save points (end of session = save). Long marathon sessions are the highest-risk for unsaved curation.
+
+### C.4 — Practical habit to build
+
+> **Every ~30–45 minutes on a meaningful session, say `"checkpoint save"`.**
+> That single habit closes 95% of the risk. The other 5% (last few minutes lost) is covered by the JSONL transcript recovery in worst-case scenarios.
+
+### C.5 — Verifying it's working
+
+Anytime you want to see your safety net for a project, run:
+
+```bash
+ls -lht ~/.claude/projects/<your-project-slug>/*.jsonl | head -5
+```
+
+You'll see the recent session transcript files with timestamps. As long as those exist, your raw conversation is recoverable. The project-slug is derived from the absolute path of the project — replace `/` with `-` and prepend a dash.
+
+### C.6 — The two-layer model at a glance
+
+| Layer | Mechanism | Trigger | Survives hard drop? |
+|---|---|---|---|
+| **0 — Transcript** | Claude Code `.jsonl` per turn | Automatic, every message | ✅ Yes — already on disk |
+| **1 — Auto-observations** | `claude-mem` + `context-mode` hooks | Automatic, every tool call | ✅ Mostly — only last unflushed event lost |
+| **2 — Curated memory** | `MEMORY.md` + `*.md` files | Explicit: "save session" / "checkpoint save" | ⚠️ Only if triggered before drop |
+
+**Reference:** Memory layer architecture = `claude-mem` (auto observations) + `context-mode` (FTS5 event index) + `MEMORY.md` per project (curated) + `planning-with-files` (in-session plans). Project-slug format: absolute path with `/` replaced by `-`, prepended with `-` (e.g. `/home/me/UbuntuDevFiles/1_COMPANY_DEV/Powerbyte-AIEF` → `-home-me-UbuntuDevFiles-1-COMPANY-DEV-Powerbyte-AIEF`).
 
 ---
 

@@ -2,9 +2,10 @@
 
 > **Loaded contextually** when any phase pre-flight runs.
 > Read the section relevant to your current task. Do NOT read all sections at once.
-> Contains: §1 Tiered Decomposition (V32 file-size-based), §2 Smart Checkpoint, §3 Phase Hooks, §4 Architect-Execute Model (V32 Zero Opus Execution), §5 Mid-Project Adoption.
+> Contains: §1 Tiered Decomposition (V32 file-size-based), §2 Smart Checkpoint (+ V32.8 evidence field), §3 Phase Hooks (17 total — V32.8), §4 Architect-Execute Model (V32 Zero Opus Execution), §5 Mid-Project Adoption, §6 Learning Registry & Recurrence (V32.8).
 >
 > **V32 change vs V31.4:** Token estimation REPLACED by `wc -l` file-size checks. Opus executor escalation (old Step 2.5b) DELETED entirely. New 500-line dispatch cap.
+> **V32.8 additions:** §2 gains required evidence field `{contract, check_command, captured_output}` on all done-claims. §3 phase-hook count 14 → 17 (Hooks 15-17: work-start registry consult, done-claim evidence capture, failure-time fingerprint→scan→strengthen). §6 (new): Learning Registry & Recurrence — `LESSONS_REGISTRY.md`, two-part fingerprint, three consult points, recurrence response protocol, promotion checklist.
 
 ---
 
@@ -187,9 +188,31 @@ LINES_TOUCHED: "~[N] lines created/modified this session"
 CHECKPOINT_TYPE: "full | lightweight"
 FILES_TOUCHED: ["path/to/file1.ts", "path/to/file2.tsx", ...]
 TIER_CLASSIFICATION: "[1|2|3] — [lightweight|moderate|heavy]"
+dispatch_ratio:
+  sonnet_writes: <N>
+  opus_writes: <N>
+  ratio: <sonnet_writes / opus_writes>
+  target: ≥ 3.0
+  status: PASS | WARN | FAIL
 ```
 
 > **V32 note:** STATE.md is the ONE file Opus is permitted to write directly (the checkpoint exception to R1). All other writes — including governance docs — must be dispatched to Sonnet.
+
+> **`dispatch_ratio` (V32.2)** — Append the dispatch-ratio block per §4 R9 (sonnet_writes / opus_writes, target ≥ 3.0, status PASS/WARN/FAIL). FAIL triggers a `lessons.md` entry. See §4 R9 (Dispatch Ratio Metric) — every checkpoint MUST include the `dispatch_ratio` block.
+
+> **`evidence` (V32.8 Rule 32) — REQUIRED on every done-claim.** A checkpoint that claims "done", "fixed", or "no work left" MUST carry the evidence block below. A checkpoint without a populated evidence block is a **structurally malformed artifact** — it is not a valid done-claim.
+
+```yaml
+evidence:
+  contract: "<the acceptance criterion, written BEFORE work started>"
+  check_command: "<machine command run — e.g. 'curl -s -o /dev/null -w \"%{http_code}\" http://…' OR 'npm test' OR 'grep -c …'
+                  OR 'human-attestation: <who/why>' for the labeled exception (design sign-off, UX feel, product intent)>"
+  captured_output: "<the actual output proving pass — e.g. '200', '43 passed', '3 matches'>"
+```
+
+**Machine-executable check = DEFAULT.** `curl`, test runners, `grep`, lint, build-passes, `toHaveScreenshot` (Rule 31's visual gate is one instance). **Human-attestation = labeled exception** — reserved for what a machine genuinely cannot judge; must name *who* attested and *why* machine verification was impossible. The label keeps attestation auditable and prevents it silently becoming the lazy default. **Proportionality rule:** trivial tasks — one-line check (e.g. `grep "import X" file.ts` → `1`); substantial/risky tasks — full criteria block with multiple check rows. The discipline scales to the stakes.
+
+The evidence block also triggers a **registry consult** (§6): scan `LESSONS_REGISTRY.md` for fingerprints matching the surface being claimed done. A known failure-mode must not sail through unverified. See §6 for the full consult protocol.
 
 ### Target 2 — Claude Code Memory (zero-cost resume)
 
@@ -240,28 +263,54 @@ Both persist — memory for fast resume, lessons.md for governance audit trail.
 **This section defines the one-liner hook injected into every phase pre-flight in `phases.md`.**
 You do not need to read this section during execution — it documents where the hooks live.
 
-### Hook Text (V32 — injected into each phase)
+> **V32.7 load mechanism:** `memory-governance.md` is no longer auto-loaded via `.claude/rules/`.
+> It now lives in `.ai_prompt/`. Every phase pre-flight in `phases.md` instructs reading this file
+> before running these hooks; short-form blocks carry an explicit **`Read .ai_prompt/memory-governance.md`**
+> inline, while full-form blocks also carry the governance summary inline as a self-contained fallback.
+> The coupling is mechanical — do NOT weaken the phase pre-flight Read after this change.
+
+### Hook Text (V32.3 — injected into each phase)
 
 ```
 ⚠ MEMORY GOVERNANCE (memory-governance.md):
   PRE:   Run Tiered Decomposition (§1) — `wc -l` all files in scope, ≤ 500 lines per Sonnet task.
   POST:  Run Smart Checkpoint (§2) if any files were created or modified.
-  MODEL: ZERO OPUS EXECUTION (V32). Opus's only allowed actions in this session are: read context, plan, decompose, review Sonnet output, write STATE.md checkpoint. ALL other file writes (code, configs, governance docs, tests) MUST be dispatched via Agent(model: "sonnet") per §4. Before each dispatch: run `wc -l` on every file in scope; total ≤ 500 lines per Sonnet task; files > 300 lines need explicit line ranges. NO exceptions. NO "last resort." NO Opus executor escalation. If you find yourself about to call Edit/Write on a project file, STOP and dispatch.
+  MODEL: ZERO OPUS EXECUTION (V32.3). Opus's only allowed actions in this session are: read context, plan, decompose, review Sonnet output, write STATE.md checkpoint. ALL other file writes (code, configs, governance docs, tests) MUST be dispatched via Agent(model: "sonnet") per §4. Before each dispatch: run `wc -l` on every file in scope; total ≤ 500 lines per Sonnet task; files > 300 lines need explicit line ranges. Allow-list governance docs > 200 lines MUST also go through Scout-Sonnet with the Governance Extraction Schema (§4) — direct Opus read of a > 200-line allow-list doc counts as `opus_writes` for `dispatch_ratio`. NO exceptions. NO "last resort." NO Opus executor escalation. If you find yourself about to call Edit/Write on a non-allow-list project file, STOP and dispatch.
 ```
 
-### Injection Points
+### Injection Points (17 hooks total — V32.8)
 
-The hook appears in the pre-flight/context-budget section of:
-- Phase 2 (Discovery Interview)
-- Phase 3 (Generate Spec Files)
-- Phase 3.5 (Execution Plan)
-- Phase 4 (Full Scaffold — each Part's pre-flight)
-- Phase 5 (Validation)
-- Phase 6 (Docker + Visual QA)
-- Phase 6.5 (Error Triage)
-- Phase 7 (Feature Update)
-- Phase 7R (Feature Rollback)
-- Phase 8 (Iterative Buildout)
+The original 14 governance hooks cover every Claude-Code-executed phase (one per pre-flight). V32.8 Rule 32 adds **3 new hook types** that fire within those phases at specific task boundaries — they are not new phase pre-flights but distinct consult/capture points:
+
+**Hook 15 — Work-Start Registry Consult** (fires at the start of every dispatched task/batch)
+Before any work begins on a task or wave, scan `LESSONS_REGISTRY.md` for fingerprints matching the target surface. If a match exists, surface it to the operator before proceeding. Direct fix for Orqafy phantom-wire ($58 wave on already-wired surfaces) and MG "no work left" (unfalsifiable claim). Cross-references `phases.md` work-start consult step.
+
+**Hook 16 — Done-Claim Evidence Capture** (fires at every task/batch completion before marking done)
+Run the acceptance contract check and capture `{contract, check_command, captured_output}` into STATE.md / the checkpoint. Also scan `LESSONS_REGISTRY.md` for surface-relevant fingerprints so a known failure-mode cannot sail through unverified. A claim with an empty evidence block is structurally malformed — the Stop hook (deliverable #19 `settings.json`) blocks it. Cross-references `superpowers:verification-before-completion` and `phases.md` done-claim step.
+
+**Hook 17 — Failure-Time Fingerprint→Scan→Strengthen** (fires whenever a build/test/gate/human-report failure occurs)
+Fingerprint the failure using the two-part fingerprint (see §6). Scan `LESSONS_REGISTRY.md`. If a match exists AND the standing check should have caught this → the check **eroded** → STRENGTHEN it (don't just re-fix). If novel → promotion candidate. Cross-references `phases.md` failure-handling step and §6 recurrence-detection protocol.
+
+---
+
+The original 14 governance hooks (pre-flight blocks per phase):
+
+1. Phase 2 (Discovery Interview)
+2. Phase 3 (Generate Spec Files)
+3. Phase 3.3 (Interactive Prototype & Simulation — NEW V32.6)
+4. Phase 3.5 (Execution Plan)
+5. Phase 4 Parts 1-2 (Monorepo + shared packages)
+6. Phase 4 Parts 3-4 (Prisma schema + tRPC/Auth/security)
+7. Phase 4 Parts 5-6 (Next.js web + Expo mobile UI)
+8. Phase 4 Parts 7-8 (Background jobs + storage)
+9. Phase 5 (Validation)
+10. Phase 6 (Docker + Visual QA)
+11. Phase 6.5 (Error Triage)
+12. Phase 7 (Feature Update)
+13. Phase 7R (Feature Rollback)
+14. Phase 8 (Iterative Buildout)
+
+Phase 0 (Bootstrap), Phase 1 (Concept), Phase 2.7 (Pre-PRD checkpoint), and Phase 2.8 (Mockup) are human-executed in Claude.ai — no agent-side hook required. Designer-skills MODEL HOOKs at Phase 2.8 / Phase 4 Parts 5-6 / Phase 7 (V32.5) layer on top of the governance hook; they are gate-keepers, not separate budget hooks. Likewise the Back-Port Surface Check MODEL HOOKs at Phase 7 + Phase 8 — the spec check (V32.5.5: `docs/DECISIONS_LOG.md` ↔ `docs/PRODUCT.md`) and the design check (V32.7.3: live `globals.css`/Tailwind theme tokens ↔ `docs/DESIGN.md`/`docs/MOCKUP.jsx` baseline) — are non-blocking pre-flight surfacing steps that layer on top of the existing Phase 7/Phase 8 governance hook; they are NOT new §3 injection points. Hooks 15-17 (V32.8) are task-boundary hooks, not phase pre-flights — they fire within phases at specific points per Rule 32.
 
 ### Relationship to Existing Rules
 
@@ -269,6 +318,18 @@ The hook appears in the pre-flight/context-budget section of:
 - The V32 Tiered Decomposition Engine (§1) uses file-size checks (`wc -l`) — mechanically verifiable, not estimated.
 - Phase-specific anti-thrashing rules (Phase 8 sub-batches, Phase 4 fresh context) remain valid.
 - This layer adds structure on top — it does not replace existing protections.
+
+### Output Equivalence Guarantee (V32.5.1)
+
+Tiered Decomposition is **result-preserving**: a Tier-3 task executed as N Sonnet sub-batches produces the same final committed state as a hypothetical single-context execution would have. The split exists to bound each executor's context, not to alter what gets built. Concretely:
+- Sub-batches are scoped by module boundary or file group, not by arbitrary line cuts mid-function.
+- STATE.md persists the join state between sub-batches so the next batch resumes with full prior context.
+- Smart Checkpoint (§2) records `dispatch_ratio` + `files_changed` so an auditor can verify the sum-of-parts equals the would-have-been whole.
+- If a sub-batch reveals that an earlier batch made a now-wrong decision, Opus re-plans (Tier reassessment) rather than papering over — Output Equivalence is the contract.
+
+### Mid-Session Thrash Rescue
+
+If a Sonnet swarm starts thrashing mid-phase (context overflow, repeated retries, incoherent diffs), invoke **Prompt 3.19 (Emergency Anti-Thrashing)** from `.ai_prompt/Prompt_References.md` — a general-purpose Opus rescue prompt that re-decomposes the interrupted work, writes a fresh STATE.md checkpoint, and dispatches a clean Sonnet batch from a smaller scope. Do NOT escalate to Opus-executor as a workaround — that violates R1 (Zero Opus Execution).
 
 ---
 
@@ -381,8 +442,11 @@ Blocks: [what depends on this task completing]
 ### Sonnet Status Handling (V32)
 
 ```
-DONE
-  → Opus proceeds to spec compliance review
+DONE (V32.2 tightened — diff-review mandatory)
+  → Opus reads the full diff returned by Sonnet, OR runs `git diff` against prior commit.
+  → Diff review is the quality gate. Review-by-summary is FORBIDDEN.
+  → If diff was not read in full → task is NOT DONE; re-dispatch with explicit "return diff in full" instruction.
+  → Then proceed: spec compliance review → quality review (V32 two-stage).
 
 DONE_WITH_CONCERNS
   → Opus reads concerns before reviewing
@@ -412,6 +476,151 @@ AFTER 3 RE-DECOMPOSITION ATTEMPTS ON SAME TASK:
   → Defer remaining work to next session.
   → NEVER fall back to Opus execution. The Opus executor path is removed in V32.
 ```
+
+### Dispatch Discipline Rules (V32.2)
+
+Four new rules added 2026-06-01 to address the dominant Opus-token leak: exploratory reads, serial dispatches, and silent R1 bypasses on "small" edits.
+
+**R6 Scout-Before-Plan (V32.2)**
+
+Opus's exploratory reads burn architect attention without improving decisions. Any source/config/test file > 100 lines that Opus needs to understand for planning MUST be summarized by a Scout-Sonnet:
+
+```
+Agent(
+  model: "sonnet",
+  subagent_type: "Explore",
+  prompt: "Extract from <path>: [structured schema — e.g., 'every Edit/Write call site,
+           the auth check before each, any tenant-scope filter']. Return as JSON.
+           Do NOT summarize freeform — match the schema exactly."
+)
+```
+
+**Architect-read allow-list** (Opus reads directly when ≤ 200 lines; files > 200 lines route through Scout-Sonnet with the **Governance Extraction Schema** below — V32.3):
+- `docs/PRODUCT.md` (source of truth, Rule 1)
+- `docs/STATE.md`, `docs/DECISIONS_LOG.md`, `docs/CHANGELOG_AI.md`, `docs/IMPLEMENTATION_MAP.md`
+- `.cline/STATE.md`
+- `.claude/rules/*.md`, `.ai_prompt/*.md` (framework governance — session-start only)
+
+R6 extends R5 (Scout-Before-Edit) from Sonnet's editing context to Opus's planning context. **V32.3 closes the "growing governance doc" loophole** — as allow-list docs grow past 200 lines, Smart Hydration keeps them Scout-mediated rather than burning the full file into Opus context.
+
+**Governance Extraction Schema (V32.3 — Smart Governance Hydration)**
+
+Per-doc extraction contract for the 9 governance docs of Rule 4. Scout-Sonnet returns the schema below — Opus consumes the hydration brief, never the full file (when > 200 lines).
+
+```
+governance_hydration:
+  task_domain: "<keyword[,keyword,...] for filtering — derived from current task>"
+
+  lessons_md:                       # .cline/memory/lessons.md
+    gotchas_in_full: [...]          # ALL 🔴 entries — verbatim
+    decisions_in_full: [...]        # ALL 🟤 entries — verbatim
+    keyword_matched: [...]          # remaining entries whose title matches task_domain
+
+  product_md:                       # docs/PRODUCT.md
+    sections_for_task: [...]        # sections matching task_domain (e.g., "Module X", "Role Y")
+    out_of_scope_relevant: bool     # true if task touches anything listed in Out of Scope
+
+  inputs_yml:                       # full read (always small + structural)
+
+  inputs_schema_json:                # full read (always structural)
+
+  changelog_ai_md:                  # docs/CHANGELOG_AI.md
+    recent_entries: [...]           # last N entries (default N = 20)
+    red_flagged: [...]              # any 🔴 entries regardless of recency
+    task_domain_hits: [...]         # entries whose summary matches task_domain
+
+  decisions_log_md:                 # docs/DECISIONS_LOG.md
+    matched_decisions: [...]        # decisions matching task_domain — verbatim
+    all_unresolved: [...]           # every unresolved decision regardless of domain
+
+  implementation_map_md:            # docs/IMPLEMENTATION_MAP.md
+    area_status: [...]              # status of areas touched by task_domain
+    blocked_or_partial: [...]       # any area in BLOCKED / PARTIAL state regardless
+
+  project_memory_md:                # full read (always small + ambient)
+
+  agent_log_md:                     # .cline/memory/agent-log.md
+    current_session: [...]          # action entries from current session
+    task_domain_hits: [...]         # action entries matching task_domain from prior sessions
+
+  hydration_metadata:
+    files_scout_hydrated: <int>     # how many of the 9 went through Scout
+    files_direct_read: <int>        # how many were ≤ 200 lines (direct)
+    files_missing: [...]            # files that don't exist yet
+    total_brief_tokens: <int>       # estimated brief size returned to Opus
+```
+
+**Dispatch template:**
+
+```
+Agent(
+  model: "sonnet",
+  subagent_type: "Explore",
+  prompt: "Hydrate the 9 governance docs for task: '<one-line task summary>'.
+           task_domain keywords: <keyword,keyword,...>.
+           Return the V32.3 Governance Extraction Schema exactly — JSON-ish blocks
+           with VERBATIM quotes for 🔴/🟤 entries, matched decisions, and
+           BLOCKED/PARTIAL areas. Do NOT summarize freeform. Mark files > 200 lines
+           as scout-hydrated; files ≤ 200 lines may be direct-read sections."
+)
+```
+
+**Size threshold:** 200 lines. Files at exactly 200 lines: direct read. Files > 200 lines: Scout. The threshold is mechanically verifiable via `wc -l` — the same instrument R2/R3/R5 use. **Why 200 not 100:** R6 already uses 100 lines for arbitrary non-allow-list source files. Allow-list governance docs are higher-signal-per-line (decisions, status entries, attributed changelog records) than arbitrary source files, so the threshold is doubled. Anything > 200 lines is large enough that the hydration brief saves Opus context significantly.
+
+**Why Rule 4 reframed from "read" to "hydrate":** Reading implies full-file ingestion. Hydration means "load the task-relevant slice into context". The 9-file list stays (provenance, integrity, and the audit trail for what was checked) — but the mechanism is now Scout-mediated for any file that has grown past the threshold. Opus context stays small. Sonnet handles the read.
+
+**R9 interaction (V32.3 — counted as an Opus burn):** A direct Opus read of a > 200-line allow-list governance doc counts as an `opus_writes` event for `dispatch_ratio` purposes. The metric treats Opus context burn as the equivalent failure mode to an Opus Edit/Write call — both indicate dispatch discipline drift. Smart Checkpoint logs the file path and line count in the drift entry so the operator can audit which docs grew past the threshold without triggering Scout.
+
+**R7 Default Parallel Fan-Out (V32.2)**
+
+When Opus dispatches ≥ 2 Sonnet subagents whose tasks have NO inter-dependency, they MUST go in a SINGLE response with multiple Agent tool calls (parallel). Inter-dependency must be declared in the dispatch plan ("task B reads task A's output"). Otherwise: parallel by default.
+
+```
+// CORRECT — parallel:
+[single response]
+  Agent(prompt: "task A scope...")
+  Agent(prompt: "task B scope...")
+  Agent(prompt: "task C scope...")
+
+// FORBIDDEN — serial (unless N depends on N-1):
+[response 1]: Agent(prompt: "task A scope...")
+  ↓ wait for result
+[response 2]: Agent(prompt: "task B scope...")
+```
+
+Wall-clock savings compound: 3 parallel dispatches ≈ 1 dispatch worth of wall-clock; 3 serial ≈ 3×. Token savings: Opus reasoning between dispatches is eliminated.
+
+**R8 Opus Write Allow-List (V32.2)**
+
+Closes R1's "STATE.md exception only" wording with an enumerated CLOSED list. Opus MAY directly call Edit/Write ONLY on:
+
+```
+docs/STATE.md
+docs/DECISIONS_LOG.md
+docs/CHANGELOG_AI.md
+docs/IMPLEMENTATION_MAP.md
+.cline/STATE.md
+```
+
+ALL other paths (source code, configs, tests, schemas, governance docs not listed, framework files) MUST be dispatched to Sonnet via `Agent(model: "sonnet")`. The list is CLOSED — additions require a Master Prompt revision, not session-level discretion. If a path is not on the list and Opus is about to Edit/Write, STOP and write a Sonnet dispatch scope instead.
+
+**R9 Dispatch Ratio Metric (V32.2)**
+
+Every Smart Checkpoint (§2) MUST append to `docs/STATE.md`:
+
+```
+dispatch_ratio:
+  sonnet_writes: <count of Sonnet Edit/Write calls this session>
+  opus_writes: <count of Opus Edit/Write calls this session>
+  ratio: <sonnet_writes / opus_writes>
+  target: ≥ 3.0
+  status: PASS (≥3.0) | WARN (1.0–2.99) | FAIL (<1.0)
+```
+
+`FAIL` status triggers a `docs/lessons.md` entry for the next session:
+> "Dispatch discipline drift — review which Opus writes should have been Sonnet dispatches. Session <id> ended with ratio <X>."
+
+The metric is per-session, not cumulative. Resets at each new Claude Code session. Counts are gathered by inspecting the session's tool-call log at Smart Checkpoint time.
 
 ### When to Use Each Model (V32)
 
@@ -460,11 +669,11 @@ it works at any point in the project lifecycle without structural changes.
 
 **STEP 1 — Install the governance file**
 
-Copy `memory-governance.md` into your project's `.claude/rules/` directory.
-Add this line to the Contextual File Loading table in your project's CLAUDE.md:
+Run `deploy-v31.sh` (or `spec-update`) to copy `memory-governance.md` into your project's `.ai_prompt/` directory (V32.7 — was `.claude/rules/` in V32.6.1 and earlier).
+The Contextual File Loading table in CLAUDE.md already contains the correct Read command:
 
 ```
-Any phase pre-flight / context thrashing    .claude/rules/memory-governance.md
+Context thrashing / task decomposition    Read .ai_prompt/memory-governance.md
 ```
 
 **STEP 2 — Run a baseline checkpoint (Opus recommended)**
@@ -528,6 +737,117 @@ If you are experiencing thrashing RIGHT NOW in a Phase 7/8 project:
 - **Memory is cumulative** — each session adds to the baseline. After 2-3 sessions, memory contains enough context that governance docs become verification-only (spot-check, not full-read).
 - **Tiered Decomposition uses current state** — it counts lines in files as they exist now, via `wc -l`. A 200-file project gets the same protection as a 20-file project.
 - **Opus→Sonnet works at any scale** — the more context a project has, the more valuable Opus becomes as the planning layer. Mature projects benefit the most.
+
+---
+
+## §6 — LEARNING REGISTRY & RECURRENCE (V32.8 Rule 32)
+
+**Read this section when:** promoting a lesson, investigating a recurrence, or needing to understand the registry consult protocol. The three mandatory consult points (work-start Hook 15, done-claim Hook 16, failure-time Hook 17) are defined in §3 above.
+
+### The Canonical Registry
+
+**File:** `LESSONS_REGISTRY.md` — framework repo, canonical, append-only. Mirrored to a `/memory` index entry (a one-line-per-entry summary keyed by fingerprint) so the conductor can consult cheaply without loading the full file. Created in a companion V32.8 task; reference it here as the single consult surface.
+
+**Entry shape:**
+
+```yaml
+- fingerprint:
+    tuple: "<scope>.<category>.<surface>"          # e.g. framework.docker-build.worker-image
+    machine_signature: "<CVE-ID | error-code | normalized-regex>"  # optional; omit if not machine-emitted
+  scope: project | framework | conductor
+  failure: "<plain-language description of what broke>"
+  standing_check: "<the check that should catch this going forward>"
+  check_location: "<where the check lives — e.g. lint-deploy.sh C9, templates.md Rule 5c, /memory feedback_copy_dot_dot.md>"
+```
+
+**Scope routes the CHECK, not the index.** The index is single; the check lands in its destination:
+
+| Scope | Example | Check lands in | Reaches new apps via |
+|---|---|---|---|
+| **project** | "this app's X needs Y" | `lessons.md` (in-repo) | n/a (project-local) |
+| **framework** | "`COPY . .` → phantom CVEs" | a deliverable (`lint-deploy.sh` Cn, `templates.md` rule, phase output contract) | **`deploy-v31.sh` (automatic)** |
+| **conductor** | "cheap-scout all surfaces before a per-surface wave" | a `/memory` feedback file | **auto-loads each session** |
+
+Framework-scope inheritance is therefore mostly already solved: promotion = "edit the deliverable + add its check", and `deploy-v31.sh` carries deliverables into every new app automatically. Conductor-scope auto-loads via `/memory`.
+
+### Two-Part Fingerprint
+
+Every registry entry carries a two-part fingerprint to enable recurrence detection:
+
+1. **Coarse structured tuple** `{scope.category.surface}` — e.g. `framework.docker-build.worker-image`, `conductor.wave-planning.surface-state`, `project.auth.session-expiry`. Always present; AI-matchable even without a machine signature. Assigned at promotion time.
+2. **Optional machine-signature** — CVE-ID, error-code, or regex-normalized error string (strip paths / timestamps / line-numbers to produce a stable signature). Present only when the failure is machine-emitted (build error, test failure, CVE scanner output).
+
+**Matching logic:**
+- If a machine-signature exists on both the new failure and an existing entry → **exact-signature fast path** (deterministic).
+- Otherwise → **AI-judged similarity** against the tuple catalogue. No separate telemetry service; the consult is a scan the session/conductor runs inline.
+
+### Three Mandatory Consult Points
+
+See §3 Hooks 15-17 for the full hook definitions. Summary:
+
+| Point | When | Action |
+|---|---|---|
+| **Work-start** (Hook 15) | Before any task/batch begins | Scan for fingerprints matching the target surface; surface matches before proceeding |
+| **Done-claim** (Hook 16) | Before marking any task done | Run contract check + scan for surface-relevant fingerprints; evidence block required |
+| **Failure-time** (Hook 17) | Whenever a build/test/gate/report fails | Fingerprint → scan → if match + check should have caught it → STRENGTHEN; if novel → promote |
+
+### Recurrence Response Protocol
+
+```
+FAILURE OCCURS
+  │
+  ▼
+Fingerprint the failure (tuple + machine-signature if available)
+  │
+  ▼
+Scan LESSONS_REGISTRY.md
+  │
+  ├─ MATCH FOUND + standing check exists that should have caught this
+  │    → The check ERODED (the fix was insufficient or the check drifted)
+  │    → DO NOT just re-fix the symptom
+  │    → STRENGTHEN the standing check:
+  │         • tighten the check expression (stricter grep, broader test scope, lower threshold)
+  │         • move the check earlier in the pipeline if feasible
+  │         • update check_location in the registry entry
+  │         • log the erosion event in lessons.md with 🔴
+  │
+  ├─ MATCH FOUND but no standing check / check_location is missing
+  │    → Prior lesson was recorded but never converted to a standing check
+  │    → PROMOTE now: add standing_check + check_location, route by scope
+  │
+  └─ NO MATCH → novel failure
+       → Fix it
+       → Assess promotion candidacy:
+            framework-scope? → edit the deliverable + add the check → append registry entry
+            conductor-scope? → write /memory feedback file → append registry entry
+            project-scope?   → add to lessons.md → append registry entry (with scope: project)
+```
+
+### Promotion Checklist
+
+When promoting a lesson to the registry:
+
+```
+□ Write the standing_check in imperative form ("Run X against Y; expect Z")
+□ Assign a tuple fingerprint (scope.category.surface)
+□ Add machine_signature if the failure is machine-emitted
+□ Route the check to its scope destination:
+     project  → lessons.md entry in the target app
+     framework → edit the relevant deliverable; verify deploy-v31.sh ships it
+     conductor → write /memory feedback file
+□ Append entry to LESSONS_REGISTRY.md (append-only — never edit existing entries)
+□ Update the /memory mirror index (one-line summary per entry)
+□ If framework-scope: verify the check is referenced in the appropriate phase output contract
+```
+
+### Cross-references
+
+- `phases.md` — work-start consult step, done-claim evidence step, failure-handling fingerprint step (the procedural implementations of Hooks 15-17)
+- `superpowers:verification-before-completion` — the driver skill that prompts running the evidence contract; §6 gives it structural teeth
+- `templates.md` — acceptance-contract skeleton + evidence-field shape + `LESSONS_REGISTRY.md` entry template + Stop hook config
+- `LESSONS_REGISTRY.md` — the canonical registry file (companion V32.8 artifact; seeded with the first framework-scope entry from the Yelli `COPY . .` lesson)
+
+> **Section count note:** This file now contains **6 sections** (§1–§6). The file header lists sections by name; update it if you add further sections. The §3 phase-hook count is **17** (was 14; bumped by V32.8 Hooks 15-17). No `TODO(count)` remains in this file — the count was set here as the authoritative V32.8 task.
 
 ---
 

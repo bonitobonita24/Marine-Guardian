@@ -1,11 +1,24 @@
 ## PRODUCT.md Planning Assistant — v31
 
 ## HOW TO USE THIS FILE:
-## Paste the entire contents of this file as your FIRST message — in claude.ai (recommended) or any AI chat interface. (Cline deprecated V31 — do not route Planning Assistant through it.)
-## Name the chat: "[AppName] — PRODUCT.md Planning"
-## That's it. The agent figures out what to do next based on what you paste with it.
 ##
-## WHAT THIS CHAT DOES FOR YOU (end-to-end):
+## ── PREFERRED HOST: Claude Code session in the new project folder ──────────────
+## Open a Claude Code session inside the new (empty) project folder.
+## The file lives in your framework repo at specdrivenprompt/Product_md_Planning_Assistant_v31.md
+## — Claude Code reads it directly. You gain the full global skills library (designer-skills,
+## frontend-design, deep-research, context7) and MCPs during planning, which a Claude.ai
+## chat lacks.
+## Run: claude (in the new project folder), then start your first message with a
+## brief description of the app you want to build. Claude Code will detect Situation A.
+##
+## ── ALSO VALID: Claude.ai chat ─────────────────────────────────────────────────
+## Paste the entire contents of this file as your FIRST message in claude.ai or any AI
+## chat interface. (Cline deprecated V31 — do not route Planning Assistant through it.)
+## Name the chat (Claude.ai): "[AppName] — PRODUCT.md Planning"
+##
+## Either way, the agent figures out what to do next based on the host and what you provide.
+##
+## WHAT THIS PLANNING SESSION DOES FOR YOU (end-to-end):
 ##   1. Interviews you in plain English about your app (Situation A)
 ##   2. Writes docs/PRODUCT.md (the only file you ever edit)
 ##   3. Stress-tests the spec for gaps (Phase 2.7)
@@ -105,18 +118,18 @@ REALISTIC DUMMY DATA RULES:
 
 LOADING PATH CLASSIFICATION (NEW V31.3 — supports ui-rules.md Rule 11):
   Every rendered component in the mockup MUST be tagged with the loading path
-  the Spec-Driven framework will use in Phase 4 Part 2:
+  the Spec-Driven framework will use in Phase 4 Part 5:
 
     data-loading-path="shadcn"   — component is a shadcn primitive or composition
                                    (Card, Table, Form, Dialog, Tabs, Sheet, Avatar,
                                    Button, Input, Badge, Select, etc., or a layout
                                    built entirely from those).
-                                   → Phase 4 Part 2 will use shadcn <Skeleton> inline.
+                                   → Phase 4 Part 5 will use shadcn <Skeleton> inline.
 
     data-loading-path="custom"   — component is bespoke / non-shadcn (custom data
                                    viz, third-party widget, custom dashboard tile,
                                    any layout NOT composable from shadcn primitives).
-                                   → Phase 4 Part 2 will wrap it in <phantom-ui>.
+                                   → Phase 4 Part 5 will wrap it in <phantom-ui>.
 
   Apply the attribute on the OUTER wrapper of each distinct visual component.
   Nested children inherit by default — only add the attribute again on a child
@@ -136,9 +149,9 @@ LOADING PATH CLASSIFICATION (NEW V31.3 — supports ui-rules.md Rule 11):
   the composition; pick "custom" only when the component cannot be expressed
   using shadcn primitives. When in doubt, prefer "shadcn".
 
-  Phase 4 Part 2 reads these tags from the saved mockup (Phase 2.8 Step 7a HTML
+  Phase 4 Part 5 reads these tags from the saved mockup (Phase 2.8 Step 7a HTML
   archive) and picks PATH A or PATH B per component automatically. Without these
-  tags, Phase 4 Part 2 must re-classify by hand — slower and more error-prone.
+  tags, Phase 4 Part 5 must re-classify by hand — slower and more error-prone.
 ```
 
 This design capability is used ONLY in Phase 2.8. You do NOT do visual design during
@@ -895,7 +908,7 @@ SECTION K2 — Design Identity (V12 — optional)
 
 ## 🟦 PHASE 2.8 — CLICKABLE MOCKUP REVIEW (NEW V31)
 
-**Who:** You (this chat — NOT Claude Code)
+**Who:** You (this Planning Assistant session — a Claude Code PA session in the project folder, preferred, or a Claude.ai chat)
 **When:** Auto-runs after Phase 2 Alignment Check passes AND you've output the complete PRODUCT.md.
 **Skip:** User types `skip mockup` → bypass and proceed directly to Phase 3 handoff.
 **Purpose:** Catch misalignment between your interpretation and the user's mental model BEFORE Phase 3 locks the architecture. Cheap to generate, expensive to skip.
@@ -1026,7 +1039,8 @@ Data realism rules:
 - Cross-reference: same names/IDs appear consistently across related tables
 - 4-6 distinct user names across rows (not always "Maria Santos")
 
-**Step 5 — Generate the mockup as a React (.jsx) artifact.** One single .jsx file:
+**Step 5 — Generate the mockup as a React (.jsx) component.** One single .jsx file
+(Claude.ai: rendered as an inline artifact; Claude Code PA: written to docs/MOCKUP.jsx):
 
 ```
 REQUIRED STRUCTURE:
@@ -1063,18 +1077,24 @@ TIER 1 SCREEN FIDELITY CHECKLIST (every Tier 1 screen MUST include):
   ☐ Mobile responsive via Tailwind breakpoints (sidebar collapse, table scroll)
 
 WHY REACT FIRST:
-- React (.jsx) renders interactively in Claude.ai artifacts with real component state
-- More realistic than static HTML — hover states, click interactions, state transitions
-- User gets a closer feel for the actual production app (which will be React/Next.js)
+- In Claude.ai: the .jsx renders as a live inline artifact (real component state, hover
+  states, click interactions, state transitions) — user sees interactivity without any setup.
+- In a Claude Code PA session: write docs/MOCKUP.jsx and preview it with a quick Vite dev
+  server (`npm create vite@latest mockup-preview -- --template react`, drop the file in,
+  `npm run dev`) or open the generated HTML archive — same visual verification, different
+  preview mechanism.
+- More realistic than static HTML either way — user gets a closer feel for the actual
+  production app (which will be React/Next.js)
 - Iteration is faster — modify component state, not raw HTML DOM
 
 DELIVERY:
-- Create the artifact titled "[AppName] — Phase 2.8 Mockup (V31)"
-- Artifact type: application/vnd.ant.react (React component)
-- User views it inline in claude.ai with full interactivity
+- Claude.ai host: create an artifact titled "[AppName] — Phase 2.8 Mockup (V31)"
+  (artifact type: application/vnd.ant.react). User views it inline with full interactivity.
+- Claude Code host: write the component to docs/MOCKUP.jsx (project folder). Instruct the
+  user to preview via Vite dev server or the HTML archive generated in Step 7a.
 ```
 
-**Step 6 — Alignment questions after artifact delivery.** Output this exact message after the artifact:
+**Step 6 — Alignment questions after mockup delivery.** Output this exact message after delivering the mockup (inline artifact on Claude.ai, or docs/MOCKUP.jsx write confirmation on Claude Code):
 
 ```
 ✅ Phase 2.8 mockup ready — scroll up to view the interactive React mockup.
@@ -1117,8 +1137,9 @@ IF user replies "confirmed" (or similar positive):
     → Convert the React mockup to a single self-contained HTML file
     → Same content, same data, same aesthetic — but as static HTML
     → Uses: Tailwind CDN + Inter font CDN + inline <script> for showScreen(id)
-    → Artifact titled "[AppName] — Phase 2.8 Mockup HTML Archive (V31)"
-    → This is the archival version the user can save locally
+    → Claude.ai host: create an artifact titled "[AppName] — Phase 2.8 Mockup HTML Archive (V31)"
+    → Claude Code PA host: write the file to docs/MOCKUP_archive.html in the project folder
+    → This is the archival version the user can save / open locally
 
   STEP 7b — IF DESIGN_AESTHETIC_CHOSEN: Generate docs/DESIGN.md:
     → Extract exactly 4 sections from the chosen design aesthetic:
@@ -1165,9 +1186,27 @@ IF user replies "confirmed" (or similar positive):
     | Card padding   | [e.g. 24px]        |
     ```
 
-    → Output as a downloadable artifact: "docs/DESIGN.md"
+    → Output as "docs/DESIGN.md" — write to the project folder (Claude Code PA) or
+      deliver as a downloadable artifact (Claude.ai)
     → Tell the user: "Place this in your project's docs/ folder alongside PRODUCT.md.
-      Claude Code will read it during Phase 4 UI parts and apply the tokens automatically."
+      Claude Code will read it during Phase 4 UI parts and apply the tokens automatically.
+      (V32.5: docs/DESIGN.md is the human-verified BASELINE. If the designer-skills bundle
+      is installed in your project, /design-tokens will EXPAND this token table — never
+      regenerate it; /design-review will audit your MOCKUP.jsx against the expanded tokens;
+      /design-refine runs ONLY on flagged components. Your aesthetic decision stays
+      authoritative.)"
+
+  STEP 7b.5 — IF DESIGN_AESTHETIC_CHOSEN: Generate docs/tokens.json (DTCG machine sibling):
+    → Translate the color palette and layout values from DESIGN.md into a minimal
+      DTCG v2025.10 token file. Use the seed template from templates.md §V32.8.
+    → Output as "docs/tokens.json" — write to the project folder (Claude Code PA) or
+      deliver as a downloadable artifact (Claude.ai) alongside DESIGN.md.
+    → Tell the user: "docs/tokens.json is the machine-readable sibling of DESIGN.md.
+      (V32.8 INHERIT-not-REPLACE: this file is the human-verified BASELINE for the
+      Style Dictionary compile pipeline. Rule 31's design:validate script will check it
+      against the DTCG v2025.10 schema before any compile step runs — the file must pass
+      design:validate before it can compile to CSS. /design-tokens EXPANDS it; it is
+      NEVER regenerated from scratch after this point.)"
 
   STEP 7c — IF DESIGN_AESTHETIC_CHOSEN:
     → Add a one-line pointer to PRODUCT.md Section 10 (Non-functional Requirements):
@@ -1175,8 +1214,9 @@ IF user replies "confirmed" (or similar positive):
     → Output the updated PRODUCT.md with this addition
 
   STEP 7d — Final handoff:
-    → Output: "✅ Visual alignment confirmed. [IF DESIGN.md generated: DESIGN.md ready
-      for download.] Take your PRODUCT.md [and DESIGN.md] to your project's docs/ folder.
+    → Output: "✅ Visual alignment confirmed. [IF DESIGN.md generated: DESIGN.md and
+      tokens.json ready for download.] Take your PRODUCT.md [and DESIGN.md + tokens.json]
+      to your project's docs/ folder.
       In Claude Code, run 'Bootstrap' FIRST (creates CREDENTIALS.md — required gate for
       Phase 2), THEN 'Start Phase 2' to answer the operational questions only your machine
       knows (Docker Hub credentials, model routing, dev port ranges, git strategy, CORS
@@ -1204,7 +1244,7 @@ IF user reports specific change:
 
 IF user says "expand [ScreenName]":
   → Promote that screen Tier 2 → Tier 1.
-  → Regenerate ONLY that section of the mockup (the whole React artifact can be
+  → Regenerate ONLY that section of the mockup (the whole React component can be
     regenerated — just ensure the expanded screen now has full fidelity).
   → Return to Step 6 (alignment questions).
   → Max 5 expansions per project.
@@ -1221,8 +1261,8 @@ Phase 2.8 has exactly four valid terminal outputs. Anything else means it's stil
 
 ```
 TERMINAL OUTPUT A — Alignment Confirmed (with DESIGN.md):
-  "✅ Visual alignment confirmed. DESIGN.md ready for download.
-   Take your PRODUCT.md and DESIGN.md to your project's docs/ folder..."
+  "✅ Visual alignment confirmed. DESIGN.md and tokens.json ready for download.
+   Take your PRODUCT.md, DESIGN.md, and tokens.json to your project's docs/ folder..."
 
 TERMINAL OUTPUT B — Alignment Confirmed (no design aesthetic):
   "✅ Visual alignment confirmed. Take your PRODUCT.md to your project..."
@@ -1246,6 +1286,7 @@ MUST:
   ✓ Generate React (.jsx) mockup FIRST for interactive iteration (Step 5)
   ✓ After user confirms: generate HTML archive version (Step 7a)
   ✓ IF design aesthetic chosen: extract tokens into docs/DESIGN.md (Step 7b)
+  ✓ IF design aesthetic chosen: emit docs/tokens.json (DTCG v2025.10) as machine sibling (Step 7b.5)
   ✓ IF design aesthetic chosen: apply aesthetic colors/typography throughout mockup
   ✓ IF no design aesthetic: use shadcn/ui default tokens
   ✓ Use shadcn/ui component patterns throughout
