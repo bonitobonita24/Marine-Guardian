@@ -64,7 +64,7 @@ export async function enqueuePdfRender(
     timer = setTimeout(() => {
       reject(
         new EnqueueTimeoutError(
-          `enqueuePdfRender timed out after ${ENQUEUE_TIMEOUT_MS}ms (Valkey/Redis unreachable?)`,
+          `enqueuePdfRender timed out after ${String(ENQUEUE_TIMEOUT_MS)}ms (Valkey/Redis unreachable?)`,
         ),
       );
     }, ENQUEUE_TIMEOUT_MS);
