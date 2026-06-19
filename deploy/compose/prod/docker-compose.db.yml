@@ -16,6 +16,7 @@ services:
     hostname: ${COMPOSE_PROJECT_NAME}_postgres
     env_file: ../../../.env.prod
     environment:
+      TZ: Asia/Manila
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
@@ -37,6 +38,7 @@ services:
     hostname: ${COMPOSE_PROJECT_NAME}_pgbouncer
     env_file: ../../../.env.prod
     environment:
+      TZ: Asia/Manila
       # PGBOUNCER_DB_PASSWORD must be the URL-encoded form of DB_PASSWORD (e.g. / → %2F).
       # PgBouncer's ini parser fails on special chars in the raw password. Set
       # PGBOUNCER_DB_PASSWORD=<url-encoded-DB_PASSWORD> in .env.prod.

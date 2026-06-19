@@ -16,6 +16,7 @@ services:
     hostname: ${COMPOSE_PROJECT_NAME}_app
     env_file: ../../../.env.staging
     environment:
+      TZ: Asia/Manila
       NODE_ENV: production
       PORT: "3000"
       # DATABASE_URL / REDIS_URL in .env.staging point at localhost (host-side CLI). Containers
@@ -52,6 +53,7 @@ services:
     hostname: ${COMPOSE_PROJECT_NAME}_worker
     env_file: ../../../.env.staging
     environment:
+      TZ: Asia/Manila
       NODE_ENV: production
       WORKER_MODE: "true"
       DATABASE_URL: ${INTERNAL_DATABASE_URL}
