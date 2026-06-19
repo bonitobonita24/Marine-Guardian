@@ -13,6 +13,8 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME}_valkey
     hostname: ${COMPOSE_PROJECT_NAME}_valkey
     env_file: ../../../.env.dev
+    environment:
+      TZ: Asia/Manila
     command: valkey-server --requirepass ${REDIS_PASSWORD} --appendonly yes
     volumes:
       - valkey_data:/data
