@@ -749,6 +749,15 @@ model AccompanyingRanger {
   createdAt        DateTime               @default(now()) @map("created_at")
 
   tenant         Tenant       @relation(fields: [tenantId], references: [id])
+  // POLYMORPHIC ASSOCIATION — `entityId` points at EITHER an event OR a patrol
+  // depending on `entityType`. The two DB-level foreign keys these relations
+  // would generate are intentionally DROPPED by migration
+  // `20260619000000_drop_polymorphic_accompanying_ranger_fks` because a single
+  // column cannot satisfy two mandatory cross-table FKs at once (it caused a
+  // 23503 violation / 500 on every insert). Referential integrity for
+  // `entityId` is enforced in the tRPC mutations (parent existence + tenant
+  // scope are checked before insert). If you ever run `prisma migrate dev`,
+  // KEEP that drop migration — do not let Prisma re-add these constraints.
   event          Event?       @relation("AccompanyingRangerEvent", fields: [entityId], references: [id], map: "accompanying_ranger_event_fk")
   patrol         Patrol?      @relation("AccompanyingRangerPatrol", fields: [entityId], references: [id], map: "accompanying_ranger_patrol_fk")
   registeredUser User?        @relation("AccompanyingRangerRegistered", fields: [registeredUserId], references: [id])

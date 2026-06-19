@@ -15,7 +15,7 @@
 // in @/server/per-area-report/get-per-area-report-data.ts. All other
 // reportTypes continue to emit {} (no per-area shape change).
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
@@ -124,16 +124,51 @@ export function GenerateReportButton() {
     return {};
   }
 
+  // Client-side guard: a tRPC mutation has no inherent timeout, so if the
+  // server stalls (e.g. the PDF/queue infra is unreachable and the request
+  // hangs upstream) the button would sit on "Queuing…" forever. We race the
+  // mutation against a timeout and surface an error state instead of hanging.
+  const REQUEST_TIMEOUT_MS = 15000;
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function clearRequestTimeout() {
+    if (timeoutRef.current !== null) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  }
+
   function handleConfirm() {
     setFeedback(null);
-    create.mutate({
-      reportType,
-      paramsJson: buildParamsJson(),
-      paperSize,
-    });
+    clearRequestTimeout();
+    timeoutRef.current = setTimeout(() => {
+      // Only trip if the mutation is still in flight.
+      if (create.isPending) {
+        setFeedback({
+          kind: "error",
+          message:
+            "The report service is taking too long to respond. Please try again in a moment.",
+        });
+        create.reset();
+      }
+    }, REQUEST_TIMEOUT_MS);
+
+    create.mutate(
+      {
+        reportType,
+        paramsJson: buildParamsJson(),
+        paperSize,
+      },
+      {
+        onSettled: () => {
+          clearRequestTimeout();
+        },
+      }
+    );
   }
 
   function handleClose() {
+    clearRequestTimeout();
     setOpen(false);
     setFeedback(null);
     setReportType("coverage");

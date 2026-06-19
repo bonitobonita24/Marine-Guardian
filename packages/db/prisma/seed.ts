@@ -334,10 +334,14 @@ async function main() {
   // ── E. Events ──────────────────────────────────────────────────────────────
   type EventDef = { erEventId: string; title: string; serialNumber: string | null; priority: number; state: "new_event" | "active" | "resolved"; locationLat: number | null; locationLon: number | null; reportedByName: string | null; reportedAt: Date; areaName: string; areaBoundaryId: string; eventTypeValue: string };
   const eventDefs: EventDef[] = [
-    { erEventId: "event-001", title: "Illegal Net Sighting", serialNumber: "ER-2026-001", priority: 300, state: "active", locationLat: 14.567, locationLon: 120.965, reportedByName: "Ranger Alpha", reportedAt: daysAgo(2), areaName: "North Reef Zone", areaBoundaryId: northBoundary.id, eventTypeValue: "illegal_fishing" },
-    { erEventId: "event-002", title: "Wildlife Sighting — Sea Turtle", serialNumber: null, priority: 100, state: "new_event", locationLat: 14.55, locationLon: 120.96, reportedByName: null, reportedAt: daysAgo(1), areaName: "North Reef Zone", areaBoundaryId: northBoundary.id, eventTypeValue: "wildlife_sighting" },
-    { erEventId: "event-003", title: "Vessel Intrusion", serialNumber: null, priority: 200, state: "active", locationLat: 14.52, locationLon: 120.98, reportedByName: "Ranger Charlie", reportedAt: daysAgo(0), areaName: "South Mangrove Zone", areaBoundaryId: southBoundary.id, eventTypeValue: "vessel_intrusion" },
-    { erEventId: "event-004", title: "Equipment Damage Resolved", serialNumber: null, priority: 100, state: "resolved", locationLat: null, locationLon: null, reportedByName: null, reportedAt: daysAgo(10), areaName: "North Reef Zone", areaBoundaryId: northBoundary.id, eventTypeValue: "equipment_damage" },
+    // priority is constrained to 0-3 (schema/eventListFilters min(0).max(3)):
+    // 3 = high/red, 2 = amber, 1 = low/green, 0 = gray. (Earlier seed data used
+    // EarthRanger's raw 0/100/200/300 scale, which is out of range and was
+    // rejected / mis-filtered by the events API.)
+    { erEventId: "event-001", title: "Illegal Net Sighting", serialNumber: "ER-2026-001", priority: 3, state: "active", locationLat: 14.567, locationLon: 120.965, reportedByName: "Ranger Alpha", reportedAt: daysAgo(2), areaName: "North Reef Zone", areaBoundaryId: northBoundary.id, eventTypeValue: "illegal_fishing" },
+    { erEventId: "event-002", title: "Wildlife Sighting — Sea Turtle", serialNumber: null, priority: 1, state: "new_event", locationLat: 14.55, locationLon: 120.96, reportedByName: null, reportedAt: daysAgo(1), areaName: "North Reef Zone", areaBoundaryId: northBoundary.id, eventTypeValue: "wildlife_sighting" },
+    { erEventId: "event-003", title: "Vessel Intrusion", serialNumber: null, priority: 2, state: "active", locationLat: 14.52, locationLon: 120.98, reportedByName: "Ranger Charlie", reportedAt: daysAgo(0), areaName: "South Mangrove Zone", areaBoundaryId: southBoundary.id, eventTypeValue: "vessel_intrusion" },
+    { erEventId: "event-004", title: "Equipment Damage Resolved", serialNumber: null, priority: 1, state: "resolved", locationLat: null, locationLon: null, reportedByName: null, reportedAt: daysAgo(10), areaName: "North Reef Zone", areaBoundaryId: northBoundary.id, eventTypeValue: "equipment_damage" },
   ];
 
   for (const e of eventDefs) {
@@ -413,7 +417,9 @@ async function main() {
   const alertDefs = [
     {
       name: "High Priority Events",
-      conditionJson: { priority: { gte: 200 } },
+      // priority scale is 0-3; "high" = 2 (amber) and above. Was `gte: 200`,
+      // which never matched once event priorities were corrected to 0-3.
+      conditionJson: { priority: { gte: 2 } },
       notificationChannels: ["in_app" as const],
       isActive: true,
     },
