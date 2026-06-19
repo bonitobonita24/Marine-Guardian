@@ -42,39 +42,39 @@ colors:
   chart-5: "hsl(340 75% 55%)"
 typography:
   display:
-    fontFamily: "'Segoe UI', Helvetica, Arial, sans-serif"
+    fontFamily: "'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
     fontSize: "28px"
     fontWeight: 700
     lineHeight: 1.2
   heading:
-    fontFamily: "'Segoe UI', Helvetica, Arial, sans-serif"
+    fontFamily: "'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
     fontSize: "20px"
     fontWeight: 700
     lineHeight: 1.3
   subheading:
-    fontFamily: "'Segoe UI', Helvetica, Arial, sans-serif"
+    fontFamily: "'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
     fontSize: "14px"
     fontWeight: 600
     lineHeight: 1.4
   body:
-    fontFamily: "'Segoe UI', Helvetica, Arial, sans-serif"
+    fontFamily: "'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
     fontSize: "13px"
     fontWeight: 400
     lineHeight: 1.5
   caption:
-    fontFamily: "'Segoe UI', Helvetica, Arial, sans-serif"
+    fontFamily: "'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
     fontSize: "11px"
     fontWeight: 400
     lineHeight: 1.4
   micro:
-    fontFamily: "'Segoe UI', Helvetica, Arial, sans-serif"
+    fontFamily: "'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
     fontSize: "9px"
     fontWeight: 600
     lineHeight: 1.3
     letterSpacing: "0.5px"
     textTransform: "uppercase"
   kpi-value:
-    fontFamily: "'Segoe UI', Helvetica, Arial, sans-serif"
+    fontFamily: "'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
     fontSize: "24px"
     fontWeight: 800
     lineHeight: 1.1
@@ -201,7 +201,7 @@ The palette is built on two neutral surface tiers (background and elevated) with
 
 ## Typography
 
-Single font family throughout: Segoe UI → Helvetica → Arial → sans-serif. No display fonts, no custom web fonts. This ensures instant rendering with no FOUT, which matters for a 24/7 command center that may reload.
+Single font family throughout: Segoe UI → Helvetica Neue → Arial → sans-serif. No display fonts, no custom web fonts. This ensures instant rendering with no FOUT, which matters for a 24/7 command center that may reload.
 
 - **Display (28px/700):** War Room KPI values, login page title. Used sparingly — maximum 5 instances per screen.
 - **Heading (20px/700):** Page titles only. One per page.

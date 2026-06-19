@@ -176,20 +176,22 @@ Files: `apps/web/src/app/globals.css` (defines vars), `apps/web/tailwind.config.
 
 ### C. Low-Severity / Informational
 
-#### [D9] LOW — Font Family: "Helvetica Neue" vs "Helvetica"
+#### [D9] LOW — Font Family: "Helvetica Neue" vs "Helvetica" — ✅ FIXED (2026-06-19)
 
 | | Value |
 |--|--|
-| **Intended** (`docs/DESIGN.md`) | `'Segoe UI', Helvetica, Arial, sans-serif` |
+| **Intended** (`docs/DESIGN.md`) | ~~`'Segoe UI', Helvetica, Arial, sans-serif`~~ → now `'Segoe UI', 'Helvetica Neue', Arial, sans-serif` |
 | **Actual** (`globals.css` body + `tailwind.config.ts`) | `"Segoe UI", "Helvetica Neue", Arial, sans-serif` |
 
-Helvetica Neue is a successor/superset of Helvetica; in practice on macOS/Windows systems this resolves equivalently. No visible impact expected. However, spec and implementation diverge.
+Helvetica Neue is a successor/superset of Helvetica; in practice on macOS/Windows systems this resolves equivalently. No visible impact expected. However, spec and implementation diverged.
 
 **Recommended fix (do not apply):** Either update `docs/DESIGN.md` to document "Helvetica Neue" as the intentional choice (preferred — more correct for modern systems) or normalize both files to one string.
 
+**Fix applied (2026-06-19):** Normalized all 8 occurrences in `docs/DESIGN.md` (7 `fontFamily` token strings + the Typography prose) from `Helvetica` to `'Helvetica Neue'` to match `globals.css` + `tailwind.config.ts`. Spec and implementation now agree. ✅
+
 ---
 
-#### [D10] LOW — No V32.8 Rule 31 Scaffolding Present
+#### [D10] LOW — No V32.8 Rule 31 Scaffolding Present — ✅ RESOLVED (already on main)
 
 V32.8 Rule 31 ("Design-as-Contract") prescribes:
 - `tokens.json` at project root or `docs/tokens.json`
@@ -208,9 +210,11 @@ Files: repo root (missing: `sd.config.mjs`, `scripts/design-validate.mjs`, `toke
 
 **Recommended fix (do not apply):** Run V32.8 Rule 31 scaffolding bootstrap in a dedicated session. Priority: scaffold `LESSONS_REGISTRY.md` first (lowest effort, highest governance value), then `sd.config.mjs` + `design-validate.mjs`.
 
+**Resolution (2026-06-19):** No code change needed — the scaffolding now exists on `main`. `docs/tokens.json` (commit `12b4f26` "scaffold V32.8 Rule 31 token pipeline"), `sd.config.mjs`, `scripts/design-validate.mjs`, and the `tokens/build/` directory are all present, and `.ai_prompt/LESSONS_REGISTRY.md` was added by the V32.9 framework sync (`d226019`). The audit allowed `tokens.json` at root **or** `docs/tokens.json`; `docs/tokens.json` satisfies this. Item closed as superseded. ✅
+
 ---
 
-#### [D11] INFO — docs/v2/DESIGN.md Has No Deprecation Notice
+#### [D11] INFO — docs/v2/DESIGN.md Has No Deprecation Notice — ✅ RESOLVED (already on main)
 
 `docs/v2/DESIGN.md` contains the obsolete Meta Blue palette. Without a deprecation header, a new contributor or Claude session reading `docs/` may treat it as a valid alternative spec.
 
@@ -221,13 +225,17 @@ Files: repo root (missing: `sd.config.mjs`, `scripts/design-validate.mjs`, `toke
 > Do not use this file as a reference for new development.
 ```
 
+**Resolution (2026-06-19):** No code change needed — `docs/v2/DESIGN.md` already carries the deprecation header (added by commit `89f2ef4`/`d4c826a`), plus an additional fleet-wide getdesign.md-dropped notice. Item closed as superseded. ✅
+
 ---
 
-#### [D12] INFO — No MOCKUP.jsx: Audit Limitation
+#### [D12] INFO — No MOCKUP.jsx: Audit Limitation — ☑ ACKNOWLEDGED (no action; owner decision)
 
 V32.8 Rule 31 calls for a compiled-token Playwright visual gate against a `MOCKUP.jsx` baseline. This project has no `MOCKUP.jsx` at root or `docs/`. The `docs/mpa-command-center-v4.jsx` is a static planning artifact from Phase 2.8 — not a live, importable React component for visual token validation.
 
 **Impact on this audit:** Component-level mockup diffing (e.g., "does the rendered button match the spec button?") was not possible. This audit is therefore limited to token declaration analysis (CSS vars, tailwind config, class names in source).
+
+**Disposition (2026-06-19):** Not actionable as a drift *fix* — this is a stated audit limitation, not a token mismatch. Authoring a net-new live `MOCKUP.jsx` for a visual-regression baseline is substantial design work outside the scope of a LOW/INFO fidelity-cleanup pass, and MG is already in production. Left as an acknowledged limitation; standing up a visual-regression baseline (or adopting `docs/mpa-command-center-v4.jsx` as one) is an owner-gated follow-on, not a bug. ☑
 
 ---
 
@@ -237,9 +245,9 @@ V32.8 Rule 31 calls for a compiled-token Playwright visual gate against a `MOCKU
 |----------|-------|-------|
 | HIGH | 4 | D1 (border-radius values), D2 (missing pill/xl tokens), D3 (missing opacity bg tokens), D4 (hardcoded blue classes) |
 | MEDIUM | 4 | D5 (text-secondary/muted), D6 (KPI lineHeight), D7 (incomplete font scale), D8 (chart tokens not in tailwind) |
-| LOW | 2 | D9 (Helvetica Neue vs Helvetica), D10 (no V32.8 scaffolding) |
-| INFO | 2 | D11 (v2 no deprecation), D12 (no MOCKUP.jsx limitation) |
-| **TOTAL** | **12** | |
+| LOW | 2 | D9 (Helvetica Neue vs Helvetica) ✅ FIXED, D10 (no V32.8 scaffolding) ✅ RESOLVED (already on main) |
+| INFO | 2 | D11 (v2 no deprecation) ✅ RESOLVED (already on main), D12 (no MOCKUP.jsx limitation) ☑ ACKNOWLEDGED — owner-gated follow-on |
+| **TOTAL** | **12** | All 12 now closed: 8 HIGH/MEDIUM fixed earlier; D9 fixed 2026-06-19; D10/D11 superseded on main; D12 acknowledged (no action) |
 
 ---
 
