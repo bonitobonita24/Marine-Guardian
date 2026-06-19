@@ -42,6 +42,11 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # Patch OS-level CVEs in the shipping image (e.g. libcrypto3 HIGH 3.5.6-r0 -> 3.5.7-r0).
 # Runs in the final runtime stage so the running image carries patched apk libs.
 RUN apk upgrade --no-cache
+# tzdata so the TZ env var (compose sets TZ=Asia/Manila) actually resolves —
+# without it Alpine has no zoneinfo and `date`/logs stay UTC. Benefits app +
+# worker (shared image) across dev/stage/prod on next build. Zone is not
+# hardcoded here; it comes from the TZ env set per-environment in compose.
+RUN apk add --no-cache tzdata
 # Strip the global npm CLI from the runtime image. The standalone Next.js server runs
 # `node apps/web/server.js` and never invokes npm/pnpm, but node's bundled npm vendors
 # its own picomatch (HIGH ReDoS CVE-2026-33671) that no pnpm override can reach. Removing
