@@ -2165,6 +2165,14 @@ Claude Code derives everything from `inputs.yml` — never hardcodes.
 
 ### PART 3 — packages/db
 
+> **⚠ HOOK 18 — COMPLIANCE PRE-FLIGHT (V32.9 Rule 33):** Before writing any Prisma model,
+> run `.ai_prompt/privacy.md` Hook 18 gap scan for the entities in scope:
+> □ Personal-data fields — is lawful basis declared in PRODUCT.md for each?
+> □ Retention fields — does the schema include `retainedUntil` / `deletedAt` for personal-data tables?
+> □ DSR stubs — are placeholder tRPC procedures planned for access/erasure/portability?
+> Surface any gap as 🔴 before writing the schema. A schema without these structures is harder to retrofit.
+> If all clear: log "Hook 18 — Part 3 privacy scan clean" in STATE.md and proceed.
+
 Full ORM schema with ALL entities from PRODUCT.md (typed, relations included).
 Initial migration files (up + down). Typed query helpers / repository layer per entity.
 Seed script for dev data. `package.json` with exports field.
@@ -3421,6 +3429,38 @@ After Phase 6 completes:        say "Feature Update" for each new feature (Phase
 > **⚠ MEMORY GOVERNANCE:** Read `.ai_prompt/memory-governance.md` first, then — PRE: Run Tiered Decomposition (§1). POST: Run Smart Checkpoint (§2) if files changed.
 
 ─────────────────────────────────────────────────────────
+PHASE 5 PRE-FLIGHT — COMPLIANCE & DATA-PRIVACY GAP REVIEW — MANDATORY (V32.9 Hook 18)
+
+Before running any validation commands, read `.ai_prompt/privacy.md` and run the Hook 18 gap scan
+(defined in memory-governance.md §3) across all surfaces built in Phase 4.
+
+□ Run Hook 18 gap scan:
+   □ Consent — every personal-data field has a declared lawful basis
+   □ DSR endpoints — tRPC routers expose access/rectification/erasure/portability/object procedures
+   □ Data retention — personal-data tables have retainedUntil / deletedAt fields in Prisma schema
+   □ Breach handling — 72-hour NPC breach-notification stub exists
+   □ Third-party disclosure — all processors listed in PRODUCT.md §7; DPA placeholders present
+
+□ IF critical gaps found (missing consent on new personal-data field, no DSR routes on new entity):
+   → Log each as 🔴 in STATE.md and fix before Phase 5 may close.
+   → Output: "🔴 Phase 5 blocked — compliance gap(s) must be resolved: [list gaps]"
+
+□ IF only non-critical gaps (audit-log refinements, DPA placeholders):
+   → Log as deferred items in DECISIONS_LOG.md; proceed with validation.
+
+□ WCAG 2.2 AA GATE (V32.9 — ui-rules.md Rule 13):
+   □ Check PRODUCT.md Non-functional Requirements for `accessibility: wcag_aa` AND gov/LGU client flag.
+   □ IF BOTH present (PH gov/LGU client — legally required per DICT MC 004):
+      → Run: `npx accessibility-agents audit` (or equivalent)
+      → HARD GATE: ALL WCAG 2.2 AA failures MUST be resolved before Phase 6 may start.
+      → Output: "🔴 Phase 5 blocked — WCAG 2.2 AA accessibility failures must be resolved (gov/LGU hard gate)."
+   □ IF accessibility: wcag_aa declared but NOT gov/LGU client (warn-only):
+      → Run audit; log failures in DECISIONS_LOG.md as "Accessibility — non-blocking deferred items".
+      → Proceed with validation.
+   □ IF accessibility not declared: skip accessibility audit step.
+─────────────────────────────────────────────────────────
+
+─────────────────────────────────────────────────────────
 PHASE 5 PRE-FLIGHT — CREDENTIAL COMPLETENESS GATE — MANDATORY (NEW V30)
 Before running validation commands, verify CREDENTIALS.md has no unfilled required placeholders:
 
@@ -3531,6 +3571,11 @@ Before proceeding to Phase 6, verify ALL of these:
   No other path permitted. (V32.8 — Rule 31)
 □ REGISTRY DONE-CLAIM (V32.8 — Rule 32): scan LESSONS_REGISTRY.md for fingerprints matching Phase 5's
   surface; capture design:check output into STATE.md evidence field {contract, check_command, captured_output}.
+□ Hook 18 compliance gap scan: exit clean (all critical gaps resolved; non-critical deferred items logged
+  in DECISIONS_LOG.md). Read `.ai_prompt/privacy.md` — V32.9 Rule 33.
+□ WCAG 2.2 AA gate (V32.9 — ui-rules.md Rule 13):
+  - gov/LGU apps (DICT MC 004): accessibility:check exit 0 — HARD GATE, blocks Phase 6 if failing.
+  - All other apps: audit run; any failures logged in DECISIONS_LOG.md (warn-only, non-blocking).
 IF ANY command fails → fix before proceeding → do not start Phase 6 with failing validation
 
 PHASE 5 FAILURE HANDLING (V32.8 — Rule 32): On any build/test/gate failure:
@@ -3709,6 +3754,8 @@ Edit PRODUCT.md → trigger Phase 7 → agents implement everything and keep gov
 > **MODEL HOOK (V32.7.3 — Design Baseline Back-Port Surface Check, Phase 7 pre-flight):** the same posture as the V32.5.5 spec check, applied to the design baseline. The Phase 3.3 hard gate (V32.6) finalizes `docs/DESIGN.md` tokens + `docs/MOCKUP.jsx` as the UI source of truth, but an owner-approved design change (palette / theme / layout) can land AFTER that gate closes — during a Phase 7 UI-delta Feature Update (also Phase 4 Parts 5-6 or Phase 8). When that happens, the live app theme drifts from the frozen baseline (the Marine-Guardian failure mode: Meta-Dark mockup frozen, shadcn-neutral re-skin shipped, baseline never updated). Before executing a UI-touching Feature Update body, Opus runs the Design Baseline Back-Port Surface Check — dispatch a Sonnet Scout to **diff the app's live theme tokens (`apps/[web]/src/app/globals.css` CSS variables + the Tailwind theme config) against the baseline tokens in `docs/DESIGN.md` / `docs/MOCKUP.jsx`** (this is the detection mechanism that closes framework TODO-21 — the per-wave `globals.css` ↔ `MOCKUP.jsx` token diff). The Scout returns a structured report listing tokens that DIVERGED (token name · baseline value · live value · file:line). Opus surfaces it at the top of phase output as **"🎨 Design Back-Port Candidates"** — **non-blocking, informational only; it NEVER gates phase closure.** The requirement on an owner-approved divergence is **INHERIT-not-REPLACE back-port**: update `docs/DESIGN.md` to the new token values AND annotate/expand `docs/MOCKUP.jsx` to reflect them (annotate/expand the existing mockup — full regenerate ONLY on a wholesale design change; the mockup stays the UI source of truth, never silently overwritten). Unlike spec files, `docs/DESIGN.md` and `docs/MOCKUP.jsx` are NOT human-only — Claude Code MAY write the back-port, but only to mirror an already-approved change, never to invent design intent (Rule 1 preserved: the design *decision* is the human's; Claude only reconciles the baseline to it). If the human intends the divergence to stay un-mirrored, they log `design-divergent: <reason>` in DECISIONS_LOG.md to suppress it on the next run. The check is conditional: run the Scout ONLY when `globals.css` or the Tailwind theme config mtime is newer than the last Design Back-Port report (`docs/CHANGELOG_AI.md` timestamp), AND the Feature Update touches UI files. On a clean state (tokens match) emit a single collapsed line — `✅ no design back-port candidates` — not the full report.
 >
 > **MODEL HOOK (V32.8 — New-Surface Mockup-First + Registry Consult, Phase 7):** **(a) New-surface rule (Rule 31):** If this Feature Update introduces a NEW UI surface (new page, new modal, new significant component not present in `prototype/` or `docs/MOCKUP.jsx`), a DESIGN/mockup update MUST happen FIRST — before any implementation code is written. Update `docs/MOCKUP.jsx` (annotate/expand — never regenerate from scratch, Rule 1) to include the new surface, run `design:validate` → `design:build` to recompile tokens, re-capture the affected baseline snapshot, then transcribe to production code. Ad-hoc UI invention (building a screen that has no corresponding mockup entry) is NOT permitted. **(b) Registry consult (Rule 32):** Before executing the Feature Update body, consult `LESSONS_REGISTRY.md` for fingerprints matching this update's target surface. **(c) Registry done-claim:** On Feature Update completion, scan `LESSONS_REGISTRY.md` for surface-relevant fingerprints; capture acceptance-check output into STATE.md `{contract, check_command, captured_output}` before claiming done. **(d) Failure handling:** On any build/test/gate failure during this Feature Update: fingerprint it → scan registry → if a standing check should have caught it, STRENGTHEN that check; if novel, flag as a promotion candidate in STATE.md.
+>
+> **MODEL HOOK (V32.9 — Hook 18 Compliance Gap-Surfacing, Phase 7):** When this Feature Update touches any data-touching surface (new Prisma model, new tRPC router, new auth flow, new file-upload endpoint, new integration that transmits personal data), run the Hook 18 compliance gap scan (defined in `memory-governance.md §3`) BEFORE writing implementation code. Read `.ai_prompt/privacy.md` and check: □ Lawful basis declared for any new personal-data field? □ DSR endpoints updated for any new entity holding personal data? □ Retention fields present on new personal-data tables? □ Third-party integrations listed in PRODUCT.md §7 with DPA placeholder? Surface each gap as 🔴 before proceeding. If the Feature Update does NOT touch data-touching surfaces (UI-only change, config tweak, copy edit), skip Hook 18 and log "Hook 18 — not triggered (non-data surface)" in STATE.md.
 
 **Trigger:**
 - Via Claude Code: say "Feature Update" — it hydrates the 9 governance docs automatically (V32.3: large docs via Scout, small docs direct)
@@ -4097,7 +4144,7 @@ LOCKED DECISIONS:
   [list each locked decision from DECISIONS_LOG.md — one line each]
 
 ACTIVE DEV MODE: MODE A — WSL2 native (only supported environment)
-ACTIVE RULES: V32.8 — 32 rules. Rule 4 (read 9 docs first), Rule 17 (SocratiCode search), Rule 18 (typed lessons), Rule 21 (design system), Rule 22 (random ports + container naming, WSL2 native only), Rule 23 (git branching), Rule 24 (fresh context), Rule 25 (two-stage review), Rule 28 (priority ladder), Rule 29 (no fuzzy), Rule 30 (Context7). H1–H4 System Hardening active. UI Component Rules active (V29). Compact CLAUDE.md architecture active (V30). Claude Sonnet 4.6 primary (V30). Phase 2.8 Clickable Mockup Review active in Planning Assistant chat (V31).
+ACTIVE RULES: V32.9 — 33 rules. Rule 4 (read 9 docs first), Rule 17 (SocratiCode search), Rule 18 (typed lessons), Rule 21 (design system), Rule 22 (random ports + container naming, WSL2 native only), Rule 23 (git branching), Rule 24 (fresh context), Rule 25 (two-stage review), Rule 28 (priority ladder), Rule 29 (no fuzzy), Rule 30 (Context7), Rule 33 (Compliance & Data Privacy). H1–H4 System Hardening active. UI Component Rules active (V29). Compact CLAUDE.md architecture active (V30). Claude Sonnet 4.6 primary (V30). Phase 2.8 Clickable Mockup Review active in Planning Assistant chat (V31).
 
 Which phase are you continuing from?
 ```

@@ -1,7 +1,7 @@
 # Spec-Driven Platform V31 — Bootstrap (Phase 0)
 
 > Loaded contextually when user says 'Bootstrap' in a fresh project.
-> Contains all 20 bootstrap steps including credential collection gate (Step 18), Loading Library Lock (Step 19 V31.3), and Design Toolkit + Stop Hook install (Step 20 V32.8).
+> Contains all 20 bootstrap steps including credential collection gate (Step 18), Loading Library Lock (Step 19 V31.3), Design Toolkit + Stop Hook install (Step 20 V32.8), and Privacy & Compliance Scaffold (Step 20b V32.9 — nested under Step 20, bootstrap total stays at 20).
 
 ---
 
@@ -1260,11 +1260,129 @@ Step 20 — Design Toolkit scaffold (V32.8 — non-blocking)
      DECISIONS_LOG.md and lessons.md entries written.
      ```
 
-  Step 20 is non-blocking. Bootstrap proceeds to completion.
+  Step 20 is non-blocking. Bootstrap proceeds to Step 20b.
 
-After Claude Code finishes all 20 steps, OUTPUT THE FOLLOWING TEXT TO THE HUMAN. Do not execute these instructions yourself — they are for the human to read:
+Step 20b — Privacy & Compliance Scaffold (NEW V32.9 — non-blocking)
+
+  After Step 20 completes — execute the following automatically:
+
+  A) Write `components/ui/compliance-footer.tsx` (canonical source: templates.md §ComplianceFooter):
+     Copy the full component from templates.md §V32.9 `ComplianceFooter`.
+     Default-ON badges: Philippine Data Privacy Act–Aligned, WCAG 2.2 AA, Privacy by Design, OWASP ASVS.
+     Default-OFF: ISO 27001, SOC 2, PCI DSS (enable only if client holds the real certificate).
+
+  B) Write Prisma consent + retention model stubs in `packages/db/prisma/schema.prisma`
+     (add at the END of the file, after existing models — do not overwrite):
+     ```prisma
+     // ── PRIVACY & COMPLIANCE STUBS (V32.9 — Hook 18) ──────────────────────────
+     // These models scaffold PH DPA (RA 10173) data subject rights (DSR) and
+     // retention requirements. Expand in Phase 4 Part 3 per PRODUCT.md §Data Entities.
+
+     model ConsentRecord {
+       id          String   @id @default(cuid())
+       tenantId    String
+       userId      String
+       purpose     String                     // e.g. "marketing", "analytics", "service-delivery"
+       lawfulBasis String                     // "consent" | "legitimate-interest" | "legal-obligation"
+       granted     Boolean
+       grantedAt   DateTime?
+       revokedAt   DateTime?
+       ipAddress   String?
+       userAgent   String?
+       createdAt   DateTime @default(now())
+       updatedAt   DateTime @updatedAt
+
+       @@index([tenantId, userId])
+       @@index([tenantId, purpose])
+     }
+
+     model DataSubjectRequest {
+       id          String   @id @default(cuid())
+       tenantId    String
+       userId      String
+       type        String                     // "access" | "rectification" | "erasure" | "portability" | "object"
+       status      String   @default("pending") // "pending" | "in-progress" | "completed" | "denied"
+       requestedAt DateTime @default(now())
+       resolvedAt  DateTime?
+       notes       String?
+       resolvedBy  String?
+
+       @@index([tenantId, userId])
+       @@index([tenantId, status])
+     }
+     ```
+
+  C) Write DSR route placeholder in `packages/api/src/routers/dsr.ts`:
+     ```ts
+     // DSR router — Data Subject Request procedures (V32.9 — PH DPA RA 10173 §16)
+     // Expand in Phase 4 Part 4 per PRODUCT.md §Modules and .ai_prompt/privacy.md
+
+     import { router, protectedProcedure } from "../trpc";
+     import { z } from "zod";
+
+     export const dsrRouter = router({
+       // Submit a data subject request (access, erasure, portability, etc.)
+       submit: protectedProcedure
+         .input(z.object({
+           type: z.enum(["access", "rectification", "erasure", "portability", "object"]),
+           notes: z.string().optional(),
+         }))
+         .mutation(async ({ ctx, input }) => {
+           // TODO Phase 4 Part 4: implement DSR workflow + 30-day SLA tracking
+           // Reference: .ai_prompt/privacy.md §Data Subject Rights
+           throw new Error("DSR submission not yet implemented — expand in Phase 4 Part 4");
+         }),
+
+       // List the requesting user's own DSRs
+       list: protectedProcedure
+         .query(async ({ ctx }) => {
+           // TODO Phase 4 Part 4: return ctx.db.dataSubjectRequest.findMany(...)
+           throw new Error("DSR list not yet implemented — expand in Phase 4 Part 4");
+         }),
+     });
+     ```
+
+  D) Append to docs/DECISIONS_LOG.md (LOCKED):
+     ```
+     ## LOCKED: Privacy & Compliance Scaffold — PH DPA + WCAG 2.2 AA (V32.9)
+
+     Decision: V32.9 scaffolds ConsentRecord + DataSubjectRequest Prisma stubs and a DSR tRPC
+     router placeholder at Bootstrap. These are expanded in Phase 4 Part 3 (Prisma schema) and
+     Phase 4 Part 4 (tRPC routers) per PRODUCT.md §Data Entities and .ai_prompt/privacy.md.
+     ComplianceFooter component scaffolded with honest badge policy (default-ON: PH DPA, WCAG 2.2 AA,
+     Privacy by Design, OWASP ASVS; cert badges OFF by default).
+     Locked at Bootstrap Step 20b. Hook 18 (memory-governance.md §3) surfaces any gaps during Phase 4.
+     ```
+
+  E) Append to .cline/memory/lessons.md (Rule 18 typed format, type = 🟤 decision):
+     ```
+     ## {{DATE}} — 🟤 decision Privacy & Compliance Scaffold locked (V32.9)
+     - Type:      🟤 decision
+     - Phase:     Bootstrap Step 20b
+     - Files:     components/ui/compliance-footer.tsx, packages/db/prisma/schema.prisma (stubs),
+                  packages/api/src/routers/dsr.ts (placeholder)
+     - Concepts:  PH-DPA, RA-10173, NPC, WCAG-2.2-AA, DSR, consent, data-retention, compliance, V32.9
+     - Narrative: V32.9 scaffolds privacy/compliance at Bootstrap so the structures exist from day one.
+       ConsentRecord + DataSubjectRequest models provide the Prisma foundation for PH DPA compliance.
+       DSR router placeholder is expanded in Phase 4 Part 4. ComplianceFooter uses honest badge defaults —
+       only assertions backed by framework enforcement are ON by default. Cert badges require real certs.
+     ```
+
+  F) Append to .cline/memory/agent-log.md:
+     ```
+     {{TIMESTAMP}}  BOOTSTRAP  Step 20b — Privacy & Compliance Scaffold complete (V32.9).
+     ComplianceFooter written. ConsentRecord + DataSubjectRequest Prisma stubs appended.
+     DSR tRPC router placeholder written. DECISIONS_LOG.md and lessons.md entries written.
+     Read .ai_prompt/privacy.md during Phase 4 Part 3 to expand stubs into full implementation.
+     ```
+
+  Step 20b is non-blocking. Bootstrap proceeds to completion.
+
+After Claude Code finishes all 20 steps (including Step 20b), OUTPUT THE FOLLOWING TEXT TO THE HUMAN. Do not execute these instructions yourself — they are for the human to read:
 ```
 ✅ Bootstrap complete — CREDENTIALS.md written with AI-generated secrets + blank placeholders.
+✅ Privacy & Compliance Scaffold complete (V32.9) — ConsentRecord/DataSubjectRequest Prisma stubs,
+   DSR tRPC router placeholder, and ComplianceFooter component written. Expand in Phase 4 Parts 3-4.
 
 ⏳ CREDENTIALS TO FILL BEFORE PHASE 5:
    Open CREDENTIALS.md and fill in the sections marked "⏳ FILL LATER":

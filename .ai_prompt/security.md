@@ -385,6 +385,70 @@ CSP: https://developers.cloudflare.com/turnstile/reference/content-security-poli
      use the appropriate tier, not just auth endpoints.
 ```
 
+**SOFTWARE SUPPLY-CHAIN SAFETY — OWASP Top 10:2025 A03 (NEW V32.9):**
+```
+Aligns with the framework's existing Trivy image gates (Phase 5/6) — this section is the
+source-side complement: lock what comes IN, prove what ships OUT.
+1. PIN dependencies — commit the lockfile (package-lock.json / pnpm-lock.yaml). CI installs with
+   `npm ci` / `pnpm install --frozen-lockfile` — NEVER a fresh resolve that can drift the tree.
+2. No floating tags for security-relevant deps. Pin exact versions for anything in the auth,
+   crypto, payment, or tenant-isolation path (re-pin explicitly on a Phase 7 bump).
+3. Provenance — prefer packages with npm provenance / signed releases; pin Docker base images by
+   digest (FROM image@sha256:...), not by mutable tag, so the build is reproducible.
+4. SBOM — generate a Software Bill of Materials at build (e.g. `syft` / `trivy sbom`) and keep it
+   as a release artifact. Trivy then scans both the image AND the SBOM for known CVEs (the existing
+   Phase 5/6 image gate). A failing CVE gate blocks promotion.
+5. Dockerfile hygiene — NEVER `COPY . .` in a monorepo worker stage; it drags sibling node_modules
+   and prototype/ artifacts into the image (phantom CVEs). Copy only the needed build context.
+6. Audit on a cadence — `npm audit` / `pnpm audit` in CI; treat high/critical as build-failing.
+```
+
+**EXCEPTIONAL-CONDITION HANDLING — OWASP Top 10:2025 A10 (NEW V32.9):**
+```
+Mishandled errors leak data and fail OPEN. The default posture is FAIL-CLOSED.
+1. FAIL-CLOSED — on any unexpected error in an auth, authorization, tenant-scoping, or payment
+   path, DENY the action. NEVER let a thrown/await-rejected check fall through to "allowed."
+   (e.g. if a permission lookup throws, return FORBIDDEN — never proceed as if it passed.)
+2. No sensitive data in errors — error messages, logs sent to the client, and stack traces MUST NOT
+   contain PII, secrets, tokens, internal IDs, table/column names (extends PRODUCTION ERROR HANDLING).
+3. Catch at boundaries — every tRPC procedure and Route Handler has a top-level error boundary that
+   maps internal errors to the generic client messages; the full error is logged server-side only.
+4. Never swallow silently — an empty `catch {}` that hides a failed security check is a vulnerability.
+   Either handle it (fail-closed) or let it propagate to the boundary that fails-closed.
+5. Resource exhaustion is an exceptional condition — enforce timeouts and size limits on outbound
+   calls, uploads, and queries (see SSRF + FILE UPLOAD sections) so a slow/huge input fails cleanly.
+6. Async correctness — every security-relevant promise is `await`ed; a missing `await` on an auth or
+   tenant check is a fail-OPEN bug. Unhandled rejections must surface, never be ignored.
+```
+
+**L1–L6 ↔ OWASP ASVS 5.0 CHAPTER MAPPING (NEW V32.9):**
+```
+The framework's L1–L6 stack maps onto OWASP ASVS 5.0 verification chapters. Use ASVS 5.0 as the
+verification reference and OWASP Top 10:2025 as the risk reference.
+
+LAYER  FRAMEWORK ROLE                       ASVS 5.0 CHAPTER(S)
+─────  ───────────────────────────────────  ──────────────────────────────────────────
+L1     Tenant scoping (every query)         V4 Access Control (tenant isolation / IDOR)
+L2     Input validation (Zod strict)        V2 Validation & Business Logic; V5 Encoding/Injection
+L3     RBAC (role-derived authz)            V4 Access Control (function & data-level authz)
+L4     Rate limiting + secure transport     V8 Self-contained Tokens / V13 API; V9 Communication
+L5     AuditLog (append-only)               V7 Logging & Error Handling
+L6     Prisma guardrails (auto tenant inj.) V4 Access Control (structural enforcement)
+Auth   Auth.js v5 defaults + sessions       V6 Authentication; V3 Session Management
+Files  Upload/download safety               V12 Files & Resources
+Errors Fail-closed + generic messages       V7 Logging & Error Handling (+ Top 10:2025 A10)
+Supply Lockfiles / SBOM / Trivy gate        V1 Encoding-agnostic / supply chain (+ Top 10:2025 A03)
+```
+
+**COMPLIANCE / DATA-SUBJECT / PRIVACY CONTROLS:**
+```
+Compliance / data-subject / privacy controls → see `.ai_prompt/privacy.md` (Rule 33).
+privacy.md owns: PH Data Privacy Act (RA 10173 / NPC) lawful basis + consent + the 6 data-subject
+rights as app features (DSR endpoint contract) + breach notification (NPC + subjects within 72h) +
+ISO/IEC 27701 organizing model. It maps L1–L6 ↔ ISO 27701 / ASVS and points back here for the
+technical controls. Read privacy.md whenever a phase touches personal data or for any gov/LGU client.
+```
+
 ---
 
 ## SYSTEM HARDENING ADDITIONS (V25)
@@ -402,7 +466,7 @@ PRIORITY  SOURCE                  ENFORCED BY
 ────────  ──────────────────────  ───────────────────────────────────
 1         Safety constraints      All agents — never expose credentials,
                                   never delete without confirm, never harm data
-2         CLAUDE.md rules         This file — all 32 rules
+2         CLAUDE.md rules         This file — all 33 rules
 3         Active phase rules      Numbered steps of the current phase
 4         docs/PRODUCT.md         Feature intent — what to build
 5         docs/DECISIONS_LOG.md   Locked decisions — never re-decide

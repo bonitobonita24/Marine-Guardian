@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# Spec-Driven Platform V32.8 — File Deployment Script
+# Spec-Driven Platform V32.9 — File Deployment Script
 # ============================================================
 # SAFETY CONTRACT (read this before running)
 # ============================================================
@@ -31,6 +31,8 @@
 #         • scripts/design-stop-hook.sh      (Claude Code Stop hook — deliverable #21)
 #         • .ai_prompt/LESSONS_REGISTRY.md   (consult pointer — design drift lessons — deliverable #22)
 #         • tests/visual/                    (visual-test scaffold — .gitkeep created if absent)
+#      V32.9 compliance + data privacy (overwrite-with-backup):
+#         • .ai_prompt/privacy.md            (PH Data Privacy Act + WCAG 2.2 AA gate — on-demand — deliverable #23)
 #         NOTE: sd.config.mjs, design-validate.mjs, and STATE.md evidence template are
 #         NOT deploy-copied — they are scaffolded by bootstrap.md Step 20 from templates.md
 #         (project-adjacent files, not standalone framework deliverables).
@@ -77,6 +79,7 @@
 #   │   ├── lint-deploy.sh             ← NEW V32.7.5 — pre-deploy footgun gate (→ scripts/, deliverable #20)
 #   │   ├── design-stop-hook.sh        ← NEW V32.8 — Claude Code Stop hook (→ scripts/, deliverable #21)
 #   │   ├── LESSONS_REGISTRY.md        ← NEW V32.8 — design-drift lessons registry (deliverable #22)
+#   │   ├── privacy.md                 ← NEW V32.9 — PH Data Privacy Act + WCAG 2.2 AA (→ .ai_prompt/, deliverable #23)
 #   │   ├── Product_md_Planning_Assistant_v31.md
 #   │   ├── Framework_Feature_Index_v31.md
 #   │   ├── AI_Tools_Skills_MCPs_Reference_v31.md
@@ -84,7 +87,7 @@
 #   │   ├── ChatGPT_V31_Cross_Audit_Prompt.md
 #   │   ├── Prompt_References.md
 #   │   └── Prompt_References.html     ← interactive HTML UI for prompt references
-#   └── deploy-v31.sh             ← this script at project root (22nd file — total deliverable set)
+#   └── deploy-v31.sh             ← this script at project root (23rd file — total deliverable set)
 #
 # DEPLOYED TARGET LOCATIONS (V32.7.2 additions):
 #   .claude/agents/spec-executor.md    ← overwrite-with-backup (framework-owned)
@@ -94,6 +97,7 @@
 # DEPLOYED TARGET LOCATIONS (V32.8 additions):
 #   scripts/design-stop-hook.sh        ← overwrite-with-backup (framework-owned), chmod +x (deliverable #21)
 #   .ai_prompt/LESSONS_REGISTRY.md     ← overwrite-with-backup (framework-owned) (deliverable #22)
+#   .ai_prompt/privacy.md              ← overwrite-with-backup (framework-owned) (deliverable #23, V32.9)
 #   tests/visual/                      ← scaffold-if-absent (.gitkeep); existing files untouched
 #   NOTE: sd.config.mjs, design-validate.mjs, STATE.md.template — scaffolded by bootstrap.md
 #   Step 20 from templates.md (not deploy-copied).
@@ -133,7 +137,7 @@ if [ ! -d "$AI_PROMPT" ]; then
 fi
 
 echo "============================================================"
-echo "  Spec-Driven Platform V32.8 — Deployment"
+echo "  Spec-Driven Platform V32.9 — Deployment"
 echo "============================================================"
 echo "  Project root:  $PROJECT"
 echo "  Source folder: $AI_PROMPT"
@@ -564,6 +568,18 @@ fi
 # 7b: LESSONS_REGISTRY.md → .ai_prompt/LESSONS_REGISTRY.md (consult pointer, deliverable #22)
 overwrite_with_backup "$AI_PROMPT/LESSONS_REGISTRY.md" "$PROJECT/.ai_prompt/LESSONS_REGISTRY.md"
 
+# ============================================================
+# GROUP 8 — V32.9 Compliance + Data Privacy (overwrite-with-backup)
+#
+# Deploys one new standalone framework deliverable:
+#   .ai_prompt/privacy.md  ← PH Data Privacy Act (RA 10173/NPC) + WCAG 2.2 AA gate
+#                             Deliverable #23. Loaded on-demand when writing auth/compliance/
+#                             data-privacy features, or when gov/LGU flag is set in PRODUCT.md.
+# ============================================================
+echo "─── Group 8: V32.9 compliance + data privacy (.ai_prompt/privacy.md) ───"
+overwrite_with_backup "$AI_PROMPT/privacy.md" "$PROJECT/.ai_prompt/privacy.md"
+echo ""
+
 # 7c: tests/visual/ scaffold — create directory + .gitkeep ONLY if the directory is absent.
 # Never overwrite existing snapshot files inside tests/visual/.
 if [ ! -d "$PROJECT/tests/visual" ]; then
@@ -601,7 +617,7 @@ echo ""
 # SUMMARY
 # ============================================================
 echo "============================================================"
-echo "  ✅ V32.8 deployment complete — safety contract honored"
+echo "  ✅ V32.9 deployment complete — safety contract honored"
 echo "============================================================"
 echo ""
 echo "  Files deployed to project tree (OVERWRITE bucket):"
@@ -638,11 +654,12 @@ echo "    (Human reference — do not move:)"
 echo "    Product_md_Planning_Assistant_v31.md      ← claude.ai planning + Phase 2.8 mockup (already done before this script)"
 echo "    Framework_Feature_Index_v31.md            ← feature + capability reference"
 echo "    AI_Tools_Skills_MCPs_Reference_v31.md     ← tools + model routing reference"
-echo "    Post_Generation_Security_Checklist_v31.md ← 84-item security audit"
+echo "    Post_Generation_Security_Checklist_v31.md ← 98-item security audit (14 sections)"
 echo "    ChatGPT_V31_Cross_Audit_Prompt.md         ← cross-AI validation prompt"
 echo "    Prompt_References.md                      ← scenario-based prompt guide (markdown)"
 echo "    Prompt_References.html                    ← scenario-based prompt guide (interactive UI — START HERE)"
 echo "    LESSONS_REGISTRY.md                       ← design-drift lessons registry (V32.8, deliverable #22)"
+echo "    privacy.md                                ← PH Data Privacy Act + WCAG 2.2 AA gate (V32.9, deliverable #23)"
 echo "    (Deployed to scripts/ — do not run from .ai_prompt/:)"
 echo "    lint-deploy.sh                            ← pre-deploy footgun gate (deploys to scripts/lint-deploy.sh, V32.7.5)"
 echo "    design-stop-hook.sh                       ← Claude Code Stop hook (deploys to scripts/, V32.8)"

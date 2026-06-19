@@ -1187,7 +1187,7 @@ ul.checklist li:last-child { border-bottom: none; }
 
     <!-- HERO -->
     <div class="hero">
-      <div class="hero-eyebrow">v32.6.1 locked · release ready</div>
+      <div class="hero-eyebrow">v32.9 locked · release ready</div>
       <h1>Prompt <span class="accent-word">References</span></h1>
       <p class="hero-lede">Every prompt you need from empty project folder to production-ready app. Four scenario groups match your actual lifecycle — no noise, no filler.</p>
 
@@ -1205,7 +1205,7 @@ ul.checklist li:last-child { border-bottom: none; }
           <div class="stat-label">New ✨</div>
         </div>
         <div class="stat">
-          <div class="stat-num">17</div>
+          <div class="stat-num">23</div>
           <div class="stat-label">Framework Files</div>
         </div>
       </div>
@@ -1476,7 +1476,7 @@ ul.checklist li:last-child { border-bottom: none; }
             <tr>
               <td><strong>Memory</strong></td>
               <td>Smart Checkpoint Protocol (V31.1 &rarr; V32.3)</td>
-              <td>Auto-persist progress at 17 phase hooks; rehydrate on resume</td>
+              <td>Auto-persist progress at 18 phase hooks; rehydrate on resume</td>
               <td>Tiered Decomposition (Tier 1/2/3) prevents overflow</td>
             </tr>
           </tbody>
@@ -1510,7 +1510,7 @@ ul.checklist li:last-child { border-bottom: none; }
           <strong>WSL2 Ubuntu</strong> installed, Node 22 + pnpm + Docker Desktop all working<br>
           <strong>VS Code + Claude Code CLI</strong> installed (Cline extension optional — deprecated V31, kept only as emergency fallback)<br>
           <strong>PRODUCT.md</strong> finalized in claude.ai using <code>Product_md_Planning_Assistant_v31.md</code><br>
-          <strong>All 20 V32 framework files</strong> available (16 in <code>.ai_prompt/</code> + <code>spec-executor.md</code> + <code>settings.json</code> deployed to <code>.claude/</code> + <code>deploy-v31.sh</code> + <code>lint-deploy.sh</code> deployed to <code>scripts/</code>) — see Appendix A for the V32 <code>spec-update</code> deployment workflow
+          <strong>All 23 V32 framework files</strong> available (17 in <code>.ai_prompt/</code> + <code>spec-executor.md</code> + <code>settings.json</code> deployed to <code>.claude/</code> + <code>deploy-v31.sh</code> + <code>lint-deploy.sh</code> deployed to <code>scripts/</code>) — see Appendix A for the V32 <code>spec-update</code> deployment workflow
         </div>
       </div>
 
@@ -1545,7 +1545,7 @@ ul.checklist li:last-child { border-bottom: none; }
 ├── deploy-v31.sh                  ← you drop this at project root (19th file)
 └── docs/
     ├── PRODUCT.md                 ← from Planning Assistant — required
-    ├── DESIGN.md                  ← from Planning Assistant Step 7b — if you picked a getdesign.md aesthetic
+    ├── DESIGN.md                  ← from Planning Assistant Step 7b — if you chose a shadcn/ui theme direction in Phase 2.8
     └── mockups/                   ← from prompt 4.7 — if you saved the Phase 2.8 mockup HTML archive
         └── [appname]-phase-2.8-mockup.html</div>
       <p style="margin-top:0.75em;font-size:0.9em;color:var(--muted)">Tip: on V32 machines, skip the manual <code>.ai_prompt/</code> copy step — use <code>spec-update .</code> (Appendix A) which syncs all 16 files + runs deploy in one command.</p>
@@ -2273,7 +2273,7 @@ grep -c "⏳" CREDENTIALS.md  # should be 0 for REQUIRED sections</div>
             <p>Drop the Planning Assistant deliverables into your project's <code>docs/</code> folder:</p>
             <ul>
               <li><code>docs/PRODUCT.md</code> (always — required)</li>
-              <li><code>docs/DESIGN.md</code> (if you picked a getdesign.md aesthetic in Phase 2.8 Step 7b)</li>
+              <li><code>docs/DESIGN.md</code> (if you chose a shadcn/ui theme direction in Phase 2.8 Step 0)</li>
               <li><code>docs/mockups/[appname]-phase-2.8-mockup.html</code> (if you saved the HTML archive per prompt 4.7)</li>
             </ul>
             <p>Then in Claude Code:</p>
@@ -2535,7 +2535,7 @@ DIMENSION 3 — GOVERNANCE DOC INTEGRITY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Check each of 9 governance documents for existence + basic health:
-  3.1  docs/PRODUCT.md                     (exists? all 11 sections present?)
+  3.1  docs/PRODUCT.md                     (exists? all 12 sections present?)
   3.2  inputs.yml                          (exists? schema validates?)
   3.3  inputs.schema.json                  (exists?)
   3.4  docs/CHANGELOG_AI.md                (non-empty? has agent attribution?)
@@ -2616,7 +2616,7 @@ Classify every finding:
   🟢 Informational       — no action needed
 
 Blocker criteria (🔴):
-  — Missing PRODUCT.md or 11 sections incomplete
+  — Missing PRODUCT.md or 12 sections incomplete
   — Governance doc corrupt
   — Build broken
   — Half-migrated state (mixed V24 + V30 files)
@@ -2829,7 +2829,7 @@ going forward WITHOUT rewriting existing code. Execute this reverse-engineering:
 
 4. Identify integrations — third-party clients, webhooks, external service env vars.
 
-5. Produce a REVERSE-ENGINEERED PRODUCT.md draft with all 11 sections filled
+5. Produce a REVERSE-ENGINEERED PRODUCT.md draft with all 12 sections filled
    based on findings. Mark unknown fields "TBD — confirm with Bonito".
 
 6. Produce a STACK GAP REPORT showing current stack vs Spec-Driven defaults
@@ -3647,7 +3647,7 @@ Situation: [describe which failure mode]</div>
           <div class="prompt-num">3.5</div>
           <div class="prompt-title-wrap">
             <div class="prompt-title">Post-Generation Security Checklist</div>
-            <div class="prompt-summary">84 items across 13 sections — run after every scaffold + before prod deploys</div>
+            <div class="prompt-summary">98 items across 14 sections — run after every scaffold + before prod deploys</div>
           </div>
           <div class="prompt-toggle">›</div>
         </div>
@@ -3669,7 +3669,7 @@ and line numbers.</div>
 
             <p>Attach <code>Post_Generation_Security_Checklist_v31.md</code> + relevant code files.</p>
 
-            <p>Agent runs all <strong>84 items across 13 sections</strong> (Authentication, RBAC, Multi-tenant isolation L1–L6, Input validation, Database safety, File uploads, Queue/cache, Production errors, Security headers, Webhooks, Secrets, Production defaults, Phase 5 baseline). <strong>Fix all FAILs before merging or deploying.</strong></p>
+            <p>Agent runs all <strong>98 items across 14 sections</strong> (Authentication, RBAC, Multi-tenant isolation L1–L6, Input validation, Database safety, File uploads, Queue/cache, Production errors, Security headers, Webhooks, Secrets, Production defaults, Phase 5 baseline, Compliance & Data Privacy). <strong>Fix all FAILs before merging or deploying.</strong></p>
           </div>
         </div>
       </div>
@@ -5026,8 +5026,8 @@ Use shadcn/ui components only. Update packages/ui if needed.</div>
         <div class="prompt-header" onclick="togglePrompt(this)">
           <div class="prompt-num">4.8</div>
           <div class="prompt-title-wrap">
-            <div class="prompt-title">Adopt a DESIGN.md Aesthetic from awesome-design-md</div>
-            <div class="prompt-summary">Import visual tokens (colors + typography + layout + theme) from VoltAgent catalog — implementation stays shadcn/ui</div>
+            <div class="prompt-title">Adopt a DESIGN.md Aesthetic (shadcn/ui theme direction)</div>
+            <div class="prompt-summary">Derive shadcn/ui CSS variable overrides (colors + typography + layout + theme) from a named theme direction — no external catalog</div>
           </div>
           <div class="prompt-toggle">›</div>
         </div>
@@ -5039,15 +5039,15 @@ Use shadcn/ui components only. Update packages/ui if needed.</div>
               <div class="meta-item"><span class="meta-label">Pair with</span><span class="meta-value">Scenario 33 (scenarios.md)</span></div>
             </div>
 
-            <p><strong>What it does:</strong> Extracts <strong>4 specific sections</strong> from a chosen DESIGN.md (Visual Theme + Color Palette + Typography + Layout Principles), creates <code>docs/DESIGN.md</code> as the authoritative visual reference, adds a one-line pointer in PRODUCT.md Section 10, records the decision in DECISIONS_LOG.md. Implementation stays 100% shadcn/ui — this is aesthetic tokens only.</p>
+            <p><strong>What it does:</strong> Derives <strong>4 specific sections</strong> for the chosen shadcn/ui theme direction (Visual Theme + Color Palette as shadcn CSS variables + Typography + Layout Principles), creates <code>docs/DESIGN.md</code> as the authoritative visual reference, adds a one-line pointer in PRODUCT.md Section 10, records the decision in DECISIONS_LOG.md. Implementation stays 100% shadcn/ui — this is CSS variable overrides only; no external design catalog is used.</p>
 
-            <h4>4.8.1 — Pick a design from the catalog</h4>
-            <p>Browse: <a href="https://getdesign.md/" target="_blank" rel="noopener"><code>getdesign.md</code></a> or <a href="https://github.com/VoltAgent/awesome-design-md" target="_blank" rel="noopener"><code>VoltAgent/awesome-design-md</code></a></p>
+            <h4>4.8.1 — Choose a theme direction</h4>
+            <p>shadcn/ui is the only UI system. The name below is a shorthand for a visual direction — the Planning Assistant derives all CSS variable values itself; no external URL or catalog is required.</p>
 
             <p><strong>Curated shortlist for enterprise SaaS (Bonito's context):</strong></p>
             <table class="data-table">
               <thead>
-                <tr><th>Design</th><th>Vibe</th><th>Best for</th></tr>
+                <tr><th>Direction</th><th>Vibe</th><th>Best for</th></tr>
               </thead>
               <tbody>
                 <tr><td><strong>Linear</strong></td><td>Ultra-minimal, purple accent, precise</td><td>Project management, ops tools, ERP dashboards</td></tr>
@@ -5069,61 +5069,47 @@ Use shadcn/ui components only. Update packages/ui if needed.</div>
               <div class="code-header"><span class="code-lang">Planning Assistant Prompt</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
               <div class="code-body">Adopt a DESIGN.md Aesthetic
 
-I want to adopt a visual design aesthetic from the awesome-design-md collection
-(VoltAgent/awesome-design-md or getdesign.md).
+I want to set a shadcn/ui theme direction for this project.
 
-CHOSEN DESIGN: [e.g. "Linear" or "Stripe" or "Claude"]
-SOURCE URL: [paste the raw GitHub URL or the getdesign.md URL]
-  Examples:
-  - https://github.com/VoltAgent/awesome-design-md/blob/main/design-md/linear.app/DESIGN.md
-  - https://getdesign.md/linear.app/design-md
+CHOSEN DIRECTION: [e.g. "Linear" or "Stripe" or "Claude"]
 
 Execute this sequence:
 
-1. Fetch the chosen DESIGN.md. If I provided a github.com blob URL, convert to
-   raw.githubusercontent.com for the actual content. If I provided a getdesign.md
-   URL, use the underlying VoltAgent/awesome-design-md source.
+1. Derive shadcn/ui CSS custom property values for the chosen direction.
+   Do NOT fetch any external URL or catalog. Generate the values yourself
+   based on the well-known visual identity of the named direction:
+   a. Visual Theme &amp; Atmosphere (2-3 sentence description)
+   b. Color Palette as shadcn CSS variables (HSL format — background, foreground,
+      primary, secondary, muted, accent, destructive, border, card, ring, radius)
+   c. Typography Rules (font family, weights, base size, line-height, heading scale)
+   d. Layout Principles (spacing unit, border-radius, sidebar width, content max-w,
+      card padding)
 
-2. Extract ONLY these 4 sections from the file. Ignore everything else:
-   a. Visual Theme &amp; Atmosphere (section 1)
-   b. Color Palette &amp; Roles (section 2)
-   c. Typography Rules (section 3)
-   d. Layout Principles (section 5)
-
-   Do NOT extract: Component Stylings, Depth &amp; Elevation, Do's/Don'ts,
-   Responsive Behavior, Agent Prompt Guide. shadcn/ui handles components,
-   elevation, and responsive. Do's/Don'ts are style-guide opinions we're
-   not adopting.
-
-3. Update docs/PRODUCT.md Section 10 (Non-functional Requirements) to add
+2. Update docs/PRODUCT.md Section 10 (Non-functional Requirements) to add
    ONE short line:
-   "10.X — Visual Design Inspiration: see docs/DESIGN.md (extracted from
-   [CHOSEN DESIGN] via VoltAgent/awesome-design-md). Implementation uses
-   shadcn/ui components."
+   "10.X — Design system: shadcn/ui — see docs/DESIGN.md ([CHOSEN DIRECTION]
+   theme direction). Implementation uses shadcn/ui CSS variable overrides."
    Do NOT embed the 4 full sections into PRODUCT.md — keep PRODUCT.md lean.
 
-4. Record this decision in docs/DECISIONS_LOG.md:
+3. Record this decision in docs/DECISIONS_LOG.md:
    - Decision date: [today]
-   - Decision: "Adopt [DESIGN NAME] visual aesthetic (color + typography +
-     layout + theme) with shadcn/ui component implementation"
-   - Source: [URL]
+   - Decision: "Adopt [DIRECTION NAME] shadcn/ui theme direction (color + typography +
+     layout + theme CSS variable overrides)"
    - Rationale: [brief — why I chose it]
    - Reversible: YES (can be swapped by re-running prompt 4.8 with a
-     different design)
+     different direction)
 
-5. Create docs/DESIGN.md as the authoritative visual reference.
+4. Create docs/DESIGN.md as the authoritative visual reference.
    Contents:
-   - Header: "Visual design reference for [PROJECT NAME] — inspired by
-     [CHOSEN DESIGN] from VoltAgent/awesome-design-md. Implementation
-     uses shadcn/ui."
-   - Source URL
+   - Header: "Design Identity for [PROJECT NAME] — [CHOSEN DIRECTION] shadcn/ui
+     theme direction. Implementation uses shadcn/ui CSS variable overrides."
    - Date adopted
-   - Extracted sections 1, 2, 3, 5 in their original DESIGN.md format
+   - Derived sections a, b, c, d in DESIGN.md format
    - Footer: "shadcn/ui Translation Guide — see scenarios.md Scenario 33
      for how Claude Code maps these tokens into globals.css + layout.tsx
      + Tailwind config."
 
-6. Show diffs for BOTH files (PRODUCT.md section + new docs/DESIGN.md
+5. Show diffs for BOTH files (PRODUCT.md section + new docs/DESIGN.md
    + DECISIONS_LOG.md entry) before any write. Wait for my confirmation.
 
 DO NOT regenerate other PRODUCT.md sections. DO NOT modify inputs.yml,
@@ -5138,16 +5124,16 @@ DO NOT regenerate other PRODUCT.md sections. DO NOT modify inputs.yml,
               <li>Next Feature Update that touches UI will automatically pick up the new aesthetic via Claude Code reading <code>docs/DESIGN.md</code> per <strong>Scenario 33</strong></li>
             </ol>
 
-            <h4>4.8.4 — Re-skin later (swap to a different aesthetic)</h4>
-            <p>Re-run 4.8 with a different <code>CHOSEN DESIGN</code>. Planning Assistant will regenerate <code>docs/DESIGN.md</code> with the new tokens, update the PRODUCT.md reference, and append a new entry to DECISIONS_LOG.md (the old decision stays for history).</p>
+            <h4>4.8.4 — Re-skin later (swap to a different direction)</h4>
+            <p>Re-run 4.8 with a different <code>CHOSEN DIRECTION</code>. Planning Assistant will regenerate <code>docs/DESIGN.md</code> with the new CSS variable values, update the PRODUCT.md reference, and append a new entry to DECISIONS_LOG.md (the old decision stays for history).</p>
 
             <p><strong>After regeneration, run this Feature Update in Claude Code:</strong></p>
             <div class="code-block">
               <div class="code-header"><span class="code-lang">Claude Code Prompt</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
               <div class="code-body">Feature Update
 
-docs/DESIGN.md has been updated with a new aesthetic per DECISIONS_LOG entry
-[DATE]. Re-apply the visual tokens across the codebase:
+docs/DESIGN.md has been updated with a new shadcn/ui theme direction per
+DECISIONS_LOG entry [DATE]. Re-apply the CSS variable overrides across the codebase:
 - Update apps/[web]/src/app/globals.css with the new CSS variables (HSL format)
 - Update apps/[web]/src/app/layout.tsx with the new font imports
 - Update tailwind.config.ts if spacing/radius changed
@@ -5165,8 +5151,8 @@ Governance updates per standard Phase 7.</div>
               <tbody>
                 <tr><td>Two sources of truth?</td><td>No — <code>docs/DESIGN.md</code> holds content, PRODUCT.md has one-liner pointer</td></tr>
                 <tr><td>Conflicts with Rule 21 (design-system/MASTER.md)?</td><td>No — Scenario 33 defines precedence: PRODUCT &gt; DESIGN.md &gt; design-system/MASTER.md &gt; shadcn defaults</td></tr>
-                <tr><td>Conflicts with UI Component Rules (10 rules)?</td><td>No — components STAY shadcn/ui. DESIGN.md only changes CSS variables, fonts, spacing — never component code</td></tr>
-                <tr><td>Legal concerns?</td><td>awesome-design-md is MIT licensed. Extracted tokens are publicly visible CSS values. Inspiration, not pixel-cloning</td></tr>
+                <tr><td>Conflicts with UI Component Rules?</td><td>No — components STAY shadcn/ui. DESIGN.md only changes CSS variables, fonts, spacing — never component code</td></tr>
+                <tr><td>External catalog dependency?</td><td>None — the Planning Assistant derives all values itself from the named direction. No external URL or license required.</td></tr>
                 <tr><td>WCAG contrast failures?</td><td>Scenario 33 conflict resolution mandates AA minimum — agents adjust values if needed, log the adjustment</td></tr>
               </tbody>
             </table>

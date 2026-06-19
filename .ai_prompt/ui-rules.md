@@ -6,12 +6,13 @@
 
 ---
 
-## UI COMPONENT RULES — MANDATORY FOR ALL UI GENERATION (NEW V29 — Rule 11 added V31.3 — Rule 12 added V32.8)
+## UI COMPONENT RULES — MANDATORY FOR ALL UI GENERATION (NEW V29 — Rule 11 added V31.3 — Rule 12 added V32.8 — Rule 13 added V32.9)
 
 Every UI component, page, and layout MUST use the shadcn/ui ecosystem. No exceptions.
 shadcn/ui is MIT licensed, free, open source, and the framework's locked UI component library.
 Rule 11 (Loading States — dual-path) was added in V31.3 to eliminate hand-rolled skeleton twins for custom components.
 Rule 12 (Compiled-tokens-only + palette disable) was added in V32.8 to enforce Design-as-Contract (Rule 31).
+Rule 13 (Accessibility / WCAG 2.2 AA) was added in V32.9 — hard gate for gov/LGU apps (DICT MC 004), warn-only otherwise.
 
 ```
 1. shadcn/ui is the ONLY component library. NEVER import MUI, Ant Design, Chakra UI,
@@ -133,6 +134,43 @@ Rule 12 (Compiled-tokens-only + palette disable) was added in V32.8 to enforce D
     color values blocked by lint/CI, the only available primitives are the compiled vars.
     This is the enforcement mechanism for Rule 31 (Design-as-Contract).
     Reference: Master_Prompt_v31.md Rule 31 + templates.md (generated-tokens.css + globals.css bridge).
+
+13. Accessibility — WCAG 2.2 AA target (NEW V32.9 — Rule 33 Compliance & Data Privacy).
+    WCAG 2.2 AA is the framework's named accessibility target for all apps.
+
+    GATE BEHAVIOUR:
+    a. HARD GATE (Phase 5 cannot close) — triggered when PRODUCT.md Non-functional Requirements
+       contains `accessibility: wcag_aa` AND the app's client is a Philippine government agency
+       or LGU. This is legally required under DICT MC 004 (2017) for PH gov/LGU digital services.
+       Phase 5 output contract gains one additional item:
+         □ accessibility:check — exit 0 (run `npx accessibility-agents audit` or equivalent;
+           all WCAG 2.2 AA failures must be resolved before Phase 6 may start).
+    b. WARN-ONLY (all other apps) — run the same audit; output warnings but do not block Phase 5.
+       Record any FAIL items in DECISIONS_LOG.md under "Accessibility — non-blocking deferred items".
+
+    ENFORCEMENT TOOLS:
+    - Generation-time: `accessibility-agents` skill (Community-Access/accessibility-agents) — install
+      with `npx skills add Community-Access/accessibility-agents`. Integrates into Phase 4 Parts 5-6
+      and Phase 7 UI generation passes. Run it BEFORE committing UI components.
+    - Audit: `design-auditor` skill — paired with accessibility-agents for end-of-phase design review.
+      Run during Phase 5 (gov/LGU: HARD GATE; other: WARN-ONLY).
+    - Hook 18 (memory-governance.md §3) fires during build phases to surface accessibility gaps
+      detected by accessibility-agents before they reach Phase 5.
+
+    WCAG 2.2 AA KEY REQUIREMENTS (non-exhaustive — accessibility-agents enforces full list):
+    - Contrast ratio ≥ 4.5:1 for normal text; ≥ 3:1 for large text (1.4.3)
+    - All interactive elements keyboard-navigable (2.1.1)
+    - Visible focus indicators (2.4.11 — new in WCAG 2.2)
+    - No focus traps (2.1.2)
+    - All images have meaningful alt text (1.1.1)
+    - Forms: inputs have associated labels; errors are identified and described (1.3.1, 3.3.1)
+    - Target size ≥ 24×24 CSS pixels for interactive elements (2.5.8 — new in WCAG 2.2)
+    - Dragging movements have single-pointer alternatives (2.5.7 — new in WCAG 2.2)
+
+    shadcn/ui components are WCAG 2.2 AA-aligned by default (built on Radix UI primitives).
+    Custom components and design token overrides must be audited — accessibility-agents catches drift.
+
+    Reference: Master_Prompt_v31.md Rule 33 + .ai_prompt/privacy.md (gov/LGU gate definition).
 ```
 
 **shadcn/ui MCP Server** — enables agents to search and install components via natural language.

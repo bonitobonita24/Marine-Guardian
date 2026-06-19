@@ -11,7 +11,7 @@
 > **How to use:** Copy this file into your project root. After code generation, `grep` or
 > manually inspect each item. Mark PASS / FAIL / N/A. Fix all FAILs before squash-merge.
 >
-> **Total: 84 verification items across 13 sections.**
+> **Total: 98 verification items across 14 sections.**
 
 ---
 
@@ -351,10 +351,104 @@ Run them as a baseline before the security checklist above.
 
 ---
 
+## SECTION 14 — COMPLIANCE & DATA PRIVACY (V32.9)
+
+Run when PRODUCT.md §12 declares `personal data: yes`. Skip only when `personal data: no` is explicit.
+
+```
+□ 14.1  PH DPA (RA 10173) lawful basis declared per processing activity
+        → PRODUCT.md §12 Compliance & Data Privacy → Lawful basis field
+        VERIFY: lawful basis is one of: consent · contract · legal obligation · legitimate interest ·
+                vital interest · public authority — and is recorded in PRODUCT.md, not left blank
+
+□ 14.2  Privacy notice presented at the point of collection (inline form or linked modal)
+        → privacy.md § Consent + privacy notice at collection
+        VERIFY: consent/signup flow renders a privacy notice with: what data, why, lawful basis,
+                retention period, data-subject rights, and how to exercise them
+
+□ 14.3  ConsentLog (or ConsentRecord) Prisma model exists and records consent events
+        → privacy.md § Prisma ConsentLog / DataSubjectRequest / retention models
+        VERIFY: schema.prisma contains ConsentLog with fields: userId, tenantId, purpose,
+                legalBasis, givenAt, withdrawnAt, privacyNoticeVersion
+
+□ 14.4  All 6 data-subject rights implemented as app features or formally deferred in PRODUCT.md
+        Rights: access · rectify · erase · object · portability · restrict
+        → privacy.md § The 6 data-subject rights → implement as APP FEATURES
+        VERIFY: DSR tRPC endpoints exist (or PRODUCT.md §12 states "defer to v2" with owner sign-off)
+        VERIFY: DataSubjectRequest model in schema has: type, status, requestedAt, resolvedAt, evidenceUrl
+
+□ 14.5  Retention policy enforced — automated erasure / archival job wired
+        → privacy.md § Retention / erasure jobs (BullMQ)
+        VERIFY: BullMQ job exists for retention policy declared in PRODUCT.md §12
+        VERIFY: eraseExpiredPersonalData job deletes or anonymizes on schedule (cron string matches policy)
+
+□ 14.6  Breach-notification runbook present and 72-hour deadline acknowledged
+        → privacy.md § Breach notification — 72 hours
+        VERIFY: docs/BREACH_RUNBOOK.md (or equivalent) exists with: NPC report URL, subject notification
+                template, 72-hour timer trigger, incident-log location
+        VERIFY: PRODUCT.md §12 Breach procedure field is not blank
+
+□ 14.7  Privacy Impact Assessment (PIA) artifact produced before Phase 6 deploy
+        → privacy.md § DPO · NPC registration · PIA
+        VERIFY: docs/PIA.md (or docs/PRIVACY_IMPACT.md) exists with: processing activities list,
+                risks identified, mitigations applied
+        CONDITION: skip only if PRODUCT.md §12 PIA required: no is explicitly declared
+
+□ 14.8  Data Protection Officer (DPO) named or formally designated as "to be appointed"
+        → PRODUCT.md §12 Compliance & Data Privacy → DPO field
+        VERIFY: DPO field in PRODUCT.md §12 is not blank — "to be appointed" is acceptable
+        VERIFY: privacy notice (14.2) references DPO contact point
+
+□ 14.9  NPC registration status acknowledged in PRODUCT.md
+        → privacy.md § DPO · NPC registration · PIA
+        VERIFY: PRODUCT.md §12 NPC registration field is set (required or not required — not blank)
+        NOTE: qualifying Personal Information Controllers must register data-processing systems
+              with the NPC at privacy.gov.ph before going live
+
+□ 14.10 WCAG 2.2 AA accessibility verified when gov/LGU client flag is set
+        → PRODUCT.md §12 Gov/LGU client → WCAG 2.2 AA required (DICT Memorandum Circular 004)
+        VERIFY: if gov_lgu_flag: yes → run accessibility audit (axe-core / Lighthouse a11y ≥90)
+                on all public + citizen-facing pages before Phase 6 sign-off
+        CONDITION: skip only when gov_lgu_flag: no is explicitly declared
+
+□ 14.11 Sensitive personal information (SPI) receives heightened protection
+        SPI: health, biometric, government-issued IDs (SSS/GSIS/TIN/PhilHealth), racial/ethnic origin,
+             political/religious affiliation, sexual life, offenses/proceedings
+        → privacy.md § Sensitive personal information (heightened protection)
+        VERIFY: SPI fields in schema have: encryption at rest (column-level or application-level),
+                access restricted to minimum roles (L3 RBAC), retention minimized
+        CONDITION: skip if no SPI is declared in PRODUCT.md §12
+
+□ 14.12 Compliance-badge claims are honest — design-claim badges only, no false certification claims
+        → Master Prompt Rule 33 / privacy.md § Honest compliance-badge policy
+        VERIFY: footer / trust-badge UI uses only design-claim badges (e.g. "Privacy-First Design")
+                unless the app holds a real certification (ISO 27001, SOC 2, etc.)
+        VERIFY: no badge claims "GDPR Certified", "ISO 27001 Certified", or "PCI DSS Compliant"
+                unless certification evidence is on file
+
+□ 14.13 OWASP Top 10:2025 A03 (Injection / Supply Chain) — dependency integrity gate
+        → security.md § ASVS 5.0 mapping / OWASP Top 10:2025 A03
+        VERIFY: pnpm audit --audit-level=high exits 0 (Section 13 item 13.9 must PASS first)
+        VERIFY: package.json has no packages with known supply-chain compromise history
+                (check npm advisories; flag any package flagged in the last 90 days)
+        VERIFY: lockfile (pnpm-lock.yaml) is committed and --frozen-lockfile enforced in CI
+
+□ 14.14 OWASP Top 10:2025 A10 (Fail-Closed / Exceptional Conditions) — fail-safe defaults
+        → security.md § ASVS 5.0 mapping / OWASP Top 10:2025 A10
+        VERIFY: all tRPC procedures default to DENY on error — no permission granted in catch blocks
+        VERIFY: auth session failure → redirects to login, never grants access
+        VERIFY: external-service failure (payment, SMS, webhook) → logged + queued for retry,
+                never silently continues with elevated privileges
+        VERIFY: error boundary in Next.js root layout — unhandled render errors show safe fallback,
+                not raw stack traces
+```
+
+---
+
 ## HOW TO USE THIS CHECKLIST
 
 **After Phase 4 (initial scaffold):**
-Run ALL 13 sections. Every item applies. This is the most critical audit — the scaffold
+Run ALL 14 sections. Every item applies. This is the most critical audit — the scaffold
 defines the security posture for the entire project lifecycle.
 
 **After Phase 7 (Feature Update):**
@@ -364,6 +458,7 @@ Run only the sections relevant to the feature:
 - Added background jobs? → Section 7
 - Added external webhook integration? → Section 10
 - Changed auth config? → Section 1
+- Personal data feature added or changed? → Section 14
 - Always run Section 13 (Phase 5 commands) regardless
 
 **Cross-AI audit loop:**

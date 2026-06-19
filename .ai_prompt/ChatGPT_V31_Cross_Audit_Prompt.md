@@ -1,6 +1,6 @@
-# Spec-Driven Platform V32.8 — Cross-AI Audit Prompt (for ChatGPT)
+# Spec-Driven Platform V32.9 — Cross-AI Audit Prompt (for ChatGPT)
 
-> **Purpose:** Hand this prompt to ChatGPT along with the 22 V32.8 framework files. ChatGPT independently audits V32.8 to verify the framework remains internally consistent across all canonical files. Items 1-7 below are historical V31-era audit goals (still verified as baseline); V32 / V32.1 / V32.2 / V32.3 / V32.4 / V32.4.1 / V32.5 / V32.5.1 / V32.5.2 / V32.5.3 / V32.5.4 / V32.5.5 / V32.6 / V32.6.1 / V32.7 / V32.7.1 / V32.7.2 / V32.7.3 / V32.7.4 / V32.7.5 / V32.8 verification items live in **Section K (K.1-K.51)** with the V32.8 verified counts block (V32.5.3 bumps Prompts 60→61 and NEW 37→38; V32.5.4 / V32.5.5 / V32.6 / V32.6.1 / V32.7 / V32.7.1 / V32.7.3 / V32.7.4 are no-count-change patches; deliverable files changed twice: 17→19 at V32.7.2 and 19→20 at V32.7.5; **V32.8 bumps Rules 30→32, Scenarios 35→39, UI Rules 11→12, Phase Hooks 14→17, Bootstrap Steps 19→20, memory-gov sections 5→6, deliverable files 20→22**):
+> **Purpose:** Hand this prompt to ChatGPT along with the 23 V32.9 framework files. ChatGPT independently audits V32.9 to verify the framework remains internally consistent across all canonical files. Items 1-7 below are historical V31-era audit goals (still verified as baseline); V32 / V32.1 / V32.2 / V32.3 / V32.4 / V32.4.1 / V32.5 / V32.5.1 / V32.5.2 / V32.5.3 / V32.5.4 / V32.5.5 / V32.6 / V32.6.1 / V32.7 / V32.7.1 / V32.7.2 / V32.7.3 / V32.7.4 / V32.7.5 / V32.8 / V32.8.1 / V32.9 verification items live in **Section K (K.1-K.65)** with the V32.9 verified counts block (V32.5.3 bumps Prompts 60→61 and NEW 37→38; V32.5.4 / V32.5.5 / V32.6 / V32.6.1 / V32.7 / V32.7.1 / V32.7.3 / V32.7.4 are no-count-change patches; deliverable files changed twice: 17→19 at V32.7.2 and 19→20 at V32.7.5; **V32.8 bumps Rules 30→32, Scenarios 35→39, UI Rules 11→12, Phase Hooks 14→17, Bootstrap Steps 19→20, memory-gov sections 5→6, deliverable files 20→22**; **V32.8.1 is a docs-only patch — zero count change**; **V32.9 bumps Rules 32→33, UI Rules 12→13, Phase Hooks 17→18, deliverables 22→23, Security Checklist 84→98 items / 13→14 sections, PRODUCT.md 11→12 sections, PA Rules 11→12**):
 > 1. Phase 2.8 (Clickable Mockup Review — added V31) is correctly documented
 > 2. Cline deprecation (in-place V31 update) is consistent across all files
 > 3. Historical V30 changelog references are preserved
@@ -9,7 +9,7 @@
 > 6. No regressions introduced during the updates
 > 7. Post-lock additive patches: Phase 3.5, Phase 4+8 anti-thrashing, Skill Installer, Prompt 4.13, attribution cleanup, prompt count 55 (V31 era — V32.5.3 current: **61 prompts (38 NEW ✨)**, **35 scenarios**, **19 bootstrap steps**, **9 V32 Dispatch Rules (R1-R9) + V32.3 R6 size qualifier (allow-list >200 lines via Scout with Governance Extraction Schema)**)
 >
-> **How to interpret counts:** The **V32.8 verified counts block** (around line 85 below) is authoritative for current totals. Historical changelog entries and items 1-7 above may reference older totals reflecting their version-at-time-of-writing (e.g., 55 prompts, 34 scenarios, 18 bootstrap steps for V31 lock; 30 rules / 35 scenarios / 14 phase hooks for V32.7.5) — those are correct for their version and **MUST NOT be treated as current**. When a count appears without a V32.8 annotation, cross-check against the verified counts block before reporting.
+> **How to interpret counts:** The **V32.9 verified counts block** (around line 87 below) is authoritative for current totals. Historical changelog entries and items 1-7 above may reference older totals reflecting their version-at-time-of-writing (e.g., 55 prompts, 34 scenarios, 18 bootstrap steps for V31 lock; 30 rules / 35 scenarios / 14 phase hooks for V32.7.5; 32 rules / 22 deliverables / 17 phase hooks for V32.8.1) — those are correct for their version and **MUST NOT be treated as current**. When a count appears without a V32.9 annotation, cross-check against the verified counts block before reporting.
 >
 > **Use case:** Run this after every major framework update to catch mistakes Claude missed.
 >
@@ -84,24 +84,25 @@ Bonito's user preference: keep Cline extension installed in VS Code as emergency
 - Post-lock patches add Phase 3.5 as a NEW phase (between Phase 3 and Phase 4) and anti-thrashing rules to Phase 4 and Phase 8. These are in phases.md and Master_Prompt_v31.md. They do NOT change the framework rule count, scenario count, or bootstrap step count.
 - Post-lock patches add a **Context Budget — Global Principle** to CLAUDE_v31_compact.md and Master_Prompt_v31.md. This is a Sonnet 4.6 model-aware task sizing principle (200K window, 120K practical, ≤80K SAFE zone, 12-file threshold). It governs how ALL work is scoped — not a new rule, but a non-negotiable behavioral principle.
 
-### V32.8 verified counts (must match in every file that quotes them)
+### V32.9 verified counts (must match in every file that quotes them)
 
 ```
-32 Rules · 39 Scenarios · 20 Bootstrap Steps · 8 Phase 4 Parts
+33 Rules · 39 Scenarios · 20 Bootstrap Steps · 8 Phase 4 Parts
 9 Phase 5 Commands · 16 Phase 6.5 Categories · 16 Secure Code Gen sub-sections
-12 UI Component Rules · 84 Security Checklist items (13 sections)
+13 UI Component Rules · 98 Security Checklist items (14 sections)
 61 Prompts (38 NEW ✨) in Prompt_References.md and Prompt_References.html
-22 deliverable files (16 in .ai_prompt/ + deploy-v31.sh at project root + spec-executor.md → .claude/agents/ + settings.json → .claude/settings.json + lint-deploy.sh → scripts/lint-deploy.sh + design-stop-hook.sh → scripts/ + LESSONS_REGISTRY.md → .ai_prompt/) · 4 MCP servers (3 wired + 1 plugin) · Node v22 · pnpm@10
+23 deliverable files (16 in .ai_prompt/ + deploy-v31.sh at project root + spec-executor.md → .claude/agents/ + settings.json → .claude/settings.json + lint-deploy.sh → scripts/lint-deploy.sh + design-stop-hook.sh → scripts/ + LESSONS_REGISTRY.md → .ai_prompt/ + privacy.md → .ai_prompt/) · 4 MCP servers (3 wired + 1 plugin) · Node v22 · pnpm@10
 Phase count: 8 main phases + 2.5 + 2.6 + 2.7 + 2.8 (V31) + 3.3 (V32.6) + 3.5 (POST-LOCK) + 6.5
 6 agents (Claude Code primary: Opus 4.6 Architect + Sonnet 4.6 Executor · Cline ⚠ DEPRECATED · Copilot · SpecStory · SocratiCode · code-review-graph)
 9 governance docs (unchanged)
-Planning Assistant: 11 rules (Rule 11 = n8n+OpenClaw automation opt-in)
+Planning Assistant: 12 rules (Rule 11 = n8n+OpenClaw automation opt-in; Rule 12 = Compliance gap-reminder)
+PRODUCT.md required sections: 12 (§1-§11 unchanged + §12 Compliance & Privacy — V32.9)
 V32 Dispatch Rules: 9 total (R1-R5 file-size mechanics + R6-R9 dispatch discipline) — was 5 in V32 / V32.1 / V32.1.x. **V32.3 is an R6 extension (size qualifier on allow-list), NOT a new rule** — count stays at 9.
 Opus Write Allow-List (R8): 5 files (docs/STATE.md · docs/DECISIONS_LOG.md · docs/CHANGELOG_AI.md · docs/IMPLEMENTATION_MAP.md · .cline/STATE.md)
 Dispatch Ratio target (R9): sonnet_writes / opus_writes ≥ 3.0 (< 1.0 triggers lessons.md drift review). **V32.3:** direct Opus read of a >200-line allow-list governance doc counts as `opus_writes` for ratio purposes.
 **V32.3 Architect-Read Allow-List size threshold:** 200 lines (≤200 direct read; >200 via Scout with Governance Extraction Schema in `memory-governance.md §4`). **New V32.3 invariant.**
 Memory Governance sections: 6 (§1 Tiered Decomposition · §2 Smart Checkpoint · §3 Phase Hooks · §4 Governance Extraction Schema · §5 Architect-Execute Model · §6 Mid-Project Adoption) — V32.8 bumped from 5 to 6.
-Phase Hooks (memory-governance.md §3): 17 — V32.8 bumped from 14 (Rule 31 adds 3 new hooks: Phase 3.3 token-compile gate + Phase 4 baseline-capture gate + Phase 5/8 visual-gate pre-flight).
+Phase Hooks (memory-governance.md §3): 18 — V32.9 bumped from 17 (Hook 18 = Compliance/Data-Privacy Gap-Surfacing added by Rule 33).
 ```
 
 Count diffs vs V32.2: all canonical counts unchanged. New invariant added (allow-list size threshold = 200 lines). V32.3 is an R6 extension, not a new rule. K.34 added (V32.3 verification).
@@ -809,7 +810,7 @@ Verify each is present in the specified locations.
 □ K.18 (V32.1.1) — Prompt_References.md Starting State diagram contains memory-governance.md AND docs/DESIGN.md AND docs/mockups/
        LOOK FOR in `Prompt_References.md` "## The Starting State" ascii block:
        row for `memory-governance.md` inside `.ai_prompt/`, AND
-       row for `docs/DESIGN.md` with annotation "from Planning Assistant Step 7b — if you picked a getdesign.md aesthetic", AND
+       row for `docs/DESIGN.md` with annotation "from Planning Assistant Step 7b — if you chose a shadcn/ui theme direction in Phase 2.8", AND
        row for `docs/mockups/` with annotation "from prompt 4.7 — if you saved the Phase 2.8 mockup HTML archive".
        FAIL if any of the three rows is missing.
        FAIL if the diagram still says "15 V31 reference files".
@@ -1478,6 +1479,214 @@ Verify each is present in the specified locations.
        Note: Historical changelog entries that cite 30 rules, 35 scenarios, 11 UI rules, 14 phase hooks,
        19 bootstrap steps, 20 deliverable files ARE preserved per Rule 4 and are NOT a failure.
 
+□ K.52 (2026-06-18) — Governance-Core Provenance Note: AIEF registered as Tier-0 origin of the shared
+       Governance-Core sibling repo (§1–§7 primitives + SHARED/COMPARTMENTALIZED memory-scope modes +
+       seeded fleet lessons registry); adopted by reference via `Governance-Core/adapters/aief.adapter.md`.
+       LOOK FOR in `CLAUDE_framework_repo.md`: a "Governance-Core Provenance" section (or equivalent
+       heading) that states: (a) AIEF is the Tier-0 origin; (b) `memory-governance.md` + V32.8 Rule 32
+       learning loop + architect-execute dispatch are the in-framework expression of Core §1–§7;
+       (c) adoption is by reference via `adapters/aief.adapter.md`; (d) provenance flows AIEF → Core
+       (AIEF leads, does NOT follow the Core).
+       ALSO CHECK: the note must NOT appear in `CLAUDE_v31_compact.md` or `memory-governance.md`
+       (those deploy into target app projects — a Core pointer there would dangle).
+       FAIL if the provenance note is absent from `CLAUDE_framework_repo.md`.
+       FAIL if a Governance-Core pointer appears in `CLAUDE_v31_compact.md` or `memory-governance.md`.
+       Note: No AIEF rule/scenario/prompt/deliverable counts change — Governance-Core is an external
+       sibling repo, not a new AIEF rule.
+
+□ K.53 (V32.8.1) — getdesign.md / awesome-design-md / VoltAgent removed from all live instructional text:
+       V32.8.1 removes the external design catalogs `getdesign.md` and `VoltAgent/awesome-design-md` as
+       design-token sources. shadcn/ui CSS custom property values are now the only design source. The
+       Planning Assistant derives values from a named "theme direction" (e.g. "Linear", "Stripe") without
+       fetching any external URL. docs/DESIGN.md records shadcn CSS variable overrides, not extracted
+       third-party catalog content. Zero count change — 32 rules · 39 scenarios · 61 prompts · 20 bootstrap
+       steps · 22 deliverables all unchanged.
+       LOOK FOR:
+         (a) `Product_md_Planning_Assistant_v31.md` Phase 2.8 Step 0 — must NOT reference `getdesign.md`
+             or any external URL catalog. Must say "tune the shadcn/ui theme" / "name a visual direction".
+         (b) `Product_md_Planning_Assistant_v31.md` Step 7b DESIGN.md header — must say "Theme direction:
+             [design name] (shadcn/ui CSS variable overrides)" NOT "Source: [design name] from getdesign.md".
+         (c) `scenarios.md` Scenario 33 CONTEXT block — must say "4 visual sections derived from a chosen
+             shadcn/ui theme direction" NOT "extracted from awesome-design-md".
+         (d) `scenarios.md` Scenario 33 WHAT AGENTS DO NOT DO — must NOT reference VoltAgent/awesome-design-md.
+             Must say "only the shadcn/ui CSS variable values recorded in docs/DESIGN.md".
+         (e) `scenarios.md` Scenario 33 LEGAL POSTURE — must NOT mention awesome-design-md MIT license.
+             Must say values are "shadcn/ui CSS custom properties authored during the Planning Assistant session."
+         (f) `Prompt_References.md` Prompt 4.8 title — must say "Adopt a DESIGN.md Aesthetic (shadcn/ui
+             theme direction)" NOT "from awesome-design-md".
+         (g) `Prompt_References.md` Prompt 4.8.2 code body — must say "CHOSEN DIRECTION" NOT "SOURCE URL"
+             and must say "Do NOT fetch any external URL or catalog."
+         (h) `Prompt_References.html` — must be 1:1 parity with the .md on all of the above points.
+         (i) `Framework_Feature_Index_v31.md` — must contain a V32.8.1 row documenting the removal.
+       FAIL if any of getdesign.md / awesome-design-md / VoltAgent appears in live instructional text
+             (outside historical changelog entries, which are frozen per Rule 4).
+       FAIL if Prompt 4.8.2 still contains a "SOURCE URL" field or references a GitHub raw URL for
+             awesome-design-md.
+       FAIL if Scenario 33 LEGAL POSTURE still cites awesome-design-md MIT license.
+       FAIL if docs/DESIGN.md header template still reads "Source: [design name] from getdesign.md".
+       Note: Historical changelog entries in `Framework_Feature_Index_v31.md` (V31 row referencing
+       "Scenario 33 added — DESIGN.md integration with shadcn/ui (maps VoltAgent/awesome-design-md
+       catalog tokens...)") and in `Master_Prompt_v31.md` or `Prompt_References.md` changelog lines
+       that mention awesome-design-md are FROZEN history per Rule 4 — do NOT flag those as failures.
+
+---
+
+### V32.9 — Compliance & Data Privacy Layer
+
+□ K.54 (V32.9) — Rule 33 (Compliance & Data Privacy) present in Master Prompt and compact card:
+       V32.9 adds Rule 33 — PH Data Privacy Act (RA 10173 / NPC compliance), WCAG 2.2 AA hard-gate
+       for gov/LGU apps, ComplianceFooter honesty policy, and ASVS 5.0 / OWASP Top 10:2025 security
+       refresh. Count bumps: Rules 32→33.
+       LOOK FOR:
+         (a) `Master_Prompt_v31.md` — Rule 33 block present with RA 10173 / NPC reference, WCAG 2.2 AA
+             gov/LGU hard-gate, ComplianceFooter honesty policy (4 default-ON badges; cert badges OFF
+             unless held), ASVS 5.0 + OWASP Top 10:2025 A03/A10 security refresh.
+         (b) `CLAUDE_v31_compact.md` — Rule 33 one-liner present; header version reads V32.9; rule count
+             shown as 33.
+       FAIL if Rule 33 is absent from either file.
+       FAIL if compact header still reads V32.8 or V32.8.1.
+       Note: Historical V32.8.1 entries that say "32 rules" are FROZEN history — do NOT flag.
+
+□ K.55 (V32.9) — privacy.md deliverable #23 exists, deployed by deploy-v31.sh, enumerated in CLAUDE.md:
+       V32.9 adds `privacy.md` as the 23rd framework deliverable (deployed to `.ai_prompt/privacy.md`
+       in target projects). Deliverable count bumps 22→23.
+       LOOK FOR:
+         (a) `specdrivenprompt/privacy.md` exists in the framework repo.
+         (b) `deploy-v31.sh` — copies `privacy.md` to `.ai_prompt/privacy.md` with a GROUP 1 or GROUP 2
+             entry (correct group for .ai_prompt/ detail files).
+         (c) `CLAUDE.md` (repo root) — enumerates privacy.md as deliverable #23 in the 22-file enum
+             (now 23-file enum).
+         (d) Verified counts block (K.54 context) — 23 deliverable files listed.
+       FAIL if privacy.md is absent from deploy-v31.sh copy list.
+       FAIL if CLAUDE.md deliverable enum still caps at 22.
+
+□ K.56 (V32.9) — Hook 18 (Compliance/Data-Privacy Gap-Surfacing) in memory-governance.md §3 and phases.md:
+       V32.9 adds Hook 18 to the Phase Hooks list in `memory-governance.md §3`. Phase Hooks bump 17→18.
+       LOOK FOR:
+         (a) `memory-governance.md` §3 — Hook 18 entry present with label "Compliance/Data-Privacy
+             Gap-Surfacing"; the `### Injection Points (N hooks total)` header reads 18 (not 17).
+         (b) `phases.md` — the relevant phase pre-flight (Phase 0 or Phase 7 Feature Update, per
+             framework design) wires Hook 18 as a MEM-GOV pre-flight step.
+       FAIL if §3 still says 17 hooks total.
+       FAIL if Hook 18 is absent from the enumeration list.
+
+□ K.57 (V32.9) — ui-rules.md Rule 13 (WCAG 2.2 AA gov/LGU hard-gate):
+       V32.9 adds UI Rule 13: WCAG 2.2 AA accessibility is a hard gate for any app deployed to a PH
+       government or LGU context (aligns with DICT Memorandum Circular 004). UI rule count bumps 12→13.
+       LOOK FOR:
+         (a) `ui-rules.md` — Rule 13 present, explicitly names WCAG 2.2 AA as the standard, identifies
+             gov/LGU apps as the trigger condition, and states it is a hard gate (not advisory).
+         (b) `Master_Prompt_v31.md` — UI rules section counts 13 rules.
+         (c) `CLAUDE_v31_compact.md` — references 13 UI rules.
+       FAIL if ui-rules.md Rule 13 is absent.
+       FAIL if any current-state count reference still says "12 UI Component Rules" (outside frozen history).
+
+□ K.58 (V32.9) — ComplianceFooter honesty rule in templates.md:
+       V32.9 adds ComplianceFooter component policy to `templates.md`: 4 badges default-ON (Privacy
+       Policy · Data Retention · Cookie Policy · Accessibility Statement); certification badges (ISO,
+       PCI-DSS, SOC 2, etc.) are OFF unless the cert is actually held — no aspirational badges.
+       LOOK FOR:
+         (a) `templates.md` — ComplianceFooter section present with the 4 default-ON badges listed and
+             the "certification badges OFF unless held" honesty rule explicit.
+         (b) No template in `templates.md` that pre-populates ISO/PCI-DSS/SOC 2 cert badges by default.
+       FAIL if ComplianceFooter section is absent from templates.md.
+       FAIL if any cert badge appears as a default-ON template item.
+
+□ K.59 (V32.9) — PA §12 Compliance section (PRODUCT.md 12 sections) + PA Rule 12 gap-reminder + interview Qs:
+       V32.9 adds §12 Compliance & Privacy to PRODUCT.md (bumping required sections 11→12) and adds
+       Rule 12 to the Planning Assistant (bumping PA rules 11→12). The PA interviews the human on
+       compliance needs; Rule 12 is the standing gap-reminder that surfaces at PA close.
+       LOOK FOR:
+         (a) `Product_md_Planning_Assistant_v31.md` — §12 Compliance & Privacy section present in the
+             PRODUCT.md template output; interview questions for RA 10173 / WCAG scope present.
+         (b) `Product_md_Planning_Assistant_v31.md` — Rule 12 present (gap-reminder fires before PA
+             hands off to Phase 0).
+         (c) PA rules header / enumeration shows 12 rules (not 11).
+         (d) PRODUCT.md template section count = 12.
+       FAIL if §12 is absent from the PA template.
+       FAIL if PA still shows only 11 rules.
+
+□ K.60 (V32.9) — Post-Generation Security Checklist §14 (98 items / 14 sections):
+       V32.9 expands the Post-Generation Security Checklist from 84 items (13 sections) to 98 items
+       (14 sections). The new §14 covers Compliance & Data Privacy (RA 10173 NPC requirements,
+       WCAG 2.2 AA gate, ComplianceFooter, consent flows, data-subject rights endpoints).
+       LOOK FOR:
+         (a) `Post_Generation_Security_Checklist_v31.md` — §14 Compliance & Data Privacy present with
+             at least the new items reaching the 98-item total.
+         (b) File header or footer states "98 items" and "14 sections".
+         (c) All prior §1-§13 items intact (no items removed — count only grew).
+       FAIL if §14 is absent.
+       FAIL if total item count is not 98.
+       Note: Prior items K.51(m) and E.4 reference 84 items / 13 sections — those reflect V32.8 /
+       V31 states respectively and are FROZEN. Current-state is 98 / 14.
+
+□ K.61 (V32.9) — security.md ASVS 5.0 + OWASP Top 10:2025 A03/A10 refresh:
+       V32.9 updates `security.md` to align with ASVS 5.0 (replacing ASVS 4.0 references) and
+       OWASP Top 10:2025 (specifically A03 Injection and A10 SSRF, the two categories most affected
+       by the framework's tRPC + Prisma stack).
+       LOOK FOR:
+         (a) `security.md` — references ASVS 5.0 (not ASVS 4.0).
+         (b) `security.md` — references OWASP Top 10:2025 A03 and A10 by name/number.
+         (c) No regression: the 16 Secure Code Generation sub-sections are still present (count unchanged).
+       FAIL if security.md still references ASVS 4.0 as current (frozen historical mentions are OK).
+       FAIL if OWASP Top 10:2025 is absent from security.md.
+
+□ K.62 (V32.9) — Skills `ph-data-privacy` and `accessibility-agents` present in skills DB and surfaced by /scan-project:
+       V32.9 adds two new skills to the AIEF skills library: `ph-data-privacy` (PH Data Privacy Act /
+       RA 10173 compliance skill) and `accessibility-agents` (WCAG 2.2 AA + ARIA audit skill).
+       Both must be surfaced by `/scan-project` at the correct framework phase.
+       LOOK FOR:
+         (a) `src/data/skills.js` (AIEF repo) — `ph-data-privacy` entry present with correct id,
+             label, description, and install command.
+         (b) `src/data/skills.js` — `accessibility-agents` entry present with correct id, label,
+             description, and install command.
+         (c) `/scan-project` skill scanner (src/data/ or scan-project skill file) — both skills appear
+             in the Phase 7 or compliance-phase suggestion list (Surface Additions Policy).
+       FAIL if either skill is absent from skills.js.
+       FAIL if either skill is absent from /scan-project surfacing (Surface Additions Policy violation).
+
+□ K.63 (V32.9) — Compact card header version = V32.9 and rule count = 33:
+       Supersedes K.53's version-marker check for the compact card. Verify the CURRENT values are V32.9.
+       LOOK FOR:
+         (a) `CLAUDE_v31_compact.md` first line or header block — reads `V32.9` (not V32.8 or V32.8.1).
+         (b) Rule count line in compact — reads `33 rules` (not 32).
+         (c) UI rules count — reads `13 UI rules` (not 12).
+         (d) Phase Hooks count — reads `18 phase hooks` (not 17).
+         (e) Deliverable count — reads `23 deliverable files` (not 22).
+         (f) Security Checklist reference — reads `98-item` or `98 items` (not 84).
+       FAIL if any of (a)-(f) is stale.
+       NOTE: Historical changelog entries inside CLAUDE_v31_compact.md that say "32 rules" etc. for
+       older versions are FROZEN — do NOT flag those.
+
+□ K.64 (V32.9) — Count propagation: V32.9 bumps recorded correctly in Framework_Feature_Index_v31.md:
+       V32.9 is a major count-change version. The Framework Feature Index must record it.
+       LOOK FOR:
+         (a) `Framework_Feature_Index_v31.md` — V32.9 row present documenting: Rule 33, privacy.md
+             (#23), Hook 18, UI Rule 13, Checklist 98/14, PA §12 + Rule 12, PRODUCT.md §12,
+             ph-data-privacy + accessibility-agents skills, ASVS 5.0 / OWASP Top 10:2025.
+         (b) Framework header / "Current framework version" line reads V32.9.
+         (c) Footer or counts summary updated: 33 Rules · 39 Scenarios · 23 deliverables · 18 hooks ·
+             13 UI rules · 98 checklist items.
+       FAIL if V32.9 row is absent.
+       FAIL if "Current framework version" still reads V32.8.1.
+
+□ K.65 (V32.9) — No stale current-state count references remain (zero-stale-count sweep):
+       After V32.9, the canonical current-state counts are: 33 Rules · 39 Scenarios · 20 Bootstrap ·
+       13 UI Component Rules · 18 Phase Hooks · 98 Security Checklist items (14 sections) · 23
+       deliverable files · 12 PRODUCT.md sections · 12 PA rules · 61 Prompts (38 NEW ✨).
+       LOOK FOR stale current-state occurrences of:
+         - "32 Rules" / "32 rules" (outside frozen history)
+         - "12 UI Component Rules" / "12 mandatory UI" (outside frozen history)
+         - "84-item" / "84 security" (outside frozen history)
+         - "13 sections" referring to checklist (outside frozen history)
+         - "22 deliverable" (outside frozen history)
+         - "17 phase hooks" / "17 Phase Hook" (outside frozen history)
+         - "11 rules" referring to Planning Assistant (outside frozen history)
+         - "11 sections" referring to PRODUCT.md (outside frozen history)
+       FAIL for any current-state stale count found.
+       PASS only if every occurrence of the above is inside a frozen historical context (dated changelog
+       entry, per-version K-item, or explicit "at VXX.Y" qualifier).
+
 ---
 
 ## OUTPUT FORMAT
@@ -1514,7 +1723,7 @@ SECTION I (Automation Integration):            [X PASS / Y FAIL / Z PARTIAL]
 SECTION J (Post-Lock Additive Patches):        [X PASS / Y FAIL / Z PARTIAL]
 SECTION K (V32 / V32.8 Patches):              [X PASS / Y FAIL / Z PARTIAL]
 ───────────────────────────────────────────────────────────
-TOTAL:                                         [X PASS / Y FAIL / Z PARTIAL] out of ~145 items
+TOTAL:                                         [X PASS / Y FAIL / Z PARTIAL] out of ~157 items
 
 TOP 3 CRITICAL FAILS (must fix before release):
 1. [item] — [file] — [fix]
@@ -1553,4 +1762,4 @@ SECONDARY ISSUES (nice to fix but not blocking):
 
 ---
 
-*Part of the Spec-Driven Platform V32.7.2 deliverable set. Maintained by Claude on behalf of Bonito — Powerbyte IT Solutions, Lipa City, Philippines.*
+*Part of the Spec-Driven Platform V32.9 deliverable set. Maintained by Claude on behalf of Bonito — Powerbyte IT Solutions, Lipa City, Philippines.*

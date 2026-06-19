@@ -93,3 +93,19 @@ After promotion: update the `/memory` mirror index (one-line summary per fingerp
 _Promoted: 2026-06-17_
 
 ---
+
+## conductor.ci-verification.turbo-cache-masked-green
+
+| Field | Value |
+|---|---|
+| **fingerprint** | `conductor.ci-verification.turbo-cache-masked-green` |
+| **machine_signature** | A turbo `lint`/`typecheck`/`build` task reports `Cached: N cached` GREEN for a commit whose true result is RED — exposed only when an input (lockfile / `package.json`) changes and busts the cache |
+| **scope** | `conductor` |
+| **failure** | Orqafy `main` showed CI `Turbo typecheck`/`Turbo build` GREEN while actually carrying ~33 web lint errors + an `ioredis` dual-version typecheck conflict. The pass was a STALE turbo cache result: type-aware `@typescript-eslint` rules (`strict-boolean-expressions`, `no-unsafe-*`, `no-unnecessary-type-assertion`) and `tsc` depend on cross-package type info the lint/typecheck cache key doesn't fully capture, so previously-cached green survives even after sibling changes make the code red. A CVE-override lockfile change busted the cache and surfaced the real red. First observed 2026-06-18. |
+| **standing_check** | When verifying a framework app's `main` CI is "green," do NOT trust a cached pass for `lint`/`typecheck`/`build` gates — confirm true state with a cache-busted run (`pnpm turbo run lint typecheck build test --force`) before declaring green, merging, or promoting an image. |
+| **check_location** | `/memory feedback_ci_verify_cache_busted.md` |
+| **framework follow-up (backlog)** | Harden the framework CI template to run lint/typecheck gates cache-busted (or declare correct turbo `inputs`/`dependsOn` so type-aware results invalidate on cross-package change). Not yet implemented. |
+
+_Promoted: 2026-06-18_
+
+---

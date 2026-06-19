@@ -2,10 +2,11 @@
 
 > **Loaded contextually** when any phase pre-flight runs.
 > Read the section relevant to your current task. Do NOT read all sections at once.
-> Contains: §1 Tiered Decomposition (V32 file-size-based), §2 Smart Checkpoint (+ V32.8 evidence field), §3 Phase Hooks (17 total — V32.8), §4 Architect-Execute Model (V32 Zero Opus Execution), §5 Mid-Project Adoption, §6 Learning Registry & Recurrence (V32.8).
+> Contains: §1 Tiered Decomposition (V32 file-size-based), §2 Smart Checkpoint (+ V32.8 evidence field), §3 Phase Hooks (18 total — V32.9), §4 Architect-Execute Model (V32 Zero Opus Execution), §5 Mid-Project Adoption, §6 Learning Registry & Recurrence (V32.8).
 >
 > **V32 change vs V31.4:** Token estimation REPLACED by `wc -l` file-size checks. Opus executor escalation (old Step 2.5b) DELETED entirely. New 500-line dispatch cap.
 > **V32.8 additions:** §2 gains required evidence field `{contract, check_command, captured_output}` on all done-claims. §3 phase-hook count 14 → 17 (Hooks 15-17: work-start registry consult, done-claim evidence capture, failure-time fingerprint→scan→strengthen). §6 (new): Learning Registry & Recurrence — `LESSONS_REGISTRY.md`, two-part fingerprint, three consult points, recurrence response protocol, promotion checklist.
+> **V32.9 additions:** §3 phase-hook count 17 → 18 (Hook 18: compliance/data-privacy gap-surfacing — fires during all build phases to surface missing consent, DSR endpoints, retention, breach handling, and lawful basis before Phase 5). See `.ai_prompt/privacy.md` for the full PH DPA compliance model.
 
 ---
 
@@ -278,7 +279,7 @@ You do not need to read this section during execution — it documents where the
   MODEL: ZERO OPUS EXECUTION (V32.3). Opus's only allowed actions in this session are: read context, plan, decompose, review Sonnet output, write STATE.md checkpoint. ALL other file writes (code, configs, governance docs, tests) MUST be dispatched via Agent(model: "sonnet") per §4. Before each dispatch: run `wc -l` on every file in scope; total ≤ 500 lines per Sonnet task; files > 300 lines need explicit line ranges. Allow-list governance docs > 200 lines MUST also go through Scout-Sonnet with the Governance Extraction Schema (§4) — direct Opus read of a > 200-line allow-list doc counts as `opus_writes` for `dispatch_ratio`. NO exceptions. NO "last resort." NO Opus executor escalation. If you find yourself about to call Edit/Write on a non-allow-list project file, STOP and dispatch.
 ```
 
-### Injection Points (17 hooks total — V32.8)
+### Injection Points (18 hooks total — V32.9)
 
 The original 14 governance hooks cover every Claude-Code-executed phase (one per pre-flight). V32.8 Rule 32 adds **3 new hook types** that fire within those phases at specific task boundaries — they are not new phase pre-flights but distinct consult/capture points:
 
@@ -290,6 +291,31 @@ Run the acceptance contract check and capture `{contract, check_command, capture
 
 **Hook 17 — Failure-Time Fingerprint→Scan→Strengthen** (fires whenever a build/test/gate/human-report failure occurs)
 Fingerprint the failure using the two-part fingerprint (see §6). Scan `LESSONS_REGISTRY.md`. If a match exists AND the standing check should have caught this → the check **eroded** → STRENGTHEN it (don't just re-fix). If novel → promotion candidate. Cross-references `phases.md` failure-handling step and §6 recurrence-detection protocol.
+
+**Hook 18 — Compliance & Data-Privacy Gap-Surfacing** (fires at the start of every build phase pre-flight — V32.9 Rule 33)
+Before ANY Phase 4 Part, Phase 7 Feature Update, or Phase 8 Batch begins work on data-touching surfaces (models, API routes, auth flows, storage, file uploads), read `.ai_prompt/privacy.md` and actively surface any gap in the following areas:
+
+```
+COMPLIANCE GAP SCAN — surfaces to check:
+  □ Consent capture — is lawful basis (consent, legitimate interest, or legal obligation per PH DPA Art. 12)
+    declared for every personal data field being collected or processed?
+  □ DSR endpoints — do the tRPC router(s) in scope expose Data Subject Request procedures
+    (access, rectification, erasure, portability, object) per RA 10173 §16?
+  □ Data retention — does the Prisma schema have retention/deletion fields (retainedUntil, deletedAt)
+    for tables holding personal data?
+  □ Breach handling — is there a breach-notification stub (72-hour NPC report trigger per RA 10173 §20)?
+  □ Third-party disclosure — does PRODUCT.md §7 (Integrations) declare all processors that receive
+    personal data, and does the app have a data-processing agreement placeholder?
+  □ WCAG 2.2 AA (gov/LGU) — if client flag is set, verify accessibility-agents is wired into
+    this build phase (cross-references ui-rules.md Rule 13).
+
+OUTPUT: List every gap found as a 🔴 item. If no gaps: log "Hook 18 — privacy scan clean" to STATE.md.
+Do NOT silently proceed past gaps — surface them before writing any file.
+```
+
+This hook replaces passive silence with active gap-detection. It does not block the phase on its own — it surfaces gaps so the developer can resolve them before they compound. Critical gaps (missing consent on a new personal-data field, missing DSR routes on a new entity) MUST be resolved before Phase 5 may close. Non-critical gaps (audit-log refinements, third-party DPA placeholders) may be logged as deferred items in DECISIONS_LOG.md.
+
+Read: `.ai_prompt/privacy.md` — the full PH DPA compliance model.
 
 ---
 
@@ -847,7 +873,7 @@ When promoting a lesson to the registry:
 - `templates.md` — acceptance-contract skeleton + evidence-field shape + `LESSONS_REGISTRY.md` entry template + Stop hook config
 - `LESSONS_REGISTRY.md` — the canonical registry file (companion V32.8 artifact; seeded with the first framework-scope entry from the Yelli `COPY . .` lesson)
 
-> **Section count note:** This file now contains **6 sections** (§1–§6). The file header lists sections by name; update it if you add further sections. The §3 phase-hook count is **17** (was 14; bumped by V32.8 Hooks 15-17). No `TODO(count)` remains in this file — the count was set here as the authoritative V32.8 task.
+> **Section count note:** This file now contains **6 sections** (§1–§6). The file header lists sections by name; update it if you add further sections. The §3 phase-hook count is **18** (was 14; bumped by V32.8 Hooks 15-17; bumped again by V32.9 Hook 18 — Compliance & Data-Privacy Gap-Surfacing). No `TODO(count)` remains in this file — the count is authoritative.
 
 ---
 

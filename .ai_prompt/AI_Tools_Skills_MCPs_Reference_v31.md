@@ -8,7 +8,7 @@
 > **Agents:** Read Section 6 (Model Routing) and Section 7 (How Tools Connect to PRODUCT.md)
 > before making any tool selection decisions.
 >
-> Last updated: V32.6.1 · Powerbyte IT Solutions · Lipa City, Philippines
+> Last updated: V32.9 · Powerbyte IT Solutions · Lipa City, Philippines
 
 ---
 
@@ -467,6 +467,54 @@ docs/design-tokens.json (DTCG source)
 
 **Change history:**
 - V32.8: Added. All four mechanisms are new. Style Dictionary v5 + Playwright visual gate enforce Rule 31; LESSONS_REGISTRY + Stop-hook + verification-before-completion enforce Rule 32.
+
+---
+
+### 3.12 V32.9 — Compliance + Data Privacy Skills (NEW V32.9)
+
+Two new skills prescribed by **Rule 33** (`privacy.md` deliverable #23). Both are registered in `src/data/skills.js` and surfaced by `/scan-project`.
+
+#### ph-data-privacy
+
+| Field | Value |
+|---|---|
+| Skill ID | `ph-data-privacy` |
+| Repo | `bonitobonita24/ph-data-privacy` |
+| Category | Security |
+| Author | Powerbyte IT Solutions (Internal) |
+| Status | On-demand — triggered by Rule 33 |
+
+**What it does:** Philippine Data Privacy Act (RA 10173 / NPC) compliance guide for Claude Code. Covers NPC registration, lawful bases, data subject rights (access/correction/erasure/portability/object), Privacy Impact Assessment (PIA), breach notification (72h NPC + affected data subjects), data sharing agreements, retention schedules, DPO designation, and consent form templates. Also covers WCAG 2.2 AA requirements from DICT MC 004-2020.
+
+**When it activates:**
+- Phase 4 Part 3 (schema) + Part 4 (auth/RBAC) — when PRODUCT.md §12 Compliance section populated
+- Phase 7 Feature Updates touching user data, consent, or audit trails
+- Any phase when PRODUCT.md Industry = Government / LGU
+- Triggered explicitly via Rule 33: `Read .ai_prompt/privacy.md`
+
+**How /scan-project surfaces it:** Compliance signal (gov/LGU industry, personal data entities in schema, NPC/DICT mention in PRODUCT.md) → `ph-data-privacy` recommended as approval-gated install.
+
+#### accessibility-agents
+
+| Field | Value |
+|---|---|
+| Skill ID | `accessibility-agents` |
+| Repo | `Community-Access/accessibility-agents` |
+| Category | Testing |
+| Author | Community |
+| Status | Framework-prescribed at Phase 4 Parts 5-6 + Phase 5 |
+
+**What it does:** Multi-agent accessibility testing suite. Runs automated WCAG 2.2 AA checks via axe-core, Pa11y, and Playwright assistive-technology simulation (screen reader, keyboard-only nav, forced-colors). Produces a per-route scorecard with ARIA role tree, contrast ratios, focus-order map, and interactive element labels.
+
+**When it activates:**
+- Phase 4 Parts 5-6 (UI wiring) — WCAG audit pass after components are wired
+- Phase 5 OUTPUT CONTRACT — accessibility gate runs after the 9 validation commands
+- **Gov/LGU apps:** WCAG 2.2 AA is a HARD GATE (DICT MC 004) — Phase 5 cannot close until `accessibility-agents` returns green. This is enforced by ui-rules.md R13 (V32.9).
+
+**How /scan-project surfaces it:** Frontend signal (React/Next.js + UI files) → `accessibility-agents` recommended. Gov/LGU signal → promoted to mandatory gate.
+
+**Change history:**
+- V32.9: Both skills added. `ph-data-privacy` by Powerbyte (Internal); `accessibility-agents` from Community-Access. Both wired into `src/data/skills.js` + CLAUDE.md phase→skill table per Surface Additions Policy.
 
 ---
 
@@ -1177,5 +1225,5 @@ The Master Prompt contains a UI COMPONENT RULES section that enforces shadcn/ui 
 
 ---
 
-*This reference is part of the 22-file V32.8 deliverable set (16 files placed in `.ai_prompt/` + deploy script at project root + spec-executor.md → `.claude/agents/` + settings.json → `.claude/settings.json` + lint-deploy.sh → `scripts/` + design-tokens.json → `docs/` + LESSONS_REGISTRY.md → `docs/`):*
-*CLAUDE_v31_compact.md · Master_Prompt_v31.md · bootstrap.md · phases.md · security.md · ui-rules.md · scenarios.md · templates.md · memory-governance.md · Product_md_Planning_Assistant_v31.md · Framework_Feature_Index_v31.md · AI_Tools_Skills_MCPs_Reference_v31.md · Post_Generation_Security_Checklist_v31.md · ChatGPT_V31_Cross_Audit_Prompt.md · Prompt_References.md · Prompt_References.html · plus `deploy-v31.sh` at project root · plus `spec-executor.md` (→ `.claude/agents/`) and `settings.json` (→ `.claude/settings.json` merged) added at V32.7.2 · plus `lint-deploy.sh` (→ `scripts/lint-deploy.sh`, chmod +x) added at V32.7.5.*
+*This reference is part of the 23-file V32.9 deliverable set (17 files placed in `.ai_prompt/` + deploy script at project root + spec-executor.md → `.claude/agents/` + settings.json → `.claude/settings.json` + lint-deploy.sh → `scripts/` + design-stop-hook.sh → `scripts/` + LESSONS_REGISTRY.md → `.ai_prompt/` + privacy.md → `.ai_prompt/`):*
+*CLAUDE_v31_compact.md · Master_Prompt_v31.md · bootstrap.md · phases.md · security.md · ui-rules.md · scenarios.md · templates.md · memory-governance.md · Product_md_Planning_Assistant_v31.md · Framework_Feature_Index_v31.md · AI_Tools_Skills_MCPs_Reference_v31.md · Post_Generation_Security_Checklist_v31.md · ChatGPT_V31_Cross_Audit_Prompt.md · Prompt_References.md · Prompt_References.html · privacy.md · plus `deploy-v31.sh` at project root · plus `spec-executor.md` (→ `.claude/agents/`) and `settings.json` (→ `.claude/settings.json` merged) added at V32.7.2 · plus `lint-deploy.sh` (→ `scripts/lint-deploy.sh`, chmod +x) added at V32.7.5 · plus `privacy.md` (→ `.ai_prompt/privacy.md`) added at V32.9.*

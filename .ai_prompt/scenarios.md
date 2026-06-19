@@ -1718,10 +1718,10 @@ SpecStory adds a passive diff-capture layer that bridges the attribution gap.
 ### SCENARIO 33 — DESIGN.md Integration with shadcn/ui (NEW)
 ```
 CONTEXT:
-  Project has docs/DESIGN.md created via Planning Assistant prompt 4.8.
-  This file contains 4 visual sections extracted from awesome-design-md:
+  Project has docs/DESIGN.md created via Planning Assistant Phase 2.8 Step 7b (or prompt 4.8).
+  This file contains 4 visual sections derived from a chosen shadcn/ui theme direction:
   Visual Theme & Atmosphere, Color Palette, Typography Rules, Layout Principles.
-  Source: VoltAgent/awesome-design-md (MIT licensed) or getdesign.md.
+  All values are expressed as shadcn/ui CSS custom properties (HSL format).
 
 FILE LOCATION:
   docs/DESIGN.md                   — authoritative visual reference (primary)
@@ -1777,12 +1777,11 @@ WHAT AGENTS DO WITH docs/DESIGN.md:
 WHAT AGENTS DO NOT DO WITH docs/DESIGN.md:
   ❌ NEVER replace shadcn/ui components with custom implementations to match
      the source aesthetic. Every component still comes from shadcn@latest add.
-  ❌ NEVER copy CSS verbatim from the source website (linear.app, stripe.com, etc.).
-     Use the DESIGN.md extracted values only — those are MIT licensed via
-     VoltAgent/awesome-design-md.
+  ❌ NEVER copy CSS verbatim from any external source website.
+     Use only the shadcn/ui CSS variable values recorded in docs/DESIGN.md.
   ❌ NEVER reproduce the source website's layout pixel-for-pixel. This is
      inspiration, not replication.
-  ❌ NEVER override the 12 UI Component Rules (ui-rules.md) to match the source.
+  ❌ NEVER override the 13 UI Component Rules (ui-rules.md) to match the source.
      shadcn/ui wins on component behavior.
 
 CONFLICT RESOLUTION:
@@ -1804,14 +1803,14 @@ CONFLICT RESOLUTION:
       unless already in package.json.
 
 LEGAL POSTURE:
-  - awesome-design-md is MIT licensed.
-  - Extracted tokens (colors, fonts, spacing values) are publicly visible CSS
-    values from the source websites. Adopting the aesthetic via these tokens
-    is permissible.
-  - DO NOT clone the source website's exact visual layout, logo, or branded
-    imagery. This is inspiration, not appropriation.
-  - DO NOT use the source website's brand name in marketing copy ("Linear-style"
-    is OK as internal docs; never shipped in user-facing content).
+  - docs/DESIGN.md contains only shadcn/ui CSS variable values authored during
+    the Planning Assistant session. No external catalog or third-party design
+    source is used or copied.
+  - DO NOT clone any external website's exact visual layout, logo, or branded
+    imagery. Design names (e.g. "Linear-style") are internal shorthand for a
+    visual direction only; never ship them in user-facing copy.
+  - "Linear-style" means: dark background, purple accent, tight radius — all
+    expressed as shadcn CSS custom properties we write ourselves.
 
 RECOMMENDED SHORTLIST FOR ENTERPRISE SAAS (V31 context):
   These 7 aesthetics translate best to Bonito's business app context

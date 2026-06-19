@@ -16,7 +16,7 @@
 > - Added 1.1.5 — Re-deploy V31 (restore clean state after hand-edits); expanded 3.11 — Future framework upgrade with safety-first workflow
 > - Added 1.4.0 — Deep Pre-Upgrade Analysis (universal 8-dimension analyzer that runs before 1.4.2 — detects phase state, governance integrity, rule compliance, infrastructure gaps, and outputs prioritized fix plan)
 > - Added 1.2.6 — Top Up CREDENTIALS.md (routine ongoing fill); Added 1.2.7 — Add New Credential Section Mid-Project (via Phase 7 governance)
-> - Added 4.8 — Adopt a DESIGN.md Aesthetic from awesome-design-md (extracts Visual Theme + Color Palette + Typography + Layout from VoltAgent catalog; implementation stays shadcn/ui); paired with new **Scenario 33** in scenarios.md
+> - Added 4.8 — Adopt a DESIGN.md Aesthetic (derives Visual Theme + Color Palette + Typography + Layout as shadcn/ui CSS variable overrides from a named theme direction; shadcn/ui is the only implementation); paired with new **Scenario 33** in scenarios.md
 > - Added 4.9, 4.10, 4.11, 4.12 — **New Planning Assistant arrived?** decision-tree workflow for 4 distinct project states (spec done, mid-build, production, single-section backfill)
 > - Added 1.8 — **Combined Upgrade: Framework + Planning Assistant** — enforces correct order (framework FIRST, Planning Assistant SECOND) when both upgrades are pending
 > - Added **Planning Assistant Rule 11** — n8n + OpenClaw automation opt-in (signal detection in Step 5, conditional infra in Step 7, conditional Integrations template with workflow table). Zero footprint when not used. Handoff docs: `n8n-handoff.md` + `openclaw-handoff.md` (gitignored)
@@ -92,7 +92,7 @@ Phase 8 → buildout loop (gate re-fires per UI gap detected)
 | **Architect** | Opus 4.6 / 4.7 | Plan, decompose, dispatch — never execute writes > 200 lines directly | Stays in 200K window because it only plans |
 | **Executor swarm** | Sonnet 4.6 (parallel) | Receive scoped slices, write code, run validations | ≤ 12 files OR ≤ 80K tokens per Sonnet |
 | **Gate-keepers** | designer-skills (Phase 2.8 / 4.5-6 / 7) | Audit + refine UI tier; INHERIT-not-REPLACE the PA baseline | Reads MOCKUP.jsx + DESIGN.md, writes surgical refinements only |
-| **Memory** | Smart Checkpoint Protocol (V31.1 → V32.3) | Auto-persist progress at 17 phase hooks; rehydrate on resume | Tiered Decomposition (Tier 1/2/3) prevents overflow |
+| **Memory** | Smart Checkpoint Protocol (V31.1 → V32.3) | Auto-persist progress at 18 phase hooks; rehydrate on resume | Tiered Decomposition (Tier 1/2/3) prevents overflow |
 
 **Why this prevents thrashing:**
 - Opus stays inside its 200K window because it only **plans and dispatches** — it never reads 19 files itself.
@@ -106,8 +106,8 @@ Phase 8 → buildout loop (gate re-fires per UI gap detected)
 
 - ✅ WSL2 Ubuntu installed, Node 22 + pnpm + Docker Desktop all working
 - ✅ VS Code with Claude Code CLI installed (Cline extension optional — deprecated V31, kept installed only as emergency fallback)
-- ✅ You already ran `Product_md_Planning_Assistant_v31.md` in claude.ai — final `PRODUCT.md` is ready (plus `DESIGN.md` if you picked an aesthetic from getdesign.md, plus the mockup HTML archive if you saved it per prompt 4.7)
-- ✅ You have the 20 V32 framework files (16 in `.ai_prompt/` + `spec-executor.md` + `settings.json` deployed to `.claude/` + `deploy-v31.sh` at project root + `lint-deploy.sh` deployed to `scripts/`) — see Appendix A for the V32 `spec-update` deployment workflow
+- ✅ You already ran `Product_md_Planning_Assistant_v31.md` in claude.ai — final `PRODUCT.md` is ready (plus `DESIGN.md` if you chose a shadcn/ui theme direction in Phase 2.8 Step 0, plus the mockup HTML archive if you saved it per prompt 4.7)
+- ✅ You have the 23 V32 framework files (17 in `.ai_prompt/` + `spec-executor.md` + `settings.json` deployed to `.claude/` + `deploy-v31.sh` at project root + `lint-deploy.sh` deployed to `scripts/`) — see Appendix A for the V32 `spec-update` deployment workflow
 
 ## The Starting State
 
@@ -137,7 +137,7 @@ your-project/                      ← empty folder (or existing project)
 ├── deploy-v31.sh                  ← you drop this at project root (19th file)
 └── docs/
     ├── PRODUCT.md                 ← from Planning Assistant — required
-    ├── DESIGN.md                  ← from Planning Assistant Step 7b — if you picked a getdesign.md aesthetic
+    ├── DESIGN.md                  ← from Planning Assistant Step 7b — if you chose a shadcn/ui theme direction in Phase 2.8
     └── mockups/                   ← from prompt 4.7 — if you saved the Phase 2.8 mockup HTML archive
         └── [appname]-phase-2.8-mockup.html
 ```
@@ -296,7 +296,7 @@ OUTPUT FORMAT — mandatory
 V31 PROJECT STATE ANALYSIS
 ═══════════════════════════════════════════════════════════════════
 V31 framework files:    [ALL PRESENT / PARTIAL: list / NOT DEPLOYED]
-docs/PRODUCT.md:        [EXISTS — N/11 sections / MISSING]
+docs/PRODUCT.md:        [EXISTS — N/12 sections / MISSING]
 Governance docs:        [N of 9 exist / NONE]
 Runtime artifacts:      [list with counts]
 App code detected:      [YES — stack: X / NO — empty]
@@ -764,7 +764,7 @@ Use this path when the Analyzer classifies your project as **Situation A** (empt
 
 Drop the Planning Assistant deliverables into your project's `docs/` folder:
 - `docs/PRODUCT.md` (always — required)
-- `docs/DESIGN.md` (if you picked a getdesign.md aesthetic in Phase 2.8 Step 7b)
+- `docs/DESIGN.md` (if you chose a shadcn/ui theme direction in Phase 2.8 Step 0)
 - `docs/mockups/[appname]-phase-2.8-mockup.html` (if you saved the HTML archive per prompt 4.7)
 
 Then in Claude Code:
@@ -788,7 +788,7 @@ Auto-chains into Phase 2.6 (design system — reads `docs/DESIGN.md` if present)
 
 ### 1.3.3b — Phase 2.8 Clickable Mockup Review (NEW V31 — Planning Assistant session — Claude Code (preferred) or Claude.ai)
 
-This phase runs in the Planning Assistant session — Claude Code (preferred) or Claude.ai — BEFORE you bring PRODUCT.md to your project. After Phase 2.7 stress-test passes, the Planning Assistant first asks if you want to pick a design aesthetic from getdesign.md (optional), then auto-generates an interactive React (.jsx) mockup with realistic industry-appropriate data so you can verify the spec visually before Phase 3 locks the architecture. After you confirm, it generates an HTML archive version and (if you picked a design aesthetic) extracts tokens into docs/DESIGN.md. **Claude Code PA path:** the mockup is written as `docs/MOCKUP.jsx` — preview it via `npm run dev` (Vite) or save the rendered HTML archive locally. **Claude.ai path:** Claude.ai renders MOCKUP.jsx as a live artifact; click the download button to save the HTML archive.
+This phase runs in the Planning Assistant session — Claude Code (preferred) or Claude.ai — BEFORE you bring PRODUCT.md to your project. After Phase 2.7 stress-test passes, the Planning Assistant first asks if you want to choose a shadcn/ui theme direction (optional), then auto-generates an interactive React (.jsx) mockup with realistic industry-appropriate data so you can verify the spec visually before Phase 3 locks the architecture. After you confirm, it generates an HTML archive version and (if you chose a theme direction) writes shadcn/ui CSS variable overrides to docs/DESIGN.md. **Claude Code PA path:** the mockup is written as `docs/MOCKUP.jsx` — preview it via `npm run dev` (Vite) or save the rendered HTML archive locally. **Claude.ai path:** Claude.ai renders MOCKUP.jsx as a live artifact; click the download button to save the HTML archive.
 
 You don't need to type a trigger — it runs automatically. To respond after viewing the mockup:
 ```
@@ -1017,7 +1017,7 @@ DIMENSION 3 — GOVERNANCE DOC INTEGRITY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Check each of 9 governance documents for existence + basic health:
-  3.1  docs/PRODUCT.md                     (exists? all 11 sections present?)
+  3.1  docs/PRODUCT.md                     (exists? all 12 sections present?)
   3.2  inputs.yml                          (exists? schema validates? pnpm tools:validate-inputs)
   3.3  inputs.schema.json                  (exists?)
   3.4  docs/CHANGELOG_AI.md                (exists? non-empty? has agent attribution?)
@@ -1122,7 +1122,7 @@ Based on findings from Dimensions 1-6, classify EVERY finding:
   🟢 Informational             — no action needed
 
 Blocker criteria (🔴):
-  — Missing PRODUCT.md or all 11 sections not present
+  — Missing PRODUCT.md or all 12 sections not present
   — Governance doc corrupt (cannot be parsed)
   — Build broken (Dimension 6.3 fails hard)
   — Current deployment is in a half-migrated state (some files V30, some V24)
@@ -1337,7 +1337,7 @@ going forward WITHOUT rewriting existing code. Execute this reverse-engineering:
 
 4. Identify integrations — third-party clients, webhooks, external service env vars.
 
-5. Produce a REVERSE-ENGINEERED PRODUCT.md draft with all 11 sections filled
+5. Produce a REVERSE-ENGINEERED PRODUCT.md draft with all 12 sections filled
    based on findings. Mark unknown fields "TBD — confirm with Bonito".
 
 6. Produce a STACK GAP REPORT showing current stack vs Spec-Driven defaults
@@ -1959,7 +1959,7 @@ and line numbers.
 ```
 Attach `Post_Generation_Security_Checklist_v31.md` + relevant code files.
 
-**What happens:** Agent runs all 84 items across 13 sections (Authentication, RBAC, Multi-tenant isolation L1–L6, Input validation, Database safety, File uploads, Queue/cache, Production errors, Security headers, Webhooks, Secrets, Production defaults, Phase 5 baseline). Fix all FAILs before merging or deploying.
+**What happens:** Agent runs all 98 items across 14 sections (Authentication, RBAC, Multi-tenant isolation L1–L6, Input validation, Database safety, File uploads, Queue/cache, Production errors, Security headers, Webhooks, Secrets, Production defaults, Phase 5 baseline, Compliance & Data Privacy). Fix all FAILs before merging or deploying.
 
 ---
 
@@ -2923,23 +2923,23 @@ Use shadcn/ui components only. Update packages/ui if needed.
 
 ---
 
-## 4.8 — Adopt a DESIGN.md Aesthetic from awesome-design-md (NEW)
+## 4.8 — Adopt a DESIGN.md Aesthetic (shadcn/ui theme direction) (NEW)
 
-**When:** You want to adopt a visual aesthetic from a well-known brand/website without reinventing colors + typography + layout from scratch. Sources: VoltAgent/awesome-design-md (GitHub) or getdesign.md (web catalog). Works at initial planning OR later when you decide to refresh the aesthetic.
+**When:** You want to tune the visual aesthetic beyond shadcn/ui defaults — choosing a named direction (e.g. "Linear-style", "Stripe-style") that gets expressed entirely as shadcn/ui CSS custom property overrides. Works at initial planning OR later when you decide to refresh the aesthetic.
 
 **Where:** Planning Assistant session — Claude Code (preferred) or Claude.ai.
 
-**Note:** For new projects, design aesthetic selection is now built into **Phase 2.8 Step 0**. The Planning Assistant asks you before generating the mockup, and extracts tokens into DESIGN.md automatically in Step 7b after you confirm. Use prompt 4.8 only when you want to **add or change** a design aesthetic for an existing project — or when Phase 2.8 was skipped.
+**Note:** For new projects, theme direction selection is now built into **Phase 2.8 Step 0**. The Planning Assistant asks you before generating the mockup, and writes shadcn CSS variable overrides to DESIGN.md automatically in Step 7b after you confirm. Use prompt 4.8 only when you want to **add or change** the theme direction for an existing project — or when Phase 2.8 was skipped.
 
-**What it does:** Extracts **4 specific sections** from a chosen DESIGN.md (Visual Theme + Color Palette + Typography + Layout Principles), creates `docs/DESIGN.md` in your project as the authoritative visual reference, adds a one-line pointer in PRODUCT.md Section 10, and records the decision in DECISIONS_LOG.md. Implementation stays 100% shadcn/ui — this is aesthetic tokens only.
+**What it does:** Derives **4 specific sections** for the chosen theme direction (Visual Theme + Color Palette as shadcn CSS variables + Typography + Layout Principles), creates `docs/DESIGN.md` in your project as the authoritative visual reference, adds a one-line pointer in PRODUCT.md Section 10, and records the decision in DECISIONS_LOG.md. Implementation stays 100% shadcn/ui — this is CSS variable overrides only; no external design catalog is used.
 
-### 4.8.1 — Pick a design from the catalog
+### 4.8.1 — Choose a theme direction
 
-Browse the catalog: <https://getdesign.md/> or <https://github.com/VoltAgent/awesome-design-md>
+shadcn/ui is the only UI system. The "design name" below is a shorthand for a visual direction — the Planning Assistant derives the CSS variable values itself; no external catalog or URL is required.
 
 **Curated shortlist for enterprise SaaS (Bonito's context):**
 
-| Design | Vibe | Best for |
+| Direction | Vibe | Best for |
 |---|---|---|
 | **Linear** | Ultra-minimal, purple accent, precise | Project management, ops tools, ERP dashboards |
 | **Stripe** | Purple gradients, weight-300 elegance | Finance, payments, billing interfaces |
@@ -2956,61 +2956,47 @@ Browse the catalog: <https://getdesign.md/> or <https://github.com/VoltAgent/awe
 ```
 Adopt a DESIGN.md Aesthetic
 
-I want to adopt a visual design aesthetic from the awesome-design-md collection
-(VoltAgent/awesome-design-md or getdesign.md).
+I want to set a shadcn/ui theme direction for this project.
 
-CHOSEN DESIGN: [e.g. "Linear" or "Stripe" or "Claude"]
-SOURCE URL: [paste the raw GitHub URL or the getdesign.md URL]
-  Examples:
-  - https://github.com/VoltAgent/awesome-design-md/blob/main/design-md/linear.app/DESIGN.md
-  - https://getdesign.md/linear.app/design-md
+CHOSEN DIRECTION: [e.g. "Linear" or "Stripe" or "Claude"]
 
 Execute this sequence:
 
-1. Fetch the chosen DESIGN.md. If I provided a github.com blob URL, convert to
-   raw.githubusercontent.com for the actual content. If I provided a getdesign.md
-   URL, use the underlying VoltAgent/awesome-design-md source.
+1. Derive shadcn/ui CSS custom property values for the chosen direction.
+   Do NOT fetch any external URL or catalog. Generate the values yourself
+   based on the well-known visual identity of the named direction:
+   a. Visual Theme & Atmosphere (2-3 sentence description)
+   b. Color Palette as shadcn CSS variables (HSL format — background, foreground,
+      primary, secondary, muted, accent, destructive, border, card, ring, radius)
+   c. Typography Rules (font family, weights, base size, line-height, heading scale)
+   d. Layout Principles (spacing unit, border-radius, sidebar width, content max-w,
+      card padding)
 
-2. Extract ONLY these 4 sections from the file. Ignore everything else:
-   a. Visual Theme & Atmosphere (section 1)
-   b. Color Palette & Roles (section 2)
-   c. Typography Rules (section 3)
-   d. Layout Principles (section 5)
-
-   Do NOT extract: Component Stylings, Depth & Elevation, Do's/Don'ts,
-   Responsive Behavior, Agent Prompt Guide. shadcn/ui handles components,
-   elevation, and responsive. Do's/Don'ts are style-guide opinions we're
-   not adopting.
-
-3. Update docs/PRODUCT.md Section 10 (Non-functional Requirements) to add
+2. Update docs/PRODUCT.md Section 10 (Non-functional Requirements) to add
    ONE short line:
-   "10.X — Visual Design Inspiration: see docs/DESIGN.md (extracted from
-   [CHOSEN DESIGN] via VoltAgent/awesome-design-md). Implementation uses
-   shadcn/ui components."
+   "10.X — Design system: shadcn/ui — see docs/DESIGN.md ([CHOSEN DIRECTION]
+   theme direction). Implementation uses shadcn/ui CSS variable overrides."
    Do NOT embed the 4 full sections into PRODUCT.md — keep PRODUCT.md lean.
 
-4. Record this decision in docs/DECISIONS_LOG.md:
+3. Record this decision in docs/DECISIONS_LOG.md:
    - Decision date: [today]
-   - Decision: "Adopt [DESIGN NAME] visual aesthetic (color + typography +
-     layout + theme) with shadcn/ui component implementation"
-   - Source: [URL]
+   - Decision: "Adopt [DIRECTION NAME] shadcn/ui theme direction (color + typography +
+     layout + theme CSS variable overrides)"
    - Rationale: [brief — why I chose it]
    - Reversible: YES (can be swapped by re-running prompt 4.8 with a
-     different design)
+     different direction)
 
-5. Create docs/DESIGN.md as the authoritative visual reference.
+4. Create docs/DESIGN.md as the authoritative visual reference.
    Contents:
-   - Header: "Visual design reference for [PROJECT NAME] — inspired by
-     [CHOSEN DESIGN] from VoltAgent/awesome-design-md. Implementation
-     uses shadcn/ui."
-   - Source URL
+   - Header: "Design Identity for [PROJECT NAME] — [CHOSEN DIRECTION] shadcn/ui
+     theme direction. Implementation uses shadcn/ui CSS variable overrides."
    - Date adopted
-   - Extracted sections 1, 2, 3, 5 in their original DESIGN.md format
+   - Derived sections a, b, c, d in DESIGN.md format
    - Footer: "shadcn/ui Translation Guide — see scenarios.md Scenario 33
      for how Claude Code maps these tokens into globals.css + layout.tsx
      + Tailwind config."
 
-6. Show diffs for BOTH files (PRODUCT.md section + new docs/DESIGN.md
+5. Show diffs for BOTH files (PRODUCT.md section + new docs/DESIGN.md
    + DECISIONS_LOG.md entry) before any write. Wait for my confirmation.
 
 DO NOT regenerate other PRODUCT.md sections. DO NOT modify inputs.yml,
@@ -3024,17 +3010,17 @@ DO NOT regenerate other PRODUCT.md sections. DO NOT modify inputs.yml,
 3. Copy the DECISIONS_LOG.md entry into your project's `docs/DECISIONS_LOG.md`
 4. Next Feature Update that touches UI will automatically pick up the new aesthetic via Claude Code reading `docs/DESIGN.md` per **Scenario 33**
 
-### 4.8.4 — Re-skin later (swap to a different aesthetic)
+### 4.8.4 — Re-skin later (swap to a different direction)
 
-Re-run 4.8 with a different `CHOSEN DESIGN`. Planning Assistant will regenerate `docs/DESIGN.md` with the new tokens, update the PRODUCT.md reference, and append a new entry to DECISIONS_LOG.md (the old decision stays for history).
+Re-run 4.8 with a different `CHOSEN DIRECTION`. Planning Assistant will regenerate `docs/DESIGN.md` with the new CSS variable values, update the PRODUCT.md reference, and append a new entry to DECISIONS_LOG.md (the old decision stays for history).
 
 **After regeneration, run this Feature Update in Claude Code:**
 
 ```
 Feature Update
 
-docs/DESIGN.md has been updated with a new aesthetic per DECISIONS_LOG entry
-[DATE]. Re-apply the visual tokens across the codebase:
+docs/DESIGN.md has been updated with a new shadcn/ui theme direction per
+DECISIONS_LOG entry [DATE]. Re-apply the CSS variable overrides across the codebase:
 - Update apps/[web]/src/app/globals.css with the new CSS variables (HSL format)
 - Update apps/[web]/src/app/layout.tsx with the new font imports
 - Update tailwind.config.ts if spacing/radius changed
@@ -3050,8 +3036,8 @@ Governance updates per standard Phase 7.
 |---|---|
 | **Two sources of truth?** | No — `docs/DESIGN.md` holds content, PRODUCT.md has a one-liner pointer |
 | **Conflicts with Rule 21 design-system/MASTER.md?** | No — Scenario 33 defines precedence: PRODUCT > DESIGN.md > design-system/MASTER.md > shadcn defaults |
-| **Conflicts with UI Component Rules (10 rules)?** | No — components STAY shadcn/ui. DESIGN.md only changes CSS variables, fonts, spacing — never component code |
-| **Legal concerns?** | awesome-design-md is MIT licensed. Extracted tokens are publicly visible CSS values. Use as inspiration, never pixel-clone the source site |
+| **Conflicts with UI Component Rules?** | No — components STAY shadcn/ui. DESIGN.md only changes CSS variables, fonts, spacing — never component code |
+| **External catalog dependency?** | None — the Planning Assistant derives all values itself from the named direction. No external URL or license required. |
 | **WCAG contrast failures?** | Scenario 33 conflict resolution mandates AA minimum — agents adjust values if needed, log the adjustment |
 
 ### Related prompts
@@ -3638,13 +3624,13 @@ bash scripts/log-lesson.sh
 - 1.2.6: Top Up CREDENTIALS.md — routine ongoing fill (Phase 5 unblock, KYC approval, credential rotation, deferred fills)
 - 1.2.7: Add New Credential Section Mid-Project — via Phase 7 governance (new integrations introduced during Feature Updates)
 - 1.4.0: Deep Pre-Upgrade Analysis — universal 8-dimension state + gap analyzer with prioritized fix plan (runs before 1.4.2)
-- 4.8: Adopt a DESIGN.md Aesthetic — import visual tokens (colors + typography + layout + theme) from VoltAgent/awesome-design-md catalog; implementation stays shadcn/ui
+- 4.8: Adopt a DESIGN.md Aesthetic — derive shadcn/ui CSS variable overrides (colors + typography + layout + theme) from a named theme direction; shadcn/ui is the only implementation; no external catalog
 - 4.9, 4.10, 4.11, 4.12: New Planning Assistant adoption workflow — decision-tree covering 4 project states (spec done pre-build, mid-build, in production, single-section backfill)
 - 1.8: Combined Upgrade — framework version + Planning Assistant version pending at once. Enforces correct order (framework FIRST, Planning Assistant SECOND) across all project states
 - **Planning Assistant Rule 11**: n8n + OpenClaw automation opt-in — signal detection (n8n for deterministic, OpenClaw for judgment, hybrid for both), ask-once behavior, Step 5 silent check, Step 7 conditional infra, conditional Integrations template. Zero footprint when unused.
 - 4.13: Add Automation to Existing Project — n8n / OpenClaw / Hybrid workflow addition mid-build or in production (Planning Assistant updates PRODUCT.md → handoff docs → Phase 7 Feature Update wires the app side)
 - 4.14: Brownfield PA Adoption — existing app / mockup → reverse-extract PRODUCT.md (injects **Situation D** into the PA chat for cases where there's already a working app or clickable prototype but no spec yet; produces a 3-column ✅ CONFIRMED / 🟡 INFERRED / ❓ MISSING triage per section before writing the final file)
-- **Scenario 33** (scenarios.md): DESIGN.md Integration with shadcn/ui — precedence, mapping rules, conflict resolution, legal posture, curated shortlist for enterprise SaaS
+- **Scenario 33** (scenarios.md): DESIGN.md Integration with shadcn/ui — precedence, mapping rules, conflict resolution, shadcn-only posture, curated shortlist for enterprise SaaS
 - **Scenario 34** (scenarios.md): CREDENTIALS.md Format Upgrade (Agent-Proof) — local shell script pattern for credential file format upgrades that agents cannot read into context (count 32 → 34)
 - 1.7: Build the code-review-graph — one-time per-project setup after Phase 6
 - 2.11: Review Changes Since Last Commit — daily blast-radius delta review
@@ -3668,8 +3654,8 @@ bash scripts/log-lesson.sh
 - All references updated to Claude Code V31 primary (Cline deprecated but preserved in `.cline/` folder structure)
 - All 16 framework files listed in Starting State
 - All 16 Phase 6.5 triage categories referenced in 3.1
-- All 84 security checklist items referenced in 3.5
-- Planning Assistant: 11 rules (Rule 11 = n8n + OpenClaw automation opt-in)
+- All 98 security checklist items referenced in 3.5
+- Planning Assistant: 12 rules (Rule 11 = n8n + OpenClaw automation opt-in; Rule 12 = Compliance gap-reminder)
 - Scenario count: 34 (Scenario 33 DESIGN.md + Scenario 34 CREDENTIALS.md Agent-Proof Upgrade)
 
 ---
