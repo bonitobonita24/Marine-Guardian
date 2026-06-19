@@ -56,7 +56,7 @@ Race/ethnicity, health, genetic, sexual life, political/religious affiliation, *
 - **PIA (Privacy Impact Assessment):** required for systems processing personal data — privacy by design from the start. Produce/maintain a PIA artifact for the app's processing activities.
 
 ### Breach notification — 72 hours
-On knowledge of a personal-data breach (likely to cause real risk to data subjects), notify **the NPC AND the affected data subjects within 72 hours** (per **NPC Circular 16-03**); a full report follows. The app must have a **breach-notification path** wired (detection → assessment → notify NPC + subjects → record). Absence of a breach path is a gap-reminder item (Rule 33).
+On knowledge of a personal-data breach (likely to cause real risk to data subjects), notify **the NPC AND the affected data subjects within 72 hours** (per **NPC Circular 16-03**); a **full written report** must follow **within 5 business days** of the initial notification (NPC Circular 16-03 §8). The app must have a **breach-notification path** wired (detection → assessment → notify NPC + subjects → record). Absence of a breach path is a gap-reminder item (Rule 33).
 
 ---
 

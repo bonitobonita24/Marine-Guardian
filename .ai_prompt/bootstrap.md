@@ -1424,7 +1424,7 @@ Next steps — proceed immediately, fill credentials in parallel:
 8. Install accessibility (a11y) skill for apps with WCAG AA requirement (NEW V23):
    Conditional — only if PRODUCT.md Non-functional Requirements declares: accessibility: wcag_aa
    /plugin install a11y-skill (or) npx skills add airowe/claude-a11y-skill
-   Runs WCAG 2.1 A/AA audit: contrast ratios (4.5:1 normal, 3:1 large), focus rings,
+   Runs WCAG 2.2 AA audit (axe-core/Pa11y rulesets): contrast ratios (4.5:1 normal, 3:1 large), focus rings,
    alt text, ARIA labels, keyboard navigation, form labels. Pre-delivery checklist enforced.
    Required for MGE (Philippine Data Privacy Act WCAG AA mandate). Recommended for ERP.
 

@@ -442,8 +442,8 @@ Step 5 — shadcnblocks catalog (NEW V23 — CONDITIONAL)
 Step 6 — a11y enforcement (NEW V23 — CONDITIONAL)
   If PRODUCT.md Non-functional Requirements contains "accessibility: wcag_aa":
     → Add section to design-system/MASTER.md:
-      "## Accessibility (WCAG 2.1 AA) — MANDATORY
-       This app requires WCAG 2.1 Level AA compliance.
+      "## Accessibility (WCAG 2.2 AA) — MANDATORY
+       This app requires WCAG 2.2 Level AA compliance.
        Before delivering any UI component, verify:
        □ Color contrast: minimum 4.5:1 for normal text, 3:1 for large text (18px+ or 14px bold+)
        □ Focus rings: visible on ALL interactive elements (never outline: none without replacement)

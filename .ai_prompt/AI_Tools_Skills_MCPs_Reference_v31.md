@@ -271,7 +271,7 @@ Install:  /plugin install a11y-skill
           OR: npx skills add airowe/claude-a11y-skill
 ```
 
-**What it does:** Enforces WCAG 2.1 A/AA standards before any UI component is delivered. Checks: contrast ratios (4.5:1 normal text, 3:1 large text), focus rings, alt text, ARIA labels, keyboard navigation, form labels. Pre-delivery checklist blocks merge if violations found.
+**What it does:** Enforces WCAG 2.2 AA standards (axe-core/Pa11y rulesets) before any UI component is delivered. Checks: contrast ratios (4.5:1 normal text, 3:1 large text), focus rings, alt text, ARIA labels, keyboard navigation, form labels. Pre-delivery checklist blocks merge if violations found.
 
 **When it activates:**
 - REQUIRED if PRODUCT.md Non-functional Requirements declares: `accessibility: wcag_aa`

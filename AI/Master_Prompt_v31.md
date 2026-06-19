@@ -2703,7 +2703,7 @@ Next steps — proceed immediately, fill credentials in parallel:
 8. Install accessibility (a11y) skill for apps with WCAG AA requirement (NEW V23):
    Conditional — only if PRODUCT.md Non-functional Requirements declares: accessibility: wcag_aa
    /plugin install a11y-skill (or) npx skills add airowe/claude-a11y-skill
-   Runs WCAG 2.1 A/AA audit: contrast ratios (4.5:1 normal, 3:1 large), focus rings,
+   Runs WCAG 2.2 AA audit (axe-core/Pa11y rulesets): contrast ratios (4.5:1 normal, 3:1 large), focus rings,
    alt text, ARIA labels, keyboard navigation, form labels. Pre-delivery checklist enforced.
    Required for MGE (Philippine Data Privacy Act WCAG AA mandate). Recommended for ERP.
 
@@ -3072,8 +3072,8 @@ Step 5 — shadcnblocks catalog (NEW V23 — CONDITIONAL)
 Step 6 — a11y enforcement (NEW V23 — CONDITIONAL)
   If PRODUCT.md Non-functional Requirements contains "accessibility: wcag_aa":
     → Add section to design-system/MASTER.md:
-      "## Accessibility (WCAG 2.1 AA) — MANDATORY
-       This app requires WCAG 2.1 Level AA compliance.
+      "## Accessibility (WCAG 2.2 AA) — MANDATORY
+       This app requires WCAG 2.2 Level AA compliance.
        Before delivering any UI component, verify:
        □ Color contrast: minimum 4.5:1 for normal text, 3:1 for large text (18px+ or 14px bold+)
        □ Focus rings: visible on ALL interactive elements (never outline: none without replacement)
