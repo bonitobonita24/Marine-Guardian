@@ -1,304 +1,177 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from "@/components/ui/chart";
-import { Bar, BarChart, XAxis, YAxis } from "recharts";
+import { useEffect, useState } from "react";
+import { InteractiveMap } from "@/components/map/InteractiveMap";
 import { trpc } from "@/lib/trpc/client";
+import { KpiStrip } from "./_components/kpi-strip";
+import { AlertsPanel, type AlertItem } from "./_components/alerts-panel";
+import { EventFeed, type FeedEvent } from "./_components/event-feed";
+import {
+  ActivePatrols,
+  type ActivePatrol,
+} from "./_components/active-patrols";
+import {
+  LastIncidentCard,
+  type LastIncident,
+} from "./_components/last-incident-card";
+import { BreakdownBars } from "./_components/breakdown-bars";
 
-const lawEnforcementChartConfig = {
-  count: { label: "Events", color: "hsl(var(--destructive))" },
-} satisfies ChartConfig;
-
-const monitoringChartConfig = {
-  count: { label: "Events", color: "hsl(var(--primary))" },
-} satisfies ChartConfig;
-
-function KpiCard({
-  title,
-  value,
-  delta,
-  deltaLabel,
-}: {
-  title: string;
-  value: number;
-  delta?: number;
-  deltaLabel?: string;
-}) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
-          {title}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-2xl font-bold">{value}</p>
-        {delta !== undefined && deltaLabel !== undefined && (
-          <p
-            className={
-              delta > 0
-                ? "mt-1 text-xs text-[hsl(var(--success))]"
-                : delta < 0
-                  ? "mt-1 text-xs text-destructive"
-                  : "mt-1 text-xs text-muted-foreground"
-            }
-          >
-            {delta > 0 ? "+" : ""}
-            {delta} {deltaLabel}
-          </p>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function priorityVariant(priority: number) {
-  if (priority >= 3) return "destructive" as const;
-  if (priority === 2) return "default" as const;
-  return "secondary" as const;
-}
-
-function priorityLabel(priority: number) {
-  if (priority >= 3) return "Critical";
-  if (priority === 2) return "High";
-  if (priority === 1) return "Medium";
-  return "Low";
-}
-
-function stateColor(state: string) {
-  switch (state) {
-    case "new_event":
-      return "text-[hsl(var(--caution))]";
-    case "active":
-      return "text-[hsl(var(--info))]";
-    case "resolved":
-      return "text-[hsl(var(--success))]";
-    default:
-      return "text-muted-foreground";
-  }
-}
-
+/**
+ * WAR ROOM command center — the live operations dashboard.
+ *
+ * Restructures the dashboard into the multi-zone command-center layout from the
+ * owner-approved mockup docs/v2/mpa-command-center-v6.jsx (INHERIT-not-REPLACE).
+ * All data comes from existing tRPC routers; no new product entities invented.
+ */
 export default function DashboardPage() {
   const kpis = trpc.dashboard.kpis.useQuery();
   const breakdown = trpc.dashboard.eventBreakdown.useQuery();
   const recent = trpc.dashboard.recentEvents.useQuery();
+  const alertStats = trpc.dashboard.alertStats.useQuery();
+  const lastIncident = trpc.dashboard.lastIncident.useQuery();
+  const alerts = trpc.alertHistory.list.useQuery({ limit: 10 });
+  const patrols = trpc.patrol.list.useQuery({ state: "open", limit: 50 });
+
+  // Ticking clock drives relative-time freshness ("Xm ago") without refetching.
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+    const t = setInterval(() => {
+      setNow(new Date());
+    }, 1000);
+    return () => {
+      clearInterval(t);
+    };
+  }, []);
+  const nowValue = now ?? undefined;
+
+  // Freshness = most recent successful fetch across the live queries.
+  const lastSyncedAt = Math.max(
+    kpis.dataUpdatedAt,
+    recent.dataUpdatedAt,
+    alerts.dataUpdatedAt,
+    patrols.dataUpdatedAt,
+  );
+
+  const kpiTiles = [
+    {
+      label: "Active Events",
+      value: kpis.data?.activeEvents ?? 0,
+      glyph: "⚡",
+      valueClass: "text-[hsl(var(--warning))]",
+    },
+    {
+      label: "Recent Alerts",
+      value: alertStats.data?.recentAlerts ?? 0,
+      glyph: "🔴",
+      valueClass: "text-destructive",
+      sub: "last 24h",
+    },
+    {
+      label: "Active Patrols",
+      value: kpis.data?.activePatrols ?? 0,
+      glyph: "🚤",
+      valueClass: "text-foreground",
+    },
+    {
+      label: "Rangers on Duty",
+      value: kpis.data?.rangersOnDuty ?? 0,
+      glyph: "👥",
+      valueClass: "text-[hsl(var(--success))]",
+    },
+    {
+      label: "Events This Month",
+      value: kpis.data?.eventsThisMonth ?? 0,
+      glyph: "📊",
+      valueClass: "text-[hsl(var(--info))]",
+      ...(kpis.data
+        ? (() => {
+            const delta = kpis.data.eventsThisMonth - kpis.data.eventsLastMonth;
+            return {
+              sub: `${delta > 0 ? "+" : ""}${String(delta)} vs last month`,
+              subClass:
+                delta > 0
+                  ? "text-[hsl(var(--success))]"
+                  : delta < 0
+                    ? "text-destructive"
+                    : "text-muted-foreground",
+            };
+          })()
+        : {}),
+    },
+  ];
+
+  const alertItems: AlertItem[] = (alerts.data?.items ?? []).map((a) => ({
+    id: a.id,
+    firedAt: a.firedAt,
+    matchedPriority: a.matchedPriority,
+    ruleName: a.alertRule?.name ?? a.ruleNameSnapshot,
+    eventTitle: a.event?.title ?? a.eventTitleSnapshot,
+  }));
+
+  const feedEvents: FeedEvent[] = recent.data ?? [];
+
+  const activePatrols: ActivePatrol[] = (patrols.data?.items ?? []).map((p) => ({
+    id: p.id,
+    patrolType: p.patrolType,
+    areaName: p.areaName,
+    startTime: p.startTime,
+    totalDistanceKm: p.totalDistanceKm,
+    computedDistanceKm: p.computedDistanceKm,
+    leaderName: p.segments[0]?.leaderName ?? p.title ?? null,
+  }));
+
+  const incident: LastIncident = lastIncident.data ?? null;
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Command Center</h1>
+    <div className="flex h-[calc(100vh-7rem)] flex-col gap-3">
+      <h1 className="sr-only">Command Center — War Room</h1>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <KpiCard
-          title="Active Events"
-          value={kpis.data?.activeEvents ?? 0}
-        />
-        <KpiCard
-          title="Active Patrols"
-          value={kpis.data?.activePatrols ?? 0}
-        />
-        <KpiCard
-          title="Rangers on Duty"
-          value={kpis.data?.rangersOnDuty ?? 0}
-        />
-        {kpis.data ? (
-          <KpiCard
-            title="Events This Month"
-            value={kpis.data.eventsThisMonth}
-            delta={kpis.data.eventsThisMonth - kpis.data.eventsLastMonth}
-            deltaLabel="vs last month"
+      <KpiStrip kpis={kpiTiles} lastSyncedAt={lastSyncedAt || undefined} />
+
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-5">
+        {/* Map + charts zone */}
+        <div className="flex min-h-0 flex-col gap-3 lg:col-span-3">
+          <div
+            role="region"
+            aria-label="Live patrol map showing ranger positions, patrol areas and events"
+            className="relative min-h-[18rem] flex-1 overflow-hidden rounded-xl border border-border"
+          >
+            <InteractiveMap className="h-full w-full" />
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <BreakdownBars
+              title="Law Enforcement"
+              data={breakdown.data?.lawEnforcement ?? []}
+              barClass="bg-destructive"
+            />
+            <BreakdownBars
+              title="Monitoring"
+              data={breakdown.data?.monitoring ?? []}
+              barClass="bg-[hsl(var(--success))]"
+            />
+            <LastIncidentCard incident={incident} now={nowValue} />
+          </div>
+        </div>
+
+        {/* Alerts / patrols / feed zone */}
+        <div className="flex min-h-0 flex-col gap-3 lg:col-span-2">
+          <AlertsPanel
+            alerts={alertItems}
+            isLoading={alerts.isLoading}
+            now={nowValue}
           />
-        ) : (
-          <KpiCard
-            title="Events This Month"
-            value={0}
+          <EventFeed
+            events={feedEvents}
+            isLoading={recent.isLoading}
+            now={nowValue}
           />
-        )}
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium">
-              Law Enforcement Events
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {breakdown.data !== undefined &&
-            breakdown.data.lawEnforcement.length > 0 ? (
-              <ChartContainer
-                config={lawEnforcementChartConfig}
-                className="h-[250px] w-full"
-              >
-                <BarChart
-                  data={breakdown.data.lawEnforcement}
-                  layout="vertical"
-                  margin={{ left: 0, right: 16, top: 0, bottom: 0 }}
-                >
-                  <YAxis
-                    dataKey="type"
-                    type="category"
-                    width={120}
-                    tickLine={false}
-                    axisLine={false}
-                    tick={{ fontSize: 12 }}
-                  />
-                  <XAxis type="number" hide />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar
-                    dataKey="count"
-                    fill="var(--color-count)"
-                    radius={[0, 4, 4, 0]}
-                  />
-                </BarChart>
-              </ChartContainer>
-            ) : (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                No law enforcement events recorded
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium">
-              Monitoring &amp; Surveillance
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {breakdown.data !== undefined &&
-            breakdown.data.monitoring.length > 0 ? (
-              <ChartContainer
-                config={monitoringChartConfig}
-                className="h-[250px] w-full"
-              >
-                <BarChart
-                  data={breakdown.data.monitoring}
-                  layout="vertical"
-                  margin={{ left: 0, right: 16, top: 0, bottom: 0 }}
-                >
-                  <YAxis
-                    dataKey="type"
-                    type="category"
-                    width={120}
-                    tickLine={false}
-                    axisLine={false}
-                    tick={{ fontSize: 12 }}
-                  />
-                  <XAxis type="number" hide />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar
-                    dataKey="count"
-                    fill="var(--color-count)"
-                    radius={[0, 4, 4, 0]}
-                  />
-                </BarChart>
-              </ChartContainer>
-            ) : (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                No monitoring events recorded
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-sm font-medium">
-              Recent Events
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {recent.data !== undefined && recent.data.length > 0 ? (
-              <div className="space-y-3">
-                {recent.data.map((event) => (
-                  <div
-                    key={event.id}
-                    className="flex items-center justify-between rounded-md border border-border px-3 py-2"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">
-                        {event.title}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {event.eventType?.display ?? "Unknown type"} &middot;{" "}
-                        {event.reportedAt
-                          ? new Date(event.reportedAt).toLocaleDateString()
-                          : "Unknown date"}
-                      </p>
-                    </div>
-                    <div className="ml-3 flex items-center gap-2">
-                      <span
-                        className={`text-xs font-medium capitalize ${stateColor(event.state)}`}
-                      >
-                        {event.state.replace("_", " ")}
-                      </span>
-                      <Badge variant={priorityVariant(event.priority)}>
-                        {priorityLabel(event.priority)}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                No events recorded yet
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium">Quick Stats</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">
-                Law Enforcement
-              </span>
-              <span className="text-lg font-semibold text-foreground">
-                {breakdown.data?.lawEnforcement.reduce(
-                  (sum, e) => sum + e.count,
-                  0
-                ) ?? 0}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Monitoring</span>
-              <span className="text-lg font-semibold text-foreground">
-                {breakdown.data?.monitoring.reduce(
-                  (sum, e) => sum + e.count,
-                  0
-                ) ?? 0}
-              </span>
-            </div>
-            <div className="h-px bg-border" />
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">
-                Total Events
-              </span>
-              <span className="text-lg font-semibold">
-                {(breakdown.data?.lawEnforcement.reduce(
-                  (sum, e) => sum + e.count,
-                  0
-                ) ?? 0) +
-                  (breakdown.data?.monitoring.reduce(
-                    (sum, e) => sum + e.count,
-                    0
-                  ) ?? 0)}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
+          <ActivePatrols
+            patrols={activePatrols}
+            isLoading={patrols.isLoading}
+            now={nowValue}
+          />
+        </div>
       </div>
     </div>
   );
