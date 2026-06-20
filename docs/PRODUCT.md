@@ -320,8 +320,8 @@ Docker Hub:   enabled — hub_repo: bonitobonita24/marine-guardian
 Performance:    <500ms API response for dashboard and report queries at 50 concurrent users per tenant
 Uptime:         99.5% SLA for prod
 Data retention: Synced data kept indefinitely (mirrors EarthRanger). Sync logs retained 90 days. Notifications retained 1 year.
-Compliance:     None required for v1
-Accessibility:  Standard web accessibility (semantic HTML, keyboard navigation)
+Compliance:     PH Data Privacy Act (RA 10173 / NPC) — V32.9 Compliance & Data Privacy layer (owner-ratified 2026-06-21). See §Compliance & Data Privacy below.
+Accessibility:  WCAG 2.2 AA target on compliance + auth surfaces (44px touch targets, focus-visible, label associations, skip-link). Standard semantic HTML + keyboard navigation elsewhere.
 
 ## Tenancy Model
 multi
@@ -365,7 +365,17 @@ PII stored:       yes — user email addresses, user names, ranger names (synced
 Financial data:   no
 Health data:      no
 Audit required:   event state changes, event detail edits, user login/logout, tenant configuration changes, alert rule changes, patrol area creation/modification, fuel entry creation/edits/deletion (involves financial amounts)
-GDPR/compliance:  none required for v1
+GDPR/compliance:  PH Data Privacy Act (RA 10173) — see §Compliance & Data Privacy below
+
+## Compliance & Data Privacy
+Regime:           Philippine Data Privacy Act of 2012 (RA 10173) + National Privacy Commission (NPC) rules. Owner-ratified 2026-06-21 (V32.9).
+DSR response:     15 calendar days (statutory window, owner-ratified). Six RA 10173 §16/§18 rights implemented: inform, access, rectify, object, request-erasure, port.
+Erasure model:    Request-and-review (site_admin actions erasure requests; honours legal-hold / retention — no immediate self-purge).
+Retention:        Audit & security logs 5 years · operational/patrol/observation/general data 3 years. (No payroll/financial 7-year category — MG has no payroll; the 7y financial-hold tier from the fleet default does not apply. Fuel-entry financial amounts fall under the 3y operational tier.)
+Breach:           NPC Circular 16-03 lifecycle tracked (DETECTED→ASSESSED→NOTIFIED→REPORTED→CLOSED); NPC notify within 72h of knowledge + full written report within +5 business days. Admin-only breach register at /settings/breach.
+Surfaces:         Public /privacy notice · in-app Settings → Data & Privacy self-service · admin breach register · honest ComplianceFooter (design-claims ON, cert-badges OFF).
+WCAG:             2.2 AA on compliance + auth surfaces (DICT MC 004 alignment if ever deployed for PH gov/LGU).
+STILL PENDING (owner — do NOT treat as final): DPO contact (interim placeholder bonitobonita24@gmail.com) · NPC registration number / PIA · per-activity lawful-basis fine-tuning.
 
 ## Security Requirements
 Rate limiting:    public: 30/min | auth: 60/min | api: 120/min | upload: 20/min

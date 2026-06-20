@@ -84,7 +84,9 @@ function LoginForm() {
             className="space-y-4"
           >
             {error !== null && (
-              <p className="text-sm text-destructive text-center">{error}</p>
+              <p role="alert" className="text-sm text-destructive text-center">
+                {error}
+              </p>
             )}
             <div className="space-y-2">
               <Label htmlFor="email">{t("email")}</Label>
@@ -94,6 +96,7 @@ function LoginForm() {
                 type="email"
                 required
                 autoComplete="email"
+                className="min-h-[44px]"
               />
             </div>
             <div className="space-y-2">
@@ -104,12 +107,25 @@ function LoginForm() {
                 type="password"
                 required
                 autoComplete="current-password"
+                className="min-h-[44px]"
               />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button
+              type="submit"
+              className="w-full min-h-[44px]"
+              disabled={loading}
+            >
               {loading ? "..." : t("signIn")}
             </Button>
           </form>
+          <p className="mt-4 text-center text-xs text-muted-foreground">
+            <a
+              href="/privacy"
+              className="underline underline-offset-2 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              Privacy Notice
+            </a>
+          </p>
         </CardContent>
       </Card>
     </div>

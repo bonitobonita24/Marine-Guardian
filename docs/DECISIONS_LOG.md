@@ -587,3 +587,29 @@ Files changed:
   • docs/PRODUCT.md (patrol-schedule section updated)
   • docs/DECISIONS_LOG.md (this entry)
 Locked: yes
+
+## 2026-06-21 — V32.9 Compliance & Data Privacy layer (PH Data Privacy Act / RA 10173)
+Decision (OWNER-RATIFIED 2026-06-21): Implement the V32.9 Compliance & Data Privacy feature for fleet parity with Yelli + Orqafy, adapted to Marine Guardian's conservation/ranger-patrol domain.
+
+Ratified product values (do NOT re-flag as assumptions):
+  • q-v329-01 DSR statutory response window = 15 calendar days (NPC reasonable-period guidance). dueAt = requestedAt + 15d.
+  • q-v329-02 Retention periods — audit & security logs 5 years · operational/patrol/observation/general data 3 years. MG has NO payroll/financial 7-year category (the fleet-default 7y financial-hold tier does not apply; fuel-entry financial amounts sit under the 3y operational tier). Recorded in a RetentionPolicy register model.
+  • q-v329-03 Erasure model = request-and-review. `dsr.requestErasure` creates a RECEIVED DataSubjectRequest for site_admin action; it does NOT self-purge the user, because audit logs (5yr) and operational records (3yr) are under legal-hold / storage-limitation (RA 10173 §11(e)/§19). A site_admin reconciles each request against those holds.
+  • q-v329-04 Breach deadlines per NPC Circular 16-03 = NPC notification within 72h of knowledge + full written report within +5 business days. writtenReportDueAt pre-computed at record time.
+  • q-v329-05 ComplianceFooter is HONEST: design-claim chips ON (security-by-default, RA 10173 alignment, WCAG 2.2 AA target); certification badges OFF (ISO 27001 / SOC 2 / PCI all false — not held).
+  • q-v329-06 Accessibility target = WCAG 2.2 AA (not 2.1) on compliance + auth surfaces.
+
+STILL PENDING (owner — NOT invented, left as clearly-marked placeholders):
+  • DPO contact — interim placeholder bonitobonita24@gmail.com (marked TODO-owner on /privacy + footer).
+  • NPC registration number / PIA reference — not yet issued.
+  • Per-processing-activity lawful-basis fine-tuning — provisional (consent/contract/legitimate-interest/legal-obligation declared at a high level).
+
+Runtime-deferred: migration 20260621000000_add_compliance_privacy is generated + committed but NOT applied (no live dev DB reachable this session). Operator runs `prisma migrate deploy` (or `migrate dev`) against the target DB; it is create-only (4 new tables + 5 enums, no destructive changes).
+
+Implementation:
+  • prisma: ConsentLog, DataSubjectRequest, BreachNotificationRecord, RetentionPolicy + enums LawfulBasis/DsrType/DsrStatus/BreachStatus/BreachSeverity; all tenant-scoped (tenantId + indexes), Tenant/User relations wired.
+  • routers: dsr (inform/access/port/rectify/object/requestErasure/myRequests + admin adminList/adminUpdateStatus) and breach (record/markNpcNotified/markSubjectsNotified/submitReport/list). Subject ops session-scoped; admin ops adminProcedure-gated + tenant-scoped; passwordHash never selected; every mutation L5-audited via writeAuditLog.
+  • frontend: public /privacy notice · Settings → Data & Privacy self-service (DataPrivacyCard) · /settings/breach admin register · ComplianceFooter · WCAG 2.2 AA on those + /login.
+  • tests: 23 new vitest (dsr 15 + breach 8). Full suite 818 green; typecheck 7/7; lint 6/6; real next build 2/2.
+Rationale: Owner authorized the build for fleet parity (Yelli d639a5b + Orqafy b0fcae0 already shipped it). Adapted to MG's domain (no HR/finance; rangers/patrols/observations/fuel).
+Locked: yes (ratified values + pending items above)
