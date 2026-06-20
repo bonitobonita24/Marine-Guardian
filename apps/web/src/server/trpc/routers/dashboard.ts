@@ -112,4 +112,34 @@ export const dashboardRouter = router({
       },
     });
   }),
+
+  // WAR ROOM 5th KPI. NOTE: AlertHistory has no acknowledgement concept
+  // (no acknowledgedAt / acknowledged column, no ack mutation), so a true
+  // "unacknowledged" count is not derivable without a schema change. We expose
+  // an honest derivable proxy instead — the number of alerts fired in the last
+  // 24h. The true "unacknowledged" semantic is logged as an owner [WHAT].
+  alertStats: tenantProcedure.query(async ({ ctx }) => {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const recentAlerts = await prisma.alertHistory.count({
+      where: { tenantId: ctx.tenantId, firedAt: { gte: since } },
+    });
+    return { recentAlerts };
+  }),
+
+  // WAR ROOM "Last Incident" card — the most recent high-priority
+  // (matchedPriority >= 200, i.e. High/Critical) event, derived from existing
+  // Event rows. Returns null when no high-priority event exists.
+  lastIncident: tenantProcedure.query(async ({ ctx }) => {
+    return prisma.event.findFirst({
+      where: { tenantId: ctx.tenantId, priority: { gte: 200 } },
+      orderBy: { reportedAt: "desc" },
+      select: {
+        id: true,
+        title: true,
+        priority: true,
+        reportedAt: true,
+        eventType: { select: { display: true, category: true } },
+      },
+    });
+  }),
 });
