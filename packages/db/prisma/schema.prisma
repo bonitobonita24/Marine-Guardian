@@ -143,6 +143,52 @@ enum ReportExportStatus {
   failed
 }
 
+// ─── V32.9 Compliance & Data Privacy (RA 10173 / NPC) ───────────────────────
+
+/// Lawful basis for processing personal data under RA 10173 §12 / §13.
+enum LawfulBasis {
+  consent
+  contract
+  legal_obligation
+  vital_interest
+  public_authority
+  legitimate_interest
+}
+
+/// Data-subject-request type — the six rights granted by RA 10173 §16 + §18.
+enum DsrType {
+  inform
+  access
+  rectify
+  erasure
+  object
+  port
+}
+
+/// Lifecycle of a data-subject request.
+enum DsrStatus {
+  received
+  in_progress
+  completed
+  rejected
+}
+
+/// Lifecycle of a personal-data-breach incident (NPC Circular 16-03).
+enum BreachStatus {
+  detected
+  assessed
+  notified
+  reported
+  closed
+}
+
+/// Severity of a personal-data breach.
+enum BreachSeverity {
+  low
+  medium
+  high
+}
+
 // ─────────────────────────────────────────────────
 // MODELS
 // ─────────────────────────────────────────────────
@@ -165,28 +211,34 @@ model Tenant {
   createdAt               DateTime @default(now()) @map("created_at")
   updatedAt               DateTime @updatedAt @map("updated_at")
 
-  users               User[]
-  events              Event[]
-  eventTypes          EventType[]
-  subjects            Subject[]
-  subjectGroups       SubjectGroup[]
-  patrols             Patrol[]
-  observations        Observation[]
-  patrolAreas         PatrolArea[]
-  areaBoundaries      AreaBoundary[]
-  patrolTracks        PatrolTrack[]
-  alertRules          AlertRule[]
-  alertHistory        AlertHistory[]
-  notifications       Notification[]
-  syncLogs            SyncLog[]
-  auditLogs                AuditLog[]           @relation("AuditLogTenant")
-  impersonatedAuditLogs    AuditLog[]           @relation("AuditLogImpersonatedAsTenant")
-  accompanyingRangers AccompanyingRanger[]
-  knownRangers        KnownRanger[]
-  patrolSchedules     PatrolSchedule[]
-  fuelEntries         FuelEntry[]
-  reportExports       ReportExport[]
-  erConnection        TenantErConnection?
+  users                 User[]
+  events                Event[]
+  eventTypes            EventType[]
+  subjects              Subject[]
+  subjectGroups         SubjectGroup[]
+  patrols               Patrol[]
+  observations          Observation[]
+  patrolAreas           PatrolArea[]
+  areaBoundaries        AreaBoundary[]
+  patrolTracks          PatrolTrack[]
+  alertRules            AlertRule[]
+  alertHistory          AlertHistory[]
+  notifications         Notification[]
+  syncLogs              SyncLog[]
+  auditLogs             AuditLog[]           @relation("AuditLogTenant")
+  impersonatedAuditLogs AuditLog[]           @relation("AuditLogImpersonatedAsTenant")
+  accompanyingRangers   AccompanyingRanger[]
+  knownRangers          KnownRanger[]
+  patrolSchedules       PatrolSchedule[]
+  fuelEntries           FuelEntry[]
+  reportExports         ReportExport[]
+  erConnection          TenantErConnection?
+
+  // V32.9 compliance
+  consentLogs               ConsentLog[]
+  dataSubjectRequests       DataSubjectRequest[]
+  breachNotificationRecords BreachNotificationRecord[]
+  retentionPolicies         RetentionPolicy[]
 
   @@map("tenants")
 }
@@ -239,6 +291,11 @@ model User {
   requestedReportExports   ReportExport[]          @relation("ReportExportRequestedBy")
   reportedEvents           Event[]                 @relation("EventReportedByUser")
 
+  // V32.9 compliance
+  consentLogs                 ConsentLog[]
+  dataSubjectRequests         DataSubjectRequest[]
+  breachNotificationsRecorded BreachNotificationRecord[] @relation("BreachRecordedBy")
+
   @@index([tenantId])
   @@map("users")
 }
@@ -265,44 +322,44 @@ model EventType {
 }
 
 model Event {
-  id               String     @id @default(cuid())
-  tenantId         String     @map("tenant_id")
-  erEventId        String     @map("er_event_id")
-  eventTypeId      String?    @map("event_type_id")
-  serialNumber     String?    @map("serial_number")
-  title            String?
-  priority         Int        @default(0)
-  state            EventState @default(new_event)
-  locationLat      Float?     @map("location_lat")
-  locationLon      Float?     @map("location_lon")
-  reportedByName   String?    @map("reported_by_name")
-  reportedAt       DateTime?  @map("reported_at")
-  eventDetailsJson Json?      @map("event_details_json")
-  notesJson        Json?      @map("notes_json")
-  areaName         String?    @map("area_name")
-  areaBoundaryId   String?    @map("area_boundary_id")
-  areaDerivedAt                DateTime?  @map("area_derived_at")
-  endTime                      DateTime?  @map("end_time")
-  hasPhoto                     Boolean    @default(false) @map("has_photo")
-  reportedByUserId             String?    @map("reported_by_user_id")
-  reportedByKnownRangerId      String?    @map("reported_by_known_ranger_id")
-  offenderName                 String?    @map("offender_name")
-  vesselName                   String?    @map("vessel_name")
-  vesselRegistration           String?    @map("vessel_registration")
-  address                      String?
-  actionTaken                  String?    @map("action_taken") @db.Text
-  syncedAt                     DateTime   @map("synced_at")
-  createdAt        DateTime   @default(now()) @map("created_at")
-  updatedAt        DateTime   @updatedAt @map("updated_at")
+  id                      String     @id @default(cuid())
+  tenantId                String     @map("tenant_id")
+  erEventId               String     @map("er_event_id")
+  eventTypeId             String?    @map("event_type_id")
+  serialNumber            String?    @map("serial_number")
+  title                   String?
+  priority                Int        @default(0)
+  state                   EventState @default(new_event)
+  locationLat             Float?     @map("location_lat")
+  locationLon             Float?     @map("location_lon")
+  reportedByName          String?    @map("reported_by_name")
+  reportedAt              DateTime?  @map("reported_at")
+  eventDetailsJson        Json?      @map("event_details_json")
+  notesJson               Json?      @map("notes_json")
+  areaName                String?    @map("area_name")
+  areaBoundaryId          String?    @map("area_boundary_id")
+  areaDerivedAt           DateTime?  @map("area_derived_at")
+  endTime                 DateTime?  @map("end_time")
+  hasPhoto                Boolean    @default(false) @map("has_photo")
+  reportedByUserId        String?    @map("reported_by_user_id")
+  reportedByKnownRangerId String?    @map("reported_by_known_ranger_id")
+  offenderName            String?    @map("offender_name")
+  vesselName              String?    @map("vessel_name")
+  vesselRegistration      String?    @map("vessel_registration")
+  address                 String?
+  actionTaken             String?    @map("action_taken") @db.Text
+  syncedAt                DateTime   @map("synced_at")
+  createdAt               DateTime   @default(now()) @map("created_at")
+  updatedAt               DateTime   @updatedAt @map("updated_at")
 
-  tenant              Tenant               @relation(fields: [tenantId], references: [id])
-  eventType           EventType?           @relation(fields: [eventTypeId], references: [id])
-  areaBoundary             AreaBoundary?        @relation(fields: [areaBoundaryId], references: [id])
-  reportedByUser           User?                @relation("EventReportedByUser", fields: [reportedByUserId], references: [id])
-  reportedByKnownRanger    KnownRanger?         @relation("EventReportedByKnownRanger", fields: [reportedByKnownRangerId], references: [id])
-  notifications            Notification[]
-  alertHistory        AlertHistory[]
-  accompanyingRangers AccompanyingRanger[] @relation("AccompanyingRangerEvent")
+  tenant                Tenant               @relation(fields: [tenantId], references: [id])
+  eventType             EventType?           @relation(fields: [eventTypeId], references: [id])
+  areaBoundary          AreaBoundary?        @relation(fields: [areaBoundaryId], references: [id])
+  reportedByUser        User?                @relation("EventReportedByUser", fields: [reportedByUserId], references: [id])
+  reportedByKnownRanger KnownRanger?         @relation("EventReportedByKnownRanger", fields: [reportedByKnownRangerId], references: [id])
+  notifications         Notification[]
+  alertHistory          AlertHistory[]
+  accompanyingRangers   AccompanyingRanger[] @relation("AccompanyingRangerEvent")
 
   @@unique([tenantId, erEventId])
   @@index([tenantId])
@@ -379,28 +436,28 @@ model Patrol {
   areaDerivedAt   DateTime?   @map("area_derived_at")
 
   // v2 — location pairs (derived from first/last track point or segment start/end_location)
-  startLocationLat      Float?    @map("start_location_lat")
-  startLocationLon      Float?    @map("start_location_lon")
-  endLocationLat        Float?    @map("end_location_lat")
-  endLocationLon        Float?    @map("end_location_lon")
+  startLocationLat Float? @map("start_location_lat")
+  startLocationLon Float? @map("start_location_lon")
+  endLocationLat   Float? @map("end_location_lat")
+  endLocationLon   Float? @map("end_location_lon")
 
   // v2 — computed metrics (recomputed from PatrolTrack; preferred over ER totals in reports)
-  computedDistanceKm    Float?    @map("computed_distance_km")
-  computedDurationHours Float?    @map("computed_duration_hours")
+  computedDistanceKm    Float? @map("computed_distance_km")
+  computedDurationHours Float? @map("computed_duration_hours")
 
   // v2 — flags
-  isTestPatrol          Boolean   @default(false) @map("is_test_patrol")
-  isDeleted             Boolean   @default(false) @map("is_deleted")
-  deletedAt             DateTime? @map("deleted_at")
+  isTestPatrol Boolean   @default(false) @map("is_test_patrol")
+  isDeleted    Boolean   @default(false) @map("is_deleted")
+  deletedAt    DateTime? @map("deleted_at")
 
   // v2 — sync-engine state (drives Active Check candidate selection per spec §Sync Engine)
-  syncNeeded            Boolean   @default(false) @map("sync_needed")
-  firstSeenAt           DateTime? @map("first_seen_at")
-  lastSyncedAt          DateTime? @map("last_synced_at")
+  syncNeeded   Boolean   @default(false) @map("sync_needed")
+  firstSeenAt  DateTime? @map("first_seen_at")
+  lastSyncedAt DateTime? @map("last_synced_at")
 
-  syncedAt        DateTime    @map("synced_at")
-  createdAt       DateTime    @default(now()) @map("created_at")
-  updatedAt       DateTime    @updatedAt @map("updated_at")
+  syncedAt  DateTime @map("synced_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   tenant              Tenant               @relation(fields: [tenantId], references: [id])
   areaBoundary        AreaBoundary?        @relation(fields: [areaBoundaryId], references: [id])
@@ -787,4 +844,109 @@ model KnownRanger {
   @@unique([tenantId, erSubjectId])
   @@index([tenantId])
   @@map("known_rangers")
+}
+
+// ─────────────────────────────────────────────────
+// V32.9 COMPLIANCE & DATA PRIVACY MODELS (RA 10173 / NPC)
+// All tenant-scoped (shared-schema multi-tenancy + tenant_id, L6 guardrails).
+// ─────────────────────────────────────────────────
+
+/// Consent ledger — records grant/withdrawal of consent for a processing
+/// purpose (RA 10173 §3(b), §12(a)). Marine Guardian processes very little
+/// consent-based data today (lawful basis is mostly contract / legitimate
+/// interest for conservation operations), but the ledger exists so any future
+/// consent-based purpose has an audit trail.
+model ConsentLog {
+  id            String      @id @default(cuid())
+  tenantId      String      @map("tenant_id")
+  userId        String      @map("user_id")
+  /// Processing activity being consented to (e.g. "patrol-location-sharing").
+  purpose       String
+  lawfulBasis   LawfulBasis @map("lawful_basis")
+  /// Version of the privacy notice shown at grant time.
+  noticeVersion String      @map("notice_version")
+  granted       Boolean
+  grantedAt     DateTime    @default(now()) @map("granted_at")
+  withdrawnAt   DateTime?   @map("withdrawn_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([tenantId, userId])
+  @@map("consent_logs")
+}
+
+/// Data-subject request register — every RA 10173 §16 right exercised by a
+/// user against their own personal data, with the statutory response clock.
+model DataSubjectRequest {
+  id          String    @id @default(cuid())
+  tenantId    String    @map("tenant_id")
+  userId      String    @map("user_id")
+  type        DsrType   @map("type")
+  status      DsrStatus @default(received) @map("status")
+  requestedAt DateTime  @default(now()) @map("requested_at")
+  /// Statutory response window: 15 calendar days from receipt (owner-ratified
+  /// 2026-06-21; NPC reasonable-period guidance — adjust per future advisory).
+  dueAt       DateTime  @map("due_at")
+  resolvedAt  DateTime? @map("resolved_at")
+  /// URL/reference to the export artifact or action record (e.g. signed S3 URL
+  /// for a PORT export). Null for actions with no downloadable artifact.
+  evidenceUrl String?   @map("evidence_url")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([tenantId, userId])
+  @@index([tenantId, status])
+  @@map("data_subject_requests")
+}
+
+/// Personal-data-breach register — NPC Circular 16-03 lifecycle + statutory
+/// deadlines. writtenReportDueAt is pre-computed at creation as
+/// detectedAt + 72h + 5 business days so SLA dashboards query cheaply.
+model BreachNotificationRecord {
+  id                       String         @id @default(cuid())
+  tenantId                 String         @map("tenant_id")
+  severity                 BreachSeverity
+  status                   BreachStatus   @default(detected)
+  detectedAt               DateTime       @map("detected_at")
+  /// 72h NPC notification deadline + 5 business days written-report deadline.
+  writtenReportDueAt       DateTime       @map("written_report_due_at")
+  npcNotifiedAt            DateTime?      @map("npc_notified_at")
+  subjectsNotifiedAt       DateTime?      @map("subjects_notified_at")
+  writtenReportSubmittedAt DateTime?      @map("written_report_submitted_at")
+  affectedUserCount        Int            @default(0) @map("affected_user_count")
+  description              String         @db.Text
+  recordedByUserId         String         @map("recorded_by_user_id")
+  createdAt                DateTime       @default(now()) @map("created_at")
+  updatedAt                DateTime       @updatedAt @map("updated_at")
+
+  tenant     Tenant @relation(fields: [tenantId], references: [id])
+  recordedBy User   @relation("BreachRecordedBy", fields: [recordedByUserId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([tenantId, detectedAt])
+  @@map("breach_notification_records")
+}
+
+/// Retention-policy register — declares how long each category of personal data
+/// is kept (RA 10173 §11(e) storage-limitation + §19 disposal). Owner-ratified
+/// 2026-06-21: audit logs 5y · general operational/patrol/observation data 3y.
+/// (Marine Guardian has no payroll/financial 7y category.)
+model RetentionPolicy {
+  id              String   @id @default(cuid())
+  tenantId        String   @map("tenant_id")
+  /// Data category, e.g. "audit_logs", "patrol_records", "observation_data".
+  dataCategory    String   @map("data_category")
+  retentionMonths Int      @map("retention_months")
+  /// Statutory / operational justification for the retention period.
+  basis           String   @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, dataCategory])
+  @@index([tenantId])
+  @@map("retention_policies")
 }

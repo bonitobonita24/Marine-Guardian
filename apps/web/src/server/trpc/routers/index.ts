@@ -23,6 +23,8 @@ import { platformRouter } from "./platform";
 import { platformUserRouter } from "./platformUser";
 import { platformImpersonationRouter } from "./platformImpersonation";
 import { settingsRouter } from "./settings";
+import { dsrRouter } from "./dsr";
+import { breachRouter } from "./breach";
 
 export const appRouter = router({
   settings: settingsRouter,
@@ -49,6 +51,8 @@ export const appRouter = router({
   ranger: rangerRouter,
   fuelEntry: fuelEntryRouter,
   reportExport: reportExportRouter,
+  dsr: dsrRouter,
+  breach: breachRouter,
 });
 
 export type AppRouter = typeof appRouter;
