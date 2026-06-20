@@ -5,23 +5,31 @@
 
 PHASE: Phase 8 (ongoing buildout)
 FRAMEWORK_VERSION: V32.9
-LAST_DONE: feat(ops-m3) — Operations Epic Milestone 3: Events List redesign (Kanban → infinite-scroll Operations List).
-            Branch: feat/mg-ops-events-list-redesign. PR open, base: feat/mg-ops-editable-records-history (owner-merge-gated).
-            Deliverables:
-              Router — event.list extended with 4 new server-side filters (category, areaName, dateFrom, dateTo);
-              eventListFilters Zod schema updated; backward-compatible (all new fields optional).
-              UI — events/page.tsx rewritten: Kanban removed, EventsList infinite-scroll component mounted.
-              UI — EventsList (src/components/events/events-list.tsx, NEW):
-                • Continuous vertical list (role=list/listitem), newest-first (createdAt desc), 50/page cursor pagination.
-                • IntersectionObserver sentinel + fallback "Load more" button for auto-load on scroll.
-                • Filter bar: state, category, areaName (debounced input), monthFilter (monthly-accomplishment).
-                • Inline state control: shadcn Select per row — New / Active / Resolved transitions via updateState.
-                • Click row → opens M2 EventDetailModal (Edit/History tabs).
-                • WCAG 2.2 AA: icon+text state badge (never color-alone), keyboard-operable Select, aria-label, time[dateTime].
-                • Design tokens inherited from DESIGN.md; shadcn/ui only.
-              Tests — 15 new tests: cursor pagination (5), server-side filters (7), inline state transition (3).
-              Total: 874 web + 181 jobs = 1055 green.
-              Gate: typecheck 13/13, lint 0 errors/0 warnings, test 874/874, build — all green.
+LAST_DONE: feat — Operations Epic (M1-M3) + WAR ROOM dashboard fidelity ALL MERGED to main 2026-06-21.
+            • ops-m1 (e97bc6c): recurring INCREMENTAL delta-only ER sync backend + schema
+              (er_original_snapshot, event/patrol revision tables, recurring_enabled/interval_ms),
+              settings.syncNow/updateErSyncConfig. Wired the never-called scheduler; never full-pulls.
+            • ops-m2 (44bbff4): editable Events/Patrols (event.update/patrol.update, revision-presence
+              edit-protection merge), edit-history timeline UI, settings ER-sync card controls.
+            • ops-m3 (4f04331): events view Kanban → infinite-scroll Operations List (50/page cursor
+              pagination, inline state Select, server-side filters category/state/area/date), row→M2 modal.
+            • WAR ROOM command-center dashboard fidelity (42%→~85%): restructured
+              apps/web/src/app/(dashboard)/dashboard/page.tsx into the owner-approved layout
+              (5-KPI strip + live clock, embedded InteractiveMap, read-only Alerts panel, Live Event
+              Feed, Active Patrols table, Last Incident card, breakdown bars). New dashboard/_components/
+              + lib.ts; thin dashboard.alertStats/lastIncident reads (no schema change); pulse keyframe
+              + prefers-reduced-motion. WCAG 2.2 AA. Reused existing tRPC only.
+            Combined gate green (typecheck/lint/test/build); CI green on every PR (#9/#10/#12/#7).
+
+WHAT_OWNER_DECISIONS (from WAR ROOM fidelity pass — require product/schema input):
+      - Alert ACK: the mockup shows an ACK button + "UNACKNOWLEDGED" KPI, but
+        AlertHistory has NO acknowledgement concept (no acknowledgedAt/acknowledged
+        column, no ack mutation). Building it = a new product entity/schema change.
+        Per guardrails this was STOPPED: alerts panel renders READ-ONLY with an
+        honest caption, and the 5th KPI ships as "Recent Alerts (last 24h)" — an
+        honest derivable proxy — instead of a fabricated "Unacknowledged" count.
+        OWNER DECISION NEEDED: add AlertHistory.acknowledgedAt + acknowledgedBy +
+        an alertHistory.acknowledge mutation (RBAC-gated) to enable true ack/unack.
 
 PREV_LAST_DONE: feat(ops-m2) — Operations Epic Milestone 2: editable records + edit history UI + settings sync controls.
             Branch: feat/mg-ops-editable-records-history. PR #10 open (owner-merge-gated).
