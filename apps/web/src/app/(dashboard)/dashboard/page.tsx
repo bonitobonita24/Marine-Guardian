@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { InteractiveMap } from "@/components/map/InteractiveMap";
 import { trpc } from "@/lib/trpc/client";
+import { useSession } from "next-auth/react";
 import { KpiStrip } from "./_components/kpi-strip";
 import { AlertsPanel, type AlertItem } from "./_components/alerts-panel";
 import { EventFeed, type FeedEvent } from "./_components/event-feed";
@@ -22,8 +23,17 @@ import { BreakdownBars } from "./_components/breakdown-bars";
  * Restructures the dashboard into the multi-zone command-center layout from the
  * owner-approved mockup docs/v2/mpa-command-center-v6.jsx (INHERIT-not-REPLACE).
  * All data comes from existing tRPC routers; no new product entities invented.
+ *
+ * 2026-06-21 — Alert ACK feature wired (owner-approved):
+ *   - alertHistory.list now returns acknowledgedAt / acknowledgedBy
+ *   - alertHistory.acknowledge mutation wires the ACK button in AlertsPanel
+ *   - dashboard.alertStats now returns true unacknowledged count (not proxy)
+ *   - KPI tile updated from "Recent Alerts" to "Unacknowledged"
  */
 export default function DashboardPage() {
+  const { data: session } = useSession();
+  const utils = trpc.useUtils();
+
   const kpis = trpc.dashboard.kpis.useQuery();
   const breakdown = trpc.dashboard.eventBreakdown.useQuery();
   const recent = trpc.dashboard.recentEvents.useQuery();
@@ -31,6 +41,36 @@ export default function DashboardPage() {
   const lastIncident = trpc.dashboard.lastIncident.useQuery();
   const alerts = trpc.alertHistory.list.useQuery({ limit: 10 });
   const patrols = trpc.patrol.list.useQuery({ state: "open", limit: 50 });
+
+  // Track which alert ID is currently being acknowledged (optimistic spinner).
+  const [ackingId, setAckingId] = useState<string | null>(null);
+
+  const acknowledgeMutation = trpc.alertHistory.acknowledge.useMutation({
+    onSuccess: async () => {
+      // Refetch alerts list + alertStats KPI on success.
+      await Promise.all([
+        utils.alertHistory.list.invalidate(),
+        utils.dashboard.alertStats.invalidate(),
+      ]);
+      setAckingId(null);
+    },
+    onError: () => {
+      setAckingId(null);
+    },
+  });
+
+  const handleAcknowledge = useCallback(
+    (id: string) => {
+      if (ackingId !== null) return; // debounce concurrent clicks
+      setAckingId(id);
+      acknowledgeMutation.mutate({ id });
+    },
+    [ackingId, acknowledgeMutation],
+  );
+
+  // Determine if the current user can acknowledge alerts (admin roles only).
+  const userRoles: string[] = (session?.user as { roles?: string[] } | undefined)?.roles ?? [];
+  const canAck = userRoles.some((r) => r === "super_admin" || r === "site_admin");
 
   // Ticking clock drives relative-time freshness ("Xm ago") without refetching.
   const [now, setNow] = useState<Date | null>(null);
@@ -61,11 +101,11 @@ export default function DashboardPage() {
       valueClass: "text-[hsl(var(--warning))]",
     },
     {
-      label: "Recent Alerts",
-      value: alertStats.data?.recentAlerts ?? 0,
+      label: "Unacknowledged",
+      value: alertStats.data?.unacknowledged ?? 0,
       glyph: "🔴",
       valueClass: "text-destructive",
-      sub: "last 24h",
+      sub: "alerts last 24h",
     },
     {
       label: "Active Patrols",
@@ -107,6 +147,8 @@ export default function DashboardPage() {
     matchedPriority: a.matchedPriority,
     ruleName: a.alertRule?.name ?? a.ruleNameSnapshot,
     eventTitle: a.event?.title ?? a.eventTitleSnapshot,
+    acknowledgedAt: a.acknowledgedAt,
+    acknowledgedBy: a.acknowledgedBy,
   }));
 
   const feedEvents: FeedEvent[] = recent.data ?? [];
@@ -160,6 +202,9 @@ export default function DashboardPage() {
             alerts={alertItems}
             isLoading={alerts.isLoading}
             now={nowValue}
+            canAck={canAck}
+            ackingId={ackingId}
+            onAcknowledge={handleAcknowledge}
           />
           <EventFeed
             events={feedEvents}

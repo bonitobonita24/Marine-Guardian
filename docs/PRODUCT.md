@@ -179,6 +179,11 @@ EarthRanger is an excellent field data collection platform but provides no repor
 - Active/disabled toggle per rule
 - Edit and delete rules
 - Alert history log
+- **Alert acknowledgement** (SHIPPED 2026-06-21): admins (super_admin / site_admin) can ACK alerts
+  directly from the WAR ROOM alerts panel. Acked alerts display who acknowledged and when.
+  WAR ROOM 5th KPI shows true unacknowledged count (last 24h). Schema: AlertHistory gains
+  `acknowledgedAt` + `acknowledgedBy` (additive, nullable). RBAC-gated + L5-audited.
+  Idempotent (double-ack is a no-op). Unacknowledge: out of scope (ack-only model, owner decision).
 
 ### Notification Center
 - Chronological list of all alerts and system notifications

@@ -113,17 +113,19 @@ export const dashboardRouter = router({
     });
   }),
 
-  // WAR ROOM 5th KPI. NOTE: AlertHistory has no acknowledgement concept
-  // (no acknowledgedAt / acknowledged column, no ack mutation), so a true
-  // "unacknowledged" count is not derivable without a schema change. We expose
-  // an honest derivable proxy instead — the number of alerts fired in the last
-  // 24h. The true "unacknowledged" semantic is logged as an owner [WHAT].
+  // WAR ROOM 5th KPI — true unacknowledged alert count (last 24h window).
+  // Now that AlertHistory carries acknowledgedAt, we can derive the real value.
+  // Owner decision accepted 2026-06-21 (closes WHAT_OWNER_DECISIONS ACK item).
   alertStats: tenantProcedure.query(async ({ ctx }) => {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const recentAlerts = await prisma.alertHistory.count({
-      where: { tenantId: ctx.tenantId, firedAt: { gte: since } },
+    const unacknowledged = await prisma.alertHistory.count({
+      where: {
+        tenantId: ctx.tenantId,
+        firedAt: { gte: since },
+        acknowledgedAt: null,
+      },
     });
-    return { recentAlerts };
+    return { unacknowledged };
   }),
 
   // WAR ROOM "Last Incident" card — the most recent high-priority

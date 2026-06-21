@@ -723,3 +723,31 @@ Files affected:
   • docs/STATE.md — LAST_DONE updated; Operations epic flagged feature-complete.
 Gate: typecheck 13/13, lint 0 errors, test 874/874, build — all green.
 Locked: yes
+
+## 2026-06-21 — Alert Acknowledgement feature (WHAT_OWNER_DECISIONS closure)
+Decision: Add `acknowledgedAt DateTime?` + `acknowledgedBy String?` to `AlertHistory`; add
+  `alertHistory.acknowledge` mutation (admin-only, L5-audited, L6 tenant-scoped, idempotent);
+  update `dashboard.alertStats` to return true unacknowledged count (WHERE acknowledgedAt IS NULL,
+  last 24h window) instead of the previous "recent alerts last 24h" proxy; update WAR ROOM 5th KPI
+  tile label from "Recent Alerts" to "Unacknowledged"; add ACK button per alert in AlertsPanel
+  (visible to super_admin / site_admin only); acked alerts show ack state (badge + timestamp) not
+  button; ACK button keyboard-operable with aria-label (WCAG 2.2 AA).
+  Roles that can ACK: super_admin, site_admin (adminProcedure — same as breach/settings/user mutations).
+  Idempotency: double-acking is a no-op (returns existing row, no second audit entry).
+  Unacknowledge: out of scope — ack-only is the approved model (owner decision 2026-06-21).
+Rationale: Owner greenlit 2026-06-21; closes the WAR ROOM fidelity WHAT_OWNER_DECISIONS ACK item.
+  Schema change is minimal (two nullable columns + one index, fully additive migration).
+  Matches the ACK button shown in docs/v2/mpa-command-center-v6.jsx mockup (PRODUCT.md §13, §33).
+Files affected:
+  • packages/db/prisma/schema.prisma — acknowledgedAt, acknowledgedBy columns + index added.
+  • packages/db/prisma/migrations/20260621100000_add_alert_history_acknowledgement/migration.sql — additive migration.
+  • apps/web/src/server/trpc/routers/alertHistory.ts — acknowledge mutation + unacknowledgedCount query added.
+  • apps/web/src/server/trpc/routers/dashboard.ts — alertStats returns unacknowledged count.
+  • apps/web/src/app/(dashboard)/dashboard/_components/alerts-panel.tsx — ACK button + ack state display.
+  • apps/web/src/app/(dashboard)/dashboard/page.tsx — acknowledge mutation wired; canAck derived from session roles; KPI tile updated.
+  • apps/web/src/server/trpc/routers/__tests__/alertHistory.test.ts — 8 new tests added.
+  • apps/web/src/app/(dashboard)/dashboard/_components/__tests__/alerts-panel.test.tsx — NEW, 9 tests.
+  • docs/PRODUCT.md — Alert System section confirms ACK shipped.
+  • docs/STATE.md — WHAT_OWNER_DECISIONS ACK item resolved; LAST_DONE updated.
+Gate: see feat/mg-alert-acknowledge PR.
+Locked: yes
