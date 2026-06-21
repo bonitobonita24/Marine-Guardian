@@ -257,6 +257,12 @@ model TenantErConnection {
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
+  // ops-milestone-1 — per-tenant recurring ER sync toggle + interval
+  // recurringEnabled: false by default (opt-in, gated on a verified connection)
+  // intervalMs: min 60_000 (1 min), default 300_000 (5 min) per PRODUCT.md §Background Jobs
+  recurringEnabled Boolean @default(false) @map("recurring_enabled")
+  intervalMs       Int     @default(300000) @map("interval_ms")
+
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@map("tenant_er_connections")
@@ -348,6 +354,10 @@ model Event {
   vesselRegistration      String?    @map("vessel_registration")
   address                 String?
   actionTaken             String?    @map("action_taken") @db.Text
+  // ops-milestone-1 — immutable verbatim ER snapshot; set on first sync, NEVER overwritten.
+  // erOriginalSnapshot: null until the first successful ER sync of this record.
+  erOriginalSnapshot      Json?      @map("er_original_snapshot")
+
   syncedAt                DateTime   @map("synced_at")
   createdAt               DateTime   @default(now()) @map("created_at")
   updatedAt               DateTime   @updatedAt @map("updated_at")
@@ -360,6 +370,7 @@ model Event {
   notifications         Notification[]
   alertHistory          AlertHistory[]
   accompanyingRangers   AccompanyingRanger[] @relation("AccompanyingRangerEvent")
+  revisions             EventRevision[]
 
   @@unique([tenantId, erEventId])
   @@index([tenantId])
@@ -455,6 +466,9 @@ model Patrol {
   firstSeenAt  DateTime? @map("first_seen_at")
   lastSyncedAt DateTime? @map("last_synced_at")
 
+  // ops-milestone-1 — immutable verbatim ER snapshot; set on first sync, NEVER overwritten.
+  erOriginalSnapshot Json? @map("er_original_snapshot")
+
   syncedAt  DateTime @map("synced_at")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -465,6 +479,7 @@ model Patrol {
   accompanyingRangers AccompanyingRanger[] @relation("AccompanyingRangerPatrol")
   notifications       Notification[]
   track               PatrolTrack?
+  revisions           PatrolRevision[]
 
   @@unique([tenantId, erPatrolId])
   @@index([tenantId])
@@ -761,7 +776,47 @@ model SyncLog {
 
   @@index([tenantId])
   @@index([syncType])
+  // ops-milestone-1 — watermark query: max(completedAt) WHERE tenantId=? AND syncType=? AND status='success'
+  @@index([tenantId, syncType, status, completedAt(sort: Desc)])
   @@map("sync_logs")
+}
+
+/// Append-only field-level edit history for Event records.
+/// Written by Milestone-2 event update mutations (RBAC-gated, L5-audited).
+/// Created here in M1 so M2 can build on a stable schema without a new migration.
+model EventRevision {
+  id         String   @id @default(cuid())
+  tenantId   String   @map("tenant_id")
+  eventId    String   @map("event_id")
+  userId     String   @map("user_id")
+  fieldName  String   @map("field_name")
+  beforeJson Json?    @map("before_json")
+  afterJson  Json?    @map("after_json")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, eventId, createdAt(sort: Desc)])
+  @@map("event_revisions")
+}
+
+/// Append-only field-level edit history for Patrol records.
+/// Written by Milestone-2 patrol update mutations (RBAC-gated, L5-audited).
+/// Created here in M1 so M2 can build on a stable schema without a new migration.
+model PatrolRevision {
+  id         String   @id @default(cuid())
+  tenantId   String   @map("tenant_id")
+  patrolId   String   @map("patrol_id")
+  userId     String   @map("user_id")
+  fieldName  String   @map("field_name")
+  beforeJson Json?    @map("before_json")
+  afterJson  Json?    @map("after_json")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  patrol Patrol @relation(fields: [patrolId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, patrolId, createdAt(sort: Desc)])
+  @@map("patrol_revisions")
 }
 
 model AuditLog {

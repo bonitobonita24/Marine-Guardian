@@ -33,6 +33,14 @@ vi.mock("../../../auth", () => ({
   auth: vi.fn(),
 }));
 
+// ops-milestone-1: settings.ts now imports @marine-guardian/jobs for sync
+// helpers — mock it so the existing connection tests are not affected.
+vi.mock("@marine-guardian/jobs", () => ({
+  enqueueErSyncWithWatermark: vi.fn().mockResolvedValue("job-id"),
+  scheduleRecurringErSync: vi.fn().mockResolvedValue(undefined),
+  removeRecurringErSync: vi.fn().mockResolvedValue(undefined),
+}));
+
 // Capture fetch calls so we can control probe results without real HTTP
 const mockFetch = vi.fn<typeof fetch>();
 vi.stubGlobal("fetch", mockFetch);
@@ -80,6 +88,9 @@ const mockConn = {
   lastValidatedAt: null,
   createdAt: new Date("2026-06-16"),
   updatedAt: new Date("2026-06-16"),
+  // ops-milestone-1 fields
+  recurringEnabled: false,
+  intervalMs: 300_000,
 };
 
 // ── settings.getErConnection ───────────────────────────────────────────────────

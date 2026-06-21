@@ -7,6 +7,8 @@ import { processMaintenance } from "./processors/maintenance.processor";
 import { startAreaRederiveWorker } from "./workers/area-rederive.worker";
 import { startPatrolTrackMaterializeWorker } from "./workers/patrol-track-materialize.worker";
 import { startPdfRenderWorker } from "./workers/pdf-render.worker";
+import { scheduleRecurringErSync, removeRecurringErSync } from "./queues/er-sync.queue";
+import { platformPrisma } from "@marine-guardian/db";
 
 console.log("[worker] Starting Marine Guardian workers...");
 
@@ -35,6 +37,66 @@ const workers = [
 ];
 
 console.log(`[worker] ${String(workers.length)} workers registered: ${Object.values(QUEUE_NAMES).join(", ")}`);
+
+/**
+ * ops-milestone-1 — Bootstrap recurring ER sync for all tenants with a
+ * verified (status='connected') ER connection and recurringEnabled=true.
+ *
+ * Runs once at worker startup. Each enabled tenant gets BullMQ repeatable
+ * jobs registered for all sync types. Tenants with recurringEnabled=false
+ * (or status != 'connected') have their repeatables removed (idempotent
+ * cleanup in case the toggle was turned off while the worker was down).
+ *
+ * q-ops-07 guarantee: `scheduleRecurringErSync` embeds the current watermark
+ * from SyncLog into the payload — the first repeatable firing is already
+ * delta-scoped if a prior successful sync exists.
+ */
+async function bootstrapRecurringErSync(): Promise<void> {
+  try {
+    const connections = await platformPrisma.tenantErConnection.findMany({
+      select: {
+        tenantId: true,
+        status: true,
+        recurringEnabled: true,
+        intervalMs: true,
+      },
+    });
+
+    for (const conn of connections) {
+      const isVerified = conn.status === "connected";
+      const shouldRun = isVerified && conn.recurringEnabled;
+
+      if (shouldRun) {
+        await scheduleRecurringErSync(
+          conn.tenantId,
+          "system",
+          conn.intervalMs,
+        );
+        console.log(
+          `[worker] Recurring ER sync scheduled for tenant ${conn.tenantId} every ${String(conn.intervalMs)}ms`,
+        );
+      } else {
+        // Remove any stale repeatable jobs in case the toggle was turned off
+        // while the worker was down, or the connection became invalid.
+        await removeRecurringErSync(conn.tenantId);
+        if (conn.recurringEnabled) {
+          // enabled but not verified — log the skip reason
+          console.log(
+            `[worker] Skipping recurring ER sync for tenant ${conn.tenantId} — connection not verified (status: ${conn.status})`,
+          );
+        }
+      }
+    }
+  } catch (err) {
+    // Non-fatal — log and continue. Workers themselves are running.
+    console.error(
+      "[worker] bootstrapRecurringErSync failed (non-fatal):",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+}
+
+void bootstrapRecurringErSync();
 
 async function shutdown(): Promise<void> {
   console.log("[worker] Shutting down gracefully...");

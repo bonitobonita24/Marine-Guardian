@@ -2,7 +2,7 @@ import type { Job } from "bullmq";
 import type { ErSyncJobPayload } from "../queues/types";
 import { validateTenantContext } from "../workers/base-worker";
 import { platformPrisma, decrypt } from "@marine-guardian/db";
-import { Prisma } from "@prisma/client";
+import { Prisma, PatrolType, PatrolState } from "@prisma/client";
 import { EarthRangerClient } from "../lib/earthranger-client";
 import { enqueueAlert } from "../queues/alerts.queue";
 import { enqueueAreaRederive } from "../queues/area-rederive.queue";
@@ -183,7 +183,7 @@ async function syncEvents(
 
   for (const e of events) {
     const resolved = await resolveReportedBy(platformPrisma, tenantId, e.reported_by);
-    const data = {
+    const liveFields = {
       serialNumber: e.serial_number != null ? String(e.serial_number) : null,
       title: e.title ?? null,
       priority: e.priority ?? 0,
@@ -202,13 +202,21 @@ async function syncEvents(
 
     const existing = await platformPrisma.event.findUnique({
       where: { tenantId_erEventId: { tenantId, erEventId: e.id } },
-      select: { id: true },
+      select: { id: true, erOriginalSnapshot: true },
     });
 
     let eventId: string;
     if (existing === null) {
+      // First insert: set erOriginalSnapshot from verbatim ER payload.
+      // This field is immutable — it is NEVER overwritten in subsequent syncs (q-ops-03).
+      const snapshotJson = toJsonOrNull(e as unknown as Record<string, unknown>);
       const created = await platformPrisma.event.create({
-        data: { tenantId, erEventId: e.id, ...data },
+        data: {
+          tenantId,
+          erEventId: e.id,
+          erOriginalSnapshot: snapshotJson,
+          ...liveFields,
+        },
         select: { id: true, priority: true },
       });
       eventId = created.id;
@@ -227,9 +235,13 @@ async function syncEvents(
         );
       }
     } else {
+      // Subsequent sync: update live fields ONLY.
+      // erOriginalSnapshot is intentionally excluded from the update (q-ops-03).
+      // M2 edit-protection merge: when locally-edited fields exist, they will be
+      // excluded from `liveFields` here — forward-compatible by design.
       await platformPrisma.event.update({
         where: { id: existing.id },
-        data,
+        data: liveFields,
       });
       eventId = existing.id;
     }
@@ -271,14 +283,14 @@ async function syncPatrols(
   const now = new Date();
 
   for (const p of patrols) {
-    const patrolType =
-      p.patrol_type === "seaborne" ? "seaborne" : "foot";
-    const patrolState =
+    const patrolType: PatrolType =
+      p.patrol_type === "seaborne" ? PatrolType.seaborne : PatrolType.foot;
+    const patrolState: PatrolState =
       p.state === "done"
-        ? "done"
+        ? PatrolState.done
         : p.state === "cancelled"
-          ? "cancelled"
-          : "open";
+          ? PatrolState.cancelled
+          : PatrolState.open;
 
     const isTestPatrol = /test|qa|demo/i.test(p.title ?? "");
     const segments = p.patrol_segments ?? [];
@@ -290,6 +302,21 @@ async function syncPatrols(
     const endLon = lastSeg?.end_location?.coordinates?.[0] ?? null;
     const endLat = lastSeg?.end_location?.coordinates?.[1] ?? null;
 
+    const livePatrolFields = {
+      serialNumber: p.serial_number != null ? String(p.serial_number) : null,
+      title: p.title ?? null,
+      patrolType,
+      state: patrolState,
+      startTime: p.start_time != null ? new Date(p.start_time) : null,
+      endTime: p.end_time != null ? new Date(p.end_time) : null,
+      syncedAt: now,
+      startLocationLat: startLat,
+      startLocationLon: startLon,
+      endLocationLat: endLat,
+      endLocationLon: endLon,
+      isTestPatrol,
+    };
+
     const patrol = await platformPrisma.patrol.upsert({
       where: {
         tenantId_erPatrolId: { tenantId, erPatrolId: p.id },
@@ -297,37 +324,21 @@ async function syncPatrols(
       create: {
         tenantId,
         erPatrolId: p.id,
-        serialNumber: p.serial_number != null ? String(p.serial_number) : null,
-        title: p.title ?? null,
-        patrolType,
-        state: patrolState,
-        startTime: p.start_time != null ? new Date(p.start_time) : null,
-        endTime: p.end_time != null ? new Date(p.end_time) : null,
-        syncedAt: now,
-        startLocationLat: startLat,
-        startLocationLon: startLon,
-        endLocationLat: endLat,
-        endLocationLon: endLon,
-        isTestPatrol,
+        // First insert: capture verbatim ER payload as immutable snapshot (q-ops-03).
+        // NEVER overwritten in subsequent syncs.
+        erOriginalSnapshot: toJsonOrNull(p as unknown as Record<string, unknown>),
         firstSeenAt: now,
         lastSyncedAt: now,
         syncNeeded: false,
+        ...livePatrolFields,
       },
       update: {
-        serialNumber: p.serial_number != null ? String(p.serial_number) : null,
-        title: p.title ?? null,
-        patrolType,
-        state: patrolState,
-        startTime: p.start_time != null ? new Date(p.start_time) : null,
-        endTime: p.end_time != null ? new Date(p.end_time) : null,
-        syncedAt: now,
-        startLocationLat: startLat,
-        startLocationLon: startLon,
-        endLocationLat: endLat,
-        endLocationLon: endLon,
-        isTestPatrol,
+        // Subsequent sync: update live fields ONLY.
+        // erOriginalSnapshot intentionally excluded (q-ops-03).
+        // M2 edit-protection merge: locally-edited fields will be excluded here.
         lastSyncedAt: now,
         syncNeeded: false,
+        ...livePatrolFields,
       },
       select: { id: true },
     });
