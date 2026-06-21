@@ -23,6 +23,11 @@ services:
       # reach postgres/valkey via the Docker service hostname instead (mirrors dev).
       DATABASE_URL: ${INTERNAL_DATABASE_URL}
       REDIS_URL: ${INTERNAL_REDIS_URL}
+      # BullMQ (packages/jobs/connection.ts) reads REDIS_HOST/REDIS_PORT, NOT REDIS_URL.
+      # .env.prod sets these to localhost:6381 (host-side CLI) → ECONNREFUSED for in-container
+      # enqueues. Override to the Docker service alias so the app can enqueue jobs (matches worker).
+      REDIS_HOST: ${COMPOSE_PROJECT_NAME}_valkey
+      REDIS_PORT: "6379"
       # STORAGE_ENDPOINT in .env.prod is localhost:9000 (host-side mc tools).
       # Containers reach the per-stack MinIO via the Docker network alias instead.
       STORAGE_ENDPOINT: ${INTERNAL_STORAGE_ENDPOINT}
