@@ -14,6 +14,7 @@ vi.mock("../workers/base-worker", () => ({
 vi.mock("@marine-guardian/db", () => ({
   platformPrisma: {
     tenant: { findUnique: vi.fn() },
+    tenantErConnection: { findUnique: vi.fn() },
     eventType: { upsert: vi.fn() },
     subject: { upsert: vi.fn() },
     subjectGroup: { upsert: vi.fn() },
@@ -80,6 +81,7 @@ import { enqueuePatrolTrackMaterialize } from "../queues/patrol-track-materializ
 
 const mockPrisma = platformPrisma as unknown as {
   tenant: { findUnique: ReturnType<typeof vi.fn> };
+  tenantErConnection: { findUnique: ReturnType<typeof vi.fn> };
   eventType: { upsert: ReturnType<typeof vi.fn> };
   subject: { upsert: ReturnType<typeof vi.fn> };
   event: {
@@ -115,24 +117,21 @@ function makeJob(overrides: Partial<ErSyncJobPayload> = {}) {
 describe("processErSync", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    const mockTenant = {
-      id: "tenant-1",
-      earthrangerUrl: "https://er.example.com",
-      earthrangerDasToken: "encrypted_token_123",
+    // ER creds now live on the canonical TenantErConnection table (the Settings
+    // UI writes here). baseUrl is plaintext; apiTokenEnc is decrypted at use.
+    const mockErConnection = {
+      baseUrl: "https://er.example.com",
+      apiTokenEnc: "encrypted_token_123",
     };
-    mockPrisma.tenant.findUnique.mockResolvedValue(mockTenant);
+    mockPrisma.tenantErConnection.findUnique.mockResolvedValue(mockErConnection);
     mockPrisma.syncLog.create.mockResolvedValue({ id: "sl-1" });
     mockPrisma.syncLog.update.mockResolvedValue({ id: "sl-1" });
     mockPrisma.user.findFirst.mockResolvedValue(null);
     mockPrisma.knownRanger.findFirst.mockResolvedValue(null);
   });
 
-  it("throws if tenant has no ER URL configured", async () => {
-    mockPrisma.tenant.findUnique.mockResolvedValue({
-      id: "tenant-1",
-      earthrangerUrl: null,
-      earthrangerDasToken: null,
-    });
+  it("throws if tenant has no ER connection configured", async () => {
+    mockPrisma.tenantErConnection.findUnique.mockResolvedValue(null);
 
     await expect(processErSync(makeJob())).rejects.toThrow(
       "EarthRanger not configured",

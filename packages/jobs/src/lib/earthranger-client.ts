@@ -138,16 +138,16 @@ export class EarthRangerClient {
     // (`return j.data || j` then `env.results`).
     let body: unknown = raw;
     if (typeof body === "object" && body !== null && "data" in body) {
-      body = (body as { data: unknown }).data;
+      body = body.data;
     }
     if (
       typeof body === "object" &&
       body !== null &&
       !Array.isArray(body) &&
       "results" in body &&
-      Array.isArray((body as { results: unknown }).results)
+      Array.isArray(body.results)
     ) {
-      body = (body as { results: unknown }).results;
+      body = body.results;
     }
     return body as T;
   }

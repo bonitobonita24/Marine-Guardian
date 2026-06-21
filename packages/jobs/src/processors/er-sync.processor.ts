@@ -74,7 +74,9 @@ export async function processErSync(
     },
   });
 
-  if (conn?.baseUrl == null || conn.apiTokenEnc == null) {
+  // baseUrl + apiTokenEnc are non-nullable columns, so a missing row (conn ==
+  // null) is the only "not configured" case.
+  if (conn == null) {
     throw new Error("EarthRanger not configured for this tenant");
   }
 
