@@ -100,6 +100,12 @@ export function GenerateReportButton() {
     },
   });
 
+  // BUG-1 FIX: useRef MUST be called unconditionally before any early return.
+  // Previously this was placed after `if (!canGenerate) return null`, which
+  // violated React's Rules of Hooks and caused minified error #310 at runtime.
+  const REQUEST_TIMEOUT_MS = 15000;
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   if (!canGenerate) {
     return null;
   }
@@ -123,13 +129,6 @@ export function GenerateReportButton() {
     }
     return {};
   }
-
-  // Client-side guard: a tRPC mutation has no inherent timeout, so if the
-  // server stalls (e.g. the PDF/queue infra is unreachable and the request
-  // hangs upstream) the button would sit on "Queuing…" forever. We race the
-  // mutation against a timeout and surface an error state instead of hanging.
-  const REQUEST_TIMEOUT_MS = 15000;
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function clearRequestTimeout() {
     if (timeoutRef.current !== null) {

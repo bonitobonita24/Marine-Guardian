@@ -93,7 +93,10 @@ async function pushUpdateToErIfConfigured(
  */
 export const eventListFilters = z.object({
   state: z.enum(["new_event", "active", "resolved"]).optional(),
-  priority: z.number().int().min(0).max(3).optional(),
+  // BUG-2 FIX: EarthRanger stores raw priority values (0, 100, 200, 300) in
+  // the Event.priority column — no upper cap. Removed max(3) which was a
+  // leftover from a draft 0-3 local-only scale that was never actually used.
+  priority: z.number().int().min(0).optional(),
   // M3 — new server-side filters for Operations List
   category: z.string().max(200).optional(),
   areaName: z.string().max(200).optional(),
@@ -185,7 +188,10 @@ export const eventRouter = router({
           // Allow empty strings so optional text fields are clearable from the
           // detail form (the UI sends "" for blank fields rather than omitting them).
           title: z.string().max(500).optional(),
-          priority: z.number().int().min(0).max(3).optional(),
+          // BUG-2 FIX: removed max(3). EarthRanger priority values are raw
+          // integers (0, 100, 200, 300); capping at 3 rejected valid
+          // ER-synced events with a silent HTTP 400.
+          priority: z.number().int().min(0).optional(),
           notesJson: z.unknown().optional(),
           eventDetailsJson: z.unknown().optional(),
           offenderName: z.string().max(200).optional(),
