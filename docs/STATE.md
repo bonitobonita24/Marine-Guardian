@@ -5,7 +5,24 @@
 
 PHASE: Phase 8 (ongoing buildout)
 FRAMEWORK_VERSION: V32.9
-LAST_DONE: feat(v329) — PH Data Privacy Act compliance + WCAG 2.2 AA + ComplianceFooter
+LAST_DONE: feat(ops-m1) — Operations Epic Milestone 1: recurring incremental ER sync backend.
+            Branch: feat/mg-ops-recurring-incremental-sync. PR pending.
+            Deliverables:
+              Schema — erOriginalSnapshot (immutable, set-once) on Event + Patrol;
+              EventRevision + PatrolRevision append-only tables; TenantErConnection gets
+              recurringEnabled + intervalMs (default 300_000ms / 5 min, min 60_000ms / 1 min);
+              SyncLog composite watermark index.
+              Queue layer — er-sync-watermark.ts helper (getWatermark from SyncLog.completedAt);
+              enqueueErSyncWithWatermark (delta: watermark, full: omit since);
+              scheduleRecurringErSync fixed (was passing no `since` → full pull every run; now
+              computes watermark; interval fixed from wrong 30_000ms to 300_000ms; min clamp 60_000ms);
+              removeRecurringErSync (BullMQ v5 removeJobScheduler).
+              Bootstrap — start-workers.ts bootstrapRecurringErSync() wires all enabled tenants on startup.
+              Settings tRPC — syncNow + updateErSyncConfig mutations (adminProcedure, L5 audit).
+              Tests — 17 new tests across watermark, queue, settings-sync; all 835 pass.
+              Gate: typecheck 7/7, lint 11/11, test 835/835, build 2/2.
+
+PREV_LAST_DONE: feat(v329) — PH Data Privacy Act compliance + WCAG 2.2 AA + ComplianceFooter
             (commit a073ac8, merged 2026-06-21).
             Deliverables: ConsentLog/DSR/BreachNotification Prisma models + migrations,
             dsr + breach tRPC routers, /privacy page, Settings → Data & Privacy self-service,
@@ -13,7 +30,12 @@ LAST_DONE: feat(v329) — PH Data Privacy Act compliance + WCAG 2.2 AA + Complia
             compliance/auth surfaces. 23 new vitest tests. Gate: typecheck 7/7,
             lint 6/6, test 818/818, next build 2/2.
 
-NEXT: Owner-gated items deferred from V32.9:
+NEXT: Milestone 2 (UI layer — owner to trigger):
+      - Settings → ER Sync tab: recurringEnabled toggle + intervalMs input (uses updateErSyncConfig)
+      - Settings → manual "Sync Now" button (uses syncNow mutation)
+      - (M3) Event list UI redesign + editable record modal with revision history
+
+NEXT (owner-gated, pre-M1):
       - DPO appointment (human decision — named DPO / external DPO service)
       - NPC registration / Privacy Impact Assessment (PIA) — human-initiated
       - Lawful-basis fine-tuning in PRODUCT.md §Compliance (owner input needed)

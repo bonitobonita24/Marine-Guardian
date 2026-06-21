@@ -613,3 +613,31 @@ Implementation:
   • tests: 23 new vitest (dsr 15 + breach 8). Full suite 818 green; typecheck 7/7; lint 6/6; real next build 2/2.
 Rationale: Owner authorized the build for fleet parity (Yelli d639a5b + Orqafy b0fcae0 already shipped it). Adapted to MG's domain (no HR/finance; rangers/patrols/observations/fuel).
 Locked: yes (ratified values + pending items above)
+
+## 2026-06-21 — Operations Epic Milestone 1: recurring incremental ER sync (backend-only)
+Decision (OWNER-RATIFIED 2026-06-21 via session handoff — see docs/mg-operations-epic-todo branch DECISIONS_LOG):
+Implement the backend foundation for the Operations epic. No UI in M1.
+
+Ratified technical values (do NOT re-flag as assumptions):
+  • q-ops-01 erOriginalSnapshot: immutable JSON blob, set ONLY on first insert (create path), never overwritten on update. Captures the exact raw EarthRanger payload at first ingest. Column: `er_original_snapshot JSONB` on events + patrols tables.
+  • q-ops-02 EventRevision / PatrolRevision: append-only revision tables with no UPDATE/DELETE ever. Purpose: M2 will write edit mutations here. M1 scaffolds the tables + FK; M2 will write the mutation procedures.
+  • q-ops-03 Watermark = SyncLog.completedAt of the LAST SUCCESSFUL run (status='success', ordered desc, scoped to tenantId+syncType). NOT `updatedAt` of the most recent record — the ER API `updated_since` param matches SyncLog timing.
+  • q-ops-04 Delta-capable types: events, patrols, observations (use `?updated_since=<ISO>`). Full-pull types: subjects, event_types (no date filter on those ER endpoints). scheduleRecurringErSync + enqueueErSyncWithWatermark both honour this split.
+  • q-ops-05 Default interval = 300,000ms (5 minutes). Minimum = 60,000ms (1 minute). The incorrect default of 30,000ms and 0ms minimum were bugs, now fixed.
+  • q-ops-06 First-ever sync (no SyncLog yet) is a full backfill; this is the ONLY permitted full-pull for delta types. After first success, all subsequent recurring runs are delta-only.
+  • q-ops-07 since=undefined is FORBIDDEN in the recurring path once a watermark exists. Enforced by getWatermark returning undefined on first run (backfill case) and a defined string thereafter; scheduleRecurringErSync uses the watermark at schedule-time.
+  • q-ops-08 removeRecurringErSync uses BullMQ v5 removeJobScheduler(id) with the stable scheduler id `er-sync__recurring__<tenantId>__<syncType>`. No getRepeatableJobs() iteration needed.
+  • q-ops-09 Bootstrap: start-workers.ts bootstrapRecurringErSync() runs at worker startup, queries all TenantErConnection rows, schedules enabled+connected tenants, removes schedulers for disabled/invalid connections.
+  • q-ops-10 Settings mutations: syncNow (one-shot delta sync all 5 types, adminProcedure, L5 TRIGGER_ER_SYNC_NOW audit) and updateErSyncConfig (toggle + interval update, adminProcedure, L5 UPDATE_ER_SYNC_CONFIG audit, immediately schedules/removes BullMQ scheduler).
+
+Implementation:
+  • packages/db/prisma/schema.prisma — erOriginalSnapshot on Event + Patrol; EventRevision + PatrolRevision models; TenantErConnection.recurringEnabled + intervalMs; SyncLog composite watermark index.
+  • packages/db/prisma/migrations/20260621030355_ops_m1_snapshot_revisions_recurring_sync — additive, backward-compatible; manually excludes the accompanying_ranger FK re-adds (footgun from prior migration that dropped them).
+  • packages/jobs/src/lib/er-sync-watermark.ts — getWatermark / getRequiredWatermark / hasEverSynced.
+  • packages/jobs/src/queues/er-sync.queue.ts — enqueueErSyncWithWatermark + scheduleRecurringErSync (fixed) + removeRecurringErSync (v5 API).
+  • packages/jobs/src/processors/er-sync.processor.ts — syncEvents/syncPatrols set erOriginalSnapshot on create only.
+  • packages/jobs/src/start-workers.ts — bootstrapRecurringErSync().
+  • apps/web/src/server/trpc/routers/settings.ts — syncNow + updateErSyncConfig mutations.
+  • Tests: 17 new (er-sync-watermark 16, er-sync-queue 8, settings-sync 17). Full suite 835/835 green.
+  • Gate: typecheck 7/7, lint 11/11, test 835/835, build 2/2.
+Locked: yes

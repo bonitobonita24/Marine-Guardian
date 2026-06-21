@@ -1,5 +1,5 @@
 /**
- * Tenant Settings router — EarthRanger connection management.
+ * Tenant Settings router — EarthRanger connection management + sync controls.
  *
  * Security invariants:
  *   L3  — all writes gated to adminProcedure (super_admin | site_admin)
@@ -8,6 +8,10 @@
  *   Credential safety — apiToken is encrypted at rest with AES-256-GCM using
  *         ENCRYPTION_KEY from server env; the plaintext is NEVER returned to
  *         the client after the initial save (masked output only).
+ *
+ * ops-milestone-1 additions:
+ *   syncNow            — admin-only delta sync trigger (q-ops-05)
+ *   updateErSyncConfig — admin-only recurring toggle + interval update
  */
 
 import { z } from "zod";
@@ -17,6 +21,11 @@ import { tenantProcedure } from "../middleware/tenant";
 import { adminProcedure } from "../middleware/rbac";
 import { prisma, encrypt, decrypt, writeAuditLog } from "@marine-guardian/db";
 import type { PrismaClient } from "@marine-guardian/db";
+import {
+  enqueueErSyncWithWatermark,
+  scheduleRecurringErSync,
+  removeRecurringErSync,
+} from "@marine-guardian/jobs";
 
 // Sentinel used instead of plaintext to signal "token already stored, not changing"
 const TOKEN_MASKED = "••••••••";
@@ -57,6 +66,9 @@ function maskConnection(row: {
   lastValidatedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  // ops-milestone-1 fields (optional so existing callers without them still compile)
+  recurringEnabled?: boolean;
+  intervalMs?: number;
 }) {
   return {
     id: row.id,
@@ -67,6 +79,9 @@ function maskConnection(row: {
     lastValidatedAt: row.lastValidatedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    // ops-milestone-1 — expose sync config to admin UI (M2 wires the controls)
+    recurringEnabled: row.recurringEnabled ?? false,
+    intervalMs: row.intervalMs ?? 300_000,
   };
 }
 
@@ -216,4 +231,160 @@ export const settingsRouter = router({
       probeResult: probe,
     };
   }),
+
+  /**
+   * ops-milestone-1 (q-ops-05) — Trigger an immediate one-shot delta sync of
+   * all ER sync types for the current tenant.
+   *
+   * Security: admin-only (L3). Audited (L5). Tenant-scoped (L6).
+   *
+   * Gated on a verified ('connected') ER connection — refuses to enqueue
+   * if the connection is not verified, since a sync against a broken endpoint
+   * would waste resources and generate misleading failure SyncLog entries.
+   *
+   * Each sync type is enqueued as a separate BullMQ job via
+   * `enqueueErSyncWithWatermark`, which computes the `since` watermark from
+   * the last successful SyncLog entry (q-ops-06). The recurring path is
+   * unaffected — this is a one-shot trigger independent of the schedule.
+   */
+  syncNow: adminProcedure.mutation(async ({ ctx }) => {
+    const tenantId = ctx.tenantId;
+    if (!tenantId) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "No tenant context." });
+    }
+
+    const conn = await prisma.tenantErConnection.findUnique({
+      where: { tenantId },
+      select: { id: true, status: true },
+    });
+    if (!conn) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "No EarthRanger connection configured for this tenant.",
+      });
+    }
+    if (conn.status !== "connected") {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message:
+          "EarthRanger connection is not verified. Run 'Test Connection' first.",
+      });
+    }
+
+    const syncTypes = [
+      "events",
+      "patrols",
+      "observations",
+      "subjects",
+      "event_types",
+    ] as const;
+
+    const jobIds: string[] = [];
+    for (const syncType of syncTypes) {
+      const jobId = await enqueueErSyncWithWatermark(
+        tenantId,
+        ctx.userId,
+        syncType,
+      );
+      jobIds.push(jobId);
+    }
+
+    await writeAuditLog(prisma as unknown as PrismaClient, {
+      tenantId,
+      userId: ctx.userId,
+      action: "TRIGGER_ER_SYNC_NOW",
+      entityType: "TenantErConnection",
+      entityId: conn.id,
+      changesJson: { syncTypes, jobIds },
+      severity: "info",
+    });
+
+    return { enqueued: syncTypes.length, jobIds };
+  }),
+
+  /**
+   * ops-milestone-1 — Update the per-tenant recurring ER sync configuration:
+   * enable/disable the toggle and/or change the polling interval.
+   *
+   * Security: admin-only (L3). Audited (L5). Tenant-scoped (L6).
+   *
+   * When enabling: schedules the BullMQ repeatable jobs (gated on verified
+   * connection). When disabling: removes them.
+   *
+   * Interval validation: min 60_000ms (1 min) per PRODUCT.md §Background Jobs.
+   *
+   * NOTE: The UI controls for this mutation are Milestone 2. This backend
+   * mutation is exposed now so M1 can be tested end-to-end via tRPC client
+   * or admin scripts without waiting for the UI.
+   */
+  updateErSyncConfig: adminProcedure
+    .input(
+      z.object({
+        recurringEnabled: z.boolean(),
+        intervalMs: z
+          .number()
+          .int()
+          .min(60_000, { message: "Minimum interval is 60 000ms (1 minute)." })
+          .max(86_400_000, { message: "Maximum interval is 86 400 000ms (24 hours)." })
+          .optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const tenantId = ctx.tenantId;
+      if (!tenantId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "No tenant context." });
+      }
+
+      const conn = await prisma.tenantErConnection.findUnique({
+        where: { tenantId },
+        select: { id: true, status: true, recurringEnabled: true, intervalMs: true },
+      });
+      if (!conn) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "No EarthRanger connection configured for this tenant.",
+        });
+      }
+
+      if (input.recurringEnabled && conn.status !== "connected") {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Cannot enable recurring sync — ER connection is not verified. Run 'Test Connection' first.",
+        });
+      }
+
+      const newIntervalMs = input.intervalMs ?? conn.intervalMs;
+
+      const updated = await prisma.tenantErConnection.update({
+        where: { tenantId },
+        data: {
+          recurringEnabled: input.recurringEnabled,
+          intervalMs: newIntervalMs,
+        },
+      });
+
+      await writeAuditLog(prisma as unknown as PrismaClient, {
+        tenantId,
+        userId: ctx.userId,
+        action: "UPDATE_ER_SYNC_CONFIG",
+        entityType: "TenantErConnection",
+        entityId: conn.id,
+        changesJson: {
+          before: { recurringEnabled: conn.recurringEnabled, intervalMs: conn.intervalMs },
+          after: { recurringEnabled: input.recurringEnabled, intervalMs: newIntervalMs },
+        },
+        severity: "info",
+      });
+
+      // Wire / unwire the BullMQ repeatable scheduler immediately so
+      // the change takes effect without requiring a worker restart.
+      if (input.recurringEnabled) {
+        await scheduleRecurringErSync(tenantId, ctx.userId, newIntervalMs);
+      } else {
+        await removeRecurringErSync(tenantId);
+      }
+
+      return maskConnection(updated);
+    }),
 });

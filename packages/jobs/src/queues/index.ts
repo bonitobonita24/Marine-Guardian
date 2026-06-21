@@ -1,5 +1,11 @@
 export { getQueue, closeAllQueues } from "./queue-factory";
-export { getErSyncQueue, enqueueErSync, scheduleRecurringErSync } from "./er-sync.queue";
+export {
+  getErSyncQueue,
+  enqueueErSync,
+  enqueueErSyncWithWatermark,
+  scheduleRecurringErSync,
+  removeRecurringErSync,
+} from "./er-sync.queue";
 export { getAlertsQueue, enqueueAlert } from "./alerts.queue";
 export { getEmailQueue, enqueueEmail } from "./email.queue";
 export {
