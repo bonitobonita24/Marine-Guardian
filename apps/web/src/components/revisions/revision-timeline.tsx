@@ -48,7 +48,15 @@ function formatJsonValue(value: unknown): string {
   if (value === null || value === undefined) return "(empty)";
   if (typeof value === "string") return value === "" ? "(cleared)" : value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
-  // JSON blobs (notes, eventDetails) — show compact JSON, capped at 120 chars
+  // COSMETIC FIX: notes are stored as { text: "..." }. Extract the human-
+  // readable text instead of showing raw JSON like `{"text":"..."}`.
+  // At this point TS has narrowed `value` to `object` (all primitives handled
+  // above), so no cast is needed for the `in` check.
+  const rec = value as Record<string, unknown>;
+  if ("text" in rec && typeof rec.text === "string") {
+    return rec.text === "" ? "(cleared)" : rec.text;
+  }
+  // Other JSON blobs (eventDetails etc.) — show compact JSON, capped at 120 chars
   const str = JSON.stringify(value);
   return str.length > 120 ? str.slice(0, 117) + "…" : str;
 }

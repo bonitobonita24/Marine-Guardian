@@ -52,13 +52,21 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
     { enabled: open && historyActive },
   );
 
+  // BUG-2b FIX: track save errors so they surface to the user instead of
+  // failing silently (the modal was staying open with no feedback on 400).
+  const [saveError, setSaveError] = useState<string | null>(null);
+
   const updateEvent = trpc.event.update.useMutation({
     onSuccess: () => {
+      setSaveError(null);
       void utils.event.list.invalidate();
       void utils.event.getById.invalidate({ id: eventId ?? "" });
       // Invalidate revision cache so the History tab reflects the new edit.
       void utils.event.getRevisions.invalidate({ eventId: eventId ?? "" });
       onClose();
+    },
+    onError: (err) => {
+      setSaveError(err.message);
     },
   });
 
@@ -91,6 +99,7 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
 
   const handleSave = () => {
     if (eventId === null) return;
+    setSaveError(null);
     updateEvent.mutate({
       id: eventId,
       title,
@@ -165,12 +174,13 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="event-priority">Priority (0–3)</Label>
+                  {/* BUG-2 FIX: label updated — ER events store raw priority
+                      values (0, 100, 200, 300); the old "0–3" cap was wrong. */}
+                  <Label htmlFor="event-priority">Priority</Label>
                   <Input
                     id="event-priority"
                     type="number"
                     min={0}
-                    max={3}
                     value={priority}
                     onChange={(e) => {
                       setPriority(Number.parseInt(e.target.value, 10) || 0);
@@ -297,6 +307,17 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
                 updatedAt={eventQuery.data.updatedAt}
                 reportedAt={eventQuery.data.reportedAt}
               />
+
+              {/* BUG-2b: surface save errors so users see what went wrong */}
+              {saveError !== null && (
+                <p
+                  className="text-sm text-destructive"
+                  role="alert"
+                  data-testid="event-save-error"
+                >
+                  {saveError}
+                </p>
+              )}
 
               <DialogFooter className="pt-2">
                 <Button

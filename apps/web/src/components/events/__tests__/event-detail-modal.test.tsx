@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, cleanup, fireEvent } from "@testing-library/react";
+import { render, cleanup, fireEvent, act } from "@testing-library/react";
 
 const { stubs } = vi.hoisted(() => {
   const s: {
@@ -9,11 +9,14 @@ const { stubs } = vi.hoisted(() => {
     updateMutate: ReturnType<typeof vi.fn<(input: unknown) => void>>;
     listInvalidate: ReturnType<typeof vi.fn<() => Promise<void>>>;
     getByIdInvalidate: ReturnType<typeof vi.fn<(input: unknown) => Promise<void>>>;
+    // BUG-2b: expose onError so tests can simulate mutation errors
+    capturedOnError: ((err: { message: string }) => void) | undefined;
   } = {
     getByIdData: null,
     updateMutate: vi.fn<(input: unknown) => void>(),
     listInvalidate: vi.fn<() => Promise<void>>(),
     getByIdInvalidate: vi.fn<(input: unknown) => Promise<void>>(),
+    capturedOnError: undefined,
   };
   return { stubs: s };
 });
@@ -28,13 +31,20 @@ vi.mock("@/lib/trpc/client", () => ({
         }),
       },
       update: {
-        useMutation: (opts?: { onSuccess?: () => void }) => ({
-          mutate: (input: unknown) => {
-            stubs.updateMutate(input);
-            opts?.onSuccess?.();
-          },
-          isPending: false,
-        }),
+        useMutation: (opts?: {
+          onSuccess?: () => void;
+          onError?: (err: { message: string }) => void;
+        }) => {
+          // Store onError so individual tests can fire it (BUG-2b regression)
+          stubs.capturedOnError = opts?.onError;
+          return {
+            mutate: (input: unknown) => {
+              stubs.updateMutate(input);
+              opts?.onSuccess?.();
+            },
+            isPending: false,
+          };
+        },
       },
       getRevisions: {
         useQuery: () => ({
@@ -84,6 +94,7 @@ const baseEvent = {
 describe("EventDetailModal", () => {
   beforeEach(() => {
     stubs.getByIdData = null;
+    stubs.capturedOnError = undefined;
     stubs.updateMutate.mockReset();
     stubs.listInvalidate.mockReset().mockResolvedValue(undefined);
     stubs.getByIdInvalidate.mockReset().mockResolvedValue(undefined);
@@ -117,7 +128,7 @@ describe("EventDetailModal", () => {
     expect((getByLabelText("Title") as HTMLInputElement).value).toBe(
       "Illegal Fishing Report",
     );
-    expect((getByLabelText("Priority (0–3)") as HTMLInputElement).value).toBe("2");
+    expect((getByLabelText("Priority") as HTMLInputElement).value).toBe("2");
     expect((getByLabelText("Notes") as HTMLTextAreaElement).value).toBe(
       "Initial sighting",
     );
@@ -209,5 +220,35 @@ describe("EventDetailModal", () => {
     const call = stubs.updateMutate.mock.calls[0]?.[0] as Record<string, unknown> | undefined;
     expect(call).toBeDefined();
     expect(call).not.toHaveProperty("eventDetailsJson");
+  });
+
+  // BUG-2b regression: mutation errors must surface to the user, not fail silently.
+  it("surfaces a save error when the mutation fails (BUG-2b regression)", () => {
+    stubs.getByIdData = baseEvent;
+    const { queryByTestId } = render(
+      <EventDetailModal eventId="ev-1" onClose={() => {}} />,
+    );
+
+    // No error yet
+    expect(queryByTestId("event-save-error")).toBeNull();
+
+    // Simulate the server returning an error by firing the captured onError.
+    // Wrap in act() so React flushes the setState(saveError) re-render.
+    act(() => {
+      stubs.capturedOnError?.({ message: "priority: Number must be less than or equal to 3" });
+    });
+
+    const errorEl = queryByTestId("event-save-error");
+    expect(errorEl).not.toBeNull();
+    expect(errorEl?.textContent).toMatch(/priority/i);
+  });
+
+  // BUG-2b: ER-synced events load with high priority — the form must accept it.
+  it("loads an ER-synced event with priority 200 without clamping it", () => {
+    stubs.getByIdData = { ...baseEvent, priority: 200 };
+    const { getByLabelText } = render(
+      <EventDetailModal eventId="ev-1" onClose={() => {}} />,
+    );
+    expect((getByLabelText("Priority") as HTMLInputElement).value).toBe("200");
   });
 });

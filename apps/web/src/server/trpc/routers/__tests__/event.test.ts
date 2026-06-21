@@ -1203,4 +1203,72 @@ describe("event.updateState — inline state transition (M3)", () => {
     expect(call?.[0]?.where?.tenantId).toBe("isolated-tenant");
   });
 });
+
+// ── BUG-2 regression: event.update accepts EarthRanger raw priority values ──
+//
+// ER syncs events with priority 0 / 100 / 200 / 300. The update schema
+// previously capped priority at max(3), rejecting these values with a silent
+// HTTP 400. This describe block guards the fix.
+// (no-unsafe-assignment already disabled above for the whole bottom section)
+describe("event.update — EarthRanger priority range (BUG-2 regression)", () => {
+  const erSyncedEvent = {
+    id: "ev-er",
+    tenantId: TENANT_ID,
+    erEventId: "er-event-99",
+    title: "ER Synced Incident",
+    priority: 200,  // raw ER priority — what the sync processor writes
+    notesJson: null,
+    eventDetailsJson: null,
+    offenderName: null,
+    vesselName: null,
+    vesselRegistration: null,
+    address: null,
+    actionTaken: null,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValue(null);
+  });
+
+  it.each([0, 100, 200, 300])(
+    "accepts ER raw priority value %i without validation error",
+    async (erPriority) => {
+      vi.mocked(prisma.event.findFirst).mockResolvedValueOnce({
+        ...erSyncedEvent,
+        priority: erPriority,
+      } as never);
+      vi.mocked(prisma.event.update).mockResolvedValueOnce({
+        ...erSyncedEvent,
+        priority: erPriority,
+        eventType: null,
+        accompanyingRangers: [],
+      } as never);
+
+      const caller = createCaller(makeCtx());
+      // Must NOT throw — prior schema had max(3) which rejected 100/200/300
+      await expect(
+        caller.update({ id: "ev-er", priority: erPriority })
+      ).resolves.toMatchObject({ id: "ev-er", priority: erPriority });
+    }
+  );
+
+  it("passes the raw ER priority through to prisma.event.update unchanged", async () => {
+    vi.mocked(prisma.event.findFirst).mockResolvedValueOnce(erSyncedEvent as never);
+    vi.mocked(prisma.event.update).mockResolvedValueOnce({
+      ...erSyncedEvent,
+      eventType: null,
+      accompanyingRangers: [],
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    await caller.update({ id: "ev-er", priority: 200 });
+
+    expect(vi.mocked(prisma.event.update)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ priority: 200 }),
+      })
+    );
+  });
+});
 /* eslint-enable @typescript-eslint/no-unsafe-assignment */
