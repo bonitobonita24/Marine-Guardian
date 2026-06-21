@@ -388,7 +388,9 @@ describe("AssignmentDialog — conflict confirm UI", () => {
     await waitFor(() => {
       expect(stubs.checkConflictsArg).toMatchObject({ excludeId: "sched-existing" });
     });
-    expect(qs("conflict-confirm-view")).not.toBeNull();
+    await waitFor(() => {
+      expect(qs("conflict-confirm-view")).not.toBeNull();
+    });
     expect(stubs.updateCalls).toHaveLength(0);
   });
 
