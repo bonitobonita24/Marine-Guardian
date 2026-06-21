@@ -99,6 +99,12 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
 
   const handleSave = () => {
     if (eventId === null) return;
+    // BUG-2b: client-side guard — surface validation errors immediately
+    // without a round-trip.  Keep the modal open so the user can fix the field.
+    if (title.trim().length === 0) {
+      setSaveError("Title is required.");
+      return;
+    }
     setSaveError(null);
     updateEvent.mutate({
       id: eventId,
@@ -168,10 +174,21 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
                   <Input
                     id="event-title"
                     value={title}
+                    aria-invalid={saveError !== null && title.trim().length === 0}
                     onChange={(e) => {
                       setTitle(e.target.value);
+                      // Clear client-side title error as soon as the user types.
+                      if (saveError !== null && e.target.value.trim().length > 0) {
+                        setSaveError(null);
+                      }
                     }}
                   />
+                  {/* BUG-2b: field-level error when title is blank */}
+                  {saveError !== null && title.trim().length === 0 && (
+                    <p className="mt-1 text-xs text-destructive" role="alert" data-testid="event-title-error">
+                      {saveError}
+                    </p>
+                  )}
                 </div>
                 <div>
                   {/* BUG-2 FIX: label updated — ER events store raw priority

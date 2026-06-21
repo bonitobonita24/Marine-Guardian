@@ -61,6 +61,8 @@ export default function PatrolDetailPage() {
   const [areaName, setAreaName] = useState("");
   const [isDirty, setIsDirty] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  // BUG-2b: client-side validation error (title blank-wipe guard).
+  const [titleError, setTitleError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!patrolQuery.data) return;
@@ -73,6 +75,12 @@ export default function PatrolDetailPage() {
 
   const handleSave = () => {
     if (!patrolQuery.data) return;
+    // BUG-2b: client-side guard — title must not be blank.
+    if (title.trim().length === 0) {
+      setTitleError("Title is required.");
+      return;
+    }
+    setTitleError(null);
     updatePatrol.mutate(
       { id, title, boatName, areaName },
       {
@@ -226,11 +234,25 @@ export default function PatrolDetailPage() {
               <Input
                 id="patrol-title"
                 value={title}
+                aria-invalid={titleError !== null}
+                aria-describedby={titleError !== null ? "patrol-title-error" : undefined}
                 onChange={(e) => {
                   setTitle(e.target.value);
                   setIsDirty(true);
+                  // Clear the client-side error as soon as the user types.
+                  if (titleError !== null) setTitleError(null);
                 }}
               />
+              {titleError !== null && (
+                <p
+                  id="patrol-title-error"
+                  role="alert"
+                  className="text-xs text-destructive"
+                  data-testid="patrol-title-error"
+                >
+                  {titleError}
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="patrol-boat">Boat name</Label>

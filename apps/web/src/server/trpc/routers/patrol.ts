@@ -218,7 +218,10 @@ export const patrolRouter = router({
       z
         .object({
           id: z.string(),
-          title: z.string().max(500).optional(),
+          // BUG-2b FIX: title must be non-empty when provided — reject blank-
+          // wipe attempts.  boatName and areaName remain freely clearable
+          // (genuinely optional in the domain).
+          title: z.string().trim().min(1, "Title is required").max(500).optional(),
           boatName: z.string().max(200).optional(),
           areaName: z.string().max(300).optional(),
         })
