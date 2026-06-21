@@ -613,3 +613,24 @@ Implementation:
   • tests: 23 new vitest (dsr 15 + breach 8). Full suite 818 green; typecheck 7/7; lint 6/6; real next build 2/2.
 Rationale: Owner authorized the build for fleet parity (Yelli d639a5b + Orqafy b0fcae0 already shipped it). Adapted to MG's domain (no HR/finance; rangers/patrols/observations/fuel).
 Locked: yes (ratified values + pending items above)
+
+## 2026-06-21 — Operations: Events list redesign + editable record copy + recurring ER sync
+Decision (OWNER-DIRECTED 2026-06-21, conductor back-port): three linked Operations features queued for a future build session. Owner stepped away to rest the PC — this is a recorded TODO, not yet implemented.
+
+Context confirmed with owner: MG holds its OWN canonical copy of all EarthRanger records; once synced, ALL processing/parsing/editing happens in MG's DB. EarthRanger is upstream source only.
+
+Ratified product values:
+  • q-ops-01 Events view = continuous INFINITE-SCROLL LIST, not Kanban. 50 records/page, cursor pagination, auto-load next page on scroll. Default sort newest-first (like Patrols). Per-row inline state control (New/Active/Resolved) preserves the workflow without columns. Replaces the existing Kanban board (PRODUCT.md "Event Management").
+  • q-ops-02 Events AND Patrols become fully editable in-app (RBAC-gated, L5-audited).
+  • q-ops-03 Immutable original snapshot: store the verbatim EarthRanger content (`erOriginalSnapshot`) on first sync; never overwritten. Always recoverable.
+  • q-ops-04 Field-level edit history (append-only revisions: who/when/field/before/after). Detail view gets a RIGHT-SIDE tab rendering the edit-history timeline newest-first, original ER baseline as the first entry.
+  • q-ops-05 Recurring ER sync = OPTION 3 (manual "Sync now" button + opt-in per-tenant recurring toggle). Gated on a verified (connected) ER connection. Default interval 5 minutes, owner-configurable per tenant, min 1 minute. Wires the already-built `scheduleRecurringErSync` (defined-but-uncalled) + new `settings.syncNow` mutation calling `enqueueErSync`.
+
+DEFAULT (confirm at build, not yet owner-locked):
+  • Sync vs local-edit conflict: ER syncs refresh `erOriginalSnapshot` but do NOT overwrite locally-edited fields; show a non-destructive "upstream changed" indicator instead of clobbering. MG copy is canonical.
+  • No push-back of local edits to EarthRanger (one-way pull). Supersedes the old "state changes pushed back to EarthRanger" line.
+
+Implementation gap noted: er-sync queue + worker + processor + `scheduleRecurringErSync`/`enqueueErSync` helpers all EXIST in packages/jobs; the scheduler is never invoked and no manual trigger is wired — so today NO automatic polling runs. Demo data was loaded via the one-off scripts/ingest-earthranger.mjs loader.
+
+Scope estimate (for a future architect): schema (revision table + erOriginalSnapshot + connection toggle/interval fields + migration) · tRPC (event/patrol update mutations + revision queries + settings.syncNow + recurring scheduler wiring) · UI (Events list infinite-scroll rewrite + edit forms + history timeline panel). Design-touching (Events view) → owner eyes before merge. Tier 2-3, likely split across sessions.
+Locked: product values q-ops-01..05 yes; conflict/push-back defaults pending build-time confirm.

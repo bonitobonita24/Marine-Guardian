@@ -13,7 +13,13 @@ LAST_DONE: feat(v329) — PH Data Privacy Act compliance + WCAG 2.2 AA + Complia
             compliance/auth surfaces. 23 new vitest tests. Gate: typecheck 7/7,
             lint 6/6, test 818/818, next build 2/2.
 
-NEXT: Owner-gated items deferred from V32.9:
+NEXT: ⭐ OPERATIONS EPIC — owner-directed 2026-06-21 (queued TODO, see DECISIONS_LOG "Operations: Events list redesign…" + PRODUCT.md "Event Management (Operations List)" / "Editable Records & Edit History" / Tenant Settings recurring auto-sync). Three linked features:
+        (1) Events view → infinite-scroll LIST (50/page, cursor pagination, newest-first like Patrols, per-row inline state control) — REPLACES Kanban. Design-touching → owner eyes before merge.
+        (2) Editable Events + Patrols on MG's canonical copy + immutable erOriginalSnapshot + field-level edit-history with a right-side timeline tab (who/when/what).
+        (3) Recurring ER sync OPTION 3: per-tenant opt-in toggle (gated on verified connection) @ default 5min interval (configurable, min 1min) + admin "Sync now" button. Wires the existing-but-uncalled scheduleRecurringErSync + new settings.syncNow. ⚠ TODAY NO AUTO-POLLING RUNS (scheduler never invoked).
+        Tier 2-3, likely multi-session split. NOT yet started (owner resting PC).
+
+      Owner-gated items deferred from V32.9:
       - DPO appointment (human decision — named DPO / external DPO service)
       - NPC registration / Privacy Impact Assessment (PIA) — human-initiated
       - Lawful-basis fine-tuning in PRODUCT.md §Compliance (owner input needed)

@@ -61,16 +61,24 @@ EarthRanger is an excellent field data collection platform but provides no repor
 - Click-to-inspect on any marker/track for detail popover
 - Drawing tools for ad-hoc area selection
 
-### Event Management (Kanban)
-- Kanban board with columns: New, Active, Resolved
-- Drag-and-drop state transitions
-- Event cards showing: type icon, serial number, title, reporter, time, priority badge
-- Click-to-expand for full event detail editing (all fields from EarthRanger event schema)
-- Operator can fill in missing fields (offender name, vessel info, action taken, notes)
-- State changes pushed back to EarthRanger via API
-- Filter by event category (Law Enforcement / Monitoring, Patrolling & Surveillance)
-- Filter by area/municipality
-- Monthly accomplishment view: filter resolved events by month for reporting
+### Event Management (Operations List)  ⟵ CHANGED from Kanban (owner 2026-06-21, see DECISIONS_LOG)
+- **Continuous infinite-scroll list — NOT a Kanban board.** Single vertical list of all event records.
+- **Default sort: newest first** (most-recent reported/synced at the top, descending to oldest) — mirrors the Patrols list ordering the owner prefers.
+- **Lazy loading:** loads **50 records at a time**, fetching the next page automatically as the user scrolls toward the bottom (cursor-based pagination; no page numbers). Smooth continuous scroll.
+- Each row shows: type icon, serial number, title, reporter, time, priority badge, **state badge**, and an **inline state control** (New / Active / Resolved) — state transitions happen via the per-row control (replacing drag-between-columns), so the New→Active→Resolved workflow is fully preserved.
+- Click-to-expand / open detail for full event editing (all fields from EarthRanger event schema).
+- Operator can fill in missing fields (offender name, vessel info, action taken, notes).
+- Filter by event category (Law Enforcement / Monitoring, Patrolling & Surveillance), by state, by area/municipality, and by date range — filters apply server-side to the paginated query.
+- Monthly accomplishment view: filter resolved events by month for reporting.
+- (The state push-back to EarthRanger is superseded by the editable-copy model below — see "Editable Records & Edit History".)
+
+### Editable Records & Edit History (Events + Patrols)  ⟵ NEW (owner 2026-06-21)
+> Rationale: MG now holds its **own canonical copy** of every EarthRanger record (see recurring sync below). All processing, parsing, and manipulation happens in MG's DB — so records become **editable in-app**, with full provenance.
+- **All fields of Events AND Patrols are editable in-app** by authorized Command Center users (RBAC-gated; L5 AuditLog applies).
+- **Immutable original snapshot:** on first sync of each record, MG stores the **original EarthRanger content verbatim** (`erOriginalSnapshot`, never overwritten). The original is always recoverable/viewable.
+- **Field-level edit history:** every edit records a revision row — **who, when, and what changed** (field, before-value, after-value). Append-only.
+- **History timeline UI:** the event/patrol detail view gains a **right-side tab/panel** rendering the edit-history timeline newest-first — each entry shows editor, timestamp, and the field-level diff (incl. the original EarthRanger baseline as the first entry).
+- **Sync vs. local-edit conflict rule (default — confirm at build):** subsequent ER syncs **refresh the stored `erOriginalSnapshot`** but **do NOT overwrite user-edited fields**; if upstream changes a field that was locally edited, surface a non-destructive "upstream changed" indicator in the timeline rather than clobbering the local edit. (Open sub-decision: whether any edits push back upstream to EarthRanger — default = **no push-back, MG copy is canonical**.)
 
 ### Event Detail
 - Full event record with all fields: report type, report ID, reported by, reported at, notes, municipality/boundary, violation/event sub-type, vessel name, registration number, address, offender name(s), action taken, photo indicator
@@ -203,8 +211,9 @@ EarthRanger is an excellent field data collection platform but provides no repor
 - **Test Connection** button — triggers `settings.testErConnection` which decrypts the token server-side, probes `GET /api/v1.0/subjects/?page_size=1`, and writes the result + timestamp back to the row. Audited. Reports success/failure in the UI without ever sending the token to the client.
 - Status badge: Connected / Connection error / Not yet verified.
 - Token field is always `type="password"`. After a save the field placeholder shows `••••••••`; leave blank on update to keep the existing token.
-- Data sync frequency configuration (default 30 seconds)
-- Sync status table: data type × last sync × records synced × status
+- **Recurring auto-sync — owner-approved 2026-06-21 (option 3, see DECISIONS_LOG):** Per-tenant **enable toggle** + **interval** field on `TenantErConnection`, **gated on a valid (connected) ER connection** — recurring polling only runs for tenants that have a verified connection AND the toggle on. Default interval **5 minutes** (owner-configurable per tenant; minimum 1 minute). Wires the already-built `scheduleRecurringErSync(tenantId, userId, intervalMs)` (currently defined-but-uncalled) at worker bootstrap + on connection save/toggle; removes the BullMQ repeatable scheduler when toggled off or the connection goes invalid.
+- **Manual "Sync now" button** (admin-only) on the ER-connection card — enqueues an immediate one-shot sync of all 5 types via `enqueueErSync` (new `settings.syncNow` mutation). Gives operators an on-demand pull without waiting for the interval.
+- Sync status table: data type × last sync × records synced × status (reads `SyncLog`).
 - Tenant profile (MPA site name, slug, description, timezone, **currency** — e.g., IDR, PHP, MYR)
 - Save and update buttons
 
@@ -518,7 +527,7 @@ Theming approach:   Custom Meta Dark tokens in docs/DESIGN.md applied via shadcn
 - Optional audio chime for critical events (browser notification sound, configurable)
 
 ## Background Jobs
-- **ER Data Sync (per tenant):** Scheduled job polls EarthRanger API for new/updated events, subjects, patrols, observations. Configurable frequency per tenant (default: 30 seconds for subjects/events, 5 minutes for patrols). Retry with exponential backoff on failure. SyncLog entry per run.
+- **ER Data Sync (per tenant):** Scheduled job polls EarthRanger API for new/updated events, subjects, patrols, observations, event_types. **Owner-approved 2026-06-21:** opt-in per tenant via a toggle on `TenantErConnection`, gated on a verified connection; **default interval 5 minutes**, owner-configurable per tenant (min 1 minute). Plus an admin **"Sync now"** manual trigger. Retry with exponential backoff on failure. SyncLog entry per run. (Implementation gap as of 2026-06-21: queue + worker + `scheduleRecurringErSync` helper all exist but the scheduler is never invoked and no manual trigger is wired — this task closes that.)
 - **Alert Evaluation:** After each data sync, evaluate new events against tenant's alert rules. Generate notifications and send emails for matches. Retry email delivery 3 times with backoff.
 - **Stale Data Detection:** Periodic check for subjects with no position update beyond threshold. Flag stale subjects for War Room and dashboard display.
 - **Report Pre-computation (optional):** Nightly aggregation of patrol stats and event counts for fast report loading on large datasets.
