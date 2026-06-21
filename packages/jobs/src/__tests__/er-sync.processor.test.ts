@@ -22,7 +22,9 @@ vi.mock("@marine-guardian/db", () => ({
       create: vi.fn(),
       update: vi.fn(),
     },
-    patrol: { upsert: vi.fn(), update: vi.fn() },
+    eventRevision: { findMany: vi.fn().mockResolvedValue([]) },
+    patrol: { findUnique: vi.fn().mockResolvedValue(null), upsert: vi.fn(), update: vi.fn() },
+    patrolRevision: { findMany: vi.fn().mockResolvedValue([]) },
     patrolSegment: { upsert: vi.fn() },
     observation: { upsert: vi.fn() },
     syncLog: { create: vi.fn(), update: vi.fn() },
@@ -85,7 +87,9 @@ const mockPrisma = platformPrisma as unknown as {
     create: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
   };
-  patrol: { upsert: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
+  eventRevision: { findMany: ReturnType<typeof vi.fn> };
+  patrol: { findUnique: ReturnType<typeof vi.fn>; upsert: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
+  patrolRevision: { findMany: ReturnType<typeof vi.fn> };
   observation: { upsert: ReturnType<typeof vi.fn> };
   syncLog: { create: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
   user: { findFirst: ReturnType<typeof vi.fn> };

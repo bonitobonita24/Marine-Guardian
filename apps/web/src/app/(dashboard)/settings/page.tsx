@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ShieldAlert } from "lucide-react";
 import { ErConnectionCard } from "./_components/er-connection-card";
+import { ErSyncCard } from "./_components/er-sync-card";
 import { DataPrivacyCard } from "./_components/data-privacy-card";
 
 export default function SettingsPage() {
@@ -8,6 +9,7 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Settings</h1>
       <ErConnectionCard />
+      <ErSyncCard />
       <DataPrivacyCard />
       <Link
         href="/settings/breach"

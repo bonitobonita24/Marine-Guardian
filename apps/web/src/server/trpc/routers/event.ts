@@ -3,8 +3,28 @@ import { TRPCError } from "@trpc/server";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
 import { prisma, decrypt, writeAuditLog } from "@marine-guardian/db";
-import type { PrismaClient, Prisma } from "@marine-guardian/db";
+import { Prisma } from "@marine-guardian/db";
+import type { PrismaClient } from "@marine-guardian/db";
 import { pushEventUpdateToEarthRanger } from "../../lib/earthranger-push";
+
+/**
+ * The set of event fields that are locally editable.
+ * Any field in this set that has an EventRevision row is considered
+ * "locally edited" — the er-sync processor will skip overwriting it.
+ */
+export const EVENT_EDITABLE_FIELDS = [
+  "title",
+  "priority",
+  "notesJson",
+  "eventDetailsJson",
+  "offenderName",
+  "vesselName",
+  "vesselRegistration",
+  "address",
+  "actionTaken",
+] as const;
+
+export type EventEditableField = (typeof EVENT_EDITABLE_FIELDS)[number];
 
 type PushFieldsInput = {
   title?: string;
@@ -208,6 +228,27 @@ export const eventRouter = router({
         after.eventDetailsJson = input.eventDetailsJson;
       }
 
+      // Build revision rows for each changed field (q-ops-04 append-only).
+      // We collect them here before the update so the before values are fresh.
+      const revisionRows: {
+        tenantId: string;
+        eventId: string;
+        userId: string;
+        fieldName: string;
+        beforeJson: Prisma.InputJsonValue | typeof Prisma.JsonNull;
+        afterJson: Prisma.InputJsonValue | typeof Prisma.JsonNull;
+      }[] = [];
+      for (const key of Object.keys(before)) {
+        revisionRows.push({
+          tenantId: ctx.tenantId,
+          eventId: input.id,
+          userId: ctx.userId,
+          fieldName: key,
+          beforeJson: before[key] === null ? Prisma.JsonNull : (before[key] as Prisma.InputJsonValue),
+          afterJson: after[key] === null ? Prisma.JsonNull : (after[key] as Prisma.InputJsonValue),
+        });
+      }
+
       const updated = await prisma.event.update({
         where: { id: input.id },
         data,
@@ -221,6 +262,11 @@ export const eventRouter = router({
           },
         },
       });
+
+      // Write append-only revision rows (q-ops-04). Each changed field gets its own row.
+      if (revisionRows.length > 0) {
+        await prisma.eventRevision.createMany({ data: revisionRows });
+      }
 
       await writeAuditLog(prisma as unknown as PrismaClient, {
         tenantId: ctx.tenantId,
@@ -515,4 +561,75 @@ export const eventRouter = router({
     ]);
     return { total, newEvents, active, resolved };
   }),
+
+  /**
+   * Fetch the edit-history revision timeline for a single event (q-ops-04).
+   *
+   * Returns revisions NEWEST-FIRST plus the immutable erOriginalSnapshot as
+   * the synthetic "first" baseline entry (oldest position in the timeline).
+   *
+   * Security: tenant-scoped (L6) — only returns rows for this tenant's event.
+   */
+  getRevisions: tenantProcedure
+    .input(z.object({ eventId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      // Verify tenant ownership of the event (L6 guard)
+      const event = await prisma.event.findFirst({
+        where: { id: input.eventId, tenantId: ctx.tenantId },
+        select: { id: true, erOriginalSnapshot: true, syncedAt: true },
+      });
+      if (!event) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Event not found." });
+      }
+
+      const revisions = await prisma.eventRevision.findMany({
+        where: { tenantId: ctx.tenantId, eventId: input.eventId },
+        orderBy: { createdAt: "desc" },
+        include: {
+          // We resolve the userId → displayName via a joined User query
+        },
+      });
+
+      // Resolve editor display names for the revision list
+      const userIds = [...new Set(revisions.map((r) => r.userId))];
+      const users =
+        userIds.length > 0
+          ? await prisma.user.findMany({
+              where: { id: { in: userIds } },
+              select: { id: true, fullName: true, email: true },
+            })
+          : [];
+      const userMap = new Map(users.map((u) => [u.id, u]));
+
+      const revisionList = revisions.map((r) => ({
+        id: r.id,
+        fieldName: r.fieldName,
+        beforeJson: r.beforeJson,
+        afterJson: r.afterJson,
+        createdAt: r.createdAt,
+        editor: userMap.get(r.userId) ?? { id: r.userId, fullName: null, email: null },
+      }));
+
+      return {
+        revisions: revisionList,
+        erOriginalSnapshot: event.erOriginalSnapshot,
+        erSyncedAt: event.syncedAt,
+      };
+    }),
+
+  /**
+   * Returns the set of field names that have been locally edited for an event.
+   * Used by the er-sync processor to skip overwriting locally-edited fields (q-ops conflict rule).
+   * Exported as a standalone query so callers outside the router can use the same logic.
+   */
+  getEditedFields: tenantProcedure
+    .input(z.object({ eventId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const rows = await prisma.eventRevision.findMany({
+        where: { tenantId: ctx.tenantId, eventId: input.eventId },
+        select: { fieldName: true },
+        distinct: ["fieldName"],
+      });
+      return { editedFields: rows.map((r) => r.fieldName) };
+    }),
 });

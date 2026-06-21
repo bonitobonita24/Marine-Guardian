@@ -13,6 +13,9 @@ vi.mock("@marine-guardian/db", () => ({
       upsert: vi.fn(),
       update: vi.fn(),
     },
+    syncLog: {
+      findMany: vi.fn(),
+    },
     auditLog: { create: vi.fn() },
   },
   encrypt: (v: string) => _encryptImpl(v),
@@ -303,5 +306,97 @@ describe("settings.testErConnection", () => {
   it("throws FORBIDDEN when tenantId is absent", async () => {
     const caller = createCaller(makeCtx(null));
     await expect(caller.testErConnection()).rejects.toThrow(TRPCError);
+  });
+});
+
+// ── settings.getSyncLogs (M2, q-ops-10) ───────────────────────────────────────
+
+describe("settings.getSyncLogs", () => {
+  const mockLogs = [
+    {
+      id: "log-1",
+      syncType: "full",
+      status: "success",
+      recordsSynced: 42,
+      errorMessage: null,
+      startedAt: new Date("2026-06-21T10:00:00Z"),
+      completedAt: new Date("2026-06-21T10:00:05Z"),
+    },
+    {
+      id: "log-2",
+      syncType: "delta",
+      status: "failed",
+      recordsSynced: 0,
+      errorMessage: "Connection timeout",
+      startedAt: new Date("2026-06-21T09:00:00Z"),
+      completedAt: new Date("2026-06-21T09:00:02Z"),
+    },
+  ];
+
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it("returns last 10 sync log entries for the tenant", async () => {
+    vi.mocked(prisma.syncLog.findMany).mockResolvedValue(mockLogs as never);
+    const caller = createCaller(makeCtx());
+    const result = await caller.getSyncLogs();
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({
+      id: "log-1",
+      syncType: "full",
+      status: "success",
+      recordsSynced: 42,
+    });
+  });
+
+  it("scopes query to authenticated tenantId", async () => {
+    vi.mocked(prisma.syncLog.findMany).mockResolvedValue(mockLogs as never);
+    const caller = createCaller(makeCtx());
+    await caller.getSyncLogs();
+    expect(vi.mocked(prisma.syncLog.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        where: expect.objectContaining({ tenantId: TENANT_ID }),
+      })
+    );
+  });
+
+  it("orders results newest-first", async () => {
+    vi.mocked(prisma.syncLog.findMany).mockResolvedValue(mockLogs as never);
+    const caller = createCaller(makeCtx());
+    await caller.getSyncLogs();
+    expect(vi.mocked(prisma.syncLog.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        orderBy: expect.objectContaining({ startedAt: "desc" }),
+      })
+    );
+  });
+
+  it("limits results to 10 entries", async () => {
+    vi.mocked(prisma.syncLog.findMany).mockResolvedValue([] as never);
+    const caller = createCaller(makeCtx());
+    await caller.getSyncLogs();
+    expect(vi.mocked(prisma.syncLog.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({ take: 10 })
+    );
+  });
+
+  it("returns empty array when no sync runs exist", async () => {
+    vi.mocked(prisma.syncLog.findMany).mockResolvedValue([] as never);
+    const caller = createCaller(makeCtx());
+    const result = await caller.getSyncLogs();
+    expect(result).toEqual([]);
+  });
+
+  it("throws FORBIDDEN when tenantId is absent", async () => {
+    const caller = createCaller(makeCtx(null));
+    await expect(caller.getSyncLogs()).rejects.toThrow(TRPCError);
+  });
+
+  it("is accessible to non-admin roles (tenantProcedure)", async () => {
+    vi.mocked(prisma.syncLog.findMany).mockResolvedValue(mockLogs as never);
+    // field_coordinator is a non-admin role — getSyncLogs should be readable by all tenant members
+    const caller = createCaller(makeCtx(TENANT_ID, ["field_coordinator"]));
+    await expect(caller.getSyncLogs()).resolves.toBeDefined();
   });
 });
