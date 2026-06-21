@@ -63,3 +63,28 @@
     line-height: 1.5;
   }
 }
+
+/* WAR ROOM command-center — pulse glow for unacknowledged alert indicators.
+   Conforms to docs/v2/mpa-command-center-v6.jsx (animated box-shadow on the
+   priority dot). Disabled under prefers-reduced-motion for WCAG 2.2 AA. */
+@layer utilities {
+  @keyframes warroom-pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 hsl(var(--destructive) / 0.6);
+      opacity: 1;
+    }
+    50% {
+      box-shadow: 0 0 8px 2px hsl(var(--destructive) / 0.5);
+      opacity: 0.6;
+    }
+  }
+  .animate-warroom-pulse {
+    animation: warroom-pulse 1.6s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .animate-warroom-pulse {
+      animation: none;
+    }
+  }
+}
