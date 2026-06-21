@@ -634,3 +634,10 @@ Implementation gap noted: er-sync queue + worker + processor + `scheduleRecurrin
 
 Scope estimate (for a future architect): schema (revision table + erOriginalSnapshot + connection toggle/interval fields + migration) · tRPC (event/patrol update mutations + revision queries + settings.syncNow + recurring scheduler wiring) · UI (Events list infinite-scroll rewrite + edit forms + history timeline panel). Design-touching (Events view) → owner eyes before merge. Tier 2-3, likely split across sessions.
 Locked: product values q-ops-01..05 yes; conflict/push-back defaults pending build-time confirm.
+
+### 2026-06-21 (addendum) — ER sync MUST be incremental/delta-only (owner hard requirement)
+Owner directive (Mindoro server `mindoro.pamdas.org`): every sync/pull pulls ONLY the latest records in the window (scheduled run time MINUS last-checkpoint time). Never sync/pull all data from the beginning — a full re-pull would OVERRIDE recent in-app edits of records, and would needlessly load both the EarthRanger server and our VPS.
+  • q-ops-06 Delta-only watermark: enqueue path computes `since` = last successful sync checkpoint (max SyncLog.syncedAt / per-record lastSyncedAt, per tenant+syncType) and passes it to the job. Processor already threads `since` → client `?updated_since=<ISO>`. Advance watermark only on success.
+  • q-ops-07 NEVER full-pull in the recurring path. `since=undefined` (from-the-beginning) is prohibited for scheduled runs (it overwrites local edits). Initial backfill = separate, explicit, admin-only, and still edit-safe (refresh erOriginalSnapshot only, never clobber edited fields).
+  • CURRENT BUG (must fix with q-ops-05): `scheduleRecurringErSync`/`enqueueErSync` pass NO `since` → would full-pull every run. Capability exists (earthranger-client getEvents/getPatrols/getObservations(since) → ?updated_since; processor accepts since) but the queue layer never computes/passes the checkpoint.
+Locked: yes (q-ops-06, q-ops-07).
