@@ -129,15 +129,31 @@ export class EarthRangerClient {
     if (!res.ok) {
       throw new Error(`EarthRanger API error: ${String(res.status)} ${res.statusText}`);
     }
-    const body = (await res.json()) as { data?: T } | T;
+    const raw = (await res.json()) as unknown;
+    // EarthRanger (DAS) wraps every response in a `data` envelope; list
+    // endpoints wrap a paginated `{ results, count, next, previous }` inside it
+    // (e.g. /activity/events, /activity/patrols, /observations). Unwrap `data`
+    // first, then extract `results` when present so list callers always receive
+    // an array. Mirrors the known-good scripts/ingest-earthranger.mjs
+    // (`return j.data || j` then `env.results`).
+    let body: unknown = raw;
     if (typeof body === "object" && body !== null && "data" in body) {
-      return (body as { data: T }).data;
+      body = (body as { data: unknown }).data;
+    }
+    if (
+      typeof body === "object" &&
+      body !== null &&
+      !Array.isArray(body) &&
+      "results" in body &&
+      Array.isArray((body as { results: unknown }).results)
+    ) {
+      body = (body as { results: unknown }).results;
     }
     return body as T;
   }
 
   async getEventTypes(): Promise<ErEventType[]> {
-    return this.request<ErEventType[]>("/activity/eventtypes");
+    return this.request<ErEventType[]>("/activity/events/eventtypes/");
   }
 
   async getSubjects(): Promise<ErSubject[]> {

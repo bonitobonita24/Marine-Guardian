@@ -22,13 +22,30 @@ PROD_DEPLOY (2026-06-21, deploy architect):
     (20260616113329_add_tenant_er_connection was already on prod.) No tenant_id drift. "Schema is up to date."
   • Deploy: docker compose pull + up -d in /etc/komodo/stacks/marine-guardian. All containers healthy
     (app/worker/postgres/minio/valkey/pdf_renderer/pgbouncer). /api/health 200 {"status":"ok"}; home 307.
-  • RECURRING ER SYNC: ❌ BLOCKED — NOT activated. Prod has 1 tenant ("Demo Site",
-    id cmqgv4kit0000gmygz0ulcjos) with ZERO tenant_er_connections rows (no base_url, no api_token_enc,
-    status absent — gate requires status='connected'). sync_logs empty. Did NOT fabricate ER creds.
-    OWNER INPUT NEEDED: a verified EarthRanger DAS connection on prod for the target tenant (admin runs
-    Settings→EarthRanger Sync→Test Connection with a real base_url + DAS token → status='connected'),
-    then enable recurring (interval_ms default 300000 / 5min) and confirm a sync_log appears.
-  • Rollback: none performed; none needed.
+  • RECURRING ER SYNC: ✅ LIVE (activated 2026-06-21, owner-approved). Wired the live
+    mindoro.pamdas.org EarthRanger connection into the prod "Demo Site" tenant
+    (id cmqgv4kit0000gmygz0ulcjos) via Settings→EarthRanger Sync UI (token through AES-256-GCM
+    encryption path — never written to Postgres directly). Test Connection → status='connected'.
+    Recurring sync enabled at interval_ms=300000 (5 min); persisted (recurringEnabled=true,
+    intervalMs=300000, verified across page reload + via getErConnection). Full delta sync verified
+    green end-to-end: subjects 85, event_types 39, observations 25, patrols 25, events 3 — all
+    sync_logs status='success', 0 errors. Dashboard renders healthy with live data.
+    Activation surfaced + FIXED 3 real prod defects (see DECISIONS_LOG 2026-06-21 ER-sync activation):
+      1. app container BullMQ enqueue ECONNREFUSED — docker-compose.app.yml app service was missing
+         REDIS_HOST/REDIS_PORT overrides (inherited localhost:6381 host-CLI values); BullMQ reads
+         REDIS_HOST/PORT not REDIS_URL. Added overrides matching the worker service.
+      2. worker read ER creds from unused Tenant.earthrangerUrl/earthrangerDasToken columns instead
+         of the canonical tenant_er_connections table the UI writes → "EarthRanger not configured".
+         Fixed packages/jobs/src/processors/er-sync.processor.ts to read tenantErConnection
+         (baseUrl plaintext + decrypt(apiTokenEnc)).
+      3. EarthRanger client mis-parsed DRF responses (events/patrols/observations "X is not iterable";
+         event_types 404). Fixed earthranger-client.ts request() to unwrap data→results envelope and
+         corrected getEventTypes path to /activity/events/eventtypes/ (matches scripts/ingest-earthranger.mjs).
+    Deployed via image bonitobonita24/marine-guardian:prod-hotfix-ersync-0621-2307
+    (digest sha256:51e6da41…e4c3613); APP_IMAGE_TAG flipped in .env.prod + .env. app+worker healthy.
+    Known follow-up (pre-existing, unrelated): alerts processor throws Prisma "Unknown argument userId"
+    (Notification model uses recipients, not userId) — does not affect ER sync or worker health.
+  • Rollback: none performed; none needed. ER-sync rollback = set APP_IMAGE_TAG back to prod-sha-19c7e58.
 
 LAST_DONE: feat — Alert Acknowledgement (branch feat/mg-alert-acknowledge, 2026-06-21).
             Owner-approved closure of WHAT_OWNER_DECISIONS ACK item:

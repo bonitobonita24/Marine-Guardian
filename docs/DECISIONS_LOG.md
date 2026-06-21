@@ -3,6 +3,48 @@
 # NEVER re-ask anything listed here.
 # ---
 
+## 2026-06-21 — Activate live EarthRanger recurring sync on PROD "Demo Site" tenant
+Decision: Owner approved wiring the LIVE mindoro.pamdas.org EarthRanger connection into the prod
+"Demo Site" tenant (id cmqgv4kit0000gmygz0ulcjos) with a 5-minute (interval_ms=300000) recurring
+sync. The ER base_url + DAS bearer token were entered through the prod app UI
+(Settings → EarthRanger Sync) so the token passes the app's AES-256-GCM encryption path and is
+stored encrypted in tenant_er_connections.api_token_enc — never written to Postgres directly.
+Activation result: Test Connection → status='connected'; recurring enabled at 300000ms and
+persisted (verified via reload + getErConnection); full delta sync green end-to-end —
+subjects 85, event_types 39, observations 25, patrols 25, events 3 (all sync_logs status='success',
+0 errors); dashboard renders healthy with live data.
+Rationale: Final step of the prod cutover (prod was LIVE at 19c7e58 but ER sync sat BLOCKED awaiting
+a verified connection + owner go-ahead). Owner greenlit the live mindoro connection for the prod
+demo tenant on 2026-06-21.
+Defects found + fixed during activation (all HOW-to-build/technical — fixed autonomously per Fleet
+GitHub Autonomy policy; none change product intent):
+  1. PROD app container could not enqueue BullMQ jobs (ECONNREFUSED): the `app` service in
+     deploy/compose/prod/docker-compose.app.yml was missing REDIS_HOST/REDIS_PORT overrides, so it
+     inherited .env.prod's host-CLI values localhost:6381. BullMQ (packages/jobs/connection.ts) reads
+     REDIS_HOST/REDIS_PORT, NOT REDIS_URL. Added the same overrides the `worker` service already had
+     (REDIS_HOST=${COMPOSE_PROJECT_NAME}_valkey, REDIS_PORT=6379). Applied to repo + live server.
+  2. Worker reported "EarthRanger not configured" despite a saved connection: er-sync.processor.ts
+     read the unused Tenant.earthrangerUrl/earthrangerDasToken columns instead of the canonical
+     tenant_er_connections table the Settings UI writes to. Fixed to read tenantErConnection
+     (baseUrl plaintext + decrypt(apiTokenEnc)).
+  3. EarthRanger client mis-parsed DAS/DRF responses: events/patrols/observations threw
+     "X is not iterable" and event_types returned 404. Fixed earthranger-client.ts request() to
+     unwrap the data→{results} envelope and corrected getEventTypes path to
+     /activity/events/eventtypes/ (matches the known-good scripts/ingest-earthranger.mjs).
+Deploy: image bonitobonita24/marine-guardian:prod-hotfix-ersync-0621-2307
+  (digest sha256:51e6da41…e4c3613, web+worker); APP_IMAGE_TAG flipped to it in
+  /etc/komodo/stacks/marine-guardian/.env.prod + .env; app + worker recreated, both healthy.
+Known follow-up (pre-existing, OUT OF SCOPE, unrelated to ER sync): the `alerts` worker throws
+  Prisma "Unknown argument userId" (Notification model uses `recipients`, not `userId`) — worth a
+  separate fix; does not affect worker health or the ER sync path.
+Files affected:
+  • deploy/compose/prod/docker-compose.app.yml — app service REDIS_HOST/REDIS_PORT overrides added.
+  • packages/jobs/src/processors/er-sync.processor.ts — read tenantErConnection (canonical table).
+  • packages/jobs/src/lib/earthranger-client.ts — DRF envelope unwrap + event_types path fix.
+  • docs/STATE.md — PROD_DEPLOY RECURRING ER SYNC flipped ❌ BLOCKED → ✅ LIVE.
+Rollback: set APP_IMAGE_TAG back to prod-sha-19c7e58 and `docker compose up -d`.
+Locked: yes
+
 ## 2026-06-16 — Auth.js trustHost behind Traefik proxy → Decision: set trustHost: true in authConfig (config.ts) + AUTH_TRUST_HOST=true in .env.example → Rationale: Auth.js v5 returns HTTP 500 on /api/auth/* when running behind a reverse proxy (Traefik) unless it trusts the forwarded Host header; code-level fix (trustHost: true) is durable across all environments without relying on the env var; env var documented in .env.example for operator awareness → Locked: yes
 
 ## 2026-06-16 — Accompanying-ranger autocomplete: 3-source merge + dedupe + promotion (PRODUCT.md §82, §265, §270-271)

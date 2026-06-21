@@ -61,20 +61,25 @@ export async function processErSync(
 
   const { syncType, since, tenantId } = job.data;
 
-  const tenant = await platformPrisma.tenant.findUnique({
-    where: { id: tenantId },
+  // Read the ER connection from TenantErConnection — the canonical table the
+  // Settings UI writes to via settings.upsertErConnection / testConnection.
+  // (The legacy Tenant.earthrangerUrl / earthrangerDasToken columns are never
+  // populated by the UI, so reading them here left the worker permanently
+  // "not configured" despite a saved, verified connection.)
+  const conn = await platformPrisma.tenantErConnection.findUnique({
+    where: { tenantId },
     select: {
-      earthrangerUrl: true,
-      earthrangerDasToken: true,
+      baseUrl: true,
+      apiTokenEnc: true,
     },
   });
 
-  if (tenant?.earthrangerUrl == null || tenant.earthrangerDasToken == null) {
+  if (conn?.baseUrl == null || conn.apiTokenEnc == null) {
     throw new Error("EarthRanger not configured for this tenant");
   }
 
-  const erUrl = decrypt(tenant.earthrangerUrl);
-  const erToken = decrypt(tenant.earthrangerDasToken);
+  const erUrl = conn.baseUrl;
+  const erToken = decrypt(conn.apiTokenEnc);
   const client = new EarthRangerClient(erUrl, erToken);
 
   const syncLog = await platformPrisma.syncLog.create({
