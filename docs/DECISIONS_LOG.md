@@ -691,3 +691,35 @@ Files affected:
   • packages/jobs/src/processors/er-sync.processor.ts — REVISION-PRESENCE edit protection merge.
   • Gate: typecheck, lint, test 1040/1040, build — all green.
 Locked: yes
+
+---
+
+## 2026-06-21 — Operations Epic Milestone 3: Events List Redesign (Kanban → infinite-scroll Operations List)
+Decision: Replace the Kanban board with a continuous infinite-scroll vertical list (q-ops-01, owner-ratified).
+
+Technical decisions ratified:
+  • UI shape: continuous vertical list (role=list/listitem), NOT columns. Newest-first (createdAt desc).
+    50 records/page, cursor-based pagination (no page numbers). Auto-load via IntersectionObserver sentinel
+    + fallback "Load more" button (keyboard/no-JS). Smooth scroll.
+  • Inline state control: shadcn Select per row replaces drag-between-columns. Values: New / Active / Resolved.
+    Wired through existing event.updateState mutation (tenantProcedure, L6 tenant-scoped updateMany).
+    RBAC: updateState is tenantProcedure (all authenticated tenant members); no adminProcedure gate (same as Kanban drag).
+  • Server-side filters (event.list Zod schema extended, backward-compatible):
+    state (existing), category (eventType.category, case-insensitive equals),
+    areaName (contains, case-insensitive), dateFrom + dateTo (reportedAt gte/lte — monthly-accomplishment gate).
+    eventListFilters is the exported single source of truth for list + /api/exports/events.
+  • Click row → M2 EventDetailModal (Edit/History tabs) — no change to modal behaviour.
+  • WCAG 2.2 AA: state badge = icon + text (never color-alone); Select is keyboard-operable; time[dateTime];
+    role=list/listitem; aria-label on row button and Select trigger; aria-live on loading indicator.
+  • shadcn/ui only (Select, Badge, Button). Design tokens inherited from DESIGN.md (no regeneration).
+  • MG is NOT a gov/LGU app — WCAG gate is best-effort (not DICT MC 004 hard gate).
+
+Files affected:
+  • apps/web/src/server/trpc/routers/event.ts — eventListFilters extended (category, areaName, dateFrom, dateTo).
+  • apps/web/src/components/events/events-list.tsx — NEW EventsList + EventRow components.
+  • apps/web/src/app/(dashboard)/events/page.tsx — Kanban removed, EventsList mounted.
+  • apps/web/src/server/trpc/routers/__tests__/event.test.ts — 15 new tests (pagination ×5, filters ×7, state ×3).
+  • docs/PRODUCT.md — Event Management section updated; /events URL description updated.
+  • docs/STATE.md — LAST_DONE updated; Operations epic flagged feature-complete.
+Gate: typecheck 13/13, lint 0 errors, test 874/874, build — all green.
+Locked: yes

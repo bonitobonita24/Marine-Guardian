@@ -984,3 +984,223 @@ describe("event.getRevisions", () => {
     expect(result.erOriginalSnapshot).toEqual(mockEvent.erOriginalSnapshot);
   });
 });
+
+// ── M3 — event.list: cursor pagination + server-side filters ──────────────
+// Vitest's expect.objectContaining() returns `any` when used as an argument
+// to toHaveBeenCalledWith; disable the unsafe-assignment rule for this block.
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+
+describe("event.list — cursor pagination (M3)", () => {
+  const makeEvent = (id: string, state = "new_event") => ({
+    id,
+    tenantId: TENANT_ID,
+    state,
+    priority: 0,
+    title: `Event ${id}`,
+    serialNumber: null,
+    reportedByName: null,
+    reportedAt: null,
+    areaName: null,
+    eventType: { display: "Patrol", category: "Law Enforcement" },
+    createdAt: new Date(),
+  });
+
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it("returns items and no nextCursor when result fits in one page", async () => {
+    const events = [makeEvent("e1"), makeEvent("e2")];
+    vi.mocked(prisma.event.findMany).mockResolvedValue(events as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.list({ limit: 50 });
+
+    expect(result.items).toHaveLength(2);
+    expect(result.nextCursor).toBeUndefined();
+  });
+
+  it("returns nextCursor when result exceeds the page limit", async () => {
+    // Simulate limit=2 returning 3 items (limit+1) — the router pops the last
+    const events = [makeEvent("e1"), makeEvent("e2"), makeEvent("e3")];
+    vi.mocked(prisma.event.findMany).mockResolvedValue(events as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.list({ limit: 2 });
+
+    // The 3rd item is the sentinel; it's popped and its id becomes nextCursor
+    expect(result.items).toHaveLength(2);
+    expect(result.nextCursor).toBe("e3");
+  });
+
+  it("passes cursor to findMany so subsequent pages start after the cursor", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([] as never);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50, cursor: "cursor-id" });
+
+    expect(vi.mocked(prisma.event.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({ cursor: { id: "cursor-id" } })
+    );
+  });
+
+  it("always scopes findMany to the caller's tenantId (L6 guard)", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([] as never);
+
+    const caller = createCaller(makeCtx("tenant-xyz"));
+    await caller.list({ limit: 50 });
+
+    expect(vi.mocked(prisma.event.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ tenantId: "tenant-xyz" }) })
+    );
+  });
+
+  it("orders by createdAt desc (newest-first)", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([] as never);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50 });
+
+    expect(vi.mocked(prisma.event.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({ orderBy: { createdAt: "desc" } })
+    );
+  });
+});
+
+describe("event.list — server-side filters (M3)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.event.findMany).mockResolvedValue([] as never);
+  });
+
+  it("applies state filter when provided", async () => {
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50, state: "resolved" });
+
+    expect(vi.mocked(prisma.event.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ state: "resolved" }),
+      })
+    );
+  });
+
+  it("omits state filter when not provided (returns all states)", async () => {
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50 });
+
+    expect(vi.mocked(prisma.event.findMany)).toHaveBeenCalledOnce();
+    // Verify the where clause does NOT contain a 'state' key (no filter applied)
+    expect(vi.mocked(prisma.event.findMany)).not.toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ state: expect.anything() }) })
+    );
+  });
+
+  it("applies category filter via eventType.category when provided", async () => {
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50, category: "Law Enforcement" });
+
+    expect(vi.mocked(prisma.event.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          eventType: { category: { equals: "Law Enforcement", mode: "insensitive" } },
+        }),
+      })
+    );
+  });
+
+  it("applies areaName contains filter (case-insensitive) when provided", async () => {
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50, areaName: "Calapan" });
+
+    expect(vi.mocked(prisma.event.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          areaName: { contains: "Calapan", mode: "insensitive" },
+        }),
+      })
+    );
+  });
+
+  it("applies dateFrom as gte on reportedAt for monthly-accomplishment view", async () => {
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50, dateFrom: "2026-06-01T00:00:00.000Z" });
+
+    expect(vi.mocked(prisma.event.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          reportedAt: expect.objectContaining({
+            gte: new Date("2026-06-01T00:00:00.000Z"),
+          }),
+        }),
+      })
+    );
+  });
+
+  it("applies dateTo as lte on reportedAt", async () => {
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50, dateTo: "2026-06-30T23:59:59.999Z" });
+
+    expect(vi.mocked(prisma.event.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          reportedAt: expect.objectContaining({
+            lte: new Date("2026-06-30T23:59:59.999Z"),
+          }),
+        }),
+      })
+    );
+  });
+
+  it("combines state + category + areaName filters in a single where clause", async () => {
+    const caller = createCaller(makeCtx());
+    await caller.list({
+      limit: 50,
+      state:    "active",
+      category: "Law Enforcement",
+      areaName: "Roxas",
+    });
+
+    expect(vi.mocked(prisma.event.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          tenantId: TENANT_ID,
+          state:    "active",
+          eventType: { category: { equals: "Law Enforcement", mode: "insensitive" } },
+          areaName:  { contains: "Roxas", mode: "insensitive" },
+        }),
+      })
+    );
+  });
+});
+
+describe("event.updateState — inline state transition (M3)", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it("transitions new_event → active", async () => {
+    vi.mocked(prisma.event.updateMany).mockResolvedValue({ count: 1 });
+    const caller = createCaller(makeCtx());
+    const result = await caller.updateState({ id: "ev-1", state: "active" });
+    expect(result).toEqual({ count: 1 });
+    expect(vi.mocked(prisma.event.updateMany)).toHaveBeenCalledWith({
+      where: { id: "ev-1", tenantId: TENANT_ID },
+      data:  { state: "active" },
+    });
+  });
+
+  it("transitions active → resolved", async () => {
+    vi.mocked(prisma.event.updateMany).mockResolvedValue({ count: 1 });
+    const caller = createCaller(makeCtx());
+    await caller.updateState({ id: "ev-1", state: "resolved" });
+    expect(vi.mocked(prisma.event.updateMany)).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { state: "resolved" } })
+    );
+  });
+
+  it("always includes tenantId in where clause — tenant isolation preserved", async () => {
+    vi.mocked(prisma.event.updateMany).mockResolvedValue({ count: 1 });
+    const caller = createCaller(makeCtx("isolated-tenant"));
+    await caller.updateState({ id: "ev-99", state: "new_event" });
+
+    const call = vi.mocked(prisma.event.updateMany).mock.calls[0];
+    expect(call?.[0]?.where?.tenantId).toBe("isolated-tenant");
+  });
+});
+/* eslint-enable @typescript-eslint/no-unsafe-assignment */
