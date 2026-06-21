@@ -1,4 +1,7 @@
+"use client";
+
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { priorityLabel, priorityLevel, relativeShort } from "./lib";
 
@@ -6,10 +9,10 @@ import { priorityLabel, priorityLevel, relativeShort } from "./lib";
  * WAR ROOM "Alerts & Escalations" panel.
  * Conforms to docs/v2/mpa-command-center-v6.jsx alerts card.
  *
- * READ-ONLY by design: AlertHistory has no acknowledgement field and no ack
- * mutation exists, so there is nothing to acknowledge against. The mockup's ACK
- * button is intentionally omitted and an honest caption explains why. Adding ack
- * tracking is logged as an owner [WHAT] (requires a schema change).
+ * ACK support (owner-approved 2026-06-21):
+ *   - Unacknowledged alerts show an ACK button (admin/site_admin only — canAck prop).
+ *   - Acknowledged alerts show who acknowledged + when instead of the button.
+ *   - WCAG 2.2 AA: button has aria-label; ack state is never colour-alone (text label added).
  */
 
 export type AlertItem = {
@@ -18,17 +21,30 @@ export type AlertItem = {
   matchedPriority: number;
   ruleName: string;
   eventTitle: string;
+  acknowledgedAt?: Date | string | null;
+  acknowledgedBy?: string | null;
 };
 
 export function AlertsPanel({
   alerts,
   isLoading,
   now,
+  canAck = false,
+  ackingId,
+  onAcknowledge,
 }: {
   alerts: AlertItem[];
   isLoading: boolean;
   now?: Date | undefined;
+  /** True when the current user has admin/site_admin role — shows the ACK button. */
+  canAck?: boolean;
+  /** ID of the alert currently being acknowledged (optimistic spinner). */
+  ackingId?: string | null;
+  /** Called when the user clicks ACK on an unacknowledged alert. */
+  onAcknowledge?: (id: string) => void;
 }) {
+  const unackedCount = alerts.filter((a) => a.acknowledgedAt == null).length;
+
   return (
     <section
       aria-labelledby="warroom-alerts-heading"
@@ -43,7 +59,7 @@ export function AlertsPanel({
           Alerts &amp; Escalations
         </h2>
         <span className="ml-auto rounded-full bg-destructive px-2 py-0.5 text-[10px] font-bold text-destructive-foreground">
-          {alerts.length}
+          {unackedCount} unacked
         </span>
       </div>
 
@@ -61,23 +77,36 @@ export function AlertsPanel({
             alerts.map((a) => {
               const level = priorityLevel(a.matchedPriority);
               const isHigh = level === "critical" || level === "high";
+              const isAcked = a.acknowledgedAt != null;
+              const isAcking = ackingId === a.id;
+
               return (
                 <li
                   key={a.id}
                   className={`flex items-start gap-2 rounded-md px-2 py-1.5 ${
-                    isHigh ? "bg-destructive/10" : ""
+                    isAcked
+                      ? "opacity-60"
+                      : isHigh
+                        ? "bg-destructive/10"
+                        : ""
                   }`}
                 >
                   <span
-                    className={`mt-1 h-2 w-2 shrink-0 rounded-full bg-destructive ${
-                      isHigh ? "animate-warroom-pulse" : ""
+                    className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
+                      isAcked
+                        ? "bg-muted-foreground"
+                        : "bg-destructive " + (isHigh ? "animate-warroom-pulse" : "")
                     }`}
                     aria-hidden="true"
                   />
                   <div className="min-w-0 flex-1">
                     <div
                       className={`truncate text-[11px] font-bold ${
-                        isHigh ? "text-destructive" : "text-foreground"
+                        isAcked
+                          ? "text-muted-foreground line-through"
+                          : isHigh
+                            ? "text-destructive"
+                            : "text-foreground"
                       }`}
                     >
                       {a.eventTitle || a.ruleName}
@@ -86,20 +115,43 @@ export function AlertsPanel({
                       {a.ruleName} · {priorityLabel(a.matchedPriority)} ·{" "}
                       {relativeShort(a.firedAt, now)} ago
                     </div>
+                    {isAcked && a.acknowledgedAt != null && (
+                      <div className="text-[9px] text-muted-foreground">
+                        Acknowledged {relativeShort(a.acknowledgedAt, now)} ago
+                      </div>
+                    )}
                   </div>
-                  <Badge variant="secondary" className="shrink-0 text-[9px]">
-                    {priorityLabel(a.matchedPriority)}
-                  </Badge>
+
+                  {/* ACK control — visible to admins only; acked alerts show badge */}
+                  {isAcked ? (
+                    <Badge
+                      variant="outline"
+                      className="shrink-0 text-[9px] text-muted-foreground"
+                    >
+                      ACK
+                    </Badge>
+                  ) : canAck ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 shrink-0 px-2 text-[9px]"
+                      aria-label={`Acknowledge alert: ${a.eventTitle || a.ruleName}`}
+                      disabled={isAcking}
+                      onClick={() => onAcknowledge?.(a.id)}
+                    >
+                      {isAcking ? "…" : "ACK"}
+                    </Button>
+                  ) : (
+                    <Badge variant="secondary" className="shrink-0 text-[9px]">
+                      {priorityLabel(a.matchedPriority)}
+                    </Badge>
+                  )}
                 </li>
               );
             })
           )}
         </ul>
       </ScrollArea>
-
-      <p className="border-t border-border px-3 py-1.5 text-[9px] leading-snug text-muted-foreground">
-        Read-only — alert acknowledgement is not yet tracked in this system.
-      </p>
     </section>
   );
 }

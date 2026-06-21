@@ -31,16 +31,17 @@ describe("AlertsPanel", () => {
     },
   ];
 
-  it("renders a labelled region with the alert count", () => {
+  it("renders a labelled region with the unacked alert count", () => {
     render(<AlertsPanel alerts={alerts} isLoading={false} now={NOW} />);
     const region = screen.getByRole("region", { name: /alerts & escalations/i });
     expect(region).toBeTruthy();
-    expect(within(region).getByText("2")).toBeTruthy();
+    // Both alerts are unacknowledged (no acknowledgedAt) → "2 unacked" badge
+    expect(within(region).getByText(/2 unacked/i)).toBeTruthy();
   });
 
-  it("is read-only: shows the no-acknowledgement caption and no ACK button", () => {
+  it("hides ACK buttons when canAck=false (default) — no interactive controls", () => {
     render(<AlertsPanel alerts={alerts} isLoading={false} now={NOW} />);
-    expect(screen.getByText(/acknowledgement is not yet tracked/i)).toBeTruthy();
+    // canAck defaults to false — no ACK buttons rendered for non-admins
     expect(screen.queryByRole("button", { name: /ack/i })).toBeNull();
   });
 

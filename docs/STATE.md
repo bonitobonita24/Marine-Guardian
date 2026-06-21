@@ -5,34 +5,27 @@
 
 PHASE: Phase 8 (ongoing buildout)
 FRAMEWORK_VERSION: V32.9
-LAST_DONE: feat — Operations Epic (M1-M3) + WAR ROOM dashboard fidelity ALL MERGED to main 2026-06-21.
-            • ops-m1 (e97bc6c): recurring INCREMENTAL delta-only ER sync backend + schema
-              (er_original_snapshot, event/patrol revision tables, recurring_enabled/interval_ms),
-              settings.syncNow/updateErSyncConfig. Wired the never-called scheduler; never full-pulls.
-            • ops-m2 (44bbff4): editable Events/Patrols (event.update/patrol.update, revision-presence
-              edit-protection merge), edit-history timeline UI, settings ER-sync card controls.
-            • ops-m3 (4f04331): events view Kanban → infinite-scroll Operations List (50/page cursor
-              pagination, inline state Select, server-side filters category/state/area/date), row→M2 modal.
-            • WAR ROOM command-center dashboard fidelity (42%→~85%): restructured
-              apps/web/src/app/(dashboard)/dashboard/page.tsx into the owner-approved layout
-              (5-KPI strip + live clock, embedded InteractiveMap, read-only Alerts panel, Live Event
-              Feed, Active Patrols table, Last Incident card, breakdown bars). New dashboard/_components/
-              + lib.ts; thin dashboard.alertStats/lastIncident reads (no schema change); pulse keyframe
-              + prefers-reduced-motion. WCAG 2.2 AA. Reused existing tRPC only.
+LAST_DONE: feat — Alert Acknowledgement (branch feat/mg-alert-acknowledge, 2026-06-21).
+            Owner-approved closure of WHAT_OWNER_DECISIONS ACK item:
+            • Schema: AlertHistory gains acknowledgedAt DateTime? + acknowledgedBy String?
+              (additive migration 20260621100000_add_alert_history_acknowledgement).
+            • tRPC: alertHistory.acknowledge mutation (adminProcedure L3, writeAuditLog L5,
+              tenantId-scoped L6, idempotent). alertHistory.unacknowledgedCount query (tenantProcedure).
+            • dashboard.alertStats: now returns true unacknowledged count (WHERE acknowledgedAt IS NULL,
+              last 24h) — no longer the "recent alerts proxy".
+            • WAR ROOM KPI tile: "Recent Alerts" → "Unacknowledged"; sub-label "alerts last 24h".
+            • AlertsPanel: ACK button per unacked alert (admin-only, canAck prop); acked alerts show
+              badge + timestamp. Read-only caption removed. WCAG 2.2 AA (aria-label on ACK button;
+              ack state is text not color-alone).
+            • Tests: 8 new router tests + 9 new AlertsPanel component tests.
+
+PREV_LAST_DONE: feat — Operations Epic (M1-M3) + WAR ROOM dashboard fidelity ALL MERGED to main 2026-06-21.
+            • ops-m1 (e97bc6c): recurring INCREMENTAL delta-only ER sync backend + schema.
+            • ops-m2 (44bbff4): editable Events/Patrols + edit-history timeline UI + settings ER-sync.
+            • ops-m3 (4f04331): events view Kanban → infinite-scroll Operations List (50/page cursor).
+            • WAR ROOM fidelity (42%→~85%): 5-KPI strip + live clock + InteractiveMap + Alerts panel
+              + Live Event Feed + Active Patrols + Last Incident + breakdown bars.
             Combined gate green (typecheck/lint/test/build); CI green on every PR (#9/#10/#12/#7).
-
-WHAT_OWNER_DECISIONS (from WAR ROOM fidelity pass — require product/schema input):
-      - Alert ACK: the mockup shows an ACK button + "UNACKNOWLEDGED" KPI, but
-        AlertHistory has NO acknowledgement concept (no acknowledgedAt/acknowledged
-        column, no ack mutation). Building it = a new product entity/schema change.
-        Per guardrails this was STOPPED: alerts panel renders READ-ONLY with an
-        honest caption, and the 5th KPI ships as "Recent Alerts (last 24h)" — an
-        honest derivable proxy — instead of a fabricated "Unacknowledged" count.
-        OWNER DECISION NEEDED: add AlertHistory.acknowledgedAt + acknowledgedBy +
-        an alertHistory.acknowledge mutation (RBAC-gated) to enable true ack/unack.
-
-PREV_LAST_DONE: feat(ops-m2) — Operations Epic Milestone 2: editable records + edit history UI + settings sync controls.
-            Branch: feat/mg-ops-editable-records-history. PR #10 open (owner-merge-gated).
 
 NEXT: Operations Epic is now feature-complete (all 3 milestones built, stacked PRs await owner merge):
       Merge order: main already has M1 → merge PR #10 (M2) → merge M3 PR (base: M2 branch).
@@ -71,10 +64,10 @@ COMPLIANCE_LAYER:
 
 SECURITY_L1_L6:
   evidence: L3 RBAC active (role-based guards on tRPC routers — hasPermission + adminProcedure
-            across alertRule/settings/user/breach/dsr routers). L5 AuditLog active (writeAuditLog
-            calls in exports, impersonation, user, settings, dsr routers). L6 Prisma tenant
-            guardrails active (packages/db/src/client.ts extension + explicit tenantId scoping
-            in all routers).
+            across alertRule/settings/user/breach/dsr/alertHistory routers). L5 AuditLog active
+            (writeAuditLog calls in exports, impersonation, user, settings, dsr, alertHistory
+            routers). L6 Prisma tenant guardrails active (packages/db/src/client.ts extension +
+            explicit tenantId scoping in all routers).
 
 DESIGN_GATE: V32.8 Rule 31 token pipeline active (tokens.json, sd.config.mjs, design-validate.mjs).
              design-stop-hook.sh wired in .claude/settings.json Stop hook.

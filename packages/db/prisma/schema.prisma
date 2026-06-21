@@ -697,15 +697,17 @@ model AlertRule {
 }
 
 model AlertHistory {
-  id                 String   @id @default(cuid())
-  tenantId           String   @map("tenant_id")
-  alertRuleId        String?  @map("alert_rule_id")
-  eventId            String?  @map("event_id")
-  firedAt            DateTime @default(now()) @map("fired_at")
-  matchedPriority    Int      @map("matched_priority")
-  recipientCount     Int      @map("recipient_count")
-  ruleNameSnapshot   String   @map("rule_name_snapshot")
-  eventTitleSnapshot String   @map("event_title_snapshot")
+  id                 String    @id @default(cuid())
+  tenantId           String    @map("tenant_id")
+  alertRuleId        String?   @map("alert_rule_id")
+  eventId            String?   @map("event_id")
+  firedAt            DateTime  @default(now()) @map("fired_at")
+  matchedPriority    Int       @map("matched_priority")
+  recipientCount     Int       @map("recipient_count")
+  ruleNameSnapshot   String    @map("rule_name_snapshot")
+  eventTitleSnapshot String    @map("event_title_snapshot")
+  acknowledgedAt     DateTime? @map("acknowledged_at")
+  acknowledgedBy     String?   @map("acknowledged_by")
 
   tenant    Tenant     @relation(fields: [tenantId], references: [id])
   alertRule AlertRule? @relation(fields: [alertRuleId], references: [id], onDelete: SetNull)
@@ -715,6 +717,7 @@ model AlertHistory {
   @@index([alertRuleId])
   @@index([eventId])
   @@index([tenantId, firedAt])
+  @@index([tenantId, acknowledgedAt])
   @@map("alert_history")
 }
 
