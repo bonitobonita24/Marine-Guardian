@@ -387,4 +387,31 @@ export const settingsRouter = router({
 
       return maskConnection(updated);
     }),
+
+  /**
+   * M2 — Recent sync log entries for the Settings ER Sync card.
+   *
+   * Returns the 10 most recent SyncLog rows for this tenant across all sync
+   * types, ordered newest-first. Used to render the "Last sync" status table
+   * in the UI. Available to all tenant users (read-only display).
+   */
+  getSyncLogs: tenantProcedure.query(async ({ ctx }) => {
+    const tenantId = ctx.tenantId;
+    if (!tenantId) return [];
+
+    return prisma.syncLog.findMany({
+      where: { tenantId },
+      orderBy: { startedAt: "desc" },
+      take: 10,
+      select: {
+        id: true,
+        syncType: true,
+        status: true,
+        recordsSynced: true,
+        errorMessage: true,
+        startedAt: true,
+        completedAt: true,
+      },
+    });
+  }),
 });

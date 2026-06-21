@@ -9,6 +9,44 @@ import { enqueueAreaRederive } from "../queues/area-rederive.queue";
 import { enqueuePatrolTrackMaterialize } from "../queues/patrol-track-materialize.queue";
 import { resolveReportedBy } from "../lib/resolve-reported-by";
 
+/**
+ * q-ops conflict / edit-protection merge rule (M2).
+ *
+ * Strategy: REVISION-PRESENCE.
+ * A field is considered "locally edited" when at least one EventRevision /
+ * PatrolRevision row exists for that fieldName on the record. We query the
+ * distinct edited field names from the revision table and omit those fields
+ * from the ER sync update payload. erOriginalSnapshot is always immutable
+ * (set-once on first insert, never in this path).
+ *
+ * Non-destructive signalling: no extra column needed. The er-sync update
+ * simply skips locally-edited fields. The revision table IS the signal —
+ * any field with a revision entry is protected.
+ */
+async function getEventEditedFields(
+  tenantId: string,
+  eventId: string,
+): Promise<Set<string>> {
+  const rows = await platformPrisma.eventRevision.findMany({
+    where: { tenantId, eventId },
+    select: { fieldName: true },
+    distinct: ["fieldName"],
+  });
+  return new Set(rows.map((r) => r.fieldName));
+}
+
+async function getPatrolEditedFields(
+  tenantId: string,
+  patrolId: string,
+): Promise<Set<string>> {
+  const rows = await platformPrisma.patrolRevision.findMany({
+    where: { tenantId, patrolId },
+    select: { fieldName: true },
+    distinct: ["fieldName"],
+  });
+  return new Set(rows.map((r) => r.fieldName));
+}
+
 function toJsonOrNull(
   value: Record<string, unknown> | unknown[] | null | undefined,
 ): Prisma.InputJsonValue | typeof Prisma.JsonNull {
@@ -237,11 +275,19 @@ async function syncEvents(
     } else {
       // Subsequent sync: update live fields ONLY.
       // erOriginalSnapshot is intentionally excluded from the update (q-ops-03).
-      // M2 edit-protection merge: when locally-edited fields exist, they will be
-      // excluded from `liveFields` here — forward-compatible by design.
+      //
+      // M2 edit-protection merge (q-ops conflict rule — REVISION-PRESENCE strategy):
+      // Fields that have been locally edited (presence of an EventRevision row) are
+      // excluded from the sync update so operator edits survive ER upstream changes.
+      // The field is NOT clobbered — the revision table acts as the protection signal.
+      const editedFields = await getEventEditedFields(tenantId, existing.id);
+      const safeFields = Object.fromEntries(
+        Object.entries(liveFields).filter(([key]) => !editedFields.has(key)),
+      ) as Partial<typeof liveFields>;
+
       await platformPrisma.event.update({
         where: { id: existing.id },
-        data: liveFields,
+        data: safeFields,
       });
       eventId = existing.id;
     }
@@ -317,6 +363,22 @@ async function syncPatrols(
       isTestPatrol,
     };
 
+    // Check for locally-edited patrol fields BEFORE the upsert so we can
+    // protect them in the update path (q-ops conflict rule — REVISION-PRESENCE).
+    // On create (new patrol) there are no revisions yet — no protection needed.
+    const existingPatrol = await platformPrisma.patrol.findUnique({
+      where: { tenantId_erPatrolId: { tenantId, erPatrolId: p.id } },
+      select: { id: true },
+    });
+
+    const editedPatrolFields =
+      existingPatrol !== null
+        ? await getPatrolEditedFields(tenantId, existingPatrol.id)
+        : new Set<string>();
+    const safeLivePatrolFields = Object.fromEntries(
+      Object.entries(livePatrolFields).filter(([key]) => !editedPatrolFields.has(key)),
+    ) as Partial<typeof livePatrolFields>;
+
     const patrol = await platformPrisma.patrol.upsert({
       where: {
         tenantId_erPatrolId: { tenantId, erPatrolId: p.id },
@@ -335,10 +397,10 @@ async function syncPatrols(
       update: {
         // Subsequent sync: update live fields ONLY.
         // erOriginalSnapshot intentionally excluded (q-ops-03).
-        // M2 edit-protection merge: locally-edited fields will be excluded here.
+        // Locally-edited fields (per PatrolRevision rows) are excluded from safeLivePatrolFields.
         lastSyncedAt: now,
         syncNeeded: false,
-        ...livePatrolFields,
+        ...safeLivePatrolFields,
       },
       select: { id: true },
     });

@@ -5,35 +5,34 @@
 
 PHASE: Phase 8 (ongoing buildout)
 FRAMEWORK_VERSION: V32.9
-LAST_DONE: feat(ops-m1) — Operations Epic Milestone 1: recurring incremental ER sync backend.
-            Branch: feat/mg-ops-recurring-incremental-sync. PR pending.
+LAST_DONE: feat(ops-m2) — Operations Epic Milestone 2: editable records + edit history UI + settings sync controls.
+            Branch: feat/mg-ops-editable-records-history. PR open (owner-merge-gated).
             Deliverables:
-              Schema — erOriginalSnapshot (immutable, set-once) on Event + Patrol;
-              EventRevision + PatrolRevision append-only tables; TenantErConnection gets
-              recurringEnabled + intervalMs (default 300_000ms / 5 min, min 60_000ms / 1 min);
-              SyncLog composite watermark index.
-              Queue layer — er-sync-watermark.ts helper (getWatermark from SyncLog.completedAt);
-              enqueueErSyncWithWatermark (delta: watermark, full: omit since);
-              scheduleRecurringErSync fixed (was passing no `since` → full pull every run; now
-              computes watermark; interval fixed from wrong 30_000ms to 300_000ms; min clamp 60_000ms);
-              removeRecurringErSync (BullMQ v5 removeJobScheduler).
-              Bootstrap — start-workers.ts bootstrapRecurringErSync() wires all enabled tenants on startup.
-              Settings tRPC — syncNow + updateErSyncConfig mutations (adminProcedure, L5 audit).
-              Tests — 17 new tests across watermark, queue, settings-sync; all 835 pass.
-              Gate: typecheck 7/7, lint 11/11, test 835/835, build 2/2.
+              Backend — event.update + patrol.update mutations (tenantProcedure, L5 audit, RBAC-gated);
+              append-only EventRevision/PatrolRevision writes per changed field (Prisma.JsonNull for null values);
+              event.getRevisions + patrol.getRevisions queries (lazy load for history tab);
+              event.getEditedFields + patrol.getEditedFields queries;
+              settings.getSyncLogs query (tenantProcedure, last-10 newest-first).
+              Edit protection — REVISION-PRESENCE strategy in er-sync.processor.ts:
+              getEventEditedFields + getPatrolEditedFields helpers query distinct fieldNames
+              from revision tables; ER sync update path filters out locally-edited fields via
+              Object.fromEntries/filter (no dynamic-delete anti-pattern).
+              UI — Tabs (Edit/History) on event-detail-modal + patrol detail page;
+              RevisionTimeline shared component (newest-first, ER baseline at bottom, WCAG 2.2 AA);
+              ErSyncCard component on Settings page (recurring toggle, interval, sync now, log table).
+              Infra — Prisma exported as value from @marine-guardian/db (was type-only).
+              Tests — 24 new tests (event.update ×4, event.getRevisions ×4, patrol.update ×6,
+              patrol.getRevisions ×3, settings.getSyncLogs ×7);
+              er-sync.processor.test.ts mocks extended (patrol.findUnique, revision findMany stubs);
+              Total: 859 web + 181 jobs = 1040/1040 green.
+              Gate: typecheck, lint, test 1040/1040, build — all green.
 
-PREV_LAST_DONE: feat(v329) — PH Data Privacy Act compliance + WCAG 2.2 AA + ComplianceFooter
-            (commit a073ac8, merged 2026-06-21).
-            Deliverables: ConsentLog/DSR/BreachNotification Prisma models + migrations,
-            dsr + breach tRPC routers, /privacy page, Settings → Data & Privacy self-service,
-            admin breach register, ComplianceFooter (honest config), WCAG 2.2 AA on
-            compliance/auth surfaces. 23 new vitest tests. Gate: typecheck 7/7,
-            lint 6/6, test 818/818, next build 2/2.
+PREV_LAST_DONE: feat(ops-m1) — Operations Epic Milestone 1: recurring incremental ER sync backend.
+            Branch: feat/mg-ops-recurring-incremental-sync. Merged to main at e97bc6c.
 
-NEXT: Milestone 2 (UI layer — owner to trigger):
-      - Settings → ER Sync tab: recurringEnabled toggle + intervalMs input (uses updateErSyncConfig)
-      - Settings → manual "Sync Now" button (uses syncNow mutation)
-      - (M3) Event list UI redesign + editable record modal with revision history
+NEXT: Milestone 3 (owner to trigger after M2 merge):
+      - (M3) Events list UI redesign: Kanban → infinite-scroll list
+      - (deferred) Coverage Report Page 3 (patrol track ∩ area-boundary clipping)
 
 NEXT (owner-gated, pre-M1):
       - DPO appointment (human decision — named DPO / external DPO service)

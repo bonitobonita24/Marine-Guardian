@@ -2,12 +2,21 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { TRPCError } from "@trpc/server";
 
 vi.mock("@marine-guardian/db", () => ({
+  // Expose Prisma namespace with the JsonNull sentinel so route handlers can use it.
+  Prisma: { JsonNull: "DbNull" },
   prisma: {
     patrol: {
       findMany: vi.fn(),
       findFirst: vi.fn(),
       update: vi.fn(),
       count: vi.fn(),
+    },
+    patrolRevision: {
+      createMany: vi.fn(),
+      findMany: vi.fn(),
+    },
+    user: {
+      findMany: vi.fn(),
     },
     auditLog: {
       create: vi.fn(),
@@ -597,5 +606,183 @@ describe("patrol.restore (Phase 7 soft-delete)", () => {
     );
     expect(vi.mocked(prisma.patrol.update)).not.toHaveBeenCalled();
     expect(vi.mocked(prisma.auditLog.create)).not.toHaveBeenCalled();
+  });
+});
+
+// ── patrol.update (M2, q-ops-02 + q-ops-04) ───────────────────────────────
+
+describe("patrol.update", () => {
+  const existingPatrol = {
+    id: "pat-1",
+    tenantId: TENANT_ID,
+    title: "Old Title",
+    boatName: null,
+    areaName: null,
+  };
+
+  const updatedPatrol = {
+    ...existingPatrol,
+    title: "New Title",
+    segments: [],
+    accompanyingRangers: [],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValue(
+      existingPatrol as never
+    );
+    vi.mocked(prisma.patrol.update).mockResolvedValue(
+      updatedPatrol as never
+    );
+    vi.mocked(prisma.patrolRevision.createMany).mockResolvedValue({ count: 1 });
+  });
+
+  it("updates title and writes a PatrolRevision row", async () => {
+    const caller = createCaller(makeCtx());
+    const result = await caller.update({ id: "pat-1", title: "New Title" });
+
+    expect(vi.mocked(prisma.patrol.update)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "pat-1" },
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        data: expect.objectContaining({ title: "New Title" }),
+      })
+    );
+
+    expect(vi.mocked(prisma.patrolRevision.createMany)).toHaveBeenCalledWith({
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      data: expect.arrayContaining([
+        expect.objectContaining({
+          tenantId: TENANT_ID,
+          patrolId: "pat-1",
+          fieldName: "title",
+          beforeJson: "Old Title",
+          afterJson: "New Title",
+        }),
+      ]),
+    });
+
+    expect(result).toBeDefined();
+  });
+
+  it("writes L5 audit log on update", async () => {
+    const caller = createCaller(makeCtx());
+    await caller.update({ id: "pat-1", title: "New Title" });
+
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        data: expect.objectContaining({
+          action: "UPDATE_PATROL",
+          entityType: "Patrol",
+          entityId: "pat-1",
+        }),
+      })
+    );
+  });
+
+  it("does NOT call update or createMany when no fields are passed", async () => {
+    const caller = createCaller(makeCtx());
+    await caller.update({ id: "pat-1" });
+
+    expect(vi.mocked(prisma.patrol.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.patrolRevision.createMany)).not.toHaveBeenCalled();
+  });
+
+  it("does NOT write revision when value is unchanged", async () => {
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValue({
+      ...existingPatrol,
+      title: "Same Title",
+    } as Awaited<ReturnType<typeof prisma.patrol.findFirst>>);
+
+    const caller = createCaller(makeCtx());
+    await caller.update({ id: "pat-1", title: "Same Title" });
+
+    expect(vi.mocked(prisma.patrolRevision.createMany)).not.toHaveBeenCalled();
+  });
+
+  it("is tenant-scoped — throws NOT_FOUND for cross-tenant id", async () => {
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx());
+    await expect(caller.update({ id: "pat-other", title: "X" })).rejects.toThrow(
+      "Patrol not found."
+    );
+  });
+
+  it("throws FORBIDDEN when tenantId is absent from session", async () => {
+    const caller = createCaller(makeCtx(null));
+    await expect(caller.update({ id: "pat-1", title: "X" })).rejects.toThrow(
+      TRPCError
+    );
+  });
+});
+
+// ── patrol.getRevisions (M2, q-ops-04) ────────────────────────────────────
+
+describe("patrol.getRevisions", () => {
+  const mockPatrol = {
+    id: "pat-1",
+    erOriginalSnapshot: { er_id: "pat-er-1", title: "ER baseline" },
+    syncedAt: new Date("2026-06-21T00:00:00Z"),
+  };
+
+  const mockRevision = {
+    id: "prev-1",
+    tenantId: TENANT_ID,
+    patrolId: "pat-1",
+    userId: USER_ID,
+    fieldName: "title",
+    beforeJson: "Old",
+    afterJson: "New",
+    createdAt: new Date("2026-06-21T10:00:00Z"),
+  };
+
+  const mockUser = {
+    id: USER_ID,
+    fullName: "Ranger User",
+    email: "ranger@example.com",
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValue(
+      mockPatrol as never
+    );
+    vi.mocked(prisma.patrolRevision.findMany).mockResolvedValue(
+      [mockRevision] as never
+    );
+    vi.mocked(prisma.user.findMany).mockResolvedValue(
+      [mockUser] as never
+    );
+  });
+
+  it("returns revisions with editor display names", async () => {
+    const caller = createCaller(makeCtx());
+    const result = await caller.getRevisions({ patrolId: "pat-1" });
+
+    expect(result.revisions).toHaveLength(1);
+    expect(result.revisions[0]).toMatchObject({
+      fieldName: "title",
+      beforeJson: "Old",
+      afterJson: "New",
+      editor: { fullName: "Ranger User" },
+    });
+  });
+
+  it("returns erOriginalSnapshot", async () => {
+    const caller = createCaller(makeCtx());
+    const result = await caller.getRevisions({ patrolId: "pat-1" });
+    expect(result.erOriginalSnapshot).toEqual(mockPatrol.erOriginalSnapshot);
+  });
+
+  it("throws NOT_FOUND when patrol not in tenant", async () => {
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx());
+    await expect(caller.getRevisions({ patrolId: "pat-missing" })).rejects.toThrow(
+      TRPCError
+    );
   });
 });

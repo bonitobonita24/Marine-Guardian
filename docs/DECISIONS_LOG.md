@@ -641,3 +641,53 @@ Implementation:
   • Tests: 17 new (er-sync-watermark 16, er-sync-queue 8, settings-sync 17). Full suite 835/835 green.
   • Gate: typecheck 7/7, lint 11/11, test 835/835, build 2/2.
 Locked: yes
+
+## 2026-06-21 — Operations Epic Milestone 2: Editable Records + Edit History + Settings Sync Controls (M2)
+Decision: Implement field-level local editing for Events and Patrols with full audit trail, plus ER sync conflict protection and settings UI.
+
+Extends q-ops-01..10 with:
+  • q-ops-02 extended: event.update and patrol.update mutations (tenantProcedure) write append-only EventRevision/PatrolRevision rows per changed field (beforeJson/afterJson as JSONB using Prisma.JsonNull sentinel for nulls). Gated by L6 tenant-scoping (findFirst with tenantId guard). L5 audit: UPDATE_EVENT, UPDATE_PATROL.
+  • q-ops-04 (edit-protection merge rule) — REVISION-PRESENCE strategy: if a field has any revision row in event_revisions/patrol_revisions, it is skipped in the ER sync update path. The revision table IS the protection signal; no extra column needed. getEventEditedFields/getPatrolEditedFields helpers in er-sync.processor.ts query distinct fieldNames and return Set<string>. The update path uses Object.fromEntries/filter to build a safeFields object (no dynamic-delete anti-pattern). erOriginalSnapshot remains immutable (set-once, never updated by sync).
+  • q-ops-10 extended: getSyncLogs query (tenantProcedure, read-all-roles) returns last 10 SyncLog rows newest-first with select {id, syncType, status, recordsSynced, errorMessage, startedAt, completedAt}.
+
+Conflict default (REVISION-PRESENCE): local edits survive ER upstream changes by default. ER data is NOT clobbered for locally-edited fields. No explicit "merge" UI in M2 — revision table provides full audit trail for future reconciliation.
+
+Edit-protection scope: Events — EVENT_EDITABLE_FIELDS (title, priority, locationLat, locationLon, offenderName, vesselName, vesselRegistration, address, actionTaken, notesJson, eventDetailsJson). Patrols — PATROL_EDITABLE_FIELDS (title, boatName, areaName). Other patrol fields (startTime, endTime, patrolType, state) are ER-authoritative and never locally edited.
+
+Prisma.JsonNull: exported as value from @marine-guardian/db (was type-only). Required for nullable JSON fields (EventRevision.beforeJson/afterJson, PatrolRevision.beforeJson/afterJson) when value is null.
+
+UI — Edit forms (shadcn/ui + React Hook Form pattern):
+  • event-detail-modal.tsx: Tabs (Edit/History) split; historyActive state for lazy getRevisions load; edit form inline in Dialog; onSuccess invalidates both getById and getRevisions; WCAG 2.2 AA.
+  • patrols/[id]/page.tsx: same Tabs pattern; edit form for title/boatName/areaName with isDirty guard; saveSuccess toast.
+  • Both gated on RBAC at backend (tenantProcedure); UI stays accessible to all tenant members.
+
+UI — Revision timeline (shared component):
+  • src/components/revisions/revision-timeline.tsx: newest-first ordering; ER baseline (erOriginalSnapshot) shown as dashed "EarthRanger baseline" entry at bottom; formatJsonValue() caps display at 120 chars; WCAG 2.2 AA (role=list/listitem, aria-busy, time[dateTime]).
+
+UI — Settings ER Sync controls (er-sync-card.tsx):
+  • Recurring toggle: Switch (admin-only, gated on isConnected).
+  • Interval input: Input[type=number min=60000 max=86400000 step=60000] + "Save interval" button.
+  • Sync now: one-shot trigger, disabled if not connected or not admin.
+  • Sync log table: last 10 SyncLog entries (Type, Status badge, Records, Started, Completed).
+  • Warning banner when connection not verified.
+
+Test coverage added:
+  • event.test.ts: +8 tests (event.update revision writes × 4, event.getRevisions × 4).
+  • patrol.test.ts: +9 tests (patrol.update × 6, patrol.getRevisions × 3).
+  • settings.test.ts: +7 tests (getSyncLogs × 7).
+  • er-sync.processor.test.ts: mocks extended (patrol.findUnique, eventRevision.findMany, patrolRevision.findMany) — existing 24 tests preserved, revision queries default to empty (no protection applied).
+  • Total: 859 web tests + 181 jobs tests = 1040/1040 green.
+
+Files affected:
+  • apps/web/src/server/trpc/routers/event.ts — event.update (revision writes), event.getRevisions, event.getEditedFields.
+  • apps/web/src/server/trpc/routers/patrol.ts — patrol.update, patrol.getRevisions, patrol.getEditedFields.
+  • apps/web/src/server/trpc/routers/settings.ts — settings.getSyncLogs.
+  • apps/web/src/components/events/event-detail-modal.tsx — rewritten with Tabs + RevisionTimeline.
+  • apps/web/src/components/revisions/revision-timeline.tsx — NEW shared revision display.
+  • apps/web/src/app/(dashboard)/patrols/[id]/page.tsx — rewritten with Tabs + edit form.
+  • apps/web/src/app/(dashboard)/settings/_components/er-sync-card.tsx — NEW.
+  • apps/web/src/app/(dashboard)/settings/page.tsx — added ErSyncCard.
+  • packages/db/src/index.ts — export Prisma as value (was type-only).
+  • packages/jobs/src/processors/er-sync.processor.ts — REVISION-PRESENCE edit protection merge.
+  • Gate: typecheck, lint, test 1040/1040, build — all green.
+Locked: yes

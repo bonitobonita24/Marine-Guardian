@@ -36,11 +36,18 @@ vi.mock("@/lib/trpc/client", () => ({
           isPending: false,
         }),
       },
+      getRevisions: {
+        useQuery: () => ({
+          data: undefined,
+          isLoading: false,
+        }),
+      },
     },
     useUtils: () => ({
       event: {
         list: { invalidate: stubs.listInvalidate },
         getById: { invalidate: stubs.getByIdInvalidate },
+        getRevisions: { invalidate: vi.fn() },
       },
     }),
   },

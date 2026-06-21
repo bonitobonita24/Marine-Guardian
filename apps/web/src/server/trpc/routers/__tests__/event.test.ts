@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { TRPCError } from "@trpc/server";
 
 vi.mock("@marine-guardian/db", () => ({
+  // Expose Prisma namespace with the JsonNull sentinel so route handlers can use it.
+  Prisma: { JsonNull: "DbNull" },
   prisma: {
     event: {
       findMany: vi.fn(),
@@ -9,6 +11,10 @@ vi.mock("@marine-guardian/db", () => ({
       updateMany: vi.fn(),
       update: vi.fn(),
       count: vi.fn(),
+    },
+    eventRevision: {
+      createMany: vi.fn(),
+      findMany: vi.fn(),
     },
     accompanyingRanger: {
       create: vi.fn(),
@@ -26,6 +32,9 @@ vi.mock("@marine-guardian/db", () => ({
     },
     tenant: {
       findUnique: vi.fn(),
+    },
+    user: {
+      findMany: vi.fn(),
     },
     auditLog: {
       create: vi.fn(),
@@ -788,5 +797,190 @@ describe("event.removeAccompanyingRanger", () => {
     await expect(
       caller.removeAccompanyingRanger({ id: "ar-1" })
     ).rejects.toThrow(TRPCError);
+  });
+});
+
+// ── event.update — revision writes (M2, q-ops-04) ──────────────────────────
+
+describe("event.update — revision row writes", () => {
+  const existingEvent = {
+    id: "ev-1",
+    erEventId: "er-event-42",
+    title: "Old Title",
+    priority: 1,
+    notesJson: null,
+    eventDetailsJson: null,
+    offenderName: null,
+    vesselName: null,
+    vesselRegistration: null,
+    address: null,
+    actionTaken: null,
+  };
+
+  const updatedEvent = {
+    ...existingEvent,
+    title: "New Title",
+    eventType: null,
+    accompanyingRangers: [],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.event.findFirst).mockResolvedValue({
+      ...existingEvent,
+      tenantId: TENANT_ID,
+    } as never);
+    vi.mocked(prisma.event.update).mockResolvedValue(
+      updatedEvent as never
+    );
+    vi.mocked(prisma.eventRevision.createMany).mockResolvedValue({ count: 1 });
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValue(null); // no ER push
+  });
+
+  it("writes an EventRevision row for each changed scalar field", async () => {
+    const caller = createCaller(makeCtx());
+    await caller.update({ id: "ev-1", title: "New Title" });
+
+    expect(vi.mocked(prisma.eventRevision.createMany)).toHaveBeenCalledWith({
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      data: expect.arrayContaining([
+        expect.objectContaining({
+          tenantId: TENANT_ID,
+          eventId: "ev-1",
+          userId: USER_ID,
+          fieldName: "title",
+          beforeJson: "Old Title",
+          afterJson: "New Title",
+        }),
+      ]),
+    });
+  });
+
+  it("writes multiple revision rows when multiple fields change", async () => {
+    vi.mocked(prisma.event.findFirst).mockResolvedValue({
+      ...existingEvent,
+      tenantId: TENANT_ID,
+      offenderName: "OldName",
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    await caller.update({
+      id: "ev-1",
+      title: "New Title",
+      offenderName: "NewName",
+    });
+
+    const createManyCall = vi.mocked(prisma.eventRevision.createMany).mock.calls[0];
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    const rows = (createManyCall?.[0] as { data: unknown[] })?.data;
+    expect(rows).toHaveLength(2);
+    const fieldNames = (rows as Array<{ fieldName: string }>).map((r) => r.fieldName);
+    expect(fieldNames).toContain("title");
+    expect(fieldNames).toContain("offenderName");
+  });
+
+  it("does NOT call createMany when no fields actually changed value", async () => {
+    // Update with the same value as existing — no real change.
+    vi.mocked(prisma.event.findFirst).mockResolvedValue({
+      ...existingEvent,
+      tenantId: TENANT_ID,
+      title: "Same Title",
+    } as Awaited<ReturnType<typeof prisma.event.findFirst>>);
+
+    const caller = createCaller(makeCtx());
+    await caller.update({ id: "ev-1", title: "Same Title" });
+
+    // No revision rows because value didn't change.
+    expect(vi.mocked(prisma.eventRevision.createMany)).not.toHaveBeenCalled();
+  });
+
+  it("does NOT write revisions for a no-op update (no fields passed)", async () => {
+    const caller = createCaller(makeCtx());
+    // update with zero fields returns early before touching revision table.
+    await caller.update({ id: "ev-1" });
+    expect(vi.mocked(prisma.eventRevision.createMany)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.event.update)).not.toHaveBeenCalled();
+  });
+});
+
+// ── event.getRevisions (M2, q-ops-04) ─────────────────────────────────────
+
+describe("event.getRevisions", () => {
+  const mockEvent = {
+    id: "ev-1",
+    erOriginalSnapshot: { er_id: "abc", title: "ER baseline" },
+    syncedAt: new Date("2026-06-21T00:00:00Z"),
+  };
+
+  const mockRevision = {
+    id: "rev-1",
+    tenantId: TENANT_ID,
+    eventId: "ev-1",
+    userId: USER_ID,
+    fieldName: "title",
+    beforeJson: "Old Title",
+    afterJson: "New Title",
+    createdAt: new Date("2026-06-21T10:00:00Z"),
+  };
+
+  const mockUser = {
+    id: USER_ID,
+    fullName: "Test User",
+    email: "test@example.com",
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.event.findFirst).mockResolvedValue(
+      mockEvent as never
+    );
+    vi.mocked(prisma.eventRevision.findMany).mockResolvedValue(
+      [mockRevision] as never
+    );
+    vi.mocked(prisma.user.findMany).mockResolvedValue(
+      [mockUser] as never
+    );
+  });
+
+  it("returns revisions newest-first with editor info", async () => {
+    const caller = createCaller(makeCtx());
+    const result = await caller.getRevisions({ eventId: "ev-1" });
+
+    expect(result.revisions).toHaveLength(1);
+    expect(result.revisions[0]).toMatchObject({
+      id: "rev-1",
+      fieldName: "title",
+      beforeJson: "Old Title",
+      afterJson: "New Title",
+      editor: { id: USER_ID, fullName: "Test User" },
+    });
+  });
+
+  it("returns erOriginalSnapshot and erSyncedAt", async () => {
+    const caller = createCaller(makeCtx());
+    const result = await caller.getRevisions({ eventId: "ev-1" });
+
+    expect(result.erOriginalSnapshot).toEqual({ er_id: "abc", title: "ER baseline" });
+    expect(result.erSyncedAt).toEqual(mockEvent.syncedAt);
+  });
+
+  it("throws NOT_FOUND when event does not belong to tenant", async () => {
+    vi.mocked(prisma.event.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx());
+    await expect(caller.getRevisions({ eventId: "ev-missing" })).rejects.toThrow(
+      TRPCError
+    );
+  });
+
+  it("returns empty revisions list when no edits have been made", async () => {
+    vi.mocked(prisma.eventRevision.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.user.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.getRevisions({ eventId: "ev-1" });
+
+    expect(result.revisions).toHaveLength(0);
+    expect(result.erOriginalSnapshot).toEqual(mockEvent.erOriginalSnapshot);
   });
 });

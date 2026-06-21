@@ -4,8 +4,22 @@ import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
 import { adminProcedure } from "../middleware/rbac";
 import { prisma, writeAuditLog } from "@marine-guardian/db";
+import { Prisma } from "@marine-guardian/db";
 import type { PrismaClient } from "@marine-guardian/db";
 import { enqueuePatrolTrackMaterialize } from "@marine-guardian/jobs";
+
+/**
+ * The set of patrol fields that are locally editable.
+ * Any field in this set that has a PatrolRevision row is considered
+ * "locally edited" — the er-sync processor will skip overwriting it.
+ */
+export const PATROL_EDITABLE_FIELDS = [
+  "title",
+  "boatName",
+  "areaName",
+] as const;
+
+export type PatrolEditableField = (typeof PATROL_EDITABLE_FIELDS)[number];
 
 export const patrolListFilters = z.object({
   state: z.enum(["open", "done", "cancelled"]).optional(),
@@ -186,6 +200,179 @@ export const patrolRouter = router({
       });
 
       return { id: input.id };
+    }),
+
+  /**
+   * Update locally-editable fields of a Patrol (q-ops-02).
+   *
+   * Security: tenantProcedure (all authenticated tenant members may edit — same
+   * gate as event.update; admins/coordinators/operators can all update). L5-audited.
+   * L6 tenant-scoped: findFirst enforces tenantId match.
+   *
+   * Editable fields: title, boatName, areaName.
+   * Writes an append-only PatrolRevision row per changed field (q-ops-04).
+   * erOriginalSnapshot is never touched.
+   */
+  update: tenantProcedure
+    .input(
+      z
+        .object({
+          id: z.string(),
+          title: z.string().max(500).optional(),
+          boatName: z.string().max(200).optional(),
+          areaName: z.string().max(300).optional(),
+        })
+        .strict()
+    )
+    .mutation(async ({ ctx, input }) => {
+      const existing = await prisma.patrol.findFirst({
+        where: { id: input.id, tenantId: ctx.tenantId },
+        select: {
+          id: true,
+          title: true,
+          boatName: true,
+          areaName: true,
+        },
+      });
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Patrol not found." });
+      }
+
+      const data: Record<string, unknown> = {};
+      if (input.title !== undefined) data.title = input.title;
+      if (input.boatName !== undefined) data.boatName = input.boatName;
+      if (input.areaName !== undefined) data.areaName = input.areaName;
+
+      if (Object.keys(data).length === 0) {
+        return existing;
+      }
+
+      const before: Record<string, Prisma.JsonValue> = {};
+      const after: Record<string, Prisma.JsonValue> = {};
+      const scalarKeys = ["title", "boatName", "areaName"] as const;
+      for (const key of scalarKeys) {
+        if (input[key] !== undefined && input[key] !== existing[key]) {
+          before[key] = existing[key] ?? null;
+          after[key] = input[key] ?? null;
+        }
+      }
+
+      // Build revision rows for each changed field (q-ops-04 append-only).
+      const revisionRows: {
+        tenantId: string;
+        patrolId: string;
+        userId: string;
+        fieldName: string;
+        beforeJson: Prisma.InputJsonValue | typeof Prisma.JsonNull;
+        afterJson: Prisma.InputJsonValue | typeof Prisma.JsonNull;
+      }[] = [];
+      for (const key of Object.keys(before)) {
+        revisionRows.push({
+          tenantId: ctx.tenantId,
+          patrolId: input.id,
+          userId: ctx.userId,
+          fieldName: key,
+          beforeJson: before[key] === null ? Prisma.JsonNull : (before[key] as Prisma.InputJsonValue),
+          afterJson: after[key] === null ? Prisma.JsonNull : (after[key] as Prisma.InputJsonValue),
+        });
+      }
+
+      const updated = await prisma.patrol.update({
+        where: { id: input.id },
+        data,
+        include: {
+          segments: true,
+          accompanyingRangers: {
+            include: {
+              registeredUser: { select: { id: true, fullName: true } },
+              knownRanger: true,
+            },
+          },
+        },
+      });
+
+      // Write append-only revision rows (q-ops-04).
+      if (revisionRows.length > 0) {
+        await prisma.patrolRevision.createMany({ data: revisionRows });
+      }
+
+      await writeAuditLog(prisma as unknown as PrismaClient, {
+        tenantId: ctx.tenantId,
+        userId: ctx.userId,
+        action: "UPDATE_PATROL",
+        entityType: "Patrol",
+        entityId: input.id,
+        changesJson: { before, after },
+        ipAddress: ctx.ip,
+        severity: "info",
+      });
+
+      return updated;
+    }),
+
+  /**
+   * Fetch the edit-history revision timeline for a single patrol (q-ops-04).
+   *
+   * Returns revisions NEWEST-FIRST plus the immutable erOriginalSnapshot as
+   * the synthetic "first" baseline entry (oldest position in the timeline).
+   *
+   * Security: tenant-scoped (L6).
+   */
+  getRevisions: tenantProcedure
+    .input(z.object({ patrolId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const patrol = await prisma.patrol.findFirst({
+        where: { id: input.patrolId, tenantId: ctx.tenantId },
+        select: { id: true, erOriginalSnapshot: true, syncedAt: true },
+      });
+      if (!patrol) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Patrol not found." });
+      }
+
+      const revisions = await prisma.patrolRevision.findMany({
+        where: { tenantId: ctx.tenantId, patrolId: input.patrolId },
+        orderBy: { createdAt: "desc" },
+      });
+
+      const userIds = [...new Set(revisions.map((r) => r.userId))];
+      const users =
+        userIds.length > 0
+          ? await prisma.user.findMany({
+              where: { id: { in: userIds } },
+              select: { id: true, fullName: true, email: true },
+            })
+          : [];
+      const userMap = new Map(users.map((u) => [u.id, u]));
+
+      const revisionList = revisions.map((r) => ({
+        id: r.id,
+        fieldName: r.fieldName,
+        beforeJson: r.beforeJson,
+        afterJson: r.afterJson,
+        createdAt: r.createdAt,
+        editor: userMap.get(r.userId) ?? { id: r.userId, fullName: null, email: null },
+      }));
+
+      return {
+        revisions: revisionList,
+        erOriginalSnapshot: patrol.erOriginalSnapshot,
+        erSyncedAt: patrol.syncedAt,
+      };
+    }),
+
+  /**
+   * Returns the set of field names that have been locally edited for a patrol.
+   * Used by the er-sync processor to skip overwriting locally-edited fields (q-ops conflict rule).
+   */
+  getEditedFields: tenantProcedure
+    .input(z.object({ patrolId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const rows = await prisma.patrolRevision.findMany({
+        where: { tenantId: ctx.tenantId, patrolId: input.patrolId },
+        select: { fieldName: true },
+        distinct: ["fieldName"],
+      });
+      return { editedFields: rows.map((r) => r.fieldName) };
     }),
 
   // Phase 7 soft-delete — mirror of softDelete: restore a previously
