@@ -5,6 +5,31 @@
 
 PHASE: Phase 8 (ongoing buildout)
 FRAMEWORK_VERSION: V32.9
+
+PROD_DEPLOY (2026-06-21, deploy architect):
+  Promoted MG to PRODUCTION at commit 19c7e58 (mg.powerbyte.app). PROD LIVE & CLEAN.
+  • Images: staging→prod re-tag (no rebuild). prod latest + prod-sha-19c7e58.
+    app/worker digest sha256:098d73fd… , pdf digest sha256:4a39a753… — both == 19c7e58 (verified
+    via Docker Hub: staging-latest digest === staging-sha-19c7e58 digest for both images).
+  • Trivy gate: PASS (app exit 0, pdf exit 0 — 26 HIGH/CRIT on pdf are all unfixable/will_not_fix;
+    gate blocks only on fixable). Prior prod rollback target = prod-sha-70648c4 (still on Docker Hub).
+  • Pre-migration backup: fresh pg_dump taken →
+    /userdata/dumps/marine-guardian_prod_pre-19c7e58_20260621T141826Z.sql.gz (11MB, gzip-verified;
+    Backrest nightly snapshots /userdata/dumps → S3 powerbyte-restic-offsite). Backrest container Up.
+  • Migrations applied to prod (direct Postgres :5434 via SSH tunnel, NOT PgBouncer): 4 pending →
+    20260619000000_drop_polymorphic_accompanying_ranger_fks, 20260621000000_add_compliance_privacy,
+    20260621030355_ops_m1_snapshot_revisions_recurring_sync, 20260621100000_add_alert_history_acknowledgement.
+    (20260616113329_add_tenant_er_connection was already on prod.) No tenant_id drift. "Schema is up to date."
+  • Deploy: docker compose pull + up -d in /etc/komodo/stacks/marine-guardian. All containers healthy
+    (app/worker/postgres/minio/valkey/pdf_renderer/pgbouncer). /api/health 200 {"status":"ok"}; home 307.
+  • RECURRING ER SYNC: ❌ BLOCKED — NOT activated. Prod has 1 tenant ("Demo Site",
+    id cmqgv4kit0000gmygz0ulcjos) with ZERO tenant_er_connections rows (no base_url, no api_token_enc,
+    status absent — gate requires status='connected'). sync_logs empty. Did NOT fabricate ER creds.
+    OWNER INPUT NEEDED: a verified EarthRanger DAS connection on prod for the target tenant (admin runs
+    Settings→EarthRanger Sync→Test Connection with a real base_url + DAS token → status='connected'),
+    then enable recurring (interval_ms default 300000 / 5min) and confirm a sync_log appears.
+  • Rollback: none performed; none needed.
+
 LAST_DONE: feat — Alert Acknowledgement (branch feat/mg-alert-acknowledge, 2026-06-21).
             Owner-approved closure of WHAT_OWNER_DECISIONS ACK item:
             • Schema: AlertHistory gains acknowledgedAt DateTime? + acknowledgedBy String?
