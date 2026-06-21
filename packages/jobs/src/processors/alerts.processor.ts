@@ -127,16 +127,25 @@ export async function evaluateAlerts(
       };
 
       for (const recipient of recipients) {
+        // The Notification model has no userId/isRead columns — per-user delivery
+        // state lives on the NotificationRecipient join table (schema.prisma:
+        // Notification.recipients NotificationRecipient[]). Create the per-user
+        // recipient row via the nested relation write rather than as top-level
+        // Notification fields (which threw Prisma "Unknown argument userId").
         await typedTx.notification.create({
           data: {
             tenantId,
-            userId: recipient.id,
             alertRuleId: rule.id,
             eventId: event.id,
-            isRead: false,
             title: rule.name,
             message,
             notificationType,
+            recipients: {
+              create: {
+                userId: recipient.id,
+                isRead: false,
+              },
+            },
           },
         });
 

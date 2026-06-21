@@ -166,20 +166,33 @@ describe("evaluateAlerts", () => {
 
     expect(mockTx.notification.create).toHaveBeenCalledOnce();
     /* eslint-disable @typescript-eslint/no-unsafe-assignment */
+    // The per-user recipient (userId + isRead) is written via the nested
+    // NotificationRecipient relation, NOT as top-level Notification fields
+    // (the Notification model has no userId/isRead columns).
     expect(mockTx.notification.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           tenantId: "tenant-1",
-          userId: "admin-user-1",
           alertRuleId: "rule-1",
           eventId: "event-1",
-          isRead: false,
           title: expect.any(String),
           message: expect.any(String),
           notificationType: expect.stringMatching(/^(critical|warning|info|system)$/),
+          recipients: {
+            create: {
+              userId: "admin-user-1",
+              isRead: false,
+            },
+          },
         }),
       }),
     );
+    // Guard against regression: userId/isRead must NOT be top-level args.
+    const createArg = mockTx.notification.create.mock.calls[0]?.[0] as
+      | { data: Record<string, unknown> }
+      | undefined;
+    expect(createArg?.data).not.toHaveProperty("userId");
+    expect(createArg?.data).not.toHaveProperty("isRead");
 
     expect(mockTx.auditLog.create).toHaveBeenCalledOnce();
     expect(mockTx.auditLog.create).toHaveBeenCalledWith(
