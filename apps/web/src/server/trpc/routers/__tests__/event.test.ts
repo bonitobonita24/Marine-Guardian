@@ -1271,4 +1271,76 @@ describe("event.update — EarthRanger priority range (BUG-2 regression)", () =>
     );
   });
 });
+describe("event.update — BUG-2b required-field validation", () => {
+  const existingEvent = {
+    id: "ev-1",
+    tenantId: TENANT_ID,
+    erEventId: "er-event-42",
+    title: "Existing Title",
+    priority: 0,
+    notesJson: null,
+    eventDetailsJson: null,
+    offenderName: null,
+    vesselName: null,
+    vesselRegistration: null,
+    address: null,
+    actionTaken: null,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValue(null);
+  });
+
+  it("rejects an empty-string title with BAD_REQUEST", async () => {
+    // The Zod schema should reject before hitting the DB.
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.update({ id: "ev-1", title: "" })
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    // DB must never be reached.
+    expect(vi.mocked(prisma.event.findFirst)).not.toHaveBeenCalled();
+  });
+
+  it("rejects a whitespace-only title with BAD_REQUEST", async () => {
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.update({ id: "ev-1", title: "   " })
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(vi.mocked(prisma.event.findFirst)).not.toHaveBeenCalled();
+  });
+
+  it("accepts a valid non-empty title", async () => {
+    const updated = {
+      ...existingEvent,
+      title: "New Title",
+      eventType: null,
+      accompanyingRangers: [],
+    };
+    vi.mocked(prisma.event.findFirst).mockResolvedValueOnce(existingEvent as never);
+    vi.mocked(prisma.event.update).mockResolvedValueOnce(updated as never);
+    vi.mocked(prisma.eventRevision.createMany).mockResolvedValue({ count: 1 });
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.update({ id: "ev-1", title: "New Title" });
+    expect(result).toMatchObject({ id: "ev-1", title: "New Title" });
+  });
+
+  it("accepts omitting title entirely (partial update without touching title)", async () => {
+    // No title key at all → no validation error; the field is optional.
+    const updated = {
+      ...existingEvent,
+      priority: 100,
+      eventType: null,
+      accompanyingRangers: [],
+    };
+    vi.mocked(prisma.event.findFirst).mockResolvedValueOnce(existingEvent as never);
+    vi.mocked(prisma.event.update).mockResolvedValueOnce(updated as never);
+    vi.mocked(prisma.eventRevision.createMany).mockResolvedValue({ count: 1 });
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.update({ id: "ev-1", priority: 100 });
+    expect(result).toMatchObject({ id: "ev-1", priority: 100 });
+  });
+});
 /* eslint-enable @typescript-eslint/no-unsafe-assignment */

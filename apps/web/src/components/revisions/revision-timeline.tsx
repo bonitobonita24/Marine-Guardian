@@ -70,7 +70,7 @@ function FieldLabel({ name }: { name: string }) {
   const readable = name
     .replace(/([A-Z])/g, " $1")
     .replace(/^./, (c) => c.toUpperCase())
-    .replace(/Json$/, " (JSON)")
+    .replace(/Json$/, "")
     .trim();
   return (
     <code className="rounded bg-muted px-1 py-0.5 text-xs font-mono text-foreground">

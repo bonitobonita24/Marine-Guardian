@@ -185,9 +185,11 @@ export const eventRouter = router({
       z
         .object({
           id: z.string(),
-          // Allow empty strings so optional text fields are clearable from the
-          // detail form (the UI sends "" for blank fields rather than omitting them).
-          title: z.string().max(500).optional(),
+          // BUG-2b FIX: title must be non-empty when provided — reject blank-
+          // wipe attempts.  Other text fields remain freely clearable (they are
+          // genuinely optional in the domain; title is the only NOT-NULL-intent
+          // field the edit form exposes).
+          title: z.string().trim().min(1, "Title is required").max(500).optional(),
           // BUG-2 FIX: removed max(3). EarthRanger priority values are raw
           // integers (0, 100, 200, 300); capping at 3 rejected valid
           // ER-synced events with a silent HTTP 400.

@@ -786,3 +786,58 @@ describe("patrol.getRevisions", () => {
     );
   });
 });
+
+describe("patrol.update — BUG-2b required-field validation", () => {
+  const existingPatrol = {
+    id: "pat-1",
+    tenantId: TENANT_ID,
+    title: "Existing Patrol Title",
+    boatName: null,
+    areaName: null,
+    segments: [],
+    accompanyingRangers: [],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("rejects an empty-string title with BAD_REQUEST", async () => {
+    // Zod .min(1) on title should reject before hitting the DB.
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.update({ id: "pat-1", title: "" })
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(vi.mocked(prisma.patrol.findFirst)).not.toHaveBeenCalled();
+  });
+
+  it("rejects a whitespace-only title with BAD_REQUEST", async () => {
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.update({ id: "pat-1", title: "   " })
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(vi.mocked(prisma.patrol.findFirst)).not.toHaveBeenCalled();
+  });
+
+  it("accepts a valid non-empty title", async () => {
+    const updated = { ...existingPatrol, title: "New Title" };
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValueOnce(existingPatrol as never);
+    vi.mocked(prisma.patrol.update).mockResolvedValueOnce(updated as never);
+    vi.mocked(prisma.patrolRevision.createMany).mockResolvedValue({ count: 1 });
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.update({ id: "pat-1", title: "New Title" });
+    expect(result).toMatchObject({ id: "pat-1", title: "New Title" });
+  });
+
+  it("accepts omitting title entirely (partial update on boatName only)", async () => {
+    const updated = { ...existingPatrol, boatName: "Sea Hawk" };
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValueOnce(existingPatrol as never);
+    vi.mocked(prisma.patrol.update).mockResolvedValueOnce(updated as never);
+    vi.mocked(prisma.patrolRevision.createMany).mockResolvedValue({ count: 1 });
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.update({ id: "pat-1", boatName: "Sea Hawk" });
+    expect(result).toMatchObject({ id: "pat-1", boatName: "Sea Hawk" });
+  });
+});
