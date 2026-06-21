@@ -5,33 +5,30 @@
 
 PHASE: Phase 8 (ongoing buildout)
 FRAMEWORK_VERSION: V32.9
-LAST_DONE: feat(ops-m2) — Operations Epic Milestone 2: editable records + edit history UI + settings sync controls.
-            Branch: feat/mg-ops-editable-records-history. PR open (owner-merge-gated).
+LAST_DONE: feat(ops-m3) — Operations Epic Milestone 3: Events List redesign (Kanban → infinite-scroll Operations List).
+            Branch: feat/mg-ops-events-list-redesign. PR open, base: feat/mg-ops-editable-records-history (owner-merge-gated).
             Deliverables:
-              Backend — event.update + patrol.update mutations (tenantProcedure, L5 audit, RBAC-gated);
-              append-only EventRevision/PatrolRevision writes per changed field (Prisma.JsonNull for null values);
-              event.getRevisions + patrol.getRevisions queries (lazy load for history tab);
-              event.getEditedFields + patrol.getEditedFields queries;
-              settings.getSyncLogs query (tenantProcedure, last-10 newest-first).
-              Edit protection — REVISION-PRESENCE strategy in er-sync.processor.ts:
-              getEventEditedFields + getPatrolEditedFields helpers query distinct fieldNames
-              from revision tables; ER sync update path filters out locally-edited fields via
-              Object.fromEntries/filter (no dynamic-delete anti-pattern).
-              UI — Tabs (Edit/History) on event-detail-modal + patrol detail page;
-              RevisionTimeline shared component (newest-first, ER baseline at bottom, WCAG 2.2 AA);
-              ErSyncCard component on Settings page (recurring toggle, interval, sync now, log table).
-              Infra — Prisma exported as value from @marine-guardian/db (was type-only).
-              Tests — 24 new tests (event.update ×4, event.getRevisions ×4, patrol.update ×6,
-              patrol.getRevisions ×3, settings.getSyncLogs ×7);
-              er-sync.processor.test.ts mocks extended (patrol.findUnique, revision findMany stubs);
-              Total: 859 web + 181 jobs = 1040/1040 green.
-              Gate: typecheck, lint, test 1040/1040, build — all green.
+              Router — event.list extended with 4 new server-side filters (category, areaName, dateFrom, dateTo);
+              eventListFilters Zod schema updated; backward-compatible (all new fields optional).
+              UI — events/page.tsx rewritten: Kanban removed, EventsList infinite-scroll component mounted.
+              UI — EventsList (src/components/events/events-list.tsx, NEW):
+                • Continuous vertical list (role=list/listitem), newest-first (createdAt desc), 50/page cursor pagination.
+                • IntersectionObserver sentinel + fallback "Load more" button for auto-load on scroll.
+                • Filter bar: state, category, areaName (debounced input), monthFilter (monthly-accomplishment).
+                • Inline state control: shadcn Select per row — New / Active / Resolved transitions via updateState.
+                • Click row → opens M2 EventDetailModal (Edit/History tabs).
+                • WCAG 2.2 AA: icon+text state badge (never color-alone), keyboard-operable Select, aria-label, time[dateTime].
+                • Design tokens inherited from DESIGN.md; shadcn/ui only.
+              Tests — 15 new tests: cursor pagination (5), server-side filters (7), inline state transition (3).
+              Total: 874 web + 181 jobs = 1055 green.
+              Gate: typecheck 13/13, lint 0 errors/0 warnings, test 874/874, build — all green.
 
-PREV_LAST_DONE: feat(ops-m1) — Operations Epic Milestone 1: recurring incremental ER sync backend.
-            Branch: feat/mg-ops-recurring-incremental-sync. Merged to main at e97bc6c.
+PREV_LAST_DONE: feat(ops-m2) — Operations Epic Milestone 2: editable records + edit history UI + settings sync controls.
+            Branch: feat/mg-ops-editable-records-history. PR #10 open (owner-merge-gated).
 
-NEXT: Milestone 3 (owner to trigger after M2 merge):
-      - (M3) Events list UI redesign: Kanban → infinite-scroll list
+NEXT: Operations Epic is now feature-complete (all 3 milestones built, stacked PRs await owner merge):
+      Merge order: main already has M1 → merge PR #10 (M2) → merge M3 PR (base: M2 branch).
+      After merge: enable recurring ER sync toggle per tenant on prod settings page.
       - (deferred) Coverage Report Page 3 (patrol track ∩ area-boundary clipping)
 
 NEXT (owner-gated, pre-M1):

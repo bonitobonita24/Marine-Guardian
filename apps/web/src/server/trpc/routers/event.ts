@@ -84,10 +84,21 @@ async function pushUpdateToErIfConfigured(
  * Filter inputs shared between the list query and the /api/exports/events
  * Route Handler. Exported so the export endpoint validates with the same
  * Zod schema (single source of truth).
+ *
+ * M3 additions (q-ops-01 Operations List):
+ *   category  — event type category ("Law Enforcement" | "Monitoring, Patrolling & Surveillance")
+ *   areaName  — municipality / area (string exact match, case-insensitive)
+ *   dateFrom  — ISO date string; filters reportedAt >= dateFrom (monthly-accomplishment gate)
+ *   dateTo    — ISO date string; filters reportedAt <= dateTo
  */
 export const eventListFilters = z.object({
   state: z.enum(["new_event", "active", "resolved"]).optional(),
   priority: z.number().int().min(0).max(3).optional(),
+  // M3 — new server-side filters for Operations List
+  category: z.string().max(200).optional(),
+  areaName: z.string().max(200).optional(),
+  dateFrom: z.string().optional(), // ISO date, inclusive lower bound on reportedAt
+  dateTo: z.string().optional(),   // ISO date, inclusive upper bound on reportedAt
 });
 
 export const eventRouter = router({
@@ -99,11 +110,30 @@ export const eventRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
+      const dateFromParsed = input.dateFrom !== undefined ? new Date(input.dateFrom) : undefined;
+      const dateToParsed   = input.dateTo   !== undefined ? new Date(input.dateTo)   : undefined;
       const items = await prisma.event.findMany({
         where: {
           tenantId: ctx.tenantId,
-          ...(input.state !== undefined ? { state: input.state } : {}),
+          ...(input.state    !== undefined ? { state:    input.state    } : {}),
           ...(input.priority !== undefined ? { priority: input.priority } : {}),
+          // category filter — via joined eventType.category
+          ...(input.category !== undefined
+            ? { eventType: { category: { equals: input.category, mode: "insensitive" } } }
+            : {}),
+          // areaName filter — case-insensitive substring match for flexibility
+          ...(input.areaName !== undefined
+            ? { areaName: { contains: input.areaName, mode: "insensitive" } }
+            : {}),
+          // date range on reportedAt (monthly-accomplishment view)
+          ...(dateFromParsed !== undefined || dateToParsed !== undefined
+            ? {
+                reportedAt: {
+                  ...(dateFromParsed !== undefined ? { gte: dateFromParsed } : {}),
+                  ...(dateToParsed   !== undefined ? { lte: dateToParsed   } : {}),
+                },
+              }
+            : {}),
         },
         take: input.limit + 1,
         ...(input.cursor !== undefined ? { cursor: { id: input.cursor } } : {}),

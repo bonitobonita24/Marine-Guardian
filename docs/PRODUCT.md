@@ -61,16 +61,15 @@ EarthRanger is an excellent field data collection platform but provides no repor
 - Click-to-inspect on any marker/track for detail popover
 - Drawing tools for ad-hoc area selection
 
-### Event Management (Kanban)
-- Kanban board with columns: New, Active, Resolved
-- Drag-and-drop state transitions
-- Event cards showing: type icon, serial number, title, reporter, time, priority badge
-- Click-to-expand for full event detail editing (all fields from EarthRanger event schema)
+### Event Management (Operations List)
+- **Continuous infinite-scroll vertical list** — newest-first (reportedAt desc), 50 records/page, cursor pagination. Replaces the Kanban board (q-ops-01, M3 2026-06-21).
+- Each row: type icon, serial number, title, reporter, area/municipality, date, priority badge, state badge, inline state control
+- **Inline state control** (Select per row): New / Active / Resolved — state transitions via updateState mutation (RBAC-gated, L5 audited)
+- Click-to-expand for full event detail editing (M2 EventDetailModal — Edit/History tabs)
 - Operator can fill in missing fields (offender name, vessel info, action taken, notes)
 - State changes pushed back to EarthRanger via API
-- Filter by event category (Law Enforcement / Monitoring, Patrolling & Surveillance)
-- Filter by area/municipality
-- Monthly accomplishment view: filter resolved events by month for reporting
+- Server-side filters: event category (Law Enforcement / Monitoring, Patrolling & Surveillance), state, area/municipality, date range
+- Monthly accomplishment view: filter resolved events by month (dateFrom/dateTo on reportedAt)
 
 ### Event Detail
 - Full event record with all fields: report type, report ID, reported by, reported at, notes, municipality/boundary, violation/event sub-type, vessel name, registration number, address, offender name(s), action taken, photo indicator
@@ -334,7 +333,7 @@ DB isolation exception: none — all tenant data isolated by tenant_id foreign k
 /[tenant]/command-center            War Room (primary — 100-inch TV view)
 /[tenant]/dashboard                 Standard dashboard with KPIs and live feed
 /[tenant]/map                       Live map with all layers (standalone)
-/[tenant]/events                    Event Kanban board
+/[tenant]/events                    Event Operations List (infinite-scroll, inline state control)
 /[tenant]/events/[id]               Event detail view
 /[tenant]/patrols                   Patrol monitor list
 /[tenant]/patrols/[id]              Patrol detail with track map
