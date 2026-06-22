@@ -793,3 +793,41 @@ Files affected:
   • docs/STATE.md — WHAT_OWNER_DECISIONS ACK item resolved; LAST_DONE updated.
 Gate: see feat/mg-alert-acknowledge PR.
 Locked: yes
+
+## 2026-06-21 — Live Map all-active-tracks overlay (foot vs seaborne styling)
+Decision: Render ALL active (state='open') patrol tracks on the Live Map at once, visually
+  differentiated by patrol type using BOTH an accent color AND a line pattern (colorblind-safe,
+  the solid/dashed pattern is a non-color cue):
+    • Seaborne = SOLID line, cyan #00C9DB (the existing MG `info` design token — already the
+      "patrol tracks" color).
+    • Foot     = DASHED line ([2,2]), orange #E8912D (the existing MG `warning` design token).
+  Hues differ (~183° vs ~25°) and both sit at high contrast on the #0A0A0A dark map base.
+  Pulled from docs/tokens.json so they fit the theme — no new colors invented.
+  Adds: (1) all-active-tracks overlay — a `map.patrolTracks.active` tRPC procedure (tenantProcedure,
+  L6-scoped) returning each open patrol's materialized track GeoJSON + its patrolType, bounded to
+  50 patrols × 5000 points each, only tracks with ≥2 points; (2) a LEGEND with TEXT labels (never
+  color-only) showing both type styles; (3) a master show/hide toggle + per-type toggles. All toggles
+  are keyboard-operable Radix switches with aria-labels and ≥44px touch targets (WCAG 2.2 AA).
+  "Active patrols" = state='open' (excludes test + soft-deleted), per the existing PatrolSelector
+  convention. The single selected-patrol drill-down line (PatrolSelector) is unchanged and kept.
+Rationale: Owner approved 2026-06-21. Implements the PRODUCT.md Live Map line item "Patrol track
+  overlays showing active and recent patrol routes (foot vs seaborne colors)". NO schema change
+  needed — reuses the existing observation-reconstruction track logic (shared via a new
+  resolvePatrolTrackWindow helper). Bounded payload avoids unbounded map renders.
+Files affected:
+  • apps/web/src/server/trpc/routers/map.ts — new `patrolTracks.active` procedure + extracted
+    resolvePatrolTrackWindow() shared helper (byPatrolId refactored to use it).
+  • apps/web/src/components/map/patrolTrackStyle.ts — NEW: per-type style map + filterVisibleTracks().
+  • apps/web/src/components/map/TrackLegend.tsx — NEW: legend + master/per-type toggles (shadcn Switch/Label).
+  • apps/web/src/components/map/InteractiveMap.tsx — wires active query, visibility state, per-type
+    MapRoute polylines (solid/dashed by type), and the TrackLegend.
+  • apps/web/src/components/map/__tests__/patrolTrackStyle.test.ts — NEW, 7 tests (styling + filter logic).
+  • apps/web/src/server/trpc/routers/__tests__/map.test.ts — 3 new `active` tests (per-type, tenant scope, <2-point filter).
+  • docs/PRODUCT.md — Live Map section updated with the all-active overlay + legend + toggle detail.
+Verification: dev stack rebuilt; logged in (Demo Site); /api/trpc/map.patrolTracks.active returned
+  200 with 2 tracks (1 foot 8pts, 1 seaborne 8pts); screenshot confirms solid-cyan seaborne + dashed-orange
+  foot legend entries, toggles flip the overlay; 0 console errors. Full validation green
+  (typecheck/lint/944 tests/build). (Live open patrols had only 1 track point each, so a QA fixture
+  augmented two open patrols' leader observations to ≥2 points for the visual check, then removed.)
+Gate: see feat/map-all-active-tracks PR.
+Locked: yes

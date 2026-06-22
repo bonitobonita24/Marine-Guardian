@@ -15,6 +15,14 @@ import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import { MapPolygon } from "./MapPolygon";
 import { PatrolSelector } from "./PatrolSelector";
+import { TrackLegend } from "./TrackLegend";
+import {
+  DEFAULT_TRACK_VISIBILITY,
+  filterVisibleTracks,
+  patrolTrackStyle,
+  type PatrolTrackVisibility,
+  type PatrolType,
+} from "./patrolTrackStyle";
 
 // MapLibre coordinate convention is [longitude, latitude] (locked in DECISIONS_LOG).
 // Default view spans Marine Guardian's primary operating area; the map auto-fits
@@ -52,6 +60,23 @@ export function InteractiveMap({ className }: InteractiveMapProps) {
   const patrolTracksQuery = trpc.map.patrolTracks.byPatrolId.useQuery(
     { patrolId: selectedPatrolId ?? "" },
     { enabled: selectedPatrolId !== null },
+  );
+
+  // All-active-tracks overlay: every open patrol's track, styled by type.
+  const activeTracksQuery = trpc.map.patrolTracks.active.useQuery();
+  const [showTracks, setShowTracks] = useState(true);
+  const [trackVisibility, setTrackVisibility] = useState<PatrolTrackVisibility>(
+    DEFAULT_TRACK_VISIBILITY,
+  );
+
+  const visibleTracks = useMemo(
+    () =>
+      filterVisibleTracks(
+        activeTracksQuery.data?.tracks ?? [],
+        showTracks,
+        trackVisibility,
+      ),
+    [activeTracksQuery.data, showTracks, trackVisibility],
   );
 
   const subjects = (subjectsQuery.data ?? []).filter(
@@ -125,8 +150,31 @@ export function InteractiveMap({ className }: InteractiveMapProps) {
           />
         ))}
 
+        {/* All-active-tracks overlay: one polyline per open patrol, styled by
+            patrol type (seaborne solid/cyan, foot dashed/orange). */}
+        {visibleTracks.map((track) => {
+          const style = patrolTrackStyle(track.patrolType);
+          const coordinates: [number, number][] = track.points.map((p) => [
+            p.lon,
+            p.lat,
+          ]);
+          return (
+            <MapRoute
+              key={`active-track-${track.patrolId}`}
+              id={`active-track-${track.patrolId}`}
+              coordinates={coordinates}
+              color={style.color}
+              width={style.width}
+              opacity={style.opacity}
+              {...(style.dashArray ? { dashArray: style.dashArray } : {})}
+            />
+          );
+        })}
+
+        {/* Selected single patrol track (drill-down via PatrolSelector). */}
         {trackCoordinates.length >= 2 && (
           <MapRoute
+            id="selected-patrol-track"
             coordinates={trackCoordinates}
             color="#2563eb"
             width={3}
@@ -194,6 +242,17 @@ export function InteractiveMap({ className }: InteractiveMapProps) {
           value={selectedPatrolId}
           onChange={setSelectedPatrolId}
           className="bg-background/95 backdrop-blur shadow-md"
+        />
+      </div>
+
+      <div className="absolute right-4 bottom-4 z-10 w-56">
+        <TrackLegend
+          showTracks={showTracks}
+          onShowTracksChange={setShowTracks}
+          visibility={trackVisibility}
+          onTypeVisibilityChange={(type: PatrolType, next: boolean) => {
+            setTrackVisibility((prev) => ({ ...prev, [type]: next }));
+          }}
         />
       </div>
     </div>

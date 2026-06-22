@@ -14,6 +14,7 @@ vi.mock("@marine-guardian/db", () => ({
     },
     patrol: {
       findFirst: vi.fn(),
+      findMany: vi.fn(),
     },
     patrolArea: {
       findMany: vi.fn(),
@@ -240,6 +241,99 @@ describe("map.patrolTracks.byPatrolId", () => {
     const result = await caller.patrolTracks.byPatrolId({ patrolId: "patrol-2" });
 
     expect(result.points).toEqual([]);
+  });
+});
+
+describe("map.patrolTracks.active", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns one styled track per open patrol with its patrolType, scoped to tenant", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([
+      {
+        id: "patrol-sea",
+        title: "Bay sweep",
+        patrolType: "seaborne",
+        startTime: new Date("2026-05-10T08:00:00Z"),
+        endTime: new Date("2026-05-10T12:00:00Z"),
+        segments: [{ leaderErId: "er-sea" }],
+      },
+      {
+        id: "patrol-foot",
+        title: "Shore walk",
+        patrolType: "foot",
+        startTime: new Date("2026-05-10T08:00:00Z"),
+        endTime: new Date("2026-05-10T12:00:00Z"),
+        segments: [{ leaderErId: "er-foot" }],
+      },
+    ] as any);
+
+    vi.mocked(prisma.subject.findMany).mockResolvedValue([
+      { id: "sub-sea", erSubjectId: "er-sea" },
+      { id: "sub-foot", erSubjectId: "er-foot" },
+    ] as any);
+
+    // Both patrols resolve to >= 2 points.
+    vi.mocked(prisma.observation.findMany).mockResolvedValue([
+      { locationLat: 1.5, locationLon: 124.0, recordedAt: new Date("2026-05-10T09:00:00Z") },
+      { locationLat: 1.51, locationLon: 124.01, recordedAt: new Date("2026-05-10T10:00:00Z") },
+    ] as any);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.patrolTracks.active();
+
+    expect(result.tracks).toHaveLength(2);
+    const byId = Object.fromEntries(result.tracks.map((t) => [t.patrolId, t]));
+    expect(byId["patrol-sea"]?.patrolType).toBe("seaborne");
+    expect(byId["patrol-foot"]?.patrolType).toBe("foot");
+    expect(byId["patrol-sea"]?.points).toHaveLength(2);
+
+    // Only open, non-deleted, non-test patrols for THIS tenant are queried.
+    const patrolCall = vi.mocked(prisma.patrol.findMany).mock.calls[0]?.[0];
+    expect(patrolCall?.where).toMatchObject({
+      tenantId: TENANT_ID,
+      state: "open",
+      isDeleted: false,
+      isTestPatrol: false,
+    });
+    // Bounded payload.
+    expect(patrolCall?.take).toBe(50);
+  });
+
+  it("scopes to tenant — never leaks cross-tenant tracks", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx("other-tenant"));
+    const result = await caller.patrolTracks.active();
+
+    expect(result.tracks).toEqual([]);
+    const patrolCall = vi.mocked(prisma.patrol.findMany).mock.calls[0]?.[0];
+    expect(patrolCall?.where).toMatchObject({ tenantId: "other-tenant" });
+  });
+
+  it("omits patrols with fewer than 2 points (not renderable as a polyline)", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([
+      {
+        id: "patrol-thin",
+        title: "Single ping",
+        patrolType: "foot",
+        startTime: new Date("2026-05-10T08:00:00Z"),
+        endTime: new Date("2026-05-10T12:00:00Z"),
+        segments: [{ leaderErId: "er-thin" }],
+      },
+    ] as any);
+    vi.mocked(prisma.subject.findMany).mockResolvedValue([
+      { id: "sub-thin", erSubjectId: "er-thin" },
+    ] as any);
+    vi.mocked(prisma.observation.findMany).mockResolvedValue([
+      { locationLat: 1.5, locationLon: 124.0, recordedAt: new Date("2026-05-10T09:00:00Z") },
+    ] as any);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.patrolTracks.active();
+
+    expect(result.tracks).toEqual([]);
   });
 });
 
