@@ -51,7 +51,7 @@ EarthRanger is an excellent field data collection platform but provides no repor
 - Full-screen MapLibre GL map with larger canvas for detailed analysis
 - Real-time subject positions (patrol boats, rangers, tracked marine animals) via WebSocket
 - Event markers with category-specific icons and priority color-coding
-- Patrol track overlays showing active and recent patrol routes (foot vs seaborne colors)
+- Patrol track overlays showing active and recent patrol routes (foot vs seaborne colors). All-active-tracks overlay renders every open patrol's track at once, differentiated by type — seaborne = solid cyan (#00C9DB), foot = dashed orange (#E8912D); distinct by hue AND line pattern (colorblind-safe). Legend (text labels, not color-only) + master show/hide toggle + per-type toggles, all keyboard-operable, ≥44px touch targets (owner-approved 2026-06-21).
 - Heatmap layer toggle for event density visualization
 - Heatmap layer toggle for patrol coverage density
 - Patrol area polygon overlay showing planned coverage zones
