@@ -23,6 +23,9 @@ services:
     # NO build: key — image pulled from Docker Hub only (never builds on server).
     image: ${DOCKERHUB_USERNAME:-bonitobonita24}/marine-guardian-pdf:${PDF_IMAGE_TAG:-staging-latest}
     container_name: ${COMPOSE_PROJECT_NAME}_pdf_renderer
+    mem_limit: 512m
+    mem_reservation: 96m
+    cpus: 1.0
     hostname: ${COMPOSE_PROJECT_NAME}_pdf_renderer
     env_file: ../../../.env.staging
     environment:

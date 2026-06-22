@@ -13,6 +13,9 @@ services:
     # Traffic routed via Traefik reverse proxy — no host port exposure
     image: ${DOCKERHUB_USERNAME:-bonitobonita24}/marine-guardian:${APP_IMAGE_TAG:-latest}
     container_name: ${COMPOSE_PROJECT_NAME}_app
+    mem_limit: 640m
+    mem_reservation: 192m
+    cpus: 1.0
     hostname: ${COMPOSE_PROJECT_NAME}_app
     env_file: ../../../.env.prod
     environment:
@@ -55,6 +58,9 @@ services:
     # NO build: key — same image as app, different command
     image: ${DOCKERHUB_USERNAME:-bonitobonita24}/marine-guardian:${APP_IMAGE_TAG:-latest}
     container_name: ${COMPOSE_PROJECT_NAME}_worker
+    mem_limit: 512m
+    mem_reservation: 128m
+    cpus: 1.0
     hostname: ${COMPOSE_PROJECT_NAME}_worker
     env_file: ../../../.env.prod
     environment:
