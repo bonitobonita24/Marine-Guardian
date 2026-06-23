@@ -272,6 +272,39 @@ describe("processErSync", () => {
     });
   });
 
+  // Issue A fix (2026-06-23): patrol_type keyword heuristic — matches real ER values
+  // like "marine_patrol", "sea_patrol", "boat" instead of exact "seaborne" string.
+  it.each([
+    ["marine_patrol", "seaborne"],
+    ["sea_patrol", "seaborne"],
+    ["boat_patrol", "seaborne"],
+    ["water_patrol", "seaborne"],
+    ["terrestrial_patrol", "foot"],
+    ["default_patrol", "foot"],
+    ["foot_patrol", "foot"],
+    ["", "foot"],
+  ])(
+    "maps ER patrol_type '%s' → PatrolType.%s",
+    async (erPatrolType, expectedMgType) => {
+      mockErClient.getPatrols.mockResolvedValueOnce([
+        {
+          id: "p-type",
+          title: "Type test patrol",
+          patrol_type: erPatrolType,
+          state: "open",
+          patrol_segments: [],
+        },
+      ]);
+      mockPrisma.patrol.upsert.mockResolvedValue({ id: "patrol-type" });
+
+      await processErSync(makeJob({ syncType: "patrols" }));
+
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const upsertCall = mockPrisma.patrol.upsert.mock.calls[0]![0] as { create: Record<string, unknown> };
+      expect(upsertCall.create.patrolType).toBe(expectedMgType);
+    },
+  );
+
   it("marks patrol as test when title matches /test|qa|demo/i", async () => {
     mockErClient.getPatrols.mockResolvedValueOnce([
       { id: "p-t", title: "QA Test Run", patrol_type: "foot", state: "open", patrol_segments: [] },

@@ -1,11 +1,24 @@
 // @vitest-environment jsdom
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup, within } from "@testing-library/react";
 import { AlertsPanel, type AlertItem } from "../_components/alerts-panel";
 import { EventFeed, type FeedEvent } from "../_components/event-feed";
 import { ActivePatrols, type ActivePatrol } from "../_components/active-patrols";
 import { LastIncidentCard } from "../_components/last-incident-card";
+import { BreakdownBars } from "../_components/breakdown-bars";
+
+// Recharts ResponsiveContainer requires a measured DOM container. In jsdom that
+// is always 0×0 so we stub it to render children directly.
+vi.mock("recharts", async () => {
+  const actual = await vi.importActual<typeof import("recharts")>("recharts");
+  return {
+    ...actual,
+    ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
+      <div data-testid="recharts-responsive-container">{children}</div>
+    ),
+  };
+});
 
 const NOW = new Date("2026-06-21T12:00:00Z");
 
@@ -151,5 +164,83 @@ describe("LastIncidentCard", () => {
   it("shows None when there is no incident", () => {
     render(<LastIncidentCard incident={null} now={NOW} />);
     expect(screen.getByText("None")).toBeTruthy();
+  });
+});
+
+// Issue B — EventFeed must NOT surface Skylight events (owner decision 2026-06-23).
+// The dashboard.recentEvents query excludes them server-side; these component
+// tests verify that the EventFeed component renders only what it receives (the
+// server filter is tested separately in the dashboard router tests).
+describe("EventFeed — Skylight events excluded by server (Issue B)", () => {
+  it("does not render a Skylight-sourced event when the feed prop omits it", () => {
+    // Simulate server already filtering: only non-skylight event is in the feed.
+    const events: FeedEvent[] = [
+      {
+        id: "e-good",
+        title: "Illegal fishing report",
+        priority: 200,
+        state: "active",
+        reportedAt: new Date("2026-06-23T08:00:00Z"),
+        eventType: { display: "Illegal Fishing", category: "law_enforcement" },
+      },
+    ];
+    render(<EventFeed events={events} isLoading={false} now={NOW} />);
+    expect(screen.getByText("Illegal fishing report")).toBeTruthy();
+    // A Skylight event titled "Vessel AIS Detection" is NOT in the list.
+    expect(screen.queryByText("Vessel AIS Detection")).toBeNull();
+  });
+});
+
+// Issue C — BreakdownBars now uses shadcn ChartContainer + Recharts BarChart.
+describe("BreakdownBars — shadcn chart (Issue C)", () => {
+  const data = [
+    { type: "Blast Fishing", count: 12 },
+    { type: "Illegal Nets", count: 7 },
+    { type: "Poaching", count: 3 },
+  ];
+
+  it("renders the section heading", () => {
+    render(
+      <BreakdownBars
+        title="Law Enforcement"
+        data={data}
+        variant="law_enforcement"
+      />,
+    );
+    expect(screen.getByText("Law Enforcement")).toBeTruthy();
+  });
+
+  it("renders the Recharts responsive container when data is present", () => {
+    render(
+      <BreakdownBars
+        title="Monitoring"
+        data={data}
+        variant="monitoring"
+      />,
+    );
+    // Our mock renders a div with this data-testid when data is present.
+    expect(
+      document.querySelector("[data-testid='recharts-responsive-container']"),
+    ).toBeTruthy();
+  });
+
+  it("renders empty state when no data", () => {
+    render(
+      <BreakdownBars title="Law Enforcement" data={[]} variant="law_enforcement" />,
+    );
+    expect(screen.getByText(/no events/i)).toBeTruthy();
+  });
+
+  it("accepts deprecated barClass prop without crashing (backward compat)", () => {
+    // Callers that haven't migrated yet should not throw.
+    expect(() =>
+      render(
+        <BreakdownBars
+          title="Legacy"
+          data={data}
+          barClass="bg-destructive"
+        />,
+      ),
+    ).not.toThrow();
   });
 });
