@@ -43,6 +43,14 @@ const DO_EVENTS = !args["no-events"];
 const DO_PATROLS = !args["no-patrols"];
 const DO_SUBJECTS = !args["no-subjects"];
 const PAGE_SIZE = Number(args["page-size"] || 200);
+// Patrol source: "cache" (default, pre-pulled snapshot) or "api" (live
+// /activity/patrols, paginated). Tracks always come from the local cache files
+// (the dedicated ER track token is expired), so api-source patrols with no
+// cached track file simply have no track row.
+const PATROL_SOURCE = args["patrols-source"] || "cache";
+const PATROL_PAGE_SIZE = Number(args["patrol-page-size"] || 100);
+// Gentle throttle between live patrol pages to avoid hitting ER API limits.
+const PATROL_PAGE_DELAY = Number(args["patrol-page-delay-ms"] || 1500);
 
 const prisma = new PrismaClient();
 const now = () => new Date();
@@ -254,8 +262,29 @@ function loadCache() {
   return Object.values(map).map((w) => w.patrol).filter(Boolean);
 }
 
+// Live patrol pull from /activity/patrols, paginated newest-first, throttled.
+// Reuses the same patrol object shape as the cache (id, state, serial_number,
+// title, patrol_segments[].leader/time_range), so the upsert loop below is
+// identical regardless of source.
+async function loadPatrolsFromApi() {
+  const out = [];
+  let url = `/activity/patrols/?page_size=${PATROL_PAGE_SIZE}&ordering=-serial_number`;
+  let page = 0;
+  while (url) {
+    const res = await erGet(url);
+    const body = res?.data || res || {};
+    const results = body.results || [];
+    out.push(...results);
+    page++;
+    console.log(`[patrols:api] page ${page}: +${results.length} (total ${out.length}${body.count ? "/" + body.count : ""})`);
+    url = body.next || null;
+    if (url) await sleep(PATROL_PAGE_DELAY);
+  }
+  return out;
+}
+
 async function ingestPatrols() {
-  let all = loadCache();
+  let all = PATROL_SOURCE === "api" ? await loadPatrolsFromApi() : loadCache();
   // newest first by serial_number desc
   all.sort((a, b) => (Number(b.serial_number) || 0) - (Number(a.serial_number) || 0));
   if (PATROL_LIMIT !== Infinity) all = all.slice(0, PATROL_LIMIT);
@@ -337,7 +366,7 @@ async function ingestPatrols() {
   await ingestEventTypes();
 
   if (DO_PATROLS) {
-    console.log("\n=== PATROLS (cache, newest serial first) ===");
+    console.log(`\n=== PATROLS (${PATROL_SOURCE}, newest serial first) ===`);
     await ingestPatrols();
     console.log(">>> CHECKPOINT", JSON.stringify(stats));
   }
