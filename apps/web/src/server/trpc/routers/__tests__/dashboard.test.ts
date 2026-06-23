@@ -1,5 +1,8 @@
 // Issue B fix (2026-06-23): dashboard.recentEvents, eventBreakdown, and
-// lastIncident must exclude events whose eventType.category = "skylight".
+// lastIncident must exclude Skylight events. Skylight events arrive from
+// EarthRanger with eventType.category = "analyzer_event"; the only reliable
+// Skylight marker is eventType.display ("Skylight Entry Alert", etc.), so the
+// WHERE clause filters case-insensitively on display, NOT category.
 // Skylight is a maritime satellite AIS/radar monitoring provider; its events
 // are automated vessel-detection records, not human-reported incidents.
 
@@ -79,11 +82,12 @@ describe("dashboard.recentEvents — Skylight filter (Issue B)", () => {
     const call = mockPrisma.event.findMany.mock.calls[0]![0] as {
       where: Record<string, unknown>;
     };
-    // The where clause must contain NOT: { eventType: { category: { contains: "skylight", mode: "insensitive" } } }
-    // so variants like "Skylight", "SKYLIGHT", "skylight_ais" are all excluded.
+    // The where clause must contain NOT: { eventType: { display: { contains: "skylight", mode: "insensitive" } } }
+    // so display variants like "Skylight Entry Alert", "SKYLIGHT", "Skylight
+    // Detection Alert" are all excluded (category is "analyzer_event", not "skylight").
     expect(call.where).toMatchObject({
       tenantId: TENANT_ID,
-      NOT: { eventType: { category: { contains: "skylight", mode: "insensitive" } } },
+      NOT: { eventType: { display: { contains: "skylight", mode: "insensitive" } } },
     });
   });
 
@@ -124,7 +128,7 @@ describe("dashboard.eventBreakdown — Skylight filter (Issue B)", () => {
     };
     expect(call.where).toMatchObject({
       tenantId: TENANT_ID,
-      NOT: { eventType: { category: { contains: "skylight", mode: "insensitive" } } },
+      NOT: { eventType: { display: { contains: "skylight", mode: "insensitive" } } },
     });
   });
 });
@@ -147,7 +151,7 @@ describe("dashboard.lastIncident — Skylight filter (Issue B)", () => {
     expect(call.where).toMatchObject({
       tenantId: TENANT_ID,
       priority: { gte: 200 },
-      NOT: { eventType: { category: { contains: "skylight", mode: "insensitive" } } },
+      NOT: { eventType: { display: { contains: "skylight", mode: "insensitive" } } },
     });
   });
 });

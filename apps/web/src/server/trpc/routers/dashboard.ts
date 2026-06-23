@@ -67,12 +67,15 @@ export const dashboardRouter = router({
 
   eventBreakdown: tenantProcedure.query(async ({ ctx }) => {
     // Exclude Skylight automated vessel-detection events from the WAR ROOM
-    // breakdown bars. Case-insensitive contains so variants like "Skylight" or
-    // "skylight_ais" are also excluded (owner decision 2026-06-23 hardened).
+    // breakdown bars. Skylight events arrive from EarthRanger with
+    // eventType.category = "analyzer_event"; the only reliable Skylight marker
+    // is the eventType.display ("Skylight Entry Alert", "Skylight Detection
+    // Alert", etc.), so match case-insensitively on display (owner decision
+    // 2026-06-23 hardened).
     const events = await prisma.event.findMany({
       where: {
         tenantId: ctx.tenantId,
-        NOT: { eventType: { category: { contains: "skylight", mode: "insensitive" } } },
+        NOT: { eventType: { display: { contains: "skylight", mode: "insensitive" } } },
       },
       select: { eventType: { select: { category: true, display: true } } },
     });
@@ -105,13 +108,15 @@ export const dashboardRouter = router({
 
   recentEvents: tenantProcedure.query(async ({ ctx }) => {
     // Skylight is a maritime satellite AIS/radar monitoring provider whose
-    // events are ingested via EarthRanger with eventType.category = "skylight".
-    // These are automated vessel-detection records, not human-reported incidents,
-    // and should not appear in the WAR ROOM Live Event Feed (owner decision 2026-06-23).
+    // events are ingested via EarthRanger under eventType.category =
+    // "analyzer_event"; they are identified by eventType.display beginning with
+    // "Skylight ...". These are automated vessel-detection records, not
+    // human-reported incidents, and should not appear in the WAR ROOM Live Event
+    // Feed (owner decision 2026-06-23).
     return prisma.event.findMany({
       where: {
         tenantId: ctx.tenantId,
-        NOT: { eventType: { category: { contains: "skylight", mode: "insensitive" } } },
+        NOT: { eventType: { display: { contains: "skylight", mode: "insensitive" } } },
       },
       orderBy: { reportedAt: "desc" },
       take: 10,
@@ -149,7 +154,7 @@ export const dashboardRouter = router({
       where: {
         tenantId: ctx.tenantId,
         priority: { gte: 200 },
-        NOT: { eventType: { category: { contains: "skylight", mode: "insensitive" } } },
+        NOT: { eventType: { display: { contains: "skylight", mode: "insensitive" } } },
       },
       orderBy: { reportedAt: "desc" },
       select: {
