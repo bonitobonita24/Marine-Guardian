@@ -13,6 +13,14 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  Circle,
+  Play,
+  Check,
+  Scale,
+  Telescope,
+  type LucideIcon,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -56,10 +64,10 @@ const STATE_LABELS: Record<EventState, string> = {
 };
 
 /** WCAG 2.2 AA: text label + icon — state never conveyed by color alone */
-const STATE_ICONS: Record<EventState, string> = {
-  new_event: "●",
-  active:    "▶",
-  resolved:  "✓",
+const STATE_ICONS: Record<EventState, LucideIcon> = {
+  new_event: Circle,
+  active:    Play,
+  resolved:  Check,
 };
 
 function stateBadgeVariant(state: string): "outline" | "secondary" | "default" {
@@ -375,10 +383,14 @@ function EventRow({ event, onOpenDetail, onStateChange, isStateChangePending }: 
       {/* Type icon / category indicator */}
       <span
         aria-hidden="true"
-        className="mt-0.5 shrink-0 text-base text-muted-foreground"
+        className="mt-0.5 shrink-0 text-muted-foreground"
         title={event.eventType?.category ?? "Event"}
       >
-        {event.eventType?.category?.startsWith("Law") === true ? "⚖" : "🔭"}
+        {event.eventType?.category?.startsWith("Law") === true ? (
+          <Scale className="h-4 w-4" />
+        ) : (
+          <Telescope className="h-4 w-4" />
+        )}
       </span>
 
       {/* Main content — clickable to open detail */}
@@ -440,9 +452,12 @@ function EventRow({ event, onOpenDetail, onStateChange, isStateChangePending }: 
         <Badge
           variant={stateBadgeVariant(state)}
           aria-label={`State: ${STATE_LABELS[state]}`}
-          className="text-xs"
+          className="inline-flex items-center gap-1 text-xs"
         >
-          <span aria-hidden="true">{STATE_ICONS[state]}</span>{" "}
+          {(() => {
+            const StateIcon = STATE_ICONS[state];
+            return <StateIcon className="h-3 w-3" aria-hidden="true" />;
+          })()}
           {STATE_LABELS[state]}
         </Badge>
 
