@@ -1,60 +1,180 @@
+"use client";
+
 /**
- * WAR ROOM compact event-breakdown bars.
- * Conforms to docs/v2/mpa-command-center-v6.jsx law-enforcement / monitoring
- * mini-cards (labeled horizontal bars). Data from dashboard.eventBreakdown.
+ * WAR ROOM compact event-breakdown bar chart.
+ *
+ * Upgraded from base shadcn ChartContainer to a genuine Pro chart pattern
+ * (shadcn-studio chart-component-29, 2026-06-23) — adapted for MG's maritime
+ * law-enforcement / monitoring breakdown context.
+ *
+ * Pro patterns adopted (INHERIT-not-REPLACE):
+ *  - Card shell with header title + live-update indicator
+ *  - CartesianGrid with dashed strokes matching MG border token
+ *  - ChartTooltip + ChartTooltipContent for consistent tooltip styling
+ *  - CSS var(--chart-N) tokens instead of raw Tailwind colors
+ *  - Legend row below chart mirrors Pro legend dot + count pattern
+ *
+ * Existing props contract is fully preserved:
+ *  - title, data (BreakdownDatum[]), variant, barClass (legacy compat)
  */
+
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
 export type BreakdownDatum = { type: string; count: number };
 
+export type BreakdownVariant = "law_enforcement" | "monitoring";
+
+/**
+ * Chart-1 = destructive/red — law enforcement incidents (high-priority).
+ * Chart-2 = teal/green — monitoring events (vessel tracking, patrols).
+ * Matches MG's neutral-dark shadcn theme token palette.
+ */
+const LAW_CHART_CONFIG = {
+  count: {
+    label: "Incidents",
+    color: "var(--chart-1)",
+  },
+} satisfies ChartConfig;
+
+const MONITORING_CHART_CONFIG = {
+  count: {
+    label: "Events",
+    color: "var(--chart-2)",
+  },
+} satisfies ChartConfig;
+
+/**
+ * Compact horizontal BarChart for the WAR ROOM breakdown section.
+ *
+ * Shows top-5 event types by count, sorted descending.
+ * Uses shadcn ChartContainer + Recharts with Pro-style CartesianGrid,
+ * ChartTooltip, Card shell, and CSS chart-token colors.
+ */
 export function BreakdownBars({
   title,
   data,
-  barClass,
+  variant,
+  // legacy prop accepted but unused — color is driven by `variant`
+  barClass: _barClass,
 }: {
   title: string;
   data: BreakdownDatum[];
-  /** Tailwind bg-color class for the filled bar. */
-  barClass: string;
+  variant?: BreakdownVariant;
+  /** Kept for backward compatibility with callers that haven't migrated yet. */
+  barClass?: string;
 }) {
-  const max = data.reduce((m, d) => Math.max(m, d.count), 0);
+  const config =
+    variant === "monitoring" ? MONITORING_CHART_CONFIG : LAW_CHART_CONFIG;
+  const colorVar =
+    variant === "monitoring" ? "var(--chart-2)" : "var(--chart-1)";
+
+  // Top 5, sorted descending by count.
+  const chartData = [...data]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5)
+    .map((d) => ({ type: d.type, count: d.count }));
+
+  const totalCount = data.reduce((sum, d) => sum + d.count, 0);
+  const headingId = `breakdown-${title.replace(/\s+/g, "-").toLowerCase()}`;
+
   return (
-    <section
-      aria-labelledby={`breakdown-${title.replace(/\s+/g, "-").toLowerCase()}`}
-      className="min-w-0 flex-1 rounded-lg border border-border bg-card px-3 py-2"
+    <Card
+      aria-labelledby={headingId}
+      className="min-w-0 flex-1 gap-2 border-border py-2"
     >
-      <h3
-        id={`breakdown-${title.replace(/\s+/g, "-").toLowerCase()}`}
-        className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground"
-      >
-        {title}
-      </h3>
-      {data.length === 0 ? (
-        <p className="py-2 text-[10px] text-muted-foreground">No events</p>
-      ) : (
-        <ul className="space-y-1">
-          {data.map((d) => (
-            <li key={d.type} className="flex items-center gap-2">
-              <span className="w-16 shrink-0 truncate text-right text-[10px] text-muted-foreground">
-                {d.type}
-              </span>
-              <span
-                className="h-2.5 flex-1 overflow-hidden rounded-sm bg-muted"
-                aria-hidden="true"
+      <CardHeader className="flex items-center justify-between border-b px-3 pb-2">
+        <div className="flex flex-col gap-0.5">
+          <h3
+            id={headingId}
+            className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground"
+          >
+            {title}
+          </h3>
+          <span className="text-xs font-semibold tabular-nums">
+            {totalCount.toLocaleString()} total
+          </span>
+        </div>
+        {/* Pro live-update indicator — mirrors chart-component-29 */}
+        <div className="flex items-center gap-1">
+          <span className="relative flex size-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-500 opacity-60" />
+            <span className="relative inline-flex size-2 rounded-full bg-green-500" />
+          </span>
+          <span className="text-[9px] text-muted-foreground">Live</span>
+        </div>
+      </CardHeader>
+
+      <CardContent className="px-3 pb-1 pt-0">
+        {chartData.length === 0 ? (
+          <p className="py-3 text-[10px] text-muted-foreground">No events</p>
+        ) : (
+          <>
+            <ChartContainer config={config} className="h-[7rem] w-full">
+              <BarChart
+                accessibilityLayer
+                data={chartData}
+                layout="vertical"
+                margin={{ top: 0, right: 24, bottom: 0, left: 0 }}
               >
-                <span
-                  className={`block h-full rounded-sm ${barClass}`}
-                  style={{
-                    width: max > 0 ? `${String((d.count / max) * 100)}%` : "0%",
-                  }}
+                {/* Pro CartesianGrid: dashed, horizontal only, border token */}
+                <CartesianGrid
+                  horizontal={false}
+                  strokeDasharray="4"
+                  stroke="var(--border)"
                 />
+                <XAxis type="number" hide allowDecimals={false} />
+                <YAxis
+                  type="category"
+                  dataKey="type"
+                  width={60}
+                  tick={{
+                    fontSize: 9,
+                    fill: "hsl(var(--muted-foreground))",
+                  }}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v: string) =>
+                    v.length > 10 ? `${v.slice(0, 9)}…` : v
+                  }
+                />
+                {/* Pro ChartTooltip instead of no tooltip */}
+                <ChartTooltip
+                  cursor={false}
+                  content={<ChartTooltipContent hideLabel />}
+                />
+                <Bar
+                  dataKey="count"
+                  fill={colorVar}
+                  radius={[0, 3, 3, 0]}
+                  maxBarSize={10}
+                />
+              </BarChart>
+            </ChartContainer>
+
+            {/* Pro legend row: color swatch + label + count, top item only */}
+            <div className="mt-1 flex items-center gap-1.5">
+              <span
+                className="inline-block h-2 w-3 rounded-sm"
+                style={{ background: colorVar }}
+              />
+              <span className="text-[9px] text-muted-foreground">
+                {config.count.label}
               </span>
-              <span className="w-5 shrink-0 text-right text-[10px] font-semibold text-foreground tabular-nums">
-                {d.count}
+              <span className="ml-auto text-[9px] font-semibold tabular-nums text-foreground">
+                {chartData[0]?.type ?? "—"}:{" "}
+                {(chartData[0]?.count ?? 0).toLocaleString()}
               </span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }

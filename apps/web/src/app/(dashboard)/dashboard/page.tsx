@@ -185,12 +185,12 @@ export default function DashboardPage() {
             <BreakdownBars
               title="Law Enforcement"
               data={breakdown.data?.lawEnforcement ?? []}
-              barClass="bg-destructive"
+              variant="law_enforcement"
             />
             <BreakdownBars
               title="Monitoring"
               data={breakdown.data?.monitoring ?? []}
-              barClass="bg-[hsl(var(--success))]"
+              variant="monitoring"
             />
             <LastIncidentCard incident={incident} now={nowValue} />
           </div>

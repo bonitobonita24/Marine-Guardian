@@ -66,8 +66,14 @@ export const dashboardRouter = router({
   }),
 
   eventBreakdown: tenantProcedure.query(async ({ ctx }) => {
+    // Exclude Skylight automated vessel-detection events from the WAR ROOM
+    // breakdown bars. Case-insensitive contains so variants like "Skylight" or
+    // "skylight_ais" are also excluded (owner decision 2026-06-23 hardened).
     const events = await prisma.event.findMany({
-      where: { tenantId: ctx.tenantId },
+      where: {
+        tenantId: ctx.tenantId,
+        NOT: { eventType: { category: { contains: "skylight", mode: "insensitive" } } },
+      },
       select: { eventType: { select: { category: true, display: true } } },
     });
 
@@ -98,8 +104,15 @@ export const dashboardRouter = router({
   }),
 
   recentEvents: tenantProcedure.query(async ({ ctx }) => {
+    // Skylight is a maritime satellite AIS/radar monitoring provider whose
+    // events are ingested via EarthRanger with eventType.category = "skylight".
+    // These are automated vessel-detection records, not human-reported incidents,
+    // and should not appear in the WAR ROOM Live Event Feed (owner decision 2026-06-23).
     return prisma.event.findMany({
-      where: { tenantId: ctx.tenantId },
+      where: {
+        tenantId: ctx.tenantId,
+        NOT: { eventType: { category: { contains: "skylight", mode: "insensitive" } } },
+      },
       orderBy: { reportedAt: "desc" },
       take: 10,
       select: {
@@ -133,7 +146,11 @@ export const dashboardRouter = router({
   // Event rows. Returns null when no high-priority event exists.
   lastIncident: tenantProcedure.query(async ({ ctx }) => {
     return prisma.event.findFirst({
-      where: { tenantId: ctx.tenantId, priority: { gte: 200 } },
+      where: {
+        tenantId: ctx.tenantId,
+        priority: { gte: 200 },
+        NOT: { eventType: { category: { contains: "skylight", mode: "insensitive" } } },
+      },
       orderBy: { reportedAt: "desc" },
       select: {
         id: true,

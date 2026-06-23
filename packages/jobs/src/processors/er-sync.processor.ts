@@ -336,8 +336,18 @@ async function syncPatrols(
   const now = new Date();
 
   for (const p of patrols) {
+    // Map EarthRanger patrol_type to MG enum. ER uses values like "marine",
+    // "sea_patrol", "boat", "water_patrol", etc. — never the bare string
+    // "seaborne". Use the same keyword heuristic as ingest-earthranger.mjs
+    // (mapPatrolType) so live synced patrols are classified correctly.
+    const patrolTypeRaw = String(p.patrol_type ?? "").toLowerCase();
     const patrolType: PatrolType =
-      p.patrol_type === "seaborne" ? PatrolType.seaborne : PatrolType.foot;
+      patrolTypeRaw.includes("sea") ||
+      patrolTypeRaw.includes("boat") ||
+      patrolTypeRaw.includes("marine") ||
+      patrolTypeRaw.includes("water")
+        ? PatrolType.seaborne
+        : PatrolType.foot;
     const patrolState: PatrolState =
       p.state === "done"
         ? PatrolState.done
