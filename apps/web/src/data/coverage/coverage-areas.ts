@@ -9,6 +9,13 @@
  * POLYGON FILES live next to this file in apps/web/src/data/coverage/*.geojson.
  * SOURCE: geoBoundaries-PHL-ADM3 (2020), CC BY 3.0 IGO — NAMRIA/PSA/OCHA.
  * APO REEF: OpenStreetMap way 181365709 (ODbL 1.0), Senate Bill 2393 boundary.
+ *
+ * SIMPLIFIED (2026-06-23): municipality polygons reduced with mapshaper
+ * (Visvalingam 3%, keep-shapes, clean, ~1e-4° ≈ 11 m precision) to keep the
+ * repo lean — coarse geometry is sufficient for point-in-polygon assignment
+ * per the plan doc. Apo Reef is kept at source resolution (already a 5-vertex
+ * legislated rectangle). Re-fetch from the cited sources if a higher-precision
+ * boundary is ever required.
  */
 
 export type CoverageAreaType = "municipality" | "protected-zone";
