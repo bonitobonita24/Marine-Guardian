@@ -1,0 +1,49 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Apo Reef Natural Park",
+        "type": "marine-protected-area",
+        "osmWayId": 181365709,
+        "wikidataId": "Q618756",
+        "wdpaId": 2340,
+        "source": "OpenStreetMap",
+        "license": "ODbL 1.0",
+        "sourceURL": "https://www.openstreetmap.org/way/181365709",
+        "osmNote": "Senate Bill 2393 official boundaries",
+        "country": "Philippines",
+        "province": "Occidental Mindoro",
+        "parentMunicipality": "Sablayan"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              120.5622222,
+              12.6863889
+            ],
+            [
+              120.4991667,
+              12.5963889
+            ],
+            [
+              120.3961111,
+              12.655
+            ],
+            [
+              120.4561111,
+              12.7463889
+            ],
+            [
+              120.5622222,
+              12.6863889
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}
