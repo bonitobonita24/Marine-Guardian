@@ -67,11 +67,12 @@ export const dashboardRouter = router({
 
   eventBreakdown: tenantProcedure.query(async ({ ctx }) => {
     // Exclude Skylight automated vessel-detection events from the WAR ROOM
-    // breakdown bars (same filter as recentEvents — owner decision 2026-06-23).
+    // breakdown bars. Case-insensitive contains so variants like "Skylight" or
+    // "skylight_ais" are also excluded (owner decision 2026-06-23 hardened).
     const events = await prisma.event.findMany({
       where: {
         tenantId: ctx.tenantId,
-        NOT: { eventType: { category: "skylight" } },
+        NOT: { eventType: { category: { contains: "skylight", mode: "insensitive" } } },
       },
       select: { eventType: { select: { category: true, display: true } } },
     });
@@ -110,7 +111,7 @@ export const dashboardRouter = router({
     return prisma.event.findMany({
       where: {
         tenantId: ctx.tenantId,
-        NOT: { eventType: { category: "skylight" } },
+        NOT: { eventType: { category: { contains: "skylight", mode: "insensitive" } } },
       },
       orderBy: { reportedAt: "desc" },
       take: 10,
@@ -148,7 +149,7 @@ export const dashboardRouter = router({
       where: {
         tenantId: ctx.tenantId,
         priority: { gte: 200 },
-        NOT: { eventType: { category: "skylight" } },
+        NOT: { eventType: { category: { contains: "skylight", mode: "insensitive" } } },
       },
       orderBy: { reportedAt: "desc" },
       select: {

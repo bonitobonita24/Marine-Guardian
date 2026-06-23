@@ -79,10 +79,11 @@ describe("dashboard.recentEvents — Skylight filter (Issue B)", () => {
     const call = mockPrisma.event.findMany.mock.calls[0]![0] as {
       where: Record<string, unknown>;
     };
-    // The where clause must contain NOT: { eventType: { category: "skylight" } }
+    // The where clause must contain NOT: { eventType: { category: { contains: "skylight", mode: "insensitive" } } }
+    // so variants like "Skylight", "SKYLIGHT", "skylight_ais" are all excluded.
     expect(call.where).toMatchObject({
       tenantId: TENANT_ID,
-      NOT: { eventType: { category: "skylight" } },
+      NOT: { eventType: { category: { contains: "skylight", mode: "insensitive" } } },
     });
   });
 
@@ -123,7 +124,7 @@ describe("dashboard.eventBreakdown — Skylight filter (Issue B)", () => {
     };
     expect(call.where).toMatchObject({
       tenantId: TENANT_ID,
-      NOT: { eventType: { category: "skylight" } },
+      NOT: { eventType: { category: { contains: "skylight", mode: "insensitive" } } },
     });
   });
 });
@@ -146,7 +147,7 @@ describe("dashboard.lastIncident — Skylight filter (Issue B)", () => {
     expect(call.where).toMatchObject({
       tenantId: TENANT_ID,
       priority: { gte: 200 },
-      NOT: { eventType: { category: "skylight" } },
+      NOT: { eventType: { category: { contains: "skylight", mode: "insensitive" } } },
     });
   });
 });
