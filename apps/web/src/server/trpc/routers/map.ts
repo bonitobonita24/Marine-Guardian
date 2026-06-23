@@ -114,11 +114,16 @@ const eventsRouter = router({
       tenantId: string;
       locationLat: { not: null };
       locationLon: { not: null };
+      NOT: { eventType: { display: { contains: string; mode: "insensitive" } } };
       reportedAt?: { gte: Date };
     } = {
       tenantId: ctx.tenantId,
       locationLat: { not: null },
       locationLon: { not: null },
+      // Exclude Skylight automated vessel-detection events from the Live Map —
+      // same display-based filter as the dashboard queries (Skylight events are
+      // category="analyzer_event" with the marker only in eventType.display).
+      NOT: { eventType: { display: { contains: "skylight", mode: "insensitive" } } },
     };
     if (input.since) {
       where.reportedAt = { gte: input.since };

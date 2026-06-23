@@ -1,5 +1,6 @@
 "use client";
 
+import { Siren } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -51,7 +52,7 @@ export function AlertsPanel({
       className="overflow-hidden rounded-xl border border-destructive/40 bg-card"
     >
       <div className="flex items-center gap-2 border-b border-border bg-[var(--danger-bg)] px-3 py-2">
-        <span aria-hidden="true">🚨</span>
+        <Siren className="h-4 w-4 text-destructive" aria-hidden="true" />
         <h2
           id="warroom-alerts-heading"
           className="text-[11px] font-bold uppercase tracking-wide text-destructive"

@@ -17,6 +17,8 @@ type TrackLegendProps = {
   /** Per-type visibility map. */
   visibility: PatrolTrackVisibility;
   onTypeVisibilityChange: (type: PatrolType, next: boolean) => void;
+  /** "vertical" stacked card (overlay) or "horizontal" toolbar row (above map). */
+  orientation?: "vertical" | "horizontal";
   className?: string;
 };
 
@@ -61,8 +63,61 @@ export function TrackLegend({
   onShowTracksChange,
   visibility,
   onTypeVisibilityChange,
+  orientation = "vertical",
   className,
 }: TrackLegendProps) {
+  if (orientation === "horizontal") {
+    return (
+      <section
+        aria-label="Patrol track legend and filters"
+        className={cn(
+          "flex flex-wrap items-center gap-x-5 gap-y-1 rounded-md border bg-card px-3 py-1.5 text-sm",
+          className,
+        )}
+      >
+        <div className="flex min-h-9 items-center gap-2">
+          <Label htmlFor="track-show-all" className="cursor-pointer font-medium">
+            Patrol tracks
+          </Label>
+          <Switch
+            id="track-show-all"
+            checked={showTracks}
+            onCheckedChange={onShowTracksChange}
+            aria-label="Show all patrol tracks"
+          />
+        </div>
+
+        <div className="hidden h-5 w-px bg-border sm:block" aria-hidden="true" />
+
+        {PATROL_TRACK_TYPES.map((type) => {
+          const style = PATROL_TRACK_STYLES[type];
+          const inputId = `track-type-${type}`;
+          return (
+            <div key={type} className="flex min-h-9 items-center gap-2">
+              <Label
+                htmlFor={inputId}
+                className={cn(
+                  "flex cursor-pointer items-center gap-1.5",
+                  !showTracks && "opacity-50",
+                )}
+              >
+                <LineSample type={type} />
+                <span>{style.label}</span>
+              </Label>
+              <Switch
+                id={inputId}
+                checked={visibility[type]}
+                disabled={!showTracks}
+                onCheckedChange={(next) => { onTypeVisibilityChange(type, next); }}
+                aria-label={`Show ${style.label.toLowerCase()} tracks`}
+              />
+            </div>
+          );
+        })}
+      </section>
+    );
+  }
+
   return (
     <section
       aria-label="Patrol track legend and filters"

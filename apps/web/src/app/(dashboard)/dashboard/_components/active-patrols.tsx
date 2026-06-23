@@ -6,6 +6,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ShieldCheck } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { elapsedHm, formatKm, patrolTypeMeta } from "./lib";
 
@@ -40,7 +41,7 @@ export function ActivePatrols({
       className="overflow-hidden rounded-xl border border-border bg-card"
     >
       <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-        <span aria-hidden="true">🛡️</span>
+        <ShieldCheck className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         <h2
           id="warroom-patrols-heading"
           className="text-[11px] font-bold uppercase tracking-wide text-foreground"
@@ -79,6 +80,7 @@ export function ActivePatrols({
             <TableBody>
               {patrols.map((p) => {
                 const t = patrolTypeMeta(p.patrolType);
+                const TypeIcon = t.icon;
                 const km = p.computedDistanceKm ?? p.totalDistanceKm;
                 return (
                   <TableRow key={p.id}>
@@ -86,8 +88,13 @@ export function ActivePatrols({
                       {p.leaderName ?? "—"}
                     </TableCell>
                     <TableCell className="text-[11px]">
-                      <span aria-hidden="true">{t.glyph}</span>{" "}
-                      <span className="text-muted-foreground">{t.label}</span>
+                      <span className="inline-flex items-center gap-1">
+                        <TypeIcon
+                          className="h-3.5 w-3.5 text-muted-foreground"
+                          aria-hidden="true"
+                        />
+                        <span className="text-muted-foreground">{t.label}</span>
+                      </span>
                     </TableCell>
                     <TableCell className="text-[11px]">
                       {p.areaName ?? "—"}

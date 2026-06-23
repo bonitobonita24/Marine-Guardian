@@ -1,10 +1,11 @@
+import type { LucideIcon } from "lucide-react";
 import { ClockCard } from "./clock-card";
 
 /**
  * WAR ROOM KPI strip — 5 stat tiles + live clock.
  * Conforms to docs/v2/mpa-command-center-v6.jsx header row.
  *
- * Each tile pairs an emoji glyph (aria-hidden) with a micro-cap uppercase label
+ * Each tile pairs a lucide icon (aria-hidden) with a micro-cap uppercase label
  * and a bold value. Color encodes operational meaning; the label always carries
  * the same meaning in text (never color-alone) for WCAG 2.2 AA.
  */
@@ -12,7 +13,7 @@ import { ClockCard } from "./clock-card";
 type Kpi = {
   label: string;
   value: number;
-  glyph: string;
+  icon: LucideIcon;
   /** Tailwind text-color class for the value. */
   valueClass: string;
   /** Optional sub-line, e.g. month delta. */
@@ -34,9 +35,7 @@ export function KpiStrip({
           key={k.label}
           className="flex min-w-[8rem] flex-1 items-center gap-2 rounded-lg border border-border bg-card px-3 py-2"
         >
-          <span className="text-lg" aria-hidden="true">
-            {k.glyph}
-          </span>
+          <k.icon className={`h-5 w-5 shrink-0 ${k.valueClass}`} aria-hidden="true" />
           <div className="min-w-0">
             <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               {k.label}

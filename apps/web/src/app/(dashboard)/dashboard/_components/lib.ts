@@ -2,6 +2,8 @@
 // Conforms to docs/v2/mpa-command-center-v6.jsx (priority dots, micro-cap labels,
 // "Xs ago" sync status). Pure functions — unit-tested in __tests__/lib.test.ts.
 
+import { Footprints, MapPin, Sailboat, type LucideIcon } from "lucide-react";
+
 /**
  * Map a numeric event/alert priority to a semantic level.
  * Aligns with the rest of the app (alert-history/InteractiveMap use the same
@@ -46,11 +48,14 @@ export function priorityDotClass(priority: number): string {
   }
 }
 
-/** Patrol-type glyph + accessible label. */
-export function patrolTypeMeta(patrolType: string): { glyph: string; label: string } {
-  if (patrolType === "seaborne") return { glyph: "🚤", label: "Seaborne" };
-  if (patrolType === "foot") return { glyph: "🚶", label: "Foot" };
-  return { glyph: "•", label: patrolType };
+/** Patrol-type icon (lucide) + accessible label. */
+export function patrolTypeMeta(patrolType: string): {
+  icon: LucideIcon;
+  label: string;
+} {
+  if (patrolType === "seaborne") return { icon: Sailboat, label: "Seaborne" };
+  if (patrolType === "foot") return { icon: Footprints, label: "Foot" };
+  return { icon: MapPin, label: patrolType };
 }
 
 /** Compact "2m" / "3h" / "4d" relative-time string for a past timestamp. */

@@ -108,6 +108,8 @@ describe("map.events.list", () => {
       tenantId: TENANT_ID,
       locationLat: { not: null },
       locationLon: { not: null },
+      // Skylight events are excluded from the Live Map (display-based filter).
+      NOT: { eventType: { display: { contains: "skylight", mode: "insensitive" } } },
     });
   });
 

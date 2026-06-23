@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { Footprints, MapPin, Sailboat } from "lucide-react";
 import {
   priorityLevel,
   priorityLabel,
@@ -37,10 +38,10 @@ describe("priorityDotClass", () => {
 });
 
 describe("patrolTypeMeta", () => {
-  it("provides a glyph and an accessible label", () => {
-    expect(patrolTypeMeta("seaborne")).toEqual({ glyph: "🚤", label: "Seaborne" });
-    expect(patrolTypeMeta("foot")).toEqual({ glyph: "🚶", label: "Foot" });
-    expect(patrolTypeMeta("other").label).toBe("other");
+  it("provides a lucide icon and an accessible label", () => {
+    expect(patrolTypeMeta("seaborne")).toEqual({ icon: Sailboat, label: "Seaborne" });
+    expect(patrolTypeMeta("foot")).toEqual({ icon: Footprints, label: "Foot" });
+    expect(patrolTypeMeta("other")).toEqual({ icon: MapPin, label: "other" });
   });
 });
 

@@ -128,7 +128,21 @@ export function InteractiveMap({ className }: InteractiveMapProps) {
   }, [trackCoordinates]);
 
   return (
-    <div className={cn("relative h-full w-full", className)}>
+    <div className={cn("flex h-full w-full flex-col gap-2", className)}>
+      {/* Patrol-track toggles live in a horizontal bar ABOVE the map (not
+          overlaid inside it), aligned to the map width. */}
+      <TrackLegend
+        orientation="horizontal"
+        showTracks={showTracks}
+        onShowTracksChange={setShowTracks}
+        visibility={trackVisibility}
+        onTypeVisibilityChange={(type: PatrolType, next: boolean) => {
+          setTrackVisibility((prev) => ({ ...prev, [type]: next }));
+        }}
+        className="shrink-0"
+      />
+
+      <div className="relative min-h-0 flex-1 overflow-hidden rounded-md">
       <Map
         ref={mapRef}
         center={DEFAULT_CENTER}
@@ -237,23 +251,13 @@ export function InteractiveMap({ className }: InteractiveMapProps) {
         ))}
       </Map>
 
-      <div className="absolute top-4 left-4 z-10 max-w-xs">
-        <PatrolSelector
-          value={selectedPatrolId}
-          onChange={setSelectedPatrolId}
-          className="bg-background/95 backdrop-blur shadow-md"
-        />
-      </div>
-
-      <div className="absolute right-4 bottom-4 z-10 w-56">
-        <TrackLegend
-          showTracks={showTracks}
-          onShowTracksChange={setShowTracks}
-          visibility={trackVisibility}
-          onTypeVisibilityChange={(type: PatrolType, next: boolean) => {
-            setTrackVisibility((prev) => ({ ...prev, [type]: next }));
-          }}
-        />
+        <div className="absolute top-4 left-4 z-10 max-w-xs">
+          <PatrolSelector
+            value={selectedPatrolId}
+            onChange={setSelectedPatrolId}
+            className="bg-background/95 backdrop-blur shadow-md"
+          />
+        </div>
       </div>
     </div>
   );

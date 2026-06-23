@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Zap, BellRing, Shield, Users, BarChart3 } from "lucide-react";
 import { InteractiveMap } from "@/components/map/InteractiveMap";
 import { trpc } from "@/lib/trpc/client";
 import { useSession } from "next-auth/react";
@@ -97,32 +98,32 @@ export default function DashboardPage() {
     {
       label: "Active Events",
       value: kpis.data?.activeEvents ?? 0,
-      glyph: "⚡",
+      icon: Zap,
       valueClass: "text-[hsl(var(--warning))]",
     },
     {
       label: "Unacknowledged",
       value: alertStats.data?.unacknowledged ?? 0,
-      glyph: "🔴",
+      icon: BellRing,
       valueClass: "text-destructive",
       sub: "alerts last 24h",
     },
     {
       label: "Active Patrols",
       value: kpis.data?.activePatrols ?? 0,
-      glyph: "🚤",
+      icon: Shield,
       valueClass: "text-foreground",
     },
     {
       label: "Rangers on Duty",
       value: kpis.data?.rangersOnDuty ?? 0,
-      glyph: "👥",
+      icon: Users,
       valueClass: "text-[hsl(var(--success))]",
     },
     {
       label: "Events This Month",
       value: kpis.data?.eventsThisMonth ?? 0,
-      glyph: "📊",
+      icon: BarChart3,
       valueClass: "text-[hsl(var(--info))]",
       ...(kpis.data
         ? (() => {
