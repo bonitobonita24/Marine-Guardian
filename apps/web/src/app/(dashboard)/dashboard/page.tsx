@@ -40,7 +40,7 @@ export default function DashboardPage() {
   const alertStats = trpc.dashboard.alertStats.useQuery();
   const lastIncident = trpc.dashboard.lastIncident.useQuery();
   const alerts = trpc.alertHistory.list.useQuery({ limit: 10 });
-  const patrols = trpc.patrol.list.useQuery({ state: "open", limit: 50 });
+  const patrols = trpc.dashboard.activePatrols.useQuery();
 
   // Track which alert ID is currently being acknowledged (optimistic spinner).
   const [ackingId, setAckingId] = useState<string | null>(null);
@@ -153,15 +153,7 @@ export default function DashboardPage() {
 
   const feedEvents: FeedEvent[] = recent.data ?? [];
 
-  const activePatrols: ActivePatrol[] = (patrols.data?.items ?? []).map((p) => ({
-    id: p.id,
-    patrolType: p.patrolType,
-    areaName: p.areaName,
-    startTime: p.startTime,
-    totalDistanceKm: p.totalDistanceKm,
-    computedDistanceKm: p.computedDistanceKm,
-    leaderName: p.segments[0]?.leaderName ?? p.title ?? null,
-  }));
+  const activePatrols: ActivePatrol[] = patrols.data ?? [];
 
   const incident: LastIncident = lastIncident.data ?? null;
 

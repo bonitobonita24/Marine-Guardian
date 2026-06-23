@@ -16,11 +16,26 @@ vi.mock("@marine-guardian/db", () => ({
       findFirst: vi.fn(),
       findMany: vi.fn(),
     },
+    patrolTrack: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+    },
     patrolArea: {
       findMany: vi.fn(),
     },
   },
 }));
+
+// Build a stored PatrolTrack.trackGeojson FeatureCollection (LineString of
+// [lon, lat] coords) — the authoritative track geometry the map now reads.
+function lineStringGeojson(coords: [number, number][]) {
+  return {
+    type: "FeatureCollection",
+    features: [
+      { type: "Feature", geometry: { type: "LineString", coordinates: coords } },
+    ],
+  };
+}
 
 vi.mock("../../../lib/rate-limit", () => ({
   rateLimiters: {
@@ -178,36 +193,52 @@ describe("map.patrolTracks.byPatrolId", () => {
     vi.clearAllMocks();
   });
 
-  it("returns observations along a patrol track scoped to the patrol's leader and time window", async () => {
+  it("returns the stored track polyline (trackGeojson) for the patrol", async () => {
     vi.mocked(prisma.patrol.findFirst).mockResolvedValue({
       id: "patrol-1",
       tenantId: TENANT_ID,
       startTime: new Date("2026-05-10T08:00:00Z"),
       endTime: new Date("2026-05-10T12:00:00Z"),
-      segments: [
-        { leaderErId: "er-leader-1" },
-      ],
+      segments: [{ leaderErId: "er-leader-1" }],
     } as any);
 
-    vi.mocked(prisma.subject.findMany).mockResolvedValue([
-      { id: "sub-leader-1" },
-    ] as any);
-
-    vi.mocked(prisma.observation.findMany).mockResolvedValue([
-      {
-        locationLat: 1.5,
-        locationLon: 124.0,
-        recordedAt: new Date("2026-05-10T09:00:00Z"),
-      },
-      {
-        locationLat: 1.51,
-        locationLon: 124.01,
-        recordedAt: new Date("2026-05-10T10:00:00Z"),
-      },
-    ] as any);
+    vi.mocked(prisma.patrolTrack.findUnique).mockResolvedValue({
+      trackGeojson: lineStringGeojson([
+        [124.0, 1.5],
+        [124.01, 1.51],
+        [124.02, 1.52],
+      ]),
+    } as any);
 
     const caller = createCaller(makeCtx());
     const result = await caller.patrolTracks.byPatrolId({ patrolId: "patrol-1" });
+
+    expect(result.points).toHaveLength(3);
+    // GeoJSON is [lon, lat]; the API returns {lat, lon}.
+    expect(result.points[0]).toMatchObject({ lat: 1.5, lon: 124.0 });
+    // Stored track is preferred — no observation reconstruction needed.
+    expect(vi.mocked(prisma.observation.findMany)).not.toHaveBeenCalled();
+  });
+
+  it("falls back to observation reconstruction when no stored track exists", async () => {
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValue({
+      id: "patrol-live",
+      tenantId: TENANT_ID,
+      startTime: new Date("2026-05-10T08:00:00Z"),
+      endTime: new Date("2026-05-10T12:00:00Z"),
+      segments: [{ leaderErId: "er-leader-1" }],
+    } as any);
+    vi.mocked(prisma.patrolTrack.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.subject.findMany).mockResolvedValue([
+      { id: "sub-leader-1" },
+    ] as any);
+    vi.mocked(prisma.observation.findMany).mockResolvedValue([
+      { locationLat: 1.5, locationLon: 124.0, recordedAt: new Date("2026-05-10T09:00:00Z") },
+      { locationLat: 1.51, locationLon: 124.01, recordedAt: new Date("2026-05-10T10:00:00Z") },
+    ] as any);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.patrolTracks.byPatrolId({ patrolId: "patrol-live" });
 
     expect(result.points).toHaveLength(2);
     expect(result.points[0]).toMatchObject({ lat: 1.5, lon: 124.0 });
@@ -228,7 +259,7 @@ describe("map.patrolTracks.byPatrolId", () => {
     ).rejects.toThrow();
   });
 
-  it("returns empty points if patrol has no segments with leaders", async () => {
+  it("returns empty points if no stored track and patrol has no leadered segments", async () => {
     vi.mocked(prisma.patrol.findFirst).mockResolvedValue({
       id: "patrol-2",
       tenantId: TENANT_ID,
@@ -236,6 +267,7 @@ describe("map.patrolTracks.byPatrolId", () => {
       endTime: new Date(),
       segments: [],
     } as any);
+    vi.mocked(prisma.patrolTrack.findUnique).mockResolvedValue(null);
 
     const caller = createCaller(makeCtx());
     const result = await caller.patrolTracks.byPatrolId({ patrolId: "patrol-2" });
@@ -249,35 +281,23 @@ describe("map.patrolTracks.active", () => {
     vi.clearAllMocks();
   });
 
-  it("returns one styled track per open patrol with its patrolType, scoped to tenant", async () => {
-    vi.mocked(prisma.patrol.findMany).mockResolvedValue([
+  it("returns one styled track per recent patrol-with-track, tagged by patrolType, scoped to tenant", async () => {
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([
       {
-        id: "patrol-sea",
-        title: "Bay sweep",
-        patrolType: "seaborne",
-        startTime: new Date("2026-05-10T08:00:00Z"),
-        endTime: new Date("2026-05-10T12:00:00Z"),
-        segments: [{ leaderErId: "er-sea" }],
+        trackGeojson: lineStringGeojson([
+          [124.0, 1.5],
+          [124.01, 1.51],
+        ]),
+        patrol: { id: "patrol-sea", title: "Bay sweep", patrolType: "seaborne" },
       },
       {
-        id: "patrol-foot",
-        title: "Shore walk",
-        patrolType: "foot",
-        startTime: new Date("2026-05-10T08:00:00Z"),
-        endTime: new Date("2026-05-10T12:00:00Z"),
-        segments: [{ leaderErId: "er-foot" }],
+        trackGeojson: lineStringGeojson([
+          [125.0, 2.5],
+          [125.01, 2.51],
+          [125.02, 2.52],
+        ]),
+        patrol: { id: "patrol-foot", title: "Shore walk", patrolType: "foot" },
       },
-    ] as any);
-
-    vi.mocked(prisma.subject.findMany).mockResolvedValue([
-      { id: "sub-sea", erSubjectId: "er-sea" },
-      { id: "sub-foot", erSubjectId: "er-foot" },
-    ] as any);
-
-    // Both patrols resolve to >= 2 points.
-    vi.mocked(prisma.observation.findMany).mockResolvedValue([
-      { locationLat: 1.5, locationLon: 124.0, recordedAt: new Date("2026-05-10T09:00:00Z") },
-      { locationLat: 1.51, locationLon: 124.01, recordedAt: new Date("2026-05-10T10:00:00Z") },
     ] as any);
 
     const caller = createCaller(makeCtx());
@@ -288,46 +308,37 @@ describe("map.patrolTracks.active", () => {
     expect(byId["patrol-sea"]?.patrolType).toBe("seaborne");
     expect(byId["patrol-foot"]?.patrolType).toBe("foot");
     expect(byId["patrol-sea"]?.points).toHaveLength(2);
+    expect(byId["patrol-sea"]?.points[0]).toMatchObject({ lat: 1.5, lon: 124.0 });
 
-    // Only open, non-deleted, non-test patrols for THIS tenant are queried.
-    const patrolCall = vi.mocked(prisma.patrol.findMany).mock.calls[0]?.[0];
-    expect(patrolCall?.where).toMatchObject({
+    // Recent patrols regardless of state (not open-only); non-deleted, non-test,
+    // this tenant; ordered by track recency; bounded payload.
+    const call = vi.mocked(prisma.patrolTrack.findMany).mock.calls[0]?.[0];
+    expect(call?.where).toMatchObject({
       tenantId: TENANT_ID,
-      state: "open",
-      isDeleted: false,
-      isTestPatrol: false,
+      patrol: { isDeleted: false, isTestPatrol: false },
     });
-    // Bounded payload.
-    expect(patrolCall?.take).toBe(50);
+    expect(call?.where).not.toHaveProperty("state");
+    expect(call?.take).toBe(50);
+    expect(call?.orderBy).toMatchObject({ until: "desc" });
   });
 
   it("scopes to tenant — never leaks cross-tenant tracks", async () => {
-    vi.mocked(prisma.patrol.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([]);
 
     const caller = createCaller(makeCtx("other-tenant"));
     const result = await caller.patrolTracks.active();
 
     expect(result.tracks).toEqual([]);
-    const patrolCall = vi.mocked(prisma.patrol.findMany).mock.calls[0]?.[0];
-    expect(patrolCall?.where).toMatchObject({ tenantId: "other-tenant" });
+    const call = vi.mocked(prisma.patrolTrack.findMany).mock.calls[0]?.[0];
+    expect(call?.where).toMatchObject({ tenantId: "other-tenant" });
   });
 
-  it("omits patrols with fewer than 2 points (not renderable as a polyline)", async () => {
-    vi.mocked(prisma.patrol.findMany).mockResolvedValue([
+  it("omits tracks with fewer than 2 points (not renderable as a polyline)", async () => {
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([
       {
-        id: "patrol-thin",
-        title: "Single ping",
-        patrolType: "foot",
-        startTime: new Date("2026-05-10T08:00:00Z"),
-        endTime: new Date("2026-05-10T12:00:00Z"),
-        segments: [{ leaderErId: "er-thin" }],
+        trackGeojson: lineStringGeojson([[124.0, 1.5]]),
+        patrol: { id: "patrol-thin", title: "Single ping", patrolType: "foot" },
       },
-    ] as any);
-    vi.mocked(prisma.subject.findMany).mockResolvedValue([
-      { id: "sub-thin", erSubjectId: "er-thin" },
-    ] as any);
-    vi.mocked(prisma.observation.findMany).mockResolvedValue([
-      { locationLat: 1.5, locationLon: 124.0, recordedAt: new Date("2026-05-10T09:00:00Z") },
     ] as any);
 
     const caller = createCaller(makeCtx());

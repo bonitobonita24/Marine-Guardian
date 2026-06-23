@@ -45,7 +45,7 @@ export function ActivePatrols({
           id="warroom-patrols-heading"
           className="text-[11px] font-bold uppercase tracking-wide text-foreground"
         >
-          Active Patrols
+          Recent Patrols
         </h2>
         <span className="ml-auto text-[11px] font-semibold text-foreground">
           {patrols.length}

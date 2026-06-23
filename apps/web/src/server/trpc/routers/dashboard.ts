@@ -65,6 +65,43 @@ export const dashboardRouter = router({
     };
   }),
 
+  // WAR ROOM "Recent Patrols" table. In the EarthRanger dataset the patrol
+  // leader + track data lives on COMPLETED patrols (open patrols are
+  // header-only shells with no segment/leader), so an open-only list shows
+  // blank rangers. Return the most recent patrols regardless of state, ordered
+  // by start time (nulls last) so leadered, real patrols surface first
+  // (owner-chosen behaviour 2026-06-24). leaderName is the first segment that
+  // actually has a leader; null → the card renders an honest "—".
+  activePatrols: tenantProcedure.query(async ({ ctx }) => {
+    const patrols = await prisma.patrol.findMany({
+      where: { tenantId: ctx.tenantId, isDeleted: false, isTestPatrol: false },
+      orderBy: { startTime: { sort: "desc", nulls: "last" } },
+      take: 15,
+      select: {
+        id: true,
+        patrolType: true,
+        areaName: true,
+        startTime: true,
+        totalDistanceKm: true,
+        computedDistanceKm: true,
+        segments: { select: { leaderName: true } },
+      },
+    });
+
+    return patrols.map((p) => ({
+      id: p.id,
+      patrolType: p.patrolType,
+      areaName: p.areaName,
+      startTime: p.startTime,
+      totalDistanceKm: p.totalDistanceKm,
+      computedDistanceKm: p.computedDistanceKm,
+      leaderName:
+        p.segments.find(
+          (s) => s.leaderName != null && s.leaderName.length > 0,
+        )?.leaderName ?? null,
+    }));
+  }),
+
   eventBreakdown: tenantProcedure.query(async ({ ctx }) => {
     // Exclude Skylight automated vessel-detection events from the WAR ROOM
     // breakdown bars. Skylight events arrive from EarthRanger with

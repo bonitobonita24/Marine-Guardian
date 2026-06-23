@@ -74,6 +74,40 @@ export function resolvePatrolTrackWindow(patrol: PatrolTrackInput): {
   return { start, end };
 }
 
+type TrackPoint = { lat: number; lon: number; recordedAt: Date | null };
+
+/**
+ * Extract polyline points from a stored PatrolTrack.trackGeojson.
+ *
+ * Tracks are ingested from EarthRanger as a GeoJSON FeatureCollection whose
+ * first feature is a LineString of [lon, lat] coordinates (the dense GPS
+ * polyline). This is the authoritative track geometry — the dashboard map
+ * reads it directly rather than reconstructing a polyline from per-point
+ * Observation rows (which are only populated by the live track-token sync that
+ * is not always available). recordedAt is null because stored LineString
+ * coordinates carry no per-vertex timestamp (hasTimestamps=false at ingest).
+ */
+export function pointsFromTrackGeojson(geojson: unknown): TrackPoint[] {
+  const fc = geojson as
+    | { features?: { geometry?: { type?: string; coordinates?: unknown } }[] }
+    | null;
+  const geom = fc?.features?.[0]?.geometry;
+  if (!geom || geom.type !== "LineString" || !Array.isArray(geom.coordinates)) {
+    return [];
+  }
+  const out: TrackPoint[] = [];
+  for (const c of geom.coordinates as unknown[]) {
+    if (
+      Array.isArray(c) &&
+      typeof c[0] === "number" &&
+      typeof c[1] === "number"
+    ) {
+      out.push({ lon: c[0], lat: c[1], recordedAt: null });
+    }
+  }
+  return out;
+}
+
 const eventsRouter = router({
   list: tenantProcedure.input(eventsListInput).query(async ({ ctx, input }) => {
     const where: {
@@ -167,6 +201,21 @@ const patrolTracksRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Resource not found." });
       }
 
+      // Prefer the stored track polyline (PatrolTrack.trackGeojson) — that is
+      // where the dense GPS geometry lives. Fall back to reconstructing from
+      // Observation rows only when no stored track exists (e.g. a live patrol
+      // whose track is still being streamed via subject observations).
+      const storedTrack = await prisma.patrolTrack.findUnique({
+        where: { patrolId: patrol.id },
+        select: { trackGeojson: true },
+      });
+      if (storedTrack) {
+        const points = pointsFromTrackGeojson(storedTrack.trackGeojson);
+        if (points.length > 0) {
+          return { patrolId: patrol.id, points };
+        }
+      }
+
       const leaderErIds = patrol.segments
         .map((s) => s.leaderErId)
         .filter((id): id is string => id !== null);
@@ -214,113 +263,34 @@ const patrolTracksRouter = router({
       };
     }),
 
-  // All-active-tracks overlay: materialize the tracks of every open (active)
-  // patrol in one tenant-scoped request, tagged with patrolType so the client
-  // can style each track by type (seaborne solid / foot dashed). Bounded by
-  // ACTIVE_TRACKS_PATROL_CAP patrols and TRACK_OBSERVATION_CAP points each.
+  // All-tracks overlay: materialize the polylines of the most RECENT patrols
+  // (not only state="open") so the war-room map renders real track activity.
+  // In the EarthRanger dataset the GPS tracks live almost entirely on COMPLETED
+  // patrols (open patrols are header-only), so an open-only overlay is empty;
+  // showing the most recent patrols-with-tracks is the owner-chosen behaviour
+  // (2026-06-24). Reads stored PatrolTrack.trackGeojson directly, tagged with
+  // patrolType so the client styles each track by type (seaborne solid / foot
+  // dashed). Bounded by ACTIVE_TRACKS_PATROL_CAP, ordered by track recency.
   active: tenantProcedure.query(async ({ ctx }) => {
-    const patrols = await prisma.patrol.findMany({
+    const trackRows = await prisma.patrolTrack.findMany({
       where: {
         tenantId: ctx.tenantId,
-        state: "open",
-        isDeleted: false,
-        isTestPatrol: false,
+        patrol: { isDeleted: false, isTestPatrol: false },
       },
       take: ACTIVE_TRACKS_PATROL_CAP,
-      orderBy: { startTime: "desc" },
+      orderBy: { until: "desc" },
       select: {
-        id: true,
-        title: true,
-        patrolType: true,
-        startTime: true,
-        endTime: true,
-        segments: {
-          select: {
-            leaderErId: true,
-            actualStart: true,
-            actualEnd: true,
-            scheduledStart: true,
-            scheduledEnd: true,
-          },
-        },
+        trackGeojson: true,
+        patrol: { select: { id: true, title: true, patrolType: true } },
       },
     });
 
-    if (patrols.length === 0) return { tracks: [] };
-
-    // Resolve the union of all leader ER ids across the active patrols so we
-    // can map ER ids -> internal subject ids in a single query.
-    const allLeaderErIds = Array.from(
-      new Set(
-        patrols.flatMap((p) =>
-          p.segments
-            .map((s) => s.leaderErId)
-            .filter((id): id is string => id !== null),
-        ),
-      ),
-    );
-
-    const leaderSubjects =
-      allLeaderErIds.length === 0
-        ? []
-        : await prisma.subject.findMany({
-            where: {
-              tenantId: ctx.tenantId,
-              erSubjectId: { in: allLeaderErIds },
-            },
-            select: { id: true, erSubjectId: true },
-          });
-
-    const subjectIdByErId = new Map(
-      leaderSubjects.map((s) => [s.erSubjectId, s.id]),
-    );
-
-    const tracks = await Promise.all(
-      patrols.map(async (patrol) => {
-        const subjectIds = patrol.segments
-          .map((s) => s.leaderErId)
-          .filter((id): id is string => id !== null)
-          .map((erId) => subjectIdByErId.get(erId))
-          .filter((id): id is string => id !== undefined);
-
-        if (subjectIds.length === 0) {
-          return {
-            patrolId: patrol.id,
-            title: patrol.title,
-            patrolType: patrol.patrolType,
-            points: [] as { lat: number; lon: number; recordedAt: Date }[],
-          };
-        }
-
-        const { start, end } = resolvePatrolTrackWindow(patrol);
-
-        const observations = await prisma.observation.findMany({
-          where: {
-            tenantId: ctx.tenantId,
-            subjectId: { in: subjectIds },
-            recordedAt: { gte: start, lte: end },
-          },
-          orderBy: { recordedAt: "asc" },
-          take: TRACK_OBSERVATION_CAP,
-          select: {
-            locationLat: true,
-            locationLon: true,
-            recordedAt: true,
-          },
-        });
-
-        return {
-          patrolId: patrol.id,
-          title: patrol.title,
-          patrolType: patrol.patrolType,
-          points: observations.map((o) => ({
-            lat: o.locationLat,
-            lon: o.locationLon,
-            recordedAt: o.recordedAt,
-          })),
-        };
-      }),
-    );
+    const tracks = trackRows.map((row) => ({
+      patrolId: row.patrol.id,
+      title: row.patrol.title,
+      patrolType: row.patrol.patrolType,
+      points: pointsFromTrackGeojson(row.trackGeojson),
+    }));
 
     // Only return tracks that actually have a renderable polyline (>= 2 points).
     return { tracks: tracks.filter((t) => t.points.length >= 2) };
