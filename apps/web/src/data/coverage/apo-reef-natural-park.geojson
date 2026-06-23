@@ -1,0 +1,53 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Apo Reef Natural Park",
+        "type": "marine-protected-area",
+        "osmWayId": 181365709,
+        "wikidataId": "Q618756",
+        "wdpaId": 2340,
+        "source": "OpenStreetMap way 181365709",
+        "source_id": "OSM:way/181365709",
+        "license": "ODbL 1.0",
+        "sourceURL": "https://www.openstreetmap.org/way/181365709",
+        "retrievedAsOf": "2026-06-23",
+        "country": "Philippines",
+        "province": "Occidental Mindoro",
+        "parentMunicipality": "Sablayan",
+        "interim": true,
+        "interimNote": "This is a 4-corner legislated bounding rectangle (5 vertices incl. closing point, ~158 km²) derived from Senate Bill 2393 official boundaries as recorded in OpenStreetMap. Both the inner core (way 181365709) and the outer buffer zone (way 181365710) in OSM are identical bounding rectangles — no detailed coastline polygon exists in OSM for this protected area. The authoritative precise boundary is available from WDPA ID 2340 via the Protected Planet API (https://api.protectedplanet.net/v3/protected_areas/2340), which requires an API token. Run scripts/fetch-apo-reef-wdpa.ts once a token is available to replace this file with the authoritative polygon.",
+        "pendingAuthoritativeSource": "WDPA ID 2340 via Protected Planet API — token pending (PP_TOKEN env var)"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              120.5622222,
+              12.6863889
+            ],
+            [
+              120.4991667,
+              12.5963889
+            ],
+            [
+              120.3961111,
+              12.655
+            ],
+            [
+              120.4561111,
+              12.7463889
+            ],
+            [
+              120.5622222,
+              12.6863889
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

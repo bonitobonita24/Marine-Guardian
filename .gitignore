@@ -53,6 +53,8 @@ openclaw-handoff.md
 .DS_Store
 *.log
 coverage/
+# Allow the municipality/MPA GeoJSON data directory (not test coverage output)
+!/apps/web/src/data/coverage/
 
 # ─── Build + TypeScript cache (Spec-Driven V31) ───
 
