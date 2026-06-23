@@ -83,6 +83,27 @@ const CATEGORY_OPTIONS = [
   { value: "Monitoring, Patrolling & Surveillance", label: "Monitoring & Patrolling" },
 ];
 
+/** Humanize a raw snake_case/kebab code into Title Case. */
+function humanizeCode(code: string): string {
+  return code
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .trim();
+}
+
+/**
+ * Readable label for an event type. EarthRanger stores `display` as the raw
+ * code (e.g. "poacher_in_mpa") for custom types that have no friendly name —
+ * humanize those so the list never shows a raw code. Returns null when there
+ * is no usable label so callers can choose their own fallback.
+ */
+function eventTypeLabel(display: string | null | undefined): string | null {
+  if (display === null || display === undefined || display === "") return null;
+  return /^[a-z0-9]+([_-][a-z0-9]+)+$/i.test(display)
+    ? humanizeCode(display)
+    : display;
+}
+
 // ── Month helpers (monthly-accomplishment filter) ──────────────────────────
 
 function monthStart(iso: string): string {
@@ -408,17 +429,17 @@ function EventRow({ event, onOpenDetail, onStateChange, isStateChangePending }: 
             </span>
           )}
           <span className="truncate text-sm font-medium">
-            {event.title ?? "Untitled"}
+            {event.title ?? eventTypeLabel(event.eventType?.display) ?? "Untitled"}
           </span>
         </div>
 
         {/* Meta row: reporter · type · area · time */}
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
           <span>{event.reportedByName ?? "Unknown reporter"}</span>
-          {event.eventType !== null && (
+          {eventTypeLabel(event.eventType?.display) !== null && (
             <>
               <span aria-hidden="true" className="h-3 w-px bg-border" />
-              <span>{event.eventType.display}</span>
+              <span>{eventTypeLabel(event.eventType?.display)}</span>
             </>
           )}
           {(event.areaName ?? null) !== null && (

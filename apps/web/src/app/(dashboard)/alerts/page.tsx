@@ -35,6 +35,41 @@ const CHANNEL_OPTIONS: { value: ChannelValue; label: string }[] = [
 
 const SEVERITY_OPTIONS = ["critical", "high", "medium", "low"] as const;
 
+/** Humanize a raw snake_case/kebab code into Title Case ("sos_distress" → "Sos Distress"). */
+function humanizeCode(code: string): string {
+  return code
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .trim();
+}
+
+/**
+ * Human-readable description of an alert rule's trigger. Handles every
+ * condition shape the app stores: {severity}, {priority:{gte}}, and
+ * {eventTypeValue} (seeded rules use the latter two). Prevents the card from
+ * showing a bare "—" for any non-severity rule.
+ */
+function describeTrigger(cond: Record<string, unknown>): string {
+  if (typeof cond.severity === "string") {
+    return `Severity: ${humanizeCode(cond.severity)}`;
+  }
+  const pr = cond.priority;
+  if (
+    pr !== null &&
+    typeof pr === "object" &&
+    typeof (pr as { gte?: unknown }).gte === "number"
+  ) {
+    const n = (pr as { gte: number }).gte;
+    const level =
+      n >= 300 ? "Critical" : n >= 200 ? "High" : n >= 100 ? "Medium" : "Low";
+    return `Priority ≥ ${String(n)} (${level})`;
+  }
+  if (typeof cond.eventTypeValue === "string") {
+    return `Event type: ${humanizeCode(cond.eventTypeValue)}`;
+  }
+  return "Custom condition";
+}
+
 function channelBadges(channels: string[]) {
   return channels.map((ch) => (
     <Badge key={ch} variant="outline" className="text-xs">
@@ -313,8 +348,7 @@ export default function AlertsPage() {
         <div className="space-y-3">
           {rules.map((rule) => {
             const cond = rule.conditionJson as Record<string, unknown>;
-            const severity =
-              typeof cond.severity === "string" ? cond.severity : "—";
+            const trigger = describeTrigger(cond);
             const channels = Array.isArray(rule.notificationChannels)
               ? (rule.notificationChannels as string[])
               : [];
@@ -380,9 +414,9 @@ export default function AlertsPage() {
                 <CardContent className="pt-0">
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
                     <span>
-                      Severity:{" "}
+                      Trigger:{" "}
                       <span className="font-medium text-foreground">
-                        {severity}
+                        {trigger}
                       </span>
                     </span>
                     <span className="h-4 w-px bg-border" />
