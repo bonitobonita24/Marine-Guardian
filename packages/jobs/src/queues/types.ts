@@ -110,6 +110,20 @@ export interface SyncNeededRescanJobPayload extends BaseJobPayload {
   tenantId: string;
 }
 
+/**
+ * Municipality-assign job payload. Enqueued when:
+ *  - er-sync.processor finishes an event upsert (inline lat/lon assignment)
+ *  - patrol-track-materialize.processor finishes writing the PatrolTrack
+ *    (deferred because patrols need the first track point for Layer 1)
+ *
+ * jobId pattern: `municipality-assign__${tenantId}__${entity}__${id}`
+ * (double underscore separator — BullMQ rejects `:` in jobIds.)
+ */
+export interface MunicipalityAssignJobPayload extends BaseJobPayload {
+  entity: "patrol" | "event";
+  id: string;
+}
+
 export type JobPayloadMap = {
   "er-sync": ErSyncJobPayload;
   alerts: AlertJobPayload;
@@ -119,6 +133,7 @@ export type JobPayloadMap = {
   "patrol-track-materialize": PatrolTrackMaterializeJobPayload;
   "pdf-render": PdfRenderJobPayload;
   "sync-needed-rescan": SyncNeededRescanJobPayload;
+  "municipality-assign": MunicipalityAssignJobPayload;
 };
 
 export type QueueName = keyof JobPayloadMap;
@@ -132,4 +147,5 @@ export const QUEUE_NAMES = {
   PATROL_TRACK_MATERIALIZE: "patrol-track-materialize",
   PDF_RENDER: "pdf-render",
   SYNC_NEEDED_RESCAN: "sync-needed-rescan",
+  MUNICIPALITY_ASSIGN: "municipality-assign",
 } as const satisfies Record<string, QueueName>;

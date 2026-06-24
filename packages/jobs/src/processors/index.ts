@@ -9,3 +9,7 @@ export {
   processSyncNeededRescan,
   type SyncNeededRescanResult,
 } from "./sync-needed-rescan.processor";
+export {
+  processMunicipalityAssign,
+  type MunicipalityAssignResult,
+} from "./municipality-assign.processor";

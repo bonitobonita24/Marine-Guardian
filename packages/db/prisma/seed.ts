@@ -1,5 +1,6 @@
 import { PrismaClient, Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { seedMunicipalities } from "./seed-municipalities";
 
 const prisma = new PrismaClient();
 
@@ -494,6 +495,9 @@ async function main() {
     }
   }
 
+  // Seed municipalities + protected zones for all tenants.
+  await seedMunicipalities(prisma);
+
   console.log("Seed complete:");
   console.log(`  Tenant:         ${tenant.name} (${tenant.id})`);
   console.log(`  Webmaster:      webmaster@marine-guardian.local (super_admin)`);
@@ -509,6 +513,7 @@ async function main() {
   console.log(`  Fuel Entries:   3`);
   console.log(`  Alert Rules:    2`);
   console.log(`  Report Exports: 2`);
+  console.log(`  Municipalities: 11 + 1 protected zone (per tenant)`);
 }
 
 main()
