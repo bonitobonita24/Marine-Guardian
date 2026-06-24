@@ -619,6 +619,8 @@ See `Product_md_Planning_Assistant_v31.md` — Phase 2.8 section (trigger logic,
 
 **MODEL HOOK (V32.5 — Phase 2.8 → Phase 3.3 designer-skills hand-off; target updated V32.6):** Planning Assistant Step 7 emits `docs/DESIGN.md` (token baseline) and `docs/MOCKUP.jsx` (visual baseline). These are the **human-verified contract** — Claude Code's designer-skills bundle MUST inherit, never regenerate. At **Phase 3.3** (V32.6 — moved from Phase 4 Parts 5-6), `/design-tokens` EXPANDS the DESIGN.md token table, `/design-review` audits MOCKUP.jsx against the expanded tokens, `/design-refine` runs only on flagged components. This preserves Rule 1 (human approves PA artifacts; Claude Code cannot silently overwrite verified design intent). If PA Step 7 was skipped (no DESIGN.md), Phase 3.3 may invoke `/design-aesthetic` once to establish a baseline + log to PRODUCT.md Section 10 (Scenario 33). **Gate-closure (V32.5.1):** Phase 2.8 cannot close until `/design-review` returns green OR every flag has been resolved by `/design-refine`. A "soft pass" with unresolved flags is NOT permitted — Phase 3 (spec-file generation) MUST NOT begin while the visual baseline carries open audit findings.
 
+**MODEL HOOK (V32.11 — shadcn/studio Pro generator routing):** From Phase 3.3 onward the framework's DEFAULT design generator is the owner's licensed **shadcn/studio Pro MCP** (a user-global, build-time generator; output = plain shadcn/ui — see `AI_Tools_Skills_MCPs_Reference_v31.md §2.5`). Command routing: **`/cui`** (Create-UI) is the daily driver — builds a whole page / multiple sections from Pro blocks ("collect first, install last"); **`/iui`** (Inspire-UI, Pro-only) adds per-section distinctiveness — ONE section at a time, never whole pages; **`/rui`** (Refine-UI) polishes an already-generated block; **`/ftc`** (Figma→Code) ONLY when the design source is Figma AND the Figma MCP is present — otherwise skip. At **Phase 3.3 (design finalization)** the recommended trio is `/cui` (structure) → `/iui` (per-section distinctiveness) → `/rui` (polish), THEN compile tokens → `/design-refine` → sign off → capture the DESIGN baseline (ordering per ui-rules.md Rule 12). **INHERIT-not-REPLACE (HARD):** Pro blocks carry their own tokens — reconcile every generated block to `docs/DESIGN.md` / the compiled tokens; the block NEVER overrides the design system. The PA's `docs/MOCKUP.jsx` stays the visual source of truth. **Fallback** when the Pro MCP is unreachable: the plain shadcn/ui MCP + Blocks gallery (same shadcn/ui output, lower automation). `/iui` is a Phase 3.3 tool — Phase 4 Parts 5-6 and Phase 7 default to `/cui` + `/rui` so the finalized design is not re-opened.
+
 ### PHASE 3 INTERACTION
 Zero. Phase 3 in Claude Code proceeds based on PRODUCT.md + inputs.yml regardless
 of whether Phase 2.8 ran, passed, or was skipped. The mockup is ephemeral — used
@@ -1898,6 +1900,7 @@ Note: design-auditor and frontend-design are already in Primary Group Slot 4.
 Note: react-doctor is a supplementary diagnostic (NOT a Primary Group slot) — /scan-project recommends it on a React signal after a read-only audit, installs only on approval.
 Note: designer-skills is a supplementary bundle (NOT a Primary Group slot) — /scan-project installs via approval gate on a frontend+styling signal; commands route INHERIT-not-REPLACE over PA artifacts (V32.5).
 Note: vercel-agent-skills may be suggested by /scan-project for Next.js projects — accept it.
+Note: shadcn/studio Pro (V32.11) — at Parts 5-6 the design is FROZEN (Phase 3.3). Use `/cui` to install any remaining production blocks/pages and `/rui` to refine — NOT `/iui` (no new design exploration; INHERIT-not-REPLACE). Reconcile every generated block to the compiled tokens (Rule 12). See `AI_Tools_Skills_MCPs_Reference_v31.md §2.5`.
 
 ### Phase 4 Part 7 (Docker + infrastructure) — conditional
 
@@ -1967,6 +1970,7 @@ with the superpowers bundle.
 Note: code-review requesting/receiving is already in superpowers (Slot 1).
 Note: blast radius analysis is already in code-review-graph (Slot 2).
 Note: designer-skills INHERIT-not-REPLACE — `docs/DESIGN.md` is the human-verified baseline (PA Step 7 or earlier Phase 4); designer-skills sharpen, they never regenerate (V32.5).
+Note: shadcn/studio Pro (V32.11) — for new UI surfaces use `/cui` (new pages/sections), `/iui` ONLY for a genuinely new distinctive section, `/rui` to polish; reconcile generated tokens to the existing `docs/DESIGN.md` (INHERIT-not-REPLACE). See `AI_Tools_Skills_MCPs_Reference_v31.md §2.5`.
 ```
 
 **Skill activation rules:**

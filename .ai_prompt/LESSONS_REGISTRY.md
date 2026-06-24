@@ -109,3 +109,18 @@ _Promoted: 2026-06-17_
 _Promoted: 2026-06-18_
 
 ---
+
+## framework.design-generation.routing
+
+| Field | Value |
+|---|---|
+| **fingerprint** | `framework.design-generation.routing` |
+| **machine_signature** | (none — AI-judged: a UI surface added without routing through the shadcn/studio Pro decision tree, or a generated block whose tokens override `docs/DESIGN.md` / compiled tokens instead of reconciling) |
+| **scope** | `framework` |
+| **failure** | UI built off-routing once shadcn/studio Pro is the default generator (V32.11): a component hand-written when a Pro block covers it · `/iui` used to re-explore design AFTER the Phase 3.3 freeze · a Pro block's own tokens left overriding `docs/DESIGN.md` instead of reconciling to compiled tokens (Rule 12). Result = design-contract drift + wasted effort. Codified with V32.11 adoption (no single dated incident — preventive, generalized from the recurring mockup→app drift failure mode that motivated Rules 31 & 12). |
+| **standing_check** | At work-start before any UI-generation task (Phase 3.3 / 4 Parts 5-6 / 7) AND at done-claim: confirm the surface was routed through the **Design Generation Decision Tree** (`ui-rules.md`) — `/cui` for new pages/sections · `/iui` for a distinctive section (Phase 3.3 ONLY) · `/rui` to tweak · `/ftc` only with a Figma source + the Figma MCP — and that every generated block's tokens were reconciled to `docs/DESIGN.md` / compiled tokens, never overriding (Rule 12). Fallback = plain shadcn/ui MCP + Blocks when the Pro MCP is unreachable. |
+| **check_location** | `ui-rules.md` "Design Generation Decision Tree" + `phases.md` Phase 3.3 / Parts 5-6 / Phase 7 MODEL HOOKs + `AI_Tools_Skills_MCPs_Reference_v31.md §2.5` |
+
+_Promoted: 2026-06-23_
+
+---

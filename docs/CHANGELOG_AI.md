@@ -1126,3 +1126,15 @@
 - Errors encountered:  Full web suite flagged 2 map.test.ts failures after the source findUnique→findFirst change (mock still targeted findUnique).
 - Errors resolved:     Updated map.test.ts mock object + 3 mockResolvedValue references to prisma.patrol.findFirst. Re-ran clean. PatrolSelector inherits the new default automatically (no change needed). getById intentionally NOT filtered (admin restore path).
 - Verification:        Validation gate 3/3 GREEN — pnpm --filter @marine-guardian/web build ✓ (Next.js production build, ESLint + types clean), pnpm --filter @marine-guardian/web test ✓ (748/748, +6 net new). Tier 1 (10 files, 1 module surface). NO origin push (human reviews and pushes).
+
+## 2026-06-24 — Framework Sync V32.9 → V32.11
+- Agent:               CLAUDE_CODE (AIEF conductor dispatch — Claude Sonnet 4.6)
+- Why:                 Framework governance sync. Advances Marine-Guardian from Spec-Driven V32.9 to V32.11. V32.10 adds mandatory Docker Compose resource limits (mem_limit/mem_reservation/cpus on all stage/prod services via templates.md). V32.11 instates shadcn/studio Pro MCP as the framework's default design generator, phase-routed: Phase 3.3 /cui→/iui→/rui, Parts 5-6 /cui+/rui, Phase 7 /cui+/iui+/rui; INHERIT-not-REPLACE over docs/DESIGN.md.
+- Files modified:      CLAUDE.md (compact card V32.9→V32.11), AI/Master_Prompt_v31.md (monolith V32.9→V32.11), .ai_prompt/CLAUDE_v31_compact.md, .ai_prompt/Master_Prompt_v31.md, .ai_prompt/phases.md, .ai_prompt/templates.md (mem_limit table + shadcn/studio routing), .ai_prompt/ui-rules.md (V32.11 design-gen rules), .ai_prompt/AI_Tools_Skills_MCPs_Reference_v31.md (MCP servers 4→5), .ai_prompt/ChatGPT_V31_Cross_Audit_Prompt.md, .ai_prompt/Framework_Feature_Index_v31.md, .ai_prompt/LESSONS_REGISTRY.md, .claude/settings.json (framework keys merged), deploy-v31.sh
+- Files added:         none
+- Files deleted:       none
+- Schema/migrations:   none
+- Errors encountered:  none
+- Errors resolved:     n/a
+- Verification:        Safety gate GREEN — only framework deliverable files modified; docs/ NEVER-TOUCH paths confirmed untouched (14 files preserved). Step-7 markers: CLAUDE.md=V32.11 ✓, templates.md contains mem_limit ✓, CLAUDE.md references shadcn/studio + /cui /iui /rui ✓.
+- Final ship:          branch chore/framework-sync-v32.11 — HOLD for owner review before merge to main.

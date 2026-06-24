@@ -1,6 +1,6 @@
-# Spec-Driven Platform V32.9 — Cross-AI Audit Prompt (for ChatGPT)
+# Spec-Driven Platform V32.11 — Cross-AI Audit Prompt (for ChatGPT)
 
-> **Purpose:** Hand this prompt to ChatGPT along with the 23 V32.9 framework files. ChatGPT independently audits V32.9 to verify the framework remains internally consistent across all canonical files. Items 1-7 below are historical V31-era audit goals (still verified as baseline); V32 / V32.1 / V32.2 / V32.3 / V32.4 / V32.4.1 / V32.5 / V32.5.1 / V32.5.2 / V32.5.3 / V32.5.4 / V32.5.5 / V32.6 / V32.6.1 / V32.7 / V32.7.1 / V32.7.2 / V32.7.3 / V32.7.4 / V32.7.5 / V32.8 / V32.8.1 / V32.9 verification items live in **Section K (K.1-K.65)** with the V32.9 verified counts block (V32.5.3 bumps Prompts 60→61 and NEW 37→38; V32.5.4 / V32.5.5 / V32.6 / V32.6.1 / V32.7 / V32.7.1 / V32.7.3 / V32.7.4 are no-count-change patches; deliverable files changed twice: 17→19 at V32.7.2 and 19→20 at V32.7.5; **V32.8 bumps Rules 30→32, Scenarios 35→39, UI Rules 11→12, Phase Hooks 14→17, Bootstrap Steps 19→20, memory-gov sections 5→6, deliverable files 20→22**; **V32.8.1 is a docs-only patch — zero count change**; **V32.9 bumps Rules 32→33, UI Rules 12→13, Phase Hooks 17→18, deliverables 22→23, Security Checklist 84→98 items / 13→14 sections, PRODUCT.md 11→12 sections, PA Rules 11→12**):
+> **Purpose:** Hand this prompt to ChatGPT along with the 23 V32.11 framework files. ChatGPT independently audits V32.11 to verify the framework remains internally consistent across all canonical files. Items 1-7 below are historical V31-era audit goals (still verified as baseline); V32 / V32.1 / V32.2 / V32.3 / V32.4 / V32.4.1 / V32.5 / V32.5.1 / V32.5.2 / V32.5.3 / V32.5.4 / V32.5.5 / V32.6 / V32.6.1 / V32.7 / V32.7.1 / V32.7.2 / V32.7.3 / V32.7.4 / V32.7.5 / V32.8 / V32.8.1 / V32.9 / V32.10 / V32.11 verification items live in **Section K (K.1-K.67)** with the V32.11 verified counts block (V32.5.3 bumps Prompts 60→61 and NEW 37→38; V32.5.4 / V32.5.5 / V32.6 / V32.6.1 / V32.7 / V32.7.1 / V32.7.3 / V32.7.4 are no-count-change patches; deliverable files changed twice: 17→19 at V32.7.2 and 19→20 at V32.7.5; **V32.8 bumps Rules 30→32, Scenarios 35→39, UI Rules 11→12, Phase Hooks 14→17, Bootstrap Steps 19→20, memory-gov sections 5→6, deliverable files 20→22**; **V32.8.1 is a docs-only patch — zero count change**; **V32.9 bumps Rules 32→33, UI Rules 12→13, Phase Hooks 17→18, deliverables 22→23, Security Checklist 84→98 items / 13→14 sections, PRODUCT.md 11→12 sections, PA Rules 11→12**; **V32.10 is a zero-count-change templates-only patch — no rule/scenario/prompt/deliverable/file added**; **V32.11 bumps MCP servers 4→5 — adds shadcn/studio Pro as the framework's default design generator (user-global MCP, phase-routed /cui /iui /rui /ftc); no rule/scenario/prompt/deliverable/file added**):
 > 1. Phase 2.8 (Clickable Mockup Review — added V31) is correctly documented
 > 2. Cline deprecation (in-place V31 update) is consistent across all files
 > 3. Historical V30 changelog references are preserved
@@ -9,7 +9,7 @@
 > 6. No regressions introduced during the updates
 > 7. Post-lock additive patches: Phase 3.5, Phase 4+8 anti-thrashing, Skill Installer, Prompt 4.13, attribution cleanup, prompt count 55 (V31 era — V32.5.3 current: **61 prompts (38 NEW ✨)**, **35 scenarios**, **19 bootstrap steps**, **9 V32 Dispatch Rules (R1-R9) + V32.3 R6 size qualifier (allow-list >200 lines via Scout with Governance Extraction Schema)**)
 >
-> **How to interpret counts:** The **V32.9 verified counts block** (around line 87 below) is authoritative for current totals. Historical changelog entries and items 1-7 above may reference older totals reflecting their version-at-time-of-writing (e.g., 55 prompts, 34 scenarios, 18 bootstrap steps for V31 lock; 30 rules / 35 scenarios / 14 phase hooks for V32.7.5; 32 rules / 22 deliverables / 17 phase hooks for V32.8.1) — those are correct for their version and **MUST NOT be treated as current**. When a count appears without a V32.9 annotation, cross-check against the verified counts block before reporting.
+> **How to interpret counts:** The **V32.11 verified counts block** (around line 87 below) is authoritative for current totals. Historical changelog entries and items 1-7 above may reference older totals reflecting their version-at-time-of-writing (e.g., 55 prompts, 34 scenarios, 18 bootstrap steps for V31 lock; 30 rules / 35 scenarios / 14 phase hooks for V32.7.5; 32 rules / 22 deliverables / 17 phase hooks for V32.8.1) — those are correct for their version and **MUST NOT be treated as current**. When a count appears without a V32.11 annotation, cross-check against the verified counts block before reporting.
 >
 > **Use case:** Run this after every major framework update to catch mistakes Claude missed.
 >
@@ -84,14 +84,14 @@ Bonito's user preference: keep Cline extension installed in VS Code as emergency
 - Post-lock patches add Phase 3.5 as a NEW phase (between Phase 3 and Phase 4) and anti-thrashing rules to Phase 4 and Phase 8. These are in phases.md and Master_Prompt_v31.md. They do NOT change the framework rule count, scenario count, or bootstrap step count.
 - Post-lock patches add a **Context Budget — Global Principle** to CLAUDE_v31_compact.md and Master_Prompt_v31.md. This is a Sonnet 4.6 model-aware task sizing principle (200K window, 120K practical, ≤80K SAFE zone, 12-file threshold). It governs how ALL work is scoped — not a new rule, but a non-negotiable behavioral principle.
 
-### V32.9 verified counts (must match in every file that quotes them)
+### V32.11 verified counts (must match in every file that quotes them)
 
 ```
 33 Rules · 39 Scenarios · 20 Bootstrap Steps · 8 Phase 4 Parts
 9 Phase 5 Commands · 16 Phase 6.5 Categories · 16 Secure Code Gen sub-sections
 13 UI Component Rules · 98 Security Checklist items (14 sections)
 61 Prompts (38 NEW ✨) in Prompt_References.md and Prompt_References.html
-23 deliverable files (16 in .ai_prompt/ + deploy-v31.sh at project root + spec-executor.md → .claude/agents/ + settings.json → .claude/settings.json + lint-deploy.sh → scripts/lint-deploy.sh + design-stop-hook.sh → scripts/ + LESSONS_REGISTRY.md → .ai_prompt/ + privacy.md → .ai_prompt/) · 4 MCP servers (3 wired + 1 plugin) · Node v22 · pnpm@10
+23 deliverable files (16 in .ai_prompt/ + deploy-v31.sh at project root + spec-executor.md → .claude/agents/ + settings.json → .claude/settings.json + lint-deploy.sh → scripts/lint-deploy.sh + design-stop-hook.sh → scripts/ + LESSONS_REGISTRY.md → .ai_prompt/ + privacy.md → .ai_prompt/) · 5 MCP servers (3 wired + 1 user-global + 1 plugin) · Node v22 · pnpm@10
 Phase count: 8 main phases + 2.5 + 2.6 + 2.7 + 2.8 (V31) + 3.3 (V32.6) + 3.5 (POST-LOCK) + 6.5
 6 agents (Claude Code primary: Opus 4.6 Architect + Sonnet 4.6 Executor · Cline ⚠ DEPRECATED · Copilot · SpecStory · SocratiCode · code-review-graph)
 9 governance docs (unchanged)
@@ -407,7 +407,7 @@ These items MUST remain as "V30" because they describe what V30 did historically
 □ E.8  Secure Code Gen sub-sections = 16 in all files
 □ E.9  UI Component Rules = 10 in all files
 □ E.10 Deliverable file count = 16 in all files that mention it (15 in .ai_prompt/ + deploy-v31.sh at project root)
-□ E.11 MCP servers = 4 (3 wired + 1 plugin)
+□ E.11 MCP servers = 5 (3 wired + 1 user-global [shadcn/studio Pro, V32.11] + 1 plugin)
 □ E.12 Node v22, pnpm@10 referenced consistently
 □ E.13 6 agents still listed (Cline remains as 6th but marked deprecated — count stays 6)
 ```
@@ -1686,6 +1686,48 @@ Verify each is present in the specified locations.
        FAIL for any current-state stale count found.
        PASS only if every occurrence of the above is inside a frozen historical context (dated changelog
        entry, per-version K-item, or explicit "at VXX.Y" qualifier).
+
+□ K.66 (V32.10) — Mandatory compose resource limits in templates.md (zero-count-change templates patch):
+       Verify in `templates.md`:
+         (a) Stage/prod compose service definitions mandate top-level `mem_limit`, `mem_reservation`, and
+             `cpus` keys on every service — NOT a `deploy:` block (non-swarm Komodo / `docker compose up`
+             silently ignores `deploy.resources`).
+         (b) A per-service-role default table is present (e.g. app, worker, db role defaults).
+         (c) The OOM caveat is stated: a DB's `mem_limit` MUST exceed its buffer-pool size
+             (e.g. `innodb_buffer_pool_size=512M` → cap ≥ 768m) or the container OOM-kills under load.
+         (d) Dev compose is explicitly exempt from the resource-limit mandate.
+         (e) Zero count change confirmed: no new rule/scenario/prompt/deliverable/file added; all canonical
+             counts (33 rules · 39 scenarios · 61 prompts · 23 deliverables · 18 phase hooks) are unchanged.
+       FAIL if any of (a)-(d) is missing from templates.md, or if any canonical count changed.
+       PASS if (a)-(e) all confirmed.
+
+### V32.11 — shadcn/studio Pro Design Generator
+
+□ K.67 (V32.11) — shadcn/studio Pro adopted as the framework's default design generator:
+       Verify across the framework:
+         (a) `AI_Tools_Skills_MCPs_Reference_v31.md` has a new §2.5 documenting the shadcn/studio Pro MCP
+             (user-global · build-time · output = plain shadcn/ui) with the /cui /iui /rui /ftc command map.
+         (b) The two prior "shadcn-studio = not recommended (paid)" notes are GONE — reconciled to a
+             "sanctioned design generator" block in BOTH `ui-rules.md` AND `Master_Prompt_v31.md`.
+         (c) `phases.md` carries the command routing in MODEL HOOKs: Phase 2.8→3.3 (the /cui→/iui→/rui
+             trio), Phase 4 Parts 5-6 (/cui + /rui, design FROZEN — no /iui), Phase 7 (/cui + /iui
+             new-sections-only + /rui). /ftc is conditional on a Figma source + the Figma MCP.
+         (d) INHERIT-not-REPLACE is stated: generated blocks reconcile to docs/DESIGN.md / compiled tokens
+             (Rule 12), never override; fallback when unreachable = plain shadcn/ui MCP + Blocks.
+         (e) Counts: MCP servers 4 → 5 (3 project-wired + 1 user-global + 1 plugin) propagated to
+             CLAUDE_v31_compact.md, root CLAUDE.md, CLAUDE_framework_repo.md, E.11 above, the V32.11
+             verified-counts block, and `public/documentation-hub.html` (sd-counts callout). ALL other
+             canonical counts unchanged (33 Rules · 39 Scenarios · 13 UI Rules · 61 Prompts · 23 deliverables).
+         (f) Version markers read V32.11 (not a stale earlier marker) in every "current"-tense surface:
+             this file's title + Purpose + "verified counts" header (K.1-K.67 range), CLAUDE_v31_compact.md
+             header, Framework_Feature_Index_v31.md "> Current framework version" line AND its §1.2
+             "Claude Code (Primary Agent — current V32.11 behavior...)" subsection title, and the
+             documentation-hub.html "Reconcile to current V32.11" pointer. Historical changelog/K-item
+             snapshots that name an earlier version are correct and MUST be left as-is.
+       FAIL if any "not recommended (paid)" shadcn-studio note remains, if §2.5 is missing, if the MCP
+            server count is still 4 anywhere, if any non-MCP canonical count changed, or if any
+            current-tense version marker still names a pre-V32.11 version.
+       PASS if (a)-(f) all confirmed.
 
 ---
 

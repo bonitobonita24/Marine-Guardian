@@ -541,6 +541,40 @@ networks:
     driver: bridge
 ```
 
+**Resource limits (mem/cpu) — MANDATORY on stage + prod, every service.**
+Framework hosts run many stacks on one small shared VPS (e.g. 8 GB). Every service in the
+**stage and prod** compose files MUST declare resource caps so one container can't starve the host.
+Use the **top-level compose keys** `mem_limit` / `mem_reservation` / `cpus` — NOT a `deploy:` block
+(Komodo / `docker compose up` run non-swarm, where `deploy.resources` is ignored). **Dev is exempt**
+(runs on the developer machine).
+
+```yaml
+services:
+  app:                       # Next.js web
+    image: ...
+    container_name: ...
+    mem_limit: 640m
+    mem_reservation: 192m
+    cpus: 1.0
+```
+
+Default per-service-role caps (tune to the app's measured footprint):
+
+| Service role | mem_limit | mem_reservation | cpus |
+|---|---|---|---|
+| Next.js app/web | 640m | 192m | 1.0 |
+| worker (BullMQ) | 512m | 128m | 1.0 |
+| pdf renderer (chromium) | 512m | 96m | 1.0 |
+| postgres | 512m | 128m | 1.0 |
+| pgbouncer | 96m | 16m | 0.5 |
+| valkey/redis | 192m | 32m | 0.5 |
+| minio | 256m | 64m | 0.5 |
+| pgadmin / small sidecar | 128–256m | 32m | 0.5 |
+
+⚠ **A database's `mem_limit` MUST exceed its configured buffer/cache pool + overhead**, or the kernel
+OOM-kills it under load. If a DB sets e.g. `--innodb-buffer-pool-size=512M`, cap it at ≥768m, not 512m.
+Komodo "files-on-host" stacks read these compose files directly, so on-disk edits persist across redeploys.
+
 One-command startup: `bash deploy/compose/start.sh dev up -d`
 
 **Dev/Test — Docker command location:**

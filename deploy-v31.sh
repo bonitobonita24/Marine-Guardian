@@ -1,6 +1,11 @@
 #!/bin/bash
 # ============================================================
-# Spec-Driven Platform V32.9 — File Deployment Script
+# Spec-Driven Platform V32.11 — File Deployment Script
+# ============================================================
+# V32.10 (compose resource limits) + V32.11 (shadcn/studio Pro default
+# design generator) add NO new deliverable files — their content ships via
+# the existing files already in the whitelist below (templates.md for V32.10;
+# CLAUDE_v31_compact.md / phases.md / ui-rules.md / Master_Prompt for V32.11).
 # ============================================================
 # SAFETY CONTRACT (read this before running)
 # ============================================================
@@ -137,7 +142,7 @@ if [ ! -d "$AI_PROMPT" ]; then
 fi
 
 echo "============================================================"
-echo "  Spec-Driven Platform V32.9 — Deployment"
+echo "  Spec-Driven Platform V32.11 — Deployment"
 echo "============================================================"
 echo "  Project root:  $PROJECT"
 echo "  Source folder: $AI_PROMPT"
@@ -617,7 +622,7 @@ echo ""
 # SUMMARY
 # ============================================================
 echo "============================================================"
-echo "  ✅ V32.9 deployment complete — safety contract honored"
+echo "  ✅ V32.11 deployment complete — safety contract honored"
 echo "============================================================"
 echo ""
 echo "  Files deployed to project tree (OVERWRITE bucket):"
