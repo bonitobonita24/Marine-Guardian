@@ -3,6 +3,7 @@ import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
 import { adminProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
+import { alertRuleConditionSchema } from "@marine-guardian/shared/schemas";
 
 export const alertRuleListFilters = z.object({
   isActive: z.boolean().optional(),
@@ -39,7 +40,9 @@ export const alertRuleRouter = router({
     .input(
       z.object({
         name: z.string().min(1).max(200),
-        conditionJson: z.record(z.unknown()),
+        // Validated against the canonical condition schema so the evaluator
+        // will always receive a shape it understands.
+        conditionJson: alertRuleConditionSchema,
         notificationChannels: z.array(z.enum(["in_app", "email"])).min(1),
       })
     )
@@ -60,7 +63,7 @@ export const alertRuleRouter = router({
       z.object({
         id: z.string(),
         name: z.string().min(1).max(200).optional(),
-        conditionJson: z.record(z.unknown()).optional(),
+        conditionJson: alertRuleConditionSchema.optional(),
         notificationChannels: z.array(z.enum(["in_app", "email"])).min(1).optional(),
         isActive: z.boolean().optional(),
       })

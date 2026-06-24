@@ -35,39 +35,37 @@ const CHANNEL_OPTIONS: { value: ChannelValue; label: string }[] = [
 
 const SEVERITY_OPTIONS = ["critical", "high", "medium", "low"] as const;
 
-/** Humanize a raw snake_case/kebab code into Title Case ("sos_distress" → "Sos Distress"). */
-function humanizeCode(code: string): string {
-  return code
-    .replace(/[_-]+/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-    .trim();
+/** Maps UI severity labels to the canonical minPriority integer (0/100/200/300 scale). */
+const SEVERITY_TO_MIN_PRIORITY: Record<string, number> = {
+  critical: 300,
+  high: 200,
+  medium: 100,
+  low: 0,
+};
+
+/** Reverse mapping: minPriority → display label for the card view. */
+function priorityLabel(n: number): string {
+  if (n >= 300) return "Critical";
+  if (n >= 200) return "High";
+  if (n >= 100) return "Medium";
+  return "Low";
 }
 
+
 /**
- * Human-readable description of an alert rule's trigger. Handles every
- * condition shape the app stores: {severity}, {priority:{gte}}, and
- * {eventTypeValue} (seeded rules use the latter two). Prevents the card from
- * showing a bare "—" for any non-severity rule.
+ * Human-readable description of an alert rule's trigger.
+ *
+ * Canonical condition shape: { minPriority?: number, eventTypeId?: string }.
+ * A rule with neither field is a catch-all.
  */
 function describeTrigger(cond: Record<string, unknown>): string {
-  if (typeof cond.severity === "string") {
-    return `Severity: ${humanizeCode(cond.severity)}`;
+  if (typeof cond.minPriority === "number") {
+    return `Priority ≥ ${String(cond.minPriority)} (${priorityLabel(cond.minPriority)}+)`;
   }
-  const pr = cond.priority;
-  if (
-    pr !== null &&
-    typeof pr === "object" &&
-    typeof (pr as { gte?: unknown }).gte === "number"
-  ) {
-    const n = (pr as { gte: number }).gte;
-    const level =
-      n >= 300 ? "Critical" : n >= 200 ? "High" : n >= 100 ? "Medium" : "Low";
-    return `Priority ≥ ${String(n)} (${level})`;
+  if (typeof cond.eventTypeId === "string") {
+    return `Event type ID: ${cond.eventTypeId}`;
   }
-  if (typeof cond.eventTypeValue === "string") {
-    return `Event type: ${humanizeCode(cond.eventTypeValue)}`;
-  }
-  return "Custom condition";
+  return "Matches all events";
 }
 
 function channelBadges(channels: string[]) {
@@ -134,9 +132,15 @@ export default function AlertsPage() {
     setEditingId(rule.id);
     setFormName(rule.name);
     const cond = rule.conditionJson as Record<string, unknown>;
-    setFormSeverity(
-      typeof cond.severity === "string" ? cond.severity : "critical"
-    );
+    // Reverse-map minPriority back to a severity label for the picker.
+    if (typeof cond.minPriority === "number") {
+      if (cond.minPriority >= 300) setFormSeverity("critical");
+      else if (cond.minPriority >= 200) setFormSeverity("high");
+      else if (cond.minPriority >= 100) setFormSeverity("medium");
+      else setFormSeverity("low");
+    } else {
+      setFormSeverity("critical");
+    }
     const channels = rule.notificationChannels as string[];
     setFormChannels(
       Array.isArray(channels)
@@ -158,7 +162,7 @@ export default function AlertsPage() {
     if (formChannels.length === 0) return;
     setFormError(null);
 
-    const conditionJson = { severity: formSeverity };
+    const conditionJson = { minPriority: SEVERITY_TO_MIN_PRIORITY[formSeverity] ?? 300 };
     const notificationChannels = formChannels;
 
     if (editingId !== null) {
@@ -260,7 +264,7 @@ export default function AlertsPage() {
               </div>
 
               <div className="space-y-2">
-                <Label>Severity Trigger</Label>
+                <Label>Minimum Priority Trigger</Label>
                 <Select value={formSeverity} onValueChange={setFormSeverity}>
                   <SelectTrigger>
                     <SelectValue />

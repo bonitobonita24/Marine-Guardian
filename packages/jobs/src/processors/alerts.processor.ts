@@ -1,5 +1,6 @@
 import type { Job } from "bullmq";
 import { platformPrisma } from "@marine-guardian/db";
+import type { AlertRuleCondition } from "@marine-guardian/shared/types";
 import type { AlertJobPayload } from "../queues/types";
 import { validateTenantContext } from "../workers/base-worker";
 import {
@@ -7,10 +8,8 @@ import {
   notificationChannel,
 } from "../lib/realtime-publisher";
 
-interface ConditionJson {
-  eventTypeId?: string;
-  minPriority?: number;
-}
+// Re-export the canonical condition type so callers don't need two imports.
+type ConditionJson = AlertRuleCondition;
 
 interface AlertRule {
   id: string;

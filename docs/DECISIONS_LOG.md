@@ -831,3 +831,37 @@ Verification: dev stack rebuilt; logged in (Demo Site); /api/trpc/map.patrolTrac
   augmented two open patrols' leader observations to ≥2 points for the visual check, then removed.)
 Gate: see feat/map-all-active-tracks PR.
 Locked: yes
+
+## 2026-06-24 — Alert-rule condition model: canonical schema reconciliation
+Decision: Adopt `{ minPriority?: number, eventTypeId?: string }` as the ONE canonical
+  conditionJson shape across the UI create-form, the tRPC router input schema, and the
+  alert evaluator (alerts.processor.ts ruleMatches function).
+Rationale: Three-way mismatch existed between:
+  (1) UI form (alerts/page.tsx) — stored `{ severity: "critical"|"high"|"medium"|"low" }`.
+      The evaluator has no branch for "severity" → every UI-created rule was a catch-all.
+  (2) Seed (packages/db/prisma/seed.ts) — stored `{ priority: { gte: 2 } }` (Prisma filter
+      object, wrong scale 0-3) and `{ eventTypeValue: "sos_distress" }` (human-readable code,
+      not the DB ID the evaluator compares against). Neither seed rule ever fired.
+  (3) Evaluator (alerts.processor.ts ConditionJson) — read `minPriority` (number, 0/100/200/300
+      scale) and `eventTypeId` (Prisma string ID). Correct, but nothing wrote rules in this shape.
+  (4) Shared Zod schema (packages/shared/src/schemas/alert-rule.ts) — defined `eventType`,
+      `priorityThreshold`, `category` — a fourth distinct shape, unused by everyone.
+  All four now agree on `{ minPriority?: number, eventTypeId?: string }`.
+  Priority scale: 0=LOW / 100=MEDIUM / 200=HIGH / 300=CRITICAL (EventPriority const).
+  UI "severity" dropdown maps: critical→300, high→200, medium→100, low→0.
+  No Prisma migration needed — conditionJson is a JSON column; existing seeded rules are
+  re-written by re-running the seed (upsert is guarded by name uniqueness).
+  Legacy { severity } rows in production will be treated as catch-alls by the evaluator
+  (no recognized field → ruleMatches returns true for every event). Admins should
+  re-save any UI-created rules through the Edit dialog to migrate them to canonical shape.
+Files changed:
+  • packages/shared/src/schemas/alert-rule.ts — new canonical Zod schema
+  • packages/shared/src/types/alert-rule.ts — updated TS interface
+  • packages/jobs/src/processors/alerts.processor.ts — imports AlertRuleCondition from shared
+  • apps/web/src/server/trpc/routers/alertRule.ts — conditionJson validated via canonical schema
+  • apps/web/src/app/(dashboard)/alerts/page.tsx — form writes minPriority, display updated
+  • packages/db/prisma/seed.ts — seed conditions fixed to { minPriority: 200 } / { eventTypeId }
+  • apps/web/src/server/trpc/routers/__tests__/alertRule.test.ts — tests updated + rejection test
+  • packages/jobs/src/__tests__/alerts.processor.test.ts — 5 new REGRESSION tests
+Gate: see fix/alert-condition-model PR.
+Locked: yes
