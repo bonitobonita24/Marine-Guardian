@@ -1268,6 +1268,80 @@ IF user replies "confirmed" (or similar positive):
       /design-refine runs ONLY on flagged components. Your aesthetic decision stays
       authoritative.)"
 
+  STEP 7b.2 — Design-System QA Gate (V32.12) — append to the emitted DESIGN.md:
+    INHERIT-not-REPLACE: this gate HARDENS the schema of the human-verified DESIGN.md
+    baseline. It does NOT replace or auto-regenerate the designer's aesthetic work — it
+    ensures the document is complete enough for Phase 4+ to implement without guesswork.
+    Reference: .ai_prompt/design-principles.md for catching gaps in any section below.
+
+    Append these four sections to docs/DESIGN.md immediately after ## Layout:
+
+    ```markdown
+    ## Component States
+    Every interactive component must be specced for all eight states:
+    | State          | Description / Token guidance                        |
+    |----------------|-----------------------------------------------------|
+    | default        | Resting appearance — base colors, normal cursor     |
+    | hover          | `accent` bg or subtle border lift; cursor pointer   |
+    | focus-visible  | 2px `ring` offset outline (WCAG 2.2 AA required)   |
+    | active         | `primary` pressed shade; slight scale(0.97)         |
+    | disabled       | `muted` fg + bg, cursor not-allowed, opacity 0.5   |
+    | loading        | Spinner or skeleton; pointer-events none            |
+    | error          | `destructive` border + helper text below field      |
+    | empty          | Illustrated/text empty state; call-to-action link   |
+
+    Document any state that deviates from the table defaults with an explicit override row.
+
+    ## Interactive Patterns
+    Cover each pattern with a brief rule for this design system:
+
+    ### Form Validation
+    - Inline errors appear below each field (not toast) on blur or submit.
+    - Required fields marked with `*`; aria-required + aria-describedby wired.
+    - Submit button transitions to `loading` state on click; re-enables on error.
+
+    ### Async Actions (loading → feedback)
+    - Optimistic updates ONLY for non-destructive mutations; rollback on error.
+    - Loading spinner inline with the triggering element (not full-page overlay).
+    - Success feedback: brief toast (3 s) + UI update; no modal unless data loss risk.
+
+    ### Confirmation / Destructive Flows
+    - Destructive actions (delete, revoke, archive) require a Dialog confirmation step.
+    - Dialog title = action verb + subject ("Delete patrol record?"); body = consequence.
+    - Confirm button is `destructive` variant; cancel button is `outline` variant.
+    - Irreversible actions must state "This cannot be undone." in the dialog body.
+
+    ## Anti-Patterns (what NOT to do in this design system)
+    List explicit prohibitions for this app's design system, for example:
+    - ❌ Do NOT use custom colors outside the token palette — override tokens, never inline hex.
+    - ❌ Do NOT show full-page loading spinners for sub-second async operations.
+    - ❌ Do NOT use `alert()` / `confirm()` — use shadcn/ui Dialog or AlertDialog.
+    - ❌ Do NOT place error messages in toasts for form validation — inline only.
+    - ❌ Do NOT disable focus-visible outlines — all interactive elements must be keyboard-navigable.
+    - ❌ Do NOT use icon-only buttons without an `aria-label`.
+    Add any app-specific anti-patterns discovered during the mockup review.
+
+    ## Design-System QA Checklist
+    Before handing off DESIGN.md to Phase 4, verify:
+    - [ ] All 8 component states are documented or explicitly delegated to token defaults.
+    - [ ] Form validation pattern is specified (inline, not toast).
+    - [ ] At least one async action pattern documented with loading + feedback states.
+    - [ ] Confirmation dialog pattern documented for each destructive action (cross-check
+          against PRODUCT.md flows; finalize at Phase 4 handoff if PRODUCT.md is not yet complete).
+    - [ ] Anti-patterns list has ≥ 5 entries; app-specific prohibitions added where needed.
+    - [ ] Color tokens in § Color Palette cover every state token (`muted`, `destructive`,
+          `accent`, `ring`) — no gaps.
+    - [ ] All patterns checked against .ai_prompt/design-principles.md (library-agnostic
+          reference) to catch any principle the token table or mockup does not address.
+    ```
+
+    → After appending, tell the user:
+      "docs/DESIGN.md now includes the V32.12 Design-System QA Gate: component states,
+       interactive patterns, anti-patterns, and a QA checklist. Review the checklist before
+       moving to Phase 3 — any unchecked items indicate gaps to resolve during Phase 4 UI
+       work. Reference .ai_prompt/design-principles.md for library-agnostic guidance on
+       anything the token table doesn't cover."
+
   STEP 7b.5 — IF DESIGN_AESTHETIC_CHOSEN: Generate docs/tokens.json (DTCG machine sibling):
     → Translate the color palette and layout values from DESIGN.md into a minimal
       DTCG v2025.10 token file. Use the seed template from templates.md §V32.8.
