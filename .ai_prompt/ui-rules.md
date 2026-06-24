@@ -3,6 +3,7 @@
 > Loaded contextually by CLAUDE.md when the current task involves UI generation,
 > component installation, or any work touching src/components/, src/app/, or packages/ui/.
 > shadcn/ui is the ONLY permitted component library. No exceptions.
+> When this file and docs/DESIGN.md are silent on a pattern, component state, or accessibility approach, Read .ai_prompt/design-principles.md (the library-agnostic principles authority — V32.12). It never overrides shadcn/ui or DESIGN.md tokens.
 
 ---
 

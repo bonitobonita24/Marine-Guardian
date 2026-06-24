@@ -1,11 +1,13 @@
 #!/bin/bash
 # ============================================================
-# Spec-Driven Platform V32.11 — File Deployment Script
+# Spec-Driven Platform V32.12 — File Deployment Script
 # ============================================================
 # V32.10 (compose resource limits) + V32.11 (shadcn/studio Pro default
 # design generator) add NO new deliverable files — their content ships via
 # the existing files already in the whitelist below (templates.md for V32.10;
 # CLAUDE_v31_compact.md / phases.md / ui-rules.md / Master_Prompt for V32.11).
+# V32.12 (design-principles.md on-demand reference) adds deliverable #24 —
+# see GROUP 2 (.ai_prompt/ block) below.
 # ============================================================
 # SAFETY CONTRACT (read this before running)
 # ============================================================
@@ -14,7 +16,7 @@
 #   1. ALWAYS-OVERWRITE (framework files — agent-owned, safe to replace)
 #      Any existing file here is backed up with a .bak suffix, then replaced.
 #         • CLAUDE.md                    (project root — the ONLY auto-loaded file)
-#      These 7 detail files are copied to .ai_prompt/ ONLY (load-on-demand, not auto-loaded):
+#      These 8 detail files are copied to .ai_prompt/ ONLY (load-on-demand, not auto-loaded):
 #         • .ai_prompt/phases.md            (← was .claude/rules/ in V32.6.1 and earlier)
 #         • .ai_prompt/memory-governance.md (← was .claude/rules/ in V32.6.1 and earlier)
 #         • .ai_prompt/security.md          (← was .claude/rules/ in V32.6.1 and earlier)
@@ -38,6 +40,8 @@
 #         • tests/visual/                    (visual-test scaffold — .gitkeep created if absent)
 #      V32.9 compliance + data privacy (overwrite-with-backup):
 #         • .ai_prompt/privacy.md            (PH Data Privacy Act + WCAG 2.2 AA gate — on-demand — deliverable #23)
+#      V32.12 design principles (overwrite-with-backup):
+#         • .ai_prompt/design-principles.md  (framework-level design guidance — on-demand — deliverable #24)
 #         NOTE: sd.config.mjs, design-validate.mjs, and STATE.md evidence template are
 #         NOT deploy-copied — they are scaffolded by bootstrap.md Step 20 from templates.md
 #         (project-adjacent files, not standalone framework deliverables).
@@ -85,6 +89,7 @@
 #   │   ├── design-stop-hook.sh        ← NEW V32.8 — Claude Code Stop hook (→ scripts/, deliverable #21)
 #   │   ├── LESSONS_REGISTRY.md        ← NEW V32.8 — design-drift lessons registry (deliverable #22)
 #   │   ├── privacy.md                 ← NEW V32.9 — PH Data Privacy Act + WCAG 2.2 AA (→ .ai_prompt/, deliverable #23)
+#   │   ├── design-principles.md       ← NEW V32.12 — framework-level design guidance (→ .ai_prompt/, deliverable #24)
 #   │   ├── Product_md_Planning_Assistant_v31.md
 #   │   ├── Framework_Feature_Index_v31.md
 #   │   ├── AI_Tools_Skills_MCPs_Reference_v31.md
@@ -103,6 +108,8 @@
 #   scripts/design-stop-hook.sh        ← overwrite-with-backup (framework-owned), chmod +x (deliverable #21)
 #   .ai_prompt/LESSONS_REGISTRY.md     ← overwrite-with-backup (framework-owned) (deliverable #22)
 #   .ai_prompt/privacy.md              ← overwrite-with-backup (framework-owned) (deliverable #23, V32.9)
+# DEPLOYED TARGET LOCATIONS (V32.12 addition):
+#   .ai_prompt/design-principles.md    ← overwrite-with-backup (framework-owned) (deliverable #24, V32.12)
 #   tests/visual/                      ← scaffold-if-absent (.gitkeep); existing files untouched
 #   NOTE: sd.config.mjs, design-validate.mjs, STATE.md.template — scaffolded by bootstrap.md
 #   Step 20 from templates.md (not deploy-copied).
@@ -142,7 +149,7 @@ if [ ! -d "$AI_PROMPT" ]; then
 fi
 
 echo "============================================================"
-echo "  Spec-Driven Platform V32.11 — Deployment"
+echo "  Spec-Driven Platform V32.12 — Deployment"
 echo "============================================================"
 echo "  Project root:  $PROJECT"
 echo "  Source folder: $AI_PROMPT"
@@ -574,15 +581,18 @@ fi
 overwrite_with_backup "$AI_PROMPT/LESSONS_REGISTRY.md" "$PROJECT/.ai_prompt/LESSONS_REGISTRY.md"
 
 # ============================================================
-# GROUP 8 — V32.9 Compliance + Data Privacy (overwrite-with-backup)
+# GROUP 8 — V32.9 Compliance + Data Privacy / V32.12 Design Principles (overwrite-with-backup)
 #
-# Deploys one new standalone framework deliverable:
+# Deploys two standalone framework deliverables:
 #   .ai_prompt/privacy.md  ← PH Data Privacy Act (RA 10173/NPC) + WCAG 2.2 AA gate
 #                             Deliverable #23. Loaded on-demand when writing auth/compliance/
 #                             data-privacy features, or when gov/LGU flag is set in PRODUCT.md.
+#   .ai_prompt/design-principles.md ← framework-level design guidance (V32.12)
+#                             Deliverable #24. Loaded on-demand during design/UI work.
 # ============================================================
-echo "─── Group 8: V32.9 compliance + data privacy (.ai_prompt/privacy.md) ───"
+echo "─── Group 8: V32.9 compliance + data privacy + V32.12 design principles ───"
 overwrite_with_backup "$AI_PROMPT/privacy.md" "$PROJECT/.ai_prompt/privacy.md"
+overwrite_with_backup "$AI_PROMPT/design-principles.md" "$PROJECT/.ai_prompt/design-principles.md"
 echo ""
 
 # 7c: tests/visual/ scaffold — create directory + .gitkeep ONLY if the directory is absent.
@@ -622,7 +632,7 @@ echo ""
 # SUMMARY
 # ============================================================
 echo "============================================================"
-echo "  ✅ V32.11 deployment complete — safety contract honored"
+echo "  ✅ V32.12 deployment complete — safety contract honored"
 echo "============================================================"
 echo ""
 echo "  Files deployed to project tree (OVERWRITE bucket):"
@@ -665,6 +675,7 @@ echo "    Prompt_References.md                      ← scenario-based prompt gu
 echo "    Prompt_References.html                    ← scenario-based prompt guide (interactive UI — START HERE)"
 echo "    LESSONS_REGISTRY.md                       ← design-drift lessons registry (V32.8, deliverable #22)"
 echo "    privacy.md                                ← PH Data Privacy Act + WCAG 2.2 AA gate (V32.9, deliverable #23)"
+echo "    design-principles.md                      ← framework-level design guidance (V32.12, deliverable #24)"
 echo "    (Deployed to scripts/ — do not run from .ai_prompt/:)"
 echo "    lint-deploy.sh                            ← pre-deploy footgun gate (deploys to scripts/lint-deploy.sh, V32.7.5)"
 echo "    design-stop-hook.sh                       ← Claude Code Stop hook (deploys to scripts/, V32.8)"
