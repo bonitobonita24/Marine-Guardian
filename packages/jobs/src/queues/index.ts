@@ -30,6 +30,10 @@ export {
   enqueueSyncNeededRescan,
 } from "./sync-needed-rescan.queue";
 export {
+  getMunicipalityAssignQueue,
+  enqueueMunicipalityAssign,
+} from "./municipality-assign.queue";
+export {
   QUEUE_NAMES,
   type QueueName,
   type JobPayloadMap,
@@ -42,4 +46,5 @@ export {
   type PatrolTrackMaterializeJobPayload,
   type PdfRenderJobPayload,
   type SyncNeededRescanJobPayload,
+  type MunicipalityAssignJobPayload,
 } from "./types";

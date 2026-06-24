@@ -17,6 +17,8 @@ import {
   type LastIncident,
 } from "./_components/last-incident-card";
 import { BreakdownBars } from "./_components/breakdown-bars";
+import { MunicipalityCoverageChart } from "./_components/municipality-coverage-chart";
+import { ProtectedZoneCard } from "./_components/protected-zone-card";
 
 /**
  * WAR ROOM command center — the live operations dashboard.
@@ -42,6 +44,8 @@ export default function DashboardPage() {
   const lastIncident = trpc.dashboard.lastIncident.useQuery();
   const alerts = trpc.alertHistory.list.useQuery({ limit: 10 });
   const patrols = trpc.dashboard.activePatrols.useQuery();
+  const coverageData = trpc.municipalityCoverage.municipalityCoverage.useQuery();
+  const zoneData = trpc.municipalityCoverage.protectedZoneCoverage.useQuery();
 
   // Track which alert ID is currently being acknowledged (optimistic spinner).
   const [ackingId, setAckingId] = useState<string | null>(null);
@@ -186,6 +190,16 @@ export default function DashboardPage() {
               variant="monitoring"
             />
             <LastIncidentCard incident={incident} now={nowValue} />
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <MunicipalityCoverageChart
+              data={coverageData.data ?? []}
+              isLoading={coverageData.isLoading}
+            />
+            <ProtectedZoneCard
+              zones={zoneData.data ?? []}
+              isLoading={zoneData.isLoading}
+            />
           </div>
         </div>
 

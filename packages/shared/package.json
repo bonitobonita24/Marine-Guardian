@@ -10,7 +10,8 @@
     "./lib/area-attribution": "./src/lib/area-attribution/index.ts",
     "./lib/coverage-period": "./src/lib/coverage-period/index.ts",
     "./lib/coverage-clip": "./src/lib/coverage-clip/index.ts",
-    "./lib/heatmap-sample": "./src/lib/heatmap-sample/index.ts"
+    "./lib/heatmap-sample": "./src/lib/heatmap-sample/index.ts",
+    "./lib/municipality-assignment": "./src/lib/municipality-assignment/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -18,6 +19,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@turf/boolean-intersects": "^7.1.0",
     "@turf/boolean-point-in-polygon": "^7.1.0",
     "@turf/helpers": "^7.1.0",
     "@turf/length": "^7.1.0",

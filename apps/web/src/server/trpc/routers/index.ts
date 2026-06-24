@@ -25,6 +25,7 @@ import { platformImpersonationRouter } from "./platformImpersonation";
 import { settingsRouter } from "./settings";
 import { dsrRouter } from "./dsr";
 import { breachRouter } from "./breach";
+import { municipalityCoverageRouter } from "./municipalityCoverage";
 
 export const appRouter = router({
   settings: settingsRouter,
@@ -53,6 +54,7 @@ export const appRouter = router({
   reportExport: reportExportRouter,
   dsr: dsrRouter,
   breach: breachRouter,
+  municipalityCoverage: municipalityCoverageRouter,
 });
 
 export type AppRouter = typeof appRouter;

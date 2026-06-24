@@ -7,6 +7,7 @@ import { EarthRangerClient } from "../lib/earthranger-client";
 import { enqueueAlert } from "../queues/alerts.queue";
 import { enqueueAreaRederive } from "../queues/area-rederive.queue";
 import { enqueuePatrolTrackMaterialize } from "../queues/patrol-track-materialize.queue";
+import { enqueueMunicipalityAssign } from "../queues/municipality-assign.queue";
 import { resolveReportedBy } from "../lib/resolve-reported-by";
 
 /**
@@ -312,6 +313,19 @@ async function syncEvents(
         err instanceof Error ? err.message : String(err),
       );
     }
+    try {
+      await enqueueMunicipalityAssign({
+        tenantId,
+        userId: "system",
+        entity: "event",
+        id: eventId,
+      });
+    } catch (err) {
+      console.error(
+        `[er-sync] enqueueMunicipalityAssign failed for event ${eventId}:`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
   }
 
   return events.length;
@@ -456,6 +470,21 @@ async function syncPatrols(
         where: { id: patrol.id },
         data: { syncNeeded: true },
       });
+    }
+    // Municipality assignment deferred — needs PatrolTrack (startLocationLat/Lon
+    // may already be set from segment coords; the processor handles null gracefully).
+    try {
+      await enqueueMunicipalityAssign({
+        tenantId,
+        userId: "system",
+        entity: "patrol",
+        id: patrol.id,
+      });
+    } catch (err) {
+      console.error(
+        `[er-sync] enqueueMunicipalityAssign failed for patrol ${patrol.id}:`,
+        err instanceof Error ? err.message : String(err),
+      );
     }
   }
 
