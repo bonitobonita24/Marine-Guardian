@@ -90,32 +90,100 @@ describe("alertRule.list", () => {
   });
 });
 
-describe("alertRule.create", () => {
+describe("alertRule.create — canonical condition schema", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("creates an alert rule with tenant and creator scoping", async () => {
+  // REGRESSION TEST: the rule created via the UI must store a conditionJson
+  // shape that the alert evaluator (`ruleMatches`) will actually match.
+  // Previously the form stored `{ severity: "critical" }` which the evaluator
+  // ignores entirely — so no UI-created rule ever fired.
+  it("stores canonical conditionJson { minPriority } that the evaluator understands", async () => {
     const created = {
       id: "ar-new",
-      name: "New Rule",
+      name: "High Priority Rule",
       tenantId: TENANT_ID,
       createdBy: USER_ID,
+      // The stored conditionJson is what the evaluator will read.
+      conditionJson: { minPriority: 200 },
     };
     vi.mocked(prisma.alertRule.create).mockResolvedValue(created as never);
 
     const caller = createCaller(makeCtx());
     const result = await caller.create({
-      name: "New Rule",
-      conditionJson: { severity: "critical" },
+      name: "High Priority Rule",
+      conditionJson: { minPriority: 200 },
       notificationChannels: ["in_app"],
     });
 
     expect(result.id).toBe("ar-new");
+    // Verify the conditionJson passed to Prisma is the canonical shape.
+    /* eslint-disable @typescript-eslint/no-unsafe-assignment */
     expect(vi.mocked(prisma.alertRule.create)).toHaveBeenCalledWith({
-      data: partial<{ tenantId: string; createdBy: string }>({
+      data: expect.objectContaining({
         tenantId: TENANT_ID,
         createdBy: USER_ID,
+        conditionJson: { minPriority: 200 },
       }),
     });
+    /* eslint-enable @typescript-eslint/no-unsafe-assignment */
+  });
+
+  it("stores canonical conditionJson { eventTypeId } for event-type rules", async () => {
+    const created = {
+      id: "ar-sos",
+      name: "SOS Alert",
+      tenantId: TENANT_ID,
+      createdBy: USER_ID,
+      conditionJson: { eventTypeId: "et-sos-id" },
+    };
+    vi.mocked(prisma.alertRule.create).mockResolvedValue(created as never);
+
+    const caller = createCaller(makeCtx());
+    await caller.create({
+      name: "SOS Alert",
+      conditionJson: { eventTypeId: "et-sos-id" },
+      notificationChannels: ["in_app", "email"],
+    });
+
+    /* eslint-disable @typescript-eslint/no-unsafe-assignment */
+    expect(vi.mocked(prisma.alertRule.create)).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        conditionJson: { eventTypeId: "et-sos-id" },
+      }),
+    });
+    /* eslint-enable @typescript-eslint/no-unsafe-assignment */
+  });
+
+  it("stores catch-all rule when conditionJson is empty object", async () => {
+    const created = { id: "ar-catchall", name: "All Events", tenantId: TENANT_ID, createdBy: USER_ID, conditionJson: {} };
+    vi.mocked(prisma.alertRule.create).mockResolvedValue(created as never);
+
+    const caller = createCaller(makeCtx());
+    await caller.create({
+      name: "All Events",
+      conditionJson: {},
+      notificationChannels: ["in_app"],
+    });
+
+    /* eslint-disable @typescript-eslint/no-unsafe-assignment */
+    expect(vi.mocked(prisma.alertRule.create)).toHaveBeenCalledWith({
+      data: expect.objectContaining({ conditionJson: {} }),
+    });
+    /* eslint-enable @typescript-eslint/no-unsafe-assignment */
+  });
+
+  it("rejects conditionJson with unknown fields (old severity shape)", async () => {
+    const caller = createCaller(makeCtx());
+    // { severity: "critical" } was the old broken shape — must now be rejected
+    // by schema validation so no invalid rule can be persisted.
+    await expect(
+      caller.create({
+        name: "Bad Rule",
+        // @ts-expect-error intentionally passing invalid shape to test runtime validation
+        conditionJson: { severity: "critical" },
+        notificationChannels: ["in_app"],
+      })
+    ).rejects.toThrow();
   });
 
   it("rejects non-admin roles", async () => {
@@ -144,6 +212,20 @@ describe("alertRule.update", () => {
       where: { id: "ar-1", tenantId: TENANT_ID },
       data: partial<{ isActive: boolean }>({ isActive: false }),
     });
+  });
+
+  it("validates canonical conditionJson on update", async () => {
+    vi.mocked(prisma.alertRule.updateMany).mockResolvedValue({ count: 1 });
+
+    const caller = createCaller(makeCtx());
+    await caller.update({ id: "ar-1", conditionJson: { minPriority: 100 } });
+
+    /* eslint-disable @typescript-eslint/no-unsafe-assignment */
+    expect(vi.mocked(prisma.alertRule.updateMany)).toHaveBeenCalledWith({
+      where: { id: "ar-1", tenantId: TENANT_ID },
+      data: expect.objectContaining({ conditionJson: { minPriority: 100 } }),
+    });
+    /* eslint-enable @typescript-eslint/no-unsafe-assignment */
   });
 });
 

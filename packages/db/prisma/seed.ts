@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -414,18 +414,24 @@ async function main() {
   }
 
   // ── H. AlertRules ──────────────────────────────────────────────────────────
+  // Canonical condition schema: { minPriority?: number, eventTypeId?: string }
+  // Priority scale = 0 / 100 / 200 / 300 (LOW / MEDIUM / HIGH / CRITICAL).
+  // "High Priority Events" fires when event.priority >= 200 (HIGH or CRITICAL).
+  // "Critical SOS Alerts" fires only for sos_distress event types.
+  const sosEventTypeId = eventTypeIdByValue.get("sos_distress");
   const alertDefs = [
     {
       name: "High Priority Events",
-      // priority scale is 0-3; "high" = 2 (amber) and above. Was `gte: 200`,
-      // which never matched once event priorities were corrected to 0-3.
-      conditionJson: { priority: { gte: 2 } },
+      conditionJson: { minPriority: 200 } as Prisma.InputJsonValue,
       notificationChannels: ["in_app" as const],
       isActive: true,
     },
     {
       name: "Critical SOS Alerts",
-      conditionJson: { eventTypeValue: "sos_distress" },
+      // eventTypeId is the Prisma row ID resolved from the event-type upsert above.
+      conditionJson: sosEventTypeId !== undefined
+        ? ({ eventTypeId: sosEventTypeId } as Prisma.InputJsonValue)
+        : ({ minPriority: 300 } as Prisma.InputJsonValue),
       notificationChannels: ["in_app" as const, "email" as const],
       isActive: true,
     },
