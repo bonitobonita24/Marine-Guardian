@@ -340,7 +340,7 @@ async function syncPatrols(
     // "sea_patrol", "boat", "water_patrol", etc. — never the bare string
     // "seaborne". Use the same keyword heuristic as ingest-earthranger.mjs
     // (mapPatrolType) so live synced patrols are classified correctly.
-    const patrolTypeRaw = String(p.patrol_type ?? "").toLowerCase();
+    const patrolTypeRaw = (p.patrol_type ?? "").toLowerCase();
     const patrolType: PatrolType =
       patrolTypeRaw.includes("sea") ||
       patrolTypeRaw.includes("boat") ||
