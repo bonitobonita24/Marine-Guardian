@@ -16,6 +16,13 @@ WORKDIR /app
 RUN npm install -g pnpm
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
+# pnpm isolated linker puts each package's bins in its own node_modules/.bin/.
+# Without these copies the prisma/tsx/etc. CLIs are not on PATH when package scripts run.
+COPY --from=deps /app/packages/db/node_modules ./packages/db/node_modules
+COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
+COPY --from=deps /app/packages/ui/node_modules ./packages/ui/node_modules
+COPY --from=deps /app/packages/api-client/node_modules ./packages/api-client/node_modules
+COPY --from=deps /app/packages/jobs/node_modules ./packages/jobs/node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm --filter @marine-guardian/db db:generate
