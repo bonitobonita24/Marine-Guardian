@@ -200,6 +200,51 @@ No API key needed. Free. MIT licensed.
 
 ---
 
+### 2.5 Shadcn Studio Pro MCP Server (NEW V32.11)
+```
+URL:      https://shadcnstudio.com/docs/getting-started/shadcn-studio-mcp-server
+Type:     MCP server — phase-aware DESIGN GENERATOR built on shadcn/ui (Pro account)
+Added:    V32.11
+Scope:    user-global — registered once on the build machine; auto-available in every
+          framework app session. NOT project-wired, NOT committed to any app repo.
+Auth:     API key + account email passed as CLI args at registration; the key lives only in
+          ~/.claude.json on the build machine (single-user local). Account creds + the
+          registry license key (for the shadcn CLI @ss-blocks/* registry) are SOPS+age
+          encrypted at Server-Setups/secrets/shadcn-studio.enc.yaml — pointer only, never
+          copied into an app repo.
+```
+
+**What it is:** a BUILD-TIME generator. Output is plain shadcn/ui + Tailwind (MIT-compatible), so a
+client app carries NO runtime dependency on the Pro account — only the build session uses it. This is
+the framework's DEFAULT design-generation path (V32.11), superseding the prior "shadcn-studio = not
+recommended (paid)" note now that the owner holds a Pro license.
+
+**The 4 commands (and when the framework reaches for each):**
+```
+/cui  Create UI   — DEFAULT daily driver. Whole pages / multiple sections from the Pro block
+                    library ("collect first, install last"). Can name blocks ("hero like Hero 2").
+/iui  Inspire UI  — Pro-only. Original/creative, ONE SECTION at a time (slow/unreliable at page
+                    scale). For a distinctive hero / pricing / feature section.
+/rui  Refine UI   — Tweak an already-generated block. The polish pass.
+/ftc  Figma→Code  — CONDITIONAL. Needs the separate Figma MCP + a Figma design. Installs matching
+                    Pro blocks from Figma frames. Skip unless the design source is Figma.
+```
+
+**Phase routing (phases.md MODEL HOOKs):**
+- Phase 2.8 (PA mockup) — inspiration reference only.
+- Phase 3.3 (design finalization) — `/cui` (structure) → `/iui` (per-section distinctiveness) → `/rui` (polish), then compile tokens → `/design-refine` → sign off → capture DESIGN baseline.
+- Phase 4 Parts 5-6 — `/cui` + `/rui` only (design FROZEN at 3.3; no `/iui`).
+- Phase 7 — `/cui` new pages, `/iui` only for a genuinely new distinctive section, `/rui` polish.
+
+**INHERIT-not-REPLACE (HARD):** generated blocks ship their own design tokens; reconcile every block
+to the app's `docs/DESIGN.md` / compiled tokens (ui-rules.md Rule 12) — the block NEVER overrides the
+established design system.
+
+**Fallback:** if the Pro MCP is unreachable, fall back to the plain shadcn/ui MCP (§2.4) + the
+shadcn/ui Blocks gallery — same shadcn/ui output target, lower automation.
+
+---
+
 ## 3. Skills & Plugins
 
 Skills are `SKILL.md` files that agents load contextually — only when the task matches the skill description. Never loaded globally (Rule 26).

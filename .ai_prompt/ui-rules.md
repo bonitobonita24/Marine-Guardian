@@ -187,9 +187,37 @@ Reference: https://ui.shadcn.com/docs/mcp
   awesome-shadcn-ui: https://github.com/birobirobiro/awesome-shadcn-ui — discovery list (200+ registries)
   shadcnregistry.com: https://shadcnregistry.com — searchable registry index
 
-**NOT recommended (paid/freemium — do not use as defaults):**
-  shadcn-studio (shadcnstudio.com) — MIT repo but commercial website with paid tiers. Use free GitHub components only if needed.
-  shadcn.io — community registry with Pro paid tier. Free tier unclear boundaries.
+**shadcn/studio Pro — sanctioned design generator (NEW V32.11).**
+The owner's licensed shadcn/studio **Pro** MCP is the framework's DEFAULT design-generation path. It is a
+BUILD-TIME generator built on shadcn/ui — output is plain shadcn/ui + Tailwind (MIT-compatible), so apps
+carry NO runtime dependency on the Pro account. Command routing (full detail: AI_Tools_Skills_MCPs_Reference §2.5
++ phases.md Phase 3.3 / Parts 5-6 / Phase 7 MODEL HOOKs):
+  /cui  Create UI  — DEFAULT daily driver; whole pages / multiple sections from Pro blocks ("collect first, install last").
+  /iui  Inspire UI — Pro-only; ONE distinctive section at a time (hero / pricing / feature) — not whole pages.
+  /rui  Refine UI  — polish an already-generated block.
+  /ftc  Figma→Code — CONDITIONAL; only with a Figma design + the Figma MCP present.
+HARD — INHERIT-not-REPLACE: generated blocks carry their own design tokens; reconcile every block to the
+compiled tokens (Rule 12). The block NEVER overrides docs/DESIGN.md. `/iui` is a Phase 3.3 tool only —
+Phase 4 Parts 5-6 and Phase 7 default to `/cui` + `/rui` so the finalized design is not re-opened.
+FALLBACK: if the Pro MCP is unreachable, use the plain shadcn/ui MCP + Blocks gallery (same shadcn/ui output target).
+
+**DESIGN GENERATION DECISION TREE (canonical — cited by phases.md MODEL HOOKs + LESSONS_REGISTRY `framework.design-generation.routing`):**
+
+| Situation | Command | Allowed in |
+|-----------|---------|-----------|
+| New whole page / multiple sections | `/cui` | Phase 3.3 · 4 Parts 5-6 · 7 |
+| New distinctive single section (hero / pricing / feature) | `/iui` | Phase 3.3 ONLY (design frozen after) |
+| Tweak an already-generated block | `/rui` | Phase 3.3 · 4 Parts 5-6 · 7 |
+| Design source is Figma + Figma MCP present | `/ftc` | any (conditional) |
+| Pro MCP unreachable | plain shadcn/ui MCP + Blocks | any (fallback) |
+
+ALWAYS reconcile a generated block's tokens to `docs/DESIGN.md` / compiled tokens (Rule 12) — never override.
+OFF-ROUTING IS A FINDING: hand-writing a component a Pro block covers · using `/iui` after the Phase 3.3 freeze ·
+letting a block's own tokens override `docs/DESIGN.md`. Consulted at work-start + done-claim via the Rule 32 loop.
+
+**Optional / non-default component sources:**
+  shadcn/studio FREE (shadcnstudio.com GitHub, MIT) — the free block set; optional supplement to the sanctioned Pro generator above.
+  shadcn.io — community registry with a Pro paid tier; free-tier boundaries unclear. Not a default.
 
 ---
 
