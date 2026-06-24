@@ -18,6 +18,7 @@ import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { PrismaClient } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -70,10 +71,10 @@ function loadCoverageAreas(): { municipalities: CoverageEntry[]; zones: Coverage
   return { municipalities, zones };
 }
 
-function readGeojson(filename: string): unknown {
+function readGeojson(filename: string): Prisma.InputJsonValue {
   const path = resolve(COVERAGE_DIR, filename);
   const raw = readFileSync(path, "utf-8");
-  return JSON.parse(raw) as unknown;
+  return JSON.parse(raw) as Prisma.InputJsonValue;
 }
 
 export async function seedMunicipalities(prisma: PrismaClient): Promise<void> {
@@ -99,13 +100,13 @@ export async function seedMunicipalities(prisma: PrismaClient): Promise<void> {
           name: m.name,
           province: m.province,
           psgcCode: m.psgcCode,
-          boundaryGeojson: geojson as Parameters<typeof prisma.municipality.upsert>[0]["create"]["boundaryGeojson"],
+          boundaryGeojson: geojson,
         },
         update: {
           name: m.name,
           province: m.province,
           psgcCode: m.psgcCode,
-          boundaryGeojson: geojson as Parameters<typeof prisma.municipality.upsert>[0]["update"]["boundaryGeojson"],
+          boundaryGeojson: geojson,
         },
         select: { id: true, slug: true },
       });
@@ -126,12 +127,12 @@ export async function seedMunicipalities(prisma: PrismaClient): Promise<void> {
           tenantId: tenant.id,
           slug: z.id,
           name: z.name,
-          boundaryGeojson: geojson as Parameters<typeof prisma.protectedZone.upsert>[0]["create"]["boundaryGeojson"],
+          boundaryGeojson: geojson,
           parentMunicipalityId,
         },
         update: {
           name: z.name,
-          boundaryGeojson: geojson as Parameters<typeof prisma.protectedZone.upsert>[0]["update"]["boundaryGeojson"],
+          boundaryGeojson: geojson,
           parentMunicipalityId,
         },
         select: { id: true, slug: true },

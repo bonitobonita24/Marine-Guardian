@@ -112,8 +112,9 @@ export async function processMunicipalityAssign(
   const municipalityId = assignMunicipalityToPoint(point, municipalities);
 
   // Layer 2 — use track if materialised, fallback to single point
-  const zoneIds = patrol.track?.trackGeojson
-    ? assignZonesToTrack(patrol.track.trackGeojson, zones)
+  const trackGeojson = patrol.track?.trackGeojson ?? null;
+  const zoneIds = trackGeojson != null
+    ? assignZonesToTrack(trackGeojson, zones)
     : assignZonesToPoint(point, zones);
 
   // Update patrol row (Layer 1)

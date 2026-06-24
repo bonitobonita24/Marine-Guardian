@@ -59,11 +59,14 @@ export const municipalityCoverageRouter = router({
         }),
       ]);
 
+      // municipalityId is guaranteed non-null by the `not: null` filter above,
+      // but Prisma types it as `string | null` on groupBy results — use `?? ""`
+      // to satisfy strict-boolean-expressions without a forbidden non-null assertion.
       const patrolMap = Object.fromEntries(
-        patrolCounts.map((r) => [r.municipalityId!, r._count.id]),
+        patrolCounts.map((r) => [r.municipalityId ?? "", r._count.id]),
       );
       const eventMap = Object.fromEntries(
-        eventCounts.map((r) => [r.municipalityId!, r._count.id]),
+        eventCounts.map((r) => [r.municipalityId ?? "", r._count.id]),
       );
 
       return municipalities.map((m) => ({

@@ -73,7 +73,7 @@ export function ProtectedZoneCard({
                   <p className="truncate text-[11px] font-semibold text-foreground leading-tight">
                     {z.zone}
                   </p>
-                  {z.parentMunicipality && (
+                  {z.parentMunicipality != null && (
                     <p className="truncate text-[10px] text-muted-foreground">
                       {z.parentMunicipality}
                     </p>
