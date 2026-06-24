@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -422,7 +422,7 @@ async function main() {
   const alertDefs = [
     {
       name: "High Priority Events",
-      conditionJson: { minPriority: 200 } as Record<string, unknown>,
+      conditionJson: { minPriority: 200 } as Prisma.InputJsonValue,
       notificationChannels: ["in_app" as const],
       isActive: true,
     },
@@ -430,8 +430,8 @@ async function main() {
       name: "Critical SOS Alerts",
       // eventTypeId is the Prisma row ID resolved from the event-type upsert above.
       conditionJson: sosEventTypeId !== undefined
-        ? ({ eventTypeId: sosEventTypeId } as Record<string, unknown>)
-        : ({ minPriority: 300 } as Record<string, unknown>),
+        ? ({ eventTypeId: sosEventTypeId } as Prisma.InputJsonValue)
+        : ({ minPriority: 300 } as Prisma.InputJsonValue),
       notificationChannels: ["in_app" as const, "email" as const],
       isActive: true,
     },
