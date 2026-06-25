@@ -138,11 +138,26 @@ describe("GenerateReportButton (5.3d + 6.2d)", () => {
     expect(getByTestId("generate-report-button")).toBeTruthy();
   });
 
-  it("on confirm (coverage): calls reportExport.create with empty paramsJson + chosen paperSize", () => {
+  // P1-D: coverage report now emits { category, year, month } so the server
+  // renders the correct monthly window instead of defaulting to "last 30 days".
+  it("P1-D: on confirm (coverage): paramsJson carries {category, year, month} + chosen paperSize", () => {
     stubs.roles = ["site_admin"];
     const { getByTestId } = render(<GenerateReportButton />);
 
     fireEvent.click(getByTestId("generate-report-button"));
+
+    // Coverage period picker should be visible
+    expect(getByTestId("coverage-report-fields")).toBeTruthy();
+    expect(getByTestId("coverage-year-input")).toBeTruthy();
+    expect(getByTestId("coverage-month-select")).toBeTruthy();
+
+    // Change year to 2026 and month to April (4)
+    fireEvent.change(getByTestId("coverage-year-input"), {
+      target: { value: "2026" },
+    });
+    fireEvent.change(getByTestId("coverage-month-select"), {
+      target: { value: "4" },
+    });
 
     const paperSelect = getByTestId("paper-size-select") as HTMLSelectElement;
     fireEvent.change(paperSelect, { target: { value: "Letter" } });
@@ -152,9 +167,25 @@ describe("GenerateReportButton (5.3d + 6.2d)", () => {
     expect(stubs.createMutate).toHaveBeenCalledTimes(1);
     expect(stubs.createMutate).toHaveBeenCalledWith({
       reportType: "coverage",
-      paramsJson: {},
+      paramsJson: { category: "monthly", year: 2026, month: 4 },
       paperSize: "Letter",
     });
+  });
+
+  it("P1-D: coverage report period picker hidden when switching to area report", () => {
+    stubs.roles = ["site_admin"];
+    const { getByTestId, queryByTestId } = render(<GenerateReportButton />);
+
+    fireEvent.click(getByTestId("generate-report-button"));
+    // Coverage fields visible by default
+    expect(queryByTestId("coverage-report-fields")).toBeTruthy();
+
+    // Switch to area → coverage fields hidden, area fields visible
+    fireEvent.change(getByTestId("report-type-select"), {
+      target: { value: "area" },
+    });
+    expect(queryByTestId("coverage-report-fields")).toBeNull();
+    expect(queryByTestId("area-report-fields")).toBeTruthy();
   });
 
   it("after success: surfaces a link to /exports for the user to track the export", () => {

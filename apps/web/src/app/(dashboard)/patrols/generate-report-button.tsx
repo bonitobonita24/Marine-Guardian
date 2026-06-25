@@ -14,6 +14,13 @@
 // emitted as { areaBoundaryId, startDate, endDate } matching parsePerAreaParams
 // in @/server/per-area-report/get-per-area-report-data.ts. All other
 // reportTypes continue to emit {} (no per-area shape change).
+//
+// P1-D fix — Coverage Report period picker. The coverage report defaults to
+// "monthly" (most recent 30 days) which may have no GPS-tracked patrols.
+// When reportType === "coverage", the dialog now exposes year + month inputs
+// so the user can target a period with real computed_distance_km / GPS data.
+// paramsJson is emitted as { category: "monthly", year, month } matching
+// parseCoverageParams in get-coverage-report-data.ts.
 
 import { useRef, useState } from "react";
 import Link from "next/link";
@@ -70,6 +77,10 @@ export function GenerateReportButton() {
   const [areaBoundaryId, setAreaBoundaryId] = useState<string>("");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+  // P1-D — coverage period picker: year + month, only used when reportType === "coverage".
+  const now = new Date();
+  const [coverageYear, setCoverageYear] = useState<number>(now.getFullYear());
+  const [coverageMonth, setCoverageMonth] = useState<number>(now.getMonth() + 1);
   const [feedback, setFeedback] = useState<
     | { kind: "success"; exportId: string }
     | { kind: "error"; message: string }
@@ -111,9 +122,10 @@ export function GenerateReportButton() {
   }
 
   // 6.2d — paramsJson shape is reportType-discriminated. Only "area" carries
-  // a payload today; coverage and the future reportTypes pass {} until each
-  // gets its own print-render wiring.
+  // a payload today; coverage emits { category, year, month } (P1-D period
+  // picker); other reportTypes pass {}.
   const isAreaReport = reportType === "area";
+  const isCoverageReport = reportType === "coverage";
   const areaFieldsComplete =
     areaBoundaryId.length > 0 && startDate.length > 0 && endDate.length > 0;
   const confirmDisabled =
@@ -125,6 +137,13 @@ export function GenerateReportButton() {
         areaBoundaryId,
         startDate,
         endDate,
+      };
+    }
+    if (isCoverageReport) {
+      return {
+        category: "monthly",
+        year: coverageYear,
+        month: coverageMonth,
       };
     }
     return {};
@@ -175,6 +194,10 @@ export function GenerateReportButton() {
     setAreaBoundaryId("");
     setStartDate("");
     setEndDate("");
+    // P1-D — reset coverage period to current month on close.
+    const n = new Date();
+    setCoverageYear(n.getFullYear());
+    setCoverageMonth(n.getMonth() + 1);
     create.reset();
   }
 
@@ -182,14 +205,20 @@ export function GenerateReportButton() {
     const next = e.target.value as ReportType;
     setReportType(next);
     // 6.2d — clear area-specific state whenever the user moves off "area".
-    // Prevents stale areaBoundaryId leaking into a subsequent coverage
-    // export's paramsJson (would still be ignored server-side but keeping
-    // payload shape clean matches the L268 methodology).
     if (next !== "area") {
       setAreaBoundaryId("");
       setStartDate("");
       setEndDate("");
     }
+  }
+
+  function handleCoverageYearChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const v = parseInt(e.target.value, 10);
+    if (!isNaN(v)) setCoverageYear(v);
+  }
+
+  function handleCoverageMonthChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    setCoverageMonth(parseInt(e.target.value, 10));
   }
 
   function handlePaperSizeChange(e: React.ChangeEvent<HTMLSelectElement>) {
@@ -283,6 +312,52 @@ export function GenerateReportButton() {
                 ))}
               </select>
             </div>
+
+            {isCoverageReport && (
+              <div
+                className="space-y-3 rounded-md border border-input bg-muted/30 p-3"
+                data-testid="coverage-report-fields"
+              >
+                <p className="text-xs text-muted-foreground">
+                  Choose the month to cover. KMS and duration appear only for
+                  patrols with a GPS track recorded in EarthRanger.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="coverage-year">Year</Label>
+                    <Input
+                      id="coverage-year"
+                      data-testid="coverage-year-input"
+                      type="number"
+                      min={2020}
+                      max={new Date().getFullYear()}
+                      value={coverageYear}
+                      onChange={handleCoverageYearChange}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="coverage-month">Month</Label>
+                    <select
+                      id="coverage-month"
+                      data-testid="coverage-month-select"
+                      value={coverageMonth}
+                      onChange={handleCoverageMonthChange}
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    >
+                      {[
+                        "January", "February", "March", "April",
+                        "May", "June", "July", "August",
+                        "September", "October", "November", "December",
+                      ].map((m, i) => (
+                        <option key={m} value={i + 1}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {isAreaReport && (
               <div
