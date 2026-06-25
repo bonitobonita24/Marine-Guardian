@@ -121,10 +121,32 @@ export class EarthRangerClient {
     this.trackToken = trackToken ?? token;
   }
 
+  // Per-request network timeout. ER track fetches over wide windows can be
+  // slow, but a stalled connection must not hang the caller indefinitely — a
+  // single hung patrol would otherwise stall an entire backfill or recurring-
+  // sync pass. On timeout, fetch aborts with a TimeoutError, surfaced here as a
+  // clear ER error so the caller can count it and move on.
+  private static readonly REQUEST_TIMEOUT_MS = 45_000;
+
   private async request<T>(path: string, bearer?: string): Promise<T> {
     const url = `${this.baseUrl}/api/v1.0${path}`;
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${bearer ?? this.token}` },
+      signal: AbortSignal.timeout(EarthRangerClient.REQUEST_TIMEOUT_MS),
+    }).catch((err: unknown) => {
+      if (
+        typeof err === "object" &&
+        err !== null &&
+        "name" in err &&
+        (err.name === "TimeoutError" || err.name === "AbortError")
+      ) {
+        throw new Error(
+          `EarthRanger API request timed out after ${String(
+            EarthRangerClient.REQUEST_TIMEOUT_MS,
+          )}ms: ${path}`,
+        );
+      }
+      throw err;
     });
     if (!res.ok) {
       throw new Error(`EarthRanger API error: ${String(res.status)} ${res.statusText}`);
