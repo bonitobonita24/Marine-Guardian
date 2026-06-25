@@ -17,14 +17,40 @@ export type LastIncident = {
 export function LastIncidentCard({
   incident,
   now,
+  onSelect,
 }: {
   incident: LastIncident;
   now?: Date | undefined;
+  onSelect?: (id: string) => void;
 }) {
+  const clickable = incident !== null && onSelect !== undefined;
+  const incidentTitle =
+    incident?.title ?? incident?.eventType?.display ?? "Incident";
+
   return (
     <section
       aria-labelledby="warroom-incident-heading"
-      className="flex min-w-[6.5rem] flex-col items-center justify-center rounded-lg border border-border bg-card px-3 py-2 text-center"
+      {...(clickable
+        ? {
+            role: "button",
+            tabIndex: 0,
+            "aria-label": `View last incident detail: ${incidentTitle}`,
+            onClick: () => {
+              onSelect(incident.id);
+            },
+            onKeyDown: (e: React.KeyboardEvent) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onSelect(incident.id);
+              }
+            },
+          }
+        : {})}
+      className={`flex min-w-[6.5rem] flex-col items-center justify-center rounded-lg border border-border bg-card px-3 py-2 text-center ${
+        clickable
+          ? "cursor-pointer hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          : ""
+      }`}
     >
       <h2
         id="warroom-incident-heading"

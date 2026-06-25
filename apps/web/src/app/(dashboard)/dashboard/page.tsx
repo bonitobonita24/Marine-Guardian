@@ -24,6 +24,8 @@ import {
   useDashboardRange,
 } from "./_components/range-context";
 import { DateRangeHeader } from "./_components/date-range-header";
+import { PatrolDetailModal } from "./_components/patrol-detail-modal";
+import { EventDetailModal } from "@/components/events/event-detail-modal";
 
 /**
  * WAR ROOM command center — the live operations dashboard.
@@ -78,6 +80,13 @@ function DashboardContent() {
 
   // Track which alert ID is currently being acknowledged (optimistic spinner).
   const [ackingId, setAckingId] = useState<string | null>(null);
+
+  // Click→detail drill-down (T5): event-feed rows + last-incident open the
+  // shared EventDetailModal; active-patrols rows open a lightweight patrol modal.
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [selectedPatrol, setSelectedPatrol] = useState<ActivePatrol | null>(
+    null,
+  );
 
   const acknowledgeMutation = trpc.alertHistory.acknowledge.useMutation({
     onSuccess: async () => {
@@ -220,7 +229,11 @@ function DashboardContent() {
               data={breakdown.data?.monitoring ?? []}
               variant="monitoring"
             />
-            <LastIncidentCard incident={incident} now={nowValue} />
+            <LastIncidentCard
+              incident={incident}
+              now={nowValue}
+              onSelect={setSelectedEventId}
+            />
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
             <MunicipalityCoverageChart
@@ -248,14 +261,30 @@ function DashboardContent() {
             events={feedEvents}
             isLoading={recent.isLoading}
             now={nowValue}
+            onSelectEvent={setSelectedEventId}
           />
           <ActivePatrols
             patrols={activePatrols}
             isLoading={patrols.isLoading}
             now={nowValue}
+            onSelectPatrol={setSelectedPatrol}
           />
         </div>
       </div>
+
+      <EventDetailModal
+        eventId={selectedEventId}
+        onClose={() => {
+          setSelectedEventId(null);
+        }}
+      />
+      <PatrolDetailModal
+        patrol={selectedPatrol}
+        now={nowValue}
+        onClose={() => {
+          setSelectedPatrol(null);
+        }}
+      />
     </div>
   );
 }

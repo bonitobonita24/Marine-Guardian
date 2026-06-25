@@ -30,10 +30,12 @@ export function ActivePatrols({
   patrols,
   isLoading,
   now,
+  onSelectPatrol,
 }: {
   patrols: ActivePatrol[];
   isLoading: boolean;
   now?: Date | undefined;
+  onSelectPatrol?: (patrol: ActivePatrol) => void;
 }) {
   return (
     <section
@@ -82,8 +84,31 @@ export function ActivePatrols({
                 const t = patrolTypeMeta(p.patrolType);
                 const TypeIcon = t.icon;
                 const km = p.computedDistanceKm ?? p.totalDistanceKm;
+                const clickable = onSelectPatrol !== undefined;
                 return (
-                  <TableRow key={p.id}>
+                  <TableRow
+                    key={p.id}
+                    {...(clickable
+                      ? {
+                          role: "button",
+                          tabIndex: 0,
+                          "aria-label": `View patrol detail: ${t.label} patrol${
+                            p.areaName !== null ? ` at ${p.areaName}` : ""
+                          }${p.leaderName !== null ? ` led by ${p.leaderName}` : ""}`,
+                          onClick: () => {
+                            onSelectPatrol(p);
+                          },
+                          onKeyDown: (e: React.KeyboardEvent) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              onSelectPatrol(p);
+                            }
+                          },
+                          className:
+                            "cursor-pointer hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                        }
+                      : {})}
+                  >
                     <TableCell className="text-[11px] font-medium">
                       {p.leaderName ?? "—"}
                     </TableCell>
