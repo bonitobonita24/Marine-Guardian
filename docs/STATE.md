@@ -8,14 +8,18 @@ FRAMEWORK_VERSION: V32.9
 
 GOALS_2026_06_25 (owner-set, Full Auto Mode — branch feat/warroom-date-range-drilldown):
   Spec locked in docs/PRODUCT.md (Active Goals + War Room spec). Local-dev ONLY (no staging/prod).
-  PROGRESS (all commits on branch, pushed to origin, gated green, NOT merged — for owner review):
+  PROGRESS (all commits on branch feat/warroom-date-range-drilldown, pushed to origin, each gated green, NOT merged — owner review):
     T1 backend 66e1193 · T2-T4 range header+context 3d1b616 · T5 event/patrol modals 2d62b4a ·
-    T5b KPI+breakdown drill-down modals 412fb2c. Web suite 989→1009. Item 3 ✅ + Item 4 ✅ (every
-    list-backed element clickable→modal; non-list aggregates [Unacked/RangersOnDuty] non-interactive by design).
-    T6 Visual QA: IN PROGRESS (background agent — rebuild dev_app + Playwright). T4b deferred (below).
-  T4b DEFERRED follow-up: municipality-coverage-chart + protected-zone-card use {since,until}/no input, NOT
-    {dateFrom,dateTo} — not yet range-scoped. To fully satisfy item 3 "ALL data reflects range", add dateFrom/dateTo
-    to their backing procedures + thread the range. Also: alerts-panel items have ACK but no click→detail modal yet.
+    T5b KPI+breakdown drill modals 412fb2c · T4b 2 coverage charts range-scoped + alert detail modal f976435.
+    Web suite 989→1019. ITEM 3 ✅ COMPLETE (all panels incl. municipality + protected-zone charts honor range; default last-7d).
+    ITEM 4 ✅ COMPLETE (every data element clickable→modal: event-feed, last-incident, patrol rows, KPI cards [list-backed],
+    breakdown bars, alert rows; non-list aggregates [Unacked/RangersOnDuty] non-interactive by design).
+    Visual QA core PASS (docs/qa-screenshots/warroom-2026-06-25/: default 7d, range re-query, 4 modal types, 0 console errors).
+    T4b-additions QA: IN PROGRESS (background — 2 coverage charts re-query + alert modal).
+  INFRA NIT (follow-up): dev deploy/compose/dev/docker-compose.app.yml external network 'dev_network' ≠ actual
+    'marine-guardian_dev_network' → bare `docker compose up --build app` fails unless COMPOSE_PROJECT_NAME=marine-guardian_dev
+    (start.sh sets it). Align the name so the rebuild command works as written.
+  REMAINING (owner-gated only): Item 2 ER completeness + images — needs DAS_WEB_TOKEN (see docs/PENDING_DECISIONS.md).
   1. ✅ Local-dev only — staging/prod paused (PRODUCT.md Deployment Config updated). PR #27 fix stays on main, NOT deployed.
   2. 🔴 GATED — ER data completeness + images: date coverage 2024→now EXISTS locally (patrols 2023-26, events 2023-26);
      IMAGES NOT STORED (only has_photo flag, no attachment table, ingest script has no image download). Live verification +
