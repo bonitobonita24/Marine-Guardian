@@ -102,7 +102,10 @@ export function ActivePatrols({
                     <TableCell className="text-right text-[11px] tabular-nums">
                       {elapsedHm(p.startTime, now)}
                     </TableCell>
-                    <TableCell className="text-right text-[11px] tabular-nums">
+                    <TableCell
+                      className="text-right text-[11px] tabular-nums"
+                      title={km === null ? "No GPS track recorded" : undefined}
+                    >
                       {formatKm(km)}
                     </TableCell>
                   </TableRow>
