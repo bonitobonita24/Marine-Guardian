@@ -143,6 +143,52 @@ describe("event.updateState", () => {
   });
 });
 
+describe("event.list — typeDisplay filter (War Room breakdown drill-down T5b)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("filters by joined eventType.display (exact, case-insensitive) when typeDisplay is set", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ typeDisplay: "Illegal Fishing" });
+
+    const call = vi.mocked(prisma.event.findMany).mock.calls[0];
+    expect(call?.[0]?.where?.eventType).toEqual({
+      display: { equals: "Illegal Fishing", mode: "insensitive" },
+    });
+    // still tenant-scoped (L6)
+    expect(call?.[0]?.where?.tenantId).toBe(TENANT_ID);
+  });
+
+  it("merges typeDisplay with category into a single eventType filter", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({
+      category: "Law Enforcement",
+      typeDisplay: "Illegal Fishing",
+    });
+
+    const call = vi.mocked(prisma.event.findMany).mock.calls[0];
+    expect(call?.[0]?.where?.eventType).toEqual({
+      category: { equals: "Law Enforcement", mode: "insensitive" },
+      display: { equals: "Illegal Fishing", mode: "insensitive" },
+    });
+  });
+
+  it("omits the eventType filter entirely when neither category nor typeDisplay is set", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ state: "active" });
+
+    const call = vi.mocked(prisma.event.findMany).mock.calls[0];
+    expect(call?.[0]?.where?.eventType).toBeUndefined();
+  });
+});
+
 describe("event.update", () => {
   const existingEvent = {
     id: "ev-1",

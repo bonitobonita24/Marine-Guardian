@@ -25,6 +25,9 @@ import {
 } from "./_components/range-context";
 import { DateRangeHeader } from "./_components/date-range-header";
 import { PatrolDetailModal } from "./_components/patrol-detail-modal";
+import { BreakdownDrilldownModal } from "./_components/breakdown-drilldown-modal";
+import { KpiDrilldownModal } from "./_components/kpi-drilldown-modal";
+import type { KpiDrilldown } from "./_components/kpi-strip";
 import { EventDetailModal } from "@/components/events/event-detail-modal";
 
 /**
@@ -88,6 +91,16 @@ function DashboardContent() {
     null,
   );
 
+  // T5b — drill-down from KPI tiles + breakdown bars into the underlying
+  // in-range record lists (event.list / patrol.list) via dedicated modals.
+  const [selectedBreakdownType, setSelectedBreakdownType] = useState<
+    string | null
+  >(null);
+  const [selectedKpi, setSelectedKpi] = useState<KpiDrilldown | null>(null);
+
+  // ISO strings for the active range, shared by the drill-down modals.
+  const rangeIso = { dateFrom: from.toISOString(), dateTo: to.toISOString() };
+
   const acknowledgeMutation = trpc.alertHistory.acknowledge.useMutation({
     onSuccess: async () => {
       // Refetch alerts list + alertStats KPI on success.
@@ -142,6 +155,7 @@ function DashboardContent() {
       value: kpis.data?.activeEvents ?? 0,
       icon: Zap,
       valueClass: "text-[hsl(var(--warning))]",
+      drilldown: { kind: "activeEvents" } as const,
     },
     {
       label: "Unacknowledged",
@@ -155,6 +169,7 @@ function DashboardContent() {
       value: kpis.data?.activePatrols ?? 0,
       icon: Shield,
       valueClass: "text-foreground",
+      drilldown: { kind: "activePatrols" } as const,
     },
     {
       label: "Rangers on Duty",
@@ -167,6 +182,7 @@ function DashboardContent() {
       value: kpis.data?.eventsThisMonth ?? 0,
       icon: BarChart3,
       valueClass: "text-[hsl(var(--info))]",
+      drilldown: { kind: "eventsThisMonth" } as const,
       ...(kpis.data
         ? (() => {
             const delta = kpis.data.eventsThisMonth - kpis.data.eventsLastMonth;
@@ -206,7 +222,11 @@ function DashboardContent() {
 
       <DateRangeHeader />
 
-      <KpiStrip kpis={kpiTiles} lastSyncedAt={lastSyncedAt || undefined} />
+      <KpiStrip
+        kpis={kpiTiles}
+        lastSyncedAt={lastSyncedAt || undefined}
+        onSelectKpi={setSelectedKpi}
+      />
 
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-5">
         {/* Map + charts zone */}
@@ -223,11 +243,13 @@ function DashboardContent() {
               title="Law Enforcement"
               data={breakdown.data?.lawEnforcement ?? []}
               variant="law_enforcement"
+              onSelectType={setSelectedBreakdownType}
             />
             <BreakdownBars
               title="Monitoring"
               data={breakdown.data?.monitoring ?? []}
               variant="monitoring"
+              onSelectType={setSelectedBreakdownType}
             />
             <LastIncidentCard
               incident={incident}
@@ -283,6 +305,22 @@ function DashboardContent() {
         now={nowValue}
         onClose={() => {
           setSelectedPatrol(null);
+        }}
+      />
+      <BreakdownDrilldownModal
+        typeDisplay={selectedBreakdownType}
+        dateFrom={rangeIso.dateFrom}
+        dateTo={rangeIso.dateTo}
+        onClose={() => {
+          setSelectedBreakdownType(null);
+        }}
+      />
+      <KpiDrilldownModal
+        drilldown={selectedKpi}
+        dateFrom={rangeIso.dateFrom}
+        dateTo={rangeIso.dateTo}
+        onClose={() => {
+          setSelectedKpi(null);
         }}
       />
     </div>
