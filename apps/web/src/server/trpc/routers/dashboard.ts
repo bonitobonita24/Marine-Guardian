@@ -174,9 +174,13 @@ export const dashboardRouter = router({
         const category = e.eventType?.category ?? "uncategorized";
         const display = e.eventType?.display ?? "Unknown";
 
-        if (category === "law_enforcement") {
+        // Bucket strictly by the REAL EarthRanger category values. Every other
+        // category (hidden / emergency / maintenance / analyzer_event /
+        // observation / security / violation / null) is excluded from BOTH
+        // breakdown bars (owner decision 2026-06-25).
+        if (category === "law-enforcement-and-apprehensions") {
           lawEnforcement[display] = (lawEnforcement[display] ?? 0) + 1;
-        } else {
+        } else if (category === "monitoring_patrolling_and_surveillance") {
           monitoring[display] = (monitoring[display] ?? 0) + 1;
         }
       }

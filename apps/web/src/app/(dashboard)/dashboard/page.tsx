@@ -107,6 +107,16 @@ function DashboardContent() {
   // ISO strings for the active range, shared by the drill-down modals.
   const rangeIso = { dateFrom: from.toISOString(), dateTo: to.toISOString() };
 
+  // Human-readable label for the active range (e.g. "Jun 19 – Jun 26"), shown
+  // on the coverage cards in place of the old hardcoded "30 days".
+  const rangeLabel = `${from.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  })} – ${to.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  })}`;
+
   const acknowledgeMutation = trpc.alertHistory.acknowledge.useMutation({
     onSuccess: async () => {
       // Refetch alerts list + alertStats KPI on success.
@@ -247,13 +257,13 @@ function DashboardContent() {
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
             <BreakdownBars
-              title="Law Enforcement"
+              title="Law Enforcement and Apprehensions"
               data={breakdown.data?.lawEnforcement ?? []}
               variant="law_enforcement"
               onSelectType={setSelectedBreakdownType}
             />
             <BreakdownBars
-              title="Monitoring"
+              title="Monitoring, Patrolling & Surveillance"
               data={breakdown.data?.monitoring ?? []}
               variant="monitoring"
               onSelectType={setSelectedBreakdownType}
@@ -268,10 +278,12 @@ function DashboardContent() {
             <MunicipalityCoverageChart
               data={coverageData.data ?? []}
               isLoading={coverageData.isLoading}
+              rangeLabel={rangeLabel}
             />
             <ProtectedZoneCard
               zones={zoneData.data ?? []}
               isLoading={zoneData.isLoading}
+              rangeLabel={rangeLabel}
             />
           </div>
         </div>

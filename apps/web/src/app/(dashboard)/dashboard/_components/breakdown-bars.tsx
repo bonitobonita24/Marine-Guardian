@@ -18,7 +18,7 @@
  *  - title, data (BreakdownDatum[]), variant, barClass (legacy compat)
  */
 
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, LabelList, XAxis, YAxis } from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
@@ -127,7 +127,7 @@ export function BreakdownBars({
                 accessibilityLayer
                 data={chartData}
                 layout="vertical"
-                margin={{ top: 0, right: 24, bottom: 0, left: 0 }}
+                margin={{ top: 0, right: 36, bottom: 0, left: 0 }}
               >
                 {/* Pro CartesianGrid: dashed, horizontal only, border token */}
                 <CartesianGrid
@@ -168,7 +168,15 @@ export function BreakdownBars({
                         },
                       }
                     : {})}
-                />
+                >
+                  {/* Count label at the end (right) of each bar */}
+                  <LabelList
+                    dataKey="count"
+                    position="right"
+                    className="fill-foreground tabular-nums"
+                    fontSize={9}
+                  />
+                </Bar>
               </BarChart>
             </ChartContainer>
 

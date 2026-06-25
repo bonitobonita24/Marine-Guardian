@@ -99,7 +99,10 @@ describe("dashboard.recentEvents — Skylight filter (Issue B)", () => {
         priority: 200,
         state: "active",
         reportedAt: new Date("2026-06-23T08:00:00Z"),
-        eventType: { display: "Poaching", category: "law_enforcement" },
+        eventType: {
+          display: "Poaching",
+          category: "law-enforcement-and-apprehensions",
+        },
       },
     ]);
 
@@ -130,6 +133,47 @@ describe("dashboard.eventBreakdown — Skylight filter (Issue B)", () => {
       tenantId: TENANT_ID,
       NOT: { eventType: { display: { contains: "skylight", mode: "insensitive" } } },
     });
+  });
+
+  it("buckets by the real EarthRanger category values and excludes everything else", async () => {
+    // The DB stores the real category strings below. Law Enforcement events go
+    // into the lawEnforcement bucket, Monitoring events into the monitoring
+    // bucket, and every other category is excluded from BOTH buckets.
+    mockPrisma.event.findMany.mockResolvedValue([
+      {
+        eventType: {
+          display: "Apprehension",
+          category: "law-enforcement-and-apprehensions",
+        },
+      },
+      {
+        eventType: {
+          display: "Apprehension",
+          category: "law-enforcement-and-apprehensions",
+        },
+      },
+      {
+        eventType: {
+          display: "Patrol Sweep",
+          category: "monitoring_patrolling_and_surveillance",
+        },
+      },
+      // The following must NOT appear in either bucket.
+      { eventType: { display: "Hidden Thing", category: "hidden" } },
+      { eventType: { display: "Fire", category: "emergency" } },
+      { eventType: { display: "Repair", category: "maintenance" } },
+      { eventType: { display: "Vessel Ping", category: "analyzer_event" } },
+      { eventType: { display: "Sighting", category: "observation" } },
+      { eventType: { display: "Breach", category: "security" } },
+      { eventType: { display: "Infraction", category: "violation" } },
+      { eventType: { display: "No Category", category: null } },
+    ]);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.eventBreakdown();
+
+    expect(result.lawEnforcement).toEqual([{ type: "Apprehension", count: 2 }]);
+    expect(result.monitoring).toEqual([{ type: "Patrol Sweep", count: 1 }]);
   });
 });
 
