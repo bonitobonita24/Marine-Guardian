@@ -350,6 +350,146 @@ describe("getCoverageReportData", () => {
     expect(r?.patrols[0]?.totalDistanceKm).toBe(8.4);
   });
 
+  // P2-B regression — stored lat/lon fallback for location columns
+  it("P2-B: uses startLocationLat/Lon + endLocationLat/Lon when no PatrolTrack exists", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
+      TENANT_ROW as never,
+    );
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValueOnce({
+      tenantId: TENANT_ID,
+      reportType: "coverage",
+      paramsJson: { category: "monthly", year: 2026, month: 5 },
+      paperSize: "A4",
+      createdAt: new Date("2026-05-21T08:00:00.000Z"),
+    } as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([
+      {
+        id: "p-hist",
+        serialNumber: "MG-0099",
+        title: "Historic closed patrol",
+        patrolType: "seaborne",
+        state: "done",
+        startTime: new Date("2026-05-10T01:00:00.000Z"),
+        endTime: new Date("2026-05-10T06:00:00.000Z"),
+        totalDistanceKm: 18.7,
+        totalHours: 5,
+        boatName: "Bantay 1",
+        areaName: "South Shoal",
+        computedDistanceKm: null,
+        computedDurationHours: null,
+        // Stored lat/lon from ER segment start/end_location
+        startLocationLat: 12.1,
+        startLocationLon: 120.5,
+        endLocationLat: 12.3,
+        endLocationLon: 120.7,
+        segments: [{ leaderName: "Cruz" }],
+        track: null, // no PatrolTrack row → extractTrackEndpoints returns null
+      },
+    ] as never);
+    vi.mocked(prisma.areaBoundary.findMany).mockResolvedValueOnce([] as never);
+    const r = await getCoverageReportData(TENANT_SLUG, EXPORT_ID);
+    const p = r?.patrols[0];
+    // Should fall back to the stored columns, not return null.
+    expect(p?.startLocation).toEqual({ lat: 12.1, lon: 120.5 });
+    expect(p?.endLocation).toEqual({ lat: 12.3, lon: 120.7 });
+    // Distance must come from ER totalDistanceKm since computedDistanceKm is null.
+    expect(p?.totalDistanceKm).toBe(18.7);
+    // Duration must fall back to totalHours since computedDurationHours is null.
+    expect(p?.totalHours).toBe(5);
+  });
+
+  // P2-B regression — computedDurationHours preferred over totalHours
+  it("P2-B: prefers computedDurationHours over totalHours when both present", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
+      TENANT_ROW as never,
+    );
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValueOnce({
+      tenantId: TENANT_ID,
+      reportType: "coverage",
+      paramsJson: { category: "monthly", year: 2026, month: 5 },
+      paperSize: "A4",
+      createdAt: new Date("2026-05-21T08:00:00.000Z"),
+    } as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([
+      {
+        id: "p-dur",
+        serialNumber: null,
+        title: "Duration test patrol",
+        patrolType: "foot",
+        state: "done",
+        startTime: new Date("2026-05-15T03:00:00.000Z"),
+        endTime: new Date("2026-05-15T07:00:00.000Z"),
+        totalDistanceKm: 4,
+        totalHours: 4,             // ER value — lower precision
+        computedDistanceKm: 4,
+        computedDurationHours: 3.8, // haversine-recomputed — preferred
+        startLocationLat: null,
+        startLocationLon: null,
+        endLocationLat: null,
+        endLocationLon: null,
+        boatName: null,
+        areaName: null,
+        segments: [],
+        track: null,
+      },
+    ] as never);
+    vi.mocked(prisma.areaBoundary.findMany).mockResolvedValueOnce([] as never);
+    const r = await getCoverageReportData(TENANT_SLUG, EXPORT_ID);
+    expect(r?.patrols[0]?.totalHours).toBe(3.8);
+  });
+
+  // P2-B regression — track endpoint takes priority over stored columns
+  it("P2-B: track-derived endpoints take priority over stored startLocationLat/Lon", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
+      TENANT_ROW as never,
+    );
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValueOnce({
+      tenantId: TENANT_ID,
+      reportType: "coverage",
+      paramsJson: { category: "monthly", year: 2026, month: 5 },
+      paperSize: "A4",
+      createdAt: new Date("2026-05-21T08:00:00.000Z"),
+    } as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([
+      {
+        id: "p-track",
+        serialNumber: null,
+        title: null,
+        patrolType: "foot",
+        state: "done",
+        startTime: new Date("2026-05-16T01:00:00.000Z"),
+        endTime: new Date("2026-05-16T04:00:00.000Z"),
+        totalDistanceKm: 5,
+        totalHours: 3,
+        computedDistanceKm: 5,
+        computedDurationHours: 3,
+        // Stored columns present but track exists → track wins.
+        startLocationLat: 99.0,
+        startLocationLon: 99.0,
+        endLocationLat: 99.0,
+        endLocationLon: 99.0,
+        boatName: null,
+        areaName: null,
+        segments: [],
+        track: {
+          trackGeojson: {
+            type: "LineString",
+            coordinates: [
+              [121.5, 13.5],
+              [121.6, 13.6],
+            ],
+          },
+        },
+      },
+    ] as never);
+    vi.mocked(prisma.areaBoundary.findMany).mockResolvedValueOnce([] as never);
+    const r = await getCoverageReportData(TENANT_SLUG, EXPORT_ID);
+    const p = r?.patrols[0];
+    // Track-derived endpoints win over stored 99.0 sentinel values.
+    expect(p?.startLocation).toEqual({ lat: 13.5, lon: 121.5 });
+    expect(p?.endLocation).toEqual({ lat: 13.6, lon: 121.6 });
+  });
+
   it("falls back to current month when paramsJson is empty {}", async () => {
     vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
       TENANT_ROW as never,

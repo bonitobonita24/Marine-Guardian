@@ -310,7 +310,26 @@ export async function getCoverageReportData(
       startTime: { gte: period.start, lt: period.end },
     },
     orderBy: { startTime: "asc" },
-    include: {
+    select: {
+      id: true,
+      serialNumber: true,
+      title: true,
+      patrolType: true,
+      state: true,
+      startTime: true,
+      endTime: true,
+      totalDistanceKm: true,
+      totalHours: true,
+      boatName: true,
+      areaName: true,
+      // v2 computed metrics — preferred over ER totals (P2-B fix)
+      computedDistanceKm: true,
+      computedDurationHours: true,
+      // v2 location pairs — fallback when no PatrolTrack exists (P2-B fix)
+      startLocationLat: true,
+      startLocationLon: true,
+      endLocationLat: true,
+      endLocationLon: true,
       segments: {
         orderBy: { actualStart: "asc" },
         take: 1,
@@ -325,6 +344,20 @@ export async function getCoverageReportData(
     const trackGeojson = p.track?.trackGeojson;
     const endpoints = extractTrackEndpoints(trackGeojson);
     const polyline = extractTrackPolyline(trackGeojson);
+
+    // P2-B: prefer track-derived endpoints; fall back to stored lat/lon columns
+    // (populated by the ER segment start/end_location during sync).
+    const startLocation =
+      endpoints.start ??
+      (p.startLocationLat != null && p.startLocationLon != null
+        ? { lat: p.startLocationLat, lon: p.startLocationLon }
+        : null);
+    const endLocation =
+      endpoints.end ??
+      (p.endLocationLat != null && p.endLocationLon != null
+        ? { lat: p.endLocationLat, lon: p.endLocationLon }
+        : null);
+
     return {
       id: p.id,
       serialNumber: p.serialNumber,
@@ -333,13 +366,17 @@ export async function getCoverageReportData(
       state: p.state,
       startTime: p.startTime,
       endTime: p.endTime,
+      // P2-B: computedDistanceKm is set by recomputeDistanceAndDuration (runs
+      // on open patrols via 5.2b). For historic/closed patrols that were
+      // backfilled before recompute ran, fall through to ER-sourced totalDistanceKm.
       totalDistanceKm: p.computedDistanceKm ?? p.totalDistanceKm,
-      totalHours: p.totalHours,
+      // P2-B: likewise prefer recomputed duration over ER-sourced totalHours.
+      totalHours: p.computedDurationHours ?? p.totalHours,
       boatName: p.boatName,
       leaderName,
       areaName: p.areaName,
-      startLocation: endpoints.start,
-      endLocation: endpoints.end,
+      startLocation,
+      endLocation,
       trackLineString: polyline,
     };
   });
