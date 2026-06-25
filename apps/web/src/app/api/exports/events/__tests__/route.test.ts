@@ -200,4 +200,88 @@ describe("GET /api/exports/events", () => {
       }),
     );
   });
+
+  // ── P1-EXPORT-FILTERS: new filter params ──────────────────────────────────
+
+  it("propagates category filter into eventType.category prisma.where", async () => {
+    mockedAuth.mockResolvedValue(authedSession());
+    mockedFindMany.mockResolvedValue([]);
+
+    const req = new NextRequest(
+      "http://localhost/api/exports/events?format=csv&category=Law+Enforcement",
+    );
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+
+    expect(mockedFindMany).toHaveBeenCalledWith(
+      partial({
+        where: partial({
+          tenantId: "t1",
+          eventType: { category: { equals: "Law Enforcement", mode: "insensitive" } },
+        }),
+      }),
+    );
+  });
+
+  it("propagates areaName filter into areaName.contains prisma.where", async () => {
+    mockedAuth.mockResolvedValue(authedSession());
+    mockedFindMany.mockResolvedValue([]);
+
+    const req = new NextRequest(
+      "http://localhost/api/exports/events?format=csv&areaName=Palawan",
+    );
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+
+    expect(mockedFindMany).toHaveBeenCalledWith(
+      partial({
+        where: partial({
+          tenantId: "t1",
+          areaName: { contains: "Palawan", mode: "insensitive" },
+        }),
+      }),
+    );
+  });
+
+  it("propagates dateFrom and dateTo filters into reportedAt prisma.where", async () => {
+    mockedAuth.mockResolvedValue(authedSession());
+    mockedFindMany.mockResolvedValue([]);
+
+    const req = new NextRequest(
+      "http://localhost/api/exports/events?format=csv&dateFrom=2026-05-01T00:00:00.000Z&dateTo=2026-05-31T23:59:59.999Z",
+    );
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+
+    expect(mockedFindMany).toHaveBeenCalledWith(
+      partial({
+        where: partial({
+          tenantId: "t1",
+          reportedAt: {
+            gte: new Date("2026-05-01T00:00:00.000Z"),
+            lte: new Date("2026-05-31T23:59:59.999Z"),
+          },
+        }),
+      }),
+    );
+  });
+
+  it("413 response body contains the error message and rowsRequested field", async () => {
+    mockedAuth.mockResolvedValue(authedSession());
+    const tooMany = Array.from({ length: 10001 }, (_, i) =>
+      makeEvent(`e${String(i)}`),
+    );
+    mockedFindMany.mockResolvedValue(tooMany);
+
+    const req = new NextRequest(
+      "http://localhost/api/exports/events?format=csv&state=new_event",
+    );
+    const res = await GET(req);
+
+    expect(res.status).toBe(413);
+    const body = await res.json() as { error: string; rowsRequested: number; limit: number };
+    expect(body.error).toMatch(/too large/i);
+    expect(body.rowsRequested).toBe(10001);
+    expect(body.limit).toBe(10000);
+  });
 });

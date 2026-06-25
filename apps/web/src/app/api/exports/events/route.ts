@@ -97,12 +97,20 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const url = new URL(req.url);
   const format = url.searchParams.get("format") === "pdf" ? "pdf" : "csv";
 
-  const stateParam = url.searchParams.get("state");
+  const stateParam    = url.searchParams.get("state");
   const priorityParam = url.searchParams.get("priority");
+  const categoryParam = url.searchParams.get("category");
+  const areaNameParam = url.searchParams.get("areaName");
+  const dateFromParam = url.searchParams.get("dateFrom");
+  const dateToParam   = url.searchParams.get("dateTo");
 
   const parsed = eventListFilters.safeParse({
-    state: stateParam ?? undefined,
+    state:    stateParam    ?? undefined,
     priority: priorityParam !== null ? Number(priorityParam) : undefined,
+    category: categoryParam ?? undefined,
+    areaName: areaNameParam ?? undefined,
+    dateFrom: dateFromParam ?? undefined,
+    dateTo:   dateToParam   ?? undefined,
   });
   if (!parsed.success) {
     return NextResponse.json(
@@ -112,6 +120,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
   const filters = parsed.data;
 
+  const dateFromParsed = filters.dateFrom !== undefined ? new Date(filters.dateFrom) : undefined;
+  const dateToParsed   = filters.dateTo   !== undefined ? new Date(filters.dateTo)   : undefined;
+
   const tenant = await prisma.tenant.findUniqueOrThrow({
     where: { id: ctx.tenantId },
     select: { slug: true, name: true },
@@ -120,8 +131,22 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const items = await prisma.event.findMany({
     where: {
       tenantId: ctx.tenantId,
-      ...(filters.state !== undefined ? { state: filters.state } : {}),
+      ...(filters.state    !== undefined ? { state:    filters.state    } : {}),
       ...(filters.priority !== undefined ? { priority: filters.priority } : {}),
+      ...(filters.category !== undefined
+        ? { eventType: { category: { equals: filters.category, mode: "insensitive" } } }
+        : {}),
+      ...(filters.areaName !== undefined
+        ? { areaName: { contains: filters.areaName, mode: "insensitive" } }
+        : {}),
+      ...(dateFromParsed !== undefined || dateToParsed !== undefined
+        ? {
+            reportedAt: {
+              ...(dateFromParsed !== undefined ? { gte: dateFromParsed } : {}),
+              ...(dateToParsed   !== undefined ? { lte: dateToParsed   } : {}),
+            },
+          }
+        : {}),
     },
     take: ROW_CAP + 1,
     orderBy: { createdAt: "desc" },

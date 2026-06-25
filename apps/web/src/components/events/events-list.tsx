@@ -137,6 +137,21 @@ const DEFAULT_FILTERS: Filters = {
   monthFilter: "",
 };
 
+// ── Exported filter shape (used by EventsPage to wire export URLs) ──────────
+
+/**
+ * The resolved, export-ready filter values derived from the active filter bar
+ * state. `dateFrom` and `dateTo` are pre-expanded ISO strings so the page does
+ * not need to know about the monthFilter→date expansion logic.
+ */
+export type EventsListExportFilters = {
+  state?:    string;
+  category?: string;
+  areaName?: string;
+  dateFrom?: string;
+  dateTo?:   string;
+};
+
 // ── Main component ─────────────────────────────────────────────────────────
 
 interface EventsListProps {
@@ -146,9 +161,14 @@ interface EventsListProps {
    * `/events?eventId=<id>`.
    */
   initialEventId?: string | null;
+  /**
+   * Called whenever the active filter state changes so the parent page can
+   * keep its export URLs in sync with the currently-applied filters.
+   */
+  onFiltersChange?: (filters: EventsListExportFilters) => void;
 }
 
-export function EventsList({ initialEventId }: EventsListProps = {}) {
+export function EventsList({ initialEventId, onFiltersChange }: EventsListProps = {}) {
   const utils = trpc.useUtils();
 
   // ── Filter state
@@ -172,6 +192,23 @@ export function EventsList({ initialEventId }: EventsListProps = {}) {
       void utils.event.list.invalidate();
     },
   });
+
+  // Notify parent whenever active filters change so it can sync export URLs
+  useEffect(() => {
+    if (onFiltersChange === undefined) return;
+    const exportFilters: EventsListExportFilters = {
+      ...(filters.state    !== "" ? { state:    filters.state    } : {}),
+      ...(filters.category !== "" ? { category: filters.category } : {}),
+      ...(filters.areaName !== "" ? { areaName: filters.areaName } : {}),
+      ...(filters.monthFilter !== ""
+        ? {
+            dateFrom: monthStart(filters.monthFilter + "-01"),
+            dateTo:   monthEnd(filters.monthFilter + "-01"),
+          }
+        : {}),
+    };
+    onFiltersChange(exportFilters);
+  }, [filters, onFiltersChange]);
 
   // Build query input from filters (server-side)
   const queryInput = {
