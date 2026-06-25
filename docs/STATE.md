@@ -6,7 +6,94 @@
 PHASE: Phase 8 (ongoing buildout)
 FRAMEWORK_VERSION: V32.9
 
-ACTIVE_WORK (2026-06-25, resume session):
+HANDOFF_2026_06_26 (War Room owner feedback round 2 — branch feat/warroom-date-range-drilldown, PR #28; resume here):
+  Owner gave 6 dashboard corrections. ALL 6 BUILT + GATED on branch feat/warroom-date-range-drilldown (PR #28):
+  items 1-4 = commit ed2dce0 (categorization fix + titles + bar-end count labels + coverage range label; web tests →1020);
+  items 5-6 = commit bfa5939 (map-dominant layout + fullscreen toggle hiding sidebar/header; web tests →1026). Each gate green
+  (product-sync/typecheck/test/build/eslint). Final Visual QA of all 6: ✅ PASS (docs/qa-screenshots/warroom-feedback-2026-06-26/:
+  LE bar populated, exact titles, count at bar ends, coverage shows "Jun 19–26" not "30 days", map dominant, fullscreen hides
+  sidebar+header + Exit/ESC restores, 0 console errors). NOT merged — PR #28 ready for owner review.
+  MINOR NOTE for owner: LE breakdown top item is "Others" (a real law-enforcement-and-apprehensions category, not in the
+  owner's 6-name list) — decide whether to exclude/relabel "Others". ESC-exit confirmed by implementation (native Fullscreen
+  API + fullscreenchange sync), not exercisable via Playwright synthetic keys.
+  ITEM 1 (DATA FACT): real eventType.category values are 'law-enforcement-and-apprehensions' (LE bar) and
+    'monitoring_patrolling_and_surveillance' (Monitoring bar). Old code checked 'law_enforcement' → LE bar always empty.
+    Fix in dashboard.ts eventBreakdown: bucket by those two exact strings, exclude all other categories. (agent applied it.)
+    Proper sub-groups — A. Law Enforcement and Apprehensions: Unregistered Illegal Fishing · Fishing in a prohibited
+    area (MPA) · Taking of Prohibited Species · Use of Prohibited Gears · Compressor Fishing · Destructive Practices.
+    B. Monitoring, Patrolling & Surveillance: Marine Wildlife Sightings · Infrastructure and Assets · Research and
+    Studies · Community Support · Threats on Habitat.
+  ITEM 2: page.tsx <BreakdownBars> titles → "Law Enforcement and Apprehensions" / "Monitoring, Patrolling & Surveillance".
+  ITEM 3: breakdown-bars.tsx (already horizontal) → add count number at END of each bar (Recharts <LabelList position="right">).
+  ITEM 4: municipality-coverage-chart.tsx (~L82) + protected-zone-card.tsx (~L58) hardcode "30 days" but data IS
+    range-filtered — replace with the active range label (pass from/to from page.tsx useDashboardRange).
+  ITEM 5 (NEXT — map bigger + rearrange): page.tsx grid is lg:grid-cols-5 (left col-span-3 map+charts, right col-span-2).
+    Make InteractiveMap the DOMINANT element (largest, ~60-70% area) for a command center; KPI strip as a top band; other
+    cards smaller around the map.
+  ITEM 6 (NEXT — fullscreen): header.tsx (NotificationBell on the right) → add a SQUARE icon button (lucide Maximize/
+    Minimize) immediately LEFT of the bell. Toggle = browser Fullscreen API on the dashboard root AND hide Sidebar +
+    Header (show only the dashboard). Shell (dashboard)/layout.tsx is a SERVER comp (async auth) → wrap Sidebar+Header+main
+    in a NEW client component (e.g. components/layout/fullscreen-shell.tsx) holding fullscreen state (context or
+    fullscreenchange listener); hide Sidebar/Header when fullscreen; ESC + a floating exit button to leave.
+  THEN Visual QA all 6 (rebuild dev app: COMPOSE_PROJECT_NAME=marine-guardian_dev docker compose -f
+    deploy/compose/dev/docker-compose.app.yml up -d --build --force-recreate app --env-file .env.dev; wait /api/health 200;
+    Playwright @ http://localhost:45204 admin@mail.com/admin): LE bar now populated + correct titles + count at bar ends;
+    coverage cards show active range not "30 days"; map dominant; fullscreen button hides sidebar+header, ESC restores.
+  GATE per commit (web): product-sync + web typecheck + web test + `pnpm --filter @marine-guardian/web build` + scoped eslint.
+
+GOALS_2026_06_25 (owner-set, Full Auto Mode — branch feat/warroom-date-range-drilldown):
+  Spec locked in docs/PRODUCT.md (Active Goals + War Room spec). Local-dev ONLY (no staging/prod).
+  PROGRESS (all commits on branch feat/warroom-date-range-drilldown, pushed to origin, each gated green, NOT merged — owner review):
+    T1 backend 66e1193 · T2-T4 range header+context 3d1b616 · T5 event/patrol modals 2d62b4a ·
+    T5b KPI+breakdown drill modals 412fb2c · T4b 2 coverage charts range-scoped + alert detail modal f976435.
+    Web suite 989→1019. ITEM 3 ✅ COMPLETE (all panels incl. municipality + protected-zone charts honor range; default last-7d).
+    ITEM 4 ✅ COMPLETE (every data element clickable→modal: event-feed, last-incident, patrol rows, KPI cards [list-backed],
+    breakdown bars, alert rows; non-list aggregates [Unacked/RangersOnDuty] non-interactive by design).
+    Visual QA core PASS (docs/qa-screenshots/warroom-2026-06-25/: default 7d, range re-query, 4 modal types, 0 console errors).
+    T4b-additions QA: ✅ PASS (docs/qa-screenshots/warroom-t4b-2026-06-26/: both coverage charts re-query on range
+    change [municipality 17/11→378/126 when widened]; alert row→detail modal; ACK no-modal; 0 console errors).
+    => ITEMS 3 + 4 FULLY BUILT + GATED + VISUAL-QA-VERIFIED. Un-gated queue empty (only Item 2 remains, owner-gated).
+  INFRA NITS (dev-only follow-ups, NOT feature defects): (1) deploy/compose/dev/docker-compose.app.yml external network
+    'dev_network' ≠ actual 'marine-guardian_dev_network'; (2) recreating the dev app needs `--env-file .env.dev` +
+    COMPOSE_PROJECT_NAME=marine-guardian_dev or it binds a stale host port (54850) and breaks NextAuth login. start.sh
+    sets both correctly — align the compose file / document so a bare `docker compose up --build app` works.
+  REMAINING (owner-gated only): Item 2 ER completeness + images — needs DAS_WEB_TOKEN (see docs/PENDING_DECISIONS.md).
+  1. ✅ Local-dev only — staging/prod paused (PRODUCT.md Deployment Config updated). PR #27 fix stays on main, NOT deployed.
+  2. 🔴 GATED — ER data completeness + images: date coverage 2024→now EXISTS locally (patrols 2023-26, events 2023-26);
+     IMAGES NOT STORED (only has_photo flag, no attachment table, ingest script has no image download). Live verification +
+     image ingestion need DAS_WEB_TOKEN (dev ER conn = fake-er.example.com). See docs/PENDING_DECISIONS.md.
+  3. ⏳ War Room defaults to last 7 days — BACKEND foundation = add optional {dateFrom,dateTo} (default [now-7d, now]) to
+     dashboard.ts procedures (kpis/recentEvents/eventBreakdown/alertStats/lastIncident/activePatrols → range-scoped).
+  4. ⏳ FROM/TO range header + click→modal on every element — FRONTEND.
+  VERIFIED STRUCTURE: War Room = apps/web/src/app/(dashboard)/dashboard/page.tsx (no separate war-room route).
+    9 client components in apps/web/src/app/(dashboard)/dashboard/_components/: kpi-strip.tsx, event-feed.tsx,
+    active-patrols.tsx, alerts-panel.tsx, breakdown-bars.tsx, last-incident-card.tsx, municipality-coverage-chart.tsx,
+    protected-zone-card.tsx, clock-card.tsx (+ lib.ts). Each calls its trpc.dashboard.* query directly (client).
+    shadcn calendar/date-picker NOT installed → use native <input type="date"> (no new dep) OR `npx shadcn add calendar popover`.
+    Modal pattern: apps/web/src/components/events/event-detail-modal.tsx (shadcn Dialog). dashboard.ts procedures NOW
+    accept { dateFrom, dateTo } (T1 done) — pass the active range into every component's useQuery input.
+  DECOMPOSITION:
+    T1 ✅ DONE (commit 66e1193): dashboard.ts — all 6 procedures take optional {dateFrom,dateTo} (omit = unchanged);
+       +8 range tests (web 989→997). Full gate green (product-sync/typecheck/test/build/lint).
+    T2 (ui-state): a client date-range state defaulting to [now-7d, now] shared across the page — a React context
+       provider (DashboardRangeProvider) wrapping page.tsx's client tree, exposing {from,to,setRange,resetTo7d}.
+    T3 (ui-picker): a FROM/TO header at top of the dashboard showing active range (native <input type="date"> ×2 +
+       a "Last 7 days" reset button); WCAG labels.
+    T4 (wire): each _components/*.tsx reads the range from context and passes {dateFrom:from,dateTo:to} into its
+       trpc.dashboard.* useQuery input. (clock-card has no query — skip. municipality/protected-zone read their own
+       queries — thread range only if those procedures take it; else leave + note.)
+    T5 (modals): click→shadcn Dialog detail modal per element — event-feed row reuses EventDetailModal; active-patrols
+       row → patrol detail modal; kpi card → drill list; breakdown bar / last-incident → detail. New small modal
+       components under _components/ as needed.
+    T6: Visual QA (Playwright, http://localhost:45204, admin@mail.com/admin, demo-site) — default shows last 7d with
+       FROM/TO at top; changing range re-queries all panels; every element opens a modal. REBUILD dev_app first
+       (compose has NO source mount — `docker compose up -d --build --force-recreate app`).
+  GATE per commit (web change): pnpm tools:check-product-sync && web typecheck && web test && `pnpm --filter @marine-guardian/web build` (HARD — catches lint debt) && scoped eslint clean.
+
+DONE_2026_06_25 (merged): materialize ER-creds fix — PR #27 squash-merged to main (255b668: ca58f43 fix + 44d5284 client timeout).
+  Prod deploy + 3391-patrol track backfill DEFERRED (local-dev-only directive). Detail in memory project_marine_guardian_materialize_er_creds_bug.
+
+ACTIVE_WORK (2026-06-25, resume session — SUPERSEDED, see DONE_2026_06_25 above):
   🐛 ROOT CAUSE found for QA P2-B/P1-D (patrol distance "—" everywhere): materializePatrolTrack
   (packages/jobs/src/lib/patrol-track-materialization.ts L202-228) reads ER creds from the LEGACY
   NULL Tenant.earthrangerUrl/earthrangerDasToken columns instead of tenant_er_connections (where the

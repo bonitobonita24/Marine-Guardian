@@ -9,6 +9,14 @@ Primary users:  Command center operators, field coordinators, and site administr
 ## Problem Statement
 EarthRanger is an excellent field data collection platform but provides no reporting, no charts for events or patrols, no cross-area analytics within a site, and no configurable alerting. MPA managers currently produce monthly reports manually as static PDFs (per-area event breakdowns, patrol statistics, ranger performance matrices) by hand — a tedious, error-prone process that delivers stale insights weeks after the data was collected. There is no unified command center view for real-time monitoring, incident escalation, or patrol planning.
 
+## Active Goals — 2026-06-25 (owner-set)
+1. **Local-dev only for now.** No staging or production deployment yet — all work targets the local dev environment. Supersedes the "dev / staging / prod" intent until the owner explicitly re-enables staging/prod.
+2. **EarthRanger data completeness.** Verify the local database holds ALL EarthRanger data — patrols AND events, including images/photos — from at least 2024-01-01 through the present. Identify and backfill any gaps.
+3. **War Room defaults to last 7 days.** Every data element shown in the Command Center War Room defaults to the most recent 7 days relative to the current date/time.
+4. **Selectable date range + drill-down modals.** The War Room shows the active range (FROM and TO dates) at the top. FROM and TO are calendar pickers — the user can select any range. All War Room data reflects the selected range, and every data item shown is clickable, opening a popup modal with the full details of the clicked item.
+
+> Status & task decomposition tracked in docs/STATE.md. Owner-gated items in docs/PENDING_DECISIONS.md.
+
 ## Core User Flows
 1. **Operator monitors live activity and escalates incidents:** Operator opens Command Center War Room → sees live map with tracked subjects (patrol boats, rangers, marine animals), real-time event feed, and alert panel → new critical event appears (e.g., blast fishing report from patroller in EarthRanger) → alert panel pulses red with ACK button → Operator acknowledges alert → reviews event details → updates state from "new" to "active" → if critical, escalates (triggers in-app + email alert to Field Coordinator / Site Admin). Error: EarthRanger API unreachable → event state update queued for retry → War Room shows red "SYNC FAILED" banner with last successful sync timestamp.
 
@@ -38,6 +46,9 @@ EarthRanger is an excellent field data collection platform but provides no repor
 - Optional audio alert chime when critical event arrives (configurable)
 - Staleness warning banner if data sync fails or is delayed beyond threshold
 - Auto-refresh — no manual interaction needed, everything streams live
+- **Default date range: last 7 days (2026-06-25).** On load, every War Room data element (KPI cards, live map, alert panel, live event feed, active patrols, bottom charts, time-since-last-incident) reflects the most recent 7 days relative to the current date/time.
+- **Date-range header (FROM / TO) (2026-06-25).** A range header at the top shows the active FROM and TO dates, defaulting to [now − 7 days → now]. FROM and TO are calendar pickers; selecting any range re-queries and re-renders every War Room element for that range, with a one-click reset back to the 7-day default.
+- **Click-to-drill-down on every element (2026-06-25).** Every data item in the War Room — each KPI card, map marker/track, alert, event-feed row, active-patrol row, and chart bar/segment — is clickable and opens a popup modal showing the full detail of the clicked item (for aggregates, the underlying in-range records).
 
 ### Dashboard (Standard)
 - KPI cards: total active events, active patrols, rangers on duty, events this month
@@ -286,7 +297,7 @@ EarthRanger is an excellent field data collection platform but provides no repor
 **MSG91 SMS (scaffolded, not active v1):** Alternative SMS provider. Same scaffolding approach as Twilio. — Paid API
 
 ## Deployment Config
-Environments: dev / staging / prod
+Environments: dev / staging / prod (scaffolded) — ACTIVE: local dev ONLY (2026-06-25 owner directive; staging/prod paused until explicitly re-enabled)
 Hosting:      Single VPS via Komodo (planning for multiple servers later)
 Dev mode:     MODE A — WSL2 native (only supported mode — pre-locked)
 Docker Hub:   enabled — hub_repo: bonitobonita24/marine-guardian

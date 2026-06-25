@@ -100,6 +100,10 @@ export const eventListFilters = z.object({
   // M3 — new server-side filters for Operations List
   category: z.string().max(200).optional(),
   areaName: z.string().max(200).optional(),
+  // War Room breakdown drill-down (T5b): filter by the joined eventType.display
+  // label (exact, case-insensitive) so clicking a breakdown bar lists the events
+  // of exactly that event type. Distinct from `category`, which groups types.
+  typeDisplay: z.string().max(200).optional(),
   dateFrom: z.string().optional(), // ISO date, inclusive lower bound on reportedAt
   dateTo: z.string().optional(),   // ISO date, inclusive upper bound on reportedAt
 });
@@ -120,9 +124,20 @@ export const eventRouter = router({
           tenantId: ctx.tenantId,
           ...(input.state    !== undefined ? { state:    input.state    } : {}),
           ...(input.priority !== undefined ? { priority: input.priority } : {}),
-          // category filter — via joined eventType.category
-          ...(input.category !== undefined
-            ? { eventType: { category: { equals: input.category, mode: "insensitive" } } }
+          // category / typeDisplay filters — both target the joined eventType
+          // relation, so merge them into a single nested `eventType` filter to
+          // avoid one key overwriting the other when both are supplied.
+          ...(input.category !== undefined || input.typeDisplay !== undefined
+            ? {
+                eventType: {
+                  ...(input.category !== undefined
+                    ? { category: { equals: input.category, mode: "insensitive" } }
+                    : {}),
+                  ...(input.typeDisplay !== undefined
+                    ? { display: { equals: input.typeDisplay, mode: "insensitive" } }
+                    : {}),
+                },
+              }
             : {}),
           // areaName filter — case-insensitive substring match for flexibility
           ...(input.areaName !== undefined

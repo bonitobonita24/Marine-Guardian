@@ -99,7 +99,10 @@ describe("dashboard.recentEvents — Skylight filter (Issue B)", () => {
         priority: 200,
         state: "active",
         reportedAt: new Date("2026-06-23T08:00:00Z"),
-        eventType: { display: "Poaching", category: "law_enforcement" },
+        eventType: {
+          display: "Poaching",
+          category: "law-enforcement-and-apprehensions",
+        },
       },
     ]);
 
@@ -131,6 +134,47 @@ describe("dashboard.eventBreakdown — Skylight filter (Issue B)", () => {
       NOT: { eventType: { display: { contains: "skylight", mode: "insensitive" } } },
     });
   });
+
+  it("buckets by the real EarthRanger category values and excludes everything else", async () => {
+    // The DB stores the real category strings below. Law Enforcement events go
+    // into the lawEnforcement bucket, Monitoring events into the monitoring
+    // bucket, and every other category is excluded from BOTH buckets.
+    mockPrisma.event.findMany.mockResolvedValue([
+      {
+        eventType: {
+          display: "Apprehension",
+          category: "law-enforcement-and-apprehensions",
+        },
+      },
+      {
+        eventType: {
+          display: "Apprehension",
+          category: "law-enforcement-and-apprehensions",
+        },
+      },
+      {
+        eventType: {
+          display: "Patrol Sweep",
+          category: "monitoring_patrolling_and_surveillance",
+        },
+      },
+      // The following must NOT appear in either bucket.
+      { eventType: { display: "Hidden Thing", category: "hidden" } },
+      { eventType: { display: "Fire", category: "emergency" } },
+      { eventType: { display: "Repair", category: "maintenance" } },
+      { eventType: { display: "Vessel Ping", category: "analyzer_event" } },
+      { eventType: { display: "Sighting", category: "observation" } },
+      { eventType: { display: "Breach", category: "security" } },
+      { eventType: { display: "Infraction", category: "violation" } },
+      { eventType: { display: "No Category", category: null } },
+    ]);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.eventBreakdown();
+
+    expect(result.lawEnforcement).toEqual([{ type: "Apprehension", count: 2 }]);
+    expect(result.monitoring).toEqual([{ type: "Patrol Sweep", count: 1 }]);
+  });
 });
 
 describe("dashboard.lastIncident — Skylight filter (Issue B)", () => {
@@ -153,5 +197,87 @@ describe("dashboard.lastIncident — Skylight filter (Issue B)", () => {
       priority: { gte: 200 },
       NOT: { eventType: { display: { contains: "skylight", mode: "insensitive" } } },
     });
+  });
+});
+
+describe("dashboard — WAR ROOM date range (goal items 3-4, 2026-06-25)", () => {
+  const FROM = new Date("2026-06-18T00:00:00Z");
+  const TO = new Date("2026-06-25T00:00:00Z");
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockPrisma.event.findMany.mockResolvedValue([]);
+    mockPrisma.event.findFirst.mockResolvedValue(null);
+    mockPrisma.event.count.mockResolvedValue(0);
+    mockPrisma.patrol.count.mockResolvedValue(0);
+    mockPrisma.patrol.findMany.mockResolvedValue([]);
+    mockPrisma.accompanyingRanger.findMany.mockResolvedValue([]);
+    mockPrisma.alertHistory.count.mockResolvedValue(0);
+  });
+
+  it("recentEvents scopes reportedAt to the supplied range", async () => {
+    await createCaller(makeCtx()).recentEvents({ dateFrom: FROM, dateTo: TO });
+    const call = mockPrisma.event.findMany.mock.calls[0]?.[0] as {
+      where: { reportedAt?: unknown };
+    };
+    expect(call.where.reportedAt).toEqual({ gte: FROM, lte: TO });
+  });
+
+  it("recentEvents omits reportedAt when no range supplied (backward compatible)", async () => {
+    await createCaller(makeCtx()).recentEvents();
+    const call = mockPrisma.event.findMany.mock.calls[0]?.[0] as {
+      where: { reportedAt?: unknown };
+    };
+    expect(call.where.reportedAt).toBeUndefined();
+  });
+
+  it("eventBreakdown scopes reportedAt to the supplied range", async () => {
+    await createCaller(makeCtx()).eventBreakdown({ dateFrom: FROM, dateTo: TO });
+    const call = mockPrisma.event.findMany.mock.calls[0]?.[0] as {
+      where: { reportedAt?: unknown };
+    };
+    expect(call.where.reportedAt).toEqual({ gte: FROM, lte: TO });
+  });
+
+  it("lastIncident scopes reportedAt to the supplied range", async () => {
+    await createCaller(makeCtx()).lastIncident({ dateFrom: FROM, dateTo: TO });
+    const call = mockPrisma.event.findFirst.mock.calls[0]?.[0] as {
+      where: { reportedAt?: unknown };
+    };
+    expect(call.where.reportedAt).toEqual({ gte: FROM, lte: TO });
+  });
+
+  it("activePatrols scopes startTime to the supplied range", async () => {
+    await createCaller(makeCtx()).activePatrols({ dateFrom: FROM, dateTo: TO });
+    const call = mockPrisma.patrol.findMany.mock.calls[0]?.[0] as {
+      where: { startTime?: unknown };
+    };
+    expect(call.where.startTime).toEqual({ gte: FROM, lte: TO });
+  });
+
+  it("alertStats uses the supplied range for firedAt", async () => {
+    await createCaller(makeCtx()).alertStats({ dateFrom: FROM, dateTo: TO });
+    const call = mockPrisma.alertHistory.count.mock.calls[0]?.[0] as {
+      where: { firedAt?: unknown };
+    };
+    expect(call.where.firedAt).toEqual({ gte: FROM, lte: TO });
+  });
+
+  it("alertStats defaults to a 24h window when no range supplied", async () => {
+    await createCaller(makeCtx()).alertStats();
+    const call = mockPrisma.alertHistory.count.mock.calls[0]?.[0] as {
+      where: { firedAt?: { gte?: Date; lte?: Date } };
+    };
+    expect(call.where.firedAt?.gte).toBeInstanceOf(Date);
+    expect(call.where.firedAt?.lte).toBeUndefined();
+  });
+
+  it("kpis scopes the activeEvents count to the supplied range", async () => {
+    await createCaller(makeCtx()).kpis({ dateFrom: FROM, dateTo: TO });
+    const call = mockPrisma.event.count.mock.calls[0]?.[0] as {
+      where: { reportedAt?: unknown; state?: unknown };
+    };
+    expect(call.where.state).toEqual({ not: "resolved" });
+    expect(call.where.reportedAt).toEqual({ gte: FROM, lte: TO });
   });
 });

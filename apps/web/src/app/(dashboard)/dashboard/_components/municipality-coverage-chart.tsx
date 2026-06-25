@@ -47,9 +47,12 @@ const HEADING_ID = "municipality-coverage-heading";
 export function MunicipalityCoverageChart({
   data,
   isLoading,
+  rangeLabel,
 }: {
   data: MunicipalityCoverageDatum[];
   isLoading: boolean;
+  /** Active War Room range label (e.g. "Jun 19 – Jun 26"). */
+  rangeLabel: string;
 }) {
   // Sort descending by total activity, show top 11 (all municipalities).
   // Keep full names so ChartTooltip shows the untruncated municipality name;
@@ -79,7 +82,7 @@ export function MunicipalityCoverageChart({
             Municipality Coverage
           </h3>
           <span className="text-xs font-semibold tabular-nums text-muted-foreground">
-            30 days
+            {rangeLabel}
           </span>
         </div>
       </CardHeader>

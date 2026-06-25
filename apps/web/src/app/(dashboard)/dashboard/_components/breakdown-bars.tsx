@@ -18,7 +18,7 @@
  *  - title, data (BreakdownDatum[]), variant, barClass (legacy compat)
  */
 
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, LabelList, XAxis, YAxis } from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
@@ -61,12 +61,18 @@ export function BreakdownBars({
   title,
   data,
   variant,
+  onSelectType,
   // legacy prop accepted but unused — color is driven by `variant`
   barClass: _barClass,
 }: {
   title: string;
   data: BreakdownDatum[];
   variant?: BreakdownVariant;
+  /**
+   * War Room drill-down (T5b): called with the clicked event-type label
+   * (eventType.display) so the parent can open the breakdown drill-down modal.
+   */
+  onSelectType?: (type: string) => void;
   /** Kept for backward compatibility with callers that haven't migrated yet. */
   barClass?: string;
 }) {
@@ -121,7 +127,7 @@ export function BreakdownBars({
                 accessibilityLayer
                 data={chartData}
                 layout="vertical"
-                margin={{ top: 0, right: 24, bottom: 0, left: 0 }}
+                margin={{ top: 0, right: 36, bottom: 0, left: 0 }}
               >
                 {/* Pro CartesianGrid: dashed, horizontal only, border token */}
                 <CartesianGrid
@@ -154,7 +160,23 @@ export function BreakdownBars({
                   fill={colorVar}
                   radius={[0, 3, 3, 0]}
                   maxBarSize={10}
-                />
+                  {...(onSelectType !== undefined
+                    ? {
+                        cursor: "pointer",
+                        onClick: (entry: { type?: string }) => {
+                          if (entry.type !== undefined) onSelectType(entry.type);
+                        },
+                      }
+                    : {})}
+                >
+                  {/* Count label at the end (right) of each bar */}
+                  <LabelList
+                    dataKey="count"
+                    position="right"
+                    className="fill-foreground tabular-nums"
+                    fontSize={9}
+                  />
+                </Bar>
               </BarChart>
             </ChartContainer>
 
@@ -172,6 +194,31 @@ export function BreakdownBars({
                 {(chartData[0]?.count ?? 0).toLocaleString()}
               </span>
             </div>
+
+            {/* Keyboard-accessible drill-down list (T5b). The SVG bars are not
+                natively focusable, so this mirrors them as role="button" rows so
+                keyboard + screen-reader users can drill into each event type. */}
+            {onSelectType !== undefined && (
+              <ul className="mt-1.5 flex flex-col gap-0.5">
+                {chartData.map((d) => (
+                  <li key={d.type}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSelectType(d.type);
+                      }}
+                      aria-label={`View ${String(d.count)} ${d.type} ${title} events`}
+                      className="flex w-full items-center justify-between rounded px-1 py-0.5 text-left text-[9px] text-muted-foreground hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      <span className="truncate">{d.type}</span>
+                      <span className="ml-2 shrink-0 font-semibold tabular-nums text-foreground">
+                        {d.count.toLocaleString()}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </>
         )}
       </CardContent>

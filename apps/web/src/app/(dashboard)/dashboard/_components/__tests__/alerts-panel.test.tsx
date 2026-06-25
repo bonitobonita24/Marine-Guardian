@@ -146,3 +146,72 @@ describe("AlertsPanel — ACK feature", () => {
     expect(getByText("1 unacked")).toBeTruthy();
   });
 });
+
+describe("AlertsPanel — click→detail (T5)", () => {
+  it("does NOT make rows interactive when onSelectAlert is omitted", () => {
+    const { queryAllByRole } = render(
+      <AlertsPanel alerts={[baseAlert]} isLoading={false} />,
+    );
+    // No ACK button (canAck false) and no clickable row → zero buttons.
+    expect(queryAllByRole("button")).toHaveLength(0);
+  });
+
+  it("renders a clickable row (role=button, aria-label) when onSelectAlert is set", () => {
+    const onSelectAlert = vi.fn();
+    const { getByRole } = render(
+      <AlertsPanel
+        alerts={[baseAlert]}
+        isLoading={false}
+        onSelectAlert={onSelectAlert}
+      />,
+    );
+    const row = getByRole("button", { name: /view alert detail: poaching event/i });
+    expect(row.getAttribute("tabindex")).toBe("0");
+  });
+
+  it("calls onSelectAlert with the alert when the row is clicked", () => {
+    const onSelectAlert = vi.fn();
+    const { getByRole } = render(
+      <AlertsPanel
+        alerts={[baseAlert]}
+        isLoading={false}
+        onSelectAlert={onSelectAlert}
+      />,
+    );
+    fireEvent.click(getByRole("button", { name: /view alert detail/i }));
+    expect(onSelectAlert).toHaveBeenCalledTimes(1);
+    expect(onSelectAlert).toHaveBeenCalledWith(baseAlert);
+  });
+
+  it("activates the row on Enter and Space keys (WCAG 2.2 AA)", () => {
+    const onSelectAlert = vi.fn();
+    const { getByRole } = render(
+      <AlertsPanel
+        alerts={[baseAlert]}
+        isLoading={false}
+        onSelectAlert={onSelectAlert}
+      />,
+    );
+    const row = getByRole("button", { name: /view alert detail/i });
+    fireEvent.keyDown(row, { key: "Enter" });
+    fireEvent.keyDown(row, { key: " " });
+    expect(onSelectAlert).toHaveBeenCalledTimes(2);
+  });
+
+  it("ACK click does NOT trigger the row's onSelectAlert (stopPropagation)", () => {
+    const onSelectAlert = vi.fn();
+    const onAcknowledge = vi.fn();
+    const { getByRole } = render(
+      <AlertsPanel
+        alerts={[baseAlert]}
+        isLoading={false}
+        canAck={true}
+        onSelectAlert={onSelectAlert}
+        onAcknowledge={onAcknowledge}
+      />,
+    );
+    fireEvent.click(getByRole("button", { name: /acknowledge alert/i }));
+    expect(onAcknowledge).toHaveBeenCalledTimes(1);
+    expect(onSelectAlert).not.toHaveBeenCalled();
+  });
+});

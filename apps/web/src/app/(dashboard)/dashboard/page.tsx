@@ -19,6 +19,17 @@ import {
 import { BreakdownBars } from "./_components/breakdown-bars";
 import { MunicipalityCoverageChart } from "./_components/municipality-coverage-chart";
 import { ProtectedZoneCard } from "./_components/protected-zone-card";
+import {
+  DashboardRangeProvider,
+  useDashboardRange,
+} from "./_components/range-context";
+import { DateRangeHeader } from "./_components/date-range-header";
+import { PatrolDetailModal } from "./_components/patrol-detail-modal";
+import { BreakdownDrilldownModal } from "./_components/breakdown-drilldown-modal";
+import { KpiDrilldownModal } from "./_components/kpi-drilldown-modal";
+import type { KpiDrilldown } from "./_components/kpi-strip";
+import { AlertDetailModal } from "./_components/alert-detail-modal";
+import { EventDetailModal } from "@/components/events/event-detail-modal";
 
 /**
  * WAR ROOM command center — the live operations dashboard.
@@ -32,23 +43,79 @@ import { ProtectedZoneCard } from "./_components/protected-zone-card";
  *   - alertHistory.acknowledge mutation wires the ACK button in AlertsPanel
  *   - dashboard.alertStats now returns true unacknowledged count (not proxy)
  *   - KPI tile updated from "Recent Alerts" to "Unacknowledged"
+ *
+ * 2026-06-25 — War Room date-range drill-down (goal items 3-4):
+ *   - DashboardRangeProvider holds the active FROM/TO window (default last 7 days)
+ *   - DateRangeHeader lets the operator scope the window
+ *   - every range-aware dashboard.* query reads the range from context (T4)
  */
 export default function DashboardPage() {
+  return (
+    <DashboardRangeProvider>
+      <DashboardContent />
+    </DashboardRangeProvider>
+  );
+}
+
+function DashboardContent() {
   const { data: session } = useSession();
   const utils = trpc.useUtils();
 
-  const kpis = trpc.dashboard.kpis.useQuery();
-  const breakdown = trpc.dashboard.eventBreakdown.useQuery();
-  const recent = trpc.dashboard.recentEvents.useQuery();
-  const alertStats = trpc.dashboard.alertStats.useQuery();
-  const lastIncident = trpc.dashboard.lastIncident.useQuery();
+  // Active FROM/TO range, shared across the page (default [now - 7 days, now]).
+  // Pass it into every range-aware dashboard.* query so all panels re-query in
+  // lock-step when the operator changes the window. The dashboard procedures
+  // accept an optional { dateFrom, dateTo } (T1).
+  const { from, to } = useDashboardRange();
+  const range = { dateFrom: from, dateTo: to };
+
+  const kpis = trpc.dashboard.kpis.useQuery(range);
+  const breakdown = trpc.dashboard.eventBreakdown.useQuery(range);
+  const recent = trpc.dashboard.recentEvents.useQuery(range);
+  const alertStats = trpc.dashboard.alertStats.useQuery(range);
+  const lastIncident = trpc.dashboard.lastIncident.useQuery(range);
   const alerts = trpc.alertHistory.list.useQuery({ limit: 10 });
-  const patrols = trpc.dashboard.activePatrols.useQuery();
-  const coverageData = trpc.municipalityCoverage.municipalityCoverage.useQuery();
-  const zoneData = trpc.municipalityCoverage.protectedZoneCoverage.useQuery();
+  const patrols = trpc.dashboard.activePatrols.useQuery(range);
+  // municipality / protected-zone coverage are time-based activity aggregations
+  // (patrol startTime / event reportedAt / zone-coverage assignedAt), so both
+  // honour the War Room range (T4b). Their procedures now accept the same
+  // { dateFrom, dateTo } shape as dashboard.* (backward-compatible: omitting it
+  // keeps the original 30-day default), so they re-query in lock-step too.
+  const coverageData =
+    trpc.municipalityCoverage.municipalityCoverage.useQuery(range);
+  const zoneData =
+    trpc.municipalityCoverage.protectedZoneCoverage.useQuery(range);
 
   // Track which alert ID is currently being acknowledged (optimistic spinner).
   const [ackingId, setAckingId] = useState<string | null>(null);
+
+  // Click→detail drill-down (T5): event-feed rows + last-incident open the
+  // shared EventDetailModal; active-patrols rows open a lightweight patrol modal.
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [selectedPatrol, setSelectedPatrol] = useState<ActivePatrol | null>(
+    null,
+  );
+  // Click→detail for fired-alert rows: opens a read-only AlertDetailModal.
+  const [selectedAlert, setSelectedAlert] = useState<AlertItem | null>(null);
+
+  // T5b — drill-down from KPI tiles + breakdown bars into the underlying
+  // in-range record lists (event.list / patrol.list) via dedicated modals.
+  const [selectedBreakdownType, setSelectedBreakdownType] = useState<
+    string | null
+  >(null);
+  const [selectedKpi, setSelectedKpi] = useState<KpiDrilldown | null>(null);
+
+  // ISO strings for the active range, shared by the drill-down modals.
+  const rangeIso = { dateFrom: from.toISOString(), dateTo: to.toISOString() };
+
+  // Human-readable label for the active range (e.g. "Jun 19 – Jun 26"), shown
+  // on the coverage cards in place of the old hardcoded "30 days".
+  const rangeLabel = `${from.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  })} – ${to.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  })}`;
 
   const acknowledgeMutation = trpc.alertHistory.acknowledge.useMutation({
     onSuccess: async () => {
@@ -104,6 +171,7 @@ export default function DashboardPage() {
       value: kpis.data?.activeEvents ?? 0,
       icon: Zap,
       valueClass: "text-[hsl(var(--warning))]",
+      drilldown: { kind: "activeEvents" } as const,
     },
     {
       label: "Unacknowledged",
@@ -117,6 +185,7 @@ export default function DashboardPage() {
       value: kpis.data?.activePatrols ?? 0,
       icon: Shield,
       valueClass: "text-foreground",
+      drilldown: { kind: "activePatrols" } as const,
     },
     {
       label: "Rangers on Duty",
@@ -129,6 +198,7 @@ export default function DashboardPage() {
       value: kpis.data?.eventsThisMonth ?? 0,
       icon: BarChart3,
       valueClass: "text-[hsl(var(--info))]",
+      drilldown: { kind: "eventsThisMonth" } as const,
       ...(kpis.data
         ? (() => {
             const delta = kpis.data.eventsThisMonth - kpis.data.eventsLastMonth;
@@ -152,6 +222,7 @@ export default function DashboardPage() {
     matchedPriority: a.matchedPriority,
     ruleName: a.alertRule?.name ?? a.ruleNameSnapshot,
     eventTitle: a.event?.title ?? a.eventTitleSnapshot,
+    eventId: a.event?.id ?? null,
     acknowledgedAt: a.acknowledgedAt,
     acknowledgedBy: a.acknowledgedBy,
   }));
@@ -166,7 +237,13 @@ export default function DashboardPage() {
     <div className="flex h-[calc(100vh-7rem)] flex-col gap-3">
       <h1 className="sr-only">Command Center — War Room</h1>
 
-      <KpiStrip kpis={kpiTiles} lastSyncedAt={lastSyncedAt || undefined} />
+      <DateRangeHeader />
+
+      <KpiStrip
+        kpis={kpiTiles}
+        lastSyncedAt={lastSyncedAt || undefined}
+        onSelectKpi={setSelectedKpi}
+      />
 
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-5">
         {/* Map + charts zone */}
@@ -180,25 +257,33 @@ export default function DashboardPage() {
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
             <BreakdownBars
-              title="Law Enforcement"
+              title="Law Enforcement and Apprehensions"
               data={breakdown.data?.lawEnforcement ?? []}
               variant="law_enforcement"
+              onSelectType={setSelectedBreakdownType}
             />
             <BreakdownBars
-              title="Monitoring"
+              title="Monitoring, Patrolling & Surveillance"
               data={breakdown.data?.monitoring ?? []}
               variant="monitoring"
+              onSelectType={setSelectedBreakdownType}
             />
-            <LastIncidentCard incident={incident} now={nowValue} />
+            <LastIncidentCard
+              incident={incident}
+              now={nowValue}
+              onSelect={setSelectedEventId}
+            />
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
             <MunicipalityCoverageChart
               data={coverageData.data ?? []}
               isLoading={coverageData.isLoading}
+              rangeLabel={rangeLabel}
             />
             <ProtectedZoneCard
               zones={zoneData.data ?? []}
               isLoading={zoneData.isLoading}
+              rangeLabel={rangeLabel}
             />
           </div>
         </div>
@@ -212,19 +297,64 @@ export default function DashboardPage() {
             canAck={canAck}
             ackingId={ackingId}
             onAcknowledge={handleAcknowledge}
+            onSelectAlert={setSelectedAlert}
           />
           <EventFeed
             events={feedEvents}
             isLoading={recent.isLoading}
             now={nowValue}
+            onSelectEvent={setSelectedEventId}
           />
           <ActivePatrols
             patrols={activePatrols}
             isLoading={patrols.isLoading}
             now={nowValue}
+            onSelectPatrol={setSelectedPatrol}
           />
         </div>
       </div>
+
+      <EventDetailModal
+        eventId={selectedEventId}
+        onClose={() => {
+          setSelectedEventId(null);
+        }}
+      />
+      <PatrolDetailModal
+        patrol={selectedPatrol}
+        now={nowValue}
+        onClose={() => {
+          setSelectedPatrol(null);
+        }}
+      />
+      <AlertDetailModal
+        alert={selectedAlert}
+        now={nowValue}
+        onClose={() => {
+          setSelectedAlert(null);
+        }}
+        onOpenEvent={(eventId) => {
+          // Close the alert modal, then open the shared event detail modal.
+          setSelectedAlert(null);
+          setSelectedEventId(eventId);
+        }}
+      />
+      <BreakdownDrilldownModal
+        typeDisplay={selectedBreakdownType}
+        dateFrom={rangeIso.dateFrom}
+        dateTo={rangeIso.dateTo}
+        onClose={() => {
+          setSelectedBreakdownType(null);
+        }}
+      />
+      <KpiDrilldownModal
+        drilldown={selectedKpi}
+        dateFrom={rangeIso.dateFrom}
+        dateTo={rangeIso.dateTo}
+        onClose={() => {
+          setSelectedKpi(null);
+        }}
+      />
     </div>
   );
 }

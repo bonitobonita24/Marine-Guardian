@@ -46,10 +46,12 @@ export function EventFeed({
   events,
   isLoading,
   now,
+  onSelectEvent,
 }: {
   events: FeedEvent[];
   isLoading: boolean;
   now?: Date | undefined;
+  onSelectEvent?: (id: string) => void;
 }) {
   return (
     <section
@@ -83,11 +85,33 @@ export function EventFeed({
             events.map((e) => {
               const level = priorityLevel(e.priority);
               const isHigh = level === "critical" || level === "high";
+              const clickable = onSelectEvent !== undefined;
+              const title = e.title ?? e.eventType?.display ?? "Untitled event";
               return (
                 <li
                   key={e.id}
+                  {...(clickable
+                    ? {
+                        role: "button",
+                        tabIndex: 0,
+                        "aria-label": `View event detail: ${title}`,
+                        onClick: () => {
+                          onSelectEvent(e.id);
+                        },
+                        onKeyDown: (ev: React.KeyboardEvent) => {
+                          if (ev.key === "Enter" || ev.key === " ") {
+                            ev.preventDefault();
+                            onSelectEvent(e.id);
+                          }
+                        },
+                      }
+                    : {})}
                   className={`flex items-center gap-2 rounded px-2 py-1 ${
                     isHigh ? "bg-destructive/5" : ""
+                  } ${
+                    clickable
+                      ? "cursor-pointer hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      : ""
                   }`}
                 >
                   <span
