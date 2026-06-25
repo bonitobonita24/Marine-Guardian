@@ -10,7 +10,12 @@ HANDOFF_2026_06_26 (War Room owner feedback round 2 — branch feat/warroom-date
   Owner gave 6 dashboard corrections. ALL 6 BUILT + GATED on branch feat/warroom-date-range-drilldown (PR #28):
   items 1-4 = commit ed2dce0 (categorization fix + titles + bar-end count labels + coverage range label; web tests →1020);
   items 5-6 = commit bfa5939 (map-dominant layout + fullscreen toggle hiding sidebar/header; web tests →1026). Each gate green
-  (product-sync/typecheck/test/build/eslint). Final Visual QA of all 6: IN PROGRESS (background). NOT merged.
+  (product-sync/typecheck/test/build/eslint). Final Visual QA of all 6: ✅ PASS (docs/qa-screenshots/warroom-feedback-2026-06-26/:
+  LE bar populated, exact titles, count at bar ends, coverage shows "Jun 19–26" not "30 days", map dominant, fullscreen hides
+  sidebar+header + Exit/ESC restores, 0 console errors). NOT merged — PR #28 ready for owner review.
+  MINOR NOTE for owner: LE breakdown top item is "Others" (a real law-enforcement-and-apprehensions category, not in the
+  owner's 6-name list) — decide whether to exclude/relabel "Others". ESC-exit confirmed by implementation (native Fullscreen
+  API + fullscreenchange sync), not exercisable via Playwright synthetic keys.
   ITEM 1 (DATA FACT): real eventType.category values are 'law-enforcement-and-apprehensions' (LE bar) and
     'monitoring_patrolling_and_surveillance' (Monitoring bar). Old code checked 'law_enforcement' → LE bar always empty.
     Fix in dashboard.ts eventBreakdown: bucket by those two exact strings, exclude all other categories. (agent applied it.)
