@@ -19,6 +19,11 @@ import {
 import { BreakdownBars } from "./_components/breakdown-bars";
 import { MunicipalityCoverageChart } from "./_components/municipality-coverage-chart";
 import { ProtectedZoneCard } from "./_components/protected-zone-card";
+import {
+  DashboardRangeProvider,
+  useDashboardRange,
+} from "./_components/range-context";
+import { DateRangeHeader } from "./_components/date-range-header";
 
 /**
  * WAR ROOM command center — the live operations dashboard.
@@ -32,18 +37,42 @@ import { ProtectedZoneCard } from "./_components/protected-zone-card";
  *   - alertHistory.acknowledge mutation wires the ACK button in AlertsPanel
  *   - dashboard.alertStats now returns true unacknowledged count (not proxy)
  *   - KPI tile updated from "Recent Alerts" to "Unacknowledged"
+ *
+ * 2026-06-25 — War Room date-range drill-down (goal items 3-4):
+ *   - DashboardRangeProvider holds the active FROM/TO window (default last 7 days)
+ *   - DateRangeHeader lets the operator scope the window
+ *   - every range-aware dashboard.* query reads the range from context (T4)
  */
 export default function DashboardPage() {
+  return (
+    <DashboardRangeProvider>
+      <DashboardContent />
+    </DashboardRangeProvider>
+  );
+}
+
+function DashboardContent() {
   const { data: session } = useSession();
   const utils = trpc.useUtils();
 
-  const kpis = trpc.dashboard.kpis.useQuery();
-  const breakdown = trpc.dashboard.eventBreakdown.useQuery();
-  const recent = trpc.dashboard.recentEvents.useQuery();
-  const alertStats = trpc.dashboard.alertStats.useQuery();
-  const lastIncident = trpc.dashboard.lastIncident.useQuery();
+  // Active FROM/TO range, shared across the page (default [now - 7 days, now]).
+  // Pass it into every range-aware dashboard.* query so all panels re-query in
+  // lock-step when the operator changes the window. The dashboard procedures
+  // accept an optional { dateFrom, dateTo } (T1).
+  const { from, to } = useDashboardRange();
+  const range = { dateFrom: from, dateTo: to };
+
+  const kpis = trpc.dashboard.kpis.useQuery(range);
+  const breakdown = trpc.dashboard.eventBreakdown.useQuery(range);
+  const recent = trpc.dashboard.recentEvents.useQuery(range);
+  const alertStats = trpc.dashboard.alertStats.useQuery(range);
+  const lastIncident = trpc.dashboard.lastIncident.useQuery(range);
   const alerts = trpc.alertHistory.list.useQuery({ limit: 10 });
-  const patrols = trpc.dashboard.activePatrols.useQuery();
+  const patrols = trpc.dashboard.activePatrols.useQuery(range);
+  // municipality / protected-zone coverage are intentionally NOT range-threaded:
+  // their procedures expose { since, until } (municipalityCoverage) / no input
+  // (protectedZoneCoverage) — not the { dateFrom, dateTo } shape the War Room
+  // range uses — so they keep their own default 30-day windows (T4 spec).
   const coverageData = trpc.municipalityCoverage.municipalityCoverage.useQuery();
   const zoneData = trpc.municipalityCoverage.protectedZoneCoverage.useQuery();
 
@@ -165,6 +194,8 @@ export default function DashboardPage() {
   return (
     <div className="flex h-[calc(100vh-7rem)] flex-col gap-3">
       <h1 className="sr-only">Command Center — War Room</h1>
+
+      <DateRangeHeader />
 
       <KpiStrip kpis={kpiTiles} lastSyncedAt={lastSyncedAt || undefined} />
 
