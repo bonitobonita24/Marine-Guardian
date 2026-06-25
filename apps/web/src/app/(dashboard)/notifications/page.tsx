@@ -176,7 +176,7 @@ export default function NotificationsPage() {
               patrolId !== null
                 ? `/patrols/${patrolId}`
                 : eventId !== null
-                  ? `/events/${eventId}`
+                  ? `/events?eventId=${eventId}`
                   : null;
             const handleMarkRead = () => {
               if (n.isRead) return;

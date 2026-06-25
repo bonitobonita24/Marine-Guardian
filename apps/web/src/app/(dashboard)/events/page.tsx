@@ -6,8 +6,13 @@
  * Replaces the Kanban board with the EventsList infinite-scroll Operations List.
  * All data fetching, filters, pagination, and modal state live in EventsList.
  * Stats summary kept in the page header; Export buttons preserved.
+ *
+ * Deep-link: `/events?eventId=<id>` auto-opens the EventDetailModal for that
+ * event. Alert History and Notifications link here instead of the nonexistent
+ * `/events/[id]` route (fix for P1-A).
  */
 
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { buildExportUrl } from "@/lib/exports";
 import { EventsList } from "@/components/events/events-list";
@@ -23,6 +28,11 @@ function stateColor(state: string) {
 }
 
 export default function EventsPage() {
+  const searchParams = useSearchParams();
+  // Deep-link support: ?eventId=<id> opens the event dialog on mount.
+  // Alert History and Notifications rows link here instead of the missing
+  // /events/[id] route.
+  const deepLinkEventId = searchParams.get("eventId");
   const statsQuery = trpc.event.stats.useQuery();
 
   return (
@@ -62,7 +72,7 @@ export default function EventsPage() {
       </div>
 
       {/* Operations List — infinite-scroll, server-side filters, inline state */}
-      <EventsList />
+      <EventsList initialEventId={deepLinkEventId} />
     </div>
   );
 }
