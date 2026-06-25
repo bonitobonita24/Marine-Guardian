@@ -1,5 +1,6 @@
 "use client";
 
+import type { KeyboardEvent } from "react";
 import { Siren } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,12 @@ import { priorityLabel, priorityLevel, relativeShort } from "./lib";
  *   - Unacknowledged alerts show an ACK button (admin/site_admin only — canAck prop).
  *   - Acknowledged alerts show who acknowledged + when instead of the button.
  *   - WCAG 2.2 AA: button has aria-label; ack state is never colour-alone (text label added).
+ *
+ * Click→detail (2026-06-25, T5/War Room): each fired-alert row is clickable and
+ * opens a detail Dialog (rule name, fired time, ack state, event link). The ACK
+ * button stops click propagation so acknowledging never also opens the modal.
+ * WCAG 2.2 AA: rows are role="button", tabIndex 0, Enter/Space activate, with an
+ * aria-label describing the alert.
  */
 
 export type AlertItem = {
@@ -22,6 +29,8 @@ export type AlertItem = {
   matchedPriority: number;
   ruleName: string;
   eventTitle: string;
+  /** Linked event id, if the alert fired against a known event (for the detail modal). */
+  eventId?: string | null;
   acknowledgedAt?: Date | string | null;
   acknowledgedBy?: string | null;
 };
@@ -33,6 +42,7 @@ export function AlertsPanel({
   canAck = false,
   ackingId,
   onAcknowledge,
+  onSelectAlert,
 }: {
   alerts: AlertItem[];
   isLoading: boolean;
@@ -43,6 +53,8 @@ export function AlertsPanel({
   ackingId?: string | null;
   /** Called when the user clicks ACK on an unacknowledged alert. */
   onAcknowledge?: (id: string) => void;
+  /** Called when the user activates an alert row — opens the detail modal. */
+  onSelectAlert?: (alert: AlertItem) => void;
 }) {
   const unackedCount = alerts.filter((a) => a.acknowledgedAt == null).length;
 
@@ -80,6 +92,15 @@ export function AlertsPanel({
               const isHigh = level === "critical" || level === "high";
               const isAcked = a.acknowledgedAt != null;
               const isAcking = ackingId === a.id;
+              const clickable = onSelectAlert !== undefined;
+              const alertLabel = a.eventTitle || a.ruleName;
+              const open = () => onSelectAlert?.(a);
+              const onKeyDown = (ev: KeyboardEvent) => {
+                if (ev.key === "Enter" || ev.key === " ") {
+                  ev.preventDefault();
+                  open();
+                }
+              };
 
               return (
                 <li
@@ -100,7 +121,22 @@ export function AlertsPanel({
                     }`}
                     aria-hidden="true"
                   />
-                  <div className="min-w-0 flex-1">
+                  <div
+                    className={`min-w-0 flex-1 ${
+                      clickable
+                        ? "cursor-pointer rounded focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        : ""
+                    }`}
+                    {...(clickable
+                      ? {
+                          role: "button",
+                          tabIndex: 0,
+                          "aria-label": `View alert detail: ${alertLabel}`,
+                          onClick: open,
+                          onKeyDown,
+                        }
+                      : {})}
+                  >
                     <div
                       className={`truncate text-[11px] font-bold ${
                         isAcked
@@ -110,7 +146,7 @@ export function AlertsPanel({
                             : "text-foreground"
                       }`}
                     >
-                      {a.eventTitle || a.ruleName}
+                      {alertLabel}
                     </div>
                     <div className="truncate text-[10px] text-muted-foreground">
                       {a.ruleName} · {priorityLabel(a.matchedPriority)} ·{" "}
@@ -136,9 +172,13 @@ export function AlertsPanel({
                       size="sm"
                       variant="outline"
                       className="h-6 shrink-0 px-2 text-[9px]"
-                      aria-label={`Acknowledge alert: ${a.eventTitle || a.ruleName}`}
+                      aria-label={`Acknowledge alert: ${alertLabel}`}
                       disabled={isAcking}
-                      onClick={() => onAcknowledge?.(a.id)}
+                      onClick={(ev) => {
+                        // Keep ACK separate from row-click→detail-modal.
+                        ev.stopPropagation();
+                        onAcknowledge?.(a.id);
+                      }}
                     >
                       {isAcking ? "…" : "ACK"}
                     </Button>

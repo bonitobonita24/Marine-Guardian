@@ -28,6 +28,7 @@ import { PatrolDetailModal } from "./_components/patrol-detail-modal";
 import { BreakdownDrilldownModal } from "./_components/breakdown-drilldown-modal";
 import { KpiDrilldownModal } from "./_components/kpi-drilldown-modal";
 import type { KpiDrilldown } from "./_components/kpi-strip";
+import { AlertDetailModal } from "./_components/alert-detail-modal";
 import { EventDetailModal } from "@/components/events/event-detail-modal";
 
 /**
@@ -74,12 +75,15 @@ function DashboardContent() {
   const lastIncident = trpc.dashboard.lastIncident.useQuery(range);
   const alerts = trpc.alertHistory.list.useQuery({ limit: 10 });
   const patrols = trpc.dashboard.activePatrols.useQuery(range);
-  // municipality / protected-zone coverage are intentionally NOT range-threaded:
-  // their procedures expose { since, until } (municipalityCoverage) / no input
-  // (protectedZoneCoverage) — not the { dateFrom, dateTo } shape the War Room
-  // range uses — so they keep their own default 30-day windows (T4 spec).
-  const coverageData = trpc.municipalityCoverage.municipalityCoverage.useQuery();
-  const zoneData = trpc.municipalityCoverage.protectedZoneCoverage.useQuery();
+  // municipality / protected-zone coverage are time-based activity aggregations
+  // (patrol startTime / event reportedAt / zone-coverage assignedAt), so both
+  // honour the War Room range (T4b). Their procedures now accept the same
+  // { dateFrom, dateTo } shape as dashboard.* (backward-compatible: omitting it
+  // keeps the original 30-day default), so they re-query in lock-step too.
+  const coverageData =
+    trpc.municipalityCoverage.municipalityCoverage.useQuery(range);
+  const zoneData =
+    trpc.municipalityCoverage.protectedZoneCoverage.useQuery(range);
 
   // Track which alert ID is currently being acknowledged (optimistic spinner).
   const [ackingId, setAckingId] = useState<string | null>(null);
@@ -90,6 +94,8 @@ function DashboardContent() {
   const [selectedPatrol, setSelectedPatrol] = useState<ActivePatrol | null>(
     null,
   );
+  // Click→detail for fired-alert rows: opens a read-only AlertDetailModal.
+  const [selectedAlert, setSelectedAlert] = useState<AlertItem | null>(null);
 
   // T5b — drill-down from KPI tiles + breakdown bars into the underlying
   // in-range record lists (event.list / patrol.list) via dedicated modals.
@@ -206,6 +212,7 @@ function DashboardContent() {
     matchedPriority: a.matchedPriority,
     ruleName: a.alertRule?.name ?? a.ruleNameSnapshot,
     eventTitle: a.event?.title ?? a.eventTitleSnapshot,
+    eventId: a.event?.id ?? null,
     acknowledgedAt: a.acknowledgedAt,
     acknowledgedBy: a.acknowledgedBy,
   }));
@@ -278,6 +285,7 @@ function DashboardContent() {
             canAck={canAck}
             ackingId={ackingId}
             onAcknowledge={handleAcknowledge}
+            onSelectAlert={setSelectedAlert}
           />
           <EventFeed
             events={feedEvents}
@@ -305,6 +313,18 @@ function DashboardContent() {
         now={nowValue}
         onClose={() => {
           setSelectedPatrol(null);
+        }}
+      />
+      <AlertDetailModal
+        alert={selectedAlert}
+        now={nowValue}
+        onClose={() => {
+          setSelectedAlert(null);
+        }}
+        onOpenEvent={(eventId) => {
+          // Close the alert modal, then open the shared event detail modal.
+          setSelectedAlert(null);
+          setSelectedEventId(eventId);
         }}
       />
       <BreakdownDrilldownModal
