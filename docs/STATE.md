@@ -6,6 +6,20 @@
 PHASE: Phase 8 (ongoing buildout)
 FRAMEWORK_VERSION: V32.9
 
+ACTIVE_WORK (2026-06-25, resume session):
+  🐛 ROOT CAUSE found for QA P2-B/P1-D (patrol distance "—" everywhere): materializePatrolTrack
+  (packages/jobs/src/lib/patrol-track-materialization.ts L202-228) reads ER creds from the LEGACY
+  NULL Tenant.earthrangerUrl/earthrangerDasToken columns instead of tenant_er_connections (where the
+  Settings UI writes them). → every materialize job returns skipped:no_credentials → no PatrolTrack →
+  no computed_distance_km → "—". Same bug class as the 2026-06-21 er-sync prod hotfix, which patched
+  er-sync.processor.ts but NOT materializePatrolTrack. DB proof: demo-site legacy ER cols NULL,
+  tenant_er_connections populated; 2026-06 = 235 patrols / 235 segments-with-leader / 0 tracks (cliff);
+  1270/4784 tracked (older ingest path); read paths + computed-metrics backfill all verified CORRECT.
+  Full detail: memory project_marine_guardian_materialize_er_creds_bug.
+  FIX (owner approved "backfill + root-cause"): (1) patch materializePatrolTrack Step 2 to read
+  tenantErConnection (mirror er-sync L70-86) + update its no_credentials test; (2) new
+  scripts/backfill-patrol-track-materialization.ts. GATED: live ER GETs (235) + prod deploy = owner go-ahead.
+
 PROD_DEPLOY (2026-06-21, deploy architect):
   Promoted MG to PRODUCTION at commit 19c7e58 (mg.powerbyte.app). PROD LIVE & CLEAN.
   • Images: staging→prod re-tag (no rebuild). prod latest + prod-sha-19c7e58.
