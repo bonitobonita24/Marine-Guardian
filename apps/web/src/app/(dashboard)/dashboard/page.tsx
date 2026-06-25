@@ -245,24 +245,51 @@ function DashboardContent() {
         onSelectKpi={setSelectedKpi}
       />
 
-      {/* Command-center layout (Item 5): the map is the dominant element.
-          A 4-column grid gives the map 3/4 of the width and full content
-          height (~65-70% of the area); a compact right rail stacks the live
-          alerts / event-feed / patrols panels. The analytic cards (breakdown
-          ×2, last-incident, coverage ×2) sit in a visibly smaller band below,
-          arranged around/under the map. Everything stacks on mobile. */}
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-4">
-        {/* DOMINANT map zone */}
-        <div
-          role="region"
-          aria-label="Live patrol map showing ranger positions, patrol areas and events"
-          className="relative min-h-[24rem] overflow-hidden rounded-xl border border-border lg:col-span-3"
-        >
-          <InteractiveMap className="h-full w-full" />
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-5">
+        {/* Map + charts zone */}
+        <div className="flex min-h-0 flex-col gap-3 lg:col-span-3">
+          <div
+            role="region"
+            aria-label="Live patrol map showing ranger positions, patrol areas and events"
+            className="relative min-h-[18rem] flex-1 overflow-hidden rounded-xl border border-border"
+          >
+            <InteractiveMap className="h-full w-full" />
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <BreakdownBars
+              title="Law Enforcement and Apprehensions"
+              data={breakdown.data?.lawEnforcement ?? []}
+              variant="law_enforcement"
+              onSelectType={setSelectedBreakdownType}
+            />
+            <BreakdownBars
+              title="Monitoring, Patrolling & Surveillance"
+              data={breakdown.data?.monitoring ?? []}
+              variant="monitoring"
+              onSelectType={setSelectedBreakdownType}
+            />
+            <LastIncidentCard
+              incident={incident}
+              now={nowValue}
+              onSelect={setSelectedEventId}
+            />
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <MunicipalityCoverageChart
+              data={coverageData.data ?? []}
+              isLoading={coverageData.isLoading}
+              rangeLabel={rangeLabel}
+            />
+            <ProtectedZoneCard
+              zones={zoneData.data ?? []}
+              isLoading={zoneData.isLoading}
+              rangeLabel={rangeLabel}
+            />
+          </div>
         </div>
 
-        {/* Compact live-ops right rail */}
-        <div className="flex min-h-0 flex-col gap-3 lg:col-span-1">
+        {/* Alerts / patrols / feed zone */}
+        <div className="flex min-h-0 flex-col gap-3 lg:col-span-2">
           <AlertsPanel
             alerts={alertItems}
             isLoading={alerts.isLoading}
@@ -285,37 +312,6 @@ function DashboardContent() {
             onSelectPatrol={setSelectedPatrol}
           />
         </div>
-      </div>
-
-      {/* Compact analytics band — visibly smaller than the map, below it. */}
-      <div className="grid shrink-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <BreakdownBars
-          title="Law Enforcement and Apprehensions"
-          data={breakdown.data?.lawEnforcement ?? []}
-          variant="law_enforcement"
-          onSelectType={setSelectedBreakdownType}
-        />
-        <BreakdownBars
-          title="Monitoring, Patrolling & Surveillance"
-          data={breakdown.data?.monitoring ?? []}
-          variant="monitoring"
-          onSelectType={setSelectedBreakdownType}
-        />
-        <LastIncidentCard
-          incident={incident}
-          now={nowValue}
-          onSelect={setSelectedEventId}
-        />
-        <MunicipalityCoverageChart
-          data={coverageData.data ?? []}
-          isLoading={coverageData.isLoading}
-          rangeLabel={rangeLabel}
-        />
-        <ProtectedZoneCard
-          zones={zoneData.data ?? []}
-          isLoading={zoneData.isLoading}
-          rangeLabel={rangeLabel}
-        />
       </div>
 
       <EventDetailModal

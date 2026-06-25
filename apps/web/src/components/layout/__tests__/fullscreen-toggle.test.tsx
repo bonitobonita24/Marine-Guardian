@@ -50,7 +50,13 @@ beforeEach(() => {
     fireFullscreenChange();
     return Promise.resolve();
   });
-  document.exitFullscreen = exitFullscreenMock;
+  // defineProperty (like requestFullscreen below) avoids the strict
+  // `() => Promise<void>` assignment-type check on the vi.fn mock.
+  Object.defineProperty(document, "exitFullscreen", {
+    configurable: true,
+    writable: true,
+    value: exitFullscreenMock,
+  });
 
   // requestFullscreen lives on Element.prototype in real browsers.
   requestFullscreenMock = vi.fn(function (this: Element) {
