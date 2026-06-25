@@ -6,8 +6,7 @@ import {
   IMPERSONATION_COOKIE_NAME,
 } from "@/lib/auth/impersonation";
 import { SessionProvider } from "next-auth/react";
-import { Sidebar } from "@/components/layout/sidebar";
-import { Header } from "@/components/layout/header";
+import { FullscreenShell } from "@/components/layout/fullscreen-shell";
 import { RealtimeProvider } from "@/components/realtime/realtime-provider";
 import { ImpersonationBanner } from "@/components/impersonation-banner";
 
@@ -46,13 +45,7 @@ export default async function DashboardLayout({
     <SessionProvider>
       <RealtimeProvider>
         <ImpersonationBanner />
-        <div className="flex h-screen overflow-hidden">
-          <Sidebar />
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <Header />
-            <main className="flex-1 overflow-y-auto p-6">{children}</main>
-          </div>
-        </div>
+        <FullscreenShell>{children}</FullscreenShell>
       </RealtimeProvider>
     </SessionProvider>
   );
