@@ -6,7 +6,29 @@
 PHASE: Phase 8 (ongoing buildout)
 FRAMEWORK_VERSION: V32.9
 
-ACTIVE_WORK (2026-06-25, resume session):
+GOALS_2026_06_25 (owner-set, Full Auto Mode — branch feat/warroom-date-range-drilldown):
+  Spec locked in docs/PRODUCT.md (Active Goals + War Room spec). Local-dev ONLY (no staging/prod).
+  1. ✅ Local-dev only — staging/prod paused (PRODUCT.md Deployment Config updated). PR #27 fix stays on main, NOT deployed.
+  2. 🔴 GATED — ER data completeness + images: date coverage 2024→now EXISTS locally (patrols 2023-26, events 2023-26);
+     IMAGES NOT STORED (only has_photo flag, no attachment table, ingest script has no image download). Live verification +
+     image ingestion need DAS_WEB_TOKEN (dev ER conn = fake-er.example.com). See docs/PENDING_DECISIONS.md.
+  3. ⏳ War Room defaults to last 7 days — BACKEND foundation = add optional {dateFrom,dateTo} (default [now-7d, now]) to
+     dashboard.ts procedures (kpis/recentEvents/eventBreakdown/alertStats/lastIncident/activePatrols → range-scoped).
+  4. ⏳ FROM/TO range header + click→modal on every element — FRONTEND.
+  DECOMPOSITION (each a fresh-context task, ≤500L):
+    T1 (backend, keystone): dashboard.ts — add z.object({dateFrom,dateTo}).optional() default last-7d to all 6 procedures
+       + range-scoped counts; update dashboard.test.ts. TDD + gate. [in progress]
+    T2 (ui-state): DateRangeProvider/context for war room (default [now-7d,now]) + URL/useState; FROM/TO header.
+    T3 (ui-picker): DateRangePicker component (shadcn Popover + calendar — VERIFY calendar installed, else `npx shadcn add calendar`).
+    T4 (wire): thread range into every war-room component query (KPI/feed/patrols/charts/alerts/map).
+    T5 (modals): click→Dialog detail modal per element (event row→EventDetailModal reuse; patrol row; KPI drill; chart bar; alert).
+    T6: Visual QA (Playwright) — default 7d shows, FROM/TO changes data, each element opens modal.
+  VERIFY-FIRST: Explore brief had several "(implied)" component paths — confirm real paths before editing each.
+
+DONE_2026_06_25 (merged): materialize ER-creds fix — PR #27 squash-merged to main (255b668: ca58f43 fix + 44d5284 client timeout).
+  Prod deploy + 3391-patrol track backfill DEFERRED (local-dev-only directive). Detail in memory project_marine_guardian_materialize_er_creds_bug.
+
+ACTIVE_WORK (2026-06-25, resume session — SUPERSEDED, see DONE_2026_06_25 above):
   🐛 ROOT CAUSE found for QA P2-B/P1-D (patrol distance "—" everywhere): materializePatrolTrack
   (packages/jobs/src/lib/patrol-track-materialization.ts L202-228) reads ER creds from the LEGACY
   NULL Tenant.earthrangerUrl/earthrangerDasToken columns instead of tenant_er_connections (where the
