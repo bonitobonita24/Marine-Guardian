@@ -1781,7 +1781,7 @@ WHAT AGENTS DO NOT DO WITH docs/DESIGN.md:
      Use only the shadcn/ui CSS variable values recorded in docs/DESIGN.md.
   ❌ NEVER reproduce the source website's layout pixel-for-pixel. This is
      inspiration, not replication.
-  ❌ NEVER override the 13 UI Component Rules (ui-rules.md) to match the source.
+  ❌ NEVER override the 14 UI Component Rules (ui-rules.md) to match the source.
      shadcn/ui wins on component behavior.
 
 CONFLICT RESOLUTION:

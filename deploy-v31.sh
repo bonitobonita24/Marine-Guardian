@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# Spec-Driven Platform V32.12 — File Deployment Script
+# Spec-Driven Platform V32.14 — File Deployment Script
 # ============================================================
 # V32.10 (compose resource limits) + V32.11 (shadcn/studio Pro default
 # design generator) add NO new deliverable files — their content ships via
@@ -8,6 +8,13 @@
 # CLAUDE_v31_compact.md / phases.md / ui-rules.md / Master_Prompt for V32.11).
 # V32.12 (design-principles.md on-demand reference) adds deliverable #24 —
 # see GROUP 2 (.ai_prompt/ block) below.
+# V32.13 (CI → Docker Hub → Komodo-API auto-deploy) adds NO new deliverable
+# files — the app-side deploy/komodo-deploy.sh + .github/workflows/docker-publish.yml
+# are Phase-6 SCAFFOLD templates (templates.md Rule 5c + phases.md), vendored from
+# Server-Setups/Powerbyte-Hostinger/komodo/ci-deploy/, not shipped by this script.
+# V32.14 (motion.md on-demand reference) adds deliverable #25 — a library-agnostic
+# UI/UX motion-principles file shipped to .ai_prompt/ (see GROUP 8 below) + ui-rules.md
+# Rule 14. Deliverable count 24 → 25.
 # ============================================================
 # SAFETY CONTRACT (read this before running)
 # ============================================================
@@ -42,6 +49,8 @@
 #         • .ai_prompt/privacy.md            (PH Data Privacy Act + WCAG 2.2 AA gate — on-demand — deliverable #23)
 #      V32.12 design principles (overwrite-with-backup):
 #         • .ai_prompt/design-principles.md  (framework-level design guidance — on-demand — deliverable #24)
+#      V32.14 motion layer (overwrite-with-backup):
+#         • .ai_prompt/motion.md             (framework-level motion guidance — on-demand — deliverable #25)
 #         NOTE: sd.config.mjs, design-validate.mjs, and STATE.md evidence template are
 #         NOT deploy-copied — they are scaffolded by bootstrap.md Step 20 from templates.md
 #         (project-adjacent files, not standalone framework deliverables).
@@ -90,6 +99,7 @@
 #   │   ├── LESSONS_REGISTRY.md        ← NEW V32.8 — design-drift lessons registry (deliverable #22)
 #   │   ├── privacy.md                 ← NEW V32.9 — PH Data Privacy Act + WCAG 2.2 AA (→ .ai_prompt/, deliverable #23)
 #   │   ├── design-principles.md       ← NEW V32.12 — framework-level design guidance (→ .ai_prompt/, deliverable #24)
+#   │   ├── motion.md                  ← NEW V32.14 — framework-level motion guidance (→ .ai_prompt/, deliverable #25)
 #   │   ├── Product_md_Planning_Assistant_v31.md
 #   │   ├── Framework_Feature_Index_v31.md
 #   │   ├── AI_Tools_Skills_MCPs_Reference_v31.md
@@ -110,6 +120,8 @@
 #   .ai_prompt/privacy.md              ← overwrite-with-backup (framework-owned) (deliverable #23, V32.9)
 # DEPLOYED TARGET LOCATIONS (V32.12 addition):
 #   .ai_prompt/design-principles.md    ← overwrite-with-backup (framework-owned) (deliverable #24, V32.12)
+# DEPLOYED TARGET LOCATIONS (V32.14 addition):
+#   .ai_prompt/motion.md               ← overwrite-with-backup (framework-owned) (deliverable #25, V32.14)
 #   tests/visual/                      ← scaffold-if-absent (.gitkeep); existing files untouched
 #   NOTE: sd.config.mjs, design-validate.mjs, STATE.md.template — scaffolded by bootstrap.md
 #   Step 20 from templates.md (not deploy-copied).
@@ -149,7 +161,7 @@ if [ ! -d "$AI_PROMPT" ]; then
 fi
 
 echo "============================================================"
-echo "  Spec-Driven Platform V32.12 — Deployment"
+echo "  Spec-Driven Platform V32.14 — Deployment"
 echo "============================================================"
 echo "  Project root:  $PROJECT"
 echo "  Source folder: $AI_PROMPT"
@@ -589,10 +601,13 @@ overwrite_with_backup "$AI_PROMPT/LESSONS_REGISTRY.md" "$PROJECT/.ai_prompt/LESS
 #                             data-privacy features, or when gov/LGU flag is set in PRODUCT.md.
 #   .ai_prompt/design-principles.md ← framework-level design guidance (V32.12)
 #                             Deliverable #24. Loaded on-demand during design/UI work.
+#   .ai_prompt/motion.md   ← framework-level motion guidance (V32.14)
+#                             Deliverable #25. Loaded on-demand during design/UI/motion work.
 # ============================================================
-echo "─── Group 8: V32.9 compliance + data privacy + V32.12 design principles ───"
+echo "─── Group 8: V32.9 compliance + data privacy + V32.12 design principles + V32.14 motion ───"
 overwrite_with_backup "$AI_PROMPT/privacy.md" "$PROJECT/.ai_prompt/privacy.md"
 overwrite_with_backup "$AI_PROMPT/design-principles.md" "$PROJECT/.ai_prompt/design-principles.md"
+overwrite_with_backup "$AI_PROMPT/motion.md" "$PROJECT/.ai_prompt/motion.md"
 echo ""
 
 # 7c: tests/visual/ scaffold — create directory + .gitkeep ONLY if the directory is absent.
@@ -632,7 +647,7 @@ echo ""
 # SUMMARY
 # ============================================================
 echo "============================================================"
-echo "  ✅ V32.12 deployment complete — safety contract honored"
+echo "  ✅ V32.14 deployment complete — safety contract honored"
 echo "============================================================"
 echo ""
 echo "  Files deployed to project tree (OVERWRITE bucket):"
@@ -676,6 +691,7 @@ echo "    Prompt_References.html                    ← scenario-based prompt gu
 echo "    LESSONS_REGISTRY.md                       ← design-drift lessons registry (V32.8, deliverable #22)"
 echo "    privacy.md                                ← PH Data Privacy Act + WCAG 2.2 AA gate (V32.9, deliverable #23)"
 echo "    design-principles.md                      ← framework-level design guidance (V32.12, deliverable #24)"
+echo "    motion.md                                 ← framework-level motion guidance (V32.14, deliverable #25)"
 echo "    (Deployed to scripts/ — do not run from .ai_prompt/:)"
 echo "    lint-deploy.sh                            ← pre-deploy footgun gate (deploys to scripts/lint-deploy.sh, V32.7.5)"
 echo "    design-stop-hook.sh                       ← Claude Code Stop hook (deploys to scripts/, V32.8)"

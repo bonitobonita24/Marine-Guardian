@@ -1,6 +1,6 @@
-# Spec-Driven Platform V32.12 — Cross-AI Audit Prompt (for ChatGPT)
+# Spec-Driven Platform V32.14 — Cross-AI Audit Prompt (for ChatGPT)
 
-> **Purpose:** Hand this prompt to ChatGPT along with the 24 V32.12 framework files. ChatGPT independently audits V32.12 to verify the framework remains internally consistent across all canonical files. Items 1-7 below are historical V31-era audit goals (still verified as baseline); V32 / V32.1 / V32.2 / V32.3 / V32.4 / V32.4.1 / V32.5 / V32.5.1 / V32.5.2 / V32.5.3 / V32.5.4 / V32.5.5 / V32.6 / V32.6.1 / V32.7 / V32.7.1 / V32.7.2 / V32.7.3 / V32.7.4 / V32.7.5 / V32.8 / V32.8.1 / V32.9 / V32.10 / V32.11 / V32.12 verification items live in **Section K (K.1-K.73)** with the V32.12 verified counts block (V32.5.3 bumps Prompts 60→61 and NEW 37→38; V32.5.4 / V32.5.5 / V32.6 / V32.6.1 / V32.7 / V32.7.1 / V32.7.3 / V32.7.4 are no-count-change patches; deliverable files changed twice: 17→19 at V32.7.2 and 19→20 at V32.7.5; **V32.8 bumps Rules 30→32, Scenarios 35→39, UI Rules 11→12, Phase Hooks 14→17, Bootstrap Steps 19→20, memory-gov sections 5→6, deliverable files 20→22**; **V32.8.1 is a docs-only patch — zero count change**; **V32.9 bumps Rules 32→33, UI Rules 12→13, Phase Hooks 17→18, deliverables 22→23, Security Checklist 84→98 items / 13→14 sections, PRODUCT.md 11→12 sections, PA Rules 11→12**; **V32.10 is a zero-count-change templates-only patch — no rule/scenario/prompt/deliverable/file added**; **V32.11 bumps MCP servers 4→5 — adds shadcn/studio Pro as the framework's default design generator (user-global MCP, phase-routed /cui /iui /rui /ftc); no rule/scenario/prompt/deliverable/file added**; **V32.12 bumps deliverable files 23→24 — adds design-principles.md on-demand reference to .ai_prompt/; no rule/scenario/prompt/phase-hook/MCP count change**):
+> **Purpose:** Hand this prompt to ChatGPT along with the 25 V32.14 framework files. ChatGPT independently audits V32.14 to verify the framework remains internally consistent across all canonical files. Items 1-7 below are historical V31-era audit goals (still verified as baseline); V32 / V32.1 / V32.2 / V32.3 / V32.4 / V32.4.1 / V32.5 / V32.5.1 / V32.5.2 / V32.5.3 / V32.5.4 / V32.5.5 / V32.6 / V32.6.1 / V32.7 / V32.7.1 / V32.7.2 / V32.7.3 / V32.7.4 / V32.7.5 / V32.8 / V32.8.1 / V32.9 / V32.10 / V32.11 / V32.12 / V32.13 / V32.14 verification items live in **Section K (K.1-K.75)** with the V32.14 verified counts block (V32.5.3 bumps Prompts 60→61 and NEW 37→38; V32.5.4 / V32.5.5 / V32.6 / V32.6.1 / V32.7 / V32.7.1 / V32.7.3 / V32.7.4 are no-count-change patches; deliverable files changed twice: 17→19 at V32.7.2 and 19→20 at V32.7.5; **V32.8 bumps Rules 30→32, Scenarios 35→39, UI Rules 11→12, Phase Hooks 14→17, Bootstrap Steps 19→20, memory-gov sections 5→6, deliverable files 20→22**; **V32.8.1 is a docs-only patch — zero count change**; **V32.9 bumps Rules 32→33, UI Rules 12→13, Phase Hooks 17→18, deliverables 22→23, Security Checklist 84→98 items / 13→14 sections, PRODUCT.md 11→12 sections, PA Rules 11→12**; **V32.10 is a zero-count-change templates-only patch — no rule/scenario/prompt/deliverable/file added**; **V32.11 bumps MCP servers 4→5 — adds shadcn/studio Pro as the framework's default design generator (user-global MCP, phase-routed /cui /iui /rui /ftc); no rule/scenario/prompt/deliverable/file added**; **V32.12 bumps deliverable files 23→24 — adds design-principles.md on-demand reference to .ai_prompt/; no rule/scenario/prompt/phase-hook/MCP count change**; **V32.13 is a zero-count-change deploy-mechanism patch — adds the CI→Docker Hub→Komodo-API auto-deploy pipeline as Phase-6 scaffold templates (templates.md Rule 5c + phases.md); the app-side workflow + helper are NOT new deliverables, so deliverable files stay 24 and no rule/scenario/prompt/phase-hook/MCP count changes**; **V32.14 bumps UI Rules 13→14 and deliverable files 24→25 — adds motion.md on-demand reference to .ai_prompt/ + ui-rules.md Rule 14 "Motion & Micro-interactions"; no rule/scenario/prompt/phase-hook/MCP count change**):
 > 1. Phase 2.8 (Clickable Mockup Review — added V31) is correctly documented
 > 2. Cline deprecation (in-place V31 update) is consistent across all files
 > 3. Historical V30 changelog references are preserved
@@ -9,7 +9,7 @@
 > 6. No regressions introduced during the updates
 > 7. Post-lock additive patches: Phase 3.5, Phase 4+8 anti-thrashing, Skill Installer, Prompt 4.13, attribution cleanup, prompt count 55 (V31 era — V32.5.3 current: **61 prompts (38 NEW ✨)**, **35 scenarios**, **19 bootstrap steps**, **9 V32 Dispatch Rules (R1-R9) + V32.3 R6 size qualifier (allow-list >200 lines via Scout with Governance Extraction Schema)**)
 >
-> **How to interpret counts:** The **V32.12 verified counts block** (around line 87 below) is authoritative for current totals. Historical changelog entries and items 1-7 above may reference older totals reflecting their version-at-time-of-writing (e.g., 55 prompts, 34 scenarios, 18 bootstrap steps for V31 lock; 30 rules / 35 scenarios / 14 phase hooks for V32.7.5; 32 rules / 22 deliverables / 17 phase hooks for V32.8.1; 23 deliverables for V32.11) — those are correct for their version and **MUST NOT be treated as current**. When a count appears without a V32.12 annotation, cross-check against the verified counts block before reporting.
+> **How to interpret counts:** The **V32.14 verified counts block** (around line 87 below) is authoritative for current totals. Historical changelog entries and items 1-7 above may reference older totals reflecting their version-at-time-of-writing (e.g., 55 prompts, 34 scenarios, 18 bootstrap steps for V31 lock; 30 rules / 35 scenarios / 14 phase hooks for V32.7.5; 32 rules / 22 deliverables / 17 phase hooks for V32.8.1; 23 deliverables for V32.11; 13 UI rules / 24 deliverables for V32.13) — those are correct for their version and **MUST NOT be treated as current**. When a count appears without a V32.14 annotation, cross-check against the verified counts block before reporting.
 >
 > **Use case:** Run this after every major framework update to catch mistakes Claude missed.
 >
@@ -84,14 +84,14 @@ Bonito's user preference: keep Cline extension installed in VS Code as emergency
 - Post-lock patches add Phase 3.5 as a NEW phase (between Phase 3 and Phase 4) and anti-thrashing rules to Phase 4 and Phase 8. These are in phases.md and Master_Prompt_v31.md. They do NOT change the framework rule count, scenario count, or bootstrap step count.
 - Post-lock patches add a **Context Budget — Global Principle** to CLAUDE_v31_compact.md and Master_Prompt_v31.md. This is a Sonnet 4.6 model-aware task sizing principle (200K window, 120K practical, ≤80K SAFE zone, 12-file threshold). It governs how ALL work is scoped — not a new rule, but a non-negotiable behavioral principle.
 
-### V32.12 verified counts (must match in every file that quotes them)
+### V32.14 verified counts (must match in every file that quotes them)
 
 ```
 33 Rules · 39 Scenarios · 20 Bootstrap Steps · 8 Phase 4 Parts
 9 Phase 5 Commands · 16 Phase 6.5 Categories · 16 Secure Code Gen sub-sections
-13 UI Component Rules · 98 Security Checklist items (14 sections)
+14 UI Component Rules · 98 Security Checklist items (14 sections)
 61 Prompts (38 NEW ✨) in Prompt_References.md and Prompt_References.html
-24 deliverable files (18 in .ai_prompt/ + deploy-v31.sh at project root + spec-executor.md → .claude/agents/ + settings.json → .claude/settings.json + lint-deploy.sh → scripts/lint-deploy.sh + design-stop-hook.sh → scripts/ + LESSONS_REGISTRY.md → .ai_prompt/ + privacy.md → .ai_prompt/ + design-principles.md → .ai_prompt/) · 5 MCP servers (3 wired + 1 user-global + 1 plugin) · Node v22 · pnpm@10
+25 deliverable files (19 in .ai_prompt/ + deploy-v31.sh at project root + spec-executor.md → .claude/agents/ + settings.json → .claude/settings.json + lint-deploy.sh → scripts/lint-deploy.sh + design-stop-hook.sh → scripts/ + LESSONS_REGISTRY.md → .ai_prompt/ + privacy.md → .ai_prompt/ + design-principles.md → .ai_prompt/ + motion.md → .ai_prompt/) · 5 MCP servers (3 wired + 1 user-global + 1 plugin) · Node v22 · pnpm@10
 Phase count: 8 main phases + 2.5 + 2.6 + 2.7 + 2.8 (V31) + 3.3 (V32.6) + 3.5 (POST-LOCK) + 6.5
 6 agents (Claude Code primary: Opus 4.6 Architect + Sonnet 4.6 Executor · Cline ⚠ DEPRECATED · Copilot · SpecStory · SocratiCode · code-review-graph)
 9 governance docs (unchanged)
@@ -124,6 +124,10 @@ Count diffs vs V32.5.5: **Phase Hooks 13 → 14** (Phase 3.3 adds a memory-gover
 Count diffs vs V32.6.1 → V32.7: **counts unchanged (deploy-location change only)**. V32.7 moves all 7 detail files (phases.md, memory-governance.md, security.md, ui-rules.md, bootstrap.md, scenarios.md, templates.md) from `.claude/rules/` to `.ai_prompt/` (read on-demand). Only `CLAUDE_v31_compact.md` auto-loads (deployed to app root as `CLAUDE.md`). `.claude/rules/` is intentionally empty after a V32.7 deploy. Root cause: subagent baseline-context inheritance was injecting ~100-130K tokens into every worker session — the 7 detail files (~130K tokens combined) were loaded unconditionally via `.claude/rules/` auto-injection. Counts: 30 Rules · 35 Scenarios · 19 Bootstrap Steps · 61 Prompts (38 NEW ✨) · 11 UI Rules · 17 deliverable files · 9 V32 Dispatch Rules · 14 Phase Hooks — all unchanged. K.45 added (V32.7 verification).
 
 Count diffs vs V32.7.1 → V32.7.2: **deliverable files 17 → 19** (added `spec-executor.md` → `.claude/agents/` and `settings.json` → jq-merged into `.claude/settings.json`); all other canonical counts unchanged (30 Rules · 35 Scenarios · 19 Bootstrap Steps · 61 Prompts (38 NEW ✨) · 11 UI Rules · 9 V32 Dispatch Rules · 14 Phase Hooks). V32.7.2 adds a custom Sonnet executor subagent (`spec-executor.md`, frontmatter `tools: Read,Write,Edit,Bash,Grep,Glob` + `model: sonnet` + `mcpServers: []`) and a `settings.json` with skill-listing context caps (`skillListingBudgetFraction: 0.01` + `maxSkillDescriptionChars: 1024`); framework executor dispatch (R1/R5/R7) now targets `Agent(subagent_type: "spec-executor")` with `Agent(model: "sonnet")` fallback. K.47 added (V32.7.2 verification). **NOTE: V32.7.2 re-bumped version markers V32.7.1 → V32.7.2 and the deliverable count 17 → 19 — supersedes K.45/K.46 count references.**
+
+Count diffs vs V32.13 → V32.14: **UI Component Rules 13 → 14; deliverable files 24 → 25** (motion.md → .ai_prompt/, so .ai_prompt/ files 18 → 19); all other canonical counts unchanged. V32.14 adds the **Motion Layer**: a new on-demand deliverable `.ai_prompt/motion.md` (#25) — library-agnostic UI/UX motion principles (when/when-not to animate, easing-by-intent ease-out entrances / ease-in-out moves / no linear, duration budgets, the `transform`+`opacity`-only performance rule, `prefers-reduced-motion` first-class + WCAG SC 2.3.3, spring-vs-tween, gesture interruptibility, CSS-vs-JS, Motion+Tailwind appendix) — and a new `ui-rules.md` **Rule 14 "Motion & Micro-interactions"** (Motion (motion.dev) the only prescribed React animation lib via LazyMotion/mini ~4.6KB; mandatory `useReducedMotion()` guard ties R13 WCAG gate; `transform`/`opacity` only; GSAP opt-in on a PRODUCT.md marketing/scroll signal with `@gsap/react` + `gsap.matchMedia()` guard; Three.js/R3F parked for 3D-flagged apps only). Read at design phases 3.3 / Parts 5-6 / Phase 7 when docs/DESIGN.md / ui-rules.md are silent on a motion/timing/reduced-motion pattern. INHERIT-not-REPLACE over docs/DESIGN.md motion tokens. Motion principles informed by Emil Kowalski's "Animations on the Web" (animations.dev) + the MIT-licensed emilkowalski/skills + vercel-labs/open-agents skill files (restated in the framework's own words). Wired: `deploy-v31.sh` GROUP 8 copy + `sync-to-project.sh` whitelist (24→25) + `ui-rules.md` Rule 14 + cross-ref + `phases.md` MODEL HOOK cues + `src/data/libraries.js` GSAP/Magic UI specDrivenFit notes + project + repo CLAUDE.md + documentation-hub.html. Counts: 33 Rules · 39 Scenarios · 20 Bootstrap Steps · 61 Prompts (38 NEW ✨) · **14 UI Rules** · 9 V32 Dispatch Rules · 18 Phase Hooks · **25 deliverable files** · 5 MCP servers. K.75 added (V32.14 verification).
+
+Count diffs vs V32.12 → V32.13: **all canonical counts unchanged.** V32.13 adds the CI → Docker Hub → Komodo-API auto-deploy pipeline (the fleet's Watchtower-free staging deploy standard) as **Phase-6 scaffold templates** — `templates.md` Rule 5c (full templates + compose tag-variable contract + per-app enable checklist + manual-prod gate) and `phases.md` (Phase 4 Part 8 `docker-publish.yml` V32.13 variant + `.env.staging` tag-variable note + Phase 6 staging-auto-deploy enable checklist). The app-side `deploy/komodo-deploy.sh` + `.github/workflows/docker-publish.yml` are **vendored from `Server-Setups/Powerbyte-Hostinger/komodo/ci-deploy/`** (canonical source), exactly like the existing `start.sh` / `push.sh` scaffold scripts — they are NOT new `deploy-v31.sh` deliverables, so **deliverable files stay 24**. Production is NEVER auto-deployed (manual promotion only). Counts: 33 Rules · 39 Scenarios · 20 Bootstrap Steps · 61 Prompts (38 NEW ✨) · 13 UI Rules · 9 V32 Dispatch Rules · 18 Phase Hooks · 24 deliverable files · 5 MCP servers — all unchanged. K.74 added (V32.13 verification).
 
 Count diffs vs V32.1.5:
 - All canonical counts unchanged (Rules, Scenarios, Bootstrap, Prompts, UI Rules, deliverable files, Security Checklist).
@@ -1781,6 +1785,76 @@ Verify each is present in the specified locations.
          (h) `ChatGPT_V31_Cross_Audit_Prompt.md` — this file's title + Purpose + verified-counts block
        FAIL if any current-tense surface still reads 23 deliverable files.
        PASS if all eight surfaces confirmed at 24.
+       **SUPERSEDED for the current total by K.75 (V32.14): the current deliverable count is 25, not 24.
+       K.73 verifies only the V32.11→V32.12 transition (23→24) as a historical snapshot.**
+
+### V32.13 — CI → Docker Hub → Komodo-API Auto-Deploy (fleet Watchtower-free standard)
+
+□ K.74 (V32.13) — The CI → Docker Hub → Komodo-API auto-deploy mechanism is documented as a
+       Phase-6 scaffold (NOT a new deliverable), and the deliverable count stays 24. Verify:
+         (a) `templates.md` contains a **Rule 5c — CI → Docker Hub → Komodo-API auto-deploy** that
+             specifies: the staging compose image line `${DOCKERHUB_USERNAME}/${IMAGE_NAME}:${STAGING_IMAGE_TAG:-staging-latest}`;
+             the Komodo staging stack env `STAGING_IMAGE_TAG = [[<APP>_STAGING_TAG]]`; the vendored
+             `deploy/komodo-deploy.sh` helper; the `.github/workflows/docker-publish.yml` build→push→Komodo-deploy form;
+             repo Actions secrets `DOCKERHUB_USERNAME/TOKEN` + `KOMODO_API_KEY/SECRET` (dedicated CI key, not master);
+             a per-app enable checklist; and a **production-is-manual-only** gate.
+         (b) `phases.md` Phase 4 Part 8 `docker-publish.yml` section has a **V32.13** note describing the
+             Komodo CI-deploy variant (UpdateVariableValue pin → DeployStack → poll GetUpdate; webhook
+             does NOT fire for files-on-host stacks); `.env.staging` carries the `STAGING_IMAGE_TAG` note;
+             Phase 6 carries the staging-auto-deploy ENABLE checklist with the manual-prod gate.
+         (c) Both docs **point to the canonical source of truth** —
+             `Server-Setups/Powerbyte-Hostinger/runbooks/komodo-ci-deploy.md` +
+             `komodo/ci-deploy/{komodo-deploy.sh,docker-publish.template.yml}` — and do NOT re-author the helper.
+         (d) The V32.13 verified counts block + Master_Prompt + Framework_Feature_Index + CLAUDE_v31_compact
+             all confirm **24 deliverable files (unchanged)** — the workflow + helper are scaffold templates,
+             not deploy-v31.sh deliverables.
+         (e) **Production is NEVER auto-deployed** anywhere in the V32.13 docs — no prod step in the
+             push-to-main workflow; prod is a manual promotion.
+         (f) Version markers read **V32.13** (not a stale earlier marker) in every "current"-tense surface:
+             Master_Prompt_v31.md active-version line, CLAUDE_v31_compact.md title + STRICTEST line,
+             Framework_Feature_Index_v31.md "> Current framework version" line + §1.2 title + footer,
+             this file's title + Purpose + verified-counts heading, public/documentation-hub.html reconcile line.
+       FAIL if the mechanism is missing from templates.md/phases.md, if it is recorded as a new deliverable
+       (count drifts off 24), if any current-tense surface still names a pre-V32.13 version, or if any prod
+       auto-deploy path is present.
+
+□ K.75 (V32.14) — The Motion Layer (deliverable #25 `motion.md` + UI Rule 14) is present and the
+       counts read **14 UI Component Rules + 25 deliverable files** in ALL current-tense surfaces. Verify:
+         (a) `specdrivenprompt/motion.md` exists in the framework repo — a library-agnostic, on-demand
+             UI/UX motion-principles reference. Its header carries a credit line to Emil Kowalski's
+             "Animations on the Web" (animations.dev) + the MIT-licensed emilkowalski/skills +
+             vercel-labs/open-agents skill files, and an INHERIT-not-REPLACE contract (principles win
+             structural/timing decisions; the design system wins token values). It covers: when/when-not
+             to animate (skip high-frequency repeated actions), easing-by-intent (ease-out entrances/exits,
+             ease-in-out on-screen movement, no `linear` for UI), duration budgets by element type, the
+             **performance hard rule — animate `transform` + `opacity` ONLY, never layout props**,
+             accessibility first-class (`prefers-reduced-motion` mandatory, reduced-motion a design
+             decision not a kill-switch, ties to WCAG 2.2 AA + SC 2.3.3), spring-vs-tween, gesture
+             interruptibility, CSS-vs-JS, and a Motion+Tailwind appendix.
+         (b) `ui-rules.md` contains a new **Rule 14 "Motion & Micro-interactions"** — Motion (motion.dev)
+             the only prescribed React animation lib (the primitive shadcn/ui builds on — shadcn-only
+             preserved), LazyMotion/mini default, **mandatory `useReducedMotion()` guard** ties R13 WCAG
+             gate, `transform`/`opacity` only, GSAP opt-in on a PRODUCT.md marketing/scroll signal (with
+             `@gsap/react` + `gsap.matchMedia()` guard), Three.js/R3F parked for 3D-flagged apps only.
+             The Rule 14 block points to `.ai_prompt/motion.md` for the full principles; the file header
+             note also cross-references motion.md. The UI-rules heading reads "Rule 14 added V32.14".
+         (c) `deploy-v31.sh` copies `motion.md` to the target `.ai_prompt/motion.md` (GROUP 8, alongside
+             `privacy.md` + `design-principles.md`, overwrite-with-backup); `sync-to-project.sh` whitelist
+             includes `motion.md` and its gate message reads **25 whitelisted files**.
+         (d) `phases.md` carries `Read .ai_prompt/motion.md` MODEL HOOK cues at Phase 3.3 / Phase 4
+             Parts 5-6 / Phase 7. The project + repo CLAUDE.md `/scan-project` phase rows surface motion.md
+             at 3.3 / Parts 5-6 / Phase 5 / Phase 7 (paired with `accessibility-agents`), and a V32.14
+             Skills Library Awareness note is present.
+         (e) The **V32.14 verified counts block** + Master_Prompt + Framework_Feature_Index + CLAUDE_v31_compact
+             + project/repo CLAUDE.md + documentation-hub.html all confirm **14 UI Component Rules + 25
+             deliverable files** (and the .ai_prompt/ subtotal reads 19, was 18).
+         (f) Version markers read **V32.14** (not a stale earlier marker) in every "current"-tense surface:
+             Master_Prompt_v31.md active-version line, CLAUDE_v31_compact.md title + STRICTEST line,
+             Framework_Feature_Index_v31.md "> Current framework version" line + footer, this file's title +
+             Purpose + verified-counts heading, deploy-v31.sh banner, public/documentation-hub.html reconcile line.
+       FAIL if `motion.md` is missing, if Rule 14 is absent from ui-rules.md, if either deploy script omits
+       motion.md, if any current-tense surface still reads 13 UI rules / 24 deliverables, or if any
+       current-tense surface still names a pre-V32.14 version.
 
 ---
 

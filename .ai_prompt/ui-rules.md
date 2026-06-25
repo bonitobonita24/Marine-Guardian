@@ -4,16 +4,18 @@
 > component installation, or any work touching src/components/, src/app/, or packages/ui/.
 > shadcn/ui is the ONLY permitted component library. No exceptions.
 > When this file and docs/DESIGN.md are silent on a pattern, component state, or accessibility approach, Read .ai_prompt/design-principles.md (the library-agnostic principles authority — V32.12). It never overrides shadcn/ui or DESIGN.md tokens.
+> When this file and docs/DESIGN.md are silent on a motion, timing, easing, or reduced-motion pattern, Read .ai_prompt/motion.md (the library-agnostic motion-principles authority — V32.14). It never overrides DESIGN.md motion tokens; Rule 14 below is the enforcement summary.
 
 ---
 
-## UI COMPONENT RULES — MANDATORY FOR ALL UI GENERATION (NEW V29 — Rule 11 added V31.3 — Rule 12 added V32.8 — Rule 13 added V32.9)
+## UI COMPONENT RULES — MANDATORY FOR ALL UI GENERATION (NEW V29 — Rule 11 added V31.3 — Rule 12 added V32.8 — Rule 13 added V32.9 — Rule 14 added V32.14)
 
 Every UI component, page, and layout MUST use the shadcn/ui ecosystem. No exceptions.
 shadcn/ui is MIT licensed, free, open source, and the framework's locked UI component library.
 Rule 11 (Loading States — dual-path) was added in V31.3 to eliminate hand-rolled skeleton twins for custom components.
 Rule 12 (Compiled-tokens-only + palette disable) was added in V32.8 to enforce Design-as-Contract (Rule 31).
 Rule 13 (Accessibility / WCAG 2.2 AA) was added in V32.9 — hard gate for gov/LGU apps (DICT MC 004), warn-only otherwise.
+Rule 14 (Motion & Micro-interactions) was added in V32.14 — Motion (motion.dev) is the only prescribed animation library; every animation must respect prefers-reduced-motion (ties to R13's WCAG gate).
 
 ```
 1. shadcn/ui is the ONLY component library. NEVER import MUI, Ant Design, Chakra UI,
@@ -172,6 +174,41 @@ Rule 13 (Accessibility / WCAG 2.2 AA) was added in V32.9 — hard gate for gov/L
     Custom components and design token overrides must be audited — accessibility-agents catches drift.
 
     Reference: Master_Prompt_v31.md Rule 33 + .ai_prompt/privacy.md (gov/LGU gate definition).
+
+14. Motion & micro-interactions (NEW V32.14 — Rule 33-aligned, ties to R13 WCAG gate).
+    Motion is part of the design system, not improvised per component. shadcn/ui already builds on
+    Motion, so the prescribed animation library honors the shadcn-only rule.
+
+    HARD RULES — no exceptions:
+    a. Motion (motion.dev) is the ONLY prescribed React animation library. NEVER import
+       framer-motion (legacy name aside), react-spring, anime.js, or any other animation runtime
+       for standard app UI. Motion is the same primitive shadcn/ui uses — shadcn-only is preserved.
+    b. Use the LazyMotion / mini import path by default (small runtime, ~4.6KB) — pull in extra
+       features only when a specific interaction needs them.
+    c. EVERY animation MUST respect reduced motion. In React: a `useReducedMotion()` guard; in
+       CSS/Tailwind: a `@media (prefers-reduced-motion: reduce)` block (Tailwind `motion-reduce:`
+       variant). A guardless animation is a defect. This is a HARD requirement and ties directly to
+       Rule 13's WCAG 2.2 AA gate (SC 2.3.3 Animation from Interactions) — on gov/LGU apps a guardless
+       animation FAILS the Phase 5 accessibility gate. Reduced-motion is a design decision, not a
+       blanket kill-switch: substitute a fade or instant change, preserving the feedback.
+    d. Animate `transform` and `opacity` ONLY. NEVER animate layout/reflow properties
+       (`width`/`height`/`margin`/`padding`/`top`/`left`/`right`/`bottom`/inset) — they force layout
+       every frame and drop frames. Move with `transform: translate`, scale with `transform: scale`.
+    e. Easing by intent: ease-out for entrances/exits; ease-in-out for on-screen movement; never
+       `linear` for UI transitions. Duration by element type: micro-interactions ≈100–200ms;
+       components ≈150–300ms; modals/sheets ≈250–400ms; page/route ≈300–500ms.
+    f. GSAP is OPT-IN ONLY — permitted solely when PRODUCT.md signals marketing-site /
+       scroll-storytelling / timeline-heavy needs. It is now fully free (all plugins) but still
+       requires `@gsap/react` + a hand-written `gsap.matchMedia()` reduced-motion guard (GSAP does
+       not auto-honor the preference). Lock the opt-in in DECISIONS_LOG.md.
+    g. Three.js / React Three Fiber (R3F) are PARKED — 3D/WebGL is out of scope for standard apps,
+       available only when a PRODUCT.md explicitly requires 3D. When it does, R3F is the correct
+       entry point (not raw Three.js). Lock the decision in DECISIONS_LOG.md.
+
+    For the full library-agnostic principles (when/when-not, easing families, duration budgets,
+    spring-vs-tween, interruptibility, CSS-vs-JS, the Motion+Tailwind mapping appendix, and the
+    motion QA checklist), Read .ai_prompt/motion.md.
+    Reference: Master_Prompt_v31.md V32.14 changelog + .ai_prompt/motion.md + Rule 13 (WCAG gate).
 ```
 
 **shadcn/ui MCP Server** — enables agents to search and install components via natural language.

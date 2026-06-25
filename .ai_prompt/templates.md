@@ -591,6 +591,107 @@ Staging and production use standard ports. AWS migration = zero port changes in 
 
 AWS migration = stop one compose service + update `.env` + restart app. Zero code changes.
 
+### Rule 5c — CI → Docker Hub → Komodo-API auto-deploy (V32.13 — fleet default)
+
+The fleet's **Watchtower-free** staging deploy pipeline. Push to `main` → GitHub Actions builds +
+pushes the image to Docker Hub → Actions calls the **Komodo API** to redeploy the staging stack with
+the **exact new image SHA**, in seconds. Replaces the V27 Komodo registry-poll (hourly, too slow; and
+Komodo's git-listener webhook does **not** fire for `files_on_host` stacks). Proven in production by
+the `fmo-fisherfolk` stack. **Production is NEVER auto-deployed — manual promotion only** (fleet
+prod-gating policy). CONDITIONAL: only when `docker.publish: true`.
+
+**Canonical source of truth (do NOT reinvent — vendor + point):**
+`Server-Setups/Powerbyte-Hostinger/runbooks/komodo-ci-deploy.md` (full procedure + provisioning +
+per-app enable checklist + rollback). The two app-side artifacts below are vendored copies of
+`Server-Setups/Powerbyte-Hostinger/komodo/ci-deploy/{komodo-deploy.sh,docker-publish.template.yml}`.
+
+**Tag-variable contract (deterministic SHA-pinned deploys).** `DeployStack` has no image-tag
+parameter, so to deploy an *exact* SHA (not a mutable `:latest` race) the staging compose service
+interpolates a Komodo Variable, and CI sets that Variable to the new SHA before deploying. Rollback =
+set the Variable to any prior SHA and redeploy.
+
+```yaml
+# deploy/compose/stage/docker-compose.app.yml — staging service image line
+services:
+  app:
+    image: ${DOCKERHUB_USERNAME}/${IMAGE_NAME}:${STAGING_IMAGE_TAG:-staging-latest}
+    # Komodo staging stack env interpolates the tag variable:
+    #   STAGING_IMAGE_TAG = [[<APP>_STAGING_TAG]]
+    # CI pins <APP>_STAGING_TAG to the exact sha-XXXXXXX before DeployStack.
+```
+
+**`deploy/komodo-deploy.sh`** — vendored CI helper (copy verbatim from the canonical source; `chmod +x`).
+Pins the Komodo tag Variable → `DeployStack` → polls `GetUpdate` so CI fails on a real deploy failure.
+The Mozilla `User-Agent` header it sends is REQUIRED — `kmd.powerbyte.app` is Cloudflare-fronted and
+challenges default curl/bot agents. Required env: `KOMODO_HOST`, `KOMODO_API_KEY`, `KOMODO_API_SECRET`,
+`KOMODO_STACK`; SHA-pin env: `KOMODO_TAG_VAR` + `IMAGE_TAG`. Do not re-author it — vendor the canonical
+file so every app stays byte-identical to the fleet standard.
+
+**`.github/workflows/docker-publish.yml`** — adds a deploy step after the Docker Hub push (V32.13 form;
+supersedes the V27 poll-only workflow when Komodo CI-deploy is enabled). Multi-arch build, two tags
+(`sha-XXXXXXX` + `staging-latest`), then `bash deploy/komodo-deploy.sh`:
+
+```yaml
+# .github/workflows/docker-publish.yml  (CONFIG block edited per app)
+name: Build, Push & Deploy (staging)
+on:
+  push: { branches: [main] }
+  workflow_dispatch:        # prod promotion stays a SEPARATE manual gate — never auto
+
+env:
+  IMAGE: ${DOCKERHUB_USERNAME}/${IMAGE_NAME}     # e.g. bonitobonita24/<app>
+  KOMODO_STACK: <app>-staging                    # e.g. yelli-staging
+  KOMODO_TAG_VAR: <APP>_STAGING_TAG              # e.g. YELLI_STAGING_TAG
+
+jobs:
+  build-push-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - id: meta
+        run: echo "sha=sha-$(echo ${{ github.sha }} | cut -c1-7)" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.meta.outputs.sha }}
+            ${{ env.IMAGE }}:staging-latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Deploy to Komodo (staging)        # instant, deterministic, SHA-pinned
+        env:
+          KOMODO_HOST: https://kmd.powerbyte.app
+          KOMODO_API_KEY: ${{ secrets.KOMODO_API_KEY }}      # dedicated CI key — NOT the master key
+          KOMODO_API_SECRET: ${{ secrets.KOMODO_API_SECRET }}
+          KOMODO_STACK: ${{ env.KOMODO_STACK }}
+          KOMODO_TAG_VAR: ${{ env.KOMODO_TAG_VAR }}
+          IMAGE_TAG: ${{ steps.meta.outputs.sha }}
+        run: bash deploy/komodo-deploy.sh
+```
+
+**Repo Actions secrets required:** `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, `KOMODO_API_KEY`,
+`KOMODO_API_SECRET` (the dedicated `github-actions-ci` Komodo key — independently revocable, never the
+master key). Add these to CREDENTIALS.md's GitHub Secrets section.
+
+**Per-app Komodo ENABLE checklist** (when the staging stack already exists):
+1. Vendor `deploy/komodo-deploy.sh` (+x) and the `.github/workflows/docker-publish.yml` with CONFIG set.
+2. Set the 4 repo Actions secrets above.
+3. Komodo Variable `<APP>_STAGING_TAG` exists; staging stack env interpolates `STAGING_IMAGE_TAG = [[<APP>_STAGING_TAG]]`.
+4. Compose image tag = `${STAGING_IMAGE_TAG:-staging-latest}`.
+5. Push to `main` → confirm the Actions deploy job goes green and the stack shows the new SHA.
+
+**Production promotion (manual — NEVER in the push-to-main workflow):** re-tag the verified staging SHA
+to the prod channel → set `<APP>_PROD_TAG` → `DeployStack <app>-prod` (UI button or the helper with prod
+env). Do not add a prod auto-deploy step. See the runbook §6.
+
 ### Rule 5b — Observability & Extended Testing (opt-in, target-gated)
 
 Mostly **CLI / Docker tools, not installable Claude skills** — driven by the templates below

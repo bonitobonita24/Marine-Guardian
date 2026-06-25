@@ -821,6 +821,9 @@ Generate:
    **`.env.staging`** — staging environment (standard ports, mono-server, own volumes)
    # Docker Hub image tag (Komodo reads this before docker compose pull):
    APP_IMAGE_TAG=staging-latest          # change to sha-{hash} to pin a specific version
+   # V32.13 CI-deploy (Komodo): the staging compose app image uses ${STAGING_IMAGE_TAG:-staging-latest};
+   # on the Komodo staging stack, set stack env STAGING_IMAGE_TAG = [[<APP>_STAGING_TAG]] so CI can pin
+   # the exact SHA per deploy. See templates.md Rule 5c + Server-Setups komodo-ci-deploy.md.
    DOCKERHUB_USERNAME=${docker.hub_repo.split('/')[0]}
    IMAGE_NAME=${docker.image_name}
    ```
@@ -1588,6 +1591,7 @@ Parts 5-6 no longer runs the full design-system pass — it runs a regression `/
 the PRODUCTION baseline** (see Phase 4).
 
 Note (Phase 3.3 — design principles): When docs/DESIGN.md / ui-rules.md are silent on a pattern, component state, or a11y approach, **Read .ai_prompt/design-principles.md** — principles win for structural decisions; the design system wins for token values.
+Note (Phase 3.3 — motion): When the prototype adds motion/interaction and docs/DESIGN.md / ui-rules.md are silent on a motion/easing/duration/reduced-motion pattern, **Read .ai_prompt/motion.md** (ui-rules.md Rule 14). Motion (motion.dev) is the prescribed lib; every animation MUST carry a `useReducedMotion()` guard (ties R13 WCAG gate); animate `transform`/`opacity` only. Principles win timing decisions; the design system wins token values.
 
 **If skipped** (small app, no client validation needed): log "Phase 3.3 skipped — <reason>" to
 `agent-log.md` and proceed to Phase 3.5. If a `prototype/` was still produced, the simulated→
@@ -1906,6 +1910,7 @@ Note: designer-skills is a supplementary bundle (NOT a Primary Group slot) — /
 Note: vercel-agent-skills may be suggested by /scan-project for Next.js projects — accept it.
 Note: shadcn/studio Pro (V32.11) — at Parts 5-6 the design is FROZEN (Phase 3.3). Use `/cui` to install any remaining production blocks/pages and `/rui` to refine — NOT `/iui` (no new design exploration; INHERIT-not-REPLACE). Reconcile every generated block to the compiled tokens (Rule 12). See `AI_Tools_Skills_MCPs_Reference_v31.md §2.5`.
 Note (Phase 4 Parts 5-6 — design principles): When docs/DESIGN.md / ui-rules.md are silent on a pattern, component state, or a11y approach, **Read .ai_prompt/design-principles.md** — principles win for structural decisions; the design system wins for token values.
+Note (Phase 4 Parts 5-6 — motion): When wiring motion/interaction and docs/DESIGN.md / ui-rules.md are silent on a motion/easing/duration/reduced-motion pattern, **Read .ai_prompt/motion.md** (ui-rules.md Rule 14). Motion (motion.dev) prescribed lib (LazyMotion/mini); mandatory `useReducedMotion()` guard on every animation, paired with the accessibility-agents WCAG gate (R13); `transform`/`opacity` only. A guardless animation FAILS the gov/LGU Phase 5 accessibility gate.
 
 ### Phase 4 Part 7 (Docker + infrastructure) — conditional
 
@@ -1977,6 +1982,7 @@ Note: blast radius analysis is already in code-review-graph (Slot 2).
 Note: designer-skills INHERIT-not-REPLACE — `docs/DESIGN.md` is the human-verified baseline (PA Step 7 or earlier Phase 4); designer-skills sharpen, they never regenerate (V32.5).
 Note: shadcn/studio Pro (V32.11) — for new UI surfaces use `/cui` (new pages/sections), `/iui` ONLY for a genuinely new distinctive section, `/rui` to polish; reconcile generated tokens to the existing `docs/DESIGN.md` (INHERIT-not-REPLACE). See `AI_Tools_Skills_MCPs_Reference_v31.md §2.5`.
 Note (Phase 7 — design principles): When docs/DESIGN.md / ui-rules.md are silent on a pattern, component state, or a11y approach, **Read .ai_prompt/design-principles.md** — principles win for structural decisions; the design system wins for token values.
+Note (Phase 7 — motion): When a Feature Update adds motion/interaction and docs/DESIGN.md / ui-rules.md are silent on a motion/easing/duration/reduced-motion pattern, **Read .ai_prompt/motion.md** (ui-rules.md Rule 14). Motion (motion.dev) prescribed lib; mandatory `useReducedMotion()` guard (ties R13 WCAG gate); `transform`/`opacity` only; GSAP opt-in only on a PRODUCT.md marketing/scroll signal (with `@gsap/react` + `gsap.matchMedia()` guard, logged in DECISIONS_LOG.md).
 ```
 
 **Skill activation rules:**
@@ -3359,6 +3365,25 @@ jobs:
           cache-to: type=gha,mode=max
 ```
 
+**🦎 V32.13 — CI → Docker Hub → Komodo-API auto-deploy (fleet default, replaces the V27 registry-poll):**
+When deploying to the Powerbyte-Hostinger fleet (Komodo), generate the **V32.13 workflow form** instead
+of the poll-only workflow above: after the Docker Hub push, add a `Deploy to Komodo (staging)` step that
+runs a vendored `deploy/komodo-deploy.sh` to call the Komodo API (`UpdateVariableValue` pins
+`<APP>_STAGING_TAG` to the exact SHA → `DeployStack` → poll `GetUpdate`). This is instant and
+deterministic — Komodo's git webhook does NOT fire for `files_on_host` stacks and the registry poll is
+hourly. **No Watchtower involved in app deploys. Production is NEVER auto-deployed — manual promotion
+only.** Emit two files:
+- `deploy/komodo-deploy.sh` — vendored verbatim from the canonical helper (`chmod +x`).
+- `.github/workflows/docker-publish.yml` — the V32.13 build→push→Komodo-deploy form.
+
+Full templates (compose tag-variable contract + helper + workflow + repo secrets + per-app enable
+checklist) live in **`templates.md` → Rule 5c**. Canonical source of truth (do not reinvent — vendor
+and point): **`Server-Setups/Powerbyte-Hostinger/runbooks/komodo-ci-deploy.md`** +
+`komodo/ci-deploy/{komodo-deploy.sh,docker-publish.template.yml}`. Staging compose service image line:
+`image: ${DOCKERHUB_USERNAME}/${IMAGE_NAME}:${STAGING_IMAGE_TAG:-staging-latest}`; Komodo staging stack
+env: `STAGING_IMAGE_TAG = [[<APP>_STAGING_TAG]]`. Repo Actions secrets: `DOCKERHUB_USERNAME/TOKEN` +
+`KOMODO_API_KEY/SECRET` (the dedicated `github-actions-ci` key, NOT the master key).
+
 **After generating this file, add to DECISIONS_LOG.md:**
 ```
 Docker image publishing: enabled
@@ -3617,6 +3642,21 @@ C1 compose YAML parse · C2 certresolver lowercase · C3 websecure tls=true labe
 healthcheck (not localhost) · C5 no build: key in stage/prod composes · C6 push.sh login guard ·
 C7 start.sh COMPOSE_PROJECT_NAME derivation · C8 shellcheck all *.sh.
 Exit 0 = all clear. Exit 1 = fix before proceeding. Dev compose is excluded from TLS/build: checks.
+
+**🦎 STAGING AUTO-DEPLOY — Komodo CI pipeline (V32.13, fleet default; CONDITIONAL on `docker.publish: true` + Komodo target):**
+Staging is deployed by the CI → Docker Hub → Komodo-API pipeline, NOT by polling or Watchtower. Push to
+`main` → GitHub Actions builds + pushes the image → `deploy/komodo-deploy.sh` pins `<APP>_STAGING_TAG`
+to the exact SHA and calls `DeployStack`. Before the first push, confirm the per-app ENABLE checklist:
+```
+□ deploy/komodo-deploy.sh vendored (+x) + .github/workflows/docker-publish.yml CONFIG set (templates.md Rule 5c)
+□ Repo Actions secrets: DOCKERHUB_USERNAME/TOKEN + KOMODO_API_KEY/SECRET (dedicated github-actions-ci key)
+□ Komodo Variable <APP>_STAGING_TAG exists; staging stack env interpolates STAGING_IMAGE_TAG = [[<APP>_STAGING_TAG]]
+□ Staging compose image tag = ${STAGING_IMAGE_TAG:-staging-latest}
+□ Push to main → Actions deploy job goes green and the stack shows the new SHA
+```
+**Production is NEVER auto-deployed — manual promotion only** (re-tag verified SHA → set `<APP>_PROD_TAG`
+→ `DeployStack <app>-prod`). Do not add a prod step to the push-to-main workflow. Full procedure +
+provisioning: `Server-Setups/Powerbyte-Hostinger/runbooks/komodo-ci-deploy.md`.
 
 All `docker compose` commands run from the WSL2 Ubuntu terminal.
 Docker Desktop provides the socket natively — no DinD, no socket mounts needed.
