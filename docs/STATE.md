@@ -15,10 +15,13 @@ GOALS_2026_06_25 (owner-set, Full Auto Mode — branch feat/warroom-date-range-d
     ITEM 4 ✅ COMPLETE (every data element clickable→modal: event-feed, last-incident, patrol rows, KPI cards [list-backed],
     breakdown bars, alert rows; non-list aggregates [Unacked/RangersOnDuty] non-interactive by design).
     Visual QA core PASS (docs/qa-screenshots/warroom-2026-06-25/: default 7d, range re-query, 4 modal types, 0 console errors).
-    T4b-additions QA: IN PROGRESS (background — 2 coverage charts re-query + alert modal).
-  INFRA NIT (follow-up): dev deploy/compose/dev/docker-compose.app.yml external network 'dev_network' ≠ actual
-    'marine-guardian_dev_network' → bare `docker compose up --build app` fails unless COMPOSE_PROJECT_NAME=marine-guardian_dev
-    (start.sh sets it). Align the name so the rebuild command works as written.
+    T4b-additions QA: ✅ PASS (docs/qa-screenshots/warroom-t4b-2026-06-26/: both coverage charts re-query on range
+    change [municipality 17/11→378/126 when widened]; alert row→detail modal; ACK no-modal; 0 console errors).
+    => ITEMS 3 + 4 FULLY BUILT + GATED + VISUAL-QA-VERIFIED. Un-gated queue empty (only Item 2 remains, owner-gated).
+  INFRA NITS (dev-only follow-ups, NOT feature defects): (1) deploy/compose/dev/docker-compose.app.yml external network
+    'dev_network' ≠ actual 'marine-guardian_dev_network'; (2) recreating the dev app needs `--env-file .env.dev` +
+    COMPOSE_PROJECT_NAME=marine-guardian_dev or it binds a stale host port (54850) and breaks NextAuth login. start.sh
+    sets both correctly — align the compose file / document so a bare `docker compose up --build app` works.
   REMAINING (owner-gated only): Item 2 ER completeness + images — needs DAS_WEB_TOKEN (see docs/PENDING_DECISIONS.md).
   1. ✅ Local-dev only — staging/prod paused (PRODUCT.md Deployment Config updated). PR #27 fix stays on main, NOT deployed.
   2. 🔴 GATED — ER data completeness + images: date coverage 2024→now EXISTS locally (patrols 2023-26, events 2023-26);
