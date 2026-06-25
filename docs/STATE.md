@@ -8,6 +8,14 @@ FRAMEWORK_VERSION: V32.9
 
 GOALS_2026_06_25 (owner-set, Full Auto Mode — branch feat/warroom-date-range-drilldown):
   Spec locked in docs/PRODUCT.md (Active Goals + War Room spec). Local-dev ONLY (no staging/prod).
+  PROGRESS (all commits on branch, pushed to origin, gated green, NOT merged — for owner review):
+    T1 backend 66e1193 · T2-T4 range header+context 3d1b616 · T5 event/patrol modals 2d62b4a ·
+    T5b KPI+breakdown drill-down modals 412fb2c. Web suite 989→1009. Item 3 ✅ + Item 4 ✅ (every
+    list-backed element clickable→modal; non-list aggregates [Unacked/RangersOnDuty] non-interactive by design).
+    T6 Visual QA: IN PROGRESS (background agent — rebuild dev_app + Playwright). T4b deferred (below).
+  T4b DEFERRED follow-up: municipality-coverage-chart + protected-zone-card use {since,until}/no input, NOT
+    {dateFrom,dateTo} — not yet range-scoped. To fully satisfy item 3 "ALL data reflects range", add dateFrom/dateTo
+    to their backing procedures + thread the range. Also: alerts-panel items have ACK but no click→detail modal yet.
   1. ✅ Local-dev only — staging/prod paused (PRODUCT.md Deployment Config updated). PR #27 fix stays on main, NOT deployed.
   2. 🔴 GATED — ER data completeness + images: date coverage 2024→now EXISTS locally (patrols 2023-26, events 2023-26);
      IMAGES NOT STORED (only has_photo flag, no attachment table, ingest script has no image download). Live verification +
