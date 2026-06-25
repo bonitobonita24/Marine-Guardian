@@ -123,7 +123,13 @@ export function CoverageReport({ data }: CoverageReportProps) {
         <style>{`
           @page { size: ${paperCss}; margin: 12mm; }
           * { box-sizing: border-box; }
-          body { font-family: ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif; color: #111; margin: 0; padding: 16px 20px; font-size: 11px; line-height: 1.4; }
+          /* P1-D fix: force light background + dark text regardless of app dark-mode globals.css.
+             Tailwind's @layer base applies bg-background (≈ #0a0a0a) + text-foreground (≈ #fafafa)
+             to body via the app-wide stylesheet. Since this RSC emits a full <html> document that
+             Next.js still wraps in the app shell (which loads globals.css), those dark tokens would
+             bleed in — leaving odd rows dark-on-dark. Explicit !important overrides ensure this
+             print template is fully theme-independent. */
+          body { font-family: ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif; color: #111 !important; background: #fff !important; margin: 0; padding: 16px 20px; font-size: 11px; line-height: 1.4; }
           header.report-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f766e; padding-bottom: 10px; margin-bottom: 16px; }
           header.report-header .brand { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #6b7280; }
           header.report-header h1 { font-size: 22px; margin: 4px 0 2px; color: #0f766e; }
@@ -137,11 +143,12 @@ export function CoverageReport({ data }: CoverageReportProps) {
           .summary-card .sub { font-size: 10px; color: #6b7280; margin-top: 4px; }
           section.subtotals h3, section.patrol-detail h3 { font-size: 13px; margin: 10px 0 8px; color: #0f766e; }
           table.report-table { width: 100%; border-collapse: collapse; font-size: 10px; }
-          table.report-table th, table.report-table td { border: 1px solid #e5e7eb; padding: 5px 7px; text-align: left; vertical-align: top; }
-          table.report-table thead th { background: #f3f4f6; font-weight: 600; color: #374151; }
-          table.report-table tbody tr:nth-child(even) td { background: #fafafa; }
+          table.report-table th, table.report-table td { border: 1px solid #e5e7eb; padding: 5px 7px; text-align: left; vertical-align: top; color: #111; background: #fff; }
+          table.report-table thead th { background: #f3f4f6 !important; font-weight: 600; color: #374151 !important; }
+          table.report-table tbody tr:nth-child(even) td { background: #f0f4f8 !important; color: #111 !important; }
+          table.report-table tbody tr:nth-child(odd) td { background: #fff !important; color: #111 !important; }
           table.report-table td.num, table.report-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
-          table.report-table tfoot td { font-weight: 600; background: #f3f4f6; border-top: 2px solid #d1d5db; }
+          table.report-table tfoot td { font-weight: 600; background: #f3f4f6 !important; color: #111 !important; border-top: 2px solid #d1d5db; }
           .empty-state { text-align: center; padding: 24px; color: #6b7280; font-style: italic; }
         `}</style>
       </head>
