@@ -1218,28 +1218,35 @@ export const GanttProvider: FC<GanttProviderProps> = ({
 
   useEffect(() => {
     if (!scrollToDate) return;
-    if (!scrollRef.current) return;
-    const timelineStartDate = new Date(
-      timelineData[0]?.year ?? new Date().getFullYear(),
-      0,
-      1,
-    );
-    const offset = getOffset(scrollToDate, timelineStartDate, {
-      zoom,
-      range,
-      columnWidth,
-      sidebarWidth,
-      headerHeight,
-      rowHeight,
-      onAddItem,
-      placeholderLength: 2,
-      timelineData,
-      ref: scrollRef,
+    // Defer until after the browser has painted the timeline columns so that
+    // scrollWidth reflects the full grid width and the scroll position lands
+    // correctly (avoids race with the centering effect that runs on the same
+    // paint cycle).
+    const raf = requestAnimationFrame(() => {
+      if (!scrollRef.current) return;
+      const timelineStartDate = new Date(
+        timelineData[0]?.year ?? new Date().getFullYear(),
+        0,
+        1,
+      );
+      const offset = getOffset(scrollToDate, timelineStartDate, {
+        zoom,
+        range,
+        columnWidth,
+        sidebarWidth,
+        headerHeight,
+        rowHeight,
+        onAddItem,
+        placeholderLength: 2,
+        timelineData,
+        ref: scrollRef,
+      });
+      scrollRef.current.scrollTo({
+        left: Math.max(0, offset),
+        behavior: "instant",
+      });
     });
-    scrollRef.current.scrollTo({
-      left: Math.max(0, offset),
-      behavior: "smooth",
-    });
+    return () => { cancelAnimationFrame(raf); };
   }, [scrollToDate, timelineData, zoom, range, columnWidth, sidebarWidth, onAddItem]);
 
   // Update sidebar width when DOM is ready

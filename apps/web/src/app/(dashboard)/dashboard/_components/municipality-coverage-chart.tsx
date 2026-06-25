@@ -52,10 +52,12 @@ export function MunicipalityCoverageChart({
   isLoading: boolean;
 }) {
   // Sort descending by total activity, show top 11 (all municipalities).
+  // Keep full names so ChartTooltip shows the untruncated municipality name;
+  // display truncation is handled by the YAxis tickFormatter below.
   const chartData = [...data]
     .sort((a, b) => b.patrolCount + b.eventCount - (a.patrolCount + a.eventCount))
     .map((d) => ({
-      municipality: d.municipality.length > 12 ? `${d.municipality.slice(0, 11)}…` : d.municipality,
+      municipality: d.municipality,
       patrolCount: d.patrolCount,
       eventCount: d.eventCount,
     }));
@@ -106,8 +108,11 @@ export function MunicipalityCoverageChart({
                   type="category"
                   tickLine={false}
                   axisLine={false}
-                  width={72}
+                  width={96}
                   tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
+                  tickFormatter={(v: string) =>
+                    v.length > 14 ? `${v.slice(0, 13)}…` : v
+                  }
                 />
                 <XAxis
                   type="number"

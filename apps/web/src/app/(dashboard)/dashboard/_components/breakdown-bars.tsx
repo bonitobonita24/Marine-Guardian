@@ -133,7 +133,7 @@ export function BreakdownBars({
                 <YAxis
                   type="category"
                   dataKey="type"
-                  width={60}
+                  width={80}
                   tick={{
                     fontSize: 9,
                     fill: "hsl(var(--muted-foreground))",
@@ -141,7 +141,7 @@ export function BreakdownBars({
                   tickLine={false}
                   axisLine={false}
                   tickFormatter={(v: string) =>
-                    v.length > 10 ? `${v.slice(0, 9)}…` : v
+                    v.length > 14 ? `${v.slice(0, 13)}…` : v
                   }
                 />
                 {/* Pro ChartTooltip instead of no tooltip */}
