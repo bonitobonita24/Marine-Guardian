@@ -37,7 +37,7 @@
  */
 
 import type { ExtendedPrismaClient } from "@marine-guardian/db";
-import { decrypt } from "@marine-guardian/db";
+import { decrypt, platformPrisma } from "@marine-guardian/db";
 import {
   EarthRangerClient,
   type ErTrackResponse,
@@ -198,21 +198,21 @@ export async function materializePatrolTrack(
     };
   }
 
-  // Step 2 — resolve tenant ER credentials.
-  const tenant = await prisma.tenant.findUnique({
-    where: { id: patrol.tenantId },
+  // Step 2 — resolve tenant ER credentials from the canonical
+  // tenant_er_connections table (written by the Settings UI). The legacy
+  // Tenant.earthrangerUrl / earthrangerDasToken columns are never populated by
+  // the UI, so reading them left every materialize job permanently
+  // skipped:no_credentials despite a saved, verified connection. Mirrors the
+  // 2026-06-21 er-sync.processor.ts hotfix.
+  const conn = await platformPrisma.tenantErConnection.findUnique({
+    where: { tenantId: patrol.tenantId },
     select: {
-      earthrangerUrl: true,
-      earthrangerDasToken: true,
-      earthrangerTrackToken: true,
+      baseUrl: true,
+      apiTokenEnc: true,
     },
   });
 
-  if (
-    tenant === null ||
-    tenant.earthrangerUrl === null ||
-    tenant.earthrangerDasToken === null
-  ) {
+  if (conn === null) {
     return {
       patrolTrackId: null,
       pointCount: 0,
@@ -224,13 +224,9 @@ export async function materializePatrolTrack(
     };
   }
 
-  const erUrl = decrypt(tenant.earthrangerUrl);
-  const dasToken = decrypt(tenant.earthrangerDasToken);
-  const trackToken =
-    tenant.earthrangerTrackToken !== null
-      ? decrypt(tenant.earthrangerTrackToken)
-      : undefined;
-  const client = new EarthRangerClient(erUrl, dasToken, trackToken);
+  const erUrl = conn.baseUrl;
+  const dasToken = decrypt(conn.apiTokenEnc);
+  const client = new EarthRangerClient(erUrl, dasToken);
 
   // Step 3 — resolve time range, fetch tracks.
   const range = pickTimeRange(patrol);
