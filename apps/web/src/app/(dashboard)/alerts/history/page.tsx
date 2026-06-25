@@ -120,7 +120,7 @@ export default function AlertHistoryPage() {
                     <TableCell>
                       {row.event ? (
                         <Link
-                          href={`/events/${row.event.id}`}
+                          href={`/events?eventId=${row.event.id}`}
                           className="text-primary hover:underline"
                         >
                           {row.event.title ?? row.event.serialNumber ?? row.event.id}

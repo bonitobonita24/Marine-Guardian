@@ -139,7 +139,16 @@ const DEFAULT_FILTERS: Filters = {
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-export function EventsList() {
+interface EventsListProps {
+  /**
+   * When set, the EventDetailModal opens immediately for this event ID.
+   * Used for deep-linking from Alert History / Notifications via
+   * `/events?eventId=<id>`.
+   */
+  initialEventId?: string | null;
+}
+
+export function EventsList({ initialEventId }: EventsListProps = {}) {
   const utils = trpc.useUtils();
 
   // ── Filter state
@@ -151,8 +160,8 @@ export function EventsList() {
   const [cursor, setCursor] = useState<string | undefined>(undefined);
   const [accumulated, setAccumulated] = useState<EventListItem[]>([]);
 
-  // ── Modal
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  // ── Modal — seed from deep-link query param when present
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(initialEventId ?? null);
 
   // ── Inline state mutation (per-row)
   const updateStateMutation = trpc.event.updateState.useMutation({

@@ -453,6 +453,15 @@ async function main() {
           createdBy: siteAdmin.id,
         },
       });
+    } else {
+      // Reconcile stale condition_json to canonical shape on every seed run.
+      // Necessary because the pre-V32.14 seed used legacy keys
+      // ({"eventTypeValue":"sos_distress"}, {"priority":{"gte":200}}) that the
+      // alert evaluator does not read. Idempotent — no-op when already canonical.
+      await prisma.alertRule.update({
+        where: { id: existing.id },
+        data: { conditionJson: a.conditionJson },
+      });
     }
   }
 
