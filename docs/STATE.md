@@ -15,15 +15,30 @@ GOALS_2026_06_25 (owner-set, Full Auto Mode — branch feat/warroom-date-range-d
   3. ⏳ War Room defaults to last 7 days — BACKEND foundation = add optional {dateFrom,dateTo} (default [now-7d, now]) to
      dashboard.ts procedures (kpis/recentEvents/eventBreakdown/alertStats/lastIncident/activePatrols → range-scoped).
   4. ⏳ FROM/TO range header + click→modal on every element — FRONTEND.
-  DECOMPOSITION (each a fresh-context task, ≤500L):
-    T1 (backend, keystone): dashboard.ts — add z.object({dateFrom,dateTo}).optional() default last-7d to all 6 procedures
-       + range-scoped counts; update dashboard.test.ts. TDD + gate. [in progress]
-    T2 (ui-state): DateRangeProvider/context for war room (default [now-7d,now]) + URL/useState; FROM/TO header.
-    T3 (ui-picker): DateRangePicker component (shadcn Popover + calendar — VERIFY calendar installed, else `npx shadcn add calendar`).
-    T4 (wire): thread range into every war-room component query (KPI/feed/patrols/charts/alerts/map).
-    T5 (modals): click→Dialog detail modal per element (event row→EventDetailModal reuse; patrol row; KPI drill; chart bar; alert).
-    T6: Visual QA (Playwright) — default 7d shows, FROM/TO changes data, each element opens modal.
-  VERIFY-FIRST: Explore brief had several "(implied)" component paths — confirm real paths before editing each.
+  VERIFIED STRUCTURE: War Room = apps/web/src/app/(dashboard)/dashboard/page.tsx (no separate war-room route).
+    9 client components in apps/web/src/app/(dashboard)/dashboard/_components/: kpi-strip.tsx, event-feed.tsx,
+    active-patrols.tsx, alerts-panel.tsx, breakdown-bars.tsx, last-incident-card.tsx, municipality-coverage-chart.tsx,
+    protected-zone-card.tsx, clock-card.tsx (+ lib.ts). Each calls its trpc.dashboard.* query directly (client).
+    shadcn calendar/date-picker NOT installed → use native <input type="date"> (no new dep) OR `npx shadcn add calendar popover`.
+    Modal pattern: apps/web/src/components/events/event-detail-modal.tsx (shadcn Dialog). dashboard.ts procedures NOW
+    accept { dateFrom, dateTo } (T1 done) — pass the active range into every component's useQuery input.
+  DECOMPOSITION:
+    T1 ✅ DONE (commit 66e1193): dashboard.ts — all 6 procedures take optional {dateFrom,dateTo} (omit = unchanged);
+       +8 range tests (web 989→997). Full gate green (product-sync/typecheck/test/build/lint).
+    T2 (ui-state): a client date-range state defaulting to [now-7d, now] shared across the page — a React context
+       provider (DashboardRangeProvider) wrapping page.tsx's client tree, exposing {from,to,setRange,resetTo7d}.
+    T3 (ui-picker): a FROM/TO header at top of the dashboard showing active range (native <input type="date"> ×2 +
+       a "Last 7 days" reset button); WCAG labels.
+    T4 (wire): each _components/*.tsx reads the range from context and passes {dateFrom:from,dateTo:to} into its
+       trpc.dashboard.* useQuery input. (clock-card has no query — skip. municipality/protected-zone read their own
+       queries — thread range only if those procedures take it; else leave + note.)
+    T5 (modals): click→shadcn Dialog detail modal per element — event-feed row reuses EventDetailModal; active-patrols
+       row → patrol detail modal; kpi card → drill list; breakdown bar / last-incident → detail. New small modal
+       components under _components/ as needed.
+    T6: Visual QA (Playwright, http://localhost:45204, admin@mail.com/admin, demo-site) — default shows last 7d with
+       FROM/TO at top; changing range re-queries all panels; every element opens a modal. REBUILD dev_app first
+       (compose has NO source mount — `docker compose up -d --build --force-recreate app`).
+  GATE per commit (web change): pnpm tools:check-product-sync && web typecheck && web test && `pnpm --filter @marine-guardian/web build` (HARD — catches lint debt) && scoped eslint clean.
 
 DONE_2026_06_25 (merged): materialize ER-creds fix — PR #27 squash-merged to main (255b668: ca58f43 fix + 44d5284 client timeout).
   Prod deploy + 3391-patrol track backfill DEFERRED (local-dev-only directive). Detail in memory project_marine_guardian_materialize_er_creds_bug.
