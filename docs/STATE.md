@@ -6,6 +6,36 @@
 PHASE: Phase 8 (ongoing buildout)
 FRAMEWORK_VERSION: V32.9
 
+HANDOFF_2026_06_26 (War Room owner feedback round 2 — branch feat/warroom-date-range-drilldown, PR #28; resume here):
+  Owner gave 6 dashboard corrections. ALL 6 BUILT + GATED on branch feat/warroom-date-range-drilldown (PR #28):
+  items 1-4 = commit ed2dce0 (categorization fix + titles + bar-end count labels + coverage range label; web tests →1020);
+  items 5-6 = commit bfa5939 (map-dominant layout + fullscreen toggle hiding sidebar/header; web tests →1026). Each gate green
+  (product-sync/typecheck/test/build/eslint). Final Visual QA of all 6: IN PROGRESS (background). NOT merged.
+  ITEM 1 (DATA FACT): real eventType.category values are 'law-enforcement-and-apprehensions' (LE bar) and
+    'monitoring_patrolling_and_surveillance' (Monitoring bar). Old code checked 'law_enforcement' → LE bar always empty.
+    Fix in dashboard.ts eventBreakdown: bucket by those two exact strings, exclude all other categories. (agent applied it.)
+    Proper sub-groups — A. Law Enforcement and Apprehensions: Unregistered Illegal Fishing · Fishing in a prohibited
+    area (MPA) · Taking of Prohibited Species · Use of Prohibited Gears · Compressor Fishing · Destructive Practices.
+    B. Monitoring, Patrolling & Surveillance: Marine Wildlife Sightings · Infrastructure and Assets · Research and
+    Studies · Community Support · Threats on Habitat.
+  ITEM 2: page.tsx <BreakdownBars> titles → "Law Enforcement and Apprehensions" / "Monitoring, Patrolling & Surveillance".
+  ITEM 3: breakdown-bars.tsx (already horizontal) → add count number at END of each bar (Recharts <LabelList position="right">).
+  ITEM 4: municipality-coverage-chart.tsx (~L82) + protected-zone-card.tsx (~L58) hardcode "30 days" but data IS
+    range-filtered — replace with the active range label (pass from/to from page.tsx useDashboardRange).
+  ITEM 5 (NEXT — map bigger + rearrange): page.tsx grid is lg:grid-cols-5 (left col-span-3 map+charts, right col-span-2).
+    Make InteractiveMap the DOMINANT element (largest, ~60-70% area) for a command center; KPI strip as a top band; other
+    cards smaller around the map.
+  ITEM 6 (NEXT — fullscreen): header.tsx (NotificationBell on the right) → add a SQUARE icon button (lucide Maximize/
+    Minimize) immediately LEFT of the bell. Toggle = browser Fullscreen API on the dashboard root AND hide Sidebar +
+    Header (show only the dashboard). Shell (dashboard)/layout.tsx is a SERVER comp (async auth) → wrap Sidebar+Header+main
+    in a NEW client component (e.g. components/layout/fullscreen-shell.tsx) holding fullscreen state (context or
+    fullscreenchange listener); hide Sidebar/Header when fullscreen; ESC + a floating exit button to leave.
+  THEN Visual QA all 6 (rebuild dev app: COMPOSE_PROJECT_NAME=marine-guardian_dev docker compose -f
+    deploy/compose/dev/docker-compose.app.yml up -d --build --force-recreate app --env-file .env.dev; wait /api/health 200;
+    Playwright @ http://localhost:45204 admin@mail.com/admin): LE bar now populated + correct titles + count at bar ends;
+    coverage cards show active range not "30 days"; map dominant; fullscreen button hides sidebar+header, ESC restores.
+  GATE per commit (web): product-sync + web typecheck + web test + `pnpm --filter @marine-guardian/web build` + scoped eslint.
+
 GOALS_2026_06_25 (owner-set, Full Auto Mode — branch feat/warroom-date-range-drilldown):
   Spec locked in docs/PRODUCT.md (Active Goals + War Room spec). Local-dev ONLY (no staging/prod).
   PROGRESS (all commits on branch feat/warroom-date-range-drilldown, pushed to origin, each gated green, NOT merged — owner review):
