@@ -6,6 +6,19 @@
 PHASE: Phase 8 (ongoing buildout)
 FRAMEWORK_VERSION: V32.9
 
+SESSION_SAVE_2026_06_27 (read FIRST on reboot):
+  ✅ DONE THIS SESSION:
+    - Command Center tactical redesign GOAL COMPLETE (full auto): 4 gated sub-batches A 23c97a4 / B c6f6527 /
+      C 9586d39 / D 8940b47 — all merged to LOCAL main, Visual-QA PASS, web 1026→1038. See GOAL_2026_06_26 below
+      + memory project_marine_guardian_command_center_tactical_redesign.
+    - Committed prior War Room QA evidence (d6f6792). Compacted MEMORY.md 27.3KB→10.2KB (entries dropping on load).
+  ⚠ OWNER DECISIONS TO RE-SURFACE (docs/PENDING_DECISIONS.md → 2026-06-27 block — all un-gated work else continues):
+    1. Push redesign commits to origin / deploy? (on LOCAL main only; local-dev-only directive held — not pushed.)
+    2. Expand seed to wire AccompanyingRanger↔KnownRanger so Ranger Roster demos with content (now 0/0/0 on demo data)?
+    3. Back-port tactical War Room direction into docs/PRODUCT.md (Rule 9 / Rule 1 — human-owned).
+    (Pre-existing still open: Item 2 ER completeness + images — DAS_WEB_TOKEN; deploy posture local-only.)
+  STATE: working tree CLEAN. Dev app healthy @ :45204 (rebuilt at 9586d39). main HEAD = 8940b47.
+
 GOAL_2026_06_26 (owner-set, FULL AUTO MODE — Command Center tactical redesign):
   Spec: docs/superpowers/specs/2026-06-26-command-center-redesign-design.md (committed df2ab47).
   Dark-locked tactical command center. Map-dominant hero + status band (KPIs w/ sparklines +

@@ -23,3 +23,20 @@
 
 ## 2026-06-25 — Deploy posture
 - Owner directive: **local dev ONLY**; staging/prod paused. The earlier merged distance fix (PR #27, on `main`) is NOT to be deployed to prod yet. Prod track-materialize backfill is therefore also deferred until staging/prod is re-enabled.
+
+## 2026-06-27 — Command Center tactical redesign follow-ups  (work DONE, these are owner [WHAT] decisions)
+
+Redesign GOAL COMPLETE + Visual-QA verified — spec `docs/superpowers/specs/2026-06-26-command-center-redesign-design.md`;
+sub-batches A `23c97a4` / B `c6f6527` / C `9586d39` / D `8940b47` all merged to LOCAL `main` (1026→1038 tests).
+These are the open owner decisions surfaced at close-out — re-surface each loop until answered:
+
+- [ ] **Push to origin / deploy?** All 4 redesign commits + QA evidence are on LOCAL `main`, NOT pushed
+      (honoring the standing local-dev-only directive; I do not push/deploy without explicit go-ahead).
+      → Owner: push to origin? (Staging/prod stays paused regardless unless that directive is lifted too.)
+- [ ] **Ranger Roster demo data.** The new roster panel renders 0/0/0 on demo-site because the
+      `AccompanyingRanger`↔`KnownRanger` links are sparse in seed (same data reality that blanks
+      active-patrol leaders). Panel + queries are correct; populates against real ER data.
+      → Owner: expand seed to wire rangers onto patrols so the roster demos with content, or leave as-is?
+- [ ] **Back-port tactical direction into `docs/PRODUCT.md`** (Rule 9 / Rule 1 — human-owned file).
+      War Room section should note: dark-locked tactical command-center direction + KPI sparklines +
+      ranger roster + coverage-% surfaces. → Owner edits PRODUCT.md (or approves a described diff).
