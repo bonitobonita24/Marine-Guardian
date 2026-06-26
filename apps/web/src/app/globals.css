@@ -88,3 +88,55 @@
     }
   }
 }
+
+/* ── Tactical command-center surface (route-scoped via .command-center) ──
+   Enriches the global dark base into a mission-control look. Scoping the token
+   overrides here means every shadcn Card / bg-card / border-border panel inside
+   .command-center inherits the tactical palette automatically — no per-panel
+   className churn. Tactical accent language: cyan=live/info, amber=warning,
+   green=healthy, red=alarm. */
+@layer components {
+  .command-center {
+    --background: 222 24% 5%;
+    --card: 222 22% 7.5%;
+    --popover: 222 22% 7.5%;
+    --muted: 222 16% 13%;
+    --muted-foreground: 215 16% 62%;
+    --accent: 222 16% 14%;
+    --border: 215 22% 16%;
+    --input: 215 22% 16%;
+    --ring: 183 100% 47%;
+    --info: 183 100% 50%;
+    --warning: 32 95% 56%;
+    --caution: 44 95% 60%;
+    --success: 150 60% 46%;
+    --panel-border: 215 28% 20%;
+    --grid-line: 215 28% 12%;
+  }
+  /* Faint tactical grid backdrop for the map region. */
+  .cc-gridbg::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(hsl(var(--grid-line) / 0.5) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--grid-line) / 0.5) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+  /* Uppercase tracked section label, for tactical panel headers. */
+  .cc-eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: hsl(var(--muted-foreground));
+  }
+  /* Cyan live-status glow ring for live / critical elements. */
+  .cc-glow-live {
+    box-shadow:
+      0 0 0 1px hsl(var(--info) / 0.35),
+      0 0 12px 0 hsl(var(--info) / 0.25);
+  }
+}
