@@ -102,4 +102,10 @@ describe("ProtectedZoneCard", () => {
     expect(screen.getAllByText(/P$/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/E$/).length).toBeGreaterThan(0);
   });
+
+  it("shows the client-derived coverage % headline (1 of 2 zones patrolled = 50%)", () => {
+    render(<ProtectedZoneCard zones={zones} isLoading={false} rangeLabel="Jun 19 – Jun 26" />);
+    expect(screen.getByText("50%")).toBeTruthy();
+    expect(screen.getByText(/patrolled \(1\/2 zones\)/)).toBeTruthy();
+  });
 });

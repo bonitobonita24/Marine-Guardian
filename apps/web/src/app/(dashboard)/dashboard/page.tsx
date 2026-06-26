@@ -19,6 +19,7 @@ import {
 import { BreakdownBars } from "./_components/breakdown-bars";
 import { MunicipalityCoverageChart } from "./_components/municipality-coverage-chart";
 import { ProtectedZoneCard } from "./_components/protected-zone-card";
+import { RangerRoster } from "./_components/ranger-roster";
 import {
   DashboardRangeProvider,
   useDashboardRange,
@@ -84,6 +85,10 @@ function DashboardContent() {
     trpc.municipalityCoverage.municipalityCoverage.useQuery(range);
   const zoneData =
     trpc.municipalityCoverage.protectedZoneCoverage.useQuery(range);
+  // KPI sparkline series + ranger roster (Command Center redesign, sub-batch C)
+  // — both range-aware, read-only aggregations that re-query in lock-step.
+  const trends = trpc.dashboard.kpiTrends.useQuery(range);
+  const roster = trpc.dashboard.rangerRoster.useQuery(range);
 
   // Track which alert ID is currently being acknowledged (optimistic spinner).
   const [ackingId, setAckingId] = useState<string | null>(null);
@@ -165,6 +170,10 @@ function DashboardContent() {
     patrols.dataUpdatedAt,
   );
 
+  // Daily-count series for the KPI sparklines (Command Center sub-batch C).
+  const eventTrend = trends.data?.events.map((d) => d.count);
+  const patrolTrend = trends.data?.patrols.map((d) => d.count);
+
   const kpiTiles = [
     {
       label: "Active Events",
@@ -172,6 +181,8 @@ function DashboardContent() {
       icon: Zap,
       valueClass: "text-[hsl(var(--warning))]",
       drilldown: { kind: "activeEvents" } as const,
+      trend: eventTrend,
+      trendColorVar: "--warning",
     },
     {
       label: "Unacknowledged",
@@ -186,6 +197,8 @@ function DashboardContent() {
       icon: Shield,
       valueClass: "text-foreground",
       drilldown: { kind: "activePatrols" } as const,
+      trend: patrolTrend,
+      trendColorVar: "--info",
     },
     {
       label: "Rangers on Duty",
@@ -199,6 +212,8 @@ function DashboardContent() {
       icon: BarChart3,
       valueClass: "text-[hsl(var(--info))]",
       drilldown: { kind: "eventsThisMonth" } as const,
+      trend: eventTrend,
+      trendColorVar: "--info",
       ...(kpis.data
         ? (() => {
             const delta = kpis.data.eventsThisMonth - kpis.data.eventsLastMonth;
@@ -287,8 +302,10 @@ function DashboardContent() {
         </div>
       </div>
 
-      {/* Analytics band — full width beneath the map: breakdowns + coverage. */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Analytics band — full width beneath the map: breakdowns + coverage +
+          ranger roster. One row on wide command-center displays, wrapping down
+          on smaller screens. */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
         <BreakdownBars
           title="Law Enforcement and Apprehensions"
           data={breakdown.data?.lawEnforcement ?? []}
@@ -310,6 +327,19 @@ function DashboardContent() {
           zones={zoneData.data ?? []}
           isLoading={zoneData.isLoading}
           rangeLabel={rangeLabel}
+        />
+        <RangerRoster
+          rangers={roster.data?.rangers ?? []}
+          summary={
+            roster.data?.summary ?? {
+              total: 0,
+              onPatrol: 0,
+              active: 0,
+              idle: 0,
+            }
+          }
+          isLoading={roster.isLoading}
+          now={nowValue}
         />
       </div>
 

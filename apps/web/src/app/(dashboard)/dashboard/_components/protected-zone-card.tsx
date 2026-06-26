@@ -44,6 +44,16 @@ export function ProtectedZoneCard({
 }) {
   const sorted = sortZones(zones);
 
+  // Coverage % headline (client-derived, no extra query): share of protected
+  // zones that saw at least one patrol within the active range. Honest 0% when
+  // there are no zones. NOTE: this is coverage-presence, not response-time —
+  // response-time is intentionally deferred until a resolution timestamp exists.
+  const patrolledCount = sorted.filter((z) => z.patrolCount > 0).length;
+  const coveragePct =
+    sorted.length > 0
+      ? Math.round((patrolledCount / sorted.length) * 100)
+      : 0;
+
   return (
     <Card
       aria-labelledby={HEADING_ID}
@@ -61,6 +71,16 @@ export function ProtectedZoneCard({
             {rangeLabel}
           </span>
         </div>
+        {sorted.length > 0 && (
+          <div className="mt-1 flex items-baseline gap-1.5">
+            <span className="text-xl font-extrabold tabular-nums text-[hsl(var(--info))]">
+              {coveragePct}%
+            </span>
+            <span className="text-[10px] text-muted-foreground">
+              patrolled ({patrolledCount}/{sorted.length} zones)
+            </span>
+          </div>
+        )}
       </CardHeader>
 
       <CardContent className="px-3 pb-1 pt-0">

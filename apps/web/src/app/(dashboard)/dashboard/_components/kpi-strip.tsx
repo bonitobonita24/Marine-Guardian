@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { ClockCard } from "./clock-card";
+import { Sparkline } from "./sparkline";
 
 /**
  * WAR ROOM KPI strip — 5 stat tiles + live clock.
@@ -31,6 +32,10 @@ type Kpi = {
   subClass?: string | undefined;
   /** When set, the tile is clickable and opens the matching drill-down list. */
   drilldown?: KpiDrilldown | undefined;
+  /** Optional daily-count series for the tile's trend sparkline. */
+  trend?: number[] | undefined;
+  /** CSS var for the sparkline stroke (defaults to --info). */
+  trendColorVar?: string | undefined;
 };
 
 export function KpiStrip({
@@ -87,6 +92,13 @@ export function KpiStrip({
                 </div>
               )}
             </div>
+            {k.trend !== undefined && k.trend.length >= 2 && (
+              <Sparkline
+                data={k.trend}
+                colorVar={k.trendColorVar}
+                className="ml-auto hidden h-[18px] w-16 self-center sm:block"
+              />
+            )}
           </div>
         );
       })}
