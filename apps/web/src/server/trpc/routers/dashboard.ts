@@ -272,4 +272,161 @@ export const dashboardRouter = router({
         },
       });
     }),
+
+  // WAR ROOM KPI sparklines — daily-bucketed counts of events (reportedAt) and
+  // patrols (startTime) across the active range, zero-filled per day so each
+  // sparkline renders a continuous series. Defaults to the last 7 days when no
+  // range is supplied (matches the War Room default window). Read-only.
+  kpiTrends: tenantProcedure.input(rangeInput).query(async ({ ctx, input }) => {
+    const supplied = buildRange(input);
+    const to = supplied?.lte ?? new Date();
+    const from =
+      supplied?.gte ?? new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    // Inclusive list of UTC day keys (YYYY-MM-DD) from `from` to `to`.
+    const dayKey = (d: Date): string => d.toISOString().slice(0, 10);
+    const days: string[] = [];
+    const cursor = new Date(
+      Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate()),
+    );
+    const end = new Date(
+      Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate()),
+    );
+    while (cursor <= end) {
+      days.push(dayKey(cursor));
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+
+    const [events, patrols] = await Promise.all([
+      prisma.event.findMany({
+        where: {
+          tenantId: ctx.tenantId,
+          reportedAt: { gte: from, lte: to },
+          NOT: {
+            eventType: {
+              display: { contains: "skylight", mode: "insensitive" },
+            },
+          },
+        },
+        select: { reportedAt: true },
+      }),
+      prisma.patrol.findMany({
+        where: {
+          tenantId: ctx.tenantId,
+          isDeleted: false,
+          isTestPatrol: false,
+          startTime: { gte: from, lte: to },
+        },
+        select: { startTime: true },
+      }),
+    ]);
+
+    const bucket = (
+      rows: { date: Date | null }[],
+    ): { date: string; count: number }[] => {
+      const counts: Record<string, number> = {};
+      for (const day of days) counts[day] = 0;
+      for (const r of rows) {
+        if (r.date == null) continue;
+        const key = dayKey(r.date);
+        if (key in counts) counts[key] = (counts[key] ?? 0) + 1;
+      }
+      return days.map((date) => ({ date, count: counts[date] ?? 0 }));
+    };
+
+    return {
+      events: bucket(events.map((e) => ({ date: e.reportedAt }))),
+      patrols: bucket(patrols.map((p) => ({ date: p.startTime }))),
+    };
+  }),
+
+  // WAR ROOM ranger roster — per-ranger live status derived from KnownRanger +
+  // their patrol involvement (AccompanyingRanger → Patrol). A ranger is
+  // `on_patrol` when linked to a currently-open patrol, `active` when they have
+  // a patrol within the active range, otherwise `idle`. lastSeenAt is the most
+  // recent in-range patrol startTime they were on. Read-only aggregation.
+  rangerRoster: tenantProcedure
+    .input(rangeInput)
+    .query(async ({ ctx, input }) => {
+      const startRange = buildRange(input);
+
+      const [knownRangers, openPatrols, rangePatrols, accompanying] =
+        await Promise.all([
+          prisma.knownRanger.findMany({
+            where: { tenantId: ctx.tenantId, isActive: true },
+            select: { id: true, name: true },
+            orderBy: { name: "asc" },
+          }),
+          prisma.patrol.findMany({
+            where: {
+              tenantId: ctx.tenantId,
+              isDeleted: false,
+              state: "open",
+            },
+            select: { id: true },
+          }),
+          prisma.patrol.findMany({
+            where: {
+              tenantId: ctx.tenantId,
+              isDeleted: false,
+              isTestPatrol: false,
+              ...(startRange ? { startTime: startRange } : {}),
+            },
+            select: { id: true, startTime: true },
+          }),
+          prisma.accompanyingRanger.findMany({
+            where: {
+              tenantId: ctx.tenantId,
+              entityType: "patrol",
+              knownRangerId: { not: null },
+            },
+            select: { knownRangerId: true, entityId: true },
+          }),
+        ]);
+
+      const openIds = new Set(openPatrols.map((p) => p.id));
+      const rangePatrolById = new Map(
+        rangePatrols.map((p) => [p.id, p.startTime]),
+      );
+
+      // ranger id → patrol ids they are linked to (via AccompanyingRanger).
+      const patrolsByRanger = new Map<string, string[]>();
+      for (const a of accompanying) {
+        if (a.knownRangerId == null) continue;
+        const list = patrolsByRanger.get(a.knownRangerId) ?? [];
+        list.push(a.entityId);
+        patrolsByRanger.set(a.knownRangerId, list);
+      }
+
+      const rangers = knownRangers.map((r) => {
+        const patrolIds = patrolsByRanger.get(r.id) ?? [];
+        const onPatrol = patrolIds.some((id) => openIds.has(id));
+        let patrolsInRange = 0;
+        let lastSeenAt: Date | null = null;
+        for (const id of patrolIds) {
+          if (!rangePatrolById.has(id)) continue;
+          patrolsInRange += 1;
+          const st = rangePatrolById.get(id) ?? null;
+          if (st != null && (lastSeenAt == null || st > lastSeenAt)) {
+            lastSeenAt = st;
+          }
+        }
+        const status: "on_patrol" | "active" | "idle" = onPatrol
+          ? "on_patrol"
+          : patrolsInRange > 0
+            ? "active"
+            : "idle";
+        return { id: r.id, name: r.name, status, lastSeenAt, patrolsInRange };
+      });
+
+      return {
+        rangers,
+        summary: {
+          total: rangers.length,
+          onPatrol: rangers.filter((r) => r.status === "on_patrol").length,
+          active: rangers.filter((r) => r.status === "active").length,
+          idle: rangers.filter((r) => r.status === "idle").length,
+        },
+      };
+    }),
 });

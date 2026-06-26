@@ -22,6 +22,9 @@ vi.mock("@marine-guardian/db", () => ({
     accompanyingRanger: {
       findMany: vi.fn(),
     },
+    knownRanger: {
+      findMany: vi.fn(),
+    },
     alertHistory: {
       count: vi.fn(),
     },
@@ -64,6 +67,7 @@ const mockPrisma = prisma as unknown as {
     findMany: ReturnType<typeof vi.fn>;
   };
   accompanyingRanger: { findMany: ReturnType<typeof vi.fn> };
+  knownRanger: { findMany: ReturnType<typeof vi.fn> };
   alertHistory: { count: ReturnType<typeof vi.fn> };
 };
 
@@ -279,5 +283,110 @@ describe("dashboard — WAR ROOM date range (goal items 3-4, 2026-06-25)", () =>
     };
     expect(call.where.state).toEqual({ not: "resolved" });
     expect(call.where.reportedAt).toEqual({ gte: FROM, lte: TO });
+  });
+});
+
+// ── WAR ROOM KPI sparklines (Command Center redesign, sub-batch B) ──
+describe("dashboard.kpiTrends — daily-bucketed sparkline series", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockPrisma.event.findMany.mockResolvedValue([]);
+    mockPrisma.patrol.findMany.mockResolvedValue([]);
+  });
+
+  it("buckets events and patrols per UTC day across the range, zero-filled", async () => {
+    mockPrisma.event.findMany.mockResolvedValue([
+      { reportedAt: new Date("2026-06-01T12:00:00Z") },
+      { reportedAt: new Date("2026-06-01T18:00:00Z") },
+      { reportedAt: new Date("2026-06-03T09:00:00Z") },
+    ]);
+    mockPrisma.patrol.findMany.mockResolvedValue([
+      { startTime: new Date("2026-06-02T08:00:00Z") },
+      { startTime: null },
+    ]);
+
+    const result = await createCaller(makeCtx()).kpiTrends({
+      dateFrom: new Date("2026-06-01T00:00:00Z"),
+      dateTo: new Date("2026-06-03T23:59:59Z"),
+    });
+
+    expect(result.events).toEqual([
+      { date: "2026-06-01", count: 2 },
+      { date: "2026-06-02", count: 0 },
+      { date: "2026-06-03", count: 1 },
+    ]);
+    expect(result.patrols).toEqual([
+      { date: "2026-06-01", count: 0 },
+      { date: "2026-06-02", count: 1 },
+      { date: "2026-06-03", count: 0 },
+    ]);
+  });
+
+  it("defaults to a last-7-days window (8 inclusive day buckets) and scopes to tenant", async () => {
+    const result = await createCaller(makeCtx()).kpiTrends();
+    expect(result.events).toHaveLength(8);
+    expect(result.patrols).toHaveLength(8);
+
+    const eventWhere = mockPrisma.event.findMany.mock.calls[0]?.[0] as {
+      where: { tenantId?: unknown };
+    };
+    const patrolWhere = mockPrisma.patrol.findMany.mock.calls[0]?.[0] as {
+      where: { tenantId?: unknown };
+    };
+    expect(eventWhere.where.tenantId).toBe(TENANT_ID);
+    expect(patrolWhere.where.tenantId).toBe(TENANT_ID);
+  });
+});
+
+// ── WAR ROOM ranger roster (Command Center redesign, sub-batch B) ──
+describe("dashboard.rangerRoster — per-ranger status derivation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockPrisma.knownRanger.findMany.mockResolvedValue([]);
+    mockPrisma.patrol.findMany.mockResolvedValue([]);
+    mockPrisma.accompanyingRanger.findMany.mockResolvedValue([]);
+  });
+
+  it("classifies rangers as on_patrol / active / idle with a summary", async () => {
+    mockPrisma.knownRanger.findMany.mockResolvedValue([
+      { id: "r1", name: "Alpha" },
+      { id: "r2", name: "Bravo" },
+      { id: "r3", name: "Charlie" },
+    ]);
+    // patrol.findMany is called twice: first openPatrols, then rangePatrols.
+    mockPrisma.patrol.findMany
+      .mockResolvedValueOnce([{ id: "p-open" }])
+      .mockResolvedValueOnce([
+        { id: "p-open", startTime: new Date("2026-06-02T08:00:00Z") },
+        { id: "p-range", startTime: new Date("2026-06-04T08:00:00Z") },
+      ]);
+    mockPrisma.accompanyingRanger.findMany.mockResolvedValue([
+      { knownRangerId: "r1", entityId: "p-open" },
+      { knownRangerId: "r2", entityId: "p-range" },
+    ]);
+
+    const result = await createCaller(makeCtx()).rangerRoster();
+
+    const byId = Object.fromEntries(result.rangers.map((r) => [r.id, r]));
+    expect(byId.r1?.status).toBe("on_patrol");
+    expect(byId.r2?.status).toBe("active");
+    expect(byId.r2?.lastSeenAt).toEqual(new Date("2026-06-04T08:00:00Z"));
+    expect(byId.r3?.status).toBe("idle");
+    expect(byId.r3?.lastSeenAt).toBeNull();
+    expect(result.summary).toEqual({
+      total: 3,
+      onPatrol: 1,
+      active: 1,
+      idle: 1,
+    });
+  });
+
+  it("scopes the known-ranger query to the tenant", async () => {
+    await createCaller(makeCtx()).rangerRoster();
+    const call = mockPrisma.knownRanger.findMany.mock.calls[0]?.[0] as {
+      where: { tenantId?: unknown; isActive?: unknown };
+    };
+    expect(call.where.tenantId).toBe(TENANT_ID);
+    expect(call.where.isActive).toBe(true);
   });
 });
