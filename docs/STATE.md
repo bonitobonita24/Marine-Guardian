@@ -12,10 +12,14 @@ HANDOFF_2026_06_26 (War Room owner feedback round 2 — branch feat/warroom-date
   items 5-6 = commit bfa5939 (map-dominant layout + fullscreen toggle hiding sidebar/header; web tests →1026). Each gate green
   (product-sync/typecheck/test/build/eslint). Final Visual QA of all 6: ✅ PASS (docs/qa-screenshots/warroom-feedback-2026-06-26/:
   LE bar populated, exact titles, count at bar ends, coverage shows "Jun 19–26" not "30 days", map dominant, fullscreen hides
-  sidebar+header + Exit/ESC restores, 0 console errors). NOT merged — PR #28 ready for owner review.
-  MINOR NOTE for owner: LE breakdown top item is "Others" (a real law-enforcement-and-apprehensions category, not in the
-  owner's 6-name list) — decide whether to exclude/relabel "Others". ESC-exit confirmed by implementation (native Fullscreen
-  API + fullscreenchange sync), not exercisable via Playwright synthetic keys.
+  sidebar+header + Exit/ESC restores, 0 console errors).
+  ✅ MERGED to main 2026-06-26 — PR #28 squash 704ecfa (entire War Room: date-range default + FROM/TO + drill-down modals
+  + the 6 owner-feedback fixes). Owner then REVERTED #5 map-dominant layout back to the previous grid (commit 8a5f4df, in the
+  merge) — #1-4 fixes + #6 fullscreen toggle KEPT; "Others" KEPT in the LE bar per owner. Also fixed a typecheck error
+  bfa5939's fullscreen-toggle.test.tsx carried (document.exitFullscreen strict assign → Object.defineProperty). Web suite 1026.
+  Dev app (port 45204) rebuilt at this state and healthy. NOTHING about staging/prod changed (local-dev only).
+  OPEN: Item 2 (ER completeness + images) still gated on DAS_WEB_TOKEN — docs/PENDING_DECISIONS.md.
+  MINOR (owner aware): LE breakdown top item is "Others" (real law-enforcement-and-apprehensions category) — kept per owner.
   ITEM 1 (DATA FACT): real eventType.category values are 'law-enforcement-and-apprehensions' (LE bar) and
     'monitoring_patrolling_and_surveillance' (Monitoring bar). Old code checked 'law_enforcement' → LE bar always empty.
     Fix in dashboard.ts eventBreakdown: bucket by those two exact strings, exclude all other categories. (agent applied it.)
