@@ -6,6 +6,28 @@
 PHASE: Phase 8 (ongoing buildout)
 FRAMEWORK_VERSION: V32.9
 
+GOAL_2026_06_26 (owner-set, FULL AUTO MODE — Command Center tactical redesign):
+  Spec: docs/superpowers/specs/2026-06-26-command-center-redesign-design.md (committed df2ab47).
+  Dark-locked tactical command center. Map-dominant hero + status band (KPIs w/ sparklines +
+  unacked alarm) + right rail (alerts/feed/active-patrols UNCHANGED) + analytics band
+  (LE bars · Monitoring · coverage zones · NEW ranger roster). Built via shadcn/studio Pro
+  (/iui /cui /rui), INHERIT-not-REPLACE (Rule 12). Local-dev ONLY (no staging/prod).
+  Owner decisions: full redesign · dark ALWAYS (route-scoped) · coverage% only (NO response-time)
+  · roster = separate panel in analytics band · 2 new read-only procedures only.
+  SUB-BATCHES (each gated: check-product-sync + web typecheck + test + web build + scoped eslint):
+    A ✅ MERGED 23c97a4 — .command-center scoped tactical token layer + map-dominant layout shell. Gate green (1026 tests).
+    B ✅ MERGED c6f6527 — dashboard.kpiTrends + dashboard.rangerRoster (read-only, tenant-scoped) +4 tests. Gate green (1030).
+    C ✅ MERGED 9586d39 — sparkline.tsx + ranger-roster.tsx + coverage% headline; wired into page.tsx +8 tests. Gate green (1038).
+    D ✅ DONE — /rui principles applied (consistency/contrast; no studio-variant churn per INHERIT-not-REPLACE).
+        Visual QA PASS @ :45204 (docs/qa-screenshots/cc-redesign-2026-06-26/): tactical dark surface, status band +
+        sparklines (6 polylines), map-dominant, alarm-styled alerts rail, analytics band all 5 panels (LE 13 /
+        Monitoring 19 / Municipality Coverage / Protected Zones 100% coverage-% / Ranger Roster summary), 0 console
+        errors, single-screen @1920, responsive @1366. Dev app rebuilt at 9586d39 (port 45204).
+  ✅ GOAL COMPLETE — all 4 sub-batches merged to main + Visual-QA-verified. Local-dev only (nothing deployed).
+     Follow-ups (un-gated, owner may trigger): roster shows 0/0/0 on demo data (sparse AccompanyingRanger↔KnownRanger
+     links — same data reality as active-patrols leaders); back-port War Room tactical direction into docs/PRODUCT.md
+     (Rule 9, human-owned). Item 2 (ER images) still owner-gated on DAS_WEB_TOKEN.
+
 HANDOFF_2026_06_26 (War Room owner feedback round 2 — branch feat/warroom-date-range-drilldown, PR #28; resume here):
   Owner gave 6 dashboard corrections. ALL 6 BUILT + GATED on branch feat/warroom-date-range-drilldown (PR #28):
   items 1-4 = commit ed2dce0 (categorization fix + titles + bar-end count labels + coverage range label; web tests →1020);
