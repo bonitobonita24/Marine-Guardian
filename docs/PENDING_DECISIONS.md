@@ -74,6 +74,19 @@ Owner may hold/cancel Premium to save cost.
 - DAS_WEB_TOKEN verified valid (user JerlanL / id 3646de4e-…; live counts events 35708 / patrols 4825 —
   local DB ~230 events / ~41 patrols behind → a sync run backfills the gap).
 
+**BUILD PROGRESS (2026-06-27, owner: single channel PER TENANT; "push images to TG + fix in-app links to fetch from TG"; same for dev/staging/prod):**
+- ✅ Stage 1 — schema: `EventAsset` table + `tenant.telegramChannelId` (migration 20260627060000, applied, 7/7 typecheck).
+- ✅ Stage 2 — `packages/jobs/src/lib/telegram-storage.ts` (uploadDocumentToTelegram / fetchTelegramFileBytes / getTelegramBotToken).
+- ✅ Stage 3 — `scripts/archive-er-assets.ts` (ER events→download→TG upload→record event_assets, idempotent on er_file_id; --limit/--dry-run). Re-exported from jobs index.
+- ✅ Stage 5 (partial) — demo-site `telegram_channel_id = -1003816125998`; `TELEGRAM_BOT_TOKEN` in .env.dev (gitignored). Also synced newest ~237 ER events (events 35478→35715, closes part of the ER-completeness gap).
+- ✅ LIVE PROOF — archiver uploaded 4 real ER photos (event da05a988, messages 6–9) to the channel, recorded in event_assets with telegram_file_id; re-run skipped all 4 (idempotency proven, 0 dupes).
+
+**REMAINING:**
+- ⬜ Stage 4 — IN-APP "fix the link": `/api/assets/[id]` route that streams bytes from Telegram (server-side bot token via fetchTelegramFileBytes) + event-detail "Photos" UI reading event_assets. (Touches web app — next focused session to avoid context thrash.)
+- ⬜ Refinements: archiver inter-upload delay (avoid Telegram burst 429) + download retry (one file "fetch failed" twice on ER download); set size_bytes (currently null); wire archiver into ER sync for ongoing archive + a full historical backfill run.
+- ⬜ Stage 5 (rest) — TELEGRAM_BOT_TOKEN into .env.staging/.env.prod; per-tenant channel for any new tenant.
+
+(original NEXT BUILD spec retained below for reference)
 **NEXT BUILD (un-gated now — all creds exist):** ER → Telegram asset archiver.
 - New schema: `event_image` / `attachment` table (er_file_id, event_id/patrol_id, filename, file_type,
   telegram_message_id, telegram_file_id, uploaded_at) + FK + tenant scope.
