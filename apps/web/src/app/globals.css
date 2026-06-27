@@ -140,3 +140,29 @@
       0 0 12px 0 hsl(var(--info) / 0.25);
   }
 }
+
+/* Owner aesthetic overrides for the command center (2026-06-27). In @layer
+   utilities so the radius rule wins over Tailwind's own rounded-* utilities.
+   Scoped to .command-center — the rest of the app keeps its default styling. */
+@layer utilities {
+  /* Edgy corners: near-square cards. Only the card-shaped radii (xl/lg/md) are
+     squared off; pills, switches and status dots use rounded-full and stay round. */
+  .command-center :is(.rounded-xl, .rounded-lg, .rounded-md) {
+    border-radius: 3px;
+  }
+
+  /* Hidden but functional scrollbars: every overflowing card group AND the page
+     column itself stays scrollable via wheel/trackpad with no visible scrollbar.
+     Covers native overflow scrollers and the shadcn/Radix ScrollArea custom bar. */
+  .command-center,
+  .command-center * {
+    scrollbar-width: none; /* Firefox */
+  }
+  .command-center::-webkit-scrollbar,
+  .command-center *::-webkit-scrollbar {
+    display: none; /* WebKit / Blink */
+  }
+  .command-center [data-radix-scroll-area-scrollbar] {
+    display: none; /* shadcn / Radix ScrollArea bar */
+  }
+}

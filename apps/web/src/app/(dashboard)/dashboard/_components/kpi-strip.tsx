@@ -57,13 +57,13 @@ export function KpiStrip({
    */
   leading?: ReactNode;
 }) {
-  // items-center (not items-stretch): tiles keep their natural height and sit
-  // vertically centered, so a narrow viewport that wraps a KPI label can never
-  // balloon the folded-in date picker (or the other tiles) to a tall uniform
-  // height. The date tile is shrink-0 so it keeps its compact width and the KPI
-  // tiles wrap below it instead of being crushed.
+  // items-stretch gives every KPI tile a UNIFORM height (so a tile with a longer
+  // label + sub — e.g. "Events This Month" — no longer sticks out taller than
+  // its neighbours). The folded-in date picker opts out of the stretch via
+  // `self-center` on its own root (it stays compact and centered, never
+  // ballooning to the tile height) and is shrink-0 so the tiles wrap below it.
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-stretch gap-2">
       {leading}
       {kpis.map((k) => {
         const clickable = k.drilldown !== undefined && onSelectKpi !== undefined;

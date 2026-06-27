@@ -3,6 +3,22 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-06-27 — Phase 7 polish: Command Center uniform KPI tiles + edgy corners + hidden scrollbars
+
+- Agent:               CLAUDE_CODE (Opus 4.8 — Full Auto, branch fix/cc-tiles-edgy-scrollbars)
+- Why:                 Owner review (3 asks): (1) the "Events This Month" KPI tile still rendered taller than its neighbours (more label/sub content) — tiles should be uniform; (2) prefer near-square / edgy card corners, not rounded; (3) the page-level scrollbar I added is not what was wanted — instead every overflowing card group (and the page) should stay scrollable but with the scrollbar HIDDEN/invisible.
+- Files added:         none
+- Files modified:      apps/web/src/app/(dashboard)/dashboard/_components/kpi-strip.tsx, apps/web/src/app/(dashboard)/dashboard/_components/date-range-header.tsx, apps/web/src/app/globals.css, docs/CHANGELOG_AI.md
+- Files deleted:       none
+- Schema/migrations:   none
+- Implementation:
+  • Uniform KPI tiles (#1): KpiStrip flex container items-center → items-stretch so every tile gets the SAME height (the verbose "Events This Month" tile no longer sticks out). The folded-in date picker opts out of the stretch via self-center on its own root (DateRangeHeader) — stays compact + centered, never ballooning (the earlier balloon bug stays fixed).
+  • Edgy corners (#2): new @layer utilities rule `.command-center :is(.rounded-xl,.rounded-lg,.rounded-md){border-radius:3px}` — squares off the card-shaped radii only; pills/switches/status-dots use rounded-full and stay round. In the utilities layer so it wins over Tailwind's own rounded-* utilities; scoped to .command-center so the rest of the app keeps its default radius.
+  • Hidden-but-functional scrollbars (#3): scoped CSS hides scrollbars on .command-center and all descendants (scrollbar-width:none + ::-webkit-scrollbar{display:none}) plus the shadcn/Radix ScrollArea bar ([data-radix-scroll-area-scrollbar]{display:none}). Native page-column overflow and the per-card ScrollAreas (Ranger Roster 56 rows, Recent Patrols, Alerts) remain wheel/trackpad-scrollable with NO visible bar.
+- Tests:               no test changes (presentational/CSS). Web vitest 1055/1055 green.
+- Visual QA (Rule 16): PASS — Playwright, dev image rebuilt+recreated first. 1600×860 + 1920×1080 fullscreen: KPI tiles uniform height, edgy corners on every card, no overlap. 1280×680 (forced overflow): verified via DOM eval — page column scrollable with ccVisibleBarPx=0 (no gutter) and an internal Radix ScrollArea scrolls (moved:true) — both invisible. 0 console errors.
+- Phase 7 gate:        Hard pre-merge gate 4/4 green — pnpm tools:check-product-sync ✅, pnpm typecheck ✅ (7/7), pnpm --filter @marine-guardian/web test ✅ (1055/1055), pnpm --filter @marine-guardian/web build ✅ (Next.js production build, ESLint-strict).
+
 ## 2026-06-27 — Phase 7 fix: Command Center responsive layout (KPI balloon + narrow-window overlap)
 
 - Agent:               CLAUDE_CODE (Opus 4.8 — Full Auto, branch fix/cc-responsive-layout)
