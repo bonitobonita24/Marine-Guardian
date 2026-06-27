@@ -3,6 +3,21 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-06-27 — Phase 7 fix: Command Center responsive layout (KPI balloon + narrow-window overlap)
+
+- Agent:               CLAUDE_CODE (Opus 4.8 — Full Auto, branch fix/cc-responsive-layout)
+- Why:                 Owner reported the dashboard rendered "oddly sized" in real Chrome (vs the wide Playwright test). Two width/height-dependent regressions from the prior overhaul, both invisible at a wide 1920×1080 test viewport but visible on a scaled display (Windows 125–150% → narrower effective CSS width): (1) the KPI strip used items-stretch, so when a narrow viewport wrapped a KPI label and made the tiles tall, the folded-in date-picker tile ballooned to the same tall height; (2) the outer grid-rows-[auto_minmax(0,1fr)_auto] forced the whole dashboard into the viewport height — in normal (non-fullscreen) mode at a small window the analytics cards wrap to extra rows and exceed the height, collapsing the 1fr map row to 0 while the map's min-height overflowed into the analytics band → overlap.
+- Files added:         none
+- Files modified:      apps/web/src/app/(dashboard)/dashboard/page.tsx, apps/web/src/app/(dashboard)/dashboard/_components/kpi-strip.tsx, apps/web/src/app/(dashboard)/dashboard/_components/date-range-header.tsx, docs/CHANGELOG_AI.md
+- Files deleted:       none
+- Schema/migrations:   none
+- Implementation:
+  • KPI balloon: KpiStrip flex container items-stretch → items-center (tiles keep their natural height, vertically centered; a wrapped label can no longer stretch the date tile). The date tile (DateRangeHeader root) is now shrink-0 so it keeps its compact width and the KPI tiles wrap below it instead of being crushed.
+  • Overlap: outer container reverted from the fixed-height grid to a flex column `flex h-full min-h-0 flex-col gap-3 overflow-y-auto`; the map+rail row is `flex-1 min-h-[20rem]`. On a big war-room display (fullscreen) flex-1 grows to fill → still fits one screen, no overlap. On a small/narrow window the map keeps a usable 20rem floor and the whole column simply SCROLLS (outer overflow-y-auto) — cards can never overlap. "Fit one screen" is preserved where it matters (fullscreen); normal mode scrolls gracefully.
+- Tests:               no test changes (presentational). Web vitest 1055/1055 green.
+- Visual QA (Rule 16): PASS — Playwright, dev image rebuilt+recreated first. Tested at 1280×720 normal mode (reproduces the owner's scaled-display condition): KPI band wraps to two rows with NO balloon, ops rail stays in column, page scrolls to the analytics band with NO overlap. Re-verified 1920×1080 fullscreen: single-row KPI band, map dominant, all 5 analytics cards visible, fits one screen, no overlap, 0 console errors.
+- Phase 7 gate:        Hard pre-merge gate 4/4 green — pnpm tools:check-product-sync ✅, pnpm typecheck ✅ (7/7), pnpm --filter @marine-guardian/web test ✅ (1055/1055), pnpm --filter @marine-guardian/web build ✅ (Next.js production build, ESLint-strict).
+
 ## 2026-06-27 — Phase 7: Command Center fullscreen layout overhaul + map event toggles + full range-binding
 
 - Agent:               CLAUDE_CODE (Opus 4.8 — Full Auto, branch feat/cc-warroom-layout-overhaul)

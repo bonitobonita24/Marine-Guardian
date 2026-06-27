@@ -251,7 +251,7 @@ function DashboardContent() {
   const incident: LastIncident = lastIncident.data ?? null;
 
   return (
-    <div className="command-center grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-3">
+    <div className="command-center flex h-full min-h-0 flex-col gap-3 overflow-y-auto">
       <h1 className="sr-only">Command Center — War Room</h1>
 
       {/* Status band — the FROM/TO range picker folds into the left of the KPI
@@ -264,10 +264,11 @@ function DashboardContent() {
       />
 
       {/* Main row — dominant live map (2/3) + the live operations rail (1/3).
-          This is the grid's minmax(0,1fr) row: it absorbs all leftover viewport
-          height so the whole command center fits one screen, while the explicit
-          grid-rows guarantee the analytics band below can never overlap it. */}
-      <div className="grid min-h-0 grid-cols-1 gap-3 lg:grid-cols-3">
+          flex-1 lets it grow to fill the viewport on a big war-room display
+          (fullscreen → fits one screen), while min-h-[20rem] keeps the map
+          usable when the window is small/narrow. In that case the whole column
+          simply scrolls (outer overflow-y-auto) instead of cards overlapping. */}
+      <div className="grid min-h-[20rem] flex-1 grid-cols-1 gap-3 lg:grid-cols-3">
         <div
           role="region"
           aria-label="Live patrol map showing ranger positions, patrol areas and events"
