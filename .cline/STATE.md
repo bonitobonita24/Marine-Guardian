@@ -18,6 +18,16 @@
 #     scrollbars on page column + every card ScrollArea (scrollbar-width:none + ::-webkit +
 #     Radix bar) — scrolls via wheel, no visible bar (verified ccVisibleBarPx=0 + internal
 #     ScrollArea moves). All scoped to .command-center; rest of app untouched.
+#   FOLLOW-UP 2 SHIPPED (fa244c7): (a) KPI tiles "too high" → label line-clamp-2 + sub truncate
+#     + smaller sparkline → band 155px→77px (compact, uniform, content auto-adjusts). (b) Group
+#     cards weren't truly scrolling (Ranger Roster 56→7, Recent Patrols 15→2 CLIPPED, unreachable):
+#     shadcn ScrollArea inner viewport (height:100%) ignores parent max-height → grew to full content,
+#     card just clipped. FIX: replaced ScrollArea with native overflow-y-auto in all 5 list cards
+#     (ranger-roster max-h-[15rem], recent-patrols/alerts/protected-zones max-h-44, event-feed flex-1);
+#     bars hidden by .command-center CSS. Verified every card scrolls (barWidth 0). KEY LESSON:
+#     shadcn ScrollArea needs a DEFINITE height (h-/flex), NOT max-h, to bound + scroll its viewport;
+#     for hidden-scrollbar lists prefer a native overflow div. Also: flex-1 scroller inside an
+#     auto-sized grid row lets content drive the row taller — use max-h there.
 # ✅ DONE THIS SESSION (owner 8-item review of fullscreen War Room):
 #   - feat(dashboard) overhaul (squash 2dfdc24 → main): fixed the fullscreen OVERLAP
 #     properly (prior "compress" attempt collapsed cards). 9 files, all apps/web.
