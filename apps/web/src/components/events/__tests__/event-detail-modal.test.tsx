@@ -89,6 +89,7 @@ const baseEvent = {
   createdAt: new Date("2026-05-01T08:05:01Z"),
   updatedAt: new Date("2026-05-01T08:10:00Z"),
   accompanyingRangers: [],
+  assets: [],
 };
 
 describe("EventDetailModal", () => {
@@ -135,6 +136,39 @@ describe("EventDetailModal", () => {
     expect((getByLabelText("Offender name") as HTMLInputElement).value).toBe(
       "Unknown",
     );
+  });
+
+  it("renders a Photos section with image thumbnails when archived assets exist", () => {
+    stubs.getByIdData = {
+      ...baseEvent,
+      assets: [
+        { id: "asset-1", filename: "catch.jpg", mimeType: "image/jpeg", sizeBytes: 1234 },
+        // Archiver gap: mimeType null but a .jpg filename — must still render
+        // as an image via the filename-extension fallback.
+        { id: "asset-3", filename: "community_support-01.jpg", mimeType: null, sizeBytes: 4321 },
+        { id: "asset-2", filename: "manifest.pdf", mimeType: "application/pdf", sizeBytes: 5678 },
+      ],
+    };
+    const { getByText, getByAltText, queryByText } = render(
+      <EventDetailModal eventId="ev-1" onClose={() => {}} />,
+    );
+    expect(getByText("Photos (3)")).toBeTruthy();
+    // Image asset renders an <img> proxied through the asset route.
+    const img = getByAltText("catch.jpg") as HTMLImageElement;
+    expect(img.getAttribute("src")).toBe("/api/assets/asset-1");
+    // Null-mimeType .jpg still renders as an image (extension fallback).
+    const fallbackImg = getByAltText("community_support-01.jpg") as HTMLImageElement;
+    expect(fallbackImg.getAttribute("src")).toBe("/api/assets/asset-3");
+    // Non-image asset renders its filename as a fallback tile (no <img>).
+    expect(queryByText("manifest.pdf")).toBeTruthy();
+  });
+
+  it("omits the Photos section when the event has no archived assets", () => {
+    stubs.getByIdData = baseEvent; // assets: []
+    const { queryByText } = render(
+      <EventDetailModal eventId="ev-1" onClose={() => {}} />,
+    );
+    expect(queryByText(/^Photos \(/)).toBeNull();
   });
 
   it("calls update mutation with edited fields when Save is clicked", () => {

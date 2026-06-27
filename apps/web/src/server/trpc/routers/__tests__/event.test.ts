@@ -1390,3 +1390,41 @@ describe("event.update — BUG-2b required-field validation", () => {
   });
 });
 /* eslint-enable @typescript-eslint/no-unsafe-assignment */
+
+describe("event.getById — Telegram asset include (Stage 4)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("includes archived assets scoped to the tenant", async () => {
+    vi.mocked(prisma.event.findFirst).mockResolvedValueOnce({
+      id: "ev-1",
+      tenantId: TENANT_ID,
+      assets: [],
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    await caller.getById({ id: "ev-1" });
+
+    const call = vi.mocked(prisma.event.findFirst).mock.calls[0]?.[0];
+    // Tenant-scoped lookup.
+    expect(call?.where).toMatchObject({ id: "ev-1", tenantId: TENANT_ID });
+
+    // The assets relation surfaces only archived rows (telegramFileId set),
+    // ordered oldest-first, with telegramFileId omitted from the select.
+    const assetsInclude = call?.include?.assets as {
+      where: { telegramFileId: { not: null } };
+      orderBy: { createdAt: string };
+      select: Record<string, boolean>;
+    };
+    expect(assetsInclude.where).toEqual({ telegramFileId: { not: null } });
+    expect(assetsInclude.orderBy).toEqual({ createdAt: "asc" });
+    expect(assetsInclude.select).toMatchObject({
+      id: true,
+      filename: true,
+      mimeType: true,
+      sizeBytes: true,
+    });
+    expect(assetsInclude.select).not.toHaveProperty("telegramFileId");
+  });
+});

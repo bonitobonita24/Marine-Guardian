@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { isImageAsset } from "@marine-guardian/shared/lib/asset-mime";
 import { trpc } from "@/lib/trpc/client";
 import { AccompanyingRangersInput } from "./accompanying-rangers-input";
 import { EventTimeline } from "./event-timeline";
@@ -309,6 +310,43 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
                   <span className="ml-2 italic">
                     (mini-map: deferred to Phase 7)
                   </span>
+                </div>
+              )}
+
+              {eventQuery.data.assets.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium">
+                    Photos ({eventQuery.data.assets.length})
+                  </h3>
+                  <div className="grid grid-cols-3 gap-2">
+                    {eventQuery.data.assets.map((asset) => {
+                      const href = `/api/assets/${asset.id}`;
+                      const isImage = isImageAsset(asset.mimeType, asset.filename);
+                      return (
+                        <a
+                          key={asset.id}
+                          href={href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block overflow-hidden rounded border"
+                          data-testid="event-asset"
+                        >
+                          {isImage ? (
+                            <img
+                              src={href}
+                              alt={asset.filename}
+                              loading="lazy"
+                              className="h-28 w-full object-cover"
+                            />
+                          ) : (
+                            <span className="flex h-28 items-center justify-center px-2 text-center text-xs text-muted-foreground">
+                              {asset.filename}
+                            </span>
+                          )}
+                        </a>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 

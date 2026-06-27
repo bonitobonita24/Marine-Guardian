@@ -15,12 +15,19 @@
 #   5. Asset pipeline STAGES 1-3 + wiring shipped + LIVE-PROVEN (4 real ER photos → channel, msgs 6-9,
 #      recorded in event_assets, idempotent): Stage1 schema (EventAsset + tenant.telegramChannelId,
 #      migration 20260627060000), Stage2 telegram-storage lib, Stage3 archive-er-assets.ts.
-# ⬜ NEXT SESSION ("do stage 4"): in-app "fix the link" — /api/assets/[id] route streaming bytes from
-#   Telegram (server-side bot token via fetchTelegramFileBytes) + event-detail Photos UI; then full
-#   historical photo backfill (2569 has_photo events) + archiver inter-upload delay/retry + size_bytes fix +
-#   TELEGRAM_BOT_TOKEN into .env.staging/.env.prod. Full plan in docs/PENDING_DECISIONS.md + project memory.
-# 📋 OWNER-GATED (deferred): staging/prod deploy paused; ER-completeness 2024-events audit (runnable now via
-#   ingest + token); Telegram scope already decided. No open blockers for stage 4.
+# ✅ STAGE 4 SHIPPED 2026-06-27 (branch feat/telegram-asset-display → main): in-app Telegram-asset display.
+#   GET /api/assets/[id] route (requireRouteAuth + tenant-scoped eventAsset + ASSET_DOWNLOAD audit + upload
+#   rate-limit + getTelegramBotToken/fetchTelegramFileBytes proxy; SAFE_INLINE allowlist + force-attachment +
+#   filename sanitize + sandbox CSP + nosniff — stored-XSS hardened per automated security review). event.getById
+#   now includes archived assets; event-detail modal Photos section (inline <img> via the route + fallback tile).
+#   NEW packages/shared/lib/asset-mime (filename→MIME fallback; archiver left mime_type NULL — SVG excluded).
+#   jobs ./lib/telegram-storage subpath export (keeps BullMQ out of the route bundle). TELEGRAM_BOT_TOKEN in env.ts.
+#   GATE GREEN: product-sync ✓, typecheck 7/7, 1055 web + 180 shared tests, web prod build (route compiled).
+#   LIVE-PROVEN: real telegram_file_id → getFile → 1.06MB JPEG (4080×2288). VISUAL QA PASS: Photos(4) rendered
+#   4 real photos, all /api/assets 200 OK, 0 console errors (admin@mail.com site_admin, deep-link eventId).
+# ⬜ NEXT (un-gated follow-ups): historical photo backfill (2569 has_photo events) + archiver inter-upload
+#   delay/retry + persist size_bytes + mime_type at archive time + TELEGRAM_BOT_TOKEN into .env.staging/.env.prod.
+# 📋 OWNER-GATED (deferred): staging/prod deploy paused. No open blockers for the follow-ups above.
 # ════════════════════════════════════════════════════════════════════════════
 # 2026-06-27 CLAUDE_CODE (Opus 4.8): RESUME + Full Auto. Owner answered all 3 redesign decisions.
 #   (1) Push to origin = YES, no staging/prod → pushed main→origin (149a895), deploy still paused.

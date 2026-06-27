@@ -177,6 +177,15 @@ export const eventRouter = router({
           accompanyingRangers: {
             include: { registeredUser: { select: { id: true, fullName: true } }, knownRanger: true },
           },
+          // Stage 4 — Telegram-archived ER assets for the event-detail "Photos"
+          // section. Only archived rows (telegramFileId set) are surfaced; the
+          // telegramFileId itself is omitted from the select (proxied via
+          // /api/assets/[id], never exposed to the client).
+          assets: {
+            where: { telegramFileId: { not: null } },
+            orderBy: { createdAt: "asc" },
+            select: { id: true, filename: true, mimeType: true, sizeBytes: true },
+          },
         },
       });
     }),

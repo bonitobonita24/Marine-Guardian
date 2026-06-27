@@ -25,6 +25,10 @@ export const env = createEnv({
     // reads PDF_RENDERER_SERVICE_TOKEN directly from process.env.
     PDF_RENDERER_SERVICE_URL: z.string().url().optional(),
     PDF_RENDERER_SERVICE_TOKEN: z.string().min(32).optional(),
+    // Stage 4 — Telegram bot token for proxying ER assets via /api/assets/[id].
+    // Optional: the route reads it via getTelegramBotToken() and 500s with a
+    // clear message if absent, so envs without Telegram archiving still boot.
+    TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
   },
   client: {
     NEXT_PUBLIC_APP_URL: z.string().url().optional(),
@@ -48,6 +52,7 @@ export const env = createEnv({
     EARTHRANGER_ENCRYPTION_KEY: process.env.EARTHRANGER_ENCRYPTION_KEY,
     PDF_RENDERER_SERVICE_URL: process.env.PDF_RENDERER_SERVICE_URL,
     PDF_RENDERER_SERVICE_TOKEN: process.env.PDF_RENDERER_SERVICE_TOKEN,
+    TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   },
   skipValidation: process.env.SKIP_ENV_VALIDATION === "true",
