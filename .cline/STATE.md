@@ -11,6 +11,13 @@
 #         overlapping → reverted outer to flex-col + overflow-y-auto, map row flex-1 min-h-[20rem].
 #         Fullscreen still fits one screen; small window SCROLLS (no overlap). Verified Playwright
 #         1280 normal + 1920 fullscreen. LESSON: test responsive/scaled widths, not just 1920.
+#   FOLLOW-UP polish SHIPPED (96b870a): owner 3 asks — (1) KPI tiles uniform height
+#     (KpiStrip items-stretch; "Events This Month" no longer sticks out; date tile self-center
+#     stays compact). (2) Edgy corners — .command-center :is(.rounded-xl/lg/md){border-radius:3px}
+#     in @layer utilities (scoped; pills/switches stay round). (3) Hidden-but-functional
+#     scrollbars on page column + every card ScrollArea (scrollbar-width:none + ::-webkit +
+#     Radix bar) — scrolls via wheel, no visible bar (verified ccVisibleBarPx=0 + internal
+#     ScrollArea moves). All scoped to .command-center; rest of app untouched.
 # ✅ DONE THIS SESSION (owner 8-item review of fullscreen War Room):
 #   - feat(dashboard) overhaul (squash 2dfdc24 → main): fixed the fullscreen OVERLAP
 #     properly (prior "compress" attempt collapsed cards). 9 files, all apps/web.
