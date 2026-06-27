@@ -17,6 +17,18 @@
 
 **Un-gated follow-ups already actionable once token is supplied:** run `ingest-earthranger.mjs` (DAS_WEB_TOKEN set) to confirm/backfill 2024 events; design the attachment schema.
 
+**UPDATE 2026-06-27 — DAS_WEB_TOKEN SUPPLIED + VERIFIED + STORED (3 places):**
+- Token `0M4tftKX…` validated against mindoro.pamdas.org (user JerlanL / id 3646de4e-…).
+- (a) **Per-tenant in DB (app mechanism):** demo-site `tenant_er_connections` now holds the real
+  base_url + encrypted api_token_enc (replaced the fake-er placeholder). Set via new reusable
+  `scripts/set-er-connection.ts` (encrypt() + upsert; works for ANY tenant). status="unchecked"
+  (validate via Settings → Test). decrypt roundtrip verified true. Recurring sync left OFF (not auto-started).
+- (b) **Server-Setups (canonical off-app copy):** `Powerbyte-Hostinger/secrets/marine-guardian-earthranger.enc.yaml`
+  (das_web_token + er_base_url + er_user_id + er_username; SOPS+age).
+- (c) **.env.dev (tooling only, gitignored):** DAS_WEB_TOKEN + ER_BASE_URL for the ingest/archive scripts.
+- New-tenant onboarding: `set-er-connection.ts --tenantId <id> --token <tok>` (or DAS_WEB_TOKEN env).
+- Remaining ER-completeness gate (2024-events thinness) is now runnable anytime via ingest with the token.
+
 **Decision needed from owner:**
 - [ ] Provide `DAS_WEB_TOKEN` (+ confirm `ER_BASE_URL`) for local ingestion against the live ER server.
 - [ ] Confirm image scope: ingest ALL historical event photos into MinIO (storage cost), or lazy/on-demand fetch.
