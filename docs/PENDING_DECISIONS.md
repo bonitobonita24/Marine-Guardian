@@ -24,19 +24,48 @@
 ## 2026-06-25 — Deploy posture
 - Owner directive: **local dev ONLY**; staging/prod paused. The earlier merged distance fix (PR #27, on `main`) is NOT to be deployed to prod yet. Prod track-materialize backfill is therefore also deferred until staging/prod is re-enabled.
 
-## 2026-06-27 — Command Center tactical redesign follow-ups  (work DONE, these are owner [WHAT] decisions)
+## 2026-06-27 — Command Center tactical redesign follow-ups  — ✅ ALL THREE ANSWERED + ACTIONED
 
 Redesign GOAL COMPLETE + Visual-QA verified — spec `docs/superpowers/specs/2026-06-26-command-center-redesign-design.md`;
-sub-batches A `23c97a4` / B `c6f6527` / C `9586d39` / D `8940b47` all merged to LOCAL `main` (1026→1038 tests).
-These are the open owner decisions surfaced at close-out — re-surface each loop until answered:
+sub-batches A `23c97a4` / B `c6f6527` / C `9586d39` / D `8940b47` merged to `main` (1026→1038 tests).
+Owner answered 2026-06-27:
 
-- [ ] **Push to origin / deploy?** All 4 redesign commits + QA evidence are on LOCAL `main`, NOT pushed
-      (honoring the standing local-dev-only directive; I do not push/deploy without explicit go-ahead).
-      → Owner: push to origin? (Staging/prod stays paused regardless unless that directive is lifted too.)
-- [ ] **Ranger Roster demo data.** The new roster panel renders 0/0/0 on demo-site because the
-      `AccompanyingRanger`↔`KnownRanger` links are sparse in seed (same data reality that blanks
-      active-patrol leaders). Panel + queries are correct; populates against real ER data.
-      → Owner: expand seed to wire rangers onto patrols so the roster demos with content, or leave as-is?
-- [ ] **Back-port tactical direction into `docs/PRODUCT.md`** (Rule 9 / Rule 1 — human-owned file).
-      War Room section should note: dark-locked tactical command-center direction + KPI sparklines +
-      ranger roster + coverage-% surfaces. → Owner edits PRODUCT.md (or approves a described diff).
+- [x] **Push to origin — YES (no staging/prod yet).** Owner: "push only no staging and production yet."
+      → Pushed `main` to origin. Staging/prod deploy remains paused (see Deploy posture below).
+- [x] **Ranger Roster — YES, use real harvested ER data.** Owner: "use the data we harvested in ER server
+      for seeding and demo purposes. it's actually will be our Staging and Production."
+      → DONE (`45e804c`): `scripts/backfill-rangers-from-segments.ts` derived 56 real rangers from
+      `patrol_segments.leader_er_id/leader_name` into `known_rangers` + 4653 patrol `AccompanyingRanger`
+      links for demo-site. Roster now: total 56 / onPatrol 2 / active 28. Synthetic seed names were NOT used.
+      ⚠ Side fix during this: the live dev DB had drifted — the two polymorphic FKs
+      `accompanying_ranger_event_fk` / `accompanying_ranger_patrol_fk` had been re-added by a prior
+      `prisma db push` (migration history's correct final state drops them). Dropped them again on the dev
+      DB to match schema intent. This ALSO un-broke `event.addAccompanyingRanger`, which 500s while those
+      FKs exist. LATENT RISK: any future `prisma db push` against this DB re-adds them (schema.prisma must
+      keep the relations for `include` support). A fresh `prisma migrate deploy` produces the correct
+      no-FK state. Keep this in mind if this DB is promoted to staging/prod.
+- [x] **Back-port to `docs/PRODUCT.md` — DONE (owner delegated "you decide, align to ours").**
+      Added 4 dated bullets (2026-06-26) to the Command Center War Room section: tactical dark-locked
+      command-center direction, KPI sparklines, Ranger Roster panel (ER-derived), coverage-% headline.
+      product-sync check passed.
+
+### DEFERRED FOLLOW-UP (un-gated, technical — not blocking)
+- **Durable ranger auto-populate in ER sync.** The backfill is one-time against already-harvested
+  segments. To keep `KnownRanger`/`AccompanyingRanger` fresh on future LIVE ER syncs, extend
+  `er-sync.processor.ts syncPatrols` to upsert KnownRanger from segment leaders + create AccompanyingRanger
+  per patrol (same pattern as the Patrol/Event v2 sync mappers). Gated in practice on a live `DAS_WEB_TOKEN`
+  (ER recurring sync is not running in dev) — folds naturally into the Item-2 ER-completeness work below.
+
+## 2026-06-27 — NEW owner request (for LATER): Telegram channel as ER asset storage  🟡 RECORDED, not started
+- **Asked:** Use the Telegram credentials in Server-Setups (`Powerbyte-Hostinger`) to create a channel that
+  stores all ER assets — images & files attached to reported events / patrols.
+- **Feasibility (initial read):** Viable. Telegram bot API can create/post to a channel and host files
+  (up to 2 GB/file via bot, free, durable). Credentials live at
+  `~/UbuntuDevFiles/1_COMPANY_DEV/Server-Setups/Powerbyte-Hostinger/secrets/` (SOPS+age — `sops -d`).
+  This directly addresses the long-open **Item 2 image-ingestion gap** (no image table / no download logic /
+  no storage decision). Telegram could BE the storage answer (vs MinIO) — owner to confirm which.
+- **Scope to confirm before building (owner [WHAT]):** (a) Telegram-as-primary-store vs MinIO-primary +
+  Telegram-mirror; (b) all historical photos vs on-demand; (c) one channel for all tenants vs per-tenant.
+  STILL needs a live `DAS_WEB_TOKEN` to fetch ER attachments (same gate as Item 2).
+- **Decision needed:** [ ] Confirm storage approach + provide `DAS_WEB_TOKEN` so attachment ingestion
+  (Telegram or MinIO) can be built.
