@@ -886,3 +886,46 @@ docker inspect on yelli_dev_mailhog showed com.docker.compose.project=yelli_dev 
 - Files:     deploy/compose/dev/docker-compose.app.yml, apps/web/Dockerfile, .cline/STATE.md
 - Concepts:  dev-compose, no-source-mount, production-bake, force-recreate, hmr-absent, container-rebuild-required
 - Narrative: Confirmed dev compose at deploy/compose/dev/docker-compose.app.yml uses the production multi-stage Dockerfile (apps/web/Dockerfile) and bakes /app at image build time — NO source volume mount. Means dev container runs static code from `docker compose build app` time; source changes on host don't reach the container until rebuild. Pattern observed 2026-05-30 Visual QA: container 7h old missed Item 4 commits (db21d0c→ced36c3→squash c20190e), Manage button absent from rendered UI despite tests passing on host. Fix workflow per session: `docker compose -f deploy/compose/dev/docker-compose.app.yml build app && cd deploy/compose/dev && set -a && source ../../../.env.dev && set +a && docker compose -f docker-compose.app.yml up -d --no-build --force-recreate app`. Adopt as standard QA pre-flight: rebuild + recreate dev app before every Visual QA session that follows source changes. Alternative: add `volumes: ['../../..:/app']` + `command: pnpm dev` to docker-compose.app.yml for true HMR — but that diverges from production-parity goal. Sticking with rebuild pattern. Note: STATE.md PORTS field showed `APP=43000` (stale — actual `APP_PORT=45204` per .env.dev docker port mapping `45204→3000`). Corrected in this checkpoint.
+
+## 2026-06-27 — 🔴 Next build ESLint blocks vitest `as any` mocks unless BOTH rules disabled
+- Type:      🔴 gotcha
+- Phase:     Phase 7 — Interactive Report Map (testing)
+- Files:     apps/web/src/server/trpc/routers/__tests__/*.test.ts, components/**/__tests__/*.test.tsx
+- Concepts:  eslint, next-build, vitest, no-explicit-any, no-unsafe-argument, restrict-template-expressions
+- Narrative: `pnpm --filter @marine-guardian/web build` (the Phase 7 hard-gate cmd) runs ESLint-strict and
+  fails on test files that mock Prisma with `as any` UNLESS the file header disables BOTH
+  `@typescript-eslint/no-explicit-any` AND `@typescript-eslint/no-unsafe-argument` (map.test.ts is the
+  reference — copy its header verbatim). Two more build-only ESLint traps hit this session: numbers inside
+  template literals trip `restrict-template-expressions` → wrap with `String(n)`; and
+  `react-hooks/exhaustive-deps` is NOT a registered rule here → never add an eslint-disable for it (a stray
+  disable comment itself errors "Definition for rule not found"). `turbo lint` misses all three — only the
+  Next build catches them (per Option D gate, V31.4).
+
+## 2026-06-27 — 🟤 Report aggregations isolated in a dedicated reportMap router (not via dashboard rangeInput)
+- Type:      🟤 decision
+- Phase:     Phase 7 — Interactive Report Map (backend)
+- Files:     apps/web/src/server/trpc/routers/reportMap.ts, municipality.ts, map.ts
+- Concepts:  trpc, report-map, municipality-filter, command-center-isolation, architecture
+- Narrative: The Interactive Report Map needs every panel scoped by {from,to,municipalityId}. Rather than add
+  municipalityId to the dashboard router's SHARED `rangeInput` (which would ripple a municipality dimension
+  into every Command Center query), all report aggregations live in a NEW isolated `reportMap` router
+  (summary/eventBreakdown/eventsOverTime) + a thin `municipality.list`. InteractiveMap gained `municipalityId`
+  + `trackMode` ("active"|"inRange") + `displayMode` ("dots"|"heatmap") props, all defaulting so CC + Live Map
+  are byte-for-byte unchanged; the heatmap + Dots⇄Heatmap toggle are gated to `trackMode==="inRange"`. The
+  existing breakdown + coverage charts are pure presentational → reused in-place, not relocated. Net: 0 CC
+  regression risk, verified by Visual QA (CC heatmap toggle correctly absent). Shipped squash 81d804d.
+
+## 2026-06-27 — 🟡 Rebuilding ONLY the dev app container needs -p + --env-file (else "dev_network not found")
+- Type:      🟡 fix
+- Phase:     Phase 7 — Visual QA
+- Files:     deploy/compose/dev/docker-compose.app.yml
+- Concepts:  docker-compose, dev-network, COMPOSE_PROJECT_NAME, visual-qa, rebuild
+- Narrative: To pick up source changes the dev app image must be rebuilt+recreated (no bind-mount). Running
+  `docker compose -f deploy/compose/dev/docker-compose.app.yml up -d --build app` BARE fails: the app compose
+  declares the network `external` as `${COMPOSE_PROJECT_NAME}_network`, and without the project env it resolves
+  to the literal "dev_network" → "network dev_network declared as external, but could not be found" (build
+  succeeds, container never recreates → you QA stale code). Fix: pass the project + env explicitly:
+  `docker compose -p marine-guardian_dev --env-file .env.dev -f deploy/compose/dev/docker-compose.app.yml up -d --force-recreate app`
+  (add `--no-build` if the image was already built). Verify recreation by uptime ("Up X seconds", not hours)
+  before driving Playwright. Also: Radix Select can't be driven by Playwright `select_option` (not a native
+  <select>) — click the trigger then click `role=option[name="..."]`.
