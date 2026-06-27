@@ -3,6 +3,14 @@
 # ════════════════════════════════════════════════════════════════════════════
 # SESSION_SAVE 2026-06-27c (Opus 4.8, Full Auto) — Command Center War Room overhaul
 #   SHIPPED + pushed (21e4e06, main→origin). Tree clean.
+#   FOLLOW-UP responsive fix SHIPPED (5cf816a): owner saw "oddly sized" UI in real Chrome
+#     (scaled display → narrower effective width than the 1920 Playwright test). Two regressions:
+#     (1) KpiStrip items-stretch ballooned the folded-in date tile when a KPI label wrapped →
+#         items-center + date tile shrink-0. (2) grid-rows fixed-height forced the whole page into
+#         the viewport → in normal/narrow mode analytics cards overflowed & the map row collapsed,
+#         overlapping → reverted outer to flex-col + overflow-y-auto, map row flex-1 min-h-[20rem].
+#         Fullscreen still fits one screen; small window SCROLLS (no overlap). Verified Playwright
+#         1280 normal + 1920 fullscreen. LESSON: test responsive/scaled widths, not just 1920.
 # ✅ DONE THIS SESSION (owner 8-item review of fullscreen War Room):
 #   - feat(dashboard) overhaul (squash 2dfdc24 → main): fixed the fullscreen OVERLAP
 #     properly (prior "compress" attempt collapsed cards). 9 files, all apps/web.
