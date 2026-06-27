@@ -88,3 +88,9 @@ export {
   type MaterializationResult,
   type MaterializationSkipReason,
 } from "./lib/patrol-track-materialization";
+
+// Stage 3 — re-export the telegram-storage lib so consumers can import
+// uploadDocumentToTelegram + getTelegramBotToken from the stable
+// @marine-guardian/jobs package boundary (same arc as 5.1c area-derivation
+// + 5.2a patrol-track-materialization).
+export * from "./lib/telegram-storage";
