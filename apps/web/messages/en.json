@@ -14,7 +14,7 @@
   },
   "nav": {
     "dashboard": "Command Center",
-    "map": "Live Map",
+    "map": "Interactive Report Map",
     "events": "Events",
     "patrols": "Patrols",
     "patrolSchedule": "Patrol Schedule",

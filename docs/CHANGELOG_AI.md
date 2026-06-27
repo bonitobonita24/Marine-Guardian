@@ -3,6 +3,25 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-06-27 — Phase 7 feature: Interactive Report Map (sub-batches 2–6, branch feat/report-map-markers)
+
+- Agent:               CLAUDE_CODE (Opus 4.8 — Full Auto)
+- Why:                 Owner-approved 6-sub-batch plan to turn the standalone "Live Map" into an "Interactive Report Map" — a presentation surface for the Mayor / investors, with a shared {FROM, TO, MUNICIPALITY} filter scoping every panel (map markers + patrol tracks + KPI tiles + category breakdown + municipality coverage + events-over-time). Sub-batch 1 (category-coloured priority-sized markers) shipped prior session (46ed991); this session completes 2–6.
+- Files added:         apps/web/src/server/trpc/routers/municipality.ts, reportMap.ts (+ __tests__ municipality.test.ts, reportMap.test.ts); apps/web/src/components/reporting/report-filter-context.tsx, report-filter-bar.tsx, events-over-time-chart.tsx (+ __tests__ ×3); apps/web/src/components/map/MapHeatmap.tsx; apps/web/src/app/(dashboard)/map/_components/report-map-view.tsx
+- Files modified:      apps/web/src/server/trpc/routers/map.ts (municipalityId on events.list + new patrolTracks.inRange), index.ts (register municipality + reportMap); apps/web/src/components/map/InteractiveMap.tsx (municipalityId + trackMode + displayMode props), TrackLegend.tsx (Dots⇄Heatmap toggle), eventMarkerStyle.ts (eventCategoryHeatHsl), __tests__/eventMarkerStyle.test.ts, __tests__/map.test.ts; apps/web/src/app/(dashboard)/map/page.tsx; apps/web/messages/{en,id,ms}.json (sidebar "Live Map"→"Interactive Report Map"); docs/CHANGELOG_AI.md, docs/IMPLEMENTATION_MAP.md, .cline/STATE.md
+- Files deleted:       none
+- Schema/migrations:   none (reuses existing Municipality model + Event/Patrol.municipalityId)
+- Implementation:
+  • SB3 backend: municipality.list ({id,name,province,slug}); map.events.list gains optional municipalityId; new map.patrolTracks.inRange (date+municipality-filtered tracks, same projection as `active`). All tenant-scoped.
+  • SB4 shared: ReportFilterProvider/useReportFilter ({from,to,municipalityId}; 30-day default; decoupled from the CC's DashboardRangeProvider) + ReportFilterBar (From/To date inputs + municipality Select + reset). Existing breakdown + coverage charts reused in-place (pure presentational) — NOT relocated, so the CC imports are untouched.
+  • SB6 aggregations: new reportMap router (summary KPI counts / eventBreakdown / eventsOverTime daily series), isolated from the dashboard router so the municipality dimension never ripples into CC queries; Skylight-excluded to match the markers. New events-over-time LineChart.
+  • SB5 page: ReportMapView wires provider → filter bar → KPI tiles → InteractiveMap (trackMode=inRange, hidePatrolSelector, onEventClick→EventDetailModal) → 4-chart band. InteractiveMap gained municipalityId/trackMode (both hooks unconditional, gated by `enabled`); default trackMode="active" keeps CC + Live Map byte-for-byte.
+  • SB2 heatmap: native MapLibre MapHeatmap (per-category density, concrete --chart-1/--chart-2 ramps via eventCategoryHeatHsl) + Dots⇄Heatmap toggle in TrackLegend, both SCOPED to report mode (trackMode==="inRange") so the CC toolbar is unchanged.
+- Tests:               +30 (web 1059→1089). Backend filter/scope/bucketing, context/bar, chart render, heatmap HSL.
+- Visual QA (Rule 16): PASS — Playwright, dev image rebuilt+recreated first. Report Map: real data (210/258/33/168 KPIs, 4 chart panels), heatmap renders (blue law-enf blobs), marker→EventDetailModal (#34606), municipality filter re-scopes every panel (Calapan City → 8/31/1/7), 0 console errors. CC regression: War Room intact, Heatmap toggle correctly ABSENT, dots mode, PatrolSelector + charts, 0 console errors. Evidence: test-artifacts/report-map-heatmap.png, cc-regression-check.png.
+- Phase 7 gate:        Hard pre-merge gate 4/4 green on every sub-batch — check-product-sync ✅, typecheck ✅ (7/7), web vitest ✅ (1089/1089), Next.js production build ✅ (ESLint-strict).
+- Deploy:              merged to main + pushed origin (owner-approved). Staging/prod deploy HOLD stands.
+
 ## 2026-06-27 — Phase 7 fix: Command Center compact KPI tiles + ALL group cards actually scroll
 
 - Agent:               CLAUDE_CODE (Opus 4.8 — Full Auto, branch fix/cc-compact-kpi-card-scroll)

@@ -15,12 +15,29 @@ const eventsListInput = z
     // keeps showing the live (unfiltered) event set.
     from: z.coerce.date().optional(),
     to: z.coerce.date().optional(),
+    // Interactive Report Map (2026-06-27): optional municipality filter so the
+    // report surface can narrow every panel (markers, charts) to one
+    // municipality. Omitted by the Command Center embed + Live Map, which show
+    // all municipalities.
+    municipalityId: z.string().optional(),
   })
   .strict();
 
 const patrolTracksInput = z
   .object({
     patrolId: z.string().min(1),
+  })
+  .strict();
+
+// Interactive Report Map (2026-06-27): date- + municipality-filtered patrol
+// tracks for the report page, replacing the live-only `active` overlay there.
+// Tracks are selected by their patrol's startTime falling inside the range and
+// (optionally) the patrol's municipalityId.
+const patrolTracksInRangeInput = z
+  .object({
+    from: z.coerce.date().optional(),
+    to: z.coerce.date().optional(),
+    municipalityId: z.string().optional(),
   })
   .strict();
 
@@ -122,6 +139,7 @@ const eventsRouter = router({
       locationLon: { not: null };
       NOT: { eventType: { display: { contains: string; mode: "insensitive" } } };
       reportedAt?: { gte?: Date; lte?: Date };
+      municipalityId?: string;
     } = {
       tenantId: ctx.tenantId,
       locationLat: { not: null },
@@ -131,6 +149,9 @@ const eventsRouter = router({
       // category="analyzer_event" with the marker only in eventType.display).
       NOT: { eventType: { display: { contains: "skylight", mode: "insensitive" } } },
     };
+    if (input.municipalityId !== undefined) {
+      where.municipalityId = input.municipalityId;
+    }
     // `since` is the legacy lower-bound; `from`/`to` are the War Room window.
     const reportedAt: { gte?: Date; lte?: Date } = {};
     if (input.since) reportedAt.gte = input.since;
@@ -311,6 +332,53 @@ const patrolTracksRouter = router({
     // Only return tracks that actually have a renderable polyline (>= 2 points).
     return { tracks: tracks.filter((t) => t.points.length >= 2) };
   }),
+
+  // Interactive Report Map (2026-06-27): date- + municipality-filtered tracks.
+  // Same projection as `active` but the patrol set is bounded by startTime ∈
+  // [from, to] and (optionally) municipalityId, so the report surface's tracks
+  // follow the same FROM/TO/municipality filter as its markers and charts.
+  inRange: tenantProcedure
+    .input(patrolTracksInRangeInput)
+    .query(async ({ ctx, input }) => {
+      const patrolWhere: {
+        isDeleted: false;
+        isTestPatrol: false;
+        startTime?: { gte?: Date; lte?: Date };
+        municipalityId?: string;
+      } = { isDeleted: false, isTestPatrol: false };
+
+      const startTime: { gte?: Date; lte?: Date } = {};
+      if (input.from) startTime.gte = input.from;
+      if (input.to) startTime.lte = input.to;
+      if (startTime.gte !== undefined || startTime.lte !== undefined) {
+        patrolWhere.startTime = startTime;
+      }
+      if (input.municipalityId !== undefined) {
+        patrolWhere.municipalityId = input.municipalityId;
+      }
+
+      const trackRows = await prisma.patrolTrack.findMany({
+        where: {
+          tenantId: ctx.tenantId,
+          patrol: patrolWhere,
+        },
+        take: ACTIVE_TRACKS_PATROL_CAP,
+        orderBy: { until: "desc" },
+        select: {
+          trackGeojson: true,
+          patrol: { select: { id: true, title: true, patrolType: true } },
+        },
+      });
+
+      const tracks = trackRows.map((row) => ({
+        patrolId: row.patrol.id,
+        title: row.patrol.title,
+        patrolType: row.patrol.patrolType,
+        points: pointsFromTrackGeojson(row.trackGeojson),
+      }));
+
+      return { tracks: tracks.filter((t) => t.points.length >= 2) };
+    }),
 });
 
 const patrolAreasRouter = router({

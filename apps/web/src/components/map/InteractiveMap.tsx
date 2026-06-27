@@ -14,6 +14,7 @@ import {
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import { MapPolygon } from "./MapPolygon";
+import { MapHeatmap } from "./MapHeatmap";
 import { PatrolSelector } from "./PatrolSelector";
 import { TrackLegend } from "./TrackLegend";
 import {
@@ -23,6 +24,13 @@ import {
   type PatrolTrackVisibility,
   type PatrolType,
 } from "./patrolTrackStyle";
+import {
+  EVENT_CATEGORY,
+  eventCategoryColor,
+  eventCategoryHeatHsl,
+  eventPrioritySizePx,
+  eventPriorityLabel,
+} from "./eventMarkerStyle";
 
 // MapLibre coordinate convention is [longitude, latitude] (locked in DECISIONS_LOG).
 // Default view spans Marine Guardian's primary operating area; the map auto-fits
@@ -33,32 +41,13 @@ const DEFAULT_ZOOM = 6;
 // Event-layer toggles (2026-06-27): event markers are grouped by the same REAL
 // EarthRanger eventType.category buckets the dashboard breakdown uses. Both
 // default OFF — patrol tracks (foot + seaborne) are the always-on baseline and
-// event layers are manually triggered by the operator.
-const EVENT_CATEGORY = {
-  lawEnforcement: "law-enforcement-and-apprehensions",
-  monitoring: "monitoring_patrolling_and_surveillance",
-} as const;
-
+// event layers are manually triggered by the operator. EVENT_CATEGORY +
+// marker colour/size/label helpers live in ./eventMarkerStyle (imported above).
 type EventLayerVisibility = { lawEnforcement: boolean; monitoring: boolean };
 const DEFAULT_EVENT_LAYERS: EventLayerVisibility = {
   lawEnforcement: false,
   monitoring: false,
 };
-
-// Event.priority is a raw EarthRanger integer (0/100/200/300 = low/med/high/crit).
-function eventPriorityColor(priority: number): string {
-  if (priority >= 300) return "bg-red-600";
-  if (priority >= 200) return "bg-orange-500";
-  if (priority >= 100) return "bg-amber-400";
-  return "bg-sky-400";
-}
-
-function eventPriorityLabel(priority: number): string {
-  if (priority >= 300) return "Critical";
-  if (priority >= 200) return "High";
-  if (priority >= 100) return "Medium";
-  return "Low";
-}
 
 type InteractiveMapProps = {
   className?: string;
@@ -71,17 +60,44 @@ type InteractiveMapProps = {
    */
   dateFrom?: Date;
   dateTo?: Date;
+  /** Optional municipality filter (Interactive Report Map). When supplied, event
+   *  markers AND (in inRange track mode) patrol tracks are scoped to it. */
+  municipalityId?: string;
+  /**
+   * Patrol-track overlay source (2026-06-27):
+   *   "active"  (default) — most-recent patrols' tracks, live (Command Center /
+   *              Live Map). Not date- or municipality-filtered.
+   *   "inRange"           — tracks whose patrol started within [dateFrom,dateTo]
+   *              and (optionally) the municipality (Interactive Report Map), so
+   *              the tracks follow the same filter as the markers + charts.
+   */
+  trackMode?: "active" | "inRange";
+  /** Initial event display mode (Interactive Report Map): "dots" (default) renders
+   *  individual category-coloured markers; "heatmap" renders per-category density
+   *  surfaces. The in-map TrackLegend toggle flips this at runtime. */
+  displayMode?: "dots" | "heatmap";
+  /** Hide the single-patrol drill-down selector overlay (report map = events-focused). */
+  hidePatrolSelector?: boolean;
+  /** When provided, event markers become clickable and call this with the event id
+   *  (report map opens the EventDetailModal from a marker click). */
+  onEventClick?: (eventId: string) => void;
 };
 
 export function InteractiveMap({
   className,
   dateFrom,
   dateTo,
+  municipalityId,
+  trackMode = "active",
+  displayMode: initialDisplayMode = "dots",
+  hidePatrolSelector,
+  onEventClick,
 }: InteractiveMapProps) {
   const subjectsQuery = trpc.map.subjects.list.useQuery();
   const eventsQuery = trpc.map.events.list.useQuery({
     ...(dateFrom !== undefined ? { from: dateFrom } : {}),
     ...(dateTo !== undefined ? { to: dateTo } : {}),
+    ...(municipalityId !== undefined ? { municipalityId } : {}),
   });
   const patrolAreasQuery = trpc.map.patrolAreas.list.useQuery({
     activeOnly: true,
@@ -93,8 +109,24 @@ export function InteractiveMap({
     { enabled: selectedPatrolId !== null },
   );
 
-  // All-active-tracks overlay: every open patrol's track, styled by type.
-  const activeTracksQuery = trpc.map.patrolTracks.active.useQuery();
+  // Track overlay source. Both queries are declared (hooks must be
+  // unconditional) but only the active mode runs its query — the other is
+  // disabled so it never fires.
+  const useInRangeTracks = trackMode === "inRange";
+  const activeTracksQuery = trpc.map.patrolTracks.active.useQuery(undefined, {
+    enabled: !useInRangeTracks,
+  });
+  const inRangeTracksQuery = trpc.map.patrolTracks.inRange.useQuery(
+    {
+      ...(dateFrom !== undefined ? { from: dateFrom } : {}),
+      ...(dateTo !== undefined ? { to: dateTo } : {}),
+      ...(municipalityId !== undefined ? { municipalityId } : {}),
+    },
+    { enabled: useInRangeTracks },
+  );
+  const tracksData = useInRangeTracks
+    ? inRangeTracksQuery.data
+    : activeTracksQuery.data;
   const [showTracks, setShowTracks] = useState(true);
   const [trackVisibility, setTrackVisibility] = useState<PatrolTrackVisibility>(
     DEFAULT_TRACK_VISIBILITY,
@@ -103,15 +135,20 @@ export function InteractiveMap({
   const [eventLayers, setEventLayers] = useState<EventLayerVisibility>(
     DEFAULT_EVENT_LAYERS,
   );
+  // Event display mode (dots vs heatmap) — seeded from the prop, flipped via the
+  // TrackLegend toggle.
+  const [displayMode, setDisplayMode] = useState<"dots" | "heatmap">(
+    initialDisplayMode,
+  );
 
   const visibleTracks = useMemo(
     () =>
       filterVisibleTracks(
-        activeTracksQuery.data?.tracks ?? [],
+        tracksData?.tracks ?? [],
         showTracks,
         trackVisibility,
       ),
-    [activeTracksQuery.data, showTracks, trackVisibility],
+    [tracksData, showTracks, trackVisibility],
   );
 
   const subjects = (subjectsQuery.data ?? []).filter(
@@ -133,6 +170,43 @@ export function InteractiveMap({
         return false;
       }),
     [events, eventLayers],
+  );
+
+  // Per-category point sets for the Heatmap display mode (each gated by the same
+  // law/monitoring layer toggle as the dot markers).
+  const lawHeatPoints = useMemo(
+    () =>
+      eventLayers.lawEnforcement
+        ? events
+            .filter(
+              (e) =>
+                e.eventType?.category === EVENT_CATEGORY.lawEnforcement &&
+                e.locationLon != null &&
+                e.locationLat != null,
+            )
+            .map((e) => ({
+              lon: e.locationLon as number,
+              lat: e.locationLat as number,
+            }))
+        : [],
+    [events, eventLayers.lawEnforcement],
+  );
+  const monHeatPoints = useMemo(
+    () =>
+      eventLayers.monitoring
+        ? events
+            .filter(
+              (e) =>
+                e.eventType?.category === EVENT_CATEGORY.monitoring &&
+                e.locationLon != null &&
+                e.locationLat != null,
+            )
+            .map((e) => ({
+              lon: e.locationLon as number,
+              lat: e.locationLat as number,
+            }))
+        : [],
+    [events, eventLayers.monitoring],
   );
 
   const trackCoordinates: [number, number][] = (
@@ -193,6 +267,9 @@ export function InteractiveMap({
         onEventLayerChange={(layer, next) => {
           setEventLayers((prev) => ({ ...prev, [layer]: next }));
         }}
+        {...(useInRangeTracks
+          ? { displayMode, onDisplayModeChange: setDisplayMode }
+          : {})}
         className="shrink-0"
       />
 
@@ -276,42 +353,81 @@ export function InteractiveMap({
           </MapMarker>
         ))}
 
-        {visibleEvents.map((event) => (
-          <MapMarker
-            key={`event-${event.id}`}
-            longitude={event.locationLon as number}
-            latitude={event.locationLat as number}
-          >
-            <MarkerContent>
-              <div
-                className={cn(
-                  "h-3 w-3 rotate-45 border-2 border-white shadow-lg",
-                  eventPriorityColor(event.priority),
-                )}
+        {/* Heatmap display mode: per-category density surfaces (each gated by
+            its layer toggle). Concrete HSL ramps match the dot-marker colours. */}
+        {displayMode === "heatmap" && (
+          <>
+            {lawHeatPoints.length > 0 && (
+              <MapHeatmap
+                id="events-law"
+                points={lawHeatPoints}
+                hsl={eventCategoryHeatHsl(EVENT_CATEGORY.lawEnforcement)}
               />
-            </MarkerContent>
-            <MarkerTooltip>
-              <div className="space-y-0.5">
-                <div className="font-medium">
-                  {event.title ?? "Untitled event"}
+            )}
+            {monHeatPoints.length > 0 && (
+              <MapHeatmap
+                id="events-monitoring"
+                points={monHeatPoints}
+                hsl={eventCategoryHeatHsl(EVENT_CATEGORY.monitoring)}
+              />
+            )}
+          </>
+        )}
+
+        {displayMode === "dots" &&
+          visibleEvents.map((event) => {
+          const size = eventPrioritySizePx(event.priority);
+          return (
+            <MapMarker
+              key={`event-${event.id}`}
+              longitude={event.locationLon as number}
+              latitude={event.locationLat as number}
+              {...(onEventClick
+                ? {
+                    onClick: () => {
+                      onEventClick(event.id);
+                    },
+                  }
+                : {})}
+            >
+              <MarkerContent>
+                <div
+                  className={cn(
+                    "rotate-45 border border-white shadow-lg",
+                    onEventClick !== undefined && "cursor-pointer",
+                  )}
+                  style={{
+                    width: size,
+                    height: size,
+                    backgroundColor: eventCategoryColor(event.eventType?.category),
+                  }}
+                />
+              </MarkerContent>
+              <MarkerTooltip>
+                <div className="space-y-0.5">
+                  <div className="font-medium">
+                    {event.title ?? "Untitled event"}
+                  </div>
+                  <div className="text-[10px] opacity-75">
+                    {event.eventType?.display ?? "Unknown type"} ·{" "}
+                    {eventPriorityLabel(event.priority)}
+                  </div>
                 </div>
-                <div className="text-[10px] opacity-75">
-                  {event.eventType?.display ?? "Unknown type"} ·{" "}
-                  {eventPriorityLabel(event.priority)}
-                </div>
-              </div>
-            </MarkerTooltip>
-          </MapMarker>
-        ))}
+              </MarkerTooltip>
+            </MapMarker>
+          );
+        })}
       </Map>
 
-        <div className="absolute top-4 left-4 z-10 max-w-xs">
-          <PatrolSelector
-            value={selectedPatrolId}
-            onChange={setSelectedPatrolId}
-            className="bg-background/95 backdrop-blur shadow-md"
-          />
-        </div>
+        {hidePatrolSelector !== true && (
+          <div className="absolute top-4 left-4 z-10 max-w-xs">
+            <PatrolSelector
+              value={selectedPatrolId}
+              onChange={setSelectedPatrolId}
+              className="bg-background/95 backdrop-blur shadow-md"
+            />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -34,6 +34,11 @@ type TrackLegendProps = {
   /** Event-marker layer visibility (horizontal toolbar only). */
   eventLayers?: Record<EventLayerKey, boolean>;
   onEventLayerChange?: (layer: EventLayerKey, next: boolean) => void;
+  /** Event display mode (Interactive Report Map): individual dots vs density
+   *  heatmap. When provided (horizontal toolbar only), a Dots⇄Heatmap toggle is
+   *  shown. Off = "dots" (default), on = "heatmap". */
+  displayMode?: "dots" | "heatmap";
+  onDisplayModeChange?: (next: "dots" | "heatmap") => void;
   /** "vertical" stacked card (overlay) or "horizontal" toolbar row (above map). */
   orientation?: "vertical" | "horizontal";
   className?: string;
@@ -94,6 +99,8 @@ export function TrackLegend({
   onTypeVisibilityChange,
   eventLayers,
   onEventLayerChange,
+  displayMode,
+  onDisplayModeChange,
   orientation = "vertical",
   className,
 }: TrackLegendProps) {
@@ -173,6 +180,32 @@ export function TrackLegend({
                 </div>
               );
             })}
+          </>
+        )}
+
+        {/* Event display mode — Dots vs Heatmap (Interactive Report Map). */}
+        {displayMode !== undefined && onDisplayModeChange !== undefined && (
+          <>
+            <div
+              className="hidden h-5 w-px bg-border sm:block"
+              aria-hidden="true"
+            />
+            <div className="flex min-h-9 items-center gap-2">
+              <Label
+                htmlFor="event-display-mode"
+                className="cursor-pointer font-medium"
+              >
+                Heatmap
+              </Label>
+              <Switch
+                id="event-display-mode"
+                checked={displayMode === "heatmap"}
+                onCheckedChange={(next) => {
+                  onDisplayModeChange(next ? "heatmap" : "dots");
+                }}
+                aria-label="Show events as a density heatmap instead of individual markers"
+              />
+            </div>
           </>
         )}
       </section>

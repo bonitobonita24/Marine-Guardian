@@ -136,6 +136,29 @@ describe("map.events.list", () => {
       reportedAt: { gte: since },
     });
   });
+
+  it("filters by municipalityId when provided", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.events.list({ municipalityId: "muni-1" });
+
+    const findManyCall = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0];
+    expect(findManyCall?.where).toMatchObject({
+      tenantId: TENANT_ID,
+      municipalityId: "muni-1",
+    });
+  });
+
+  it("omits the municipalityId filter when not provided", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.events.list({});
+
+    const findManyCall = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0];
+    expect(findManyCall?.where).not.toHaveProperty("municipalityId");
+  });
 });
 
 describe("map.subjects.list", () => {
@@ -347,6 +370,83 @@ describe("map.patrolTracks.active", () => {
     const result = await caller.patrolTracks.active();
 
     expect(result.tracks).toEqual([]);
+  });
+});
+
+describe("map.patrolTracks.inRange", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("filters tracks by patrol startTime range and municipalityId, tagged by patrolType", async () => {
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([
+      {
+        trackGeojson: lineStringGeojson([
+          [124.0, 1.5],
+          [124.01, 1.51],
+        ]),
+        patrol: { id: "patrol-sea", title: "Bay sweep", patrolType: "seaborne" },
+      },
+    ] as any);
+
+    const from = new Date("2026-06-01");
+    const to = new Date("2026-06-27");
+    const caller = createCaller(makeCtx());
+    const result = await caller.patrolTracks.inRange({
+      from,
+      to,
+      municipalityId: "muni-1",
+    });
+
+    expect(result.tracks).toHaveLength(1);
+    expect(result.tracks[0]).toMatchObject({
+      patrolId: "patrol-sea",
+      patrolType: "seaborne",
+    });
+
+    const call = vi.mocked(prisma.patrolTrack.findMany).mock.calls[0]?.[0];
+    expect(call?.where).toMatchObject({
+      tenantId: TENANT_ID,
+      patrol: {
+        isDeleted: false,
+        isTestPatrol: false,
+        startTime: { gte: from, lte: to },
+        municipalityId: "muni-1",
+      },
+    });
+    expect(call?.take).toBe(50);
+    expect(call?.orderBy).toMatchObject({ until: "desc" });
+  });
+
+  it("omits startTime and municipalityId from the patrol filter when not provided", async () => {
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.patrolTracks.inRange({});
+
+    const call = vi.mocked(prisma.patrolTrack.findMany).mock.calls[0]?.[0];
+    expect(call?.where).toMatchObject({
+      tenantId: TENANT_ID,
+      patrol: { isDeleted: false, isTestPatrol: false },
+    });
+    expect(call?.where?.patrol).not.toHaveProperty("startTime");
+    expect(call?.where?.patrol).not.toHaveProperty("municipalityId");
+  });
+
+  it("scopes to tenant and drops sub-2-point polylines", async () => {
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([
+      {
+        trackGeojson: lineStringGeojson([[124.0, 1.5]]),
+        patrol: { id: "patrol-thin", title: "Single ping", patrolType: "foot" },
+      },
+    ] as any);
+
+    const caller = createCaller(makeCtx("other-tenant"));
+    const result = await caller.patrolTracks.inRange({});
+
+    expect(result.tracks).toEqual([]);
+    const call = vi.mocked(prisma.patrolTrack.findMany).mock.calls[0]?.[0];
+    expect(call?.where).toMatchObject({ tenantId: "other-tenant" });
   });
 });
 
