@@ -30,11 +30,11 @@ export interface MunicipalityCoverageDatum {
 const CHART_CONFIG = {
   patrolCount: {
     label: "Patrols",
-    color: "var(--chart-2)",
+    color: "hsl(var(--chart-2))",
   },
   eventCount: {
     label: "Events",
-    color: "var(--chart-1)",
+    color: "hsl(var(--chart-1))",
   },
 } satisfies ChartConfig;
 
@@ -104,7 +104,7 @@ export function MunicipalityCoverageChart({
                 <CartesianGrid
                   horizontal={false}
                   strokeDasharray="4"
-                  stroke="var(--border)"
+                  stroke="hsl(var(--border))"
                 />
                 <YAxis
                   dataKey="municipality"
@@ -112,7 +112,7 @@ export function MunicipalityCoverageChart({
                   tickLine={false}
                   axisLine={false}
                   width={96}
-                  tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
+                  tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
                   tickFormatter={(v: string) =>
                     v.length > 14 ? `${v.slice(0, 13)}…` : v
                   }
@@ -121,7 +121,7 @@ export function MunicipalityCoverageChart({
                   type="number"
                   tickLine={false}
                   axisLine={false}
-                  tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
+                  tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
                   allowDecimals={false}
                 />
                 <ChartTooltip
@@ -130,13 +130,13 @@ export function MunicipalityCoverageChart({
                 />
                 <Bar
                   dataKey="patrolCount"
-                  fill="var(--chart-2)"
+                  fill="hsl(var(--chart-2))"
                   radius={[0, 3, 3, 0]}
                   maxBarSize={8}
                 />
                 <Bar
                   dataKey="eventCount"
-                  fill="var(--chart-1)"
+                  fill="hsl(var(--chart-1))"
                   radius={[0, 3, 3, 0]}
                   maxBarSize={8}
                 />
@@ -148,7 +148,7 @@ export function MunicipalityCoverageChart({
               <div className="flex items-center gap-1.5">
                 <span
                   className="inline-block h-2 w-3 rounded-sm"
-                  style={{ background: "var(--chart-2)" }}
+                  style={{ background: "hsl(var(--chart-2))" }}
                 />
                 <span className="text-[10px] text-muted-foreground">
                   Patrols{" "}
@@ -160,7 +160,7 @@ export function MunicipalityCoverageChart({
               <div className="flex items-center gap-1.5">
                 <span
                   className="inline-block h-2 w-3 rounded-sm"
-                  style={{ background: "var(--chart-1)" }}
+                  style={{ background: "hsl(var(--chart-1))" }}
                 />
                 <span className="text-[10px] text-muted-foreground">
                   Events{" "}

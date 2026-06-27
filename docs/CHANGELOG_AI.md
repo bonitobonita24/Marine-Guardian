@@ -3,6 +3,19 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-06-27 — Phase 7 fix: Command Center chart colors + fullscreen layout overflow
+
+- Agent:               CLAUDE_CODE (Opus 4.8 — Full Auto resume, branch fix/cc-chart-color-fullscreen)
+- Why:                 Two display defects on the Command Center (dashboard) War Room. (1) Recharts bars/grid/axis rendered BLACK: chart color tokens were passed as bare `var(--chart-1)` etc., but the tokens are defined as bare HSL triplets (`--chart-1: 220 70% 50%`) so Recharts received an invalid SVG color and fell back to black. (2) In fullscreen mode (sidebar + top chrome hidden via FullscreenShell), the analytics band overflowed below the fold: page root used a hardcoded `min-h-[calc(100vh-7rem)]` that assumes 7rem of chrome regardless of fullscreen, and the map row used a fixed `min-h-[58vh]`, so the band could not fit one screen.
+- Files added:         none
+- Files modified:      apps/web/src/app/(dashboard)/dashboard/_components/breakdown-bars.tsx (wrap --chart-1/--chart-2/--border in hsl()), apps/web/src/app/(dashboard)/dashboard/_components/municipality-coverage-chart.tsx (wrap --chart-1/--chart-2/--muted-foreground/--border in hsl() across config, axes, bars, legend swatches), apps/web/src/app/(dashboard)/dashboard/page.tsx (root min-h calc → h-full min-h-0; map row min-h-[58vh] → flex-1 min-h-0; map min-height 24rem → 14rem; ops rail overflow-y-auto; analytics band shrink-0), docs/CHANGELOG_AI.md
+- Files deleted:       none
+- Schema/migrations:   none
+- Implementation:      Color fix wraps every bare `var(--token)` Recharts consumes in `hsl(var(--token))` — verified the tokens are bare HSL triplets in globals.css (:root + .command-center scope), so hsl() wrapping is the correct form and bare var() rendered black. Layout fix converts the dashboard to a proper flex column that fills its FullscreenShell parent: root `h-full min-h-0`, the map+rail row `flex-1 min-h-0` so it absorbs leftover height (map shrinks to fit), the ops rail scrolls internally (`overflow-y-auto`), and the analytics band is `shrink-0` so it stays fully visible. Removes the brittle viewport-overhead assumptions that broke when chrome is hidden.
+- Tests:               no test changes needed (presentational). Web vitest suite 1055/1055 green unchanged.
+- Visual QA (Rule 16): PASS — Playwright at 1920×1080, login admin@mail.com. Normal mode: all charts render colored bars (blue chart-1 / green chart-2), full layout fits one screen, 0 console errors. Fullscreen mode (FullscreenShell active): sidebar/header hidden, map dominant, entire analytics band (Law Enforcement, Monitoring, Municipality Coverage, Protected Zones, Ranger Roster) fully visible with no overlap or below-the-fold clipping.
+- Phase 7 gate:        Hard pre-merge gate 4/4 green — pnpm tools:check-product-sync ✅, pnpm typecheck ✅ (7/7), pnpm --filter @marine-guardian/web test ✅ (1055/1055), pnpm --filter @marine-guardian/web build ✅ (Next.js production build, ESLint-strict). Dev image rebuilt + recreated before Visual QA (no source bind-mount in dev compose).
+
 ## 2026-06-12 — Phase 7 syncNeeded candidate-query consumer: sync-needed-rescan queue + processor (S1)
 
 - Agent:               CLAUDE_CODE (Opus 4.8 — headless Spec-Driven Swarm worker S1, branch swarm/phase7-syncneeded)

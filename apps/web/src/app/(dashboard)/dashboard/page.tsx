@@ -249,7 +249,7 @@ function DashboardContent() {
   const incident: LastIncident = lastIncident.data ?? null;
 
   return (
-    <div className="command-center flex min-h-[calc(100vh-7rem)] flex-col gap-3">
+    <div className="command-center flex h-full min-h-0 flex-col gap-3">
       <h1 className="sr-only">Command Center — War Room</h1>
 
       <DateRangeHeader />
@@ -261,18 +261,23 @@ function DashboardContent() {
         onSelectKpi={setSelectedKpi}
       />
 
-      {/* Main row — dominant live map (2/3) + the live operations rail (1/3). */}
-      <div className="grid min-h-[58vh] grid-cols-1 gap-3 lg:grid-cols-3">
+      {/* Main row — dominant live map (2/3) + the live operations rail (1/3).
+          flex-1 + min-h-0 lets this row absorb the leftover viewport height so
+          the whole command center fits one screen without the analytics band
+          overflowing below the fold (the map shrinks to fit). */}
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-3">
         <div
           role="region"
           aria-label="Live patrol map showing ranger positions, patrol areas and events"
-          className="cc-gridbg relative min-h-[24rem] overflow-hidden rounded-xl border border-[hsl(var(--panel-border))] lg:col-span-2"
+          className="cc-gridbg relative min-h-[14rem] overflow-hidden rounded-xl border border-[hsl(var(--panel-border))] lg:col-span-2"
         >
           <InteractiveMap className="relative z-10 h-full w-full" />
         </div>
 
-        {/* Live operations rail — alerts → feed → active patrols → last incident. */}
-        <div className="flex min-h-0 flex-col gap-3">
+        {/* Live operations rail — alerts → feed → active patrols → last incident.
+            Scrolls internally so the four live panels never push the page taller
+            than the viewport. */}
+        <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
           <AlertsPanel
             alerts={alertItems}
             isLoading={alerts.isLoading}
@@ -305,7 +310,7 @@ function DashboardContent() {
       {/* Analytics band — full width beneath the map: breakdowns + coverage +
           ranger roster. One row on wide command-center displays, wrapping down
           on smaller screens. */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+      <div className="grid shrink-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
         <BreakdownBars
           title="Law Enforcement and Apprehensions"
           data={breakdown.data?.lawEnforcement ?? []}

@@ -39,14 +39,14 @@ export type BreakdownVariant = "law_enforcement" | "monitoring";
 const LAW_CHART_CONFIG = {
   count: {
     label: "Incidents",
-    color: "var(--chart-1)",
+    color: "hsl(var(--chart-1))",
   },
 } satisfies ChartConfig;
 
 const MONITORING_CHART_CONFIG = {
   count: {
     label: "Events",
-    color: "var(--chart-2)",
+    color: "hsl(var(--chart-2))",
   },
 } satisfies ChartConfig;
 
@@ -79,7 +79,7 @@ export function BreakdownBars({
   const config =
     variant === "monitoring" ? MONITORING_CHART_CONFIG : LAW_CHART_CONFIG;
   const colorVar =
-    variant === "monitoring" ? "var(--chart-2)" : "var(--chart-1)";
+    variant === "monitoring" ? "hsl(var(--chart-2))" : "hsl(var(--chart-1))";
 
   // Top 5, sorted descending by count.
   const chartData = [...data]
@@ -133,7 +133,7 @@ export function BreakdownBars({
                 <CartesianGrid
                   horizontal={false}
                   strokeDasharray="4"
-                  stroke="var(--border)"
+                  stroke="hsl(var(--border))"
                 />
                 <XAxis type="number" hide allowDecimals={false} />
                 <YAxis
