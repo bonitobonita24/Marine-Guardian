@@ -56,7 +56,38 @@ Owner answered 2026-06-27:
   per patrol (same pattern as the Patrol/Event v2 sync mappers). Gated in practice on a live `DAS_WEB_TOKEN`
   (ER recurring sync is not running in dev) — folds naturally into the Item-2 ER-completeness work below.
 
-## 2026-06-27 — NEW owner request (for LATER): Telegram channel as ER asset storage  🟡 RECORDED, not started
+## 2026-06-27 — Telegram channel as ER asset storage  🟢 SETUP DONE + VERIFIED — archiver build is next
+
+**Backend decided (owner, 2026-06-27): Bot + private channel.** Premium NOT needed for this path
+(ER assets are JPEG photos ~1–8MB, under the 50MB bot limit; ban-safe ToS-sanctioned automation).
+Owner may hold/cancel Premium to save cost.
+
+**Set up + verified end-to-end:**
+- Bot `@MarineGuardian_bot` (id 8642959831), admin of PRIVATE channel "Marine Guardian — ER Assets"
+  (`chat_id -1003816125998`).
+- E2E test PASSED: real ER event photo (#36125, 1.3MB 4080×2288) downloaded with DAS_WEB_TOKEN →
+  uploaded to channel (message_id 5).
+- Creds stored ENCRYPTED: `Server-Setups/Powerbyte-Hostinger/secrets/marine-guardian-telegram.enc.yaml`
+  (SOPS+age; keys `telegram_bot_token` / `telegram_bot_username` / `telegram_chat_id` / `telegram_channel_title`).
+  NEVER copied into the app repo (Server-Setups is canonical).
+- Verifier tool committed: `scripts/telegram-verify.mjs` (c0418f7).
+- DAS_WEB_TOKEN verified valid (user JerlanL / id 3646de4e-…; live counts events 35708 / patrols 4825 —
+  local DB ~230 events / ~41 patrols behind → a sync run backfills the gap).
+
+**NEXT BUILD (un-gated now — all creds exist):** ER → Telegram asset archiver.
+- New schema: `event_image` / `attachment` table (er_file_id, event_id/patrol_id, filename, file_type,
+  telegram_message_id, telegram_file_id, uploaded_at) + FK + tenant scope.
+- Archiver job: for events with `files[]`, download each `file.images.original` with DAS_WEB_TOKEN →
+  upload to channel via **sendDocument** (preserves original bytes; sendPhoto downscales) → store the
+  returned message_id/file_id against the event. Idempotent (skip already-archived er_file_id).
+- App: surface a "Photos" affordance on the event detail that links/retrieves from the channel.
+- Still owner [WHAT] to confirm before build: one channel for all tenants vs per-tenant; archive ALL
+  historical photos vs recent/on-demand. (Default proposal: single channel, archive on sync going forward
+  + a one-time historical backfill script.)
+
+---
+
+## 2026-06-27 — (superseded) original Telegram request note
 - **Asked:** Use the Telegram credentials in Server-Setups (`Powerbyte-Hostinger`) to create a channel that
   stores all ER assets — images & files attached to reported events / patrols.
 - **Feasibility (initial read):** Viable. Telegram bot API can create/post to a channel and host files
