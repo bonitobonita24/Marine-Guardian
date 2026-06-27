@@ -205,6 +205,7 @@ model Tenant {
   earthrangerPassword     String?  @map("earthranger_password")
   earthrangerDasToken     String?  @map("earthranger_das_token")
   earthrangerTrackToken   String?  @map("earthranger_track_token")
+  telegramChannelId       String?  @map("telegram_channel_id")
   currency                String   @default("IDR")
   arcgisBoundaryUrl       String?  @map("arcgis_boundary_url")
   arcgisBoundaryOutfields String?  @map("arcgis_boundary_outfields")
@@ -233,6 +234,7 @@ model Tenant {
   fuelEntries           FuelEntry[]
   reportExports         ReportExport[]
   erConnection          TenantErConnection?
+  eventAssets           EventAsset[]
 
   // V32.9 compliance
   consentLogs               ConsentLog[]
@@ -383,6 +385,7 @@ model Event {
   accompanyingRangers   AccompanyingRanger[] @relation("AccompanyingRangerEvent")
   revisions             EventRevision[]
   coveredZones          EventCoveredZone[]
+  assets                EventAsset[]
 
   @@unique([tenantId, erEventId])
   @@index([tenantId])
@@ -1109,4 +1112,31 @@ model EventCoveredZone {
   @@unique([eventId, protectedZoneId])
   @@index([tenantId])
   @@map("event_covered_zones")
+}
+
+// EarthRanger event attachment archived to Telegram (per-tenant channel).
+// Records where each ER file (er_file_id) now lives in Telegram so the app can
+// fetch it back via the bot. uploaded_at null = recorded but not yet pushed.
+model EventAsset {
+  id                String    @id @default(cuid())
+  tenantId          String    @map("tenant_id")
+  eventId           String    @map("event_id")
+  erFileId          String    @map("er_file_id")
+  filename          String
+  fileType          String?   @map("file_type")
+  mimeType          String?   @map("mime_type")
+  sizeBytes         Int?      @map("size_bytes")
+  telegramMessageId BigInt?   @map("telegram_message_id")
+  telegramFileId    String?   @map("telegram_file_id")
+  uploadedAt        DateTime? @map("uploaded_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  event  Event  @relation(fields: [eventId], references: [id])
+
+  @@unique([tenantId, erFileId])
+  @@index([tenantId])
+  @@index([eventId])
+  @@map("event_assets")
 }
