@@ -12,9 +12,19 @@
 #              events 22,887→31; Calapan 87→162 events / 199→235 patrols; balanced LGU distribution.
 #              +3 shared tests (9→12). Phase 7 gate 4/4 green (after fixing a filtered-pnpm-install vitest
 #              unlink via full `pnpm install`). Dev app+jobs containers rebuilt for live processor.
-#   NEXT:      Deferred (owner-gated, per "defer for now"): patrol.rebuildTracks admin tRPC (5.2b/5.2c);
-#              Area area_name ER ingest (5.1d, blocked on ER schema); Telegram photo backfill (~2569).
-#              Owner deploy decision (staging promotion) remains the binding next unlock.
+#   NEXT SESSION QUEUE (owner-set 2026-06-28, priority order):
+#     1. ⭐ PRIORITY — Telegram photo backfill (~2569 historical events). GOAL (owner): every event's
+#        images must show up in the Interactive Report Map — when a map event marker is clicked
+#        (→ EventDetailModal), its photos must render. So backfill ER assets → Telegram → EventAsset
+#        rows for historical events; verify the report-map marker→EventDetailModal Photos path shows them.
+#        Also persist mime_type/size at archive time. Refs: [[project_marine_guardian_phase7_stage4_telegram_asset_display]],
+#        [[project_marine_guardian_telegram_er_asset_storage]].
+#     2. Municipality Coverage chart consistency polish — it is currently province-wide AND includes
+#        Skylight (~23k for 2025), unlike the Skylight-excluded, municipality-scoped KPI tiles. Make it
+#        consistent (exclude Skylight; consider scoping to the selected municipality filter). Pre-existing,
+#        not introduced by the municipal-waters fix.
+#   DEFERRED (lower, owner-gated): patrol.rebuildTracks admin tRPC (5.2b/5.2c); Area area_name ER ingest
+#     (5.1d, blocked on ER schema). Owner deploy decision (staging promotion) remains the binding unlock.
 # ════════════════════════════════════════════════════════════════════════════
 # SESSION_SAVE 2026-06-27e (Opus 4.8, Full Auto) — Interactive Report Map COMPLETE + pushed
 #   All 6 sub-batches SHIPPED. Branch feat/report-map-markers squash-merged → main → pushed origin
