@@ -74,7 +74,9 @@ function DashboardContent() {
   const recent = trpc.dashboard.recentEvents.useQuery(range);
   const alertStats = trpc.dashboard.alertStats.useQuery(range);
   const lastIncident = trpc.dashboard.lastIncident.useQuery(range);
-  const alerts = trpc.alertHistory.list.useQuery({ limit: 10 });
+  // Alerts & Escalations follows the same War Room range as every other panel
+  // (2026-06-27): pass the active FROM/TO window so it re-queries in lock-step.
+  const alerts = trpc.alertHistory.list.useQuery({ limit: 10, ...range });
   const patrols = trpc.dashboard.activePatrols.useQuery(range);
   // municipality / protected-zone coverage are time-based activity aggregations
   // (patrol startTime / event reportedAt / zone-coverage assignedAt), so both
@@ -249,29 +251,33 @@ function DashboardContent() {
   const incident: LastIncident = lastIncident.data ?? null;
 
   return (
-    <div className="command-center flex h-full min-h-0 flex-col gap-3">
+    <div className="command-center grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-3">
       <h1 className="sr-only">Command Center — War Room</h1>
 
-      <DateRangeHeader />
-
-      {/* Status band — at-a-glance KPIs + the unacknowledged alarm tile. */}
+      {/* Status band — the FROM/TO range picker folds into the left of the KPI
+          strip (one slim band instead of two stacked rows) + at-a-glance KPIs. */}
       <KpiStrip
         kpis={kpiTiles}
         lastSyncedAt={lastSyncedAt || undefined}
         onSelectKpi={setSelectedKpi}
+        leading={<DateRangeHeader />}
       />
 
       {/* Main row — dominant live map (2/3) + the live operations rail (1/3).
-          flex-1 + min-h-0 lets this row absorb the leftover viewport height so
-          the whole command center fits one screen without the analytics band
-          overflowing below the fold (the map shrinks to fit). */}
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-3">
+          This is the grid's minmax(0,1fr) row: it absorbs all leftover viewport
+          height so the whole command center fits one screen, while the explicit
+          grid-rows guarantee the analytics band below can never overlap it. */}
+      <div className="grid min-h-0 grid-cols-1 gap-3 lg:grid-cols-3">
         <div
           role="region"
           aria-label="Live patrol map showing ranger positions, patrol areas and events"
           className="cc-gridbg relative min-h-[14rem] overflow-hidden rounded-xl border border-[hsl(var(--panel-border))] lg:col-span-2"
         >
-          <InteractiveMap className="relative z-10 h-full w-full" />
+          <InteractiveMap
+            className="relative z-10 h-full w-full"
+            dateFrom={from}
+            dateTo={to}
+          />
         </div>
 
         {/* Live operations rail — alerts → feed → active patrols → last incident.

@@ -10,6 +10,20 @@ import {
   type PatrolType,
 } from "./patrolTrackStyle";
 
+/** Event-marker layer toggles shown after the patrol-track toggles (horizontal
+ *  toolbar only). Both default OFF — events are operator-triggered. Colors match
+ *  the dashboard breakdown cards (law enforcement = chart-1, monitoring = chart-2)
+ *  and the swatch is a rotated diamond mirroring the map's event markers. */
+type EventLayerKey = "lawEnforcement" | "monitoring";
+const EVENT_LAYER_LEGEND: {
+  key: EventLayerKey;
+  label: string;
+  color: string;
+}[] = [
+  { key: "lawEnforcement", label: "Law enforcement", color: "hsl(var(--chart-1))" },
+  { key: "monitoring", label: "Monitoring", color: "hsl(var(--chart-2))" },
+];
+
 type TrackLegendProps = {
   /** Master show/hide for all active patrol tracks. */
   showTracks: boolean;
@@ -17,10 +31,25 @@ type TrackLegendProps = {
   /** Per-type visibility map. */
   visibility: PatrolTrackVisibility;
   onTypeVisibilityChange: (type: PatrolType, next: boolean) => void;
+  /** Event-marker layer visibility (horizontal toolbar only). */
+  eventLayers?: Record<EventLayerKey, boolean>;
+  onEventLayerChange?: (layer: EventLayerKey, next: boolean) => void;
   /** "vertical" stacked card (overlay) or "horizontal" toolbar row (above map). */
   orientation?: "vertical" | "horizontal";
   className?: string;
 };
+
+/** Small rotated-diamond swatch mirroring the map's event markers. Decorative —
+ *  the adjacent text label is the accessible name. */
+function DiamondSample({ color }: { color: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="inline-block size-2.5 rotate-45 rounded-[1px] border border-white/70"
+      style={{ background: color }}
+    />
+  );
+}
 
 /**
  * A small SVG sample of a track's line style (color + solid/dashed) used in the
@@ -63,6 +92,8 @@ export function TrackLegend({
   onShowTracksChange,
   visibility,
   onTypeVisibilityChange,
+  eventLayers,
+  onEventLayerChange,
   orientation = "vertical",
   className,
 }: TrackLegendProps) {
@@ -114,6 +145,36 @@ export function TrackLegend({
             </div>
           );
         })}
+
+        {/* Event-marker layers — operator-triggered, default OFF (2026-06-27). */}
+        {eventLayers !== undefined && onEventLayerChange !== undefined && (
+          <>
+            <div
+              className="hidden h-5 w-px bg-border sm:block"
+              aria-hidden="true"
+            />
+            {EVENT_LAYER_LEGEND.map(({ key, label, color }) => {
+              const inputId = `event-layer-${key}`;
+              return (
+                <div key={key} className="flex min-h-9 items-center gap-2">
+                  <Label
+                    htmlFor={inputId}
+                    className="flex cursor-pointer items-center gap-1.5"
+                  >
+                    <DiamondSample color={color} />
+                    <span>{label}</span>
+                  </Label>
+                  <Switch
+                    id={inputId}
+                    checked={eventLayers[key]}
+                    onCheckedChange={(next) => { onEventLayerChange(key, next); }}
+                    aria-label={`Show ${label.toLowerCase()} events on the map`}
+                  />
+                </div>
+              );
+            })}
+          </>
+        )}
       </section>
     );
   }

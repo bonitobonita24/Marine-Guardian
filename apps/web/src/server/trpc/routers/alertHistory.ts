@@ -29,13 +29,25 @@ export const alertHistoryRouter = router({
       alertHistoryListFilters.extend({
         cursor: z.string().optional(),
         limit: z.number().int().min(1).max(200).default(50),
+        // War Room range filter (2026-06-27): the Command Center passes the
+        // active FROM/TO window so the Alerts & Escalations panel follows the
+        // same date range as every other dashboard panel. Omitting both keeps
+        // the original behaviour (all alerts, newest first).
+        dateFrom: z.coerce.date().optional(),
+        dateTo: z.coerce.date().optional(),
       })
     )
     .query(async ({ ctx, input }) => {
+      const firedAt: { gte?: Date; lte?: Date } = {};
+      if (input.dateFrom !== undefined) firedAt.gte = input.dateFrom;
+      if (input.dateTo !== undefined) firedAt.lte = input.dateTo;
+      const hasRange = firedAt.gte !== undefined || firedAt.lte !== undefined;
+
       const items = await prisma.alertHistory.findMany({
         where: {
           tenantId: ctx.tenantId,
           ...(input.alertRuleId !== undefined ? { alertRuleId: input.alertRuleId } : {}),
+          ...(hasRange ? { firedAt } : {}),
         },
         take: input.limit + 1,
         ...(input.cursor !== undefined ? { cursor: { id: input.cursor }, skip: 1 } : {}),

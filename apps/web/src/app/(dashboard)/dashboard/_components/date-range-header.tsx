@@ -51,9 +51,9 @@ export function DateRangeHeader() {
     <div
       role="region"
       aria-label="Dashboard date range"
-      className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-card px-3 py-2"
+      className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5"
     >
-      <div className="space-y-1">
+      <div className="flex items-center gap-1.5">
         <Label
           htmlFor="dashboard-range-from"
           className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
@@ -64,14 +64,14 @@ export function DateRangeHeader() {
           id="dashboard-range-from"
           data-testid="dashboard-range-from"
           type="date"
-          className="h-8 w-[10rem]"
+          className="h-7 w-[8.5rem] text-xs"
           value={toDateInputValue(from)}
           max={toDateInputValue(to)}
           onChange={handleFromChange}
         />
       </div>
 
-      <div className="space-y-1">
+      <div className="flex items-center gap-1.5">
         <Label
           htmlFor="dashboard-range-to"
           className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
@@ -82,7 +82,7 @@ export function DateRangeHeader() {
           id="dashboard-range-to"
           data-testid="dashboard-range-to"
           type="date"
-          className="h-8 w-[10rem]"
+          className="h-7 w-[8.5rem] text-xs"
           value={toDateInputValue(to)}
           min={toDateInputValue(from)}
           onChange={handleToChange}
@@ -93,6 +93,7 @@ export function DateRangeHeader() {
         type="button"
         variant="outline"
         size="sm"
+        className="h-7"
         onClick={resetTo7d}
         data-testid="dashboard-range-reset"
       >

@@ -94,7 +94,7 @@ export function MunicipalityCoverageChart({
           </p>
         ) : (
           <>
-            <ChartContainer config={CHART_CONFIG} className="h-[9rem] w-full">
+            <ChartContainer config={CHART_CONFIG} className="h-[15rem] w-full">
               <BarChart
                 accessibilityLayer
                 data={chartData}
@@ -132,13 +132,13 @@ export function MunicipalityCoverageChart({
                   dataKey="patrolCount"
                   fill="hsl(var(--chart-2))"
                   radius={[0, 3, 3, 0]}
-                  maxBarSize={8}
+                  maxBarSize={11}
                 />
                 <Bar
                   dataKey="eventCount"
                   fill="hsl(var(--chart-1))"
                   radius={[0, 3, 3, 0]}
-                  maxBarSize={8}
+                  maxBarSize={11}
                 />
               </BarChart>
             </ChartContainer>

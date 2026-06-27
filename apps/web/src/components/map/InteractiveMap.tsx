@@ -30,6 +30,21 @@ import {
 const DEFAULT_CENTER: [number, number] = [121.5, 13.0];
 const DEFAULT_ZOOM = 6;
 
+// Event-layer toggles (2026-06-27): event markers are grouped by the same REAL
+// EarthRanger eventType.category buckets the dashboard breakdown uses. Both
+// default OFF — patrol tracks (foot + seaborne) are the always-on baseline and
+// event layers are manually triggered by the operator.
+const EVENT_CATEGORY = {
+  lawEnforcement: "law-enforcement-and-apprehensions",
+  monitoring: "monitoring_patrolling_and_surveillance",
+} as const;
+
+type EventLayerVisibility = { lawEnforcement: boolean; monitoring: boolean };
+const DEFAULT_EVENT_LAYERS: EventLayerVisibility = {
+  lawEnforcement: false,
+  monitoring: false,
+};
+
 // Event.priority is a raw EarthRanger integer (0/100/200/300 = low/med/high/crit).
 function eventPriorityColor(priority: number): string {
   if (priority >= 300) return "bg-red-600";
@@ -47,11 +62,27 @@ function eventPriorityLabel(priority: number): string {
 
 type InteractiveMapProps = {
   className?: string;
+  /**
+   * Optional War Room FROM/TO window (2026-06-27). When supplied (Command
+   * Center), the event markers are filtered to events reported within the
+   * range so the map stays consistent with the dashboard breakdown / feed.
+   * Omitted on the standalone Live Map, which shows the live (unfiltered) set.
+   * Ranger positions + active patrol tracks are always live (not date-filtered).
+   */
+  dateFrom?: Date;
+  dateTo?: Date;
 };
 
-export function InteractiveMap({ className }: InteractiveMapProps) {
+export function InteractiveMap({
+  className,
+  dateFrom,
+  dateTo,
+}: InteractiveMapProps) {
   const subjectsQuery = trpc.map.subjects.list.useQuery();
-  const eventsQuery = trpc.map.events.list.useQuery({});
+  const eventsQuery = trpc.map.events.list.useQuery({
+    ...(dateFrom !== undefined ? { from: dateFrom } : {}),
+    ...(dateTo !== undefined ? { to: dateTo } : {}),
+  });
   const patrolAreasQuery = trpc.map.patrolAreas.list.useQuery({
     activeOnly: true,
   });
@@ -67,6 +98,10 @@ export function InteractiveMap({ className }: InteractiveMapProps) {
   const [showTracks, setShowTracks] = useState(true);
   const [trackVisibility, setTrackVisibility] = useState<PatrolTrackVisibility>(
     DEFAULT_TRACK_VISIBILITY,
+  );
+  // Event-marker layers — both OFF by default (operator-triggered).
+  const [eventLayers, setEventLayers] = useState<EventLayerVisibility>(
+    DEFAULT_EVENT_LAYERS,
   );
 
   const visibleTracks = useMemo(
@@ -84,6 +119,21 @@ export function InteractiveMap({ className }: InteractiveMapProps) {
       s.lastPositionLat !== null && s.lastPositionLon !== null,
   );
   const events = eventsQuery.data ?? [];
+
+  // Only render event markers whose category bucket is toggled on. Events that
+  // are neither law-enforcement nor monitoring (uncategorised / analyzer) are
+  // hidden — matching the dashboard breakdown, which buckets only these two.
+  const visibleEvents = useMemo(
+    () =>
+      events.filter((e) => {
+        const cat = e.eventType?.category;
+        if (cat === EVENT_CATEGORY.lawEnforcement)
+          return eventLayers.lawEnforcement;
+        if (cat === EVENT_CATEGORY.monitoring) return eventLayers.monitoring;
+        return false;
+      }),
+    [events, eventLayers],
+  );
 
   const trackCoordinates: [number, number][] = (
     patrolTracksQuery.data?.points ?? []
@@ -138,6 +188,10 @@ export function InteractiveMap({ className }: InteractiveMapProps) {
         visibility={trackVisibility}
         onTypeVisibilityChange={(type: PatrolType, next: boolean) => {
           setTrackVisibility((prev) => ({ ...prev, [type]: next }));
+        }}
+        eventLayers={eventLayers}
+        onEventLayerChange={(layer, next) => {
+          setEventLayers((prev) => ({ ...prev, [layer]: next }));
         }}
         className="shrink-0"
       />
@@ -222,7 +276,7 @@ export function InteractiveMap({ className }: InteractiveMapProps) {
           </MapMarker>
         ))}
 
-        {events.map((event) => (
+        {visibleEvents.map((event) => (
           <MapMarker
             key={`event-${event.id}`}
             longitude={event.locationLon as number}

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { ClockCard } from "./clock-card";
 import { Sparkline } from "./sparkline";
@@ -42,14 +43,23 @@ export function KpiStrip({
   kpis,
   lastSyncedAt,
   onSelectKpi,
+  leading,
 }: {
   kpis: Kpi[];
   lastSyncedAt?: number | undefined;
   /** Called with a tile's drill-down descriptor when a clickable tile fires. */
   onSelectKpi?: (drilldown: KpiDrilldown) => void;
+  /**
+   * Optional element rendered flush at the start of the strip (2026-06-27): the
+   * Command Center folds its FROM/TO date picker in here so the date controls
+   * and the KPI tiles share one slim band instead of two stacked rows, freeing
+   * vertical height for the live panels below.
+   */
+  leading?: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap items-stretch gap-2">
+      {leading}
       {kpis.map((k) => {
         const clickable = k.drilldown !== undefined && onSelectKpi !== undefined;
         const drilldown = k.drilldown;
@@ -72,7 +82,7 @@ export function KpiStrip({
                   },
                 }
               : {})}
-            className={`flex min-w-[8rem] flex-1 items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 ${
+            className={`flex min-w-[8rem] flex-1 items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 ${
               clickable
                 ? "cursor-pointer hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 : ""
@@ -83,7 +93,7 @@ export function KpiStrip({
               <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 {k.label}
               </div>
-              <div className={`text-xl font-extrabold ${k.valueClass}`}>
+              <div className={`text-lg font-extrabold leading-tight ${k.valueClass}`}>
                 {k.value}
               </div>
               {k.sub !== undefined && (

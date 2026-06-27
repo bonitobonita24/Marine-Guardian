@@ -9,6 +9,12 @@ const STALE_THRESHOLD_MS = 60 * 60 * 1000;
 const eventsListInput = z
   .object({
     since: z.date().optional(),
+    // War Room range filter (2026-06-27): the Command Center passes the active
+    // FROM/TO window so the map's event markers follow the same date range as
+    // the dashboard breakdown / feed. The standalone Live Map omits both and
+    // keeps showing the live (unfiltered) event set.
+    from: z.coerce.date().optional(),
+    to: z.coerce.date().optional(),
   })
   .strict();
 
@@ -115,7 +121,7 @@ const eventsRouter = router({
       locationLat: { not: null };
       locationLon: { not: null };
       NOT: { eventType: { display: { contains: string; mode: "insensitive" } } };
-      reportedAt?: { gte: Date };
+      reportedAt?: { gte?: Date; lte?: Date };
     } = {
       tenantId: ctx.tenantId,
       locationLat: { not: null },
@@ -125,8 +131,13 @@ const eventsRouter = router({
       // category="analyzer_event" with the marker only in eventType.display).
       NOT: { eventType: { display: { contains: "skylight", mode: "insensitive" } } },
     };
-    if (input.since) {
-      where.reportedAt = { gte: input.since };
+    // `since` is the legacy lower-bound; `from`/`to` are the War Room window.
+    const reportedAt: { gte?: Date; lte?: Date } = {};
+    if (input.since) reportedAt.gte = input.since;
+    if (input.from) reportedAt.gte = input.from;
+    if (input.to) reportedAt.lte = input.to;
+    if (reportedAt.gte !== undefined || reportedAt.lte !== undefined) {
+      where.reportedAt = reportedAt;
     }
 
     const rows = await prisma.event.findMany({

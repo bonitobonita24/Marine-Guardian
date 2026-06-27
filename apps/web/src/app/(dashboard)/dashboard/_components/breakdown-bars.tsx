@@ -180,26 +180,14 @@ export function BreakdownBars({
               </BarChart>
             </ChartContainer>
 
-            {/* Pro legend row: color swatch + label + count, top item only */}
-            <div className="mt-1 flex items-center gap-1.5">
-              <span
-                className="inline-block h-2 w-3 rounded-sm"
-                style={{ background: colorVar }}
-              />
-              <span className="text-[9px] text-muted-foreground">
-                {config.count.label}
-              </span>
-              <span className="ml-auto text-[9px] font-semibold tabular-nums text-foreground">
-                {chartData[0]?.type ?? "—"}:{" "}
-                {(chartData[0]?.count ?? 0).toLocaleString()}
-              </span>
-            </div>
-
-            {/* Keyboard-accessible drill-down list (T5b). The SVG bars are not
-                natively focusable, so this mirrors them as role="button" rows so
-                keyboard + screen-reader users can drill into each event type. */}
+            {/* Screen-reader / keyboard drill-down list (T5b). Visually hidden
+                (sr-only) per the owner's 2026-06-27 request to show only the bar
+                chart with the count at each bar's end — but kept in the a11y tree
+                because the SVG bars are not natively focusable, so keyboard +
+                screen-reader users still get a focusable button per event type
+                (WCAG 2.2 AA / Rule 33 gov-LGU gate). */}
             {onSelectType !== undefined && (
-              <ul className="mt-1.5 flex flex-col gap-0.5">
+              <ul className="sr-only">
                 {chartData.map((d) => (
                   <li key={d.type}>
                     <button

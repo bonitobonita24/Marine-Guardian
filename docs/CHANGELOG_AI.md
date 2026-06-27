@@ -3,6 +3,24 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-06-27 — Phase 7: Command Center fullscreen layout overhaul + map event toggles + full range-binding
+
+- Agent:               CLAUDE_CODE (Opus 4.8 — Full Auto, branch feat/cc-warroom-layout-overhaul)
+- Why:                 Owner review of the fullscreen War Room (8 items): the previous "compress to fit" attempt made cards collapse and overlap. Owner direction: reclaim vertical height (slim KPI band + fold the date picker in), give each live panel a bounded internal scroll, simplify the breakdown cards to just the bar chart, relax the municipality chart's height, add map event-layer toggles (default off), and make EVERY Command Center panel — including the map's event markers — follow the FROM/TO range (default last 7 days).
+- Files added:         none
+- Files modified:      apps/web/src/app/(dashboard)/dashboard/page.tsx, apps/web/src/app/(dashboard)/dashboard/_components/kpi-strip.tsx, apps/web/src/app/(dashboard)/dashboard/_components/date-range-header.tsx, apps/web/src/app/(dashboard)/dashboard/_components/breakdown-bars.tsx, apps/web/src/app/(dashboard)/dashboard/_components/municipality-coverage-chart.tsx, apps/web/src/components/map/InteractiveMap.tsx, apps/web/src/components/map/TrackLegend.tsx, apps/web/src/server/trpc/routers/alertHistory.ts, apps/web/src/server/trpc/routers/map.ts, docs/CHANGELOG_AI.md
+- Files deleted:       none
+- Schema/migrations:   none — both server changes are additive optional inputs.
+- Implementation:
+  • Layout (#5/#6, fixes the overlap): dashboard root is now an explicit CSS grid `grid-rows-[auto_minmax(0,1fr)_auto]` so the KPI band, the map+rail row, and the analytics band occupy three non-overlapping rows (the middle row absorbs all slack). The FROM/TO date picker is folded into the LEFT of the KPI strip via a new `leading` slot on KpiStrip (one slim band instead of two stacked rows); KPI tiles slimmed (py-1.5, value text-lg); DateRangeHeader compacted (h-7 inline controls). Each live rail panel already scrolls internally (ScrollArea) — the grid bounds the row so they never push past the viewport.
+  • Breakdown cards (#1/#2): removed the redundant visible legend row + visible drill-down list; the card now shows only the bar chart with the count at each bar's end. The keyboard/SR drill-down buttons are kept as `sr-only` (the SVG bars aren't focusable — preserves the WCAG 2.2 AA / Rule 33 keyboard path).
+  • Municipality Coverage (#3): chart height 9rem → 15rem, bar size 8 → 11 — relaxed, uses its height.
+  • Map event toggles (#7): TrackLegend gains two horizontal-toolbar toggles (Law enforcement = chart-1 diamond, Monitoring = chart-2 diamond), both default OFF; InteractiveMap filters event markers client-side by the real EarthRanger eventType.category buckets ("law-enforcement-and-apprehensions" / "monitoring_patrolling_and_surveillance") — the same buckets the dashboard breakdown uses. Foot + Seaborne patrol tracks remain the always-on baseline; events are operator-triggered.
+  • Full range-binding (#8): alertHistory.list gains optional dateFrom/dateTo (firedAt gte/lte) and the Alerts panel now passes the active range — it was the one dashboard query not yet range-bound. map.events.list gains optional from/to (reportedAt gte/lte); InteractiveMap accepts an optional dateFrom/dateTo and the Command Center passes the range, so map event markers follow the window too (verified: 33 law-enf markers all-time → 9 in the 7-day range, matching the breakdown card's "9 total"). The standalone Live Map page passes no range and stays live. Ranger-position + active-patrol-track overlays remain live (last-known position can't be meaningfully date-filtered).
+- Tests:               no test changes required (presentational + additive-optional inputs). Web vitest 1055/1055 green unchanged.
+- Visual QA (Rule 16): PASS — Playwright 1920×1080, login admin@mail.com, dev image rebuilt+recreated before QA. Fullscreen (FullscreenShell, chrome hidden): KPI band → map+rail → analytics band cleanly separated, NO overlap, all 5 analytics cards fully visible, ops rail scrolls internally, map framed on the Philippines. Map toggles verified: Law-enforcement ON renders 9 in-range diamonds (= breakdown count); default OFF. 0 console errors.
+- Phase 7 gate:        Hard pre-merge gate 4/4 green — pnpm tools:check-product-sync ✅, pnpm typecheck ✅ (7/7), pnpm --filter @marine-guardian/web test ✅ (1055/1055), pnpm --filter @marine-guardian/web build ✅ (Next.js production build, ESLint-strict).
+
 ## 2026-06-27 — Phase 7 fix: Command Center chart colors + fullscreen layout overflow
 
 - Agent:               CLAUDE_CODE (Opus 4.8 — Full Auto resume, branch fix/cc-chart-color-fullscreen)
