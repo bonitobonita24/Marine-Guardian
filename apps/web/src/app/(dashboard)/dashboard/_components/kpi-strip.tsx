@@ -95,14 +95,14 @@ export function KpiStrip({
           >
             <k.icon className={`h-5 w-5 shrink-0 ${k.valueClass}`} aria-hidden="true" />
             <div className="min-w-0">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              <div className="line-clamp-2 text-[10px] font-bold uppercase leading-tight tracking-wider text-muted-foreground">
                 {k.label}
               </div>
               <div className={`text-lg font-extrabold leading-tight ${k.valueClass}`}>
                 {k.value}
               </div>
               {k.sub !== undefined && (
-                <div className={`text-[10px] ${k.subClass ?? "text-muted-foreground"}`}>
+                <div className={`truncate text-[10px] ${k.subClass ?? "text-muted-foreground"}`}>
                   {k.sub}
                 </div>
               )}
@@ -111,7 +111,7 @@ export function KpiStrip({
               <Sparkline
                 data={k.trend}
                 colorVar={k.trendColorVar}
-                className="ml-auto hidden h-[18px] w-16 self-center sm:block"
+                className="ml-auto hidden h-[16px] w-10 self-center lg:block"
               />
             )}
           </div>

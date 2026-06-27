@@ -4,7 +4,6 @@ import type { KeyboardEvent } from "react";
 import { Siren } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { priorityLabel, priorityLevel, relativeShort } from "./lib";
 
 /**
@@ -76,7 +75,7 @@ export function AlertsPanel({
         </span>
       </div>
 
-      <ScrollArea className="max-h-44">
+      <div className="max-h-44 overflow-y-auto">
         <ul className="space-y-1 p-2">
           {isLoading ? (
             <li className="px-2 py-6 text-center text-xs text-muted-foreground">
@@ -192,7 +191,7 @@ export function AlertsPanel({
             })
           )}
         </ul>
-      </ScrollArea>
+      </div>
     </section>
   );
 }

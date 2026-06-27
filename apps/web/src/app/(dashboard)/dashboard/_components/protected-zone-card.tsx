@@ -89,7 +89,11 @@ export function ProtectedZoneCard({
         ) : sorted.length === 0 ? (
           <p className="py-3 text-[10px] text-muted-foreground">No protected zones</p>
         ) : (
-          <ul className="mt-1 flex flex-col gap-2">
+          // Bounded + internally scrollable (hidden bar via .command-center CSS)
+          // so the card stays a fixed height as more MPAs/zones are added — the
+          // extra rows scroll into view instead of growing the card. (2026-06-27)
+          <div className="max-h-44 overflow-y-auto">
+          <ul className="mt-1 flex flex-col gap-2 pr-1">
             {sorted.map((z) => (
               <li key={z.zone} className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
@@ -121,6 +125,7 @@ export function ProtectedZoneCard({
               </li>
             ))}
           </ul>
+          </div>
         )}
       </CardContent>
     </Card>

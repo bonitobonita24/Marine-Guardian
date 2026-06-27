@@ -7,7 +7,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ShieldCheck } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { elapsedHm, formatKm, patrolTypeMeta } from "./lib";
 
 /**
@@ -55,7 +54,7 @@ export function ActivePatrols({
         </span>
       </div>
 
-      <ScrollArea className="max-h-44">
+      <div className="max-h-44 overflow-y-auto">
         {isLoading ? (
           <p className="px-3 py-6 text-center text-xs text-muted-foreground">
             Loading patrols…
@@ -139,7 +138,7 @@ export function ActivePatrols({
             </TableBody>
           </Table>
         )}
-      </ScrollArea>
+      </div>
     </section>
   );
 }

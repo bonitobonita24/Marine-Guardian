@@ -1,5 +1,4 @@
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   priorityDotClass,
   priorityLabel,
@@ -71,7 +70,7 @@ export function EventFeed({
         </h2>
       </div>
 
-      <ScrollArea className="flex-1">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         <ul className="space-y-0.5 p-2">
           {isLoading ? (
             <li className="px-2 py-6 text-center text-xs text-muted-foreground">
@@ -147,7 +146,7 @@ export function EventFeed({
             })
           )}
         </ul>
-      </ScrollArea>
+      </div>
     </section>
   );
 }

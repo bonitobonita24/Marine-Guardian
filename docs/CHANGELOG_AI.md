@@ -3,6 +3,21 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-06-27 — Phase 7 fix: Command Center compact KPI tiles + ALL group cards actually scroll
+
+- Agent:               CLAUDE_CODE (Opus 4.8 — Full Auto, branch fix/cc-compact-kpi-card-scroll)
+- Why:                 Owner review: (1) the KPI tiles were still "too high" — uniform but TALL with empty space, because items-stretch matched every tile to the verbose "Events This Month" tile whose label + "-206 vs last month" sub wrapped to 3 lines each; tiles "must be small and automatically adjust the contents inside". (2) Group cards (Ranger Roster 56, Recent Patrols 15) showed only the top few rows and the rest were UNREACHABLE — "must be scrollable at all times". Root cause: the shadcn ScrollArea's inner viewport uses height:100%, which does NOT bound against a max-height-only parent, so the viewport grew to full content (e.g. 1651px for 56 rangers) and the card merely CLIPPED it — no scroll.
+- Files added:         none
+- Files modified:      apps/web/src/app/(dashboard)/dashboard/_components/kpi-strip.tsx, ranger-roster.tsx, active-patrols.tsx, alerts-panel.tsx, event-feed.tsx, protected-zone-card.tsx, docs/CHANGELOG_AI.md
+- Files deleted:       none
+- Schema/migrations:   none
+- Implementation:
+  • Compact KPI tiles: KPI label is now line-clamp-2 + leading-tight, the sub is truncate (1 line), and the trend sparkline shrank (w-16→w-10, lg-only) so it no longer squeezes the text column. The tallest tile is now ~64px, so items-stretch yields tight, uniform tiles — measured KPI band height dropped from ~155px to 77px. Content auto-adjusts (clamps/truncates) to keep tiles small at any width.
+  • Scrollable group cards: replaced the shadcn <ScrollArea> with a native overflow-y-auto div in every list card — native overflow correctly respects max-height (and flex), and the scrollbar is already hidden by the .command-center CSS. Ranger Roster: max-h-[15rem] (fills the analytics card, scrolls all 56); Recent Patrols + Alerts: max-h-44; Event Feed: min-h-0 flex-1; Protected Zones: max-h-44 (future MPAs). NOTE: Ranger Roster intentionally uses max-h rather than flex-1 — flex-1 inside the auto-sized analytics grid let the full 56-row list drive the grid row taller instead of bounding it. Removed the now-unused ScrollArea imports.
+- Tests:               no test changes (presentational). Web vitest 1055/1055 green.
+- Visual QA (Rule 16): PASS — Playwright, dev image rebuilt+recreated first. 1600×900: KPI band 77px (compact, uniform), edgy corners, no overlap. DOM eval verified every group card scrolls with barWidthPx=0: Ranger Roster (clientH 240, overflow 1411, scrolls:true), Recent Patrols (176/640, scrolls:true), Event Feed (scrolls:true), Alerts (scrolls:true), Protected Zones (fits now, bounded for growth). 0 console errors.
+- Phase 7 gate:        Hard pre-merge gate 4/4 green — pnpm tools:check-product-sync ✅, pnpm typecheck ✅ (7/7), pnpm --filter @marine-guardian/web test ✅ (1055/1055), pnpm --filter @marine-guardian/web build ✅ (Next.js production build, ESLint-strict).
+
 ## 2026-06-27 — Phase 7 polish: Command Center uniform KPI tiles + edgy corners + hidden scrollbars
 
 - Agent:               CLAUDE_CODE (Opus 4.8 — Full Auto, branch fix/cc-tiles-edgy-scrollbars)

@@ -1,5 +1,4 @@
 import { Users } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { relativeShort } from "./lib";
 
 /**
@@ -64,9 +63,9 @@ export function RangerRoster({
   return (
     <section
       aria-labelledby="warroom-roster-heading"
-      className="min-w-0 flex-1 overflow-hidden rounded-xl border border-border bg-card"
+      className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card"
     >
-      <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+      <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2">
         <Users className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         <h2
           id="warroom-roster-heading"
@@ -80,7 +79,12 @@ export function RangerRoster({
         </span>
       </div>
 
-      <ScrollArea className="max-h-44">
+      {/* Native max-height scroll region (not shadcn ScrollArea, whose inner
+          viewport ignores max-height) — bounds the 56-row roster and scrolls;
+          scrollbar hidden by the .command-center CSS. A max-h (not flex-1) is
+          used on purpose: flex-1 inside the auto-sized analytics grid lets the
+          full list drive the row taller instead of bounding it. (2026-06-27) */}
+      <div className="max-h-[15rem] overflow-y-auto">
         {isLoading ? (
           <p className="px-3 py-6 text-center text-xs text-muted-foreground">
             Loading roster…
@@ -118,7 +122,7 @@ export function RangerRoster({
             })}
           </ul>
         )}
-      </ScrollArea>
+      </div>
     </section>
   );
 }
