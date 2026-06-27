@@ -3,6 +3,27 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-06-28 — Phase 7 fix: municipal-waters municipality assignment (branch feat/municipal-waters-assignment)
+
+- Agent:               CLAUDE_CODE (Opus 4.8 — Full Auto)
+- Why:                 Owner reported the Interactive Report Map showed implausibly few events for a full-year municipality filter (Calapan City 2025 = 87 of 23,302 synced events). Root cause (verified against dev DB): municipality assignment is point-in-polygon against LAND boundaries, but this is a MARINE operation — ~96% of geo-located events occur in coastal water OUTSIDE every municipal land polygon, so they were assigned municipalityId=NULL and silently dropped by the report's municipality filter. NOT an EarthRanger sync gap (events were all present) and NOT a code/coordinate bug (boundaries + lat/lon verified correct). The land-only jurisdiction model was wrong for the domain.
+- Files added:         none
+- Files modified:      packages/shared/src/lib/municipality-assignment/index.ts, packages/shared/src/lib/municipality-assignment/__tests__/index.test.ts, packages/shared/package.json, pnpm-lock.yaml, docs/CHANGELOG_AI.md, docs/IMPLEMENTATION_MAP.md, .cline/STATE.md
+- Files deleted:       none
+- Schema/migrations:   none (data-only re-attribution via existing backfill script)
+- Dependencies:        + @turf/point-to-polygon-distance ^7.1.0 (packages/shared)
+- Implementation:
+  • assignMunicipalityToPoint is now two-stage: (1) on-land containment (booleanPointInPolygon — unchanged, takes precedence), then (2) MUNICIPAL WATERS — attribute an offshore point to the NEAREST municipality whose boundary lies within MUNICIPAL_WATERS_KM (default 15 km, configurable 3rd param). 15 km = the PH legal municipal-waters reach (RA 7160 §131 / RA 8550). Nearest-coastline gives the equidistant sea partition used in practice (no overlap-ambiguity). Returns null only beyond 15 km from every municipality (open/national waters or bad coords). Signature backward-compatible (optional param) — processor + backfill callers unchanged.
+  • Re-ran scripts/backfill-municipality-assignment.ts --force over all tenants: demo-site 35,708 events + 4,605 patrols re-attributed.
+- Data impact (demo-site, verified via SQL):
+  • Unassigned 2025 REPORT events (Skylight-excluded): 22,887 → 31.  Patrols unassigned: 65.
+  • Calapan City 2025: events 87→162 (report), patrols 199→235.
+  • Report distribution now balanced across LGUs (Roxas 239, Araceli 189, Calapan 162, Dumaran 82, …).
+  • Skylight automated vessel-detections (excluded from the report) correctly attributed to Verde Island Passage LGUs (Puerto Galera 19,698, Abra de Ilog 2,406) — the earlier "82% Puerto Galera" was entirely shipping-lane Skylight, not report activity.
+- Tests:               +3 municipal-waters cases (shared assignment suite 9→12; offshore-within-15km → nearest muni, >15km → null, nearest-not-first-listed). Full suite green.
+- Phase 7 gate:        Hard pre-merge gate 4/4 green — pnpm tools:check-product-sync ✅, pnpm typecheck ✅ (7/7), pnpm test ✅ (web 1089 + shared 12), pnpm --filter @marine-guardian/web build ✅ (Next.js prod build, ESLint-strict). NOTE: first gate run failed because a FILTERED `pnpm install --filter shared...` unlinked vitest from apps/web (pnpm hoist regression — see lessons); a full `pnpm install` restored it.
+- Deploy:              merged to main + pushed origin (owner-approved). Staging/prod deploy HOLD stands. NOTE: jobs Docker image must be rebuilt for the live municipality-assign processor to pick up the new lib + dep (done in dev).
+
 ## 2026-06-27 — Phase 7 feature: Interactive Report Map (sub-batches 2–6, branch feat/report-map-markers)
 
 - Agent:               CLAUDE_CODE (Opus 4.8 — Full Auto)

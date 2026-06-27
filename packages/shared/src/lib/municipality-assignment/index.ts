@@ -17,6 +17,7 @@
 
 import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
 import booleanIntersects from "@turf/boolean-intersects";
+import pointToPolygonDistance from "@turf/point-to-polygon-distance";
 import { point as turfPoint } from "@turf/helpers";
 import type { MunicipalityForAssignment, ProtectedZoneForAssignment } from "./types";
 
@@ -39,29 +40,73 @@ function unwrapGeojson(raw: unknown): GeoJSON.Feature | GeoJSON.Geometry {
 // ── Layer 1 — Municipality (exclusive) ────────────────────────────────────────
 
 /**
+ * Municipal-waters reach in kilometres. Philippine LGUs hold jurisdiction over
+ * municipal waters extending ~15 km seaward from their coastline
+ * (RA 7160 §131, RA 8550 "Philippine Fisheries Code"). Because this is a marine
+ * operation, the overwhelming majority of events/patrols occur in the water OFF
+ * the land polygon — so after the on-land containment test we attribute a point
+ * to the nearest municipality whose boundary lies within this distance.
+ */
+export const MUNICIPAL_WATERS_KM = 15;
+
+/**
  * Assign a geographic point to a municipality.
  *
- * Iterates over all municipalities for the tenant and returns the id of the
- * first one whose boundary polygon contains the point.  Returns null if the
- * point is outside every polygon (open ocean, no data).
+ * Two-stage attribution:
+ *   1. On-land containment (exclusive) — a point inside a municipality's land
+ *      polygon belongs to that municipality.
+ *   2. Municipal waters — otherwise attribute the point to the NEAREST
+ *      municipality whose boundary is within `maxWaterDistanceKm` (default
+ *      MUNICIPAL_WATERS_KM). Gives the equidistant sea partition used in
+ *      practice and captures marine events sitting just offshore of land.
+ *
+ * Returns null only when the point is farther than `maxWaterDistanceKm` from
+ * every municipality (open/national waters, or bad coordinates).
  *
  * @param point  - { lat, lon } — WGS-84 decimal degrees
  * @param municipalities - array loaded from DB (one per tenant)
+ * @param maxWaterDistanceKm - seaward reach; defaults to MUNICIPAL_WATERS_KM
  * @returns municipality id, or null
  */
 export function assignMunicipalityToPoint(
   point: { lat: number; lon: number },
   municipalities: MunicipalityForAssignment[],
+  maxWaterDistanceKm: number = MUNICIPAL_WATERS_KM,
 ): string | null {
   const tPoint = turfPoint([point.lon, point.lat]);
 
+  // 1. On-land containment takes precedence.
   for (const muni of municipalities) {
     const geojson = unwrapGeojson(muni.boundaryGeojson);
-    if (booleanPointInPolygon(tPoint, geojson as Parameters<typeof booleanPointInPolygon>[1])) {
+    if (
+      booleanPointInPolygon(
+        tPoint,
+        geojson as Parameters<typeof booleanPointInPolygon>[1],
+      )
+    ) {
       return muni.id;
     }
   }
-  return null;
+
+  // 2. Municipal waters — nearest coastline within the seaward reach.
+  let nearestId: string | null = null;
+  let nearestKm = Infinity;
+  for (const muni of municipalities) {
+    const geojson = unwrapGeojson(muni.boundaryGeojson);
+    const km = Math.abs(
+      pointToPolygonDistance(
+        tPoint,
+        geojson as Parameters<typeof pointToPolygonDistance>[1],
+        { units: "kilometers" },
+      ),
+    );
+    if (km < nearestKm) {
+      nearestKm = km;
+      nearestId = muni.id;
+    }
+  }
+
+  return nearestKm <= maxWaterDistanceKm ? nearestId : null;
 }
 
 // ── Layer 2 — Protected zones (additive) ─────────────────────────────────────

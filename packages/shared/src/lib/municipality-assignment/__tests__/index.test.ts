@@ -131,6 +131,59 @@ describe("assignMunicipalityToPoint", () => {
     // Returns the first hit only (Layer-1 is exclusive)
     expect(result).toBe("muni-calapan");
   });
+
+  it("attributes an offshore point to the nearest municipality within municipal waters (~15 km)", () => {
+    // ~11 km west of Calapan's land edge (lon 121.10) at lat 13.40 — open water
+    // inside the 15 km municipal-waters reach.
+    const result = assignMunicipalityToPoint({ lat: 13.4, lon: 121.0 }, [
+      calapanMuni,
+    ]);
+    expect(result).toBe("muni-calapan");
+  });
+
+  it("returns null for a point beyond municipal waters (>15 km offshore)", () => {
+    // ~22 km west of Calapan's land edge — outside the 15 km reach.
+    const result = assignMunicipalityToPoint({ lat: 13.4, lon: 120.9 }, [
+      calapanMuni,
+    ]);
+    expect(result).toBeNull();
+  });
+
+  it("attributes an offshore point to the NEAREST municipality, not the first listed", () => {
+    const southMuni: MunicipalityForAssignment = {
+      id: "muni-south",
+      slug: "south",
+      name: "South",
+      boundaryGeojson: {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            properties: { shapeName: "South" },
+            geometry: {
+              type: "Polygon",
+              coordinates: [
+                [
+                  [121.1, 12.5],
+                  [121.3, 12.5],
+                  [121.3, 12.8],
+                  [121.1, 12.8],
+                  [121.1, 12.5],
+                ],
+              ],
+            },
+          },
+        ],
+      },
+    };
+    // Point ~11 km south of South's edge (12.80) but ~39 km from Calapan's
+    // edge (13.25) — nearest is South even though Calapan is listed first.
+    const result = assignMunicipalityToPoint({ lat: 12.9, lon: 121.2 }, [
+      calapanMuni,
+      southMuni,
+    ]);
+    expect(result).toBe("muni-south");
+  });
 });
 
 describe("assignZonesToPoint", () => {
