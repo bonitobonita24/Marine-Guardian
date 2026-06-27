@@ -132,6 +132,61 @@ describe("municipalityCoverage.municipalityCoverage — range scoping (T4b)", ()
   });
 });
 
+describe("municipalityCoverage.municipalityCoverage — Skylight + municipality scope", () => {
+  it("excludes Skylight events from the event group-by", async () => {
+    const caller = createCaller(makeCtx());
+    await caller.municipalityCoverage({ dateFrom: FROM, dateTo: TO });
+
+    const eventArgs = mockPrisma.event.groupBy.mock.calls[0]?.[0] as {
+      where: {
+        NOT: { eventType: { display: { contains: string; mode: string } } };
+      };
+    };
+    expect(eventArgs.where.NOT.eventType.display.contains).toBe("skylight");
+    expect(eventArgs.where.NOT.eventType.display.mode).toBe("insensitive");
+  });
+
+  it("scopes municipalities + both group-bys to the supplied municipalityId", async () => {
+    const caller = createCaller(makeCtx());
+    await caller.municipalityCoverage({ municipalityId: "muni-1" });
+
+    const muniArgs = mockPrisma.municipality.findMany.mock.calls[0]?.[0] as {
+      where: { id?: string };
+    };
+    expect(muniArgs.where.id).toBe("muni-1");
+
+    const patrolArgs = mockPrisma.patrol.groupBy.mock.calls[0]?.[0] as {
+      where: { municipalityId: unknown };
+    };
+    expect(patrolArgs.where.municipalityId).toBe("muni-1");
+
+    const eventArgs = mockPrisma.event.groupBy.mock.calls[0]?.[0] as {
+      where: { municipalityId: unknown };
+    };
+    expect(eventArgs.where.municipalityId).toBe("muni-1");
+  });
+
+  it("counts every assigned municipality (not-null) when municipalityId is omitted", async () => {
+    const caller = createCaller(makeCtx());
+    await caller.municipalityCoverage({ dateFrom: FROM, dateTo: TO });
+
+    const muniArgs = mockPrisma.municipality.findMany.mock.calls[0]?.[0] as {
+      where: { id?: string };
+    };
+    expect(muniArgs.where.id).toBeUndefined();
+
+    const patrolArgs = mockPrisma.patrol.groupBy.mock.calls[0]?.[0] as {
+      where: { municipalityId: unknown };
+    };
+    expect(patrolArgs.where.municipalityId).toEqual({ not: null });
+
+    const eventArgs = mockPrisma.event.groupBy.mock.calls[0]?.[0] as {
+      where: { municipalityId: unknown };
+    };
+    expect(eventArgs.where.municipalityId).toEqual({ not: null });
+  });
+});
+
 describe("municipalityCoverage.protectedZoneCoverage — range scoping (T4b)", () => {
   it("threads { dateFrom, dateTo } into the assignedAt filter", async () => {
     const caller = createCaller(makeCtx());

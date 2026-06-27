@@ -60,6 +60,7 @@ function ReportMapInner() {
   const coverage = trpc.municipalityCoverage.municipalityCoverage.useQuery({
     dateFrom: from,
     dateTo: to,
+    ...(municipalityId !== null ? { municipalityId } : {}),
   });
 
   const label = rangeLabel(from, to);

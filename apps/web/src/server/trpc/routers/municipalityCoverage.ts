@@ -35,6 +35,10 @@ export const municipalityCoverageRouter = router({
           // War Room range (preferred — mirrors dashboard.ts).
           dateFrom: z.coerce.date().optional(),
           dateTo: z.coerce.date().optional(),
+          // Optional municipality scope (Report Map filter). When supplied, the
+          // chart is restricted to that single municipality; when omitted it
+          // shows every municipality (province-wide) as before.
+          municipalityId: z.string().optional(),
           // Legacy fields retained for backward compatibility.
           since: z.date().optional(),
           until: z.date().optional(),
@@ -49,9 +53,19 @@ export const municipalityCoverageRouter = router({
         new Date(Date.now() - THIRTY_DAYS_MS);
       const until = input?.dateTo ?? input?.until ?? new Date();
 
+      // When a municipality is selected, scope both group-bys to that id;
+      // otherwise count every assigned municipality (municipalityId not null).
+      const municipalityFilter: string | { not: null } =
+        input?.municipalityId != null ? input.municipalityId : { not: null };
+
       const [municipalities, patrolCounts, eventCounts] = await Promise.all([
         prisma.municipality.findMany({
-          where: { tenantId: ctx.tenantId },
+          where: {
+            tenantId: ctx.tenantId,
+            ...(input?.municipalityId != null
+              ? { id: input.municipalityId }
+              : {}),
+          },
           select: { id: true, name: true, province: true, slug: true },
           orderBy: { name: "asc" },
         }),
@@ -62,7 +76,7 @@ export const municipalityCoverageRouter = router({
             isDeleted: false,
             isTestPatrol: false,
             startTime: { gte: since, lte: until },
-            municipalityId: { not: null },
+            municipalityId: municipalityFilter,
           },
           _count: { id: true },
         }),
@@ -71,7 +85,17 @@ export const municipalityCoverageRouter = router({
           where: {
             tenantId: ctx.tenantId,
             reportedAt: { gte: since, lte: until },
-            municipalityId: { not: null },
+            municipalityId: municipalityFilter,
+            // Exclude Skylight automated vessel-detection events so the coverage
+            // chart's event counts match the Skylight-excluded KPI tiles and
+            // breakdown bars (same display-based filter as dashboard.ts /
+            // reportMap.ts — Skylight events carry an eventType.display of
+            // "Skylight …").
+            NOT: {
+              eventType: {
+                display: { contains: "skylight", mode: "insensitive" },
+              },
+            },
           },
           _count: { id: true },
         }),
