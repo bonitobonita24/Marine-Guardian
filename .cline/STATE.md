@@ -5,6 +5,24 @@
 #   PHASE: Phase 7. P2 SHIPPED to main; P1 code committed (branch) + live backfill running.
 #   Staging/prod HOLD stands. Pushes to origin/main approved (owner).
 #
+# ⏸️⏸️ BACKFILL PAUSED FOR PC SHUTDOWN 2026-06-28 (~08:3x) — RESUME FIRST NEXT SESSION ⏸️⏸️
+#   Owner shut the PC down mid-backfill. PROGRESS (authoritative = Postgres, survives reboot):
+#   event_assets uploaded (demo-site) = 1193 of 12,775 files (~9%); 1189 new this session carry mime+size
+#   (the +4 are prior-session rows w/ NULL mime). The /tmp scratchpad log is WIPED on reboot — ignore it;
+#   the DB is the source of truth. Backfill is IDEMPOTENT (skips uploadedAt!=null per tenantId_erFileId),
+#   so RESUME = just re-run; it re-pages 358 ER pages (~3-5 min), fast-skips the ~1193 done, continues.
+#   RESUME COMMAND (from repo root, on branch feat/telegram-photo-backfill):
+#     git checkout feat/telegram-photo-backfill   # archiver code w/ pagination lives here, NOT on main yet
+#     pnpm --filter @marine-guardian/jobs exec tsx ../../scripts/archive-er-assets.ts --limit 100000 --delay-ms 1000
+#   (Optionally re-run detached: setsid bash -c '<cmd>' >> /some/persistent/log 2>&1 </dev/null & )
+#   ER TOKEN: fresh JerlanL token minted 2026-06-28 ~07:0x, expires_in 48h → VALID until ~2026-06-30 07:0x.
+#   Stored in .env.dev (persists, not /tmp) + Server-Setups cloudflare... no: marine-guardian-earthranger.enc.yaml
+#   + tenant_er_connections. IF PC is off >48h: re-mint (owner JerlanL pw) via
+#   `curl -s -X POST https://mindoro.pamdas.org/oauth2/token/ -d grant_type=password -d username=JerlanL
+#    -d password=<pw> -d client_id=das_web_client` → .access_token → update .env.dev DAS_WEB_TOKEN.
+#   AFTER backfill finishes: Visual QA report-map photos (rebuild dev app FIRST) → Phase 7 gate → squash
+#   feat/telegram-photo-backfill (commit cddfcd1) → main → push (no staging/prod) → STATE+memory.
+#
 # ✅ PRIORITY 2 SHIPPED (squash 231e56d, main→origin, branch deleted):
 #   Municipality Coverage chart consistency. municipalityCoverage procedure now (a) EXCLUDES
 #   Skylight from the event group-by (NOT eventType.display ILIKE 'skylight' — same filter as
