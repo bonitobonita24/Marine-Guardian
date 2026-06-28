@@ -216,3 +216,9 @@ export async function assertBucketExists(bucket: string): Promise<void> {
   }
   await client.send(new CreateBucketCommand({ Bucket: bucket }));
 }
+
+// R2 photo cache (24h-TTL read-through cache for Telegram event photos).
+// Lives in its own module with a distinct S3Client (R2 config differs from
+// MinIO); re-exported here so consumers keep the single
+// `@marine-guardian/storage` import path. See ./r2-cache.ts.
+export * from "./r2-cache";

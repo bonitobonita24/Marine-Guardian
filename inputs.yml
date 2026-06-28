@@ -171,6 +171,19 @@ storage:
   # DECISIONS_LOG.md under "ReportExport PDF Storage Backend" (5.3a) +
   # "MinIO Client Library Choice" (5.3c) + "Storage Feature Flag" (5.3c).
 
+r2_cache:
+  enabled: false        # flips on per-env via R2_CACHE_ENABLED (ships dark)
+  provider: cloudflare-r2
+  # Cloudflare R2 used as a 24h-TTL read-through CACHE (not durable storage) for
+  # the Telegram-stored event photos served by /api/assets/[id]. Miss → Telegram
+  # → write-through to R2 → serve; whole-bucket lifecycle expires objects 1 day
+  # after creation (re-populate on next access). Own S3Client in
+  # packages/storage/src/r2-cache.ts (region: auto, forcePathStyle, checksum
+  # WHEN_REQUIRED — R2-compatible). Bucket: marine-guardian-{env}-photo-cache.
+  # Creds: Server-Setups/Powerbyte-Hostinger/secrets/cloudflare-r2.enc.yaml.
+  # Plan: docs/plans/r2-photo-cache-plan.md. Decisions: DECISIONS_LOG.md
+  # "R2 Photo Cache".
+
 maps:
   library: mapcn
   engine: maplibre-gl

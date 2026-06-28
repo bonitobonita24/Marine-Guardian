@@ -865,3 +865,40 @@ Files changed:
   • packages/jobs/src/__tests__/alerts.processor.test.ts — 5 new REGRESSION tests
 Gate: see fix/alert-condition-model PR.
 Locked: yes
+
+## R2 Photo Cache (2026-06-29)
+Decision: Cloudflare R2 is used as a 24h-TTL read-through CACHE (not durable storage)
+for the Telegram-stored event photos served by /api/assets/[id]. On a route MISS the
+bytes are pulled from Telegram (source of truth) and written through to R2; subsequent
+views read from R2 and skip the Telegram round-trip. A whole-bucket R2 lifecycle rule
+expires every object 1 day after creation, so the footprint is the working set only and
+re-populates on the next access — keeping it well under R2's 10 GB/account free tier.
+Rationale: /api/assets proxied Telegram on EVERY view (2 round-trips, no cache, subject
+to Telegram getFile rate limits). Under the Report Map load-storm (many simultaneous
+marker-thumbnail + modal requests) this caused transient getFile rate-limiting that the
+owner saw as "broken/corrupted images". The cache removes the origin→Telegram round-trips.
+Design (locked, see docs/plans/r2-photo-cache-plan.md):
+  • Own lazy S3Client in packages/storage/src/r2-cache.ts — NOT the MinIO singleton.
+    R2 config: endpoint=R2_ENDPOINT, region="auto", forcePathStyle=true,
+    requestChecksumCalculation/responseChecksumValidation="WHEN_REQUIRED" (the AWS SDK
+    v3.729+ default CRC32 request checksums are rejected by R2 on PutObject — verified
+    against aws-sdk-js-v3 docs; WHEN_REQUIRED restores R2-compatible behaviour).
+  • Distinct R2_* env namespace (R2_CACHE_ENABLED, R2_ENDPOINT, R2_ACCOUNT_ID,
+    R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_CACHE_BUCKET). Cache only activates when
+    R2_CACHE_ENABLED="true" AND creds present; otherwise the route is byte-for-byte
+    identical to before (ships dark).
+  • Cache key = ${tenantId}/${assetId} (immutable server id; tenant prefix is
+    defence-in-depth — real auth stays the DB findFirst({id, tenantId}) at the route).
+  • Dedicated bucket marine-guardian-{env}-photo-cache, separate from -exports, with a
+    whole-bucket "expire 1 day after creation" lifecycle configured once by
+    scripts/setup-r2-cache-bucket.ts (idempotent). App code never sets per-object TTL.
+  • Serve = PROXY-STREAM R2 bytes through the existing route (keep manual auth, egress
+    audit, SAFE_INLINE allowlist gating on row.mimeType, sandbox CSP, nosniff). NEVER
+    redirect to a presigned/public R2 URL (capability leak / bypasses audit + rate limit).
+  • Best-effort: R2 read error → fall through to Telegram; R2 write error → swallowed.
+Secrets source (single source of truth, never duplicated into the repo):
+  Server-Setups/Powerbyte-Hostinger/secrets/cloudflare-r2.enc.yaml (sops -d).
+Dev bucket marine-guardian-dev-photo-cache created 2026-06-29 on the owner's Cloudflare
+account; lifecycle verified (Expiration.Days=1). Staging/prod buckets created at their
+respective deploys (staging owner-authorized this session; prod manual/owner-gated).
+Locked: yes
