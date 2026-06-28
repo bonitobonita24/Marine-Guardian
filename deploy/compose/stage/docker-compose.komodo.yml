@@ -1,0 +1,177 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Marine Guardian — STAGING stack (Komodo files-on-host, single combined compose).
+#
+# This is the deployed-on-VPS form of deploy/compose/stage/*.yml, assembled into
+# ONE file for the Komodo `marine-guardian-staging` stack (run_directory
+# /etc/komodo/stacks/marine-guardian-staging). Komodo writes its stack Environment
+# to .env in that dir; docker compose auto-loads it for ${VAR} interpolation and
+# each service injects it via `env_file: .env`.
+#
+# Image pulled from Docker Hub (built+pushed by .github/workflows/docker-publish.yml).
+# NEVER built on the server. Tag pinned per-deploy via the Komodo Variable
+# MARINE_GUARDIAN_STAGING_TAG → APP_IMAGE_TAG=[[MARINE_GUARDIAN_STAGING_TAG]].
+#
+# Services: postgres + valkey + minio + app + worker. pgbouncer/pgadmin/pdf-renderer
+# are intentionally omitted from staging (app connects to postgres directly via
+# INTERNAL_DATABASE_URL; pdf-renderer image is a separate CI follow-up).
+#
+# mem_limit set on every service (V32.10) so MG staging cannot OOM the production
+# stacks sharing this VPS (fmo / crm / pos / n8n).
+# ──────────────────────────────────────────────────────────────────────────────
+networks:
+  app_network:
+    name: ${COMPOSE_PROJECT_NAME}_network
+    driver: bridge
+  proxy:
+    name: ${TRAEFIK_NETWORK:-proxy}
+    external: true
+
+volumes:
+  postgres_data:
+    name: ${COMPOSE_PROJECT_NAME}_postgres_data
+  valkey_data:
+    name: ${COMPOSE_PROJECT_NAME}_valkey_data
+  minio_data:
+    name: ${COMPOSE_PROJECT_NAME}_minio_data
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ${COMPOSE_PROJECT_NAME}_postgres
+    hostname: ${COMPOSE_PROJECT_NAME}_postgres
+    env_file: .env
+    environment:
+      TZ: Asia/Manila
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    mem_limit: 512m
+    mem_reservation: 128m
+    cpus: 0.75
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      # Published on the VPS loopback range so host-side prisma migrate/seed can
+      # reach it over an SSH tunnel. Not exposed publicly (Traefik is HTTP-only).
+      - "${DB_PORT}:5432"
+    networks: [app_network]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  valkey:
+    image: valkey/valkey:7-alpine
+    container_name: ${COMPOSE_PROJECT_NAME}_valkey
+    hostname: ${COMPOSE_PROJECT_NAME}_valkey
+    env_file: .env
+    command: valkey-server --requirepass ${REDIS_PASSWORD} --appendonly yes
+    environment:
+      TZ: Asia/Manila
+    mem_limit: 256m
+    mem_reservation: 64m
+    cpus: 0.5
+    volumes:
+      - valkey_data:/data
+    networks: [app_network]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "valkey-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: ${COMPOSE_PROJECT_NAME}_minio
+    hostname: ${COMPOSE_PROJECT_NAME}_minio
+    env_file: .env
+    environment:
+      TZ: Asia/Manila
+      MINIO_ROOT_USER: ${STORAGE_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${STORAGE_SECRET_KEY}
+    command: server /data --console-address ":9001"
+    mem_limit: 512m
+    mem_reservation: 128m
+    cpus: 0.5
+    volumes:
+      - minio_data:/data
+    networks:
+      app_network:
+        # Hyphenated alias — the AWS S3 SDK rejects underscores in hostnames
+        # (RFC 1123). app + worker reach MinIO via INTERNAL_STORAGE_ENDPOINT=minio-stage.
+        aliases:
+          - minio-stage
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  app:
+    image: ${DOCKERHUB_USERNAME:-bonitobonita24}/marine-guardian:${APP_IMAGE_TAG:-staging-latest}
+    container_name: ${COMPOSE_PROJECT_NAME}_app
+    hostname: ${COMPOSE_PROJECT_NAME}_app
+    env_file: .env
+    environment:
+      TZ: Asia/Manila
+      NODE_ENV: production
+      PORT: "3000"
+      # Containers reach postgres/valkey/minio via Docker hostnames, not localhost.
+      DATABASE_URL: ${INTERNAL_DATABASE_URL}
+      REDIS_URL: ${INTERNAL_REDIS_URL}
+      # BullMQ (packages/jobs/connection.ts) reads REDIS_HOST/REDIS_PORT, not REDIS_URL.
+      REDIS_HOST: ${COMPOSE_PROJECT_NAME}_valkey
+      REDIS_PORT: "6379"
+      STORAGE_ENDPOINT: ${INTERNAL_STORAGE_ENDPOINT}
+    mem_limit: 896m
+    mem_reservation: 256m
+    cpus: 1.0
+    networks: [app_network, proxy]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_app.rule=Host(`${APP_DOMAIN}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_app.entrypoints=websecure"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_app.tls=true"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_app.tls.certresolver=letsencrypt"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME}_app.loadbalancer.server.port=3000"
+
+  worker:
+    image: ${DOCKERHUB_USERNAME:-bonitobonita24}/marine-guardian:${APP_IMAGE_TAG:-staging-latest}
+    container_name: ${COMPOSE_PROJECT_NAME}_worker
+    hostname: ${COMPOSE_PROJECT_NAME}_worker
+    env_file: .env
+    environment:
+      TZ: Asia/Manila
+      NODE_ENV: production
+      WORKER_MODE: "true"
+      DATABASE_URL: ${INTERNAL_DATABASE_URL}
+      REDIS_URL: ${INTERNAL_REDIS_URL}
+      REDIS_HOST: ${COMPOSE_PROJECT_NAME}_valkey
+      REDIS_PORT: "6379"
+      STORAGE_ENDPOINT: ${INTERNAL_STORAGE_ENDPOINT}
+    command: ["node", "worker/start-workers.mjs"]
+    mem_limit: 640m
+    mem_reservation: 192m
+    cpus: 0.75
+    networks: [app_network]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy

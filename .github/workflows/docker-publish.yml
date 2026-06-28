@@ -48,6 +48,10 @@ jobs:
             type=sha,prefix=sha-,format=short
             type=ref,event=branch
 
+      - name: Compute short SHA tag
+        id: sha
+        run: echo "tag=sha-$(echo ${{ github.sha }} | cut -c1-7)" >> "$GITHUB_OUTPUT"
+
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
@@ -59,3 +63,18 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # Instant redeploy of the staging stack after the image push: DeployStack
+      # (auto_pull → docker compose pull + up -d on the new :staging-latest). Komodo's
+      # git webhook doesn't fire for files-on-host stacks and the registry poll is
+      # hourly — so CI drives it. Production is NEVER auto-deployed (manual promotion).
+      # Runbook: Server-Setups/Powerbyte-Hostinger/runbooks/komodo-ci-deploy.md
+      # (fmo-style: stack pulls :staging-latest; no SHA-pin Variable for staging.)
+      - name: Deploy to Komodo (staging)
+        if: github.ref == 'refs/heads/main'
+        env:
+          KOMODO_HOST: https://kmd.powerbyte.app
+          KOMODO_API_KEY: ${{ secrets.KOMODO_API_KEY }}
+          KOMODO_API_SECRET: ${{ secrets.KOMODO_API_SECRET }}
+          KOMODO_STACK: marine-guardian-staging
+        run: bash deploy/komodo-deploy.sh
