@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { eventCategoryColor } from "@/components/map/eventMarkerStyle";
+import { eventTypeIcon } from "@/lib/event-type-icon";
 
 /**
  * Interactive Report Map — High Priority Events list (replaces the Municipality
@@ -66,6 +67,7 @@ export function HighPriorityEventsCard({
           <ul className="min-h-0 flex-1 overflow-y-auto">
             {events.map((e) => {
               const label = e.typeDisplay ?? e.title ?? "Event";
+              const Icon = eventTypeIcon(e.typeDisplay, e.category);
               return (
                 <li key={e.id}>
                   <button
@@ -76,10 +78,12 @@ export function HighPriorityEventsCard({
                     className="flex w-full items-center gap-2 border-b border-border/40 px-3 py-1.5 text-left hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   >
                     <span
-                      className="size-2.5 shrink-0 rounded-full"
+                      className="flex size-5 shrink-0 items-center justify-center rounded-full text-white"
                       style={{ backgroundColor: eventCategoryColor(e.category) }}
                       aria-hidden="true"
-                    />
+                    >
+                      <Icon className="size-3" />
+                    </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[11px] font-medium text-foreground">
                         {label}

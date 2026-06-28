@@ -33,6 +33,7 @@ import {
   isSeriousEvent,
 } from "./eventMarkerStyle";
 import { isImageAsset } from "@marine-guardian/shared/lib/asset-mime";
+import { eventTypeIcon } from "@/lib/event-type-icon";
 import { AlertTriangle } from "lucide-react";
 
 // MapLibre coordinate convention is [longitude, latitude] (locked in DECISIONS_LOG).
@@ -445,6 +446,13 @@ export function InteractiveMap({
           const serious = isSeriousEvent(event.eventType?.display);
           const color = eventCategoryColor(event.eventType?.category);
           const ringColor = serious ? "hsl(var(--destructive))" : color;
+          // Per-event-type glyph (owner request 2026-06-28). Shown at every zoom:
+          // in the marker chip when zoomed out / no image, and beside the photo
+          // thumbnail when zoomed in on an event that has an image.
+          const Icon = eventTypeIcon(
+            event.eventType?.display,
+            event.eventType?.category,
+          );
           // Pins shrink when zoomed out so a dense range never blankets the map.
           const zoomScale = zoom < 9 ? 0.6 : zoom < PIN_PREVIEW_ZOOM ? 0.85 : 1;
           const size = Math.round(
@@ -473,54 +481,71 @@ export function InteractiveMap({
             >
               <MarkerContent>
                 {firstImage ? (
-                  // Zoomed-in image preview thumbnail (ring = category, or red
-                  // for serious events, with a corner alert badge).
+                  // Zoomed-in: the event-type icon chip sits BESIDE the photo
+                  // preview thumbnail (owner request). Ring = category colour,
+                  // or red for serious events, with a corner alert badge.
                   <div
                     className={cn(
-                      "relative overflow-hidden rounded-md border-2 shadow-lg",
+                      "flex items-center gap-1",
                       clickable && "cursor-pointer",
                     )}
-                    style={{ width: 40, height: 40, borderColor: ringColor }}
                   >
-                    <img
-                      src={`/api/assets/${firstImage.id}`}
-                      alt={event.title ?? "Event photo"}
-                      loading="lazy"
-                      className="h-full w-full object-cover"
-                    />
-                    {serious && (
-                      <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[hsl(var(--destructive))] text-white shadow">
-                        <AlertTriangle className="h-2.5 w-2.5" />
-                      </span>
-                    )}
+                    <span
+                      className="flex size-5 shrink-0 items-center justify-center rounded-full border border-white text-white shadow"
+                      style={{ backgroundColor: ringColor }}
+                      aria-hidden="true"
+                    >
+                      <Icon className="size-3" />
+                    </span>
+                    <div
+                      className="relative overflow-hidden rounded-md border-2 shadow-lg"
+                      style={{ width: 40, height: 40, borderColor: ringColor }}
+                    >
+                      <img
+                        src={`/api/assets/${firstImage.id}`}
+                        alt={event.title ?? "Event photo"}
+                        loading="lazy"
+                        className="h-full w-full object-cover"
+                      />
+                      {serious && (
+                        <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[hsl(var(--destructive))] text-white shadow">
+                          <AlertTriangle className="h-2.5 w-2.5" />
+                        </span>
+                      )}
+                    </div>
                   </div>
                 ) : serious ? (
                   // Distinct, attention-drawing marker for serious incidents:
-                  // pulsing red circle with an alert glyph.
+                  // pulsing red circle carrying the event-type glyph.
                   <div
                     className={cn(
                       "flex items-center justify-center rounded-full border-2 border-white bg-[hsl(var(--destructive))] text-white shadow-lg animate-warroom-pulse",
                       clickable && "cursor-pointer",
                     )}
                     style={{
-                      width: Math.max(size, 18),
-                      height: Math.max(size, 18),
+                      width: Math.max(size, 22),
+                      height: Math.max(size, 22),
                     }}
                   >
-                    <AlertTriangle className="h-[60%] w-[60%]" />
+                    <Icon className="h-[60%] w-[60%]" />
                   </div>
                 ) : (
+                  // Routine event: the event-type glyph in a category-coloured
+                  // chip. Floored at 16px so the icon stays legible even when
+                  // zoomed far out (owner request — icons visible at every zoom).
                   <div
                     className={cn(
-                      "rotate-45 border border-white shadow-lg",
+                      "flex items-center justify-center rounded-full border border-white text-white shadow-lg",
                       clickable && "cursor-pointer",
                     )}
                     style={{
-                      width: size,
-                      height: size,
+                      width: Math.max(size, 16),
+                      height: Math.max(size, 16),
                       backgroundColor: color,
                     }}
-                  />
+                  >
+                    <Icon className="h-[62%] w-[62%]" />
+                  </div>
                 )}
               </MarkerContent>
               <MarkerTooltip>
