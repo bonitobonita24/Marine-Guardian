@@ -3,6 +3,17 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-06-29 — CI: skip staging rebuild+redeploy on docs/state-only commits
+
+- Agent:               CLAUDE_CODE (Opus 4.8, FULL AUTO loop)
+- Why:                 Every push to main (incl. session-handoff / memory / markdown commits) was triggering a full staging Docker image build + Komodo redeploy. Pure doc/state commits do not change the app image — wasteful CI + redeploy churn.
+- Squash commit:       d548e86 (main → origin).
+- Files modified:      .github/workflows/docker-publish.yml
+- Implementation:      Added paths-ignore (.cline/**, docs/**, **.md) to the push trigger. GitHub skips a push only when EVERY changed file matches the ignore list, so mixed code+doc commits still build and deploy; workflow_dispatch remains a manual escape hatch. The d548e86 commit itself touched the .yml (not ignored) → triggered one final harmless rebuild (identical app code).
+- Verification:        python -c yaml.safe_load → valid; triggers = push + workflow_dispatch; paths-ignore present. Staging re-verified live post-change: /api/health 200 {"status":"ok"}, /login 200 (browser-UA request — bare UA returns Cloudflare 403, not an outage).
+- Lesson:              When health-checking the Cloudflare-proxied staging host from a script, send a browser User-Agent or CF WAF returns 403.
+- Phase 7 gate:        N/A — CI-config-only change (no TS/app code); YAML validity is the relevant gate and passes.
+
 ## 2026-06-28 — Phase 7: Report Map polish batch — even-height card, quick-range presets, bolder colours, title icons
 
 - Agent:               CLAUDE_CODE (Opus 4.8)
