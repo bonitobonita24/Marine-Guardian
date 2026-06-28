@@ -48,7 +48,7 @@ export function HighPriorityEventsCard({
   onLocate: (lat: number, lon: number) => void;
 }) {
   return (
-    <Card className="flex h-full max-h-[11rem] min-w-0 flex-1 flex-col gap-2 border-border py-2">
+    <Card className="flex h-full min-w-0 flex-1 flex-col gap-2 border-border py-2">
       <CardHeader className="flex flex-row items-stretch justify-between gap-2 border-b px-3 py-1.5">
         <h3 className="min-w-0 flex-1 self-center text-[10px] font-bold uppercase leading-tight tracking-wider text-foreground/85">
           High Priority Events
@@ -62,7 +62,11 @@ export function HighPriorityEventsCard({
         </span>
       </CardHeader>
 
-      <CardContent className="flex min-h-0 flex-1 flex-col px-0 pb-1 pt-0">
+      {/* relative + an absolutely-positioned scroll list: the list is taken out
+          of flow so its (long) content never drives the grid-row height — the
+          card then stretches to match its siblings in the analytics band rather
+          than being capped to a hardcoded height. */}
+      <CardContent className="relative min-h-0 flex-1 px-0 pb-1 pt-0">
         {isLoading ? (
           <p className="px-3 py-3 text-[10px] text-muted-foreground">Loading…</p>
         ) : events.length === 0 ? (
@@ -70,7 +74,7 @@ export function HighPriorityEventsCard({
             No high-priority events in this range.
           </p>
         ) : (
-          <ul className="min-h-0 flex-1 overflow-y-auto">
+          <ul className="absolute inset-0 overflow-y-auto">
             {events.map((e) => {
               const label = e.typeDisplay ?? e.title ?? "Event";
               const Icon = eventTypeIcon(e.typeDisplay, e.category);
