@@ -214,17 +214,17 @@ export function BreakdownBars({
                   type="category"
                   dataKey="type"
                   width={compact ? 116 : 140}
-                  // Force EVERY category label to render. With multi-line wrapped
-                  // labels recharts auto-thins ticks (drops every other one) to
-                  // avoid perceived overlap — interval={0} disables that.
+                  // Force EVERY category label to render. interval={0} disables
+                  // recharts' auto-thinning of ticks.
                   interval={0}
                   tickLine={false}
                   axisLine={false}
-                  // LEFT-ALIGNED rows: per-event-type icon, then the name, then
-                  // the bar (owner-chosen layout 2026-06-28). Icon sits at the
-                  // left edge of the label band; the single-line name (truncated
-                  // to fit the dense band) flows right from it. Icon category
-                  // falls back from `variant`.
+                  // [icon + name] kept together as a group and RIGHT-aligned so
+                  // the name hugs the bar (no dead gap); empty space falls on the
+                  // far left. Rendered via <foreignObject> so the lucide glyph
+                  // renders as real HTML (a nested <svg> tick gets clipped). Icon
+                  // is tinted the category colour (matches the bar + map markers)
+                  // so it reads clearly on the dark theme.
                   tick={(props: {
                     x: number;
                     y: number;
@@ -232,33 +232,45 @@ export function BreakdownBars({
                   }) => {
                     const TickIcon = eventTypeIcon(props.payload.value, variant);
                     const bandW = compact ? 116 : 140;
-                    const iconSize = 12;
-                    const gap = 4;
-                    const leftX = props.x - bandW;
-                    const textX = leftX + iconSize + gap;
-                    const maxChars = compact ? 15 : 22;
-                    const v = props.payload.value;
-                    const label =
-                      v.length > maxChars ? `${v.slice(0, maxChars - 1)}…` : v;
+                    const rowH = 16;
                     return (
-                      <g>
-                        <TickIcon
-                          x={leftX}
-                          y={props.y - iconSize / 2}
-                          size={iconSize}
-                          color="hsl(var(--muted-foreground))"
-                        />
-                        <text
-                          x={textX}
-                          y={props.y}
-                          textAnchor="start"
-                          dominantBaseline="middle"
-                          fontSize={9}
-                          fill="hsl(var(--muted-foreground))"
+                      <foreignObject
+                        x={props.x - bandW}
+                        y={props.y - rowH / 2}
+                        width={bandW}
+                        height={rowH}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "flex-end",
+                            gap: 4,
+                            width: "100%",
+                            height: "100%",
+                          }}
                         >
-                          {label}
-                        </text>
-                      </g>
+                          <TickIcon
+                            size={14}
+                            strokeWidth={2.25}
+                            style={{ flexShrink: 0, color: colorVar }}
+                          />
+                          <span
+                            style={{
+                              minWidth: 0,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                              fontSize: 9,
+                              lineHeight: "12px",
+                              paddingRight: 3,
+                              color: "hsl(var(--muted-foreground))",
+                            }}
+                          >
+                            {props.payload.value}
+                          </span>
+                        </div>
+                      </foreignObject>
                     );
                   }}
                 />
