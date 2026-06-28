@@ -59,7 +59,7 @@ export function eventPriorityLabel(priority: number): string {
  *   Compressor Fishing · Taking of Prohibited Species · Use of Prohibited Gears ·
  *   Marine Wildlife Sightings · Threats on Habitat.
  */
-const SERIOUS_EVENT_PATTERNS = [
+export const SERIOUS_EVENT_PATTERNS = [
   "compressor",
   "prohibited species",
   "prohibited gear",

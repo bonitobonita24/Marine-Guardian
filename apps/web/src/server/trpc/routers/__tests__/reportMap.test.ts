@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@marine-guardian/db", () => ({
@@ -183,5 +183,85 @@ describe("reportMap.eventsOverTime", () => {
 
     const where = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where;
     expect(where).toMatchObject({ tenantId: "other-tenant" });
+  });
+});
+
+describe("reportMap.highPriorityEvents", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns mapped serious-incident events, tenant-scoped + ordered, with total", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([
+      {
+        id: "e1",
+        title: "Boat A",
+        priority: 300,
+        reportedAt: new Date("2026-06-20"),
+        eventType: {
+          display: "Compressor Fishing",
+          category: "law-enforcement-and-apprehensions",
+        },
+        municipality: { name: "Calapan City" },
+      },
+      {
+        id: "e2",
+        title: null,
+        priority: 200,
+        reportedAt: new Date("2026-06-19"),
+        eventType: {
+          display: "Threats on Habitat",
+          category: "monitoring_patrolling_and_surveillance",
+        },
+        municipality: null,
+      },
+    ] as any);
+    vi.mocked(prisma.event.count).mockResolvedValue(2 as any);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.highPriorityEvents({
+      from: new Date("2026-06-01"),
+      to: new Date("2026-06-27"),
+      municipalityId: "muni-1",
+    });
+
+    expect(result.total).toBe(2);
+    expect(result.events).toHaveLength(2);
+    expect(result.events[0]).toMatchObject({
+      id: "e1",
+      typeDisplay: "Compressor Fishing",
+      municipalityName: "Calapan City",
+      priority: 300,
+    });
+    expect(result.events[1]).toMatchObject({
+      id: "e2",
+      title: null,
+      typeDisplay: "Threats on Habitat",
+      municipalityName: null,
+    });
+
+    const arg = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0] as any;
+    expect(arg.where.tenantId).toBe(TENANT_ID);
+    expect(arg.where.municipalityId).toBe("muni-1");
+    expect(arg.where.NOT.eventType.display.contains).toBe("skylight");
+    expect(Array.isArray(arg.where.OR)).toBe(true);
+    expect(arg.where.OR.length).toBeGreaterThan(0);
+    expect(arg.where.OR[0].eventType.display.mode).toBe("insensitive");
+    expect(arg.orderBy).toEqual([
+      { priority: "desc" },
+      { reportedAt: "desc" },
+    ]);
+    expect(arg.take).toBe(50);
+  });
+
+  it("returns empty list + zero total when none match", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.event.count).mockResolvedValue(0 as any);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.highPriorityEvents({});
+
+    expect(result.total).toBe(0);
+    expect(result.events).toEqual([]);
   });
 });

@@ -22,6 +22,7 @@ import { z } from "zod";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
 import { prisma } from "@marine-guardian/db";
+import { SERIOUS_EVENT_PATTERNS } from "@/components/map/eventMarkerStyle";
 
 const LAW_CATEGORY = "law-enforcement-and-apprehensions";
 const MONITORING_CATEGORY = "monitoring_patrolling_and_surveillance";
@@ -147,6 +148,58 @@ export const reportMapRouter = router({
         monitoring: Object.entries(monitoring).map(([type, count]) => ({
           type,
           count,
+        })),
+      };
+    }),
+
+  /**
+   * High-priority ("serious incident") events in the filtered range/municipality,
+   * for the Report Map's High Priority Events list. "Serious" = the same event
+   * types flagged with the attention-drawing red marker on the map
+   * (SERIOUS_EVENT_PATTERNS — Compressor Fishing, Taking of Prohibited Species,
+   * Use of Prohibited Gears, Threats on Habitat, Marine Wildlife Sightings).
+   * Ordered most-severe (priority) then most-recent; capped at 50. `total` is the
+   * unbounded count so the card can show "N" even when the list is truncated.
+   */
+  highPriorityEvents: tenantProcedure
+    .input(reportFilterInput)
+    .query(async ({ ctx, input }) => {
+      const where = {
+        ...eventWhere(ctx.tenantId, input),
+        OR: SERIOUS_EVENT_PATTERNS.map((p) => ({
+          eventType: {
+            display: { contains: p, mode: "insensitive" as const },
+          },
+        })),
+      };
+
+      const [rows, total] = await Promise.all([
+        prisma.event.findMany({
+          where,
+          select: {
+            id: true,
+            title: true,
+            priority: true,
+            reportedAt: true,
+            eventType: { select: { display: true, category: true } },
+            municipality: { select: { name: true } },
+          },
+          orderBy: [{ priority: "desc" }, { reportedAt: "desc" }],
+          take: 50,
+        }),
+        prisma.event.count({ where }),
+      ]);
+
+      return {
+        total,
+        events: rows.map((e) => ({
+          id: e.id,
+          title: e.title,
+          priority: e.priority,
+          reportedAt: e.reportedAt,
+          typeDisplay: e.eventType?.display ?? null,
+          category: e.eventType?.category ?? null,
+          municipalityName: e.municipality?.name ?? null,
         })),
       };
     }),

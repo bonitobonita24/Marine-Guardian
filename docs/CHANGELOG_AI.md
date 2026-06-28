@@ -3,6 +3,22 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-06-28 — Phase 7: replace Municipality Coverage with High Priority Events list (squash to main)
+
+- Agent:               CLAUDE_CODE (Opus 4.8)
+- Why:                 Owner request — swap the Report Map's Municipality Coverage chart for a High Priority Events list, scoped to the same date range + municipality.
+- Files added:         apps/web/src/app/(dashboard)/map/_components/high-priority-events-card.tsx
+- Files modified:      apps/web/src/server/trpc/routers/reportMap.ts, apps/web/src/server/trpc/routers/__tests__/reportMap.test.ts, apps/web/src/components/map/eventMarkerStyle.ts, apps/web/src/app/(dashboard)/map/_components/report-map-view.tsx
+- Implementation:
+  • "High priority" defined (owner choice) as the serious-incident event TYPES already flagged with the red marker on the map — Compressor Fishing, Taking of Prohibited Species, Use of Prohibited Gears, Threats on Habitat, Marine Wildlife Sightings. (The numeric Event.priority field is degenerate in the data: 92% of events are 200/"High", so a priority≥200 filter would show ~everything.) Exported SERIOUS_EVENT_PATTERNS from eventMarkerStyle as the single source of truth so the list == the red markers.
+  • New reportMap.highPriorityEvents query: OR(serious display substrings) on top of eventWhere (tenant + skylight-excluded + range + municipality), select id/title/priority/reportedAt/eventType{display,category}/municipality{name}, orderBy priority desc then reportedAt desc, take 50; returns {events, total} (total is the unbounded count for the header). +2 router tests.
+  • New HighPriorityEventsCard: compact scrollable list (hidden scrollbar via .command-center), each row = category-color dot (law=chart-1 red / monitoring=chart-2 green, matching the map) + event type + "municipality · date" ("Unassigned" when null) + click → EventDetailModal. Deliberately NOT a numeric-priority badge: serious types carry LOW numeric priority, so a "LOW" badge under a "High Priority" card read as a bug.
+  • report-map-view swaps MunicipalityCoverageChart → HighPriorityEventsCard (removed the municipalityCoverage query here). The MunicipalityCoverageChart component is untouched — still used by the Command Center.
+- Verification:        Playwright on REBUILT dev image @45204 — card titled "High Priority Events" (total 40), scrolls, category dots (green monitoring + red law), municipality+date rows, row click opened EventDetailModal #35158, 0 console errors. Evidence: highpri-card-final.png.
+- Tests:               web 1100 → 1102 (+2 highPriorityEvents router tests).
+- Phase 7 gate:        4/4 GREEN — product-sync, typecheck 7/7, web vitest 1102, Next prod build.
+- Deploy:              Squash-merged feat/report-map-high-priority-list → main → push origin → branch deleted. Staging/prod HOLD stands.
+
 ## 2026-06-28 — Phase 7: breakdown event-type order + Law Enf rename + header/label fixes (squash to main)
 
 - Agent:               CLAUDE_CODE (Opus 4.8)

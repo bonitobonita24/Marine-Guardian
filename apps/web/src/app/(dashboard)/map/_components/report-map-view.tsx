@@ -10,17 +10,17 @@ import {
 } from "@/components/reporting/report-filter-context";
 import { ReportFilterBar } from "@/components/reporting/report-filter-bar";
 import { BreakdownBars } from "@/app/(dashboard)/dashboard/_components/breakdown-bars";
-import { MunicipalityCoverageChart } from "@/app/(dashboard)/dashboard/_components/municipality-coverage-chart";
+import { HighPriorityEventsCard } from "./high-priority-events-card";
 import { EventsOverTimeChart } from "@/components/reporting/events-over-time-chart";
 
 /**
  * Interactive Report Map (2026-06-27) — a presentation surface for reporting to
  * the Mayor / investors. The shared {from,to,municipalityId} filter (provider)
  * scopes every panel in lock-step: the map markers + patrol tracks, the category
- * breakdown, the municipality-coverage chart, and the events-over-time line. The
- * existing dashboard breakdown + coverage charts are reused in-place (pure
- * presentational) — only the data source differs. (The top KPI strip was removed
- * 2026-06-28 — redundant with the breakdown card totals + coverage chart.)
+ * breakdown, the high-priority events list, and the events-over-time line. The
+ * dashboard breakdown chart is reused in-place (pure presentational). (The top
+ * KPI strip was removed 2026-06-28; the Municipality Coverage chart was replaced
+ * 2026-06-28 with the High Priority Events list per owner request.)
  */
 
 function rangeLabel(from: Date, to: Date): string {
@@ -41,11 +41,7 @@ function ReportMapInner() {
 
   const breakdown = trpc.reportMap.eventBreakdown.useQuery(filter);
   const eventsOverTime = trpc.reportMap.eventsOverTime.useQuery(filter);
-  const coverage = trpc.municipalityCoverage.municipalityCoverage.useQuery({
-    dateFrom: from,
-    dateTo: to,
-    ...(municipalityId !== null ? { municipalityId } : {}),
-  });
+  const highPriority = trpc.reportMap.highPriorityEvents.useQuery(filter);
 
   const label = rangeLabel(from, to);
 
@@ -90,11 +86,11 @@ function ReportMapInner() {
           data={breakdown.data?.monitoring ?? []}
           compact
         />
-        <MunicipalityCoverageChart
-          data={coverage.data ?? []}
-          isLoading={coverage.isLoading}
-          rangeLabel={label}
-          compact
+        <HighPriorityEventsCard
+          events={highPriority.data?.events ?? []}
+          total={highPriority.data?.total ?? 0}
+          isLoading={highPriority.isLoading}
+          onSelect={setSelectedEventId}
         />
         <EventsOverTimeChart
           data={eventsOverTime.data ?? []}
