@@ -70,6 +70,8 @@ interface TelegramFile {
 interface TelegramGetFileResponse {
   ok: boolean;
   description?: string;
+  error_code?: number;
+  parameters?: { retry_after?: number };
   result?: TelegramFile;
 }
 
@@ -142,49 +144,92 @@ export async function uploadDocumentToTelegram(params: {
 // fetchTelegramFileBytes
 // ---------------------------------------------------------------------------
 
+// Bounded retry tuning for Telegram 429 (rate-limit) responses. Under the
+// Report Map load-storm (many simultaneous /api/assets requests) getFile can
+// 429; without retry the proxy route would surface "broken images". We honour
+// Telegram's retry_after hint, clamped, with exponential-backoff as a floor.
+const MAX_TELEGRAM_RETRIES = 3;
+const BASE_BACKOFF_MS = 500;
+const MAX_BACKOFF_MS = 15_000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// How long to wait before retry `attempt` (0-based): the larger of Telegram's
+// retry_after hint and an exponential floor, clamped to MAX_BACKOFF_MS.
+function backoffMs(attempt: number, hintMs: number): number {
+  const floor = BASE_BACKOFF_MS * 2 ** attempt;
+  return Math.min(Math.max(hintMs, floor), MAX_BACKOFF_MS);
+}
+
 /**
  * Retrieve a previously uploaded file's raw bytes from Telegram.
  *
+ * Retries up to `maxRetries` times on HTTP 429 (rate limit), honouring the
+ * `retry_after` hint Telegram returns. Other errors are not retried.
+ *
  * NOTE: Telegram bot getFile download is capped at 20 MB — fine for ER photos
- * and standard report PDFs. Files larger than 20 MB must use an alternative
- * storage strategy (e.g. MinIO presigned URL stored in the Telegram caption).
+ * and standard report PDFs. Files larger than 20 MB return an error from
+ * getFile (the caller maps that to a clean non-200 response, never a crash).
  */
 export async function fetchTelegramFileBytes(params: {
   botToken: string;
   fileId: string;
+  maxRetries?: number;
 }): Promise<{ bytes: ArrayBuffer; filePath: string }> {
-  const { botToken, fileId } = params;
+  const { botToken, fileId, maxRetries = MAX_TELEGRAM_RETRIES } = params;
 
-  // Step 1 — resolve the temporary download path.
+  // Step 1 — resolve the temporary download path (retry on 429).
   const metaUrl = `https://api.telegram.org/bot${botToken}/getFile?file_id=${encodeURIComponent(fileId)}`;
-  const metaRes = await fetch(metaUrl);
-  const meta = (await metaRes.json()) as TelegramGetFileResponse;
+  let filePath: string | undefined;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const metaRes = await fetch(metaUrl);
+    const meta = (await metaRes.json()) as TelegramGetFileResponse;
 
-  if (!meta.ok || meta.result === undefined) {
+    if (meta.ok && meta.result !== undefined) {
+      filePath = meta.result.file_path;
+      break;
+    }
+    // Telegram signals rate-limiting as ok:false + error_code 429 (+retry_after).
+    if (meta.error_code === 429 && attempt < maxRetries) {
+      await sleep(backoffMs(attempt, (meta.parameters?.retry_after ?? 0) * 1000));
+      continue;
+    }
     throw new Error(
       `Telegram getFile failed: ${meta.description ?? "unknown error"}`,
     );
   }
-
-  const filePath = meta.result.file_path;
   if (filePath === undefined || filePath === "") {
     throw new Error(
       `Telegram getFile returned no file_path for file_id "${fileId}"`,
     );
   }
 
-  // Step 2 — download the file bytes.
+  // Step 2 — download the file bytes (retry on 429).
   const downloadUrl = `https://api.telegram.org/file/bot${botToken}/${filePath}`;
-  const downloadRes = await fetch(downloadUrl);
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const downloadRes = await fetch(downloadUrl);
 
-  if (!downloadRes.ok) {
-    throw new Error(
-      `Telegram file download failed: HTTP ${downloadRes.status} ${downloadRes.statusText}`,
-    );
+    if (downloadRes.status === 429 && attempt < maxRetries) {
+      const hdr = downloadRes.headers.get("retry-after");
+      const hintMs = hdr !== null ? Number(hdr) * 1000 : 0;
+      await sleep(backoffMs(attempt, Number.isFinite(hintMs) ? hintMs : 0));
+      continue;
+    }
+    if (!downloadRes.ok) {
+      throw new Error(
+        `Telegram file download failed: HTTP ${downloadRes.status} ${downloadRes.statusText}`,
+      );
+    }
+
+    const bytes = await downloadRes.arrayBuffer();
+    return { bytes, filePath };
   }
 
-  const bytes = await downloadRes.arrayBuffer();
-  return { bytes, filePath };
+  throw new Error(
+    `Telegram file download rate-limited (429) after ${maxRetries} retries for file_id "${fileId}"`,
+  );
 }
 
 // ---------------------------------------------------------------------------

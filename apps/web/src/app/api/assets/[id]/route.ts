@@ -21,12 +21,10 @@ import { TRPCError } from "@trpc/server";
 
 import { prisma } from "@marine-guardian/db";
 import { mimeFromFilename } from "@marine-guardian/shared/lib/asset-mime";
-import {
-  getTelegramBotToken,
-  fetchTelegramFileBytes,
-} from "@marine-guardian/jobs/lib/telegram-storage";
+import { getTelegramBotToken } from "@marine-guardian/jobs/lib/telegram-storage";
 import { requireRouteAuth, RouteAuthError } from "@/server/lib/route-auth";
 import { rateLimiters } from "@/server/lib/rate-limit";
+import { resolveAssetBytes } from "@/server/lib/asset-bytes";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -110,10 +108,6 @@ export async function GET(
   });
 
   const botToken = getTelegramBotToken();
-  const { bytes } = await fetchTelegramFileBytes({
-    botToken,
-    fileId: row.telegramFileId,
-  });
 
   // The archiver does not always persist mimeType; fall back to the filename
   // extension so images render inline rather than forcing a download.
@@ -124,8 +118,34 @@ export async function GET(
   // Only allowlisted, inert types are served inline; everything else is forced
   // to a download with a neutral type. A sandbox CSP + nosniff add defence in
   // depth so even a misclassified response cannot execute script.
+  //
+  // rawType is computed BEFORE byte resolution so it can double as the R2
+  // write-through metadata. The inline-serve allowlist below gates on THIS
+  // row-derived type, never on the cached object's contentType.
   const rawType =
     row.mimeType ?? mimeFromFilename(row.filename) ?? "application/octet-stream";
+
+  // Resolve bytes via the R2 read-through cache (when enabled) → Telegram.
+  // Any failure (Telegram down, rate-limited beyond retries, >20MB getFile cap)
+  // becomes a clean 502 instead of an unhandled 500, so the UI degrades to a
+  // graceful fallback rather than a broken image.
+  let bytes: Buffer;
+  try {
+    const resolved = await resolveAssetBytes({
+      tenantId: ctx.tenantId,
+      assetId: row.id,
+      telegramFileId: row.telegramFileId,
+      botToken,
+      contentType: rawType,
+    });
+    bytes = resolved.bytes;
+  } catch {
+    return NextResponse.json(
+      { error: "Asset temporarily unavailable" },
+      { status: 502 },
+    );
+  }
+
   const inlineSafe = SAFE_INLINE_TYPES.has(rawType);
   const contentType = inlineSafe ? rawType : "application/octet-stream";
   const disposition = inlineSafe ? "inline" : "attachment";
@@ -142,5 +162,7 @@ export async function GET(
     "X-Content-Type-Options": "nosniff",
   });
 
-  return new Response(bytes, { status: 200, headers });
+  // Wrap in a fresh Uint8Array so the body is a concrete ArrayBuffer-backed
+  // view (BodyInit) regardless of the Buffer's pooled backing store.
+  return new Response(new Uint8Array(bytes), { status: 200, headers });
 }

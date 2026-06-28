@@ -75,6 +75,10 @@ const READY_ASSET = {
 describe("GET /api/assets/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Keep the R2 read-through cache OFF in these route tests so resolveAssetBytes
+    // delegates straight to the mocked Telegram fetch (cache paths are unit-tested
+    // separately in server/lib/__tests__/asset-bytes.test.ts).
+    delete process.env.R2_CACHE_ENABLED;
     mockRequireRouteAuth.mockResolvedValue(VALID_AUTH);
     mockRateLimitCheck.mockReturnValue(undefined);
     mockPrisma.eventAsset.findFirst.mockResolvedValue(null);
@@ -266,6 +270,17 @@ describe("GET /api/assets/[id]", () => {
     expect(res.headers.get("Content-Disposition")).toBe(
       'attachment; filename="logo.svg"',
     );
+  });
+
+  it("returns a clean 502 (not an unhandled 500) when the Telegram fetch fails", async () => {
+    mockPrisma.eventAsset.findFirst.mockResolvedValueOnce(READY_ASSET);
+    // e.g. Telegram down, rate-limited beyond retries, or the >20MB getFile cap.
+    mockFetchBytes.mockRejectedValueOnce(new Error("Telegram getFile failed"));
+    const { req, ctx } = makeRouteArgs("asset-1");
+    const res = await GET(req, ctx);
+    expect(res.status).toBe(502);
+    // The egress audit still fired before the failed fetch.
+    expect(mockPrisma.auditLog.create).toHaveBeenCalledTimes(1);
   });
 
   it("sanitizes quote/CRLF in the filename (Content-Disposition injection guard)", async () => {

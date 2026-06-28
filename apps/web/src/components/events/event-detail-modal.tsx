@@ -80,6 +80,35 @@ function readErDetailRows(value: unknown): ErDetailRow[] {
   return rows;
 }
 
+/**
+ * A photo thumbnail that degrades gracefully: if the proxied image fails to
+ * load (e.g. the asset route returns 502 because Telegram is briefly
+ * rate-limited), it swaps the broken-image icon for a muted "unavailable" tile
+ * instead. The R2 read-through cache makes such failures rare; this is the
+ * residual-case fallback.
+ */
+function AssetThumbnail({ href, alt }: { href: string; alt: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <span className="flex h-28 w-full items-center justify-center bg-muted px-2 text-center text-xs text-muted-foreground">
+        Image unavailable
+      </span>
+    );
+  }
+  return (
+    <img
+      src={href}
+      alt={alt}
+      loading="lazy"
+      className="h-28 w-full object-cover"
+      onError={() => {
+        setFailed(true);
+      }}
+    />
+  );
+}
+
 export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
   const open = eventId !== null;
   const utils = trpc.useUtils();
@@ -246,12 +275,7 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
                             className="block cursor-pointer overflow-hidden rounded border"
                             data-testid="event-asset"
                           >
-                            <img
-                              src={href}
-                              alt={asset.filename}
-                              loading="lazy"
-                              className="h-28 w-full object-cover"
-                            />
+                            <AssetThumbnail href={href} alt={asset.filename} />
                           </button>
                         );
                       }
