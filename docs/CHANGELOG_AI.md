@@ -3,6 +3,18 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-06-28 — Phase 7: canonical event-type order extended to per-area PDF charts (squash to main)
+
+- Agent:               CLAUDE_CODE (Opus 4.8)
+- Why:                 Owner (AskUserQuestion this session) — extend the fixed canonical event-type order to filter dropdowns / report tables / PDFs. Investigation found no event-type filter dropdown (report-filter-bar is from/to + municipality only) and no event-type table in the PDF; the only divergent surfaces were the two per-area report PDF breakdown charts, which sorted by count desc + alphabetical instead of the owner's fixed sequence.
+- Files added:         apps/web/src/lib/event-type-order.ts; apps/web/src/lib/__tests__/event-type-order.test.ts; apps/web/src/app/print-render/[tenantSlug]/[reportType]/[exportId]/__tests__/event-breakdown-chart-order.test.ts
+- Files modified:      apps/web/src/app/(dashboard)/dashboard/_components/breakdown-bars.tsx; apps/web/src/app/print-render/[tenantSlug]/[reportType]/[exportId]/components/event-breakdown-chart.tsx
+- Implementation:      Lifted EVENT_TYPE_ORDER + normalizeTypeLabel out of the dashboard breakdown-bars component into a shared single-source-of-truth util (lib/event-type-order.ts) and added canonicalIndex(). breakdown-bars now imports the shared constants (behavior unchanged). The PDF event-breakdown-chart buildChartRows now sorts canonical-first (mapping lawEnforcement→law_enforcement), with unlisted types falling back to the prior count-desc→display-asc tiebreak; buildChartRows is exported for testing. So the PDF law-enforcement + monitoring breakdown charts now read in the same fixed sequence as the on-screen Command Center / Report Map charts.
+- Verification:        Ordering covered by 11 new unit tests (util + buildChartRows incl. canonical-first, unlisted tiebreak, zero-count drop, topN). On-screen charts share the same util (already Playwright-verified, unchanged). Full PDF render Visual QA not run (heavy pdf-render→MinIO path) — unit tests authoritative for ordering.
+- Tests:               web 1102 → 1113 (+11).
+- Phase 7 gate:        4/4 GREEN — product-sync, typecheck 7/7, web vitest 1113, Next prod build.
+- Deploy:              Squash-merged feat/event-type-order-pdf → main (64cb998) → push origin → branch deleted. Staging/prod HOLD stands.
+
 ## 2026-06-28 — Phase 7 fix: bound High Priority Events card height (squash to main)
 
 - Agent:               CLAUDE_CODE (Opus 4.8)
