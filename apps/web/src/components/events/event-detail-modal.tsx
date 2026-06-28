@@ -38,6 +38,48 @@ function readNotes(value: unknown): NotesPayload {
   return value as NotesPayload;
 }
 
+/**
+ * Format an EarthRanger detail key into a human label:
+ * "place_seen" → "Place Seen", "vessel_0_name" → "Vessel 0 Name".
+ */
+function formatErDetailLabel(key: string): string {
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2") // split camelCase
+    .replace(/[_-]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+type ErDetailRow = { key: string; label: string; text: string };
+
+/**
+ * Flatten the harvested ER event-detail JSON (`eventDetailsJson`) into
+ * displayable rows. Excludes the noisy `updates` audit array and any empty
+ * values; scalars render as text, nested arrays/objects as compact JSON. This
+ * is the REAL per-event field data EarthRanger captured — it was being stored
+ * but never shown (the modal only rendered the sparse operator-fill columns).
+ */
+function readErDetailRows(value: unknown): ErDetailRow[] {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return [];
+  }
+  const rows: ErDetailRow[] = [];
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (key === "updates") continue; // ER audit trail, not field data
+    if (raw === null || raw === undefined || raw === "") continue;
+    let text: string;
+    if (typeof raw === "boolean") text = raw ? "Yes" : "No";
+    else if (typeof raw === "number") text = String(raw);
+    else if (typeof raw === "string") text = raw;
+    else text = JSON.stringify(raw);
+    if (text.trim().length === 0) continue;
+    rows.push({ key, label: formatErDetailLabel(key), text });
+  }
+  return rows;
+}
+
 export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
   const open = eventId !== null;
   const utils = trpc.useUtils();
@@ -269,6 +311,34 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
                   />
                 </div>
               </div>
+
+              {/* EarthRanger Field Data — read-only. The actual per-event fields
+                  harvested from ER (species, vessel info, counts, etc.) live in
+                  eventDetailsJson; surface them so the modal isn't blank for the
+                  bulk of synced events whose operator-fill columns are empty. */}
+              {(() => {
+                const rows = readErDetailRows(
+                  eventQuery.data.eventDetailsJson,
+                );
+                if (rows.length === 0) return null;
+                return (
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-medium">
+                      EarthRanger Field Data
+                    </h3>
+                    <dl className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-md border bg-muted/20 p-3">
+                      {rows.map((r) => (
+                        <div key={r.key} className="min-w-0 space-y-0.5">
+                          <dt className="text-xs text-muted-foreground">
+                            {r.label}
+                          </dt>
+                          <dd className="break-words text-sm">{r.text}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                );
+              })()}
 
               <div className="space-y-2">
                 <h3 className="text-sm font-medium">Operator Fill</h3>
