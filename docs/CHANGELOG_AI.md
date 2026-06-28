@@ -3,6 +3,18 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-06-28 — Phase 7: Report Map polish batch — even-height card, quick-range presets, bolder colours, title icons
+
+- Agent:               CLAUDE_CODE (Opus 4.8)
+- Why:                 Four quick owner UI tweaks on the Interactive Report Map.
+- Squash commits:      d0c852f (even height) · 9d298f6 (quick-range presets) · 9996852 (bolder colours) · 84ef1f2 (card-title icons) — all main → origin.
+- Files modified:      apps/web/src/app/(dashboard)/map/_components/high-priority-events-card.tsx; apps/web/src/components/reporting/report-filter-bar.tsx (+ its test); apps/web/src/app/globals.css; apps/web/src/app/(dashboard)/dashboard/_components/breakdown-bars.tsx; apps/web/src/app/(dashboard)/map/_components/report-map-view.tsx
+- Implementation:      (1) High Priority card: dropped the hardcoded max-h-[11rem] cap and made the scroll list absolute (relative CardContent + ul absolute inset-0) so it can't drive the grid-row taller — all four band cards now measure 201px. (2) report-filter-bar: 3 quick-range presets (Last 30D/15D/7D) above From/To, replacing the single reset; matching preset highlighted via aria-pressed. (3) globals.css: --chart-1 221 83% 48% + --chart-2 150 62% 36% inside .command-center (deeper blue/green) so the white bar icons/labels read clearly; scoped to tactical surfaces. (4) BreakdownBars optional titleIcon (category-tinted) — Report Map passes ShieldAlert (law) + Binoculars (monitoring); High Priority title uses the map's serious glyph AlertTriangle (destructive red).
+- Verification:        Visual QA on rebuilt dev image @45204, 0 console errors — quick-range buttons positioned above From/To (30D active), three title icons present, deeper blue/green bars with legible icons, four band cards equal height. Evidence: highpri-even-height.png, report-map-three-changes.png, monitoring-card-closeup.png.
+- Lesson:              ps -eo pid,cmd | grep truncates long cmdlines → false "process dead"; use a /proc/*/cmdline scan for backfill liveness. number-in-JSX-template-literal trips restrict-template-expressions → String(...).
+- Tests:               web 1118→1122 (+2 quick-range; +2 PDF tick from the prior 28p ship).
+- Phase 7 gate:        4/4 GREEN each — product-sync, typecheck 7/7, web vitest 1122, Next prod build.
+
 ## 2026-06-28 — Phase 7: High Priority Events rows on one line + locate-on-map button (squash 60375bb → main)
 
 - Agent:               CLAUDE_CODE (Opus 4.8)
