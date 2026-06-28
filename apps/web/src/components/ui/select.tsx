@@ -5,6 +5,7 @@ import * as SelectPrimitive from "@radix-ui/react-select"
 import { Check, ChevronDown, ChevronUp } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { useFullscreenPortalContainer } from "@/lib/use-fullscreen-portal-container"
 
 const Select = SelectPrimitive.Root
 
@@ -70,8 +71,10 @@ SelectScrollDownButton.displayName =
 const SelectContent = React.forwardRef<
   React.ComponentRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
->(({ className, children, position = "popper", ...props }, ref) => (
-  <SelectPrimitive.Portal>
+>(({ className, children, position = "popper", ...props }, ref) => {
+  const portalContainer = useFullscreenPortalContainer()
+  return (
+  <SelectPrimitive.Portal {...(portalContainer ? { container: portalContainer } : {})}>
     <SelectPrimitive.Content
       ref={ref}
       className={cn(
@@ -96,7 +99,8 @@ const SelectContent = React.forwardRef<
       <SelectScrollDownButton />
     </SelectPrimitive.Content>
   </SelectPrimitive.Portal>
-))
+  )
+})
 SelectContent.displayName = SelectPrimitive.Content.displayName
 
 const SelectLabel = React.forwardRef<

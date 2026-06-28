@@ -78,6 +78,24 @@ describe("ReportFilterBar", () => {
     expect(new Date(probeFrom as string).getMonth()).toBe(2); // March (0-based)
   });
 
+  it("stacked layout keeps all controls but drops the bar chrome (for the floating card)", () => {
+    render(
+      <ReportFilterProvider>
+        <ReportFilterBar layout="stacked" />
+      </ReportFilterProvider>,
+    );
+    expect(screen.getByTestId("report-range-from")).toBeTruthy();
+    expect(screen.getByTestId("report-range-to")).toBeTruthy();
+    expect(screen.getByTestId("report-municipality")).toBeTruthy();
+    // Stacked = borderless vertical column; reset button spans full width.
+    const region = screen.getByRole("region", { name: "Report map filters" });
+    expect(region.className).toContain("flex-col");
+    expect(region.className).not.toContain("border");
+    expect(screen.getByTestId("report-filter-reset").className).toContain(
+      "w-full",
+    );
+  });
+
   it("reset button restores the 30-day default window", () => {
     renderBar();
     const from = screen.getByTestId("report-range-from");

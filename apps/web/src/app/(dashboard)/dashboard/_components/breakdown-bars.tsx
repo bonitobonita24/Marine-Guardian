@@ -18,7 +18,15 @@
  *  - title, data (BreakdownDatum[]), variant, barClass (legacy compat)
  */
 
-import { Bar, BarChart, CartesianGrid, LabelList, XAxis, YAxis } from "recharts";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  LabelList,
+  Text,
+  XAxis,
+  YAxis,
+} from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
@@ -26,6 +34,7 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 export type BreakdownDatum = { type: string; count: number };
 
@@ -62,12 +71,15 @@ export function BreakdownBars({
   data,
   variant,
   onSelectType,
+  compact = false,
   // legacy prop accepted but unused — color is driven by `variant`
   barClass: _barClass,
 }: {
   title: string;
   data: BreakdownDatum[];
   variant?: BreakdownVariant;
+  /** Half-height chart for dense surfaces (Interactive Report Map). */
+  compact?: boolean;
   /**
    * War Room drill-down (T5b): called with the clicked event-type label
    * (eventType.display) so the parent can open the breakdown drill-down modal.
@@ -93,36 +105,70 @@ export function BreakdownBars({
   return (
     <Card
       aria-labelledby={headingId}
-      className="min-w-0 flex-1 gap-2 border-border py-2"
+      className={cn(
+        "min-w-0 flex-1 gap-2 border-border py-2",
+        // Report Map (compact): fill the grid cell so the chart uses the full
+        // card height instead of leaving a large empty margin below the bars.
+        compact && "flex h-full flex-col",
+      )}
     >
-      <CardHeader className="flex items-center justify-between border-b px-3 pb-2">
-        <div className="flex flex-col gap-0.5">
+      {compact ? (
+        // Report Map: title (word-wraps) on the left, a thin vertical partition,
+        // then the total count on the right. No "Live" indicator, no "total" word.
+        <CardHeader className="flex flex-row items-stretch justify-between gap-2 border-b px-3 pb-1.5">
           <h3
             id={headingId}
-            className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground"
+            className="min-w-0 flex-1 self-center text-[10px] font-bold uppercase leading-tight tracking-wider text-foreground/85"
           >
             {title}
           </h3>
-          <span className="text-xs font-semibold tabular-nums">
-            {totalCount.toLocaleString()} total
+          <div className="w-px shrink-0 self-stretch bg-border" aria-hidden="true" />
+          <span className="shrink-0 self-center text-sm font-bold tabular-nums">
+            {totalCount.toLocaleString()}
           </span>
-        </div>
-        {/* Pro live-update indicator — mirrors chart-component-29 */}
-        <div className="flex items-center gap-1">
-          <span className="relative flex size-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-500 opacity-60" />
-            <span className="relative inline-flex size-2 rounded-full bg-green-500" />
-          </span>
-          <span className="text-[9px] text-muted-foreground">Live</span>
-        </div>
-      </CardHeader>
+        </CardHeader>
+      ) : (
+        <CardHeader className="flex items-center justify-between border-b px-3 pb-2">
+          <div className="flex flex-col gap-0.5">
+            <h3
+              id={headingId}
+              className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground"
+            >
+              {title}
+            </h3>
+            <span className="shrink-0 text-xs font-semibold tabular-nums">
+              {totalCount.toLocaleString()} total
+            </span>
+          </div>
+          {/* Pro live-update indicator — mirrors chart-component-29 */}
+          <div className="flex shrink-0 items-center gap-1">
+            <span className="relative flex size-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-500 opacity-60" />
+              <span className="relative inline-flex size-2 rounded-full bg-green-500" />
+            </span>
+            <span className="text-[9px] text-muted-foreground">Live</span>
+          </div>
+        </CardHeader>
+      )}
 
-      <CardContent className="px-3 pb-1 pt-0">
+      <CardContent
+        className={cn(
+          "px-3 pb-1 pt-0",
+          compact && "flex min-h-0 flex-1 flex-col",
+        )}
+      >
         {chartData.length === 0 ? (
           <p className="py-3 text-[10px] text-muted-foreground">No events</p>
         ) : (
           <>
-            <ChartContainer config={config} className="h-[7rem] w-full">
+            <ChartContainer
+              config={config}
+              className={
+                compact
+                  ? "aspect-auto min-h-[4rem] w-full flex-1"
+                  : "h-[7rem] w-full"
+              }
+            >
               <BarChart
                 accessibilityLayer
                 data={chartData}
@@ -139,16 +185,40 @@ export function BreakdownBars({
                 <YAxis
                   type="category"
                   dataKey="type"
-                  width={140}
-                  tick={{
-                    fontSize: 9,
-                    fill: "hsl(var(--muted-foreground))",
-                  }}
+                  width={compact ? 116 : 140}
                   tickLine={false}
                   axisLine={false}
-                  tickFormatter={(v: string) =>
-                    v.length > 26 ? `${v.slice(0, 25)}…` : v
-                  }
+                  {...(compact
+                    ? {
+                        // Report Map: WORD-WRAP long event-type labels onto
+                        // multiple lines (no "…" truncation). Narrower column +
+                        // wider bars uses the previously-blank left space.
+                        tick: (props: {
+                          x: number;
+                          y: number;
+                          payload: { value: string };
+                        }) => (
+                          <Text
+                            x={props.x}
+                            y={props.y}
+                            width={110}
+                            textAnchor="end"
+                            verticalAnchor="middle"
+                            fontSize={9}
+                            fill="hsl(var(--muted-foreground))"
+                          >
+                            {props.payload.value}
+                          </Text>
+                        ),
+                      }
+                    : {
+                        tick: {
+                          fontSize: 9,
+                          fill: "hsl(var(--muted-foreground))",
+                        },
+                        tickFormatter: (v: string) =>
+                          v.length > 26 ? `${v.slice(0, 25)}…` : v,
+                      })}
                 />
                 {/* Pro ChartTooltip instead of no tooltip */}
                 <ChartTooltip
@@ -159,7 +229,7 @@ export function BreakdownBars({
                   dataKey="count"
                   fill={colorVar}
                   radius={[0, 3, 3, 0]}
-                  maxBarSize={10}
+                  maxBarSize={compact ? 18 : 10}
                   {...(onSelectType !== undefined
                     ? {
                         cursor: "pointer",

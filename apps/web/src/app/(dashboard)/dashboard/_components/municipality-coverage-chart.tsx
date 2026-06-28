@@ -48,11 +48,14 @@ export function MunicipalityCoverageChart({
   data,
   isLoading,
   rangeLabel,
+  compact = false,
 }: {
   data: MunicipalityCoverageDatum[];
   isLoading: boolean;
   /** Active War Room range label (e.g. "Jun 19 – Jun 26"). */
   rangeLabel: string;
+  /** Half-height chart for dense surfaces (Interactive Report Map). */
+  compact?: boolean;
 }) {
   // Sort descending by total activity, show top 11 (all municipalities).
   // Keep full names so ChartTooltip shows the untruncated municipality name;
@@ -94,7 +97,10 @@ export function MunicipalityCoverageChart({
           </p>
         ) : (
           <>
-            <ChartContainer config={CHART_CONFIG} className="h-[15rem] w-full">
+            <ChartContainer
+              config={CHART_CONFIG}
+              className={`${compact ? "h-[7.5rem]" : "h-[15rem]"} w-full`}
+            >
               <BarChart
                 accessibilityLayer
                 data={chartData}

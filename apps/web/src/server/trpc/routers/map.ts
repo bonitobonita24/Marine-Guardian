@@ -174,6 +174,13 @@ const eventsRouter = router({
         locationLon: true,
         reportedAt: true,
         eventType: { select: { display: true, category: true } },
+        // First few assets so the map marker can show a small image preview
+        // (indicates the event has a photo). The client picks the first image
+        // asset via isImageAsset(mimeType, filename).
+        assets: {
+          take: 4,
+          select: { id: true, mimeType: true, filename: true },
+        },
       },
     });
 

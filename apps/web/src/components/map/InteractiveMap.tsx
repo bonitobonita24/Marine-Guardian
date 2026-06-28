@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import maplibregl from "maplibre-gl";
 import {
   Map,
@@ -30,13 +30,20 @@ import {
   eventCategoryHeatHsl,
   eventPrioritySizePx,
   eventPriorityLabel,
+  isSeriousEvent,
 } from "./eventMarkerStyle";
+import { isImageAsset } from "@marine-guardian/shared/lib/asset-mime";
+import { AlertTriangle } from "lucide-react";
 
 // MapLibre coordinate convention is [longitude, latitude] (locked in DECISIONS_LOG).
 // Default view spans Marine Guardian's primary operating area; the map auto-fits
 // to the actual loaded data bounds once features arrive (see fit-bounds effect).
 const DEFAULT_CENTER: [number, number] = [121.5, 13.0];
 const DEFAULT_ZOOM = 6;
+
+// Event pins stay small when zoomed out; the small image-preview thumbnail
+// (for events that have a photo) only appears once zoomed in past this level.
+const PIN_PREVIEW_ZOOM = 11.5;
 
 // Event-layer toggles (2026-06-27): event markers are grouped by the same REAL
 // EarthRanger eventType.category buckets the dashboard breakdown uses. Both
@@ -78,9 +85,21 @@ type InteractiveMapProps = {
   displayMode?: "dots" | "heatmap";
   /** Hide the single-patrol drill-down selector overlay (report map = events-focused). */
   hidePatrolSelector?: boolean;
+  /** Hide live ranger/subject position markers. The Interactive Report Map is a
+   *  date/municipality-scoped reporting surface — it must show ONLY the filtered
+   *  events + patrol tracks, never live (unfiltered) ranger GPS positions. */
+  hideSubjects?: boolean;
   /** When provided, event markers become clickable and call this with the event id
    *  (report map opens the EventDetailModal from a marker click). */
   onEventClick?: (eventId: string) => void;
+  /** Control placement. "bar" (default) = horizontal legend toolbar ABOVE the
+   *  map (Command Center / Live Map — unchanged). "floating" = all controls in a
+   *  single collapsible card overlaid on the map's upper-left, giving the map the
+   *  full panel height (Interactive Report Map). */
+  controlsPlacement?: "bar" | "floating";
+  /** Slot rendered at the top of the floating controls card (date + municipality
+   *  filters). Only used when controlsPlacement="floating". */
+  filterSlot?: ReactNode;
 };
 
 export function InteractiveMap({
@@ -91,7 +110,10 @@ export function InteractiveMap({
   trackMode = "active",
   displayMode: initialDisplayMode = "dots",
   hidePatrolSelector,
+  hideSubjects,
   onEventClick,
+  controlsPlacement = "bar",
+  filterSlot,
 }: InteractiveMapProps) {
   const subjectsQuery = trpc.map.subjects.list.useQuery();
   const eventsQuery = trpc.map.events.list.useQuery({
@@ -140,6 +162,8 @@ export function InteractiveMap({
   const [displayMode, setDisplayMode] = useState<"dots" | "heatmap">(
     initialDisplayMode,
   );
+  // Current map zoom — drives zoom-responsive event-pin sizing + image previews.
+  const [zoom, setZoom] = useState(DEFAULT_ZOOM);
 
   const visibleTracks = useMemo(
     () =>
@@ -221,14 +245,17 @@ export function InteractiveMap({
   // All point coordinates from the loaded data, used to auto-fit the viewport.
   const dataCoordinates = useMemo<[number, number][]>(() => {
     const coords: [number, number][] = [];
-    for (const s of subjects) coords.push([s.lastPositionLon, s.lastPositionLat]);
+    if (hideSubjects !== true) {
+      for (const s of subjects)
+        coords.push([s.lastPositionLon, s.lastPositionLat]);
+    }
     for (const e of events) {
       if (e.locationLon != null && e.locationLat != null) {
         coords.push([e.locationLon, e.locationLat]);
       }
     }
     return coords;
-  }, [subjects, events]);
+  }, [subjects, events, hideSubjects]);
 
   // Auto-fit the map to the data bounds once features have loaded, so the
   // viewport always lands on where the real EarthRanger data actually is
@@ -251,34 +278,72 @@ export function InteractiveMap({
     map.fitBounds(bounds, { padding: 80, maxZoom: 14, duration: 800 });
   }, [trackCoordinates]);
 
+  const floating = controlsPlacement === "floating";
   return (
     <div className={cn("flex h-full w-full flex-col gap-2", className)}>
-      {/* Patrol-track toggles live in a horizontal bar ABOVE the map (not
-          overlaid inside it), aligned to the map width. */}
-      <TrackLegend
-        orientation="horizontal"
-        showTracks={showTracks}
-        onShowTracksChange={setShowTracks}
-        visibility={trackVisibility}
-        onTypeVisibilityChange={(type: PatrolType, next: boolean) => {
-          setTrackVisibility((prev) => ({ ...prev, [type]: next }));
-        }}
-        eventLayers={eventLayers}
-        onEventLayerChange={(layer, next) => {
-          setEventLayers((prev) => ({ ...prev, [layer]: next }));
-        }}
-        {...(useInRangeTracks
-          ? { displayMode, onDisplayModeChange: setDisplayMode }
-          : {})}
-        className="shrink-0"
-      />
+      {/* Bar mode (Command Center / Live Map): horizontal legend toolbar ABOVE
+          the map, aligned to the map width. */}
+      {!floating && (
+        <TrackLegend
+          orientation="horizontal"
+          showTracks={showTracks}
+          onShowTracksChange={setShowTracks}
+          visibility={trackVisibility}
+          onTypeVisibilityChange={(type: PatrolType, next: boolean) => {
+            setTrackVisibility((prev) => ({ ...prev, [type]: next }));
+          }}
+          eventLayers={eventLayers}
+          onEventLayerChange={(layer, next) => {
+            setEventLayers((prev) => ({ ...prev, [layer]: next }));
+          }}
+          {...(useInRangeTracks
+            ? { displayMode, onDisplayModeChange: setDisplayMode }
+            : {})}
+          className="shrink-0"
+        />
+      )}
 
       <div className="relative min-h-0 flex-1 overflow-hidden rounded-md">
+      {/* Floating mode (Interactive Report Map): every control in one compact,
+          collapsible card overlaid on the map's upper-left → the map gets the
+          full panel height. */}
+      {floating && (
+        <div className="absolute left-3 top-3 z-20 flex max-h-[calc(100%-1.5rem)] w-60 max-w-[calc(100%-1.5rem)] flex-col">
+          <TrackLegend
+            orientation="vertical"
+            collapsible
+            title="Map controls"
+            className="min-h-0"
+            {...(filterSlot !== undefined ? { header: filterSlot } : {})}
+            showTracks={showTracks}
+            onShowTracksChange={setShowTracks}
+            visibility={trackVisibility}
+            onTypeVisibilityChange={(type: PatrolType, next: boolean) => {
+              setTrackVisibility((prev) => ({ ...prev, [type]: next }));
+            }}
+            eventLayers={eventLayers}
+            onEventLayerChange={(layer, next) => {
+              setEventLayers((prev) => ({ ...prev, [layer]: next }));
+            }}
+            {...(useInRangeTracks
+              ? { displayMode, onDisplayModeChange: setDisplayMode }
+              : {})}
+          />
+        </div>
+      )}
       <Map
         ref={mapRef}
         center={DEFAULT_CENTER}
         zoom={DEFAULT_ZOOM}
         className="h-full w-full"
+        onViewportChange={(vp) => {
+          // onViewportChange fires CONTINUOUSLY on pan + zoom. Only commit a new
+          // zoom when it changes enough to matter (≥ 0.25), and bail out (return
+          // prev → React skips the re-render) on pure pans. Updating state on
+          // every frame re-rendered the map children and was tearing down the
+          // patrol-track layers + event-marker click handlers mid-interaction.
+          setZoom((prev) => (Math.abs(prev - vp.zoom) >= 0.25 ? vp.zoom : prev));
+        }}
       >
         <MapControls />
 
@@ -327,7 +392,8 @@ export function InteractiveMap({
           />
         )}
 
-        {subjects.map((subject) => (
+        {hideSubjects !== true &&
+          subjects.map((subject) => (
           <MapMarker
             key={`subject-${subject.id}`}
             longitude={subject.lastPositionLon}
@@ -376,7 +442,22 @@ export function InteractiveMap({
 
         {displayMode === "dots" &&
           visibleEvents.map((event) => {
-          const size = eventPrioritySizePx(event.priority);
+          const serious = isSeriousEvent(event.eventType?.display);
+          const color = eventCategoryColor(event.eventType?.category);
+          const ringColor = serious ? "hsl(var(--destructive))" : color;
+          // Pins shrink when zoomed out so a dense range never blankets the map.
+          const zoomScale = zoom < 9 ? 0.6 : zoom < PIN_PREVIEW_ZOOM ? 0.85 : 1;
+          const size = Math.round(
+            (serious ? eventPrioritySizePx(event.priority) + 6 : eventPrioritySizePx(event.priority)) *
+              zoomScale,
+          );
+          // Image preview only once zoomed in past the threshold AND the event
+          // actually has an image asset.
+          const firstImage =
+            zoom >= PIN_PREVIEW_ZOOM
+              ? event.assets.find((a) => isImageAsset(a.mimeType, a.filename))
+              : undefined;
+          const clickable = onEventClick !== undefined;
           return (
             <MapMarker
               key={`event-${event.id}`}
@@ -391,17 +472,56 @@ export function InteractiveMap({
                 : {})}
             >
               <MarkerContent>
-                <div
-                  className={cn(
-                    "rotate-45 border border-white shadow-lg",
-                    onEventClick !== undefined && "cursor-pointer",
-                  )}
-                  style={{
-                    width: size,
-                    height: size,
-                    backgroundColor: eventCategoryColor(event.eventType?.category),
-                  }}
-                />
+                {firstImage ? (
+                  // Zoomed-in image preview thumbnail (ring = category, or red
+                  // for serious events, with a corner alert badge).
+                  <div
+                    className={cn(
+                      "relative overflow-hidden rounded-md border-2 shadow-lg",
+                      clickable && "cursor-pointer",
+                    )}
+                    style={{ width: 40, height: 40, borderColor: ringColor }}
+                  >
+                    <img
+                      src={`/api/assets/${firstImage.id}`}
+                      alt={event.title ?? "Event photo"}
+                      loading="lazy"
+                      className="h-full w-full object-cover"
+                    />
+                    {serious && (
+                      <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[hsl(var(--destructive))] text-white shadow">
+                        <AlertTriangle className="h-2.5 w-2.5" />
+                      </span>
+                    )}
+                  </div>
+                ) : serious ? (
+                  // Distinct, attention-drawing marker for serious incidents:
+                  // pulsing red circle with an alert glyph.
+                  <div
+                    className={cn(
+                      "flex items-center justify-center rounded-full border-2 border-white bg-[hsl(var(--destructive))] text-white shadow-lg animate-warroom-pulse",
+                      clickable && "cursor-pointer",
+                    )}
+                    style={{
+                      width: Math.max(size, 18),
+                      height: Math.max(size, 18),
+                    }}
+                  >
+                    <AlertTriangle className="h-[60%] w-[60%]" />
+                  </div>
+                ) : (
+                  <div
+                    className={cn(
+                      "rotate-45 border border-white shadow-lg",
+                      clickable && "cursor-pointer",
+                    )}
+                    style={{
+                      width: size,
+                      height: size,
+                      backgroundColor: color,
+                    }}
+                  />
+                )}
               </MarkerContent>
               <MarkerTooltip>
                 <div className="space-y-0.5">

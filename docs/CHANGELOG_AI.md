@@ -3,6 +3,50 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-06-28 — Phase 7: Report Map density polish + MERGE to main (731871b → squash to main)
+
+- Agent:               CLAUDE_CODE (Opus 4.8)
+- Why:                 Final owner-iterated density tweaks on the Interactive Report Map, then merge the completed UX overhaul to main (owner approved).
+- Files modified:      apps/web/src/app/(dashboard)/map/_components/report-map-view.tsx, apps/web/src/app/(dashboard)/dashboard/_components/breakdown-bars.tsx, .cline/STATE.md, docs/CHANGELOG_AI.md
+- Implementation:
+  • Removed the top KPI strip on the Report Map (Total Events/Patrols/Law Enforcement/Monitoring) — redundant with the breakdown card totals + the municipality-coverage chart. Dropped the now-unused reportMap.summary query call from report-map-view.
+  • BreakdownBars compact mode: cleaner header (title + vertical partition + total count, no "Live" dot) + word-wrapped Y-axis labels via recharts <Text> (no "…" truncation), narrower label column freeing space for wider bars. Non-compact (Command Center) path byte-identical.
+- Verification:        Agent-verified earlier this branch (Playwright @45204): patrol tracks render, event-click→EventDetailModal (fullscreen fixed), municipality select re-scopes all panels. Density work typecheck-confirmed prior session.
+- Tests:               web 1095/1095 (no test count change — presentational).
+- Phase 7 gate:        Hard pre-merge gate 4/4 GREEN — product-sync ✅, typecheck 7/7 ✅, web vitest 1095/1095 ✅, Next prod build ✅.
+- Deploy:              Squash-merged fix/report-map-toggle-scope (15 commits) → main → pushed origin → branch deleted. Staging/prod HOLD stands (no staging/prod deploy).
+
+## 2026-06-28 — Phase 7 redesign: Interactive Report Map floating controls card (branch fix/report-map-toggle-scope)
+
+- Agent:               CLAUDE_CODE (Opus 4.8)
+- Why:                 Owner asked to move ALL Report Map controls off the top into a single small floating card on the map's upper-left, for a bigger map. Consolidates: (1) date From/To, (2) municipality, (3) patrol tracks + foot/seaborne sub-toggles, (4) law enforcement events, (5) monitoring events, (6) heatmap. The top filter bar and the legend toggle row above the map are removed; the map reclaims that height.
+- Files added:         apps/web/src/lib/use-fullscreen-portal-container.ts
+- Files modified:      apps/web/src/components/map/InteractiveMap.tsx, apps/web/src/components/map/TrackLegend.tsx, apps/web/src/components/reporting/report-filter-bar.tsx, apps/web/src/components/reporting/__tests__/report-filter-bar.test.tsx, apps/web/src/app/(dashboard)/map/_components/report-map-view.tsx, apps/web/src/components/ui/dialog.tsx, apps/web/src/components/ui/select.tsx, docs/CHANGELOG_AI.md, .cline/STATE.md
+- Implementation:
+  • InteractiveMap gains controlsPlacement ("bar" default = Command Center/Live Map unchanged horizontal toolbar | "floating" = report map) + a filterSlot ReactNode. In floating mode the horizontal legend is NOT rendered; instead a collapsible card is overlaid absolute top-left (z-20), bounded to the map height (max-h calc(100%-1.5rem)) with the toggle list scrolling internally.
+  • TrackLegend vertical branch rebuilt as VerticalTrackLegend (own component so useState/collapse hook isn't conditional): header slot (filters) + title + collapse chevron + master/seaborne/foot track toggles + event-layer (law/monitoring) toggles + heatmap toggle (previously the vertical card lacked event/heatmap — those were horizontal-only).
+  • ReportFilterBar gains layout="stacked" (borderless vertical, full-width inputs) for embedding in the card; "bar" default unchanged. report-map-view drops the top <ReportFilterBar/>, passes controlsPlacement="floating" + filterSlot={<ReportFilterBar layout="stacked"/>}; KPI strip + 4 charts retained.
+  • FULLSCREEN FIX (extends the dialog fix to Select): extracted useFullscreenPortalContainer to a shared lib; dialog.tsx now imports it; select.tsx (SelectContent) now portals into document.fullscreenElement too. Without this the municipality dropdown — now inside the fullscreen map controls — would render outside the fullscreen subtree and be invisible (same class of bug as the event-detail modal).
+- Verification:        Playwright on rebuilt dev image @45204. Floating card holds all 6 control groups (6 switches + From/To + municipality + reset); top filter bar removed (0 filter regions outside the card); card bounded to map and scrolls internally (scrollH 456 > clientH 284); collapse chevron shrinks card to a 42px header pill. FULLSCREEN: municipality dropdown renders inside the fullscreen subtree (12 options visible — evidence report-map-redesign-fullscreen-dropdown.png). Command Center regression check: /dashboard still has the horizontal legend, NO floating card. 0 console errors throughout.
+- Tests:               +1 (web 1094→1095): ReportFilterBar stacked layout keeps all controls, drops bar chrome, reset spans full width. (Select fullscreen portal covered E2E + by the shared-hook dialog test.)
+- Phase 7 gate:        Hard pre-merge gate 4/4 green — pnpm tools:check-product-sync ✅, pnpm typecheck ✅ (7/7), pnpm --filter @marine-guardian/web test ✅ (1095), pnpm --filter @marine-guardian/web build ✅ (Next prod, ESLint-strict).
+- Deploy:              committed on branch fix/report-map-toggle-scope (part of the pending Report Map merge). Staging/prod HOLD stands.
+
+## 2026-06-28 — Phase 7 fix: dialogs invisible in fullscreen (branch fix/report-map-toggle-scope)
+
+- Agent:               CLAUDE_CODE (Opus 4.8)
+- Why:                 Owner reported that on the Interactive Report Map, clicking an event marker "doesn't show its details." Reproduced + root-caused via Playwright on dev: the click DOES open EventDetailModal (React state + marker click handler both fine), but the shared shadcn Dialog (Radix) portals to document.body — which is OUTSIDE the fullscreened element. The Report Map is used in fullscreen ("presentation surface for the Mayor/investors"), so the modal mounted in the DOM (role=dialog, 768×659) but the browser never painted it (dialogInsideFullscreenSubtree=false). Exiting fullscreen made the same modal paint → confirmed it was a portal-container bug, not an event-click regression. Latent twin: same bug would hide the Command Center alert modal in fullscreen.
+- Files added:         apps/web/src/components/ui/__tests__/dialog.test.tsx
+- Files modified:      apps/web/src/components/ui/dialog.tsx, docs/CHANGELOG_AI.md, .cline/STATE.md
+- Files deleted:       none
+- Schema/migrations:   none
+- Implementation:
+  • DialogContent now resolves a fullscreen-aware portal container via useFullscreenPortalContainer(): tracks document.fullscreenElement (lazy init + fullscreenchange listener, SSR-guarded). When a fullscreen element is active, DialogPortal receives container={fsElement} so the dialog mounts INSIDE the fullscreened subtree and paints. When not in fullscreen, container is null → the prop is omitted → Radix falls back to document.body (behaviour byte-identical to before — only the fullscreen path changes, and it was fully broken before). App-wide fix (every Dialog), so it also fixes the Command Center alert modal in fullscreen.
+- Verification:        Playwright on rebuilt dev image @45204 — fullscreen + Law-enforcement events on + marker click → EventDetailModal #35975 now renders INSIDE the fullscreen subtree (dialogInsideFullscreenSubtree=true), painted + visible (evidence report-map-fullscreen-modal-fixed.png), 0 console errors. Counter-case (non-fullscreen) unchanged.
+- Tests:               +2 (web 1092→1094): portals into the active fullscreen element; portals to body when not in fullscreen.
+- Phase 7 gate:        Hard pre-merge gate 4/4 green — pnpm tools:check-product-sync ✅, pnpm typecheck ✅ (7/7), pnpm --filter @marine-guardian/web test ✅ (1094), pnpm --filter @marine-guardian/web build ✅ (Next prod, ESLint-strict).
+- Deploy:              committed on branch fix/report-map-toggle-scope (part of the pending Report Map merge). Staging/prod HOLD stands.
+
 ## 2026-06-28 — Phase 7 fix: municipal-waters municipality assignment (branch feat/municipal-waters-assignment)
 
 - Agent:               CLAUDE_CODE (Opus 4.8 — Full Auto)

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -56,6 +57,13 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
   // BUG-2b FIX: track save errors so they surface to the user instead of
   // failing silently (the modal was staying open with no feedback on 400).
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Photo lightbox: index into the image-only asset list (null = closed).
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  // Image-only assets, shared by the thumbnail grid (index lookup) + lightbox.
+  const imageAssets = (eventQuery.data?.assets ?? []).filter((a) =>
+    isImageAsset(a.mimeType, a.filename),
+  );
 
   const updateEvent = trpc.event.update.useMutation({
     onSuccess: () => {
@@ -169,6 +177,61 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
 
             {/* ── Edit tab ──────────────────────────────────────────────── */}
             <TabsContent value="edit" className="space-y-5 pt-4">
+              {/* Photos first: when an event has imagery, surface it above the
+                  fill form so the operator sees it immediately (all event types). */}
+              {eventQuery.data.assets.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium">
+                    Photos ({eventQuery.data.assets.length})
+                  </h3>
+                  <div className="grid grid-cols-3 gap-2">
+                    {eventQuery.data.assets.map((asset) => {
+                      const href = `/api/assets/${asset.id}`;
+                      const isImage = isImageAsset(asset.mimeType, asset.filename);
+                      // Images open the in-app lightbox (enlarged + prev/next);
+                      // non-images keep a download/new-tab link.
+                      if (isImage) {
+                        const imgIdx = imageAssets.findIndex(
+                          (a) => a.id === asset.id,
+                        );
+                        return (
+                          <button
+                            key={asset.id}
+                            type="button"
+                            onClick={() => {
+                              setLightboxIndex(imgIdx);
+                            }}
+                            className="block cursor-pointer overflow-hidden rounded border"
+                            data-testid="event-asset"
+                          >
+                            <img
+                              src={href}
+                              alt={asset.filename}
+                              loading="lazy"
+                              className="h-28 w-full object-cover"
+                            />
+                          </button>
+                        );
+                      }
+                      return (
+                        <a
+                          key={asset.id}
+                          href={href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block overflow-hidden rounded border"
+                          data-testid="event-asset"
+                        >
+                          <span className="flex h-28 items-center justify-center px-2 text-center text-xs text-muted-foreground">
+                            {asset.filename}
+                          </span>
+                        </a>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label htmlFor="event-title">Title</Label>
@@ -313,43 +376,6 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
                 </div>
               )}
 
-              {eventQuery.data.assets.length > 0 && (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-medium">
-                    Photos ({eventQuery.data.assets.length})
-                  </h3>
-                  <div className="grid grid-cols-3 gap-2">
-                    {eventQuery.data.assets.map((asset) => {
-                      const href = `/api/assets/${asset.id}`;
-                      const isImage = isImageAsset(asset.mimeType, asset.filename);
-                      return (
-                        <a
-                          key={asset.id}
-                          href={href}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="block overflow-hidden rounded border"
-                          data-testid="event-asset"
-                        >
-                          {isImage ? (
-                            <img
-                              src={href}
-                              alt={asset.filename}
-                              loading="lazy"
-                              className="h-28 w-full object-cover"
-                            />
-                          ) : (
-                            <span className="flex h-28 items-center justify-center px-2 text-center text-xs text-muted-foreground">
-                              {asset.filename}
-                            </span>
-                          )}
-                        </a>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
               <AccompanyingRangersInput
                 eventId={eventQuery.data.id}
                 rangers={eventQuery.data.accompanyingRangers}
@@ -405,6 +431,100 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
             </TabsContent>
           </Tabs>
         )}
+
+        <PhotoLightbox
+          images={imageAssets}
+          index={lightboxIndex}
+          onIndexChange={setLightboxIndex}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * In-app photo lightbox — opens an enlarged image in a popup (nested Dialog, so
+ * Escape closes the lightbox first and leaves the event modal open) with prev/
+ * next navigation via on-screen buttons and the ← / → arrow keys. Replaces the
+ * old "open in a new tab" behaviour for image assets.
+ */
+function PhotoLightbox({
+  images,
+  index,
+  onIndexChange,
+}: {
+  images: { id: string; filename: string }[];
+  index: number | null;
+  onIndexChange: (i: number | null) => void;
+}) {
+  useEffect(() => {
+    if (index === null || images.length === 0) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight") {
+        onIndexChange((index + 1) % images.length);
+      } else if (e.key === "ArrowLeft") {
+        onIndexChange((index - 1 + images.length) % images.length);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [index, images.length, onIndexChange]);
+
+  if (index === null) return null;
+  const current = images[index];
+  if (current === undefined) return null;
+  const multi = images.length > 1;
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(o) => {
+        if (!o) onIndexChange(null);
+      }}
+    >
+      <DialogContent className="max-w-4xl border-none bg-transparent p-0 shadow-none">
+        <DialogTitle className="sr-only">
+          {`Photo ${String(index + 1)} of ${String(images.length)}`}
+        </DialogTitle>
+        <DialogDescription className="sr-only">
+          {current.filename}
+        </DialogDescription>
+        <div className="relative flex items-center justify-center">
+          <img
+            src={`/api/assets/${current.id}`}
+            alt={current.filename}
+            className="max-h-[85vh] w-auto max-w-full rounded object-contain"
+          />
+          {multi && (
+            <>
+              <button
+                type="button"
+                aria-label="Previous photo"
+                onClick={() => {
+                  onIndexChange((index - 1 + images.length) % images.length);
+                }}
+                className="absolute left-2 flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                aria-label="Next photo"
+                onClick={() => {
+                  onIndexChange((index + 1) % images.length);
+                }}
+                className="absolute right-2 flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+              <span className="absolute bottom-2 rounded bg-black/60 px-2 py-0.5 text-xs text-white tabular-nums">
+                {`${String(index + 1)} / ${String(images.length)}`}
+              </span>
+            </>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );

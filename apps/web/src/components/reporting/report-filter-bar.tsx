@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc/client";
+import { cn } from "@/lib/utils";
 import { useReportFilter } from "./report-filter-context";
 
 /**
@@ -41,9 +42,16 @@ function toDateInputValue(d: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-export function ReportFilterBar() {
+export function ReportFilterBar({
+  layout = "bar",
+}: {
+  /** "bar" = bordered horizontal toolbar (default). "stacked" = borderless
+   *  vertical layout for embedding in the floating map-controls card. */
+  layout?: "bar" | "stacked";
+} = {}) {
   const { from, to, municipalityId, setRange, setMunicipalityId, resetTo30d } =
     useReportFilter();
+  const stacked = layout === "stacked";
 
   const municipalities = trpc.municipality.list.useQuery();
 
@@ -68,49 +76,64 @@ export function ReportFilterBar() {
     setMunicipalityId(value === ALL_MUNICIPALITIES ? null : value);
   };
 
+  const fieldClass = cn(
+    "flex",
+    stacked ? "flex-col items-start gap-0.5" : "items-center gap-1.5",
+  );
+
   return (
     <div
       role="region"
       aria-label="Report map filters"
-      className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-3 py-2"
+      className={cn(
+        stacked
+          ? "flex flex-col gap-1"
+          : "flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-3 py-2",
+      )}
     >
-      <div className="flex items-center gap-1.5">
-        <Label
-          htmlFor="report-range-from"
-          className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
-        >
-          From
-        </Label>
-        <Input
-          id="report-range-from"
-          data-testid="report-range-from"
-          type="date"
-          className="h-8 w-[8.5rem] text-xs"
-          value={toDateInputValue(from)}
-          max={toDateInputValue(to)}
-          onChange={handleFromChange}
-        />
+      <div className={cn(stacked ? "grid grid-cols-2 gap-1" : "contents")}>
+        <div className={fieldClass}>
+          <Label
+            htmlFor="report-range-from"
+            className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+          >
+            From
+          </Label>
+          <Input
+            id="report-range-from"
+            data-testid="report-range-from"
+            type="date"
+            className={cn(
+              stacked ? "h-7 w-full text-[11px]" : "h-8 w-[8.5rem] text-xs",
+            )}
+            value={toDateInputValue(from)}
+            max={toDateInputValue(to)}
+            onChange={handleFromChange}
+          />
+        </div>
+
+        <div className={fieldClass}>
+          <Label
+            htmlFor="report-range-to"
+            className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+          >
+            To
+          </Label>
+          <Input
+            id="report-range-to"
+            data-testid="report-range-to"
+            type="date"
+            className={cn(
+              stacked ? "h-7 w-full text-[11px]" : "h-8 w-[8.5rem] text-xs",
+            )}
+            value={toDateInputValue(to)}
+            min={toDateInputValue(from)}
+            onChange={handleToChange}
+          />
+        </div>
       </div>
 
-      <div className="flex items-center gap-1.5">
-        <Label
-          htmlFor="report-range-to"
-          className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
-        >
-          To
-        </Label>
-        <Input
-          id="report-range-to"
-          data-testid="report-range-to"
-          type="date"
-          className="h-8 w-[8.5rem] text-xs"
-          value={toDateInputValue(to)}
-          min={toDateInputValue(from)}
-          onChange={handleToChange}
-        />
-      </div>
-
-      <div className="flex items-center gap-1.5">
+      <div className={fieldClass}>
         <Label
           htmlFor="report-municipality"
           className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
@@ -124,7 +147,7 @@ export function ReportFilterBar() {
           <SelectTrigger
             id="report-municipality"
             data-testid="report-municipality"
-            className="h-8 w-[12rem] text-xs"
+            className={cn(stacked ? "h-7 w-full text-[11px]" : "h-8 w-[12rem] text-xs")}
           >
             <SelectValue placeholder="All municipalities" />
           </SelectTrigger>
@@ -143,7 +166,7 @@ export function ReportFilterBar() {
         type="button"
         variant="outline"
         size="sm"
-        className="h-8"
+        className={cn(stacked ? "h-7 w-full text-xs" : "h-8")}
         onClick={resetTo30d}
         data-testid="report-filter-reset"
       >

@@ -49,11 +49,14 @@ export function EventsOverTimeChart({
   data,
   isLoading,
   rangeLabel,
+  compact = false,
 }: {
   data: EventsOverTimeDatum[];
   isLoading: boolean;
   /** Active report range label (e.g. "May 28 – Jun 27"). */
   rangeLabel: string;
+  /** Half-height chart for dense surfaces (Interactive Report Map). */
+  compact?: boolean;
 }) {
   const total = data.reduce((s, d) => s + d.count, 0);
 
@@ -83,7 +86,10 @@ export function EventsOverTimeChart({
           </p>
         ) : (
           <>
-            <ChartContainer config={CHART_CONFIG} className="h-[15rem] w-full">
+            <ChartContainer
+              config={CHART_CONFIG}
+              className={`${compact ? "h-[7.5rem]" : "h-[15rem]"} w-full`}
+            >
               <LineChart
                 accessibilityLayer
                 data={data}

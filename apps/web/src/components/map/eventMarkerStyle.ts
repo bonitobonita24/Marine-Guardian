@@ -51,3 +51,25 @@ export function eventPriorityLabel(priority: number): string {
   if (priority >= 100) return "Medium";
   return "Low";
 }
+
+/**
+ * Serious-incident event types (matched as case-insensitive substrings of the
+ * EarthRanger eventType.display). These get a distinct, attention-drawing marker
+ * on the map so high-stakes events stand out from routine ones:
+ *   Compressor Fishing · Taking of Prohibited Species · Use of Prohibited Gears ·
+ *   Marine Wildlife Sightings · Threats on Habitat.
+ */
+const SERIOUS_EVENT_PATTERNS = [
+  "compressor",
+  "prohibited species",
+  "prohibited gear",
+  "wildlife sighting",
+  "habitat",
+] as const;
+
+/** True when an event's type display marks it as a serious incident. */
+export function isSeriousEvent(display: string | null | undefined): boolean {
+  if (display == null) return false;
+  const d = display.toLowerCase();
+  return SERIOUS_EVENT_PATTERNS.some((p) => d.includes(p));
+}
