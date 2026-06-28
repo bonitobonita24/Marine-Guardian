@@ -83,6 +83,7 @@ function ReportMapInner() {
           dateTo={to}
           {...(municipalityId !== null ? { municipalityId } : {})}
           trackMode="inRange"
+          defaultEventLayers={{ lawEnforcement: true, monitoring: true }}
           hidePatrolSelector
           hideSubjects
           controlsPlacement="floating"

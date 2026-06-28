@@ -7,7 +7,7 @@ import {
   useReportFilter,
 } from "../report-filter-context";
 
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 afterEach(() => {
   cleanup();
@@ -18,13 +18,13 @@ function wrapper({ children }: { children: React.ReactNode }) {
 }
 
 describe("ReportFilterProvider / useReportFilter", () => {
-  it("defaults to a last-30-days window and all municipalities", () => {
+  it("defaults to a last-7-days window and all municipalities", () => {
     const { result } = renderHook(() => useReportFilter(), { wrapper });
 
     expect(result.current.municipalityId).toBeNull();
     const spanMs = result.current.to.getTime() - result.current.from.getTime();
-    // Within a second of exactly 30 days (allowing for render time).
-    expect(Math.abs(spanMs - THIRTY_DAYS_MS)).toBeLessThan(1000);
+    // Within a second of exactly 7 days (allowing for render time).
+    expect(Math.abs(spanMs - SEVEN_DAYS_MS)).toBeLessThan(1000);
   });
 
   it("setRange replaces the active window", () => {
@@ -54,7 +54,7 @@ describe("ReportFilterProvider / useReportFilter", () => {
     expect(result.current.municipalityId).toBeNull();
   });
 
-  it("resetTo30d restores the default window and clears municipality", () => {
+  it("resetRange restores the default window and clears municipality", () => {
     const { result } = renderHook(() => useReportFilter(), { wrapper });
 
     act(() => {
@@ -66,12 +66,12 @@ describe("ReportFilterProvider / useReportFilter", () => {
     });
 
     act(() => {
-      result.current.resetTo30d();
+      result.current.resetRange();
     });
 
     expect(result.current.municipalityId).toBeNull();
     const spanMs = result.current.to.getTime() - result.current.from.getTime();
-    expect(Math.abs(spanMs - THIRTY_DAYS_MS)).toBeLessThan(1000);
+    expect(Math.abs(spanMs - SEVEN_DAYS_MS)).toBeLessThan(1000);
   });
 
   it("throws when used outside the provider", () => {

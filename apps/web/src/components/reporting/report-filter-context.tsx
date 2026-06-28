@@ -19,16 +19,17 @@ import {
  * means "all municipalities".
  *
  * Distinct from the Command Center's DashboardRangeProvider on purpose: the CC
- * has no municipality filter and defaults to a 7-day window, while the report
- * surface defaults to the last 30 days (matching the municipality-coverage
- * aggregation window). Keeping them separate avoids over-coupling the two
- * surfaces — the report page owns its own provider.
+ * has no municipality filter. Both surfaces default to a 7-day window (the
+ * report surface was changed from 30 → 7 days on 2026-06-28 per owner request,
+ * so opening the map lands on recent activity by default). Keeping the two
+ * providers separate avoids over-coupling the surfaces — the report page owns
+ * its own provider.
  */
 
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
-function thirtyDaysAgo(now: Date): Date {
-  return new Date(now.getTime() - THIRTY_DAYS_MS);
+function sevenDaysAgo(now: Date): Date {
+  return new Date(now.getTime() - SEVEN_DAYS_MS);
 }
 
 export type ReportFilter = {
@@ -42,15 +43,15 @@ export type ReportFilter = {
   setRange: (next: { from: Date; to: Date }) => void;
   /** Set (or clear, with null) the active municipality. */
   setMunicipalityId: (next: string | null) => void;
-  /** Reset to the default last-30-days window ending now + all municipalities. */
-  resetTo30d: () => void;
+  /** Reset to the default last-7-days window ending now + all municipalities. */
+  resetRange: () => void;
 };
 
 const ReportFilterContext = createContext<ReportFilter | null>(null);
 
 export function ReportFilterProvider({ children }: { children: ReactNode }) {
   // Lazy initializers anchor the default window to first render.
-  const [from, setFrom] = useState<Date>(() => thirtyDaysAgo(new Date()));
+  const [from, setFrom] = useState<Date>(() => sevenDaysAgo(new Date()));
   const [to, setTo] = useState<Date>(() => new Date());
   const [municipalityId, setMunicipalityIdState] = useState<string | null>(null);
 
@@ -63,9 +64,9 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
     setMunicipalityIdState(next);
   }, []);
 
-  const resetTo30d = useCallback(() => {
+  const resetRange = useCallback(() => {
     const now = new Date();
-    setFrom(thirtyDaysAgo(now));
+    setFrom(sevenDaysAgo(now));
     setTo(now);
     setMunicipalityIdState(null);
   }, []);
@@ -77,9 +78,9 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
       municipalityId,
       setRange,
       setMunicipalityId,
-      resetTo30d,
+      resetRange,
     }),
-    [from, to, municipalityId, setRange, setMunicipalityId, resetTo30d],
+    [from, to, municipalityId, setRange, setMunicipalityId, resetRange],
   );
 
   return (

@@ -84,6 +84,10 @@ type InteractiveMapProps = {
    *  individual category-coloured markers; "heatmap" renders per-category density
    *  surfaces. The in-map TrackLegend toggle flips this at runtime. */
   displayMode?: "dots" | "heatmap";
+  /** Initial event-layer visibility. Omitted → both categories OFF (Command
+   *  Center / Live Map keep the operator-triggered default). The Interactive
+   *  Report Map passes both ON so events are visible immediately on load. */
+  defaultEventLayers?: EventLayerVisibility;
   /** Hide the single-patrol drill-down selector overlay (report map = events-focused). */
   hidePatrolSelector?: boolean;
   /** Hide live ranger/subject position markers. The Interactive Report Map is a
@@ -114,6 +118,7 @@ export function InteractiveMap({
   municipalityId,
   trackMode = "active",
   displayMode: initialDisplayMode = "dots",
+  defaultEventLayers,
   hidePatrolSelector,
   hideSubjects,
   onEventClick,
@@ -159,9 +164,11 @@ export function InteractiveMap({
   const [trackVisibility, setTrackVisibility] = useState<PatrolTrackVisibility>(
     DEFAULT_TRACK_VISIBILITY,
   );
-  // Event-marker layers — both OFF by default (operator-triggered).
+  // Event-marker layers. Default OFF (operator-triggered) on the Command Center
+  // / Live Map; the Interactive Report Map passes `defaultEventLayers` both-ON
+  // so event markers are visible immediately on load (owner request 2026-06-28).
   const [eventLayers, setEventLayers] = useState<EventLayerVisibility>(
-    DEFAULT_EVENT_LAYERS,
+    defaultEventLayers ?? DEFAULT_EVENT_LAYERS,
   );
   // Event display mode (dots vs heatmap) — seeded from the prop, flipped via the
   // TrackLegend toggle.

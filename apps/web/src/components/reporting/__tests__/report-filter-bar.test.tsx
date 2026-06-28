@@ -108,11 +108,12 @@ describe("ReportFilterBar", () => {
       preset30.compareDocumentPosition(fromInput) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    // The default window is 30 days → the 30D preset is highlighted/pressed.
-    expect(preset30.getAttribute("aria-pressed")).toBe("true");
+    // The default window is 7 days (owner request 2026-06-28) → the 7D preset
+    // is highlighted/pressed and 30D is not.
     expect(
       screen.getByTestId("report-range-preset-7").getAttribute("aria-pressed"),
-    ).toBe("false");
+    ).toBe("true");
+    expect(preset30.getAttribute("aria-pressed")).toBe("false");
     expect(region).toBeTruthy();
   });
 
