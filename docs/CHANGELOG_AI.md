@@ -3,6 +3,27 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-06-28 — Phase 7: High Priority Events rows on one line + locate-on-map button (squash 60375bb → main)
+
+- Agent:               CLAUDE_CODE (Opus 4.8)
+- Why:                 Owner request — reformat each High Priority Events row to a single horizontal line {type icon}{event name}{municipality}{date}{location marker}, where the marker click points the Report Map at the event's exact location.
+- Files modified:      apps/web/src/server/trpc/routers/reportMap.ts; apps/web/src/server/trpc/routers/__tests__/reportMap.test.ts; apps/web/src/components/map/InteractiveMap.tsx; apps/web/src/app/(dashboard)/map/_components/report-map-view.tsx; apps/web/src/app/(dashboard)/map/_components/high-priority-events-card.tsx
+- Implementation:      reportMap.highPriorityEvents now selects + returns locationLat/locationLon. InteractiveMap gained a focusLocation prop ({lon,lat,key}) + a flyTo effect (zoom 14, 1200ms; key bumps each click so re-clicking the same event re-flies). report-map-view holds focus state, wires onLocate from the card, and scrolls the map wrapper into view on locate. The card row is now one flex line: category icon chip, name (flex/truncate), municipality (muted, max-w truncate), date, then a separate MapPin "locate" button; the button is dimmed/disabled when the event has no coordinates (no nested buttons — a11y).
+- Verification:        Visual QA on rebuilt dev image @45204, 0 console errors — rows render as a single line; clicking a Calapan City event's locate button flew the map from province view (120.27,11.87 z6.95) to (121.156,13.41 z14, street level) and scrolled the map into view. Evidence: highpri-oneline-card.png, highpri-locate-flyto.png.
+- Tests:               web 1119→1121 (reportMap.highPriorityEvents +lat/lon assertions).
+- Phase 7 gate:        4/4 GREEN — product-sync, typecheck 7/7, web vitest 1121, Next prod build.
+
+## 2026-06-28 — Phase 7: event-type icons on the Per-Area PDF breakdown chart (squash 924de2b → main)
+
+- Agent:               CLAUDE_CODE (Opus 4.8)
+- Why:                 The funder Per-Area Report PDF breakdown charts (law enforcement + monitoring) were the only event-type surface still missing the shared per-type icons (owner directive: "every event type must show its appropriate icon"). The PDF is a headless-Chromium HTML print using Recharts (not @react-pdf/renderer), so lucide icons render fine — the prior "react-pdf can't render lucide" note was inaccurate.
+- Files modified:      apps/web/src/app/print-render/[tenantSlug]/[reportType]/[exportId]/components/event-breakdown-chart.tsx
+- Files added:         apps/web/src/app/print-render/[tenantSlug]/[reportType]/[exportId]/__tests__/event-breakdown-chart-tick.test.tsx
+- Implementation:      Added a custom Recharts YAxis tick (BreakdownYAxisTick) that renders the shared eventTypeIcon glyph beside the type label, via <foreignObject> so the lucide SVG draws cleanly inside the recharts SVG (the on-screen 28n strip/clip fix). Icon tinted the variant bar colour; label truncates within the A4 gutter. Kept the existing white-background horizontal-bar layout (no funder-document redesign). +3 tick tests.
+- Verification:        Full Phase 7 gate green; tick rendering covered by unit tests (the heavy BullMQ pdf-render→MinIO path was not exercised in-session — unit tests authoritative, consistent with prior PDF-chart changes). Reuses the foreignObject+lucide pattern already browser-proven on-screen.
+- Tests:               web 1118→1121 (+3).
+- Phase 7 gate:        4/4 GREEN — product-sync, typecheck 7/7, web vitest 1121, Next prod build.
+
 ## 2026-06-28 — Phase 7: breakdown charts redesigned as a labelled bar list (squash to main)
 
 - Agent:               CLAUDE_CODE (Opus 4.8)
