@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import maplibregl from "maplibre-gl";
 import {
   Map,
@@ -135,6 +142,13 @@ export function InteractiveMap({
   const patrolAreasQuery = trpc.map.patrolAreas.list.useQuery({
     activeOnly: true,
   });
+  // Specific event types per category, for the hierarchical map-controls toggle
+  // tree (floating Report Map controls only — the horizontal CC/Live Map legend
+  // keeps just the category master toggles, so the query is gated to floating).
+  const floatingControls = controlsPlacement === "floating";
+  const eventTypesQuery = trpc.map.eventTypes.byCategory.useQuery(undefined, {
+    enabled: floatingControls,
+  });
 
   const [selectedPatrolId, setSelectedPatrolId] = useState<string | null>(null);
   const patrolTracksQuery = trpc.map.patrolTracks.byPatrolId.useQuery(
@@ -170,6 +184,21 @@ export function InteractiveMap({
   const [eventLayers, setEventLayers] = useState<EventLayerVisibility>(
     defaultEventLayers ?? DEFAULT_EVENT_LAYERS,
   );
+  // Per-type opt-OUT set for the hierarchical controls (2026-06-29). A type is
+  // shown unless its id is in here, so the default (empty set) shows every type
+  // under its enabled category — no need to seed from the types query. Toggling a
+  // specific type off adds its id; toggling back on removes it.
+  const [disabledTypeIds, setDisabledTypeIds] = useState<Set<string>>(
+    () => new Set<string>(),
+  );
+  const handleTypeToggle = useCallback((typeId: string, next: boolean) => {
+    setDisabledTypeIds((prev) => {
+      const updated = new Set(prev);
+      if (next) updated.delete(typeId);
+      else updated.add(typeId);
+      return updated;
+    });
+  }, []);
   // Event display mode (dots vs heatmap) — seeded from the prop, flipped via the
   // TrackLegend toggle.
   const [displayMode, setDisplayMode] = useState<"dots" | "heatmap">(
@@ -201,13 +230,28 @@ export function InteractiveMap({
     () =>
       events.filter((e) => {
         const cat = e.eventType?.category;
+        const typeId = e.eventType?.id;
+        const typeEnabled = typeId == null || !disabledTypeIds.has(typeId);
         if (cat === EVENT_CATEGORY.lawEnforcement)
-          return eventLayers.lawEnforcement;
-        if (cat === EVENT_CATEGORY.monitoring) return eventLayers.monitoring;
+          return eventLayers.lawEnforcement && typeEnabled;
+        if (cat === EVENT_CATEGORY.monitoring)
+          return eventLayers.monitoring && typeEnabled;
         return false;
       }),
-    [events, eventLayers],
+    [events, eventLayers, disabledTypeIds],
   );
+
+  // In-range marker count per event-type id (≤200 loaded events), shown as a
+  // muted badge beside each per-type toggle so the operator sees how many markers
+  // a toggle controls in the current window.
+  const typeCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const e of events) {
+      const id = e.eventType?.id;
+      if (id != null) counts[id] = (counts[id] ?? 0) + 1;
+    }
+    return counts;
+  }, [events]);
 
   // Per-category point sets for the Heatmap display mode (each gated by the same
   // law/monitoring layer toggle as the dot markers).
@@ -218,6 +262,7 @@ export function InteractiveMap({
             .filter(
               (e) =>
                 e.eventType?.category === EVENT_CATEGORY.lawEnforcement &&
+                !disabledTypeIds.has(e.eventType.id) &&
                 e.locationLon != null &&
                 e.locationLat != null,
             )
@@ -226,7 +271,7 @@ export function InteractiveMap({
               lat: e.locationLat as number,
             }))
         : [],
-    [events, eventLayers.lawEnforcement],
+    [events, eventLayers.lawEnforcement, disabledTypeIds],
   );
   const monHeatPoints = useMemo(
     () =>
@@ -235,6 +280,7 @@ export function InteractiveMap({
             .filter(
               (e) =>
                 e.eventType?.category === EVENT_CATEGORY.monitoring &&
+                !disabledTypeIds.has(e.eventType.id) &&
                 e.locationLon != null &&
                 e.locationLat != null,
             )
@@ -243,7 +289,7 @@ export function InteractiveMap({
               lat: e.locationLat as number,
             }))
         : [],
-    [events, eventLayers.monitoring],
+    [events, eventLayers.monitoring, disabledTypeIds],
   );
 
   const trackCoordinates: [number, number][] = (
@@ -304,7 +350,7 @@ export function InteractiveMap({
     });
   }, [focusLocation]);
 
-  const floating = controlsPlacement === "floating";
+  const floating = floatingControls;
   return (
     <div className={cn("flex h-full w-full flex-col gap-2", className)}>
       {/* Bar mode (Command Center / Live Map): horizontal legend toolbar ABOVE
@@ -351,6 +397,12 @@ export function InteractiveMap({
             onEventLayerChange={(layer, next) => {
               setEventLayers((prev) => ({ ...prev, [layer]: next }));
             }}
+            {...(eventTypesQuery.data !== undefined
+              ? { eventTypesByCategory: eventTypesQuery.data }
+              : {})}
+            disabledTypeIds={disabledTypeIds}
+            onTypeToggle={handleTypeToggle}
+            typeCounts={typeCounts}
             {...(useInRangeTracks
               ? { displayMode, onDisplayModeChange: setDisplayMode }
               : {})}

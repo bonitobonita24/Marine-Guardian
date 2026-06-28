@@ -3,6 +3,11 @@ import { z } from "zod";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
 import { prisma } from "@marine-guardian/db";
+import { EVENT_CATEGORY } from "@/components/map/eventMarkerStyle";
+import {
+  canonicalIndex,
+  type EventTypeVariant,
+} from "@/lib/event-type-order";
 
 const STALE_THRESHOLD_MS = 60 * 60 * 1000;
 
@@ -173,7 +178,7 @@ const eventsRouter = router({
         locationLat: true,
         locationLon: true,
         reportedAt: true,
-        eventType: { select: { display: true, category: true } },
+        eventType: { select: { id: true, display: true, category: true } },
         // First few assets so the map marker can show a small image preview
         // (indicates the event has a photo). The client picks the first image
         // asset via isImageAsset(mimeType, filename).
@@ -416,8 +421,62 @@ const patrolAreasRouter = router({
     }),
 });
 
+// Hierarchical map-controls taxonomy (2026-06-29): the specific event types that
+// exist under each filterable category, so the Interactive Report Map controls
+// can offer a per-type toggle nested under each category master toggle. Returned
+// in the canonical owner-defined display order (shared with the breakdown charts)
+// so the toggle tree reads in the same fixed sequence everywhere; types with no
+// canonical slot fall back to alphabetical after the listed ones.
+type MapEventType = { id: string; display: string };
+
+function orderTypesCanonically(
+  types: MapEventType[],
+  variant: EventTypeVariant,
+): MapEventType[] {
+  return [...types].sort((a, b) => {
+    const ia = canonicalIndex(a.display, variant);
+    const ib = canonicalIndex(b.display, variant);
+    const ra = ia === -1 ? Number.MAX_SAFE_INTEGER : ia;
+    const rb = ib === -1 ? Number.MAX_SAFE_INTEGER : ib;
+    if (ra !== rb) return ra - rb;
+    return a.display.localeCompare(b.display);
+  });
+}
+
+const eventTypesRouter = router({
+  // The law-enforcement + monitoring event types for the map filter tree. Derived
+  // from the event_types table (the stable taxonomy) — not the in-range events —
+  // so the toggle tree is fully populated regardless of the active date window.
+  byCategory: tenantProcedure.query(async ({ ctx }) => {
+    const rows = await prisma.eventType.findMany({
+      where: {
+        tenantId: ctx.tenantId,
+        isActive: true,
+        category: {
+          in: [EVENT_CATEGORY.lawEnforcement, EVENT_CATEGORY.monitoring],
+        },
+      },
+      select: { id: true, display: true, category: true },
+    });
+
+    const law: MapEventType[] = [];
+    const monitoring: MapEventType[] = [];
+    for (const r of rows) {
+      const entry = { id: r.id, display: r.display };
+      if (r.category === EVENT_CATEGORY.lawEnforcement) law.push(entry);
+      else if (r.category === EVENT_CATEGORY.monitoring) monitoring.push(entry);
+    }
+
+    return {
+      lawEnforcement: orderTypesCanonically(law, "law_enforcement"),
+      monitoring: orderTypesCanonically(monitoring, "monitoring"),
+    };
+  }),
+});
+
 export const mapRouter = router({
   events: eventsRouter,
+  eventTypes: eventTypesRouter,
   subjects: subjectsRouter,
   patrolTracks: patrolTracksRouter,
   patrolAreas: patrolAreasRouter,

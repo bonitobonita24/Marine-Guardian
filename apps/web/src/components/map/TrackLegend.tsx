@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronUp } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
@@ -11,6 +11,16 @@ import {
   type PatrolTrackVisibility,
   type PatrolType,
 } from "./patrolTrackStyle";
+import { EVENT_CATEGORY } from "./eventMarkerStyle";
+import { eventTypeIcon } from "@/lib/event-type-icon";
+
+/** A specific event type offered as a per-type toggle under its category. */
+type MapTypeOption = { id: string; display: string };
+/** The specific event types per filterable category (from map.eventTypes.byCategory). */
+export type MapEventTypesByCategory = {
+  lawEnforcement: MapTypeOption[];
+  monitoring: MapTypeOption[];
+};
 
 /** Event-marker layer toggles shown after the patrol-track toggles (horizontal
  *  toolbar only). Both default OFF — events are operator-triggered. Colors match
@@ -21,9 +31,21 @@ const EVENT_LAYER_LEGEND: {
   key: EventLayerKey;
   label: string;
   color: string;
+  /** The EarthRanger eventType.category this layer maps to (per-type icon fallback). */
+  category: string;
 }[] = [
-  { key: "lawEnforcement", label: "Law enforcement", color: "hsl(var(--chart-1))" },
-  { key: "monitoring", label: "Monitoring", color: "hsl(var(--chart-2))" },
+  {
+    key: "lawEnforcement",
+    label: "Law enforcement",
+    color: "hsl(var(--chart-1))",
+    category: EVENT_CATEGORY.lawEnforcement,
+  },
+  {
+    key: "monitoring",
+    label: "Monitoring",
+    color: "hsl(var(--chart-2))",
+    category: EVENT_CATEGORY.monitoring,
+  },
 ];
 
 type TrackLegendProps = {
@@ -36,6 +58,15 @@ type TrackLegendProps = {
   /** Event-marker layer visibility (horizontal toolbar only). */
   eventLayers?: Record<EventLayerKey, boolean>;
   onEventLayerChange?: (layer: EventLayerKey, next: boolean) => void;
+  /** Hierarchical per-type toggles (floating vertical card only, 2026-06-29).
+   *  The specific event types under each category; nested under the category
+   *  master toggle as a collapsible sublist. A type is shown unless its id is in
+   *  `disabledTypeIds`. `typeCounts` (in-range marker count per type id) renders a
+   *  muted badge. Omitted on the horizontal toolbar — it keeps category toggles. */
+  eventTypesByCategory?: MapEventTypesByCategory;
+  disabledTypeIds?: Set<string>;
+  onTypeToggle?: (typeId: string, next: boolean) => void;
+  typeCounts?: Record<string, number>;
   /** Event display mode (Interactive Report Map): individual dots vs density
    *  heatmap. When provided (horizontal toolbar only), a Dots⇄Heatmap toggle is
    *  shown. Off = "dots" (default), on = "heatmap". */
@@ -107,6 +138,10 @@ export function TrackLegend({
   onTypeVisibilityChange,
   eventLayers,
   onEventLayerChange,
+  eventTypesByCategory,
+  disabledTypeIds,
+  onTypeToggle,
+  typeCounts,
   displayMode,
   onDisplayModeChange,
   orientation = "vertical",
@@ -230,6 +265,10 @@ export function TrackLegend({
     onTypeVisibilityChange={onTypeVisibilityChange}
     eventLayers={eventLayers}
     onEventLayerChange={onEventLayerChange}
+    eventTypesByCategory={eventTypesByCategory}
+    disabledTypeIds={disabledTypeIds}
+    onTypeToggle={onTypeToggle}
+    typeCounts={typeCounts}
     displayMode={displayMode}
     onDisplayModeChange={onDisplayModeChange}
     header={header}
@@ -253,6 +292,10 @@ function VerticalTrackLegend({
   onTypeVisibilityChange,
   eventLayers,
   onEventLayerChange,
+  eventTypesByCategory,
+  disabledTypeIds,
+  onTypeToggle,
+  typeCounts,
   displayMode,
   onDisplayModeChange,
   header,
@@ -266,6 +309,10 @@ function VerticalTrackLegend({
   onTypeVisibilityChange: (type: PatrolType, next: boolean) => void;
   eventLayers: Record<EventLayerKey, boolean> | undefined;
   onEventLayerChange: ((layer: EventLayerKey, next: boolean) => void) | undefined;
+  eventTypesByCategory: MapEventTypesByCategory | undefined;
+  disabledTypeIds: Set<string> | undefined;
+  onTypeToggle: ((typeId: string, next: boolean) => void) | undefined;
+  typeCounts: Record<string, number> | undefined;
   displayMode: "dots" | "heatmap" | undefined;
   onDisplayModeChange: ((next: "dots" | "heatmap") => void) | undefined;
   header: ReactNode;
@@ -274,7 +321,25 @@ function VerticalTrackLegend({
   className: string | undefined;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  // Which category sublists are expanded to reveal their per-type toggles.
+  // Default collapsed so the floating card stays compact; the operator expands a
+  // category to filter its specific types (revealed on click — owner spec).
+  const [expandedCategories, setExpandedCategories] = useState<Set<EventLayerKey>>(
+    () => new Set<EventLayerKey>(),
+  );
+  const toggleCategoryExpanded = (key: EventLayerKey) => {
+    setExpandedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
   const hasHeaderRow = title !== undefined || collapsible === true;
+  // Per-type toggle tree is available only when the map supplied the taxonomy
+  // and a toggle handler (floating Report Map controls).
+  const hasTypeTree =
+    eventTypesByCategory !== undefined && onTypeToggle !== undefined;
 
   return (
     <section
@@ -362,29 +427,110 @@ function VerticalTrackLegend({
             })}
           </div>
 
-          {/* Event-marker layers — operator-triggered, default OFF. */}
+          {/* Event-marker layers — a category master toggle, each with a
+              collapsible sublist of its specific event types (the per-type
+              toggles, revealed on click). A type is shown unless its switch is
+              off; the count badge is its in-range marker count. */}
           {eventLayers !== undefined && onEventLayerChange !== undefined && (
             <div className="border-t pt-0.5">
-              {EVENT_LAYER_LEGEND.map(({ key, label, color }) => {
+              {EVENT_LAYER_LEGEND.map(({ key, label, color, category }) => {
                 const inputId = `event-layer-${key}`;
+                const types =
+                  eventTypesByCategory !== undefined
+                    ? eventTypesByCategory[key]
+                    : [];
+                const expandable = hasTypeTree && types.length > 0;
+                const expanded = expandedCategories.has(key);
+                const masterOn = eventLayers[key];
                 return (
-                  <div
-                    key={key}
-                    className="flex min-h-7 items-center justify-between gap-2"
-                  >
-                    <Label
-                      htmlFor={inputId}
-                      className="flex cursor-pointer items-center gap-2"
-                    >
-                      <DiamondSample color={color} />
-                      <span>{label}</span>
-                    </Label>
-                    <Switch
-                      id={inputId}
-                      checked={eventLayers[key]}
-                      onCheckedChange={(next) => { onEventLayerChange(key, next); }}
-                      aria-label={`Show ${label.toLowerCase()} events on the map`}
-                    />
+                  <div key={key}>
+                    <div className="flex min-h-7 items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-1">
+                        {expandable ? (
+                          <button
+                            type="button"
+                            onClick={() => { toggleCategoryExpanded(key); }}
+                            className="rounded-sm p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                            aria-expanded={expanded}
+                            aria-label={
+                              expanded
+                                ? `Hide ${label.toLowerCase()} types`
+                                : `Show ${label.toLowerCase()} types`
+                            }
+                          >
+                            {expanded ? (
+                              <ChevronDown className="size-3.5" />
+                            ) : (
+                              <ChevronRight className="size-3.5" />
+                            )}
+                          </button>
+                        ) : (
+                          <span
+                            className="inline-block w-[1.125rem]"
+                            aria-hidden="true"
+                          />
+                        )}
+                        <Label
+                          htmlFor={inputId}
+                          className="flex min-w-0 cursor-pointer items-center gap-2"
+                        >
+                          <DiamondSample color={color} />
+                          <span className="truncate">{label}</span>
+                        </Label>
+                      </div>
+                      <Switch
+                        id={inputId}
+                        checked={masterOn}
+                        onCheckedChange={(next) => { onEventLayerChange(key, next); }}
+                        aria-label={`Show ${label.toLowerCase()} events on the map`}
+                      />
+                    </div>
+
+                    {expandable && expanded && (
+                      <div className="mb-1 ml-5 border-l pl-1.5">
+                        {types.map((t) => {
+                          const Icon = eventTypeIcon(t.display, category);
+                          const typeOn =
+                            disabledTypeIds === undefined ||
+                            !disabledTypeIds.has(t.id);
+                          const count = typeCounts?.[t.id] ?? 0;
+                          const typeInputId = `event-type-${t.id}`;
+                          return (
+                            <div
+                              key={t.id}
+                              className={cn(
+                                "flex min-h-6 items-center justify-between gap-1.5",
+                                !masterOn && "opacity-50",
+                              )}
+                            >
+                              <Label
+                                htmlFor={typeInputId}
+                                className="flex min-w-0 cursor-pointer items-center gap-1.5 text-[12px]"
+                              >
+                                <Icon
+                                  className="size-3 shrink-0"
+                                  style={{ color }}
+                                  aria-hidden="true"
+                                />
+                                <span className="truncate">{t.display}</span>
+                                <span className="shrink-0 tabular-nums text-[10px] text-muted-foreground">
+                                  {count}
+                                </span>
+                              </Label>
+                              <Switch
+                                id={typeInputId}
+                                checked={typeOn}
+                                disabled={!masterOn}
+                                onCheckedChange={(next) => {
+                                  onTypeToggle(t.id, next);
+                                }}
+                                aria-label={`Show ${t.display} events on the map`}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })}

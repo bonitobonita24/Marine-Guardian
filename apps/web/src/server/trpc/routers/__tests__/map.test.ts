@@ -6,6 +6,9 @@ vi.mock("@marine-guardian/db", () => ({
     event: {
       findMany: vi.fn(),
     },
+    eventType: {
+      findMany: vi.fn(),
+    },
     subject: {
       findMany: vi.fn(),
     },
@@ -486,5 +489,79 @@ describe("map.patrolAreas.list", () => {
     const findManyCall = vi.mocked(prisma.patrolArea.findMany).mock.calls[0]?.[0];
     expect(findManyCall?.where).toMatchObject({ tenantId: "other-tenant" });
     expect(findManyCall?.where).not.toHaveProperty("isActive");
+  });
+});
+
+describe("map.eventTypes.byCategory", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("splits law/monitoring types and orders each canonically (unlisted last)", async () => {
+    // Returned shuffled and across both categories; the DB `where` (mocked away)
+    // filters to law + monitoring, so only those rows are returned here.
+    vi.mocked(prisma.eventType.findMany).mockResolvedValue([
+      {
+        id: "t-comp",
+        display: "Compressor Fishing",
+        category: "law-enforcement-and-apprehensions",
+      },
+      {
+        id: "t-zz",
+        display: "Zz Unlisted Law Type",
+        category: "law-enforcement-and-apprehensions",
+      },
+      {
+        id: "t-unreg",
+        display: "Unregistered Illegal Fishing",
+        category: "law-enforcement-and-apprehensions",
+      },
+      {
+        id: "t-comm",
+        display: "Community Support",
+        category: "monitoring_patrolling_and_surveillance",
+      },
+      {
+        id: "t-wild",
+        display: "Marine wildlife sightings",
+        category: "monitoring_patrolling_and_surveillance",
+      },
+    ] as any);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.eventTypes.byCategory();
+
+    // Canonical: Unregistered (0) → Compressor (4) → unlisted appended alpha.
+    expect(result.lawEnforcement.map((t) => t.display)).toEqual([
+      "Unregistered Illegal Fishing",
+      "Compressor Fishing",
+      "Zz Unlisted Law Type",
+    ]);
+    // Canonical: Marine wildlife (0) → Community Support (3).
+    expect(result.monitoring.map((t) => t.display)).toEqual([
+      "Marine wildlife sightings",
+      "Community Support",
+    ]);
+    // Each entry carries the toggle id.
+    expect(result.lawEnforcement[0]).toMatchObject({ id: "t-unreg" });
+  });
+
+  it("scopes to the authenticated tenant + active law/monitoring categories", async () => {
+    vi.mocked(prisma.eventType.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx("other-tenant"));
+    await caller.eventTypes.byCategory();
+
+    const findManyCall = vi.mocked(prisma.eventType.findMany).mock.calls[0]?.[0];
+    expect(findManyCall?.where).toMatchObject({
+      tenantId: "other-tenant",
+      isActive: true,
+      category: {
+        in: [
+          "law-enforcement-and-apprehensions",
+          "monitoring_patrolling_and_surveillance",
+        ],
+      },
+    });
   });
 });
