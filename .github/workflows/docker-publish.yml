@@ -3,6 +3,14 @@ name: Docker Build & Publish
 on:
   push:
     branches: [main]
+    # Doc/state-only commits (session handoffs, memory, markdown) must NOT trigger a
+    # staging image rebuild + redeploy. GitHub skips a push only when EVERY changed
+    # file matches paths-ignore, so mixed code+doc commits still build and deploy.
+    # workflow_dispatch below remains a manual escape hatch (no path filter).
+    paths-ignore:
+      - '.cline/**'
+      - 'docs/**'
+      - '**.md'
   workflow_dispatch:
 
 concurrency:
