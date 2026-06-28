@@ -101,6 +101,10 @@ type InteractiveMapProps = {
   /** Slot rendered at the top of the floating controls card (date + municipality
    *  filters). Only used when controlsPlacement="floating". */
   filterSlot?: ReactNode;
+  /** Fly the map to a specific point (Interactive Report Map — the High Priority
+   *  Events list "locate" button). `key` bumps on every click so re-clicking the
+   *  same event re-triggers the flyTo. Null = no focus requested. */
+  focusLocation?: { lon: number; lat: number; key: number } | null;
 };
 
 export function InteractiveMap({
@@ -115,6 +119,7 @@ export function InteractiveMap({
   onEventClick,
   controlsPlacement = "bar",
   filterSlot,
+  focusLocation,
 }: InteractiveMapProps) {
   const subjectsQuery = trpc.map.subjects.list.useQuery();
   const eventsQuery = trpc.map.events.list.useQuery({
@@ -278,6 +283,19 @@ export function InteractiveMap({
     for (const c of trackCoordinates) bounds.extend(c);
     map.fitBounds(bounds, { padding: 80, maxZoom: 14, duration: 800 });
   }, [trackCoordinates]);
+
+  // "Locate on map" from the High Priority Events list — fly to the clicked
+  // event's exact coordinate. `focusLocation.key` changes on every click so
+  // re-clicking the same event re-runs the flyTo.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !focusLocation) return;
+    map.flyTo({
+      center: [focusLocation.lon, focusLocation.lat],
+      zoom: 14,
+      duration: 1200,
+    });
+  }, [focusLocation]);
 
   const floating = controlsPlacement === "floating";
   return (

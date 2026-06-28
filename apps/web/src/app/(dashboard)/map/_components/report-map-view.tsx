@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { InteractiveMap } from "@/components/map/InteractiveMap";
 import { EventDetailModal } from "@/components/events/event-detail-modal";
@@ -33,6 +33,22 @@ function ReportMapInner() {
   const { from, to, municipalityId } = useReportFilter();
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
+  // "Locate on map" from the High Priority Events list: fly the map to the
+  // event's coordinate (key bumps each click to re-trigger) AND scroll the map
+  // back into view since the list sits below it in the scroll column.
+  const mapWrapRef = useRef<HTMLDivElement>(null);
+  const focusKeyRef = useRef(0);
+  const [focusLocation, setFocusLocation] = useState<{
+    lon: number;
+    lat: number;
+    key: number;
+  } | null>(null);
+  const locateOnMap = useCallback((lat: number, lon: number) => {
+    focusKeyRef.current += 1;
+    setFocusLocation({ lat, lon, key: focusKeyRef.current });
+    mapWrapRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
   const filter = {
     from,
     to,
@@ -56,7 +72,10 @@ function ReportMapInner() {
 
       {/* Map — grows to fill the viewport (fits one screen on a wide display;
           the whole column scrolls cleanly if the window is small). */}
-      <div className="cc-gridbg relative min-h-[22rem] flex-1 overflow-hidden rounded-xl border border-[hsl(var(--panel-border))]">
+      <div
+        ref={mapWrapRef}
+        className="cc-gridbg relative min-h-[22rem] flex-1 overflow-hidden rounded-xl border border-[hsl(var(--panel-border))]"
+      >
         <InteractiveMap
           className="relative z-10 h-full w-full"
           dateFrom={from}
@@ -68,6 +87,7 @@ function ReportMapInner() {
           controlsPlacement="floating"
           filterSlot={<ReportFilterBar layout="stacked" />}
           onEventClick={setSelectedEventId}
+          focusLocation={focusLocation}
         />
       </div>
 
@@ -91,6 +111,7 @@ function ReportMapInner() {
           total={highPriority.data?.total ?? 0}
           isLoading={highPriority.isLoading}
           onSelect={setSelectedEventId}
+          onLocate={locateOnMap}
         />
         <EventsOverTimeChart
           data={eventsOverTime.data ?? []}

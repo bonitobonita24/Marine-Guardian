@@ -203,6 +203,8 @@ describe("reportMap.highPriorityEvents", () => {
           category: "law-enforcement-and-apprehensions",
         },
         municipality: { name: "Calapan City" },
+        locationLat: 13.41,
+        locationLon: 121.18,
       },
       {
         id: "e2",
@@ -214,6 +216,8 @@ describe("reportMap.highPriorityEvents", () => {
           category: "monitoring_patrolling_and_surveillance",
         },
         municipality: null,
+        locationLat: null,
+        locationLon: null,
       },
     ] as any);
     vi.mocked(prisma.event.count).mockResolvedValue(2 as any);
@@ -232,12 +236,16 @@ describe("reportMap.highPriorityEvents", () => {
       typeDisplay: "Compressor Fishing",
       municipalityName: "Calapan City",
       priority: 300,
+      locationLat: 13.41,
+      locationLon: 121.18,
     });
     expect(result.events[1]).toMatchObject({
       id: "e2",
       title: null,
       typeDisplay: "Threats on Habitat",
       municipalityName: null,
+      locationLat: null,
+      locationLon: null,
     });
 
     const arg = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0] as any;

@@ -183,6 +183,8 @@ export const reportMapRouter = router({
             reportedAt: true,
             eventType: { select: { display: true, category: true } },
             municipality: { select: { name: true } },
+            locationLat: true,
+            locationLon: true,
           },
           orderBy: [{ priority: "desc" }, { reportedAt: "desc" }],
           take: 50,
@@ -200,6 +202,8 @@ export const reportMapRouter = router({
           typeDisplay: e.eventType?.display ?? null,
           category: e.eventType?.category ?? null,
           municipalityName: e.municipality?.name ?? null,
+          locationLat: e.locationLat ?? null,
+          locationLon: e.locationLon ?? null,
         })),
       };
     }),
