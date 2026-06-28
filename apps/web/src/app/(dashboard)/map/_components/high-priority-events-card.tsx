@@ -1,6 +1,6 @@
 "use client";
 
-import { MapPin } from "lucide-react";
+import { AlertTriangle, MapPin } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { eventCategoryColor } from "@/components/map/eventMarkerStyle";
 import { eventTypeIcon } from "@/lib/event-type-icon";
@@ -50,9 +50,17 @@ export function HighPriorityEventsCard({
   return (
     <Card className="flex h-full min-w-0 flex-1 flex-col gap-2 border-border py-2">
       <CardHeader className="flex flex-row items-stretch justify-between gap-2 border-b px-3 py-1.5">
-        <h3 className="min-w-0 flex-1 self-center text-[10px] font-bold uppercase leading-tight tracking-wider text-foreground/85">
-          High Priority Events
-        </h3>
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 self-center">
+          {/* Same glyph the map uses for serious / high-priority events. */}
+          <AlertTriangle
+            className="size-3.5 shrink-0"
+            style={{ color: "hsl(var(--destructive))" }}
+            aria-hidden="true"
+          />
+          <h3 className="min-w-0 flex-1 text-[10px] font-bold uppercase leading-tight tracking-wider text-foreground/85">
+            High Priority Events
+          </h3>
+        </div>
         <div
           className="w-px shrink-0 self-stretch bg-border"
           aria-hidden="true"

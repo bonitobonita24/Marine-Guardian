@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { ShieldAlert, Binoculars } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 import { InteractiveMap } from "@/components/map/InteractiveMap";
 import { EventDetailModal } from "@/components/events/event-detail-modal";
@@ -96,12 +97,14 @@ function ReportMapInner() {
       <div className="grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
         <BreakdownBars
           title="Law Enforcement and Apprehensions"
+          titleIcon={ShieldAlert}
           variant="law_enforcement"
           data={breakdown.data?.lawEnforcement ?? []}
           compact
         />
         <BreakdownBars
           title="Monitoring, Patrolling and Surveillance"
+          titleIcon={Binoculars}
           variant="monitoring"
           data={breakdown.data?.monitoring ?? []}
           compact

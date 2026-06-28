@@ -12,6 +12,7 @@
  * compact mode, canonical event-type order, per-type icons, barClass (legacy).
  */
 
+import type { LucideIcon } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { EVENT_TYPE_ORDER, normalizeTypeLabel } from "@/lib/event-type-order";
@@ -59,6 +60,7 @@ export function orderBreakdownData(
  */
 export function BreakdownBars({
   title,
+  titleIcon: TitleIcon,
   data,
   variant,
   onSelectType,
@@ -67,6 +69,8 @@ export function BreakdownBars({
   barClass: _barClass,
 }: {
   title: string;
+  /** Optional icon shown to the LEFT of the card title (tinted the category colour). */
+  titleIcon?: LucideIcon;
   data: BreakdownDatum[];
   variant?: BreakdownVariant;
   /** Half-height chart for dense surfaces (Interactive Report Map). */
@@ -105,12 +109,21 @@ export function BreakdownBars({
         // Report Map: title (word-wraps) on the left, a thin vertical partition,
         // then the total count on the right. No "Live" indicator, no "total" word.
         <CardHeader className="flex flex-row items-stretch justify-between gap-2 border-b px-3 py-1.5">
-          <h3
-            id={headingId}
-            className="min-w-0 flex-1 self-center text-[10px] font-bold uppercase leading-tight tracking-wider text-foreground/85"
-          >
-            {title}
-          </h3>
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 self-center">
+            {TitleIcon ? (
+              <TitleIcon
+                className="size-3.5 shrink-0"
+                style={{ color: colorVar }}
+                aria-hidden="true"
+              />
+            ) : null}
+            <h3
+              id={headingId}
+              className="min-w-0 flex-1 text-[10px] font-bold uppercase leading-tight tracking-wider text-foreground/85"
+            >
+              {title}
+            </h3>
+          </div>
           <div className="w-px shrink-0 self-stretch bg-border" aria-hidden="true" />
           <span className="shrink-0 self-center text-sm font-bold tabular-nums">
             {totalCount.toLocaleString()}
@@ -118,16 +131,25 @@ export function BreakdownBars({
         </CardHeader>
       ) : (
         <CardHeader className="flex items-center justify-between border-b px-3 pb-2">
-          <div className="flex flex-col gap-0.5">
-            <h3
-              id={headingId}
-              className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground"
-            >
-              {title}
-            </h3>
-            <span className="shrink-0 text-xs font-semibold tabular-nums">
-              {totalCount.toLocaleString()} total
-            </span>
+          <div className="flex min-w-0 items-center gap-1.5">
+            {TitleIcon ? (
+              <TitleIcon
+                className="size-4 shrink-0"
+                style={{ color: colorVar }}
+                aria-hidden="true"
+              />
+            ) : null}
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <h3
+                id={headingId}
+                className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground"
+              >
+                {title}
+              </h3>
+              <span className="shrink-0 text-xs font-semibold tabular-nums">
+                {totalCount.toLocaleString()} total
+              </span>
+            </div>
           </div>
           {/* Pro live-update indicator — mirrors chart-component-29 */}
           <div className="flex shrink-0 items-center gap-1">
