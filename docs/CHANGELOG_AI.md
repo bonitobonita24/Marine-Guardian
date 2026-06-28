@@ -3,6 +3,18 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-06-28 — Phase 7: per-event-type icons in breakdown charts (left-aligned rows) (squash to main)
+
+- Agent:               CLAUDE_CODE (Opus 4.8)
+- Why:                 Completes part (c) of the event-type-icons TODO for the charts. Owner chose (AskUserQuestion) the "left-align rows: icon + name + bar" layout. The earlier session deferred chart icons because right-aligned labels made a fixed far-left icon read as disconnected; left-aligning resolves it.
+- Files modified:      apps/web/src/app/(dashboard)/dashboard/_components/breakdown-bars.tsx
+- Implementation:      The YAxis custom tick now renders the shared eventTypeIcon glyph at the left edge of the label band, then the single-line (truncated) event name (textAnchor=start), with the bar to the right. Compact (Report Map) and non-compact (Command Center) charts share one tick; compact truncates to 15 chars (non-compact 22) so the dense band doesn't overlap. Removed the recharts <Text> word-wrap path and its import.
+- Verification:        Visual QA on rebuilt dev image @45204, 0 console errors — both charts render icon→name→bar left-aligned with no label overlap. Evidence: icons-chart-leftalign.png (Command Center), icons-chart-compact2.png (Report Map). Gotcha caught + fixed in QA: keeping word-wrap in compact overlapped rows once the icon stole column width (icons-chart-compact.png) — switched to single-line truncation per the owner's chosen preview.
+- Tests:               web 1118 (unchanged — SVG tick render, no new unit surface).
+- Phase 7 gate:        4/4 GREEN — product-sync, typecheck 7/7, web vitest 1118, Next prod build.
+- Deploy:              Squash-merged feat/chart-event-type-icons → main (538160d) → push origin → branch deleted. Staging/prod HOLD stands.
+- Note:                All three on-screen surfaces (map markers / High Priority list / breakdown charts) now carry event-type icons. PDF report charts (react-pdf) remain without icons — lucide React components don't render in react-pdf; separate effort if wanted.
+
 ## 2026-06-28 — Phase 7: per-event-type icons on map markers + High Priority list (squash to main)
 
 - Agent:               CLAUDE_CODE (Opus 4.8)
