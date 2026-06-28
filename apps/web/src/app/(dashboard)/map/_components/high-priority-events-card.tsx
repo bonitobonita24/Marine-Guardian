@@ -103,13 +103,13 @@ export function HighPriorityEventsCard({
                     }}
                     className="flex min-w-0 flex-1 items-center gap-1.5 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   >
-                    <span
-                      className="flex size-4 shrink-0 items-center justify-center rounded-full text-white"
-                      style={{ backgroundColor: eventCategoryColor(e.category) }}
+                    {/* Bare category-coloured glyph — no circle chip (owner
+                        request 2026-06-28): just the icon in its category colour. */}
+                    <Icon
+                      className="size-4 shrink-0"
+                      style={{ color: eventCategoryColor(e.category) }}
                       aria-hidden="true"
-                    >
-                      <Icon className="size-2.5" />
-                    </span>
+                    />
                     <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground">
                       {label}
                     </span>
