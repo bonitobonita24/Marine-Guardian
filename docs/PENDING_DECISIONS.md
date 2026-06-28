@@ -125,3 +125,17 @@ Owner may hold/cancel Premium to save cost.
   STILL needs a live `DAS_WEB_TOKEN` to fetch ER attachments (same gate as Item 2).
 - **Decision needed:** [ ] Confirm storage approach + provide `DAS_WEB_TOKEN` so attachment ingestion
   (Telegram or MinIO) can be built.
+
+---
+
+## 2026-06-28 — R2 24h-TTL photo cache (PLANNED, build deferred — owner Option A)
+- **Context:** Image serving (`/api/assets/[id]`) proxies Telegram on every view (2 round-trips, no cache)
+  — bottleneck for the Command Center / Interactive Report Map. Owner proposed Cloudflare R2 as a *cache*
+  (not storage): pull from Telegram on miss → write-through to R2 with 24h expiry → serve; object auto-deletes
+  24h after creation and re-populates on next access (keeps R2 tiny).
+- **Status:** Architect plan COMPLETE → `docs/plans/r2-photo-cache-plan.md`. Owner chose **Option A**:
+  defer the BUILD to a future session; measure real image-load latency after the photo backfill completes
+  first (Phase A CDN cache-headers alone may suffice). NOT built. No code changed.
+- **Decision needed (next session):** [ ] After measuring latency, approve building R0→R2 (R2 client module
+  → flag-gated route read-through → live verify + Visual QA). R2 creds already exist
+  (`Server-Setups/Powerbyte-Hostinger/secrets/cloudflare-r2.enc.yaml`). Deploy HARD HOLD respected.
