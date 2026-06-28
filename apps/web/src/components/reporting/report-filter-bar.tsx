@@ -1,6 +1,5 @@
 "use client";
 
-import { RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,6 +29,15 @@ import { useReportFilter } from "./report-filter-context";
 
 const ALL_MUNICIPALITIES = "all";
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Quick day-range presets — set the window to the last N days ending now. */
+const RANGE_PRESETS = [
+  { label: "30D", days: 30 },
+  { label: "15D", days: 15 },
+  { label: "7D", days: 7 },
+] as const;
+
 /**
  * Format a Date as the `yyyy-MM-dd` value a native date input expects, using
  * LOCAL calendar fields (not UTC) so the displayed day matches the operator's
@@ -49,11 +57,18 @@ export function ReportFilterBar({
    *  vertical layout for embedding in the floating map-controls card. */
   layout?: "bar" | "stacked";
 } = {}) {
-  const { from, to, municipalityId, setRange, setMunicipalityId, resetTo30d } =
+  const { from, to, municipalityId, setRange, setMunicipalityId } =
     useReportFilter();
   const stacked = layout === "stacked";
 
   const municipalities = trpc.municipality.list.useQuery();
+
+  const setLastNDays = (days: number) => {
+    const now = new Date();
+    setRange({ from: new Date(now.getTime() - days * DAY_MS), to: now });
+  };
+  // Which preset (if any) matches the active window — drives the pressed style.
+  const activeDays = Math.round((to.getTime() - from.getTime()) / DAY_MS);
 
   const handleFromChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
@@ -91,6 +106,34 @@ export function ReportFilterBar({
           : "flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-3 py-2",
       )}
     >
+      {/* Quick day-range presets — sit ABOVE From/To so the common windows are
+          one click away; the matching preset is highlighted. */}
+      <div
+        role="group"
+        aria-label="Quick date range"
+        className={cn(stacked ? "grid grid-cols-3 gap-1" : "flex items-center gap-1")}
+      >
+        {RANGE_PRESETS.map((p) => {
+          const active = activeDays === p.days;
+          return (
+            <Button
+              key={p.days}
+              type="button"
+              variant={active ? "default" : "outline"}
+              size="sm"
+              aria-pressed={active}
+              className={cn(stacked ? "h-7 w-full px-0 text-[11px]" : "h-8")}
+              onClick={() => {
+                setLastNDays(p.days);
+              }}
+              data-testid={`report-range-preset-${String(p.days)}`}
+            >
+              Last {p.label}
+            </Button>
+          );
+        })}
+      </div>
+
       <div className={cn(stacked ? "grid grid-cols-2 gap-1" : "contents")}>
         <div className={fieldClass}>
           <Label
@@ -161,18 +204,6 @@ export function ReportFilterBar({
           </SelectContent>
         </Select>
       </div>
-
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className={cn(stacked ? "h-7 w-full text-xs" : "h-8")}
-        onClick={resetTo30d}
-        data-testid="report-filter-reset"
-      >
-        <RotateCcw aria-hidden="true" />
-        Last 30 days
-      </Button>
     </div>
   );
 }

@@ -87,26 +87,47 @@ describe("ReportFilterBar", () => {
     expect(screen.getByTestId("report-range-from")).toBeTruthy();
     expect(screen.getByTestId("report-range-to")).toBeTruthy();
     expect(screen.getByTestId("report-municipality")).toBeTruthy();
-    // Stacked = borderless vertical column; reset button spans full width.
+    // Stacked = borderless vertical column; the preset buttons span full width.
     const region = screen.getByRole("region", { name: "Report map filters" });
     expect(region.className).toContain("flex-col");
     expect(region.className).not.toContain("border");
-    expect(screen.getByTestId("report-filter-reset").className).toContain(
-      "w-full",
-    );
+    expect(
+      screen.getByTestId("report-range-preset-30").className,
+    ).toContain("w-full");
   });
 
-  it("reset button restores the 30-day default window", () => {
+  it("renders 30D/15D/7D quick-range presets above From/To", () => {
+    renderBar();
+    const region = screen.getByRole("region", { name: "Report map filters" });
+    const preset30 = screen.getByTestId("report-range-preset-30");
+    const fromInput = screen.getByTestId("report-range-from");
+    expect(screen.getByTestId("report-range-preset-15")).toBeTruthy();
+    expect(screen.getByTestId("report-range-preset-7")).toBeTruthy();
+    // Preset group precedes the From input in document order.
+    expect(
+      preset30.compareDocumentPosition(fromInput) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    // The default window is 30 days → the 30D preset is highlighted/pressed.
+    expect(preset30.getAttribute("aria-pressed")).toBe("true");
+    expect(
+      screen.getByTestId("report-range-preset-7").getAttribute("aria-pressed"),
+    ).toBe("false");
+    expect(region).toBeTruthy();
+  });
+
+  it("each quick-range preset sets the last-N-day window", () => {
     renderBar();
     const from = screen.getByTestId("report-range-from");
     fireEvent.change(from, { target: { value: "2020-01-01" } });
 
-    fireEvent.click(screen.getByTestId("report-filter-reset"));
-
-    const probe = screen.getByTestId("probe");
-    const span =
-      new Date(probe.getAttribute("data-to") as string).getTime() -
-      new Date(probe.getAttribute("data-from") as string).getTime();
-    expect(Math.abs(span - 30 * 24 * 60 * 60 * 1000)).toBeLessThan(2000);
+    for (const days of [30, 15, 7]) {
+      fireEvent.click(screen.getByTestId(`report-range-preset-${String(days)}`));
+      const probe = screen.getByTestId("probe");
+      const span =
+        new Date(probe.getAttribute("data-to") as string).getTime() -
+        new Date(probe.getAttribute("data-from") as string).getTime();
+      expect(Math.abs(span - days * 24 * 60 * 60 * 1000)).toBeLessThan(2000);
+    }
   });
 });
