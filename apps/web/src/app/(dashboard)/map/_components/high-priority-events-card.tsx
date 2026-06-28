@@ -41,7 +41,7 @@ export function HighPriorityEventsCard({
   onSelect: (eventId: string) => void;
 }) {
   return (
-    <Card className="flex h-full min-w-0 flex-1 flex-col gap-2 border-border py-2">
+    <Card className="flex h-full max-h-[11rem] min-w-0 flex-1 flex-col gap-2 border-border py-2">
       <CardHeader className="flex flex-row items-stretch justify-between gap-2 border-b px-3 py-1.5">
         <h3 className="min-w-0 flex-1 self-center text-[10px] font-bold uppercase leading-tight tracking-wider text-foreground/85">
           High Priority Events

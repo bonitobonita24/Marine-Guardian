@@ -3,6 +3,17 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-06-28 — Phase 7 fix: bound High Priority Events card height (squash to main)
+
+- Agent:               CLAUDE_CODE (Opus 4.8)
+- Why:                 Owner reported the High Priority Events card was not height-bounded — its list ran all the way down the page instead of scrolling, and the sibling cards stretched to match (empty gap in Law Enforcement).
+- Files modified:      apps/web/src/app/(dashboard)/map/_components/high-priority-events-card.tsx
+- Implementation:      The list was a flex-1 scroller in an auto-height CSS grid row, so its content drove the row height. Added max-h-[11rem] to the Card (matches the events-over-time sibling's h-[7.5rem] chart total) so the card is bounded; the inner flex-1 list now scrolls internally and the analytics band stays a single tidy row. (Recurring trap — same lesson as the Command Center overhaul: a flex-1 scroller in an auto grid row needs a definite max-height.)
+- Verification:        Playwright on REBUILT dev image @45204 — all four band cards now equal height, the list scrolls within the card, Law Enforcement gap gone. Evidence: highpri-card-bounded.png.
+- Tests:               web 1102 (unchanged — CSS only).
+- Phase 7 gate:        4/4 GREEN — product-sync, typecheck 7/7, web vitest 1102, Next prod build.
+- Deploy:              Squash-merged fix/high-priority-card-height → main → push origin → branch deleted. Staging/prod HOLD stands.
+
 ## 2026-06-28 — Phase 7: replace Municipality Coverage with High Priority Events list (squash to main)
 
 - Agent:               CLAUDE_CODE (Opus 4.8)
