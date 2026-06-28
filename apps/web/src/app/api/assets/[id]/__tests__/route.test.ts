@@ -36,7 +36,7 @@ vi.mock("@/server/lib/route-auth", () => {
 });
 
 vi.mock("@/server/lib/rate-limit", () => ({
-  rateLimiters: { upload: { check: mockRateLimitCheck } },
+  rateLimiters: { assetRead: { check: mockRateLimitCheck } },
 }));
 
 vi.mock("@marine-guardian/db", () => ({ prisma: mockPrisma }));

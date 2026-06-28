@@ -902,3 +902,23 @@ Dev bucket marine-guardian-dev-photo-cache created 2026-06-29 on the owner's Clo
 account; lifecycle verified (Expiration.Days=1). Staging/prod buckets created at their
 respective deploys (staging owner-authorized this session; prod manual/owner-gated).
 Locked: yes
+
+## Asset-route rate-limit tier — assetRead (2026-06-29)
+Decision: /api/assets/[id] uses a dedicated generous `assetRead` rate-limit tier
+(600 req/min per user) instead of the strict `upload` tier (20/min).
+Root cause (found during R2 Visual QA, empirically via Playwright): the owner's
+"broken/corrupted event images" were overwhelmingly caused by OUR OWN route
+rate limiter, NOT Telegram. Opening an event with 52 archived photos fires 52
+simultaneous same-user GET /api/assets requests; the `upload` tier capped that
+at exactly 20/min, so ~20 thumbnails loaded and ~31 returned HTTP 429 → broken
+images. The R2 cache could not help because the 429 fires BEFORE byte
+resolution (every call counts against the limit regardless of cache).
+Fix: a read-specific tier sized for photo galleries + repeat views. These reads
+are auth-gated (requireRouteAuth), egress-audited (ASSET_DOWNLOAD), and
+R2-cached, so a generous limit is safe and bounded against scripted abuse.
+Verified live (dev app rebuilt, R2_CACHE_ENABLED=true): the same 52-photo event
+went from 20 loaded / 31×429 to 51 loaded / 0 broken / 0 fallback / 0 console
+errors. R2 HIT latency 145–240ms vs a cold Telegram MISS of ~2700ms (~12–18×).
+Files: apps/web/src/server/lib/rate-limit.ts (new tier),
+apps/web/src/app/api/assets/[id]/route.ts (upload→assetRead).
+Locked: yes

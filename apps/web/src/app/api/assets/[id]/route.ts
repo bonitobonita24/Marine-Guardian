@@ -57,7 +57,7 @@ export async function GET(
   }
 
   try {
-    rateLimiters.upload.check(ctx.userId);
+    rateLimiters.assetRead.check(ctx.userId);
   } catch (e) {
     if (e instanceof TRPCError && e.code === "TOO_MANY_REQUESTS") {
       return NextResponse.json(

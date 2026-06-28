@@ -38,4 +38,14 @@ export const rateLimiters = {
   auth: rateLimit({ interval: 60_000, limit: 10 }),
   api: rateLimit({ interval: 60_000, limit: 120 }),
   upload: rateLimit({ interval: 60_000, limit: 20 }),
+  // Authenticated image/asset reads. The event-photo gallery proxies one GET
+  // per thumbnail and a single event can carry 50+ photos (operators also
+  // re-open events repeatedly), so the strict `upload` tier (20/min) was
+  // throttling galleries and surfacing as "broken images". These reads are
+  // auth-gated, egress-audited, and R2-cached, so a generous limit is safe.
+  assetRead: rateLimit({
+    interval: 60_000,
+    limit: 600,
+    uniqueTokenPerInterval: 1000,
+  }),
 };
