@@ -3,6 +3,19 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-06-28 — Phase 7: per-event-type icons on map markers + High Priority list (squash to main)
+
+- Agent:               CLAUDE_CODE (Opus 4.8)
+- Why:                 Owner TODO — every event type must show its appropriate icon: (a) on the map when zoomed out, (b) when zoomed in, an icon for events without images and the icon beside an image preview when one exists, (c) in charts and list views.
+- Files added:         apps/web/src/lib/event-type-icon.tsx; apps/web/src/lib/__tests__/event-type-icon.test.ts
+- Files modified:      apps/web/src/components/map/InteractiveMap.tsx; apps/web/src/app/(dashboard)/map/_components/high-priority-events-card.tsx
+- Implementation:      New shared single-source-of-truth util eventTypeIcon(display, category) maps each event type to a lucide glyph (tolerant matching via normalizeTypeLabel; ~11 law/monitoring types + per-category fallback law→ShieldAlert / monitoring→Binoculars + global MapPin). Map markers (InteractiveMap): routine events render the type glyph in a category-coloured chip floored at 16px so it stays visible when zoomed out; serious incidents keep the red pulse but carry the type glyph; zoomed-in events with a photo (zoom ≥ 11.5) show the icon chip BESIDE the image-preview thumbnail. High Priority Events list rows show the glyph in a category-coloured chip (replaced the plain colour dot).
+- Verification:        Visual QA on rebuilt dev image @45204, 0 console errors — zoom-out shows green/red icon chips; zoom 13 shows a HeartHandshake chip beside a Community Support photo and a red serious chip beside its photo; list rows show type glyphs. Evidence: icons-map-zoomout.png, icons-map-zoomin.png, icons-report-map.png. +5 unit tests.
+- Deferred:            Chart icons (owner part c, charts) — the breakdown-bars YAxis labels are right-aligned, so a fixed far-left icon reads as disconnected noise (confirmed in Visual QA). Reverted breakdown-bars.tsx to match main; charts need a layout decision (left-align the rows, or skip). PDF report charts use react-pdf and would need a separate approach.
+- Tests:               web 1113 → 1118 (+5).
+- Phase 7 gate:        4/4 GREEN — product-sync, typecheck 7/7, web vitest 1118, Next prod build.
+- Deploy:              Squash-merged feat/event-type-icons → main (f784fc1) → push origin → branch deleted. Staging/prod HOLD stands.
+
 ## 2026-06-28 — Phase 7: canonical event-type order extended to per-area PDF charts (squash to main)
 
 - Agent:               CLAUDE_CODE (Opus 4.8)
