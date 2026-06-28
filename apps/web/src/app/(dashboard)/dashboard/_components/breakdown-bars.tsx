@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/chart";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { EVENT_TYPE_ORDER, normalizeTypeLabel } from "@/lib/event-type-order";
 
 export type BreakdownDatum = { type: string; count: number };
 
@@ -58,41 +59,6 @@ const MONITORING_CHART_CONFIG = {
     color: "hsl(var(--chart-2))",
   },
 } satisfies ChartConfig;
-
-/**
- * Canonical display order for event-type breakdown bars (owner spec 2026-06-28).
- * Applied to EVERY breakdown chart (Interactive Report Map + Command Center) and
- * its drill-down list so the event types always read in the same fixed sequence
- * regardless of count. Types not listed here (e.g. an "Others" bucket) are
- * appended afterwards, ordered by count descending. Matching is normalized —
- * case-insensitive and ignoring parentheticals/punctuation — so minor
- * display-string variations (e.g. "(MPA)" suffix, capitalisation) still align.
- */
-const EVENT_TYPE_ORDER: Record<BreakdownVariant, string[]> = {
-  law_enforcement: [
-    "Unregistered Illegal Fishing",
-    "Fishing in a prohibited area (MPA)",
-    "Taking of Prohibited Species",
-    "Use of Prohibited Gears",
-    "Compressor Fishing",
-    "Destructive Practices",
-  ],
-  monitoring: [
-    "Marine wildlife sightings",
-    "Infrastructure and assets",
-    "Research and Studies",
-    "Community Support",
-    "Threats on Habitat",
-  ],
-};
-
-function normalizeTypeLabel(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/\([^)]*\)/g, " ") // drop parentheticals e.g. "(MPA)"
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
 
 /**
  * Order a breakdown dataset for display. When `variant` has a canonical order,

@@ -32,6 +32,10 @@ import {
   YAxis,
 } from "recharts";
 import type { EventTypeBreakdownRow } from "@/server/per-area-report/get-per-area-report-data";
+import {
+  canonicalIndex,
+  type EventTypeVariant,
+} from "@/lib/event-type-order";
 
 export type EventBreakdownVariant = "lawEnforcement" | "monitoring";
 
@@ -63,16 +67,37 @@ function emptyCopyForVariant(variant: EventBreakdownVariant): string {
     : "No monitoring events for this period.";
 }
 
-function buildChartRows(
+/**
+ * Map the PDF chart's camelCase variant to the shared canonical-order variant.
+ */
+function orderVariantFor(variant: EventBreakdownVariant): EventTypeVariant {
+  return variant === "lawEnforcement" ? "law_enforcement" : "monitoring";
+}
+
+/**
+ * Build the chart rows in the owner's fixed canonical event-type sequence
+ * (shared with the Command Center / Report Map breakdown charts via
+ * {@link canonicalIndex}). Canonical types come first in their fixed order;
+ * any type outside the canonical sequence follows, by count descending then
+ * display ascending (the prior PDF tiebreak). Zero-count types are dropped so
+ * the A4 chart stays legible. Exported for unit testing.
+ */
+export function buildChartRows(
   rows: EventTypeBreakdownRow[],
   variant: EventBreakdownVariant,
   topN: number,
 ): ChartRow[] {
   const fill = colorForVariant(variant);
+  const orderVariant = orderVariantFor(variant);
   return [...rows]
     .filter((r) => r.count > 0)
     .sort((a, b) => {
-      if (b.count !== a.count) return b.count - a.count;
+      const ia = canonicalIndex(a.display, orderVariant);
+      const ib = canonicalIndex(b.display, orderVariant);
+      if (ia !== -1 && ib !== -1) return ia - ib;
+      if (ia !== -1) return -1; // canonical types before unlisted
+      if (ib !== -1) return 1;
+      if (b.count !== a.count) return b.count - a.count; // both unlisted → count desc
       return a.display.localeCompare(b.display);
     })
     .slice(0, topN)
