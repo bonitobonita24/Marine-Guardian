@@ -20,6 +20,7 @@ import {
   Bomb,
   Building2,
   Fish,
+  Gauge,
   HeartHandshake,
   MapPin,
   Microscope,
@@ -27,7 +28,6 @@ import {
   ShieldAlert,
   Turtle,
   Waves,
-  Wind,
   Wrench,
 } from "lucide-react";
 import { normalizeTypeLabel } from "./event-type-order";
@@ -39,7 +39,7 @@ const ICON_BY_TYPE: Record<string, LucideIcon> = {
   [normalizeTypeLabel("Fishing in a prohibited area (MPA)")]: Ban,
   [normalizeTypeLabel("Taking of Prohibited Species")]: Shell,
   [normalizeTypeLabel("Use of Prohibited Gears")]: Wrench,
-  [normalizeTypeLabel("Compressor Fishing")]: Wind,
+  [normalizeTypeLabel("Compressor Fishing")]: Gauge,
   [normalizeTypeLabel("Destructive Practices")]: Bomb,
   // Monitoring, patrolling & surveillance
   [normalizeTypeLabel("Marine wildlife sightings")]: Turtle,
