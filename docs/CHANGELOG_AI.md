@@ -3,6 +3,22 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-06-28 — Phase 7: breakdown event-type order + Law Enf rename + header/label fixes (squash to main)
+
+- Agent:               CLAUDE_CODE (Opus 4.8)
+- Why:                 Owner spec — fixed canonical event-type order in EVERY breakdown chart/display; rename Report Map law chart; fix the compact header top-margin + the truncated/dropped event-type labels reported on screen.
+- Files modified:      apps/web/src/app/(dashboard)/dashboard/_components/breakdown-bars.tsx, apps/web/src/app/(dashboard)/map/_components/report-map-view.tsx
+- Files added:         apps/web/src/app/(dashboard)/dashboard/_components/__tests__/breakdown-bars-order.test.ts
+- Implementation:
+  • Canonical EVENT_TYPE_ORDER per variant baked into BreakdownBars (applies to Report Map + Command Center + the sr-only drill-down). Law: Unregistered Illegal Fishing → Fishing in a prohibited area (MPA) → Taking of Prohibited Species → Use of Prohibited Gears → Compressor Fishing → Destructive Practices. Monitoring: Marine wildlife sightings → Infrastructure and assets → Research and Studies → Community Support → Threats on Habitat. Unlisted types (e.g. "Others") append after, by count. Normalized matching tolerates case + "(MPA)" suffix. Exported orderBreakdownData + 5 unit tests. Order validated against the real demo-site DB event_type displays.
+  • Rename Report Map law chart "Law Enforcement" → "Law Enforcement and Apprehensions" (Command Center already used this).
+  • Header top-margin fix: shadcn CardHeader base is p-5; compact header overrode only px/pb, leaving pt-5 (20px) dead space above the title → py-1.5.
+  • Y-axis labels: word-wrap via recharts <Text> (no "…" truncation) + interval={0} so recharts no longer auto-thins (drops) every other multi-line category label.
+- Verification:        Playwright on REBUILT dev image @45204 — both charts render the exact owner order, full multi-line labels (no ellipsis), all category labels present (Infrastructure 16 + Community 105 no longer dropped), renamed title, tight header. 0 console errors. Evidence: report-map-charts-final.png.
+- Tests:               web 1095 → 1100 (+5 orderBreakdownData unit tests).
+- Phase 7 gate:        4/4 GREEN — product-sync, typecheck 7/7, web vitest 1100, Next prod build.
+- Deploy:              Squash-merged fix/breakdown-event-order → main → push origin → branch deleted. Staging/prod HOLD stands.
+
 ## 2026-06-28 — Phase 7: Report Map density polish + MERGE to main (731871b → squash to main)
 
 - Agent:               CLAUDE_CODE (Opus 4.8)

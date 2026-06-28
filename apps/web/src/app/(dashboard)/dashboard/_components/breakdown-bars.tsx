@@ -60,6 +60,70 @@ const MONITORING_CHART_CONFIG = {
 } satisfies ChartConfig;
 
 /**
+ * Canonical display order for event-type breakdown bars (owner spec 2026-06-28).
+ * Applied to EVERY breakdown chart (Interactive Report Map + Command Center) and
+ * its drill-down list so the event types always read in the same fixed sequence
+ * regardless of count. Types not listed here (e.g. an "Others" bucket) are
+ * appended afterwards, ordered by count descending. Matching is normalized —
+ * case-insensitive and ignoring parentheticals/punctuation — so minor
+ * display-string variations (e.g. "(MPA)" suffix, capitalisation) still align.
+ */
+const EVENT_TYPE_ORDER: Record<BreakdownVariant, string[]> = {
+  law_enforcement: [
+    "Unregistered Illegal Fishing",
+    "Fishing in a prohibited area (MPA)",
+    "Taking of Prohibited Species",
+    "Use of Prohibited Gears",
+    "Compressor Fishing",
+    "Destructive Practices",
+  ],
+  monitoring: [
+    "Marine wildlife sightings",
+    "Infrastructure and assets",
+    "Research and Studies",
+    "Community Support",
+    "Threats on Habitat",
+  ],
+};
+
+function normalizeTypeLabel(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, " ") // drop parentheticals e.g. "(MPA)"
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+/**
+ * Order a breakdown dataset for display. When `variant` has a canonical order,
+ * listed types come first in that exact sequence; any unlisted types follow,
+ * sorted by count descending. With no variant, falls back to top-5 by count.
+ * Exported for unit testing.
+ */
+export function orderBreakdownData(
+  data: BreakdownDatum[],
+  variant: BreakdownVariant | undefined,
+): BreakdownDatum[] {
+  const order = variant !== undefined ? EVENT_TYPE_ORDER[variant] : undefined;
+  const indexOfType = (type: string): number => {
+    if (order === undefined) return -1;
+    const n = normalizeTypeLabel(type);
+    return order.findIndex((o) => normalizeTypeLabel(o) === n);
+  };
+  return [...data]
+    .sort((a, b) => {
+      const ia = indexOfType(a.type);
+      const ib = indexOfType(b.type);
+      if (ia !== -1 && ib !== -1) return ia - ib;
+      if (ia !== -1) return -1; // listed types before unlisted
+      if (ib !== -1) return 1;
+      return b.count - a.count; // both unlisted → by count
+    })
+    .slice(0, order !== undefined ? order.length + 2 : 5)
+    .map((d) => ({ type: d.type, count: d.count }));
+}
+
+/**
  * Compact horizontal BarChart for the WAR ROOM breakdown section.
  *
  * Shows top-5 event types by count, sorted descending.
@@ -93,11 +157,9 @@ export function BreakdownBars({
   const colorVar =
     variant === "monitoring" ? "hsl(var(--chart-2))" : "hsl(var(--chart-1))";
 
-  // Top 5, sorted descending by count.
-  const chartData = [...data]
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 5)
-    .map((d) => ({ type: d.type, count: d.count }));
+  // Fixed canonical order per variant (Report Map + Command Center); falls back
+  // to top-5 by count when no variant is set.
+  const chartData = orderBreakdownData(data, variant);
 
   const totalCount = data.reduce((sum, d) => sum + d.count, 0);
   const headingId = `breakdown-${title.replace(/\s+/g, "-").toLowerCase()}`;
@@ -115,7 +177,7 @@ export function BreakdownBars({
       {compact ? (
         // Report Map: title (word-wraps) on the left, a thin vertical partition,
         // then the total count on the right. No "Live" indicator, no "total" word.
-        <CardHeader className="flex flex-row items-stretch justify-between gap-2 border-b px-3 pb-1.5">
+        <CardHeader className="flex flex-row items-stretch justify-between gap-2 border-b px-3 py-1.5">
           <h3
             id={headingId}
             className="min-w-0 flex-1 self-center text-[10px] font-bold uppercase leading-tight tracking-wider text-foreground/85"
@@ -186,6 +248,10 @@ export function BreakdownBars({
                   type="category"
                   dataKey="type"
                   width={compact ? 116 : 140}
+                  // Force EVERY category label to render. With multi-line wrapped
+                  // labels recharts auto-thins ticks (drops every other one) to
+                  // avoid perceived overlap — interval={0} disables that.
+                  interval={0}
                   tickLine={false}
                   axisLine={false}
                   {...(compact

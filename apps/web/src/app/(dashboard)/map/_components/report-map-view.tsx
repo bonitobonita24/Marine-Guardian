@@ -79,7 +79,7 @@ function ReportMapInner() {
           down on smaller screens. All range + municipality bound. */}
       <div className="grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
         <BreakdownBars
-          title="Law Enforcement"
+          title="Law Enforcement and Apprehensions"
           variant="law_enforcement"
           data={breakdown.data?.lawEnforcement ?? []}
           compact
