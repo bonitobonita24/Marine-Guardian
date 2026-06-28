@@ -3,6 +3,18 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-06-28 — Phase 7: breakdown charts redesigned as a labelled bar list (squash to main)
+
+- Agent:               CLAUDE_CODE (Opus 4.8)
+- Why:                 Owner request (image ref: yellow "Organic/Direct" bar mock) — the Law Enforcement and Monitoring breakdown charts should render the event name INSIDE the bar with the count on the very right.
+- Files modified:      apps/web/src/app/(dashboard)/dashboard/_components/breakdown-bars.tsx; apps/web/src/app/(dashboard)/dashboard/__tests__/warroom-panels.test.tsx
+- Implementation:      Replaced the recharts horizontal BarChart with a plain CSS bar list. Each row is a left-anchored track (rounded, bg-muted/30) with a category-coloured fill whose width is proportional to the count (min 3% sliver); the event-type icon + name overlay the bar at the left (white text, truncates), and the count sits in a fixed right-hand column. Removed recharts + chart-ui imports, the two CHART_CONFIG consts, and the config var. The visible bars are now native focusable <button>s carrying the drill-down (onSelectType) + aria-label, so the separate sr-only twin list was dropped (accessibility now lives in the real bars). Canonical event-type order, per-type icons, and compact mode preserved. Updated warroom-panels test: the old "renders recharts responsive container" assertion now asserts the names and counts render.
+- Verification:        Visual QA on rebuilt dev image @45204, 0 console errors — both Command Center and Report Map breakdown charts show bar-from-left + icon/name in bar + count on the right, matching the reference. Evidence: barlist-cc.png, barlist-cc-wide.png, barlist-rm-crop.png.
+- Lesson:              next build ESLint (restrict-template-expressions) blocks a raw number in a template literal — `${pct}%` → `${pct.toFixed(2)}%`.
+- Tests:               web 1118 (warroom-panels test updated, count unchanged).
+- Phase 7 gate:        4/4 GREEN — product-sync, typecheck 7/7, web vitest 1118, Next prod build.
+- Deploy:              Squash-merged feat/breakdown-bar-list → main (8da3fb8) → push origin → branch deleted. Supersedes the in-axis icon work (the recharts axis ticks are gone). Staging/prod HOLD stands.
+
 ## 2026-06-28 — Phase 7 fix: breakdown chart icons render via foreignObject + name hugs bar (commit to main)
 
 - Agent:               CLAUDE_CODE (Opus 4.8)
