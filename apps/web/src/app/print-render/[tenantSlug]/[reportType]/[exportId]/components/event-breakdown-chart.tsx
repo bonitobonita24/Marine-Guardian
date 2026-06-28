@@ -36,6 +36,7 @@ import {
   canonicalIndex,
   type EventTypeVariant,
 } from "@/lib/event-type-order";
+import { eventTypeIcon } from "@/lib/event-type-icon";
 
 export type EventBreakdownVariant = "lawEnforcement" | "monitoring";
 
@@ -108,6 +109,63 @@ export function buildChartRows(
     }));
 }
 
+/**
+ * Custom YAxis category tick: the event-type icon + the type label, so the
+ * funder PDF chart carries the same per-type glyphs as the on-screen breakdown
+ * surfaces (owner directive 2026-06-28 — "every event type must show its
+ * appropriate icon"). Rendered via <foreignObject> so the lucide <svg> draws
+ * cleanly inside the recharts SVG — a nested <svg> tick strips/clips (see the
+ * on-screen 28n fix). Icon tinted the variant bar colour for cohesion; label
+ * truncates with an ellipsis to stay inside the A4 gutter. Recharts clones this
+ * element with the x/y/payload tick props. Exported for unit testing.
+ */
+export function BreakdownYAxisTick({
+  x = 0,
+  y = 0,
+  payload,
+  variant,
+}: {
+  x?: number;
+  y?: number;
+  payload?: { value?: string | number };
+  variant: EventBreakdownVariant;
+}) {
+  const label = payload?.value != null ? String(payload.value) : "";
+  const Icon = eventTypeIcon(label, orderVariantFor(variant));
+  const iconColor = colorForVariant(variant);
+  const width = 146;
+  return (
+    <foreignObject x={x - width} y={y - 7} width={width} height={14}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-end",
+          gap: "3px",
+          width: "100%",
+          height: "100%",
+          overflow: "hidden",
+          lineHeight: 1,
+          paddingRight: "4px",
+        }}
+      >
+        <Icon size={10} color={iconColor} style={{ flexShrink: 0 }} />
+        <span
+          style={{
+            fontSize: "9px",
+            color: "#374151",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {label}
+        </span>
+      </div>
+    </foreignObject>
+  );
+}
+
 export function EventBreakdownChart({
   rows,
   variant,
@@ -158,8 +216,9 @@ export function EventBreakdownChart({
           <YAxis
             type="category"
             dataKey="name"
-            width={140}
-            tick={{ fontSize: 9, fill: "#374151" }}
+            width={150}
+            tickLine={false}
+            tick={<BreakdownYAxisTick variant={variant} />}
           />
           <Tooltip
             cursor={{ fill: "#f3f4f6" }}
