@@ -112,6 +112,13 @@
     --success: 150 60% 46%;
     --panel-border: 215 28% 20%;
     --grid-line: 215 28% 12%;
+    /* Bolder category colours on the tactical surfaces (owner 2026-06-28):
+       deeper, more-saturated blue (law enforcement) + green (monitoring) so the
+       white event-type icons + labels overlaid on the breakdown bars read
+       clearly. Drives the breakdown-bar fills, map event markers, and legend
+       swatches via --chart-1 / --chart-2 (eventCategoryColor + BreakdownBars). */
+    --chart-1: 221 83% 48%;
+    --chart-2: 150 62% 36%;
   }
   /* Faint tactical grid backdrop for the map region. */
   .cc-gridbg::before {
