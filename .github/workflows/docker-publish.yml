@@ -48,17 +48,16 @@ jobs:
             type=sha,prefix=sha-,format=short
             type=ref,event=branch
 
-      - name: Compute short SHA tag
-        id: sha
-        run: echo "tag=sha-$(echo ${{ github.sha }} | cut -c1-7)" >> "$GITHUB_OUTPUT"
-
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./apps/web/Dockerfile
           push: true
-          platforms: linux/amd64,linux/arm64
+          # amd64 only — the Komodo VPS is amd64. arm64 under QEMU emulation makes
+          # this Next.js monorepo build blow past the 30-min job timeout (the build
+          # is cancelled before the Deploy step runs). Single-arch finishes in minutes.
+          platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
