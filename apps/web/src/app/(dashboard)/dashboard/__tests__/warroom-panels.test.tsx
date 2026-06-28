@@ -191,8 +191,10 @@ describe("EventFeed — Skylight events excluded by server (Issue B)", () => {
   });
 });
 
-// Issue C — BreakdownBars now uses shadcn ChartContainer + Recharts BarChart.
-describe("BreakdownBars — shadcn chart (Issue C)", () => {
+// BreakdownBars renders a labelled horizontal bar LIST (CSS, not recharts):
+// each row = a left-anchored bar with the event name inside + the count in a
+// fixed right-hand column (owner design 2026-06-28).
+describe("BreakdownBars — labelled bar list", () => {
   const data = [
     { type: "Blast Fishing", count: 12 },
     { type: "Illegal Nets", count: 7 },
@@ -210,18 +212,18 @@ describe("BreakdownBars — shadcn chart (Issue C)", () => {
     expect(screen.getByText("Law Enforcement")).toBeTruthy();
   });
 
-  it("renders the Recharts responsive container when data is present", () => {
+  it("renders a labelled bar row per event type with its count", () => {
     render(
-      <BreakdownBars
-        title="Monitoring"
-        data={data}
-        variant="monitoring"
-      />,
+      <BreakdownBars title="Monitoring" data={data} variant="monitoring" />,
     );
-    // Our mock renders a div with this data-testid when data is present.
-    expect(
-      document.querySelector("[data-testid='recharts-responsive-container']"),
-    ).toBeTruthy();
+    // Each event-type name is rendered inside its bar...
+    expect(screen.getByText("Blast Fishing")).toBeTruthy();
+    expect(screen.getByText("Illegal Nets")).toBeTruthy();
+    expect(screen.getByText("Poaching")).toBeTruthy();
+    // ...and its count is shown in the right-hand column.
+    expect(screen.getByText("12")).toBeTruthy();
+    expect(screen.getByText("7")).toBeTruthy();
+    expect(screen.getByText("3")).toBeTruthy();
   });
 
   it("renders empty state when no data", () => {

@@ -1,37 +1,17 @@
 "use client";
 
 /**
- * WAR ROOM compact event-breakdown bar chart.
+ * WAR ROOM event-breakdown — a labelled horizontal bar LIST (owner design
+ * 2026-06-28, ref: yellow "Organic/Direct/…" mock). Each row is a left-anchored
+ * bar whose fill width is proportional to the count; the event-type icon + name
+ * sit INSIDE/over the bar at the left, and the count sits in a fixed right-hand
+ * column. Replaces the prior recharts BarChart (axis-label layout) — plain
+ * CSS/flex gives exact control over "name in bar, number on the right".
  *
- * Upgraded from base shadcn ChartContainer to a genuine Pro chart pattern
- * (shadcn-studio chart-component-29, 2026-06-23) — adapted for MG's maritime
- * law-enforcement / monitoring breakdown context.
- *
- * Pro patterns adopted (INHERIT-not-REPLACE):
- *  - Card shell with header title + live-update indicator
- *  - CartesianGrid with dashed strokes matching MG border token
- *  - ChartTooltip + ChartTooltipContent for consistent tooltip styling
- *  - CSS var(--chart-N) tokens instead of raw Tailwind colors
- *  - Legend row below chart mirrors Pro legend dot + count pattern
- *
- * Existing props contract is fully preserved:
- *  - title, data (BreakdownDatum[]), variant, barClass (legacy compat)
+ * Preserved: title, data (BreakdownDatum[]), variant, onSelectType drill-down,
+ * compact mode, canonical event-type order, per-type icons, barClass (legacy).
  */
 
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  LabelList,
-  XAxis,
-  YAxis,
-} from "recharts";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from "@/components/ui/chart";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { EVENT_TYPE_ORDER, normalizeTypeLabel } from "@/lib/event-type-order";
@@ -40,25 +20,6 @@ import { eventTypeIcon } from "@/lib/event-type-icon";
 export type BreakdownDatum = { type: string; count: number };
 
 export type BreakdownVariant = "law_enforcement" | "monitoring";
-
-/**
- * Chart-1 = destructive/red — law enforcement incidents (high-priority).
- * Chart-2 = teal/green — monitoring events (vessel tracking, patrols).
- * Matches MG's neutral-dark shadcn theme token palette.
- */
-const LAW_CHART_CONFIG = {
-  count: {
-    label: "Incidents",
-    color: "hsl(var(--chart-1))",
-  },
-} satisfies ChartConfig;
-
-const MONITORING_CHART_CONFIG = {
-  count: {
-    label: "Events",
-    color: "hsl(var(--chart-2))",
-  },
-} satisfies ChartConfig;
 
 /**
  * Order a breakdown dataset for display. When `variant` has a canonical order,
@@ -118,8 +79,6 @@ export function BreakdownBars({
   /** Kept for backward compatibility with callers that haven't migrated yet. */
   barClass?: string;
 }) {
-  const config =
-    variant === "monitoring" ? MONITORING_CHART_CONFIG : LAW_CHART_CONFIG;
   const colorVar =
     variant === "monitoring" ? "hsl(var(--chart-2))" : "hsl(var(--chart-1))";
 
@@ -128,6 +87,8 @@ export function BreakdownBars({
   const chartData = orderBreakdownData(data, variant);
 
   const totalCount = data.reduce((sum, d) => sum + d.count, 0);
+  // Longest displayed bar = 100% of the track width.
+  const maxCount = Math.max(...chartData.map((d) => d.count), 1);
   const headingId = `breakdown-${title.replace(/\s+/g, "-").toLowerCase()}`;
 
   return (
@@ -188,150 +149,65 @@ export function BreakdownBars({
         {chartData.length === 0 ? (
           <p className="py-3 text-[10px] text-muted-foreground">No events</p>
         ) : (
-          <>
-            <ChartContainer
-              config={config}
-              className={
-                compact
-                  ? "aspect-auto min-h-[4rem] w-full flex-1"
-                  : "h-[7rem] w-full"
-              }
-            >
-              <BarChart
-                accessibilityLayer
-                data={chartData}
-                layout="vertical"
-                margin={{ top: 0, right: 36, bottom: 0, left: 0 }}
-              >
-                {/* Pro CartesianGrid: dashed, horizontal only, border token */}
-                <CartesianGrid
-                  horizontal={false}
-                  strokeDasharray="4"
-                  stroke="hsl(var(--border))"
-                />
-                <XAxis type="number" hide allowDecimals={false} />
-                <YAxis
-                  type="category"
-                  dataKey="type"
-                  width={compact ? 116 : 140}
-                  // Force EVERY category label to render. interval={0} disables
-                  // recharts' auto-thinning of ticks.
-                  interval={0}
-                  tickLine={false}
-                  axisLine={false}
-                  // [icon + name] kept together as a group and RIGHT-aligned so
-                  // the name hugs the bar (no dead gap); empty space falls on the
-                  // far left. Rendered via <foreignObject> so the lucide glyph
-                  // renders as real HTML (a nested <svg> tick gets clipped). Icon
-                  // is tinted the category colour (matches the bar + map markers)
-                  // so it reads clearly on the dark theme.
-                  tick={(props: {
-                    x: number;
-                    y: number;
-                    payload: { value: string };
-                  }) => {
-                    const TickIcon = eventTypeIcon(props.payload.value, variant);
-                    const bandW = compact ? 116 : 140;
-                    const rowH = 16;
-                    return (
-                      <foreignObject
-                        x={props.x - bandW}
-                        y={props.y - rowH / 2}
-                        width={bandW}
-                        height={rowH}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "flex-end",
-                            gap: 4,
-                            width: "100%",
-                            height: "100%",
-                          }}
-                        >
-                          <TickIcon
-                            size={14}
-                            strokeWidth={2.25}
-                            style={{ flexShrink: 0, color: colorVar }}
-                          />
-                          <span
-                            style={{
-                              minWidth: 0,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                              fontSize: 9,
-                              lineHeight: "12px",
-                              paddingRight: 3,
-                              color: "hsl(var(--muted-foreground))",
-                            }}
-                          >
-                            {props.payload.value}
-                          </span>
-                        </div>
-                      </foreignObject>
-                    );
-                  }}
-                />
-                {/* Pro ChartTooltip instead of no tooltip */}
-                <ChartTooltip
-                  cursor={false}
-                  content={<ChartTooltipContent hideLabel />}
-                />
-                <Bar
-                  dataKey="count"
-                  fill={colorVar}
-                  radius={[0, 3, 3, 0]}
-                  maxBarSize={compact ? 18 : 10}
-                  {...(onSelectType !== undefined
-                    ? {
-                        cursor: "pointer",
-                        onClick: (entry: { type?: string }) => {
-                          if (entry.type !== undefined) onSelectType(entry.type);
-                        },
-                      }
-                    : {})}
-                >
-                  {/* Count label at the end (right) of each bar */}
-                  <LabelList
-                    dataKey="count"
-                    position="right"
-                    className="fill-foreground tabular-nums"
-                    fontSize={9}
+          <ul
+            className={cn(
+              "flex flex-col gap-1.5 py-1",
+              // Report Map (compact): centre the rows in the filled card cell.
+              compact && "min-h-0 flex-1 justify-center",
+            )}
+          >
+            {chartData.map((d) => {
+              const Icon = eventTypeIcon(d.type, variant);
+              // Min sliver so any non-zero count still reads as a bar.
+              const pct = Math.max((d.count / maxCount) * 100, 3);
+              const interactive = onSelectType !== undefined;
+              const barCls = cn(
+                "relative min-w-0 flex-1 overflow-hidden rounded bg-muted/30",
+                compact ? "h-5" : "h-6",
+                interactive &&
+                  "cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+              );
+              // Fill (category colour) anchored left + the icon & name overlaid
+              // at the left so the name reads whether or not it fits inside the
+              // fill. The count sits in a fixed right-hand column.
+              const barInner = (
+                <>
+                  <span
+                    className="absolute inset-y-0 left-0 rounded"
+                    style={{ width: `${pct.toFixed(2)}%`, backgroundColor: colorVar }}
+                    aria-hidden="true"
                   />
-                </Bar>
-              </BarChart>
-            </ChartContainer>
-
-            {/* Screen-reader / keyboard drill-down list (T5b). Visually hidden
-                (sr-only) per the owner's 2026-06-27 request to show only the bar
-                chart with the count at each bar's end — but kept in the a11y tree
-                because the SVG bars are not natively focusable, so keyboard +
-                screen-reader users still get a focusable button per event type
-                (WCAG 2.2 AA / Rule 33 gov-LGU gate). */}
-            {onSelectType !== undefined && (
-              <ul className="sr-only">
-                {chartData.map((d) => (
-                  <li key={d.type}>
+                  <span className="absolute inset-0 flex items-center gap-1.5 px-2">
+                    <Icon className="size-3.5 shrink-0 text-foreground" />
+                    <span className="truncate text-[11px] font-medium text-foreground">
+                      {d.type}
+                    </span>
+                  </span>
+                </>
+              );
+              return (
+                <li key={d.type} className="flex items-center gap-2">
+                  {interactive ? (
                     <button
                       type="button"
                       onClick={() => {
                         onSelectType(d.type);
                       }}
-                      aria-label={`View ${String(d.count)} ${d.type} ${title} events`}
-                      className="flex w-full items-center justify-between rounded px-1 py-0.5 text-left text-[9px] text-muted-foreground hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      aria-label={`View ${d.count.toLocaleString()} ${d.type} ${title} events`}
+                      className={barCls}
                     >
-                      <span className="truncate">{d.type}</span>
-                      <span className="ml-2 shrink-0 font-semibold tabular-nums text-foreground">
-                        {d.count.toLocaleString()}
-                      </span>
+                      {barInner}
                     </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>
+                  ) : (
+                    <div className={barCls}>{barInner}</div>
+                  )}
+                  <span className="w-12 shrink-0 text-right text-[11px] font-semibold tabular-nums text-foreground">
+                    {d.count.toLocaleString()}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </CardContent>
     </Card>
