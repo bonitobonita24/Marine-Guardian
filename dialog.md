@@ -1,0 +1,707 @@
+- generic:
+  - generic:
+    - complementary:
+      - generic:
+        - generic: Marine Guardian
+      - navigation:
+        - generic:
+          - generic: COMMAND
+          - list:
+            - listitem:
+              - link:
+                - /url: /dashboard
+                - img
+                - generic: Command Center
+            - listitem:
+              - link:
+                - /url: /map
+                - img
+                - generic: Interactive Report Map
+        - generic:
+          - generic: OPERATIONS
+          - list:
+            - listitem:
+              - link:
+                - /url: /events
+                - img
+                - generic: Events
+            - listitem:
+              - link:
+                - /url: /observations
+                - img
+                - generic: Observations
+            - listitem:
+              - link:
+                - /url: /notifications
+                - img
+                - generic: Notifications
+        - generic:
+          - generic: PATROLS
+          - list:
+            - listitem:
+              - link:
+                - /url: /patrols
+                - img
+                - generic: Patrols
+            - listitem:
+              - link:
+                - /url: /patrol-areas
+                - img
+                - generic: Boundaries
+            - listitem:
+              - link:
+                - /url: /patrol-schedule
+                - img
+                - generic: Patrol Schedule
+        - generic:
+          - generic: LOGISTICS
+          - list:
+            - listitem:
+              - link:
+                - /url: /fuel
+                - img
+                - generic: Fuel
+        - generic:
+          - generic: ADMIN
+          - list:
+            - listitem:
+              - link:
+                - /url: /alerts
+                - img
+                - generic: Alert Rules
+            - listitem:
+              - link:
+                - /url: /subjects
+                - img
+                - generic: Subjects
+            - listitem:
+              - link:
+                - /url: /sync
+                - img
+                - generic: Sync Status
+            - listitem:
+              - link:
+                - /url: /users
+                - img
+                - generic: Users
+            - listitem:
+              - link:
+                - /url: /settings
+                - img
+                - generic: Settings
+      - generic:
+        - button:
+          - img
+          - text: Sign Out
+    - generic:
+      - banner:
+        - generic:
+          - button:
+            - img
+          - link:
+            - /url: /notifications
+            - img
+          - generic: admin@mail.com
+          - generic: site_admin
+      - main:
+        - generic:
+          - generic:
+            - heading [level=1]: Boundaries
+            - generic:
+              - button: Create Area
+              - button: Import Official Boundaries
+              - button: Import Boundary from KML/KMZ
+              - button: Rebuild Area Derivation
+          - generic:
+            - generic:
+              - textbox:
+                - /placeholder: Filter by region
+              - combobox
+              - combobox
+            - generic:
+              - generic:
+                - table:
+                  - rowgroup:
+                    - row:
+                      - columnheader: Name
+                      - columnheader: Region
+                      - columnheader: Source
+                      - columnheader: Geometry
+                      - columnheader: Enabled
+                      - columnheader: Override Official
+                      - columnheader: Created By
+                      - columnheader: Actions
+                  - rowgroup:
+                    - row:
+                      - cell: Aborlan — Municipal Land
+                      - cell: Palawan
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: Aborlan — Municipal Waters
+                      - cell: Palawan
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: Abra de Ilog — Municipal Land
+                      - cell: Occidental Mindoro
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: Abra de Ilog — Municipal Waters
+                      - cell: Occidental Mindoro
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: Apo Reef Natural Park
+                      - cell: Occidental Mindoro
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: Araceli — Municipal Land
+                      - cell: Palawan
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: Araceli — Municipal Waters
+                      - cell: Palawan
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: Baco — Municipal Land
+                      - cell: Oriental Mindoro
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: Baco — Municipal Waters
+                      - cell: Oriental Mindoro
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: Calapan City — Municipal Land
+                      - cell: Oriental Mindoro
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: Calapan City — Municipal Waters
+                      - cell: Oriental Mindoro
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: Calintaan — Municipal Land
+                      - cell: Occidental Mindoro
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: Calintaan — Municipal Waters
+                      - cell: Occidental Mindoro
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: Dumaran — Municipal Land
+                      - cell: Palawan
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: Dumaran — Municipal Waters
+                      - cell: Palawan
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: El Nido — Municipal Land
+                      - cell: Palawan
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: El Nido — Municipal Waters
+                      - cell: Palawan
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: Harka Piloto Fish Sanctuary
+                      - cell: Oriental Mindoro
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: Mamburao — Municipal Land
+                      - cell: Occidental Mindoro
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: Mamburao — Municipal Waters
+                      - cell: Occidental Mindoro
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: Narra — Municipal Land
+                      - cell: Palawan
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: Narra — Municipal Waters
+                      - cell: Palawan
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: Puerto Galera — Municipal Land
+                      - cell: Oriental Mindoro
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: Puerto Galera — Municipal Waters
+                      - cell: Oriental Mindoro
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: Roxas — Municipal Land
+                      - cell: Palawan
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: Roxas — Municipal Waters
+                      - cell: Palawan
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: Sablayan — Municipal Land
+                      - cell: Occidental Mindoro
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: Sablayan — Municipal Waters
+                      - cell: Occidental Mindoro
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: San Teodoro — Municipal Land
+                      - cell: Oriental Mindoro
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: San Teodoro — Municipal Waters
+                      - cell: Oriental Mindoro
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: Santa Cruz — Municipal Land
+                      - cell: Occidental Mindoro
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: Santa Cruz — Municipal Waters
+                      - cell: Occidental Mindoro
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: Taytay — Municipal Land
+                      - cell: Palawan
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+                    - row:
+                      - cell: Taytay — Municipal Waters
+                      - cell: Palawan
+                      - cell:
+                        - generic: official
+                      - cell: Polygon
+                      - cell:
+                        - generic: Enabled
+                      - cell:
+                        - generic: "No"
+                      - cell: Demo Site Admin
+                      - cell:
+                        - generic:
+                          - button: Preview
+                          - button: Edit
+                          - button: Delete
+  - alert
+  - dialog "Import Boundary from KML/KMZ" [ref=e710]:
+    - generic [ref=e711]:
+      - heading "Import Boundary from KML/KMZ" [level=2] [ref=e712]
+      - paragraph [ref=e713]: Upload a KML or KMZ file to create a named sub-area under a municipality. It is drawn on both maps and added to the zone filter, so you can see only the events/patrols inside it — separate from the whole municipality. Existing events/patrols inside it are counted automatically.
+    - generic [ref=e714]:
+      - generic [ref=e715]:
+        - text: Name
+        - textbox "Name" [ref=e716]:
+          - /placeholder: e.g. Sablayan Marine Sanctuary
+      - generic [ref=e717]:
+        - text: Boundary type
+        - combobox "Boundary type" [active] [ref=e718] [cursor=pointer]:
+          - generic: Special area
+          - img [ref=e719]
+      - generic [ref=e721]:
+        - text: Under municipality
+        - combobox "Under municipality" [ref=e722] [cursor=pointer]:
+          - generic: Select a municipality…
+          - img [ref=e723]
+      - generic [ref=e725]:
+        - text: Boundary file (.kml or .kmz)
+        - button "Boundary file (.kml or .kmz)" [ref=e726]
+    - generic [ref=e727]:
+      - button "Cancel" [ref=e728] [cursor=pointer]
+      - button "Create boundary" [disabled]
+    - button "Close" [ref=e729] [cursor=pointer]:
+      - img [ref=e730]
+      - generic [ref=e733]: Close

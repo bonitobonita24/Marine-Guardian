@@ -17,6 +17,13 @@ type MapPolygonProps = {
   outlineOpacity?: number;
   /** Outline width in pixels (default 1.5) */
   outlineWidth?: number;
+  /**
+   * Optional MapLibre line-dasharray (dash lengths in line-width units). When
+   * set, the outline renders dashed/dotted with round caps — used to make
+   * coverage boundaries read distinctly from solid track/area lines. e.g.
+   * [0, 2] with round caps = a dotted line.
+   */
+  dashArray?: number[];
 };
 
 /**
@@ -32,6 +39,7 @@ export function MapPolygon({
   fillOpacity = 0.2,
   outlineOpacity = 0.8,
   outlineWidth = 1.5,
+  dashArray,
 }: MapPolygonProps) {
   const { map, isLoaded } = useMap();
   const autoId = useId();
@@ -63,10 +71,12 @@ export function MapPolygon({
       id: lineLayerId,
       type: "line",
       source: sourceId,
+      layout: dashArray ? { "line-cap": "round", "line-join": "round" } : {},
       paint: {
         "line-color": color,
         "line-width": outlineWidth,
         "line-opacity": outlineOpacity,
+        ...(dashArray ? { "line-dasharray": dashArray } : {}),
       },
     });
 
@@ -103,6 +113,9 @@ export function MapPolygon({
       map.setPaintProperty(lineLayerId, "line-color", color);
       map.setPaintProperty(lineLayerId, "line-width", outlineWidth);
       map.setPaintProperty(lineLayerId, "line-opacity", outlineOpacity);
+      if (dashArray) {
+        map.setPaintProperty(lineLayerId, "line-dasharray", dashArray);
+      }
     }
   }, [
     isLoaded,
@@ -113,6 +126,7 @@ export function MapPolygon({
     fillOpacity,
     outlineOpacity,
     outlineWidth,
+    dashArray,
   ]);
 
   return null;

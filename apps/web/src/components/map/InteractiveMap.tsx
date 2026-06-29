@@ -59,13 +59,20 @@ const PIN_PREVIEW_ZOOM = 11.5;
 // Official coverage boundary line styling, by kind (derived server-side from the
 // AreaBoundary provenance key). Thin outlines; MPAs get a heavier line + faint
 // fill so protected zones read as distinct from municipal land/water rings.
+// All coverage boundaries render as a neutral grey DOTTED line (round-cap
+// dasharray) — the OpenStreetMap-style muted boundary look — so they read
+// distinctly as "boundary lines" versus the solid coloured patrol tracks /
+// area polygons. MPAs keep a slightly heavier line + faint fill so protected
+// zones still stand out a touch, but the colour is uniformly grey.
+const BOUNDARY_COLOR = "#9ca3af"; // grey-400 — visible on the dark map
+const BOUNDARY_DASH = [0, 2]; // MapLibre dotted recipe (with round caps)
 const BOUNDARY_STYLE: Record<
   "land" | "water" | "mpa",
-  { color: string; outlineWidth: number; fillOpacity: number; outlineOpacity: number }
+  { color: string; outlineWidth: number; fillOpacity: number; outlineOpacity: number; dashArray: number[] }
 > = {
-  land: { color: "#94a3b8", outlineWidth: 1, fillOpacity: 0, outlineOpacity: 0.7 },
-  water: { color: "#38bdf8", outlineWidth: 1, fillOpacity: 0, outlineOpacity: 0.7 },
-  mpa: { color: "#34d399", outlineWidth: 2, fillOpacity: 0.08, outlineOpacity: 0.9 },
+  land: { color: BOUNDARY_COLOR, outlineWidth: 2, fillOpacity: 0, outlineOpacity: 0.6, dashArray: BOUNDARY_DASH },
+  water: { color: BOUNDARY_COLOR, outlineWidth: 2, fillOpacity: 0, outlineOpacity: 0.6, dashArray: BOUNDARY_DASH },
+  mpa: { color: BOUNDARY_COLOR, outlineWidth: 2.5, fillOpacity: 0.04, outlineOpacity: 0.8, dashArray: BOUNDARY_DASH },
 };
 
 /**
@@ -564,6 +571,7 @@ export function InteractiveMap({
                 fillOpacity={style.fillOpacity}
                 outlineOpacity={style.outlineOpacity}
                 outlineWidth={style.outlineWidth}
+                dashArray={style.dashArray}
               />
             );
           })}

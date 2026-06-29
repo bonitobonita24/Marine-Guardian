@@ -1,0 +1,680 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e5]: Marine Guardian
+      - navigation [ref=e6]:
+        - generic [ref=e7]:
+          - generic [ref=e8]: COMMAND
+          - list [ref=e9]:
+            - listitem [ref=e10]:
+              - link "Command Center" [ref=e11] [cursor=pointer]:
+                - /url: /dashboard
+                - img [ref=e12]
+                - generic [ref=e17]: Command Center
+            - listitem [ref=e18]:
+              - link "Interactive Report Map" [ref=e19] [cursor=pointer]:
+                - /url: /map
+                - img [ref=e20]
+                - generic [ref=e22]: Interactive Report Map
+        - generic [ref=e23]:
+          - generic [ref=e24]: OPERATIONS
+          - list [ref=e25]:
+            - listitem [ref=e26]:
+              - link "Events" [ref=e27] [cursor=pointer]:
+                - /url: /events
+                - img [ref=e28]
+                - generic [ref=e32]: Events
+            - listitem [ref=e33]:
+              - link "Observations" [ref=e34] [cursor=pointer]:
+                - /url: /observations
+                - img [ref=e35]
+                - generic [ref=e38]: Observations
+            - listitem [ref=e39]:
+              - link "Notifications" [ref=e40] [cursor=pointer]:
+                - /url: /notifications
+                - img [ref=e41]
+                - generic [ref=e46]: Notifications
+        - generic [ref=e47]:
+          - generic [ref=e48]: PATROLS
+          - list [ref=e49]:
+            - listitem [ref=e50]:
+              - link "Patrols" [ref=e51] [cursor=pointer]:
+                - /url: /patrols
+                - img [ref=e52]
+                - generic [ref=e56]: Patrols
+            - listitem [ref=e57]:
+              - link "Boundaries" [ref=e58] [cursor=pointer]:
+                - /url: /patrol-areas
+                - img [ref=e59]
+                - generic [ref=e62]: Boundaries
+            - listitem [ref=e63]:
+              - link "Patrol Schedule" [ref=e64] [cursor=pointer]:
+                - /url: /patrol-schedule
+                - img [ref=e65]
+                - generic [ref=e67]: Patrol Schedule
+        - generic [ref=e68]:
+          - generic [ref=e69]: LOGISTICS
+          - list [ref=e70]:
+            - listitem [ref=e71]:
+              - link "Fuel" [ref=e72] [cursor=pointer]:
+                - /url: /fuel
+                - img [ref=e73]
+                - generic [ref=e76]: Fuel
+        - generic [ref=e77]:
+          - generic [ref=e78]: ADMIN
+          - list [ref=e79]:
+            - listitem [ref=e80]:
+              - link "Alert Rules" [ref=e81] [cursor=pointer]:
+                - /url: /alerts
+                - img [ref=e82]
+                - generic [ref=e85]: Alert Rules
+            - listitem [ref=e86]:
+              - link "Subjects" [ref=e87] [cursor=pointer]:
+                - /url: /subjects
+                - img [ref=e88]
+                - generic [ref=e93]: Subjects
+            - listitem [ref=e94]:
+              - link "Sync Status" [ref=e95] [cursor=pointer]:
+                - /url: /sync
+                - img [ref=e96]
+                - generic [ref=e101]: Sync Status
+            - listitem [ref=e102]:
+              - link "Users" [ref=e103] [cursor=pointer]:
+                - /url: /users
+                - img [ref=e104]
+                - generic [ref=e116]: Users
+            - listitem [ref=e117]:
+              - link "Settings" [ref=e118] [cursor=pointer]:
+                - /url: /settings
+                - img [ref=e119]
+                - generic [ref=e122]: Settings
+      - button "Sign Out" [ref=e124] [cursor=pointer]:
+        - img
+        - text: Sign Out
+    - generic [ref=e125]:
+      - banner [ref=e126]:
+        - generic [ref=e127]:
+          - button "Enter fullscreen command center" [ref=e128] [cursor=pointer]:
+            - img
+          - link "0 unread notifications" [ref=e129] [cursor=pointer]:
+            - /url: /notifications
+            - img
+          - generic [ref=e144]: admin@mail.com
+          - generic [ref=e145]: site_admin
+      - main [ref=e130]:
+        - generic [ref=e131]:
+          - generic [ref=e132]:
+            - heading "Boundaries" [level=1] [ref=e133]
+            - generic [ref=e146]:
+              - button "Create Area" [ref=e147] [cursor=pointer]
+              - button "Import Official Boundaries" [ref=e148] [cursor=pointer]
+              - button "Import Boundary from KML/KMZ" [ref=e149] [cursor=pointer]
+              - button "Rebuild Area Derivation" [ref=e150] [cursor=pointer]
+          - generic [ref=e134]:
+            - generic [ref=e135]:
+              - textbox "Filter by region" [ref=e136]
+              - combobox "Filter by enabled status" [ref=e137]:
+                - option "All" [selected]
+                - option "Enabled"
+                - option "Disabled"
+              - combobox "Filter by source" [ref=e138]:
+                - option "All Sources" [selected]
+                - option "Official"
+                - option "Custom"
+            - table [ref=e153]:
+              - rowgroup [ref=e154]:
+                - row "Name Region Source Geometry Enabled Override Official Created By Actions" [ref=e155]:
+                  - columnheader "Name" [ref=e156]
+                  - columnheader "Region" [ref=e157]
+                  - columnheader "Source" [ref=e158]
+                  - columnheader "Geometry" [ref=e159]
+                  - columnheader "Enabled" [ref=e160]
+                  - columnheader "Override Official" [ref=e161]
+                  - columnheader "Created By" [ref=e162]
+                  - columnheader "Actions" [ref=e163]
+              - rowgroup [ref=e164]:
+                - row "Aborlan — Municipal Land Palawan official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e165]:
+                  - cell "Aborlan — Municipal Land" [ref=e166]
+                  - cell "Palawan" [ref=e167]
+                  - cell "official" [ref=e168]:
+                    - generic [ref=e169]: official
+                  - cell "Polygon" [ref=e170]
+                  - cell "Enabled" [ref=e171]:
+                    - generic [ref=e172]: Enabled
+                  - cell "No" [ref=e173]:
+                    - generic [ref=e174]: "No"
+                  - cell "Demo Site Admin" [ref=e175]
+                  - cell "Preview Edit Delete" [ref=e176]:
+                    - generic [ref=e177]:
+                      - button "Preview" [ref=e178] [cursor=pointer]
+                      - button "Edit" [ref=e179] [cursor=pointer]
+                      - button "Delete" [ref=e180] [cursor=pointer]
+                - row "Aborlan — Municipal Waters Palawan official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e181]:
+                  - cell "Aborlan — Municipal Waters" [ref=e182]
+                  - cell "Palawan" [ref=e183]
+                  - cell "official" [ref=e184]:
+                    - generic [ref=e185]: official
+                  - cell "Polygon" [ref=e186]
+                  - cell "Enabled" [ref=e187]:
+                    - generic [ref=e188]: Enabled
+                  - cell "No" [ref=e189]:
+                    - generic [ref=e190]: "No"
+                  - cell "Demo Site Admin" [ref=e191]
+                  - cell "Preview Edit Delete" [ref=e192]:
+                    - generic [ref=e193]:
+                      - button "Preview" [ref=e194] [cursor=pointer]
+                      - button "Edit" [ref=e195] [cursor=pointer]
+                      - button "Delete" [ref=e196] [cursor=pointer]
+                - row "Abra de Ilog — Municipal Land Occidental Mindoro official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e197]:
+                  - cell "Abra de Ilog — Municipal Land" [ref=e198]
+                  - cell "Occidental Mindoro" [ref=e199]
+                  - cell "official" [ref=e200]:
+                    - generic [ref=e201]: official
+                  - cell "Polygon" [ref=e202]
+                  - cell "Enabled" [ref=e203]:
+                    - generic [ref=e204]: Enabled
+                  - cell "No" [ref=e205]:
+                    - generic [ref=e206]: "No"
+                  - cell "Demo Site Admin" [ref=e207]
+                  - cell "Preview Edit Delete" [ref=e208]:
+                    - generic [ref=e209]:
+                      - button "Preview" [ref=e210] [cursor=pointer]
+                      - button "Edit" [ref=e211] [cursor=pointer]
+                      - button "Delete" [ref=e212] [cursor=pointer]
+                - row "Abra de Ilog — Municipal Waters Occidental Mindoro official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e213]:
+                  - cell "Abra de Ilog — Municipal Waters" [ref=e214]
+                  - cell "Occidental Mindoro" [ref=e215]
+                  - cell "official" [ref=e216]:
+                    - generic [ref=e217]: official
+                  - cell "Polygon" [ref=e218]
+                  - cell "Enabled" [ref=e219]:
+                    - generic [ref=e220]: Enabled
+                  - cell "No" [ref=e221]:
+                    - generic [ref=e222]: "No"
+                  - cell "Demo Site Admin" [ref=e223]
+                  - cell "Preview Edit Delete" [ref=e224]:
+                    - generic [ref=e225]:
+                      - button "Preview" [ref=e226] [cursor=pointer]
+                      - button "Edit" [ref=e227] [cursor=pointer]
+                      - button "Delete" [ref=e228] [cursor=pointer]
+                - row "Apo Reef Natural Park Occidental Mindoro official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e229]:
+                  - cell "Apo Reef Natural Park" [ref=e230]
+                  - cell "Occidental Mindoro" [ref=e231]
+                  - cell "official" [ref=e232]:
+                    - generic [ref=e233]: official
+                  - cell "Polygon" [ref=e234]
+                  - cell "Enabled" [ref=e235]:
+                    - generic [ref=e236]: Enabled
+                  - cell "No" [ref=e237]:
+                    - generic [ref=e238]: "No"
+                  - cell "Demo Site Admin" [ref=e239]
+                  - cell "Preview Edit Delete" [ref=e240]:
+                    - generic [ref=e241]:
+                      - button "Preview" [ref=e242] [cursor=pointer]
+                      - button "Edit" [ref=e243] [cursor=pointer]
+                      - button "Delete" [ref=e244] [cursor=pointer]
+                - row "Araceli — Municipal Land Palawan official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e245]:
+                  - cell "Araceli — Municipal Land" [ref=e246]
+                  - cell "Palawan" [ref=e247]
+                  - cell "official" [ref=e248]:
+                    - generic [ref=e249]: official
+                  - cell "Polygon" [ref=e250]
+                  - cell "Enabled" [ref=e251]:
+                    - generic [ref=e252]: Enabled
+                  - cell "No" [ref=e253]:
+                    - generic [ref=e254]: "No"
+                  - cell "Demo Site Admin" [ref=e255]
+                  - cell "Preview Edit Delete" [ref=e256]:
+                    - generic [ref=e257]:
+                      - button "Preview" [ref=e258] [cursor=pointer]
+                      - button "Edit" [ref=e259] [cursor=pointer]
+                      - button "Delete" [ref=e260] [cursor=pointer]
+                - row "Araceli — Municipal Waters Palawan official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e261]:
+                  - cell "Araceli — Municipal Waters" [ref=e262]
+                  - cell "Palawan" [ref=e263]
+                  - cell "official" [ref=e264]:
+                    - generic [ref=e265]: official
+                  - cell "Polygon" [ref=e266]
+                  - cell "Enabled" [ref=e267]:
+                    - generic [ref=e268]: Enabled
+                  - cell "No" [ref=e269]:
+                    - generic [ref=e270]: "No"
+                  - cell "Demo Site Admin" [ref=e271]
+                  - cell "Preview Edit Delete" [ref=e272]:
+                    - generic [ref=e273]:
+                      - button "Preview" [ref=e274] [cursor=pointer]
+                      - button "Edit" [ref=e275] [cursor=pointer]
+                      - button "Delete" [ref=e276] [cursor=pointer]
+                - row "Baco — Municipal Land Oriental Mindoro official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e277]:
+                  - cell "Baco — Municipal Land" [ref=e278]
+                  - cell "Oriental Mindoro" [ref=e279]
+                  - cell "official" [ref=e280]:
+                    - generic [ref=e281]: official
+                  - cell "Polygon" [ref=e282]
+                  - cell "Enabled" [ref=e283]:
+                    - generic [ref=e284]: Enabled
+                  - cell "No" [ref=e285]:
+                    - generic [ref=e286]: "No"
+                  - cell "Demo Site Admin" [ref=e287]
+                  - cell "Preview Edit Delete" [ref=e288]:
+                    - generic [ref=e289]:
+                      - button "Preview" [ref=e290] [cursor=pointer]
+                      - button "Edit" [ref=e291] [cursor=pointer]
+                      - button "Delete" [ref=e292] [cursor=pointer]
+                - row "Baco — Municipal Waters Oriental Mindoro official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e293]:
+                  - cell "Baco — Municipal Waters" [ref=e294]
+                  - cell "Oriental Mindoro" [ref=e295]
+                  - cell "official" [ref=e296]:
+                    - generic [ref=e297]: official
+                  - cell "Polygon" [ref=e298]
+                  - cell "Enabled" [ref=e299]:
+                    - generic [ref=e300]: Enabled
+                  - cell "No" [ref=e301]:
+                    - generic [ref=e302]: "No"
+                  - cell "Demo Site Admin" [ref=e303]
+                  - cell "Preview Edit Delete" [ref=e304]:
+                    - generic [ref=e305]:
+                      - button "Preview" [ref=e306] [cursor=pointer]
+                      - button "Edit" [ref=e307] [cursor=pointer]
+                      - button "Delete" [ref=e308] [cursor=pointer]
+                - row "Calapan City — Municipal Land Oriental Mindoro official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e309]:
+                  - cell "Calapan City — Municipal Land" [ref=e310]
+                  - cell "Oriental Mindoro" [ref=e311]
+                  - cell "official" [ref=e312]:
+                    - generic [ref=e313]: official
+                  - cell "Polygon" [ref=e314]
+                  - cell "Enabled" [ref=e315]:
+                    - generic [ref=e316]: Enabled
+                  - cell "No" [ref=e317]:
+                    - generic [ref=e318]: "No"
+                  - cell "Demo Site Admin" [ref=e319]
+                  - cell "Preview Edit Delete" [ref=e320]:
+                    - generic [ref=e321]:
+                      - button "Preview" [ref=e322] [cursor=pointer]
+                      - button "Edit" [ref=e323] [cursor=pointer]
+                      - button "Delete" [ref=e324] [cursor=pointer]
+                - row "Calapan City — Municipal Waters Oriental Mindoro official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e325]:
+                  - cell "Calapan City — Municipal Waters" [ref=e326]
+                  - cell "Oriental Mindoro" [ref=e327]
+                  - cell "official" [ref=e328]:
+                    - generic [ref=e329]: official
+                  - cell "Polygon" [ref=e330]
+                  - cell "Enabled" [ref=e331]:
+                    - generic [ref=e332]: Enabled
+                  - cell "No" [ref=e333]:
+                    - generic [ref=e334]: "No"
+                  - cell "Demo Site Admin" [ref=e335]
+                  - cell "Preview Edit Delete" [ref=e336]:
+                    - generic [ref=e337]:
+                      - button "Preview" [ref=e338] [cursor=pointer]
+                      - button "Edit" [ref=e339] [cursor=pointer]
+                      - button "Delete" [ref=e340] [cursor=pointer]
+                - row "Calintaan — Municipal Land Occidental Mindoro official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e341]:
+                  - cell "Calintaan — Municipal Land" [ref=e342]
+                  - cell "Occidental Mindoro" [ref=e343]
+                  - cell "official" [ref=e344]:
+                    - generic [ref=e345]: official
+                  - cell "Polygon" [ref=e346]
+                  - cell "Enabled" [ref=e347]:
+                    - generic [ref=e348]: Enabled
+                  - cell "No" [ref=e349]:
+                    - generic [ref=e350]: "No"
+                  - cell "Demo Site Admin" [ref=e351]
+                  - cell "Preview Edit Delete" [ref=e352]:
+                    - generic [ref=e353]:
+                      - button "Preview" [ref=e354] [cursor=pointer]
+                      - button "Edit" [ref=e355] [cursor=pointer]
+                      - button "Delete" [ref=e356] [cursor=pointer]
+                - row "Calintaan — Municipal Waters Occidental Mindoro official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e357]:
+                  - cell "Calintaan — Municipal Waters" [ref=e358]
+                  - cell "Occidental Mindoro" [ref=e359]
+                  - cell "official" [ref=e360]:
+                    - generic [ref=e361]: official
+                  - cell "Polygon" [ref=e362]
+                  - cell "Enabled" [ref=e363]:
+                    - generic [ref=e364]: Enabled
+                  - cell "No" [ref=e365]:
+                    - generic [ref=e366]: "No"
+                  - cell "Demo Site Admin" [ref=e367]
+                  - cell "Preview Edit Delete" [ref=e368]:
+                    - generic [ref=e369]:
+                      - button "Preview" [ref=e370] [cursor=pointer]
+                      - button "Edit" [ref=e371] [cursor=pointer]
+                      - button "Delete" [ref=e372] [cursor=pointer]
+                - row "Dumaran — Municipal Land Palawan official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e373]:
+                  - cell "Dumaran — Municipal Land" [ref=e374]
+                  - cell "Palawan" [ref=e375]
+                  - cell "official" [ref=e376]:
+                    - generic [ref=e377]: official
+                  - cell "Polygon" [ref=e378]
+                  - cell "Enabled" [ref=e379]:
+                    - generic [ref=e380]: Enabled
+                  - cell "No" [ref=e381]:
+                    - generic [ref=e382]: "No"
+                  - cell "Demo Site Admin" [ref=e383]
+                  - cell "Preview Edit Delete" [ref=e384]:
+                    - generic [ref=e385]:
+                      - button "Preview" [ref=e386] [cursor=pointer]
+                      - button "Edit" [ref=e387] [cursor=pointer]
+                      - button "Delete" [ref=e388] [cursor=pointer]
+                - row "Dumaran — Municipal Waters Palawan official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e389]:
+                  - cell "Dumaran — Municipal Waters" [ref=e390]
+                  - cell "Palawan" [ref=e391]
+                  - cell "official" [ref=e392]:
+                    - generic [ref=e393]: official
+                  - cell "Polygon" [ref=e394]
+                  - cell "Enabled" [ref=e395]:
+                    - generic [ref=e396]: Enabled
+                  - cell "No" [ref=e397]:
+                    - generic [ref=e398]: "No"
+                  - cell "Demo Site Admin" [ref=e399]
+                  - cell "Preview Edit Delete" [ref=e400]:
+                    - generic [ref=e401]:
+                      - button "Preview" [ref=e402] [cursor=pointer]
+                      - button "Edit" [ref=e403] [cursor=pointer]
+                      - button "Delete" [ref=e404] [cursor=pointer]
+                - row "El Nido — Municipal Land Palawan official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e405]:
+                  - cell "El Nido — Municipal Land" [ref=e406]
+                  - cell "Palawan" [ref=e407]
+                  - cell "official" [ref=e408]:
+                    - generic [ref=e409]: official
+                  - cell "Polygon" [ref=e410]
+                  - cell "Enabled" [ref=e411]:
+                    - generic [ref=e412]: Enabled
+                  - cell "No" [ref=e413]:
+                    - generic [ref=e414]: "No"
+                  - cell "Demo Site Admin" [ref=e415]
+                  - cell "Preview Edit Delete" [ref=e416]:
+                    - generic [ref=e417]:
+                      - button "Preview" [ref=e418] [cursor=pointer]
+                      - button "Edit" [ref=e419] [cursor=pointer]
+                      - button "Delete" [ref=e420] [cursor=pointer]
+                - row "El Nido — Municipal Waters Palawan official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e421]:
+                  - cell "El Nido — Municipal Waters" [ref=e422]
+                  - cell "Palawan" [ref=e423]
+                  - cell "official" [ref=e424]:
+                    - generic [ref=e425]: official
+                  - cell "Polygon" [ref=e426]
+                  - cell "Enabled" [ref=e427]:
+                    - generic [ref=e428]: Enabled
+                  - cell "No" [ref=e429]:
+                    - generic [ref=e430]: "No"
+                  - cell "Demo Site Admin" [ref=e431]
+                  - cell "Preview Edit Delete" [ref=e432]:
+                    - generic [ref=e433]:
+                      - button "Preview" [ref=e434] [cursor=pointer]
+                      - button "Edit" [ref=e435] [cursor=pointer]
+                      - button "Delete" [ref=e436] [cursor=pointer]
+                - row "Harka Piloto Fish Sanctuary Oriental Mindoro official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e437]:
+                  - cell "Harka Piloto Fish Sanctuary" [ref=e438]
+                  - cell "Oriental Mindoro" [ref=e439]
+                  - cell "official" [ref=e440]:
+                    - generic [ref=e441]: official
+                  - cell "Polygon" [ref=e442]
+                  - cell "Enabled" [ref=e443]:
+                    - generic [ref=e444]: Enabled
+                  - cell "No" [ref=e445]:
+                    - generic [ref=e446]: "No"
+                  - cell "Demo Site Admin" [ref=e447]
+                  - cell "Preview Edit Delete" [ref=e448]:
+                    - generic [ref=e449]:
+                      - button "Preview" [ref=e450] [cursor=pointer]
+                      - button "Edit" [ref=e451] [cursor=pointer]
+                      - button "Delete" [ref=e452] [cursor=pointer]
+                - row "Mamburao — Municipal Land Occidental Mindoro official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e453]:
+                  - cell "Mamburao — Municipal Land" [ref=e454]
+                  - cell "Occidental Mindoro" [ref=e455]
+                  - cell "official" [ref=e456]:
+                    - generic [ref=e457]: official
+                  - cell "Polygon" [ref=e458]
+                  - cell "Enabled" [ref=e459]:
+                    - generic [ref=e460]: Enabled
+                  - cell "No" [ref=e461]:
+                    - generic [ref=e462]: "No"
+                  - cell "Demo Site Admin" [ref=e463]
+                  - cell "Preview Edit Delete" [ref=e464]:
+                    - generic [ref=e465]:
+                      - button "Preview" [ref=e466] [cursor=pointer]
+                      - button "Edit" [ref=e467] [cursor=pointer]
+                      - button "Delete" [ref=e468] [cursor=pointer]
+                - row "Mamburao — Municipal Waters Occidental Mindoro official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e469]:
+                  - cell "Mamburao — Municipal Waters" [ref=e470]
+                  - cell "Occidental Mindoro" [ref=e471]
+                  - cell "official" [ref=e472]:
+                    - generic [ref=e473]: official
+                  - cell "Polygon" [ref=e474]
+                  - cell "Enabled" [ref=e475]:
+                    - generic [ref=e476]: Enabled
+                  - cell "No" [ref=e477]:
+                    - generic [ref=e478]: "No"
+                  - cell "Demo Site Admin" [ref=e479]
+                  - cell "Preview Edit Delete" [ref=e480]:
+                    - generic [ref=e481]:
+                      - button "Preview" [ref=e482] [cursor=pointer]
+                      - button "Edit" [ref=e483] [cursor=pointer]
+                      - button "Delete" [ref=e484] [cursor=pointer]
+                - row "Narra — Municipal Land Palawan official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e485]:
+                  - cell "Narra — Municipal Land" [ref=e486]
+                  - cell "Palawan" [ref=e487]
+                  - cell "official" [ref=e488]:
+                    - generic [ref=e489]: official
+                  - cell "Polygon" [ref=e490]
+                  - cell "Enabled" [ref=e491]:
+                    - generic [ref=e492]: Enabled
+                  - cell "No" [ref=e493]:
+                    - generic [ref=e494]: "No"
+                  - cell "Demo Site Admin" [ref=e495]
+                  - cell "Preview Edit Delete" [ref=e496]:
+                    - generic [ref=e497]:
+                      - button "Preview" [ref=e498] [cursor=pointer]
+                      - button "Edit" [ref=e499] [cursor=pointer]
+                      - button "Delete" [ref=e500] [cursor=pointer]
+                - row "Narra — Municipal Waters Palawan official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e501]:
+                  - cell "Narra — Municipal Waters" [ref=e502]
+                  - cell "Palawan" [ref=e503]
+                  - cell "official" [ref=e504]:
+                    - generic [ref=e505]: official
+                  - cell "Polygon" [ref=e506]
+                  - cell "Enabled" [ref=e507]:
+                    - generic [ref=e508]: Enabled
+                  - cell "No" [ref=e509]:
+                    - generic [ref=e510]: "No"
+                  - cell "Demo Site Admin" [ref=e511]
+                  - cell "Preview Edit Delete" [ref=e512]:
+                    - generic [ref=e513]:
+                      - button "Preview" [ref=e514] [cursor=pointer]
+                      - button "Edit" [ref=e515] [cursor=pointer]
+                      - button "Delete" [ref=e516] [cursor=pointer]
+                - row "Puerto Galera — Municipal Land Oriental Mindoro official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e517]:
+                  - cell "Puerto Galera — Municipal Land" [ref=e518]
+                  - cell "Oriental Mindoro" [ref=e519]
+                  - cell "official" [ref=e520]:
+                    - generic [ref=e521]: official
+                  - cell "Polygon" [ref=e522]
+                  - cell "Enabled" [ref=e523]:
+                    - generic [ref=e524]: Enabled
+                  - cell "No" [ref=e525]:
+                    - generic [ref=e526]: "No"
+                  - cell "Demo Site Admin" [ref=e527]
+                  - cell "Preview Edit Delete" [ref=e528]:
+                    - generic [ref=e529]:
+                      - button "Preview" [ref=e530] [cursor=pointer]
+                      - button "Edit" [ref=e531] [cursor=pointer]
+                      - button "Delete" [ref=e532] [cursor=pointer]
+                - row "Puerto Galera — Municipal Waters Oriental Mindoro official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e533]:
+                  - cell "Puerto Galera — Municipal Waters" [ref=e534]
+                  - cell "Oriental Mindoro" [ref=e535]
+                  - cell "official" [ref=e536]:
+                    - generic [ref=e537]: official
+                  - cell "Polygon" [ref=e538]
+                  - cell "Enabled" [ref=e539]:
+                    - generic [ref=e540]: Enabled
+                  - cell "No" [ref=e541]:
+                    - generic [ref=e542]: "No"
+                  - cell "Demo Site Admin" [ref=e543]
+                  - cell "Preview Edit Delete" [ref=e544]:
+                    - generic [ref=e545]:
+                      - button "Preview" [ref=e546] [cursor=pointer]
+                      - button "Edit" [ref=e547] [cursor=pointer]
+                      - button "Delete" [ref=e548] [cursor=pointer]
+                - row "Roxas — Municipal Land Palawan official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e549]:
+                  - cell "Roxas — Municipal Land" [ref=e550]
+                  - cell "Palawan" [ref=e551]
+                  - cell "official" [ref=e552]:
+                    - generic [ref=e553]: official
+                  - cell "Polygon" [ref=e554]
+                  - cell "Enabled" [ref=e555]:
+                    - generic [ref=e556]: Enabled
+                  - cell "No" [ref=e557]:
+                    - generic [ref=e558]: "No"
+                  - cell "Demo Site Admin" [ref=e559]
+                  - cell "Preview Edit Delete" [ref=e560]:
+                    - generic [ref=e561]:
+                      - button "Preview" [ref=e562] [cursor=pointer]
+                      - button "Edit" [ref=e563] [cursor=pointer]
+                      - button "Delete" [ref=e564] [cursor=pointer]
+                - row "Roxas — Municipal Waters Palawan official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e565]:
+                  - cell "Roxas — Municipal Waters" [ref=e566]
+                  - cell "Palawan" [ref=e567]
+                  - cell "official" [ref=e568]:
+                    - generic [ref=e569]: official
+                  - cell "Polygon" [ref=e570]
+                  - cell "Enabled" [ref=e571]:
+                    - generic [ref=e572]: Enabled
+                  - cell "No" [ref=e573]:
+                    - generic [ref=e574]: "No"
+                  - cell "Demo Site Admin" [ref=e575]
+                  - cell "Preview Edit Delete" [ref=e576]:
+                    - generic [ref=e577]:
+                      - button "Preview" [ref=e578] [cursor=pointer]
+                      - button "Edit" [ref=e579] [cursor=pointer]
+                      - button "Delete" [ref=e580] [cursor=pointer]
+                - row "Sablayan — Municipal Land Occidental Mindoro official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e581]:
+                  - cell "Sablayan — Municipal Land" [ref=e582]
+                  - cell "Occidental Mindoro" [ref=e583]
+                  - cell "official" [ref=e584]:
+                    - generic [ref=e585]: official
+                  - cell "Polygon" [ref=e586]
+                  - cell "Enabled" [ref=e587]:
+                    - generic [ref=e588]: Enabled
+                  - cell "No" [ref=e589]:
+                    - generic [ref=e590]: "No"
+                  - cell "Demo Site Admin" [ref=e591]
+                  - cell "Preview Edit Delete" [ref=e592]:
+                    - generic [ref=e593]:
+                      - button "Preview" [ref=e594] [cursor=pointer]
+                      - button "Edit" [ref=e595] [cursor=pointer]
+                      - button "Delete" [ref=e596] [cursor=pointer]
+                - row "Sablayan — Municipal Waters Occidental Mindoro official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e597]:
+                  - cell "Sablayan — Municipal Waters" [ref=e598]
+                  - cell "Occidental Mindoro" [ref=e599]
+                  - cell "official" [ref=e600]:
+                    - generic [ref=e601]: official
+                  - cell "Polygon" [ref=e602]
+                  - cell "Enabled" [ref=e603]:
+                    - generic [ref=e604]: Enabled
+                  - cell "No" [ref=e605]:
+                    - generic [ref=e606]: "No"
+                  - cell "Demo Site Admin" [ref=e607]
+                  - cell "Preview Edit Delete" [ref=e608]:
+                    - generic [ref=e609]:
+                      - button "Preview" [ref=e610] [cursor=pointer]
+                      - button "Edit" [ref=e611] [cursor=pointer]
+                      - button "Delete" [ref=e612] [cursor=pointer]
+                - row "San Teodoro — Municipal Land Oriental Mindoro official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e613]:
+                  - cell "San Teodoro — Municipal Land" [ref=e614]
+                  - cell "Oriental Mindoro" [ref=e615]
+                  - cell "official" [ref=e616]:
+                    - generic [ref=e617]: official
+                  - cell "Polygon" [ref=e618]
+                  - cell "Enabled" [ref=e619]:
+                    - generic [ref=e620]: Enabled
+                  - cell "No" [ref=e621]:
+                    - generic [ref=e622]: "No"
+                  - cell "Demo Site Admin" [ref=e623]
+                  - cell "Preview Edit Delete" [ref=e624]:
+                    - generic [ref=e625]:
+                      - button "Preview" [ref=e626] [cursor=pointer]
+                      - button "Edit" [ref=e627] [cursor=pointer]
+                      - button "Delete" [ref=e628] [cursor=pointer]
+                - row "San Teodoro — Municipal Waters Oriental Mindoro official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e629]:
+                  - cell "San Teodoro — Municipal Waters" [ref=e630]
+                  - cell "Oriental Mindoro" [ref=e631]
+                  - cell "official" [ref=e632]:
+                    - generic [ref=e633]: official
+                  - cell "Polygon" [ref=e634]
+                  - cell "Enabled" [ref=e635]:
+                    - generic [ref=e636]: Enabled
+                  - cell "No" [ref=e637]:
+                    - generic [ref=e638]: "No"
+                  - cell "Demo Site Admin" [ref=e639]
+                  - cell "Preview Edit Delete" [ref=e640]:
+                    - generic [ref=e641]:
+                      - button "Preview" [ref=e642] [cursor=pointer]
+                      - button "Edit" [ref=e643] [cursor=pointer]
+                      - button "Delete" [ref=e644] [cursor=pointer]
+                - row "Santa Cruz — Municipal Land Occidental Mindoro official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e645]:
+                  - cell "Santa Cruz — Municipal Land" [ref=e646]
+                  - cell "Occidental Mindoro" [ref=e647]
+                  - cell "official" [ref=e648]:
+                    - generic [ref=e649]: official
+                  - cell "Polygon" [ref=e650]
+                  - cell "Enabled" [ref=e651]:
+                    - generic [ref=e652]: Enabled
+                  - cell "No" [ref=e653]:
+                    - generic [ref=e654]: "No"
+                  - cell "Demo Site Admin" [ref=e655]
+                  - cell "Preview Edit Delete" [ref=e656]:
+                    - generic [ref=e657]:
+                      - button "Preview" [ref=e658] [cursor=pointer]
+                      - button "Edit" [ref=e659] [cursor=pointer]
+                      - button "Delete" [ref=e660] [cursor=pointer]
+                - row "Santa Cruz — Municipal Waters Occidental Mindoro official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e661]:
+                  - cell "Santa Cruz — Municipal Waters" [ref=e662]
+                  - cell "Occidental Mindoro" [ref=e663]
+                  - cell "official" [ref=e664]:
+                    - generic [ref=e665]: official
+                  - cell "Polygon" [ref=e666]
+                  - cell "Enabled" [ref=e667]:
+                    - generic [ref=e668]: Enabled
+                  - cell "No" [ref=e669]:
+                    - generic [ref=e670]: "No"
+                  - cell "Demo Site Admin" [ref=e671]
+                  - cell "Preview Edit Delete" [ref=e672]:
+                    - generic [ref=e673]:
+                      - button "Preview" [ref=e674] [cursor=pointer]
+                      - button "Edit" [ref=e675] [cursor=pointer]
+                      - button "Delete" [ref=e676] [cursor=pointer]
+                - row "Taytay — Municipal Land Palawan official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e677]:
+                  - cell "Taytay — Municipal Land" [ref=e678]
+                  - cell "Palawan" [ref=e679]
+                  - cell "official" [ref=e680]:
+                    - generic [ref=e681]: official
+                  - cell "Polygon" [ref=e682]
+                  - cell "Enabled" [ref=e683]:
+                    - generic [ref=e684]: Enabled
+                  - cell "No" [ref=e685]:
+                    - generic [ref=e686]: "No"
+                  - cell "Demo Site Admin" [ref=e687]
+                  - cell "Preview Edit Delete" [ref=e688]:
+                    - generic [ref=e689]:
+                      - button "Preview" [ref=e690] [cursor=pointer]
+                      - button "Edit" [ref=e691] [cursor=pointer]
+                      - button "Delete" [ref=e692] [cursor=pointer]
+                - row "Taytay — Municipal Waters Palawan official Polygon Enabled No Demo Site Admin Preview Edit Delete" [ref=e693]:
+                  - cell "Taytay — Municipal Waters" [ref=e694]
+                  - cell "Palawan" [ref=e695]
+                  - cell "official" [ref=e696]:
+                    - generic [ref=e697]: official
+                  - cell "Polygon" [ref=e698]
+                  - cell "Enabled" [ref=e699]:
+                    - generic [ref=e700]: Enabled
+                  - cell "No" [ref=e701]:
+                    - generic [ref=e702]: "No"
+                  - cell "Demo Site Admin" [ref=e703]
+                  - cell "Preview Edit Delete" [ref=e704]:
+                    - generic [ref=e705]:
+                      - button "Preview" [ref=e706] [cursor=pointer]
+                      - button "Edit" [ref=e707] [cursor=pointer]
+                      - button "Delete" [ref=e708] [cursor=pointer]
+  - alert [ref=e143]
