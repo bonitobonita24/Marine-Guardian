@@ -3612,14 +3612,16 @@ Edit PRODUCT.md → trigger Phase 7 → agents implement everything and keep gov
     - pnpm tools:check-product-sync
     - pnpm typecheck
     - pnpm test
+    - pnpm turbo run lint   (workspace ESLint `--max-warnings 0`; catches unused-eslint-disable + warnings that `next build` does NOT fail on — CI's Turbo-lint job. Per 2026-06-29 root cause)
     - pnpm --filter @marine-guardian/web build   (Next.js production build — runs ESLint; catches lint debt that workspace-level `turbo lint` misses per 2026-05-31 root cause)
+    BOTH lint passes are required — each catches what the other misses.
     IF any command fails → fix at source → re-run → do NOT squash-merge with a failing gate.
 
 ─────────────────────────────────────────────────────────
 PHASE 7 OUTPUT CONTRACT — MANDATORY
 Before reporting Feature Update complete, verify ALL of these:
 □ All 5 sub-steps (11a–11e) completed and confirmed
-□ HARD PRE-MERGE GATE (Step 19) — all 4 commands exit 0, including `pnpm --filter @marine-guardian/web build` (Next.js production build with ESLint)
+□ HARD PRE-MERGE GATE (Step 19) — all commands exit 0, including BOTH `pnpm turbo run lint` (workspace ESLint --max-warnings 0) AND `pnpm --filter @marine-guardian/web build` (Next.js production build with ESLint) — each catches lint the other misses
 □ Two-stage code review: Stage 1 (spec compliance) PASS + Stage 2 (code quality) PASS
 □ Visual QA (Rule 16) — pages touched by this update load without console errors
 □ CHANGELOG_AI.md: entry written with this session's timestamp and Agent: CLAUDE_CODE
