@@ -230,7 +230,9 @@ export function ReportFilterBar({
               <SelectGroup key={province}>
                 <SelectLabel>{province}</SelectLabel>
                 {items.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
+                  // Indent municipalities under their province heading (owner
+                  // request) so they don't left-align with the Region label.
+                  <SelectItem key={m.id} value={m.id} className="pl-6">
                     {m.name}
                   </SelectItem>
                 ))}
