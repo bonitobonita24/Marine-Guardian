@@ -3,6 +3,22 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-06-29 — Phase 7: Report Map zero-events empty state + immutable photo cache header
+
+- Agent:               CLAUDE_CODE (Opus 4.8)
+- Why:                 Two small independent owner asks. (1) On the Interactive Report Map, a specific municipality with genuinely zero events in the date window (e.g. Calapan City in the last 7 days) rendered a row of bare "0" cards + a flatlined chart — correct data that read as a malfunction to the Mayor / investors. (2) Event photos were re-fetched from origin on every modal open / marker click (Cache-Control max-age=300).
+- Branch / merge:      feat/reportmap-emptystate-and-cache-header → fast-forwarded to main (two atomic conventional commits preserved: ff81755 perf(assets), 7a2dacb fix(report-map)). NOT pushed to origin.
+- Files added:         apps/web/src/app/(dashboard)/map/_components/report-map-empty-state.tsx · apps/web/src/app/(dashboard)/map/_components/__tests__/report-map-empty-state.test.tsx
+- Files modified:      apps/web/src/app/(dashboard)/map/_components/report-map-view.tsx · apps/web/src/app/api/assets/[id]/route.ts
+- Files modified (tests): apps/web/src/app/api/assets/[id]/__tests__/route.test.ts (+1)
+- Schema/migrations:   none.
+- Implementation:
+    * Change 1 (fix): new ReportMapEmptyState component + pure shouldShowReportMapEmptyState() guard — shown ONLY when a SPECIFIC municipality is selected AND total events for the range is 0 (a zero across "all municipalities" is left as-is). Municipality name derived from the existing municipality.list dropdown options; total derived from the eventsOverTime series (no extra query). Suppressed while loading and until the name is known. Replaces the band of zero cards with "No events recorded for {Municipality} between {range, with year}." + muted "Try a wider date range or a different municipality." hint. role=status / aria-live=polite for a11y. +6 unit tests (condition truth table + rendered message).
+    * Change 2 (perf): /api/assets/[id] success Cache-Control 'private, max-age=300' → 'private, max-age=86400, immutable'. KEPT `private` (security-critical — auth/tenant-scoped photos must never land in a shared CDN/edge cache). +1 unit test asserting the new header.
+- Errors encountered:  jsdom env + jest-dom matchers not globally registered for the new component test. Resolved with a `// @vitest-environment jsdom` docblock + `.toBeTruthy()` assertions (matching the sibling events-over-time-chart.test.tsx pattern).
+- Gate (Phase 7 Step 19): check-product-sync ✅ · typecheck ✅ · test (web 1153, all packages) ✅ · `pnpm --filter @marine-guardian/web build` ✅.
+- Visual QA (Playwright, dev @45204, demo-site tenant): Calapan City + default 7D → empty-state renders "No events recorded for Calapan City between Jun 22 – Jun 29, 2026." (status role, no zero cards). Switch to Dumaran 7D → message gone; Monitoring 16 / High Priority 1 / Events Over Time 16 + map markers shown. 0 Report-Map console errors (only a pre-existing /api/stream/notifications SSE teardown error, unrelated). Screenshots: reportmap-emptystate-calapan-7d.png, reportmap-withdata-dumaran-7d.png.
+
 ## 2026-06-29 — Phase 7: L3 event-type "Type" sub-toggles on the Report Map / Command Center controls
 
 - Agent:               CLAUDE_CODE (Opus 4.8)
