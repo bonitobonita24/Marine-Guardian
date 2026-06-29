@@ -55,7 +55,10 @@ export type PrismaClientLike = ExtendedPrismaClient;
 export type MaterializationSkipReason =
   | "no_credentials"
   | "no_segment"
-  | "no_leader";
+  | "no_leader"
+  // ER returned a track response but every feature had null/empty geometry
+  // (subject had no recorded GPS points for the window) — nothing to store.
+  | "no_geometry";
 
 export interface MaterializationResult {
   /** PatrolTrack.id of the upserted row. Null when skipped. */
@@ -110,7 +113,25 @@ interface FeatureSummary {
   lastTrackTime: Date | null;
 }
 
-function summariseFeatures(features: ErTrackFeature[]): FeatureSummary {
+/**
+ * A feature carries usable geometry iff it has a non-null geometry object with
+ * a non-empty coordinates array. EarthRanger emits `geometry: null` when the
+ * subject had no GPS points for the requested window — such features are
+ * dropped before summarising/storing so no downstream reader dereferences null.
+ */
+type GeometryFeature = ErTrackFeature & {
+  geometry: NonNullable<ErTrackFeature["geometry"]>;
+};
+
+function featureHasGeometry(feature: ErTrackFeature): feature is GeometryFeature {
+  return (
+    feature.geometry != null &&
+    Array.isArray(feature.geometry.coordinates) &&
+    feature.geometry.coordinates.length > 0
+  );
+}
+
+function summariseFeatures(features: GeometryFeature[]): FeatureSummary {
   let pointCount = 0;
   let hasTimestamps = features.length > 0;
   let lastTrackTime: Date | null = null;
@@ -249,13 +270,36 @@ export async function materializePatrolTrack(
     range.until.toISOString(),
   );
 
-  // Step 4 — summarise + upsert.
-  const summary = summariseFeatures(trackResponse.features);
+  // Step 4 — drop features with null/empty geometry (ER returns these when the
+  // subject has no GPS points for the window). Storing them would crash every
+  // downstream reader that dereferences feature.geometry.coordinates and could
+  // also hide a valid track behind a null-geometry features[0]. If nothing
+  // usable remains, skip gracefully rather than upsert an empty/garbage track.
+  const validFeatures = trackResponse.features.filter(featureHasGeometry);
+  if (validFeatures.length === 0) {
+    return {
+      patrolTrackId: null,
+      pointCount: 0,
+      hasTimestamps: false,
+      lastTrackTime: null,
+      patrolEnded,
+      skipped: true,
+      skipReason: "no_geometry",
+    };
+  }
+
+  const cleanedResponse: ErTrackResponse = {
+    ...trackResponse,
+    features: validFeatures,
+  };
+
+  // Step 5 — summarise + upsert (only the cleaned, geometry-bearing features).
+  const summary = summariseFeatures(validFeatures);
   const fetchedAt = new Date();
 
   // PatrolTrack.trackGeojson is Prisma Json — narrow the FeatureCollection
   // to a plain object via unknown. Runtime shape is JSON-safe.
-  const trackJson = trackResponse as unknown as Record<string, unknown>;
+  const trackJson = cleanedResponse as unknown as Record<string, unknown>;
 
   const upserted = await prisma.patrolTrack.upsert({
     where: { patrolId: patrol.id },
@@ -366,6 +410,9 @@ export async function recomputeDistanceAndDuration(
   const allTimestamps: number[] = [];
 
   for (const feature of features) {
+    // Defensive: tolerate already-stored tracks (pre-no_geometry fix) or any
+    // feature whose geometry is null/empty — skip rather than dereference null.
+    if (!featureHasGeometry(feature)) continue;
     const coords = feature.geometry.coordinates as Array<[number, number]>;
     pointCount += coords.length;
 

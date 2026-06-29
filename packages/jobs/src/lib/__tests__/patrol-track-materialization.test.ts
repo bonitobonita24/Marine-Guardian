@@ -267,6 +267,60 @@ describe("materializePatrolTrack (5.2a)", () => {
     expect(prisma.patrolTrack.upsert).not.toHaveBeenCalled();
   });
 
+  it("skips with skipReason=no_geometry when ER returns only null-geometry features", async () => {
+    const prisma = makePrismaMock();
+    prisma.patrol.findUniqueOrThrow.mockResolvedValue(makePatrol());
+    mockFetchSubjectTracks.mockResolvedValue(
+      makeTrackResponse([
+        { type: "Feature", geometry: null, properties: {} },
+      ]),
+    );
+
+    const result = await materializePatrolTrack(
+      prisma as unknown as PrismaClientLike,
+      PATROL_A,
+    );
+
+    expect(result.skipped).toBe(true);
+    expect(result.skipReason).toBe("no_geometry");
+    expect(result.pointCount).toBe(0);
+    // ER WAS called (this is a post-fetch skip), but nothing is written.
+    expect(mockFetchSubjectTracks).toHaveBeenCalledOnce();
+    expect(prisma.patrolTrack.upsert).not.toHaveBeenCalled();
+  });
+
+  it("drops null-geometry features and materialises only the valid ones (mixed response)", async () => {
+    const prisma = makePrismaMock();
+    prisma.patrol.findUniqueOrThrow.mockResolvedValue(makePatrol());
+    prisma.patrolTrack.upsert.mockResolvedValue({ id: "pt-1" });
+    mockFetchSubjectTracks.mockResolvedValue(
+      makeTrackResponse([
+        { type: "Feature", geometry: null, properties: {} },
+        makeFeatureWithTimes(
+          [
+            [120.0, 8.0],
+            [120.1, 8.1],
+          ],
+          ["2026-05-01T08:00:00Z", "2026-05-01T08:30:00Z"],
+        ),
+      ]),
+    );
+
+    const result = await materializePatrolTrack(
+      prisma as unknown as PrismaClientLike,
+      PATROL_A,
+    );
+
+    expect(result.skipped).toBe(false);
+    expect(result.pointCount).toBe(2);
+
+    // Stored GeoJSON must contain ONLY the valid feature (null geometry stripped).
+    const upsertCall = prisma.patrolTrack.upsert.mock.calls[0]?.[0] as {
+      create: { trackGeojson: { features: unknown[] } };
+    };
+    expect(upsertCall.create.trackGeojson.features).toHaveLength(1);
+  });
+
   it("constructs ER client with plaintext baseUrl + decrypted apiToken (no track token)", async () => {
     const prisma = makePrismaMock();
     prisma.patrol.findUniqueOrThrow.mockResolvedValue(makePatrol());
@@ -292,7 +346,17 @@ describe("materializePatrolTrack (5.2a)", () => {
     prisma.patrol.findUniqueOrThrow.mockResolvedValue(
       makePatrol({ endTime: new Date("2026-05-01T13:00:00Z") }),
     );    prisma.patrolTrack.upsert.mockResolvedValue({ id: "pt-1" });
-    mockFetchSubjectTracks.mockResolvedValue(makeTrackResponse([]));
+    mockFetchSubjectTracks.mockResolvedValue(
+      makeTrackResponse([
+        makeFeatureWithTimes(
+          [
+            [120.0, 8.0],
+            [120.1, 8.1],
+          ],
+          ["2026-05-01T08:00:00Z", "2026-05-01T08:30:00Z"],
+        ),
+      ]),
+    );
 
     const result = await materializePatrolTrack(
       prisma as unknown as PrismaClientLike,
@@ -400,9 +464,10 @@ describe("materializePatrolTrack (5.2a)", () => {
     );
   });
 
-  it("empty features returns pointCount=0, hasTimestamps=false, still upserts", async () => {
+  it("empty features (no usable geometry) skips no_geometry without upserting", async () => {
     const prisma = makePrismaMock();
-    prisma.patrol.findUniqueOrThrow.mockResolvedValue(makePatrol());    prisma.patrolTrack.upsert.mockResolvedValue({ id: "pt-empty" });
+    prisma.patrol.findUniqueOrThrow.mockResolvedValue(makePatrol());
+    prisma.patrolTrack.upsert.mockResolvedValue({ id: "pt-empty" });
     mockFetchSubjectTracks.mockResolvedValue(makeTrackResponse([]));
 
     const result = await materializePatrolTrack(
@@ -410,11 +475,12 @@ describe("materializePatrolTrack (5.2a)", () => {
       PATROL_A,
     );
 
-    expect(result.skipped).toBe(false);
+    expect(result.skipped).toBe(true);
+    expect(result.skipReason).toBe("no_geometry");
     expect(result.pointCount).toBe(0);
     expect(result.hasTimestamps).toBe(false);
     expect(result.lastTrackTime).toBeNull();
-    expect(prisma.patrolTrack.upsert).toHaveBeenCalledTimes(1);
+    expect(prisma.patrolTrack.upsert).not.toHaveBeenCalled();
   });
 
   it("prefers segment.actualStart/actualEnd over scheduled or patrol-level range", async () => {

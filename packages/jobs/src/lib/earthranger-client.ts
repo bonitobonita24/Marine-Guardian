@@ -83,10 +83,13 @@ export interface ErTrackCoordinate3 {
 
 export interface ErTrackFeature {
   type: "Feature";
+  // EarthRanger may return a Feature with `geometry: null` when the leader
+  // subject has no recorded GPS points for the requested window (GeoJSON
+  // permits null geometry). Readers MUST null-check before touching coordinates.
   geometry: {
     type: "LineString";
     coordinates: Array<[number, number] | [number, number, number]>;
-  };
+  } | null;
   properties: {
     title?: string;
     subject_id?: string;
