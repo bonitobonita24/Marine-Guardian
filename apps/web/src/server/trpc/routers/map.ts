@@ -136,6 +136,136 @@ export function pointsFromTrackGeojson(geojson: unknown): TrackPoint[] {
   return out;
 }
 
+// ── L3 sub-type taxonomy (2026-06-29) ──────────────────────────────────────
+// The ER report form's "Type" select is flattened into ONE non-uniformly named
+// key per event type inside `event_details_json` (there is no dedicated column).
+// L3_TYPE_KEY maps each event-type display → that flattened detail key so the map
+// controls can offer a 3rd-tier per-value toggle nested under each L2 type. A
+// `null` value means the type carries no meaningful sub-Type dimension — every
+// event buckets as "(Unspecified)". Verified against the live ER dataset
+// (2026-06-29). Types NOT listed here fall through to the heuristic below.
+const L3_TYPE_KEY: Record<string, string | null> = {
+  // Law enforcement
+  "Unregistered Illegal Fishing":
+    "unregisteredillegalfishing_unregistered_fishinggear",
+  "Fishing in a prohibited area (MPA)": "fishinginaprohibitedareampa_fishinggear",
+  "Use of Prohibited Gears": "useofprohibitedgears_fishinggear",
+  "Destructive Practices": "destructivepractices_type",
+  "Taking of Prohibited Species": "takingofprohibitedspecies_species",
+  // No usable Type field in the data — bucket every marker as (Unspecified).
+  "Compressor Fishing": null,
+  Others: null,
+  // Monitoring — the analog classifier is the free-er "species" field.
+  "Community Support": "species",
+  "Infrastructure and assets": "species",
+  "Marine wildlife sightings": "species",
+  "Research and Studies": "species",
+  "Threats on Habitat": "species",
+};
+
+// Cap on events scanned to enumerate L3 values for the toggle tree (per tenant,
+// the two map categories). Generous — the demo dataset is ~2.3k such events.
+const L3_EVENT_SCAN_CAP = 20000;
+
+/** Structural / non-classifier keys never offered as an L3 dimension. */
+function isStructuralL3Key(key: string): boolean {
+  if (key === "updates" || key === "Boundary") return true;
+  // The ER "Select ..." prompt keys are UI scaffolding, not real values.
+  return key.toLowerCase().startsWith("select");
+}
+
+/**
+ * Normalize a raw "Type" value into its toggle key + display label: trim and
+ * collapse internal whitespace (the data is dirty — trailing spaces, double
+ * spaces). Empty / non-string → the "(Unspecified)" bucket so events with no
+ * Type value never vanish when L3 toggles are used. Exported for unit testing.
+ */
+export function normalizeL3(v: unknown): string {
+  if (typeof v !== "string") return "(Unspecified)";
+  const cleaned = v.trim().replace(/\s+/g, " ");
+  return cleaned === "" ? "(Unspecified)" : cleaned;
+}
+
+/**
+ * Heuristic fallback for an event type NOT in L3_TYPE_KEY: pick the
+ * lowest-cardinality non-structural string key across the type's events — the
+ * field that behaves most like a small enum classifier. Returns null when no
+ * usable key exists.
+ */
+function heuristicL3Key(jsons: Record<string, unknown>[]): string | null {
+  const valuesByKey = new Map<string, Set<string>>();
+  for (const j of jsons) {
+    for (const [key, val] of Object.entries(j)) {
+      if (isStructuralL3Key(key) || typeof val !== "string") continue;
+      const n = normalizeL3(val);
+      if (n === "(Unspecified)") continue;
+      let set = valuesByKey.get(key);
+      if (set === undefined) {
+        set = new Set<string>();
+        valuesByKey.set(key, set);
+      }
+      set.add(n);
+    }
+  }
+  let best: string | null = null;
+  let bestCardinality = Number.POSITIVE_INFINITY;
+  for (const [key, set] of valuesByKey) {
+    if (set.size > 0 && set.size < bestCardinality) {
+      bestCardinality = set.size;
+      best = key;
+    }
+  }
+  return best;
+}
+
+/**
+ * Resolve the flattened detail key holding an event type's "Type" value:
+ * curated map first, heuristic over the supplied event sample otherwise. Logs
+ * (console.warn) a type that has data but no resolvable L3 key.
+ */
+function resolveL3Key(
+  display: string,
+  sampleJsons: Record<string, unknown>[],
+): string | null {
+  if (Object.prototype.hasOwnProperty.call(L3_TYPE_KEY, display)) {
+    return L3_TYPE_KEY[display] ?? null;
+  }
+  const key = heuristicL3Key(sampleJsons);
+  if (key === null && sampleJsons.some((j) => Object.keys(j).length > 0)) {
+    console.warn(
+      `[map.eventTypes] no resolvable L3 type key for event type "${display}"`,
+    );
+  }
+  return key;
+}
+
+/** A stored event_details_json blob as a string-keyed record (or {} when null). */
+function asJsonRecord(v: unknown): Record<string, unknown> {
+  return v !== null && typeof v === "object"
+    ? (v as Record<string, unknown>)
+    : {};
+}
+
+/**
+ * Distinct normalized L3 values (with counts) for a type, from its events'
+ * detail blobs read at `key`. A null key → every event buckets as
+ * "(Unspecified)". Sorted by count desc, then value asc. Exported for testing.
+ */
+export function l3ValuesFromJsons(
+  jsons: Record<string, unknown>[],
+  key: string | null,
+): { value: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const j of jsons) {
+    const raw = key !== null ? j[key] : undefined;
+    const value = normalizeL3(raw);
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([value, count]) => ({ value, count }))
+    .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
+}
+
 const eventsRouter = router({
   list: tenantProcedure.input(eventsListInput).query(async ({ ctx, input }) => {
     const where: {
@@ -179,6 +309,10 @@ const eventsRouter = router({
         locationLon: true,
         reportedAt: true,
         eventType: { select: { id: true, display: true, category: true } },
+        // L3 sub-type source. The whole blob is read server-side to derive a
+        // compact `eventTypeValue` per event (below) and is then STRIPPED from
+        // the response — the client never receives the raw event_details_json.
+        eventDetailsJson: true,
         // First few assets so the map marker can show a small image preview
         // (indicates the event has a photo). The client picks the first image
         // asset via isImageAsset(mimeType, filename).
@@ -189,7 +323,30 @@ const eventsRouter = router({
       },
     });
 
-    return rows;
+    // Resolve each event type's L3 detail key once (curated, else heuristic over
+    // the loaded rows of that type) so every event of the same type reads its
+    // "Type" value from the same key — keeping the marker filter consistent.
+    const jsonsByDisplay = new Map<string, Record<string, unknown>[]>();
+    for (const r of rows) {
+      const display = r.eventType?.display;
+      if (display == null) continue;
+      const list = jsonsByDisplay.get(display) ?? [];
+      list.push(asJsonRecord(r.eventDetailsJson));
+      jsonsByDisplay.set(display, list);
+    }
+    const keyByDisplay = new Map<string, string | null>();
+    for (const [display, jsons] of jsonsByDisplay) {
+      keyByDisplay.set(display, resolveL3Key(display, jsons));
+    }
+
+    // Add the compact `eventTypeValue` and drop the raw blob from the payload.
+    return rows.map((r) => {
+      const { eventDetailsJson, ...rest } = r;
+      const display = r.eventType?.display ?? null;
+      const key = display !== null ? keyByDisplay.get(display) ?? null : null;
+      const raw = key !== null ? asJsonRecord(eventDetailsJson)[key] : undefined;
+      return { ...rest, eventTypeValue: normalizeL3(raw) };
+    });
   }),
 });
 
@@ -427,7 +584,8 @@ const patrolAreasRouter = router({
 // in the canonical owner-defined display order (shared with the breakdown charts)
 // so the toggle tree reads in the same fixed sequence everywhere; types with no
 // canonical slot fall back to alphabetical after the listed ones.
-type MapEventType = { id: string; display: string };
+type L3Value = { value: string; count: number };
+type MapEventType = { id: string; display: string; types: L3Value[] };
 
 function orderTypesCanonically(
   types: MapEventType[],
@@ -459,10 +617,42 @@ const eventTypesRouter = router({
       select: { id: true, display: true, category: true },
     });
 
+    // L3 values are derived from the ACTUAL events (same tenant + category scope
+    // this query already uses — no date filter, so the toggle tree is fully
+    // populated regardless of the active window, matching the L2 behaviour).
+    // event_details_json is aggregated server-side; only {value,count} per type
+    // is returned to the client.
+    const eventRows = await prisma.event.findMany({
+      where: {
+        tenantId: ctx.tenantId,
+        eventType: {
+          category: {
+            in: [EVENT_CATEGORY.lawEnforcement, EVENT_CATEGORY.monitoring],
+          },
+        },
+      },
+      take: L3_EVENT_SCAN_CAP,
+      select: { eventTypeId: true, eventDetailsJson: true },
+    });
+
+    const jsonsByTypeId = new Map<string, Record<string, unknown>[]>();
+    for (const e of eventRows) {
+      if (e.eventTypeId == null) continue;
+      const list = jsonsByTypeId.get(e.eventTypeId) ?? [];
+      list.push(asJsonRecord(e.eventDetailsJson));
+      jsonsByTypeId.set(e.eventTypeId, list);
+    }
+
     const law: MapEventType[] = [];
     const monitoring: MapEventType[] = [];
     for (const r of rows) {
-      const entry = { id: r.id, display: r.display };
+      const jsons = jsonsByTypeId.get(r.id) ?? [];
+      const key = resolveL3Key(r.display, jsons);
+      const entry: MapEventType = {
+        id: r.id,
+        display: r.display,
+        types: l3ValuesFromJsons(jsons, key),
+      };
       if (r.category === EVENT_CATEGORY.lawEnforcement) law.push(entry);
       else if (r.category === EVENT_CATEGORY.monitoring) monitoring.push(entry);
     }

@@ -14,8 +14,15 @@ import {
 import { EVENT_CATEGORY } from "./eventMarkerStyle";
 import { eventTypeIcon } from "@/lib/event-type-icon";
 
-/** A specific event type offered as a per-type toggle under its category. */
-type MapTypeOption = { id: string; display: string };
+/** A specific L3 "Type" sub-value offered as a toggle under an event type. */
+type MapTypeValueOption = { value: string; count: number };
+/** A specific event type offered as a per-type toggle under its category. Carries
+ *  its L3 sub-values (the ER "Type" dropdown values) when any exist. */
+type MapTypeOption = {
+  id: string;
+  display: string;
+  types?: MapTypeValueOption[];
+};
 /** The specific event types per filterable category (from map.eventTypes.byCategory). */
 export type MapEventTypesByCategory = {
   lawEnforcement: MapTypeOption[];
@@ -67,6 +74,14 @@ type TrackLegendProps = {
   disabledTypeIds?: Set<string>;
   onTypeToggle?: (typeId: string, next: boolean) => void;
   typeCounts?: Record<string, number>;
+  /** L3 sub-type toggles (floating vertical card only, 2026-06-29). Revealed when
+   *  an L2 type row is expanded; each filters markers + heatmap by the event's
+   *  "Type" dropdown value. A value is shown unless its `${typeId}::${value}` key
+   *  is in `disabledTypeValues`. `typeValueCounts` (same key) renders a muted
+   *  badge. */
+  disabledTypeValues?: Set<string>;
+  onTypeValueToggle?: (key: string, next: boolean) => void;
+  typeValueCounts?: Record<string, number>;
   /** Event display mode (Interactive Report Map): individual dots vs density
    *  heatmap. When provided (horizontal toolbar only), a Dots⇄Heatmap toggle is
    *  shown. Off = "dots" (default), on = "heatmap". */
@@ -142,6 +157,9 @@ export function TrackLegend({
   disabledTypeIds,
   onTypeToggle,
   typeCounts,
+  disabledTypeValues,
+  onTypeValueToggle,
+  typeValueCounts,
   displayMode,
   onDisplayModeChange,
   orientation = "vertical",
@@ -269,6 +287,9 @@ export function TrackLegend({
     disabledTypeIds={disabledTypeIds}
     onTypeToggle={onTypeToggle}
     typeCounts={typeCounts}
+    disabledTypeValues={disabledTypeValues}
+    onTypeValueToggle={onTypeValueToggle}
+    typeValueCounts={typeValueCounts}
     displayMode={displayMode}
     onDisplayModeChange={onDisplayModeChange}
     header={header}
@@ -296,6 +317,9 @@ function VerticalTrackLegend({
   disabledTypeIds,
   onTypeToggle,
   typeCounts,
+  disabledTypeValues,
+  onTypeValueToggle,
+  typeValueCounts,
   displayMode,
   onDisplayModeChange,
   header,
@@ -313,6 +337,9 @@ function VerticalTrackLegend({
   disabledTypeIds: Set<string> | undefined;
   onTypeToggle: ((typeId: string, next: boolean) => void) | undefined;
   typeCounts: Record<string, number> | undefined;
+  disabledTypeValues: Set<string> | undefined;
+  onTypeValueToggle: ((key: string, next: boolean) => void) | undefined;
+  typeValueCounts: Record<string, number> | undefined;
   displayMode: "dots" | "heatmap" | undefined;
   onDisplayModeChange: ((next: "dots" | "heatmap") => void) | undefined;
   header: ReactNode;
@@ -335,11 +362,28 @@ function VerticalTrackLegend({
       return next;
     });
   };
+  // Which L2 type rows are expanded to reveal their L3 "Type" sub-toggles. Keyed
+  // by event-type id. Default collapsed so the card stays compact; the operator
+  // expands a type to filter its specific sub-values (revealed on click).
+  const [expandedTypeIds, setExpandedTypeIds] = useState<Set<string>>(
+    () => new Set<string>(),
+  );
+  const toggleTypeExpanded = (id: string) => {
+    setExpandedTypeIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
   const hasHeaderRow = title !== undefined || collapsible === true;
   // Per-type toggle tree is available only when the map supplied the taxonomy
   // and a toggle handler (floating Report Map controls).
   const hasTypeTree =
     eventTypesByCategory !== undefined && onTypeToggle !== undefined;
+  // The L3 sub-value tree is available only when the map also supplied a value
+  // toggle handler.
+  const hasValueTree = onTypeValueToggle !== undefined;
 
   return (
     <section
@@ -495,37 +539,118 @@ function VerticalTrackLegend({
                             !disabledTypeIds.has(t.id);
                           const count = typeCounts?.[t.id] ?? 0;
                           const typeInputId = `event-type-${t.id}`;
+                          // L3 sub-values for this type (the ER "Type" dropdown).
+                          const l3 = t.types ?? [];
+                          const l2Expandable = hasValueTree && l3.length > 0;
+                          const l2Expanded = expandedTypeIds.has(t.id);
                           return (
-                            <div
-                              key={t.id}
-                              className={cn(
-                                "flex min-h-6 items-center justify-between gap-1.5",
-                                !masterOn && "opacity-50",
-                              )}
-                            >
-                              <Label
-                                htmlFor={typeInputId}
-                                className="flex min-w-0 cursor-pointer items-center gap-1.5 text-[12px]"
+                            <div key={t.id}>
+                              <div
+                                className={cn(
+                                  "flex min-h-6 items-center justify-between gap-1.5",
+                                  !masterOn && "opacity-50",
+                                )}
                               >
-                                <Icon
-                                  className="size-3 shrink-0"
-                                  style={{ color }}
-                                  aria-hidden="true"
+                                <div className="flex min-w-0 items-center gap-0.5">
+                                  {l2Expandable ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        toggleTypeExpanded(t.id);
+                                      }}
+                                      className="rounded-sm p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                      aria-expanded={l2Expanded}
+                                      aria-label={
+                                        l2Expanded
+                                          ? `Hide ${t.display} sub-types`
+                                          : `Show ${t.display} sub-types`
+                                      }
+                                    >
+                                      {l2Expanded ? (
+                                        <ChevronDown className="size-3" />
+                                      ) : (
+                                        <ChevronRight className="size-3" />
+                                      )}
+                                    </button>
+                                  ) : (
+                                    <span
+                                      className="inline-block w-[1rem]"
+                                      aria-hidden="true"
+                                    />
+                                  )}
+                                  <Label
+                                    htmlFor={typeInputId}
+                                    className="flex min-w-0 cursor-pointer items-center gap-1.5 text-[12px]"
+                                  >
+                                    <Icon
+                                      className="size-3 shrink-0"
+                                      style={{ color }}
+                                      aria-hidden="true"
+                                    />
+                                    <span className="truncate">{t.display}</span>
+                                    <span className="shrink-0 tabular-nums text-[10px] text-muted-foreground">
+                                      {count}
+                                    </span>
+                                  </Label>
+                                </div>
+                                <Switch
+                                  id={typeInputId}
+                                  checked={typeOn}
+                                  disabled={!masterOn}
+                                  onCheckedChange={(next) => {
+                                    onTypeToggle(t.id, next);
+                                  }}
+                                  aria-label={`Show ${t.display} events on the map`}
                                 />
-                                <span className="truncate">{t.display}</span>
-                                <span className="shrink-0 tabular-nums text-[10px] text-muted-foreground">
-                                  {count}
-                                </span>
-                              </Label>
-                              <Switch
-                                id={typeInputId}
-                                checked={typeOn}
-                                disabled={!masterOn}
-                                onCheckedChange={(next) => {
-                                  onTypeToggle(t.id, next);
-                                }}
-                                aria-label={`Show ${t.display} events on the map`}
-                              />
+                              </div>
+
+                              {/* L3 "Type" sub-toggles — very small, indented,
+                                  muted; one per distinct "Type" value (incl. an
+                                  "(Unspecified)" bucket so no markers vanish). */}
+                              {l2Expandable && l2Expanded && (
+                                <div className="mb-0.5 ml-4 border-l pl-1.5">
+                                  {l3.map((tv) => {
+                                    const valueKey = `${t.id}::${tv.value}`;
+                                    const valueOn =
+                                      disabledTypeValues === undefined ||
+                                      !disabledTypeValues.has(valueKey);
+                                    const valueCount =
+                                      typeValueCounts?.[valueKey] ?? tv.count;
+                                    const valueInputId = `event-type-value-${valueKey}`;
+                                    return (
+                                      <div
+                                        key={tv.value}
+                                        className={cn(
+                                          "flex min-h-5 items-center justify-between gap-1",
+                                          (!masterOn || !typeOn) && "opacity-50",
+                                        )}
+                                      >
+                                        <Label
+                                          htmlFor={valueInputId}
+                                          className="flex min-w-0 cursor-pointer items-center gap-1 text-[11px] text-muted-foreground"
+                                        >
+                                          <span className="truncate">
+                                            {tv.value}
+                                          </span>
+                                          <span className="shrink-0 tabular-nums text-[9px]">
+                                            {valueCount}
+                                          </span>
+                                        </Label>
+                                        <Switch
+                                          id={valueInputId}
+                                          checked={valueOn}
+                                          disabled={!masterOn || !typeOn}
+                                          className="scale-90"
+                                          onCheckedChange={(next) => {
+                                            onTypeValueToggle(valueKey, next);
+                                          }}
+                                          aria-label={`Show ${t.display} — ${tv.value} events on the map`}
+                                        />
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
                           );
                         })}

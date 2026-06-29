@@ -55,7 +55,7 @@ vi.mock("../../../auth", () => ({
 
 import { prisma } from "@marine-guardian/db";
 import { createCallerFactory } from "../../trpc";
-import { mapRouter } from "../map";
+import { mapRouter, normalizeL3, l3ValuesFromJsons } from "../map";
 
 const createCaller = createCallerFactory(mapRouter);
 
@@ -161,6 +161,102 @@ describe("map.events.list", () => {
 
     const findManyCall = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0];
     expect(findManyCall?.where).not.toHaveProperty("municipalityId");
+  });
+
+  it("selects event_details_json so the L3 value can be derived", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+    const caller = createCaller(makeCtx());
+    await caller.events.list({});
+    const findManyCall = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0];
+    expect(findManyCall?.select).toMatchObject({ eventDetailsJson: true });
+  });
+
+  it("derives a normalized eventTypeValue from the curated L3 key and STRIPS the raw blob", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([
+      {
+        id: "ev-1",
+        title: "Unreg vessel",
+        priority: 200,
+        locationLat: 1.5,
+        locationLon: 124.0,
+        reportedAt: new Date("2026-05-10"),
+        eventType: {
+          id: "t-unreg",
+          display: "Unregistered Illegal Fishing",
+          category: "law-enforcement-and-apprehensions",
+        },
+        // Dirty value (trailing/duplicate whitespace) — normalizeL3 cleans it.
+        eventDetailsJson: {
+          unregisteredillegalfishing_unregistered_fishinggear:
+            "  Unregistered fishing  vessel ",
+          notes: "secret blob that must not ship",
+        },
+        assets: [],
+      },
+      {
+        id: "ev-2",
+        title: "No type",
+        priority: 100,
+        locationLat: 1.6,
+        locationLon: 124.1,
+        reportedAt: new Date("2026-05-11"),
+        eventType: {
+          id: "t-unreg",
+          display: "Unregistered Illegal Fishing",
+          category: "law-enforcement-and-apprehensions",
+        },
+        eventDetailsJson: {}, // no Type value → (Unspecified) bucket
+        assets: [],
+      },
+    ] as any);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.events.list({});
+
+    expect(result[0]).toMatchObject({
+      id: "ev-1",
+      eventTypeValue: "Unregistered fishing vessel",
+    });
+    expect(result[1]).toMatchObject({ id: "ev-2", eventTypeValue: "(Unspecified)" });
+    // The raw event_details_json is never shipped to the client.
+    expect(result[0]).not.toHaveProperty("eventDetailsJson");
+    expect(result[1]).not.toHaveProperty("eventDetailsJson");
+  });
+});
+
+describe("normalizeL3", () => {
+  it("trims and collapses internal whitespace, preserving case", () => {
+    expect(normalizeL3("  Spear   Fishing ")).toBe("Spear Fishing");
+    expect(normalizeL3("Active Gears")).toBe("Active Gears");
+  });
+  it("buckets empty / whitespace-only / non-string into (Unspecified)", () => {
+    expect(normalizeL3("")).toBe("(Unspecified)");
+    expect(normalizeL3("   ")).toBe("(Unspecified)");
+    expect(normalizeL3(null)).toBe("(Unspecified)");
+    expect(normalizeL3(undefined)).toBe("(Unspecified)");
+    expect(normalizeL3(42)).toBe("(Unspecified)");
+  });
+});
+
+describe("l3ValuesFromJsons", () => {
+  it("counts distinct normalized values from the resolved key, sorted by count desc", () => {
+    const jsons = [
+      { k: "Spear Fishing" },
+      { k: " Spear  Fishing " }, // merges with the above after normalize
+      { k: "Active Gears" },
+      {}, // → (Unspecified)
+    ];
+    expect(l3ValuesFromJsons(jsons, "k")).toEqual([
+      { value: "Spear Fishing", count: 2 },
+      { value: "(Unspecified)", count: 1 },
+      { value: "Active Gears", count: 1 },
+    ]);
+  });
+  it("buckets every event into (Unspecified) when the type has no L3 key (null)", () => {
+    const jsons = [{ a: "x" }, { a: "y" }, {}];
+    expect(l3ValuesFromJsons(jsons, null)).toEqual([
+      { value: "(Unspecified)", count: 3 },
+    ]);
   });
 });
 
@@ -498,6 +594,7 @@ describe("map.eventTypes.byCategory", () => {
   });
 
   it("splits law/monitoring types and orders each canonically (unlisted last)", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
     // Returned shuffled and across both categories; the DB `where` (mocked away)
     // filters to law + monitoring, so only those rows are returned here.
     vi.mocked(prisma.eventType.findMany).mockResolvedValue([
@@ -547,6 +644,7 @@ describe("map.eventTypes.byCategory", () => {
   });
 
   it("scopes to the authenticated tenant + active law/monitoring categories", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
     vi.mocked(prisma.eventType.findMany).mockResolvedValue([]);
 
     const caller = createCaller(makeCtx("other-tenant"));
@@ -563,5 +661,64 @@ describe("map.eventTypes.byCategory", () => {
         ],
       },
     });
+  });
+
+  it("attaches L3 types[] derived from actual events, with counts incl. (Unspecified)", async () => {
+    vi.mocked(prisma.eventType.findMany).mockResolvedValue([
+      {
+        id: "t-mpa",
+        display: "Fishing in a prohibited area (MPA)",
+        category: "law-enforcement-and-apprehensions",
+      },
+      {
+        id: "t-wild",
+        display: "Marine wildlife sightings",
+        category: "monitoring_patrolling_and_surveillance",
+      },
+    ] as any);
+
+    // MPA reads its curated key fishinginaprohibitedareampa_fishinggear;
+    // monitoring reads "species". One MPA event has no Type → (Unspecified).
+    vi.mocked(prisma.event.findMany).mockResolvedValue([
+      {
+        eventTypeId: "t-mpa",
+        eventDetailsJson: {
+          fishinginaprohibitedareampa_fishinggear: "Spear Fishing",
+        },
+      },
+      {
+        eventTypeId: "t-mpa",
+        eventDetailsJson: {
+          fishinginaprohibitedareampa_fishinggear: "Spear Fishing",
+        },
+      },
+      { eventTypeId: "t-mpa", eventDetailsJson: {} }, // (Unspecified)
+      { eventTypeId: "t-wild", eventDetailsJson: { species: "turtles" } },
+    ] as any);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.eventTypes.byCategory();
+
+    // Scopes the L3 event scan to tenant + the two categories.
+    const evCall = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0];
+    expect(evCall?.where).toMatchObject({
+      tenantId: TENANT_ID,
+      eventType: {
+        category: {
+          in: [
+            "law-enforcement-and-apprehensions",
+            "monitoring_patrolling_and_surveillance",
+          ],
+        },
+      },
+    });
+
+    const mpa = result.lawEnforcement.find((t) => t.id === "t-mpa");
+    expect(mpa?.types).toEqual([
+      { value: "Spear Fishing", count: 2 },
+      { value: "(Unspecified)", count: 1 },
+    ]);
+    const wild = result.monitoring.find((t) => t.id === "t-wild");
+    expect(wild?.types).toEqual([{ value: "turtles", count: 1 }]);
   });
 });

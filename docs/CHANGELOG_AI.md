@@ -3,6 +3,34 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-06-29 — Phase 7: L3 event-type "Type" sub-toggles on the Report Map / Command Center controls
+
+- Agent:               CLAUDE_CODE (Opus 4.8)
+- Why:                 Owner ask #6 — add a 3rd tier under the existing L1 category → L2 event-type map-controls hierarchy: per-event "Type" dropdown values (e.g. Unregistered fishing vessel / gear / fisherfolk) as very-small sub-toggles that filter map markers AND the heatmap.
+- Branch / merge:      feat/l3-event-type-toggles → squash-merged to main (see git log for SHA).
+- Files modified:      apps/web/src/server/trpc/routers/map.ts · apps/web/src/components/map/eventMarkerStyle.ts · apps/web/src/components/map/InteractiveMap.tsx · apps/web/src/components/map/TrackLegend.tsx
+- Files modified (tests): apps/web/src/server/trpc/routers/__tests__/map.test.ts · apps/web/src/components/map/__tests__/eventMarkerStyle.test.ts (+20 tests)
+- Schema/migrations:   none — the "Type" value already lives in events.event_details_json (Json?). No dedicated column; EventType.schemaJson is NULL.
+- Implementation:
+    * Curated L3_TYPE_KEY (event-type display → flattened detail key) verified against the live dev DB. Law:
+      Unregistered Illegal Fishing→unregisteredillegalfishing_unregistered_fishinggear, Fishing in MPA→
+      fishinginaprohibitedareampa_fishinggear, Use of Prohibited Gears→useofprohibitedgears_fishinggear,
+      Destructive Practices→destructivepractices_type, Taking of Prohibited Species→takingofprohibitedspecies_species.
+      Monitoring analog = "species". Compressor Fishing + Others → null (no usable Type → "(Unspecified)" only).
+    * Heuristic fallback (lowest-cardinality non-structural string key) + console.warn for any FUTURE uncurated type.
+    * normalizeL3(): trim + collapse whitespace; empty/non-string → "(Unspecified)" bucket so no marker vanishes.
+    * map.events.list selects event_details_json, derives a compact per-event `eventTypeValue` server-side, then
+      STRIPS the raw blob from the response. map.eventTypes.byCategory attaches `types:{value,count}[]` per L2 type
+      from the actual events (tenant + the 2 categories, no date filter so the tree is fully populated), sorted
+      count-desc, incl "(Unspecified)".
+    * eventMarkerStyle.isEventVisible() — pure L1+L2+L3 predicate shared by dot markers and heatmap; L3 keyed
+      `${typeId}::${value}` (eventTypeValueKey) to avoid cross-type label collisions.
+    * TrackLegend vertical floating card gains an expandedTypeIds layer rendering very-small indented muted L3
+      rows (text-[11px], scale-90 Switch, count badge). Horizontal toolbar stays L1-only.
+- Errors encountered:  ESLint no-unnecessary-condition on a `?? []` over prisma.event.findMany (always returns an array). Resolved by removing the guard and mocking event.findMany in the two byCategory tests instead.
+- Verification:        Phase 7 HARD GATE — tools:check-product-sync ✅, typecheck ✅, test (web 1146 / shared 183 / storage 37 / jobs 201) ✅, `pnpm --filter @marine-guardian/web build` ✅. Playwright Visual QA (dev @45204, demo-site tenant): Law Enf → Unregistered Illegal Fishing L3 = (Unspecified) 4 / vessel 31 / gear 18 / fisherfolk 8 (matches DB); toggling (Unspecified) off → markers 41→37 (the 4 in-range, all unspecified) → restore 41; heatmap mode renders via the same filter; 0 console errors. Screenshot l3-event-type-toggles-verify.png.
+- Data-quality caveat: 30–65% of law events carry no "Type" value → the "(Unspecified)" bucket is load-bearing. "Others"/"Compressor Fishing" have no real Type field (single Unspecified bucket by design).
+
 ## 2026-06-29 — CI: skip staging rebuild+redeploy on docs/state-only commits
 
 - Agent:               CLAUDE_CODE (Opus 4.8, FULL AUTO loop)

@@ -73,3 +73,53 @@ export function isSeriousEvent(display: string | null | undefined): boolean {
   const d = display.toLowerCase();
   return SERIOUS_EVENT_PATTERNS.some((p) => d.includes(p));
 }
+
+// ── Hierarchical event-marker filtering (L1 category → L2 type → L3 value) ────
+// The map controls toggle three nested tiers. A marker is visible only when ALL
+// three pass: its category layer is ON, its specific event type (L2) is enabled,
+// and its "Type" sub-value (L3) is enabled. Pure + exported so the dot-marker and
+// heatmap layers share one consistent predicate and it can be unit-tested.
+
+/** Composite key namespacing an L3 value under its event-type id (so identical
+ *  value labels like "Others" under different types never collide). An event
+ *  with no resolved L3 value buckets under "(Unspecified)". */
+export function eventTypeValueKey(
+  typeId: string | null | undefined,
+  value: string | null | undefined,
+): string {
+  return `${typeId ?? ""}::${value ?? "(Unspecified)"}`;
+}
+
+export type EventFilterState = {
+  /** L1 — category master toggles. */
+  eventLayers: { lawEnforcement: boolean; monitoring: boolean };
+  /** L2 — opt-OUT set of event-type ids. */
+  disabledTypeIds: ReadonlySet<string>;
+  /** L3 — opt-OUT set of `${typeId}::${value}` keys. */
+  disabledTypeValues: ReadonlySet<string>;
+};
+
+export type FilterableEvent = {
+  eventType?: { id?: string | null; category?: string | null } | null;
+  eventTypeValue?: string | null;
+};
+
+/** Whether an event passes the L1+L2+L3 marker/heatmap filter. */
+export function isEventVisible(
+  event: FilterableEvent,
+  filter: EventFilterState,
+): boolean {
+  const typeId = event.eventType?.id ?? null;
+  // L2 — type opted out.
+  if (typeId !== null && filter.disabledTypeIds.has(typeId)) return false;
+  // L3 — value opted out.
+  if (filter.disabledTypeValues.has(eventTypeValueKey(typeId, event.eventTypeValue)))
+    return false;
+  // L1 — category master toggle.
+  const category = event.eventType?.category;
+  if (category === EVENT_CATEGORY.lawEnforcement)
+    return filter.eventLayers.lawEnforcement;
+  if (category === EVENT_CATEGORY.monitoring)
+    return filter.eventLayers.monitoring;
+  return false;
+}

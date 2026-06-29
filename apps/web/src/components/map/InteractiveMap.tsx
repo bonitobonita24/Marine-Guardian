@@ -37,7 +37,10 @@ import {
   eventCategoryHeatHsl,
   eventPrioritySizePx,
   eventPriorityLabel,
+  eventTypeValueKey,
+  isEventVisible,
   isSeriousEvent,
+  type EventFilterState,
 } from "./eventMarkerStyle";
 import { isImageAsset } from "@marine-guardian/shared/lib/asset-mime";
 import { eventTypeIcon } from "@/lib/event-type-icon";
@@ -199,6 +202,21 @@ export function InteractiveMap({
       return updated;
     });
   }, []);
+  // Per-VALUE opt-OUT set for the L3 sub-type toggles (2026-06-29). Keyed
+  // `${typeId}::${normalizedValue}` so identical value labels under different
+  // event types never collide. Empty default → every L3 value shown under its
+  // enabled type. Toggling a value off adds its key; back on removes it.
+  const [disabledTypeValues, setDisabledTypeValues] = useState<Set<string>>(
+    () => new Set<string>(),
+  );
+  const handleTypeValueToggle = useCallback((key: string, next: boolean) => {
+    setDisabledTypeValues((prev) => {
+      const updated = new Set(prev);
+      if (next) updated.delete(key);
+      else updated.add(key);
+      return updated;
+    });
+  }, []);
   // Event display mode (dots vs heatmap) — seeded from the prop, flipped via the
   // TrackLegend toggle.
   const [displayMode, setDisplayMode] = useState<"dots" | "heatmap">(
@@ -223,27 +241,25 @@ export function InteractiveMap({
   );
   const events = eventsQuery.data ?? [];
 
-  // Only render event markers whose category bucket is toggled on. Events that
-  // are neither law-enforcement nor monitoring (uncategorised / analyzer) are
-  // hidden — matching the dashboard breakdown, which buckets only these two.
-  const visibleEvents = useMemo(
-    () =>
-      events.filter((e) => {
-        const cat = e.eventType?.category;
-        const typeId = e.eventType?.id;
-        const typeEnabled = typeId == null || !disabledTypeIds.has(typeId);
-        if (cat === EVENT_CATEGORY.lawEnforcement)
-          return eventLayers.lawEnforcement && typeEnabled;
-        if (cat === EVENT_CATEGORY.monitoring)
-          return eventLayers.monitoring && typeEnabled;
-        return false;
-      }),
-    [events, eventLayers, disabledTypeIds],
+  // The shared L1+L2+L3 marker/heatmap predicate state (category layers, the
+  // opted-out type ids, and the opted-out `${typeId}::${value}` keys).
+  const eventFilter: EventFilterState = useMemo(
+    () => ({ eventLayers, disabledTypeIds, disabledTypeValues }),
+    [eventLayers, disabledTypeIds, disabledTypeValues],
   );
 
-  // In-range marker count per event-type id (≤200 loaded events), shown as a
-  // muted badge beside each per-type toggle so the operator sees how many markers
-  // a toggle controls in the current window.
+  // Visible markers: category bucket on AND L2 type on AND L3 value on. Events
+  // that are neither law-enforcement nor monitoring are hidden — matching the
+  // dashboard breakdown, which buckets only these two. Both the dot markers and
+  // the heatmap surfaces derive from this same filtered set so they stay
+  // perfectly consistent.
+  const visibleEvents = useMemo(
+    () => events.filter((e) => isEventVisible(e, eventFilter)),
+    [events, eventFilter],
+  );
+
+  // In-range marker count per event-type id (≤200 loaded events) for the L2
+  // badge.
   const typeCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const e of events) {
@@ -253,43 +269,49 @@ export function InteractiveMap({
     return counts;
   }, [events]);
 
-  // Per-category point sets for the Heatmap display mode (each gated by the same
-  // law/monitoring layer toggle as the dot markers).
+  // In-range marker count per `${typeId}::${value}` key for the L3 badge.
+  const typeValueCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const e of events) {
+      const id = e.eventType?.id;
+      if (id == null) continue;
+      const key = eventTypeValueKey(id, e.eventTypeValue);
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+    return counts;
+  }, [events]);
+
+  // Per-category point sets for the Heatmap display mode, split out of the SAME
+  // visible set as the dot markers so heatmap + dots filter identically.
   const lawHeatPoints = useMemo(
     () =>
-      eventLayers.lawEnforcement
-        ? events
-            .filter(
-              (e) =>
-                e.eventType?.category === EVENT_CATEGORY.lawEnforcement &&
-                !disabledTypeIds.has(e.eventType.id) &&
-                e.locationLon != null &&
-                e.locationLat != null,
-            )
-            .map((e) => ({
-              lon: e.locationLon as number,
-              lat: e.locationLat as number,
-            }))
-        : [],
-    [events, eventLayers.lawEnforcement, disabledTypeIds],
+      visibleEvents
+        .filter(
+          (e) =>
+            e.eventType?.category === EVENT_CATEGORY.lawEnforcement &&
+            e.locationLon != null &&
+            e.locationLat != null,
+        )
+        .map((e) => ({
+          lon: e.locationLon as number,
+          lat: e.locationLat as number,
+        })),
+    [visibleEvents],
   );
   const monHeatPoints = useMemo(
     () =>
-      eventLayers.monitoring
-        ? events
-            .filter(
-              (e) =>
-                e.eventType?.category === EVENT_CATEGORY.monitoring &&
-                !disabledTypeIds.has(e.eventType.id) &&
-                e.locationLon != null &&
-                e.locationLat != null,
-            )
-            .map((e) => ({
-              lon: e.locationLon as number,
-              lat: e.locationLat as number,
-            }))
-        : [],
-    [events, eventLayers.monitoring, disabledTypeIds],
+      visibleEvents
+        .filter(
+          (e) =>
+            e.eventType?.category === EVENT_CATEGORY.monitoring &&
+            e.locationLon != null &&
+            e.locationLat != null,
+        )
+        .map((e) => ({
+          lon: e.locationLon as number,
+          lat: e.locationLat as number,
+        })),
+    [visibleEvents],
   );
 
   const trackCoordinates: [number, number][] = (
@@ -403,6 +425,9 @@ export function InteractiveMap({
             disabledTypeIds={disabledTypeIds}
             onTypeToggle={handleTypeToggle}
             typeCounts={typeCounts}
+            disabledTypeValues={disabledTypeValues}
+            onTypeValueToggle={handleTypeValueToggle}
+            typeValueCounts={typeValueCounts}
             {...(useInRangeTracks
               ? { displayMode, onDisplayModeChange: setDisplayMode }
               : {})}
