@@ -130,6 +130,49 @@ export const reportMapRouter = router({
       };
     }),
 
+  // Patrol list for the selected range — powers the Report Map "Patrols in range"
+  // card. One row per patrol with its leader (from the first segment that has
+  // one), start/end times, ER title + serial, type, and start coordinates so the
+  // card can fly the map to (and render) the selected patrol's track.
+  patrolsInRange: tenantProcedure
+    .input(reportFilterInput)
+    .query(async ({ ctx, input }) => {
+      const rows = await prisma.patrol.findMany({
+        where: patrolWhere(ctx.tenantId, input),
+        take: 300,
+        orderBy: { startTime: "desc" },
+        select: {
+          id: true,
+          title: true,
+          serialNumber: true,
+          patrolType: true,
+          boatName: true,
+          startTime: true,
+          endTime: true,
+          totalDistanceKm: true,
+          computedDistanceKm: true,
+          startLocationLat: true,
+          startLocationLon: true,
+          segments: {
+            where: { leaderName: { not: null } },
+            orderBy: { actualStart: "asc" },
+            select: { leaderName: true },
+          },
+        },
+      });
+      return rows.map((p) => {
+        const { segments, ...rest } = p;
+        const leaders = Array.from(
+          new Set(
+            segments
+              .map((s) => s.leaderName)
+              .filter((n): n is string => n != null && n.trim() !== ""),
+          ),
+        );
+        return { ...rest, leaderName: leaders[0] ?? null, leaders };
+      });
+    }),
+
   eventBreakdown: tenantProcedure
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {

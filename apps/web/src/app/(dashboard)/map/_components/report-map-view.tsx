@@ -12,6 +12,10 @@ import {
 import { ReportFilterBar } from "@/components/reporting/report-filter-bar";
 import { BreakdownBars } from "@/app/(dashboard)/dashboard/_components/breakdown-bars";
 import { HighPriorityEventsCard } from "./high-priority-events-card";
+import {
+  PatrolListByRangeCard,
+  type RangePatrol,
+} from "./patrol-list-by-range-card";
 import { EventsOverTimeChart } from "@/components/reporting/events-over-time-chart";
 import {
   ReportMapEmptyState,
@@ -81,6 +85,20 @@ function ReportMapInner() {
   const breakdown = trpc.reportMap.eventBreakdown.useQuery(filter);
   const eventsOverTime = trpc.reportMap.eventsOverTime.useQuery(filter);
   const highPriority = trpc.reportMap.highPriorityEvents.useQuery(filter);
+  const patrolsInRange = trpc.reportMap.patrolsInRange.useQuery(filter);
+
+  // Selected patrol from the "Patrols" list → the map draws that patrol's track
+  // (controlled selectedPatrolId) and flies to its start point.
+  const [selectedPatrolId, setSelectedPatrolId] = useState<string | null>(null);
+  const selectPatrol = useCallback(
+    (p: RangePatrol) => {
+      setSelectedPatrolId(p.id);
+      if (p.startLocationLat !== null && p.startLocationLon !== null) {
+        locateOnMap(p.startLocationLat, p.startLocationLon);
+      }
+    },
+    [locateOnMap],
+  );
 
   // Municipality NAME for the empty-state message — derived from the same
   // dropdown options the filter bar renders (cached query, no extra fetch).
@@ -138,6 +156,7 @@ function ReportMapInner() {
           filterSlot={<ReportFilterBar layout="stacked" />}
           onEventClick={setSelectedEventId}
           focusLocation={focusLocation}
+          selectedPatrolId={selectedPatrolId}
         />
       </div>
 
@@ -177,11 +196,26 @@ function ReportMapInner() {
             onSelect={setSelectedEventId}
             onLocate={locateOnMap}
           />
+          {/* Patrol list (owner request 2026-06-29) — takes the slot the Events
+              Over Time chart used to occupy; clicking a patrol draws its track
+              on the map. The chart moves to its own full-width row below. */}
+          <PatrolListByRangeCard
+            patrols={patrolsInRange.data ?? []}
+            isLoading={patrolsInRange.isLoading}
+            selectedPatrolId={selectedPatrolId}
+            onSelect={selectPatrol}
+          />
+        </div>
+      )}
+
+      {/* Events Over Time — its own full-width section below the analytics band
+          so the trend reads clearly (moved out of the 4-up grid). */}
+      {!showEmptyState && (
+        <div className="shrink-0">
           <EventsOverTimeChart
             data={eventsOverTime.data ?? []}
             isLoading={eventsOverTime.isLoading}
             rangeLabel={label}
-            compact
           />
         </div>
       )}

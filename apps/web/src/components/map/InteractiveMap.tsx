@@ -167,6 +167,11 @@ type InteractiveMapProps = {
    *  Events list "locate" button). `key` bumps on every click so re-clicking the
    *  same event re-triggers the flyTo. Null = no focus requested. */
   focusLocation?: { lon: number; lat: number; key: number } | null;
+  /** Controlled patrol selection — when provided (not undefined), the map
+   *  renders this patrol's track instead of the internal PatrolSelector state.
+   *  Used by the Report Map "Patrols in range" list so clicking a row draws
+   *  that patrol's track. null = none selected. */
+  selectedPatrolId?: string | null;
 };
 
 export function InteractiveMap({
@@ -184,6 +189,7 @@ export function InteractiveMap({
   controlsPlacement = "bar",
   filterSlot,
   focusLocation,
+  selectedPatrolId: controlledSelectedPatrolId,
 }: InteractiveMapProps) {
   const subjectsQuery = trpc.map.subjects.list.useQuery();
   const eventsQuery = trpc.map.events.list.useQuery({
@@ -207,7 +213,12 @@ export function InteractiveMap({
     enabled: floatingControls,
   });
 
-  const [selectedPatrolId, setSelectedPatrolId] = useState<string | null>(null);
+  const [internalSelectedPatrolId, setSelectedPatrolId] = useState<string | null>(null);
+  // Controlled override (Report Map list) wins over the internal PatrolSelector.
+  const selectedPatrolId =
+    controlledSelectedPatrolId !== undefined
+      ? controlledSelectedPatrolId
+      : internalSelectedPatrolId;
   const patrolTracksQuery = trpc.map.patrolTracks.byPatrolId.useQuery(
     { patrolId: selectedPatrolId ?? "" },
     { enabled: selectedPatrolId !== null },
