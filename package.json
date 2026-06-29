@@ -50,6 +50,10 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",
+    "@turf/buffer": "^7.1.0",
+    "@turf/difference": "^7.1.0",
+    "@turf/helpers": "^7.1.0",
+    "@turf/union": "^7.1.0",
     "eslint": "^9.18.0",
     "lefthook": "^2.1.9",
     "prettier": "^3.4.2",

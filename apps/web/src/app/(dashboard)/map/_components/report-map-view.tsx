@@ -52,7 +52,7 @@ function rangeLabelWithYear(from: Date, to: Date): string {
 }
 
 function ReportMapInner() {
-  const { from, to, municipalityId } = useReportFilter();
+  const { from, to, municipalityId, protectedZoneId } = useReportFilter();
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
   // "Locate on map" from the High Priority Events list: fly the map to the
@@ -75,6 +75,7 @@ function ReportMapInner() {
     from,
     to,
     ...(municipalityId !== null ? { municipalityId } : {}),
+    ...(protectedZoneId !== null ? { protectedZoneId } : {}),
   };
 
   const breakdown = trpc.reportMap.eventBreakdown.useQuery(filter);
@@ -128,6 +129,7 @@ function ReportMapInner() {
           dateFrom={from}
           dateTo={to}
           {...(municipalityId !== null ? { municipalityId } : {})}
+          {...(protectedZoneId !== null ? { protectedZoneId } : {})}
           trackMode="inRange"
           defaultEventLayers={{ lawEnforcement: true, monitoring: true }}
           hidePatrolSelector

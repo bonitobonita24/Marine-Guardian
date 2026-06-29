@@ -56,6 +56,44 @@ const DEFAULT_ZOOM = 6;
 // (for events that have a photo) only appears once zoomed in past this level.
 const PIN_PREVIEW_ZOOM = 11.5;
 
+// Official coverage boundary line styling, by kind (derived server-side from the
+// AreaBoundary provenance key). Thin outlines; MPAs get a heavier line + faint
+// fill so protected zones read as distinct from municipal land/water rings.
+const BOUNDARY_STYLE: Record<
+  "land" | "water" | "mpa",
+  { color: string; outlineWidth: number; fillOpacity: number; outlineOpacity: number }
+> = {
+  land: { color: "#94a3b8", outlineWidth: 1, fillOpacity: 0, outlineOpacity: 0.7 },
+  water: { color: "#38bdf8", outlineWidth: 1, fillOpacity: 0, outlineOpacity: 0.7 },
+  mpa: { color: "#34d399", outlineWidth: 2, fillOpacity: 0.08, outlineOpacity: 0.9 },
+};
+
+/**
+ * Flatten every [lon, lat] coordinate out of a Polygon / MultiPolygon geometry
+ * so callers can union them into a LngLatBounds. Tolerant of the loosely-typed
+ * geometryGeojson coming back from the official-boundaries query: it walks the
+ * nested coordinate arrays and yields only well-formed numeric pairs.
+ */
+function geometryCoordinates(geometry: unknown): [number, number][] {
+  const out: [number, number][] = [];
+  const walk = (node: unknown): void => {
+    if (!Array.isArray(node)) return;
+    if (
+      node.length >= 2 &&
+      typeof node[0] === "number" &&
+      typeof node[1] === "number"
+    ) {
+      out.push([node[0], node[1]]);
+      return;
+    }
+    for (const child of node) walk(child);
+  };
+  if (typeof geometry === "object" && geometry !== null) {
+    walk((geometry as { coordinates?: unknown }).coordinates);
+  }
+  return out;
+}
+
 // Event-layer toggles (2026-06-27): event markers are grouped by the same REAL
 // EarthRanger eventType.category buckets the dashboard breakdown uses. Both
 // default OFF — patrol tracks (foot + seaborne) are the always-on baseline and
@@ -81,6 +119,10 @@ type InteractiveMapProps = {
   /** Optional municipality filter (Interactive Report Map). When supplied, event
    *  markers AND (in inRange track mode) patrol tracks are scoped to it. */
   municipalityId?: string;
+  /** Optional MPA-scope filter (Interactive Report Map). When supplied, event
+   *  markers AND (in inRange track mode) patrol tracks are narrowed to events /
+   *  patrols that fall inside the given protected zone. */
+  protectedZoneId?: string;
   /**
    * Patrol-track overlay source (2026-06-27):
    *   "active"  (default) — most-recent patrols' tracks, live (Command Center /
@@ -126,6 +168,7 @@ export function InteractiveMap({
   dateFrom,
   dateTo,
   municipalityId,
+  protectedZoneId,
   trackMode = "active",
   displayMode: initialDisplayMode = "dots",
   defaultEventLayers,
@@ -141,10 +184,15 @@ export function InteractiveMap({
     ...(dateFrom !== undefined ? { from: dateFrom } : {}),
     ...(dateTo !== undefined ? { to: dateTo } : {}),
     ...(municipalityId !== undefined ? { municipalityId } : {}),
+    ...(protectedZoneId !== undefined ? { protectedZoneId } : {}),
   });
   const patrolAreasQuery = trpc.map.patrolAreas.list.useQuery({
     activeOnly: true,
   });
+  // Official coverage boundaries (municipality land/water + MPA outlines),
+  // imported into AreaBoundary (source=official). Rendered as thin lines behind
+  // a controls toggle. Distinct from patrolAreas (drawn patrol zones).
+  const officialBoundariesQuery = trpc.map.officialBoundaries.list.useQuery();
   // Specific event types per category, for the hierarchical map-controls toggle
   // tree (floating Report Map controls only — the horizontal CC/Live Map legend
   // keeps just the category master toggles, so the query is gated to floating).
@@ -171,6 +219,7 @@ export function InteractiveMap({
       ...(dateFrom !== undefined ? { from: dateFrom } : {}),
       ...(dateTo !== undefined ? { to: dateTo } : {}),
       ...(municipalityId !== undefined ? { municipalityId } : {}),
+      ...(protectedZoneId !== undefined ? { protectedZoneId } : {}),
     },
     { enabled: useInRangeTracks },
   );
@@ -178,6 +227,10 @@ export function InteractiveMap({
     ? inRangeTracksQuery.data
     : activeTracksQuery.data;
   const [showTracks, setShowTracks] = useState(true);
+  // Official coverage boundary overlay (municipality land/water + MPA). Default
+  // ON — the owner's headline ask is to see the boundaries; the toggle lets an
+  // operator hide them to declutter.
+  const [showBoundaries, setShowBoundaries] = useState(true);
   const [trackVisibility, setTrackVisibility] = useState<PatrolTrackVisibility>(
     DEFAULT_TRACK_VISIBILITY,
   );
@@ -372,6 +425,32 @@ export function InteractiveMap({
     });
   }, [focusLocation]);
 
+  // When a municipality is selected (Report Map filter), fly the map to fit
+  // that municipality's full official extent — its land + derived water
+  // boundaries combined. The official boundaries carry their source
+  // municipalityId, so we union every coordinate of the matching boundaries
+  // into one bounds and fitBounds to it. Owner ask 2026-06-29: selecting a
+  // municipality should frame it on the map.
+  const officialBoundaries = officialBoundariesQuery.data;
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || municipalityId === undefined || !officialBoundaries) return;
+    const matching = officialBoundaries.filter(
+      (b) => b.municipalityId === municipalityId,
+    );
+    if (matching.length === 0) return;
+    const bounds = new maplibregl.LngLatBounds();
+    let extended = false;
+    for (const b of matching) {
+      for (const [lon, lat] of geometryCoordinates(b.geometryGeojson)) {
+        bounds.extend([lon, lat]);
+        extended = true;
+      }
+    }
+    if (!extended) return;
+    map.fitBounds(bounds, { padding: 60, maxZoom: 13, duration: 800 });
+  }, [municipalityId, officialBoundaries]);
+
   const floating = floatingControls;
   return (
     <div className={cn("flex h-full w-full flex-col gap-2", className)}>
@@ -390,6 +469,8 @@ export function InteractiveMap({
           onEventLayerChange={(layer, next) => {
             setEventLayers((prev) => ({ ...prev, [layer]: next }));
           }}
+          showBoundaries={showBoundaries}
+          onShowBoundariesChange={setShowBoundaries}
           {...(useInRangeTracks
             ? { displayMode, onDisplayModeChange: setDisplayMode }
             : {})}
@@ -419,6 +500,8 @@ export function InteractiveMap({
             onEventLayerChange={(layer, next) => {
               setEventLayers((prev) => ({ ...prev, [layer]: next }));
             }}
+            showBoundaries={showBoundaries}
+            onShowBoundariesChange={setShowBoundaries}
             {...(eventTypesQuery.data !== undefined
               ? { eventTypesByCategory: eventTypesQuery.data }
               : {})}
@@ -462,6 +545,28 @@ export function InteractiveMap({
             color={area.colorHex}
           />
         ))}
+
+        {/* Official coverage boundaries (municipality land/water + MPA outlines),
+            thin lines styled per kind. Toggleable via the controls. */}
+        {showBoundaries &&
+          (officialBoundariesQuery.data ?? []).map((b) => {
+            const style = BOUNDARY_STYLE[b.kind];
+            return (
+              <MapPolygon
+                key={`boundary-${b.id}`}
+                id={`boundary-${b.id}`}
+                geojson={
+                  b.geometryGeojson as unknown as
+                    | GeoJSON.Polygon
+                    | GeoJSON.MultiPolygon
+                }
+                color={style.color}
+                fillOpacity={style.fillOpacity}
+                outlineOpacity={style.outlineOpacity}
+                outlineWidth={style.outlineWidth}
+              />
+            );
+          })}
 
         {/* All-active-tracks overlay: one polyline per open patrol, styled by
             patrol type (seaborne solid/cyan, foot dashed/orange). */}

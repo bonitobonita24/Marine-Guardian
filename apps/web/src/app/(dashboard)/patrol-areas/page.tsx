@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { RebuildAreaBoundariesButton } from "./rebuild-button";
+import { ImportOfficialBoundariesButton } from "./import-official-boundaries-button";
 import {
   AreaBoundaryTable,
   type AreaBoundaryRow,
@@ -43,6 +44,7 @@ export default function PatrolAreasPage() {
               Create Area
             </Button>
           )}
+          <ImportOfficialBoundariesButton />
           <RebuildAreaBoundariesButton />
         </div>
       </div>

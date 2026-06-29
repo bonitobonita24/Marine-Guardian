@@ -18,6 +18,9 @@ vi.mock("@/lib/trpc/client", () => ({
       list: {
         useQuery: () => ({ data: stubs.municipalities, isLoading: false }),
       },
+      protectedZones: {
+        useQuery: () => ({ data: [], isLoading: false }),
+      },
     },
   },
 }));

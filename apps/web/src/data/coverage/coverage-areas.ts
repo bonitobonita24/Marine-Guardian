@@ -108,6 +108,9 @@ export const MUNICIPALITIES: CoverageAreaEntry[] = [
     boundaryYear: 2020,
   },
   // ── Occidental Mindoro ────────────────────────────────────────────────────
+  // Within-province order per owner (2026-06-29): Abra de Ilog, Mamburao,
+  // Santa Cruz, Sablayan, Calintaan. (Apo Reef Park is a protected-zone overlay,
+  // see PROTECTED_ZONES below — not a selectable municipality.)
   {
     id: "abra-de-ilog",
     name: "Abra de Ilog",
@@ -117,6 +120,34 @@ export const MUNICIPALITIES: CoverageAreaEntry[] = [
     geojsonFile: "abra-de-ilog.geojson",
     parentMunicipalityId: null,
     source: "geoBoundaries-PHL-ADM3 (shapeID 30758251B36470920271092)",
+    license: "CC BY 3.0 IGO",
+    sourceURL: "https://github.com/wmgeolab/geoBoundaries",
+    boundaryYear: 2020,
+  },
+  {
+    id: "mamburao",
+    name: "Mamburao",
+    province: "Occidental Mindoro",
+    psgcCode: null, // PSGC pending PSA backfill
+    type: "municipality",
+    geojsonFile: "mamburao.geojson",
+    parentMunicipalityId: null,
+    source: "geoBoundaries-PHL-ADM3 (shapeID 30758251B70283159165752)",
+    license: "CC BY 3.0 IGO",
+    sourceURL: "https://github.com/wmgeolab/geoBoundaries",
+    boundaryYear: 2020,
+  },
+  {
+    id: "santa-cruz",
+    name: "Santa Cruz",
+    province: "Occidental Mindoro",
+    psgcCode: null, // PSGC pending PSA backfill
+    type: "municipality",
+    // Disambiguated spatially: centroid ~13.07°N, 120.81°E (Occidental Mindoro)
+    // NOT any of the other "Santa Cruz" municipalities elsewhere in PH.
+    geojsonFile: "santa-cruz.geojson",
+    parentMunicipalityId: null,
+    source: "geoBoundaries-PHL-ADM3 (shapeID 30758251B4413725625416)",
     license: "CC BY 3.0 IGO",
     sourceURL: "https://github.com/wmgeolab/geoBoundaries",
     boundaryYear: 2020,
@@ -134,7 +165,35 @@ export const MUNICIPALITIES: CoverageAreaEntry[] = [
     sourceURL: "https://github.com/wmgeolab/geoBoundaries",
     boundaryYear: 2020,
   },
+  {
+    id: "calintaan",
+    name: "Calintaan",
+    province: "Occidental Mindoro",
+    psgcCode: null, // PSGC pending PSA backfill
+    type: "municipality",
+    geojsonFile: "calintaan.geojson",
+    parentMunicipalityId: null,
+    source: "geoBoundaries-PHL-ADM3 (shapeID 30758251B26098626095065)",
+    license: "CC BY 3.0 IGO",
+    sourceURL: "https://github.com/wmgeolab/geoBoundaries",
+    boundaryYear: 2020,
+  },
   // ── Palawan ───────────────────────────────────────────────────────────────
+  // Within-province order per owner (2026-06-29): Araceli, Roxas, Dumaran,
+  // El Nido, Taytay, Aborlan, Narra.
+  {
+    id: "araceli",
+    name: "Araceli",
+    province: "Palawan",
+    psgcCode: "175302000",
+    type: "municipality",
+    geojsonFile: "araceli.geojson",
+    parentMunicipalityId: null,
+    source: "geoBoundaries-PHL-ADM3 (shapeID 30758251B86342486803813)",
+    license: "CC BY 3.0 IGO",
+    sourceURL: "https://github.com/wmgeolab/geoBoundaries",
+    boundaryYear: 2020,
+  },
   {
     id: "roxas-palawan",
     name: "Roxas",
@@ -151,19 +210,6 @@ export const MUNICIPALITIES: CoverageAreaEntry[] = [
     boundaryYear: 2020,
   },
   {
-    id: "araceli",
-    name: "Araceli",
-    province: "Palawan",
-    psgcCode: "175302000",
-    type: "municipality",
-    geojsonFile: "araceli.geojson",
-    parentMunicipalityId: null,
-    source: "geoBoundaries-PHL-ADM3 (shapeID 30758251B86342486803813)",
-    license: "CC BY 3.0 IGO",
-    sourceURL: "https://github.com/wmgeolab/geoBoundaries",
-    boundaryYear: 2020,
-  },
-  {
     id: "dumaran",
     name: "Dumaran",
     province: "Palawan",
@@ -172,6 +218,19 @@ export const MUNICIPALITIES: CoverageAreaEntry[] = [
     geojsonFile: "dumaran.geojson",
     parentMunicipalityId: null,
     source: "geoBoundaries-PHL-ADM3 (shapeID 30758251B96628789522948)",
+    license: "CC BY 3.0 IGO",
+    sourceURL: "https://github.com/wmgeolab/geoBoundaries",
+    boundaryYear: 2020,
+  },
+  {
+    id: "el-nido",
+    name: "El Nido",
+    province: "Palawan",
+    psgcCode: null, // PSGC pending PSA backfill
+    type: "municipality",
+    geojsonFile: "el-nido.geojson",
+    parentMunicipalityId: null,
+    source: "geoBoundaries-PHL-ADM3 (shapeID 30758251B21090387346093)",
     license: "CC BY 3.0 IGO",
     sourceURL: "https://github.com/wmgeolab/geoBoundaries",
     boundaryYear: 2020,
@@ -204,6 +263,19 @@ export const MUNICIPALITIES: CoverageAreaEntry[] = [
     sourceURL: "https://github.com/wmgeolab/geoBoundaries",
     boundaryYear: 2020,
   },
+  {
+    id: "narra",
+    name: "Narra",
+    province: "Palawan",
+    psgcCode: null, // PSGC pending PSA backfill
+    type: "municipality",
+    geojsonFile: "narra.geojson",
+    parentMunicipalityId: null,
+    source: "geoBoundaries-PHL-ADM3 (shapeID 30758251B72391607373552)",
+    license: "CC BY 3.0 IGO",
+    sourceURL: "https://github.com/wmgeolab/geoBoundaries",
+    boundaryYear: 2020,
+  },
 ];
 
 /**
@@ -228,6 +300,22 @@ export const PROTECTED_ZONES: CoverageAreaEntry[] = [
     license: "ODbL 1.0",
     sourceURL: "https://www.openstreetmap.org/way/181365709",
     boundaryYear: 2023, // OSM last edited
+  },
+  {
+    id: "harka-piloto-mpa",
+    name: "Harka Piloto Fish Sanctuary",
+    province: "Oriental Mindoro",
+    psgcCode: null,
+    type: "protected-zone",
+    geojsonFile: "harka-piloto-mpa.geojson",
+    parentMunicipalityId: "calapan-city", // nested inside Calapan City waters
+    // AUTHORITATIVE: pulled 2026-06-29 from the EarthRanger server
+    // (mindoro.pamdas.org) spatialfeaturegroup "Calapan - MPA Harka Piloto".
+    // Small fish sanctuary off Calapan City (centroid ~13.439°N, 121.222°E).
+    source: "EarthRanger mindoro.pamdas.org — spatialfeature \"Harka Piloto Fish Sanctuary\" (group: Calapan - MPA Harka Piloto)",
+    license: "EarthRanger tenant data (BlueAlliance / Mindoro)",
+    sourceURL: "https://mindoro.pamdas.org/api/v1.0/spatialfeaturegroup/59db08cf-d1c7-4c77-b6e3-eb0279c1e2a4/",
+    boundaryYear: 2023,
   },
 ];
 

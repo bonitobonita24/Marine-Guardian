@@ -87,6 +87,10 @@ type TrackLegendProps = {
    *  shown. Off = "dots" (default), on = "heatmap". */
   displayMode?: "dots" | "heatmap";
   onDisplayModeChange?: (next: "dots" | "heatmap") => void;
+  /** Official coverage boundary overlay (municipality land/water + MPA outlines).
+   *  Master show/hide; rendered on both orientations when provided. */
+  showBoundaries?: boolean;
+  onShowBoundariesChange?: (next: boolean) => void;
   /** "vertical" stacked card (overlay) or "horizontal" toolbar row (above map). */
   orientation?: "vertical" | "horizontal";
   /** Floating vertical card only: slot rendered at the top (e.g. date +
@@ -162,6 +166,8 @@ export function TrackLegend({
   typeValueCounts,
   displayMode,
   onDisplayModeChange,
+  showBoundaries,
+  onShowBoundariesChange,
   orientation = "vertical",
   header,
   title,
@@ -272,6 +278,31 @@ export function TrackLegend({
             </div>
           </>
         )}
+
+        {/* Official coverage boundaries (municipality land/water + MPA outlines). */}
+        {showBoundaries !== undefined &&
+          onShowBoundariesChange !== undefined && (
+            <>
+              <div
+                className="hidden h-5 w-px bg-border sm:block"
+                aria-hidden="true"
+              />
+              <div className="flex min-h-9 items-center gap-2">
+                <Label
+                  htmlFor="show-boundaries"
+                  className="cursor-pointer font-medium"
+                >
+                  Boundaries
+                </Label>
+                <Switch
+                  id="show-boundaries"
+                  checked={showBoundaries}
+                  onCheckedChange={onShowBoundariesChange}
+                  aria-label="Show official coverage boundaries on the map"
+                />
+              </div>
+            </>
+          )}
       </section>
     );
   }
@@ -292,6 +323,8 @@ export function TrackLegend({
     typeValueCounts={typeValueCounts}
     displayMode={displayMode}
     onDisplayModeChange={onDisplayModeChange}
+    showBoundaries={showBoundaries}
+    onShowBoundariesChange={onShowBoundariesChange}
     header={header}
     title={title}
     collapsible={collapsible}
@@ -322,6 +355,8 @@ function VerticalTrackLegend({
   typeValueCounts,
   displayMode,
   onDisplayModeChange,
+  showBoundaries,
+  onShowBoundariesChange,
   header,
   title,
   collapsible,
@@ -342,6 +377,8 @@ function VerticalTrackLegend({
   typeValueCounts: Record<string, number> | undefined;
   displayMode: "dots" | "heatmap" | undefined;
   onDisplayModeChange: ((next: "dots" | "heatmap") => void) | undefined;
+  showBoundaries: boolean | undefined;
+  onShowBoundariesChange: ((next: boolean) => void) | undefined;
   header: ReactNode;
   title: string | undefined;
   collapsible: boolean | undefined;
@@ -470,6 +507,27 @@ function VerticalTrackLegend({
               );
             })}
           </div>
+
+          {/* Official coverage boundaries (municipality land/water + MPA). */}
+          {showBoundaries !== undefined &&
+            onShowBoundariesChange !== undefined && (
+              <div className="border-t pt-0.5">
+                <div className="flex min-h-7 items-center justify-between gap-2">
+                  <Label
+                    htmlFor="show-boundaries"
+                    className="cursor-pointer font-medium"
+                  >
+                    Boundaries
+                  </Label>
+                  <Switch
+                    id="show-boundaries"
+                    checked={showBoundaries}
+                    onCheckedChange={onShowBoundariesChange}
+                    aria-label="Show official coverage boundaries on the map"
+                  />
+                </div>
+              </div>
+            )}
 
           {/* Event-marker layers — a category master toggle, each with a
               collapsible sublist of its specific event types (the per-type

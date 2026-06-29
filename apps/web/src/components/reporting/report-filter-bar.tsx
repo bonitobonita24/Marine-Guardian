@@ -6,7 +6,9 @@ import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -28,6 +30,7 @@ import { useReportFilter } from "./report-filter-context";
  */
 
 const ALL_MUNICIPALITIES = "all";
+const ALL_ZONES = "all";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -57,11 +60,34 @@ export function ReportFilterBar({
    *  vertical layout for embedding in the floating map-controls card. */
   layout?: "bar" | "stacked";
 } = {}) {
-  const { from, to, municipalityId, setRange, setMunicipalityId } =
-    useReportFilter();
+  const {
+    from,
+    to,
+    municipalityId,
+    protectedZoneId,
+    setRange,
+    setMunicipalityId,
+    setProtectedZoneId,
+  } = useReportFilter();
   const stacked = layout === "stacked";
 
   const municipalities = trpc.municipality.list.useQuery();
+  const protectedZones = trpc.municipality.protectedZones.useQuery();
+
+  // Group the (already canonically-ordered) municipalities by province so the
+  // Select shows the owner's province headings (Oriental Mindoro → Occidental
+  // Mindoro → Palawan). A Map keyed by province preserves first-appearance
+  // order, so provinces and their members stay in the canonical sequence
+  // returned by municipality.list.
+  const provinceGroups = (() => {
+    const groups = new Map<string, { id: string; name: string }[]>();
+    for (const m of municipalities.data ?? []) {
+      const list = groups.get(m.province) ?? [];
+      list.push({ id: m.id, name: m.name });
+      groups.set(m.province, list);
+    }
+    return [...groups.entries()];
+  })();
 
   const setLastNDays = (days: number) => {
     const now = new Date();
@@ -89,6 +115,10 @@ export function ReportFilterBar({
 
   const handleMunicipalityChange = (value: string) => {
     setMunicipalityId(value === ALL_MUNICIPALITIES ? null : value);
+  };
+
+  const handleProtectedZoneChange = (value: string) => {
+    setProtectedZoneId(value === ALL_ZONES ? null : value);
   };
 
   const fieldClass = cn(
@@ -196,9 +226,45 @@ export function ReportFilterBar({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL_MUNICIPALITIES}>All municipalities</SelectItem>
-            {(municipalities.data ?? []).map((m) => (
-              <SelectItem key={m.id} value={m.id}>
-                {m.name}
+            {provinceGroups.map(([province, items]) => (
+              <SelectGroup key={province}>
+                <SelectLabel>{province}</SelectLabel>
+                {items.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* MPA scope — narrow events/patrols to a single protected zone (Apo Reef,
+          Harka Piloto). Independent of the municipality filter. */}
+      <div className={fieldClass}>
+        <Label
+          htmlFor="report-protected-zone"
+          className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+        >
+          MPA Zone
+        </Label>
+        <Select
+          value={protectedZoneId ?? ALL_ZONES}
+          onValueChange={handleProtectedZoneChange}
+        >
+          <SelectTrigger
+            id="report-protected-zone"
+            data-testid="report-protected-zone"
+            className={cn(stacked ? "h-7 w-full text-[11px]" : "h-8 w-[12rem] text-xs")}
+          >
+            <SelectValue placeholder="All zones" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_ZONES}>All zones</SelectItem>
+            {(protectedZones.data ?? []).map((z) => (
+              <SelectItem key={z.id} value={z.id}>
+                {z.name}
               </SelectItem>
             ))}
           </SelectContent>

@@ -39,10 +39,14 @@ export type ReportFilter = {
   to: Date;
   /** Active municipality filter; null = all municipalities. */
   municipalityId: string | null;
+  /** Active MPA (protected-zone) scope filter; null = all zones. */
+  protectedZoneId: string | null;
   /** Replace the active date range. */
   setRange: (next: { from: Date; to: Date }) => void;
   /** Set (or clear, with null) the active municipality. */
   setMunicipalityId: (next: string | null) => void;
+  /** Set (or clear, with null) the active MPA scope. */
+  setProtectedZoneId: (next: string | null) => void;
   /** Reset to the default last-7-days window ending now + all municipalities. */
   resetRange: () => void;
 };
@@ -54,6 +58,9 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
   const [from, setFrom] = useState<Date>(() => sevenDaysAgo(new Date()));
   const [to, setTo] = useState<Date>(() => new Date());
   const [municipalityId, setMunicipalityIdState] = useState<string | null>(null);
+  const [protectedZoneId, setProtectedZoneIdState] = useState<string | null>(
+    null,
+  );
 
   const setRange = useCallback((next: { from: Date; to: Date }) => {
     setFrom(next.from);
@@ -64,11 +71,16 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
     setMunicipalityIdState(next);
   }, []);
 
+  const setProtectedZoneId = useCallback((next: string | null) => {
+    setProtectedZoneIdState(next);
+  }, []);
+
   const resetRange = useCallback(() => {
     const now = new Date();
     setFrom(sevenDaysAgo(now));
     setTo(now);
     setMunicipalityIdState(null);
+    setProtectedZoneIdState(null);
   }, []);
 
   const value = useMemo<ReportFilter>(
@@ -76,11 +88,22 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
       from,
       to,
       municipalityId,
+      protectedZoneId,
       setRange,
       setMunicipalityId,
+      setProtectedZoneId,
       resetRange,
     }),
-    [from, to, municipalityId, setRange, setMunicipalityId, resetRange],
+    [
+      from,
+      to,
+      municipalityId,
+      protectedZoneId,
+      setRange,
+      setMunicipalityId,
+      setProtectedZoneId,
+      resetRange,
+    ],
   );
 
   return (

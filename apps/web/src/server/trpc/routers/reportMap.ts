@@ -32,6 +32,9 @@ const reportFilterInput = z
     from: z.coerce.date().optional(),
     to: z.coerce.date().optional(),
     municipalityId: z.string().optional(),
+    // Optional MPA-scope filter (2026-06-29): narrow every aggregation to
+    // events/patrols that fall inside a given protected zone.
+    protectedZoneId: z.string().optional(),
   })
   .strict();
 
@@ -47,6 +50,7 @@ function eventWhere(tenantId: string, input: ReportFilterInput) {
     NOT: { eventType: { display: { contains: string; mode: "insensitive" } } };
     reportedAt?: { gte?: Date; lte?: Date };
     municipalityId?: string;
+    coveredZones?: { some: { protectedZoneId: string } };
   } = {
     tenantId,
     NOT: {
@@ -62,6 +66,9 @@ function eventWhere(tenantId: string, input: ReportFilterInput) {
   if (input.municipalityId !== undefined) {
     where.municipalityId = input.municipalityId;
   }
+  if (input.protectedZoneId !== undefined) {
+    where.coveredZones = { some: { protectedZoneId: input.protectedZoneId } };
+  }
   return where;
 }
 
@@ -73,6 +80,7 @@ function patrolWhere(tenantId: string, input: ReportFilterInput) {
     isTestPatrol: false;
     startTime?: { gte?: Date; lte?: Date };
     municipalityId?: string;
+    coveredZones?: { some: { protectedZoneId: string } };
   } = { tenantId, isDeleted: false, isTestPatrol: false };
   const startTime: { gte?: Date; lte?: Date } = {};
   if (input.from) startTime.gte = input.from;
@@ -82,6 +90,9 @@ function patrolWhere(tenantId: string, input: ReportFilterInput) {
   }
   if (input.municipalityId !== undefined) {
     where.municipalityId = input.municipalityId;
+  }
+  if (input.protectedZoneId !== undefined) {
+    where.coveredZones = { some: { protectedZoneId: input.protectedZoneId } };
   }
   return where;
 }

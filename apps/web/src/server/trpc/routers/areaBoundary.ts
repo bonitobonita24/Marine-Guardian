@@ -9,6 +9,7 @@ import { tenantProcedure } from "../middleware/tenant";
 import { adminProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
 import { enqueueAreaRederive } from "@marine-guardian/jobs";
+import { importOfficialBoundaries } from "../../boundaries/import-official-boundaries";
 
 // 5.1d — AreaBoundary CUD fan-out helper. When a boundary is created,
 // updated, or deleted, the geometry universe for the tenant changes —
@@ -190,4 +191,32 @@ export const areaBoundaryRouter = router({
         action,
       };
     }),
+
+  // "One source feeds both" (owner 2026-06-29). Trusted-import of official
+  // coverage boundaries into AreaBoundary (source=official) from the tenant's
+  // already-seeded Municipality + ProtectedZone geometry. Idempotent upsert by
+  // arcgisReferenceId ("official:<slug>:land|water" / "official:mpa:<slug>").
+  // Display-only: does NOT fan out area re-derivation (run rebuild for that).
+  importOfficial: adminProcedure.mutation(async ({ ctx }) => {
+    const result = await importOfficialBoundaries(
+      prisma,
+      ctx.tenantId,
+      ctx.userId,
+    );
+    await prisma.auditLog.create({
+      data: {
+        action: "OFFICIAL_BOUNDARIES_IMPORT",
+        userId: ctx.userId,
+        tenantId: ctx.tenantId,
+        entityType: "AreaBoundary",
+        entityId: ctx.tenantId,
+        changesJson: {
+          created: result.created,
+          updated: result.updated,
+          total: result.total,
+        },
+      },
+    });
+    return result;
+  }),
 });

@@ -1044,6 +1044,9 @@ model Municipality {
   province        String
   psgcCode        String?  @map("psgc_code")
   boundaryGeojson Json     @map("boundary_geojson")
+  // Derived ~15 km municipal-water polygon (land ∪ 15 km seaward buffer minus all
+  // land). Null until seed-municipalities loads it from data/coverage/water/.
+  waterGeojson    Json?    @map("water_geojson")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 

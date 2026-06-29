@@ -52,21 +52,23 @@ describe("municipality.list", () => {
     vi.clearAllMocks();
   });
 
-  it("returns the tenant's municipalities ordered by name", async () => {
+  it("returns the tenant's municipalities in canonical registry order", async () => {
+    // Mock rows deliberately OUT of registry order: baco precedes calapan-city
+    // in the DB result, but calapan-city is index 0 in the owner's canonical
+    // list and baco is index 1, so the router must re-sort calapan-city first.
     vi.mocked(prisma.municipality.findMany).mockResolvedValue([
-      { id: "m-1", name: "Calapan City", province: "Oriental Mindoro", slug: "calapan-city" },
-      { id: "m-2", name: "Naujan", province: "Oriental Mindoro", slug: "naujan" },
+      { id: "m-baco", name: "Baco", province: "Oriental Mindoro", slug: "baco" },
+      { id: "m-cal", name: "Calapan City", province: "Oriental Mindoro", slug: "calapan-city" },
     ] as any);
 
     const caller = createCaller(makeCtx());
     const result = await caller.list();
 
     expect(result).toHaveLength(2);
-    expect(result[0]).toMatchObject({ id: "m-1", name: "Calapan City" });
+    expect(result.map((m) => m.slug)).toEqual(["calapan-city", "baco"]);
 
     const call = vi.mocked(prisma.municipality.findMany).mock.calls[0]?.[0];
     expect(call?.where).toMatchObject({ tenantId: TENANT_ID });
-    expect(call?.orderBy).toMatchObject({ name: "asc" });
     expect(call?.select).toMatchObject({
       id: true,
       name: true,

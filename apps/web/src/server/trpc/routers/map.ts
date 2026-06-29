@@ -4,6 +4,7 @@ import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
 import { prisma } from "@marine-guardian/db";
 import { EVENT_CATEGORY } from "@/components/map/eventMarkerStyle";
+import { boundaryKindFromRef, municipalityIdFromRef } from "./boundary-kind";
 import {
   canonicalIndex,
   type EventTypeVariant,
@@ -25,6 +26,10 @@ const eventsListInput = z
     // municipality. Omitted by the Command Center embed + Live Map, which show
     // all municipalities.
     municipalityId: z.string().optional(),
+    // Optional MPA-scope filter (2026-06-29): narrow markers to events that fall
+    // inside a given protected zone (EventCoveredZone join). Independent of the
+    // municipality filter — both may apply.
+    protectedZoneId: z.string().optional(),
   })
   .strict();
 
@@ -43,6 +48,7 @@ const patrolTracksInRangeInput = z
     from: z.coerce.date().optional(),
     to: z.coerce.date().optional(),
     municipalityId: z.string().optional(),
+    protectedZoneId: z.string().optional(),
   })
   .strict();
 
@@ -275,6 +281,7 @@ const eventsRouter = router({
       NOT: { eventType: { display: { contains: string; mode: "insensitive" } } };
       reportedAt?: { gte?: Date; lte?: Date };
       municipalityId?: string;
+      coveredZones?: { some: { protectedZoneId: string } };
     } = {
       tenantId: ctx.tenantId,
       locationLat: { not: null },
@@ -286,6 +293,9 @@ const eventsRouter = router({
     };
     if (input.municipalityId !== undefined) {
       where.municipalityId = input.municipalityId;
+    }
+    if (input.protectedZoneId !== undefined) {
+      where.coveredZones = { some: { protectedZoneId: input.protectedZoneId } };
     }
     // `since` is the legacy lower-bound; `from`/`to` are the War Room window.
     const reportedAt: { gte?: Date; lte?: Date } = {};
@@ -514,6 +524,7 @@ const patrolTracksRouter = router({
         isTestPatrol: false;
         startTime?: { gte?: Date; lte?: Date };
         municipalityId?: string;
+        coveredZones?: { some: { protectedZoneId: string } };
       } = { isDeleted: false, isTestPatrol: false };
 
       const startTime: { gte?: Date; lte?: Date } = {};
@@ -524,6 +535,11 @@ const patrolTracksRouter = router({
       }
       if (input.municipalityId !== undefined) {
         patrolWhere.municipalityId = input.municipalityId;
+      }
+      if (input.protectedZoneId !== undefined) {
+        patrolWhere.coveredZones = {
+          some: { protectedZoneId: input.protectedZoneId },
+        };
       }
 
       const trackRows = await prisma.patrolTrack.findMany({
@@ -664,10 +680,52 @@ const eventTypesRouter = router({
   }),
 });
 
+// Official coverage boundaries (source=official) for the thin-line boundary
+// overlay on both maps. Distinct from patrolAreas (the PatrolArea table) — these
+// are the imported Municipality land/water + MPA outlines. `kind` is derived
+// from the arcgisReferenceId provenance key (boundary-kind.ts) so the client can
+// style land vs water vs protected-zone distinctly without a schema column.
+const officialBoundariesRouter = router({
+  list: tenantProcedure.query(async ({ ctx }) => {
+    const [rows, municipalities] = await Promise.all([
+      prisma.areaBoundary.findMany({
+        where: { tenantId: ctx.tenantId, source: "official", isEnabled: true },
+        take: 200,
+        select: {
+          id: true,
+          name: true,
+          region: true,
+          arcgisReferenceId: true,
+          geometryGeojson: true,
+        },
+        orderBy: { name: "asc" },
+      }),
+      prisma.municipality.findMany({
+        where: { tenantId: ctx.tenantId },
+        select: { id: true, slug: true },
+      }),
+    ]);
+    // Map each official boundary back to its source municipality (when it is a
+    // municipality land/water boundary) so the map can fitBounds to the
+    // selected municipality's full extent. MPA boundaries have no municipality.
+    const slugToId = new Map(municipalities.map((m) => [m.slug, m.id]));
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      region: r.region,
+      kind: boundaryKindFromRef(r.arcgisReferenceId),
+      municipalityId:
+        municipalityIdFromRef(r.arcgisReferenceId, slugToId) ?? null,
+      geometryGeojson: r.geometryGeojson,
+    }));
+  }),
+});
+
 export const mapRouter = router({
   events: eventsRouter,
   eventTypes: eventTypesRouter,
   subjects: subjectsRouter,
   patrolTracks: patrolTracksRouter,
   patrolAreas: patrolAreasRouter,
+  officialBoundaries: officialBoundariesRouter,
 });
