@@ -14,7 +14,12 @@
  *
  * Options:
  *   --tenantId <id>   Tenant to process (default: cmoruubw20000gmx3jx7zudmy)
- *   --limit <n>       Max number of ER *events* with files to process (default: 5)
+ *   --limit <n>       Max number of ER *events* with files to process (default: 5).
+ *                     The ER event list is paged through (page_size=100) until
+ *                     this many events-with-files are collected or the list is
+ *                     exhausted — pass a high value (e.g. 100000) to backfill all.
+ *   --delay-ms <n>    Sleep between Telegram uploads, ms (default: 1200) — keeps a
+ *                     bulk backfill under Telegram's per-chat rate limit.
  *   --dry-run         Print planned actions without downloading or uploading
  *
  * Requires in .env.dev (or environment):
@@ -85,6 +90,10 @@ interface ErEvent {
 interface ErEventsResponse {
   data: {
     results: ErEvent[];
+    // ER (DAS/PAMDAS) list endpoints paginate as { results, count, next, previous };
+    // `next` is an absolute URL to the following page (null on the last page).
+    next?: string | null;
+    count?: number;
   };
 }
 
@@ -104,11 +113,13 @@ function parseArgs(): {
   tenantId: string;
   limit: number;
   dryRun: boolean;
+  delayMs: number;
 } {
   const argv = process.argv.slice(2);
   let tenantId = "cmoruubw20000gmx3jx7zudmy";
   let limit = 5;
   let dryRun = false;
+  let delayMs = 1200;
 
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--tenantId" && argv[i + 1]) {
@@ -118,19 +129,57 @@ function parseArgs(): {
       const parsed = parseInt(argv[i + 1]!, 10);
       if (!isNaN(parsed) && parsed > 0) limit = parsed;
       i++;
+    } else if (argv[i] === "--delay-ms" && argv[i + 1]) {
+      const parsed = parseInt(argv[i + 1]!, 10);
+      if (!isNaN(parsed) && parsed >= 0) delayMs = parsed;
+      i++;
     } else if (argv[i] === "--dry-run") {
       dryRun = true;
     }
   }
 
-  return { tenantId, limit, dryRun };
+  return { tenantId, limit, dryRun, delayMs };
+}
+
+// ---------------------------------------------------------------------------
+// Small helpers — sleep + bounded retry with exponential backoff. Keep a
+// multi-thousand-file bulk backfill under Telegram's per-chat rate limit and
+// ride out transient ER / Telegram blips without aborting the whole run.
+// ---------------------------------------------------------------------------
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withRetry<T>(
+  label: string,
+  fn: () => Promise<T>,
+  attempts = 3,
+): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (attempt < attempts) {
+        const backoff = 1000 * Math.pow(2, attempt - 1);
+        console.warn(
+          `[archive-er-assets]   retry ${attempt}/${attempts - 1} on ${label}: ${
+            err instanceof Error ? err.message : String(err)
+          } — waiting ${backoff}ms`,
+        );
+        await sleep(backoff);
+      }
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
 
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 async function main(): Promise<void> {
-  const { tenantId, limit, dryRun } = parseArgs();
+  const { tenantId, limit, dryRun, delayMs } = parseArgs();
 
   const ER_BASE = process.env.ER_BASE_URL ?? "https://mindoro.pamdas.org";
   const ER_TOKEN = process.env.DAS_WEB_TOKEN;
@@ -143,7 +192,7 @@ async function main(): Promise<void> {
   const botToken = getTelegramBotToken();
 
   console.log(
-    `[archive-er-assets] Starting${dryRun ? " (DRY RUN)" : ""} — tenantId=${tenantId} limit=${limit}`,
+    `[archive-er-assets] Starting${dryRun ? " (DRY RUN)" : ""} — tenantId=${tenantId} limit=${limit} delayMs=${delayMs}`,
   );
 
   // 1. Load tenant and verify it has a Telegram channel configured.
@@ -166,51 +215,63 @@ async function main(): Promise<void> {
   const chatId = tenant.telegramChannelId;
   console.log(`[archive-er-assets] Tenant: ${tenant.slug} → chatId=${chatId}`);
 
-  // 2. Fetch ER events (page_size=100 to minimise round-trips).
-  const erUrl = `${ER_BASE}/api/v1.0/activity/events/?page_size=100`;
-  console.log(`[archive-er-assets] Fetching ER events from ${erUrl}`);
-
-  const erRes = await fetch(erUrl, {
-    headers: { Authorization: `Bearer ${ER_TOKEN}` },
-  });
-
-  if (!erRes.ok) {
-    throw new Error(
-      `[archive-er-assets] ER API returned ${erRes.status} ${erRes.statusText}`,
-    );
-  }
-
-  const erJson = (await erRes.json()) as ErEventsResponse;
-  const events = erJson.data.results;
-  console.log(`[archive-er-assets] ER returned ${events.length} events`);
-
-  // 3. Build work list: events with attached files, capped at `limit` events.
+  // 2+3. Page through ER events (page_size=100), accumulating the files to
+  //      archive. ER returns `data.next` as an absolute URL to the next page
+  //      (null on the last page); we follow it until exhausted, OR stop early
+  //      once we have `limit` events-with-files (so small limits don't scan the
+  //      entire ~35k-event history). A high --limit backfills everything.
   const workItems: WorkItem[] = [];
   let eventsWithFiles = 0;
+  let pagesFetched = 0;
+  let nextUrl: string | null = `${ER_BASE}/api/v1.0/activity/events/?page_size=100`;
 
-  for (const event of events) {
-    if (!event.files || event.files.length === 0) continue;
-
-    eventsWithFiles++;
-    if (eventsWithFiles > limit) break;
-
-    for (const file of event.files) {
-      const downloadUrl = file.images?.original ?? file.url;
-      if (!downloadUrl) continue;
-
-      workItems.push({
-        erEventId: event.id,
-        erFileId: file.id,
-        filename: file.filename,
-        fileType: file.file_type,
-        downloadUrl,
-        serialNumber: event.serial_number,
-      });
+  while (nextUrl !== null && eventsWithFiles < limit) {
+    const pageUrl: string = nextUrl;
+    console.log(
+      `[archive-er-assets] Fetching ER events page ${pagesFetched + 1}: ${pageUrl}`,
+    );
+    const erRes = await fetch(pageUrl, {
+      headers: { Authorization: `Bearer ${ER_TOKEN}` },
+    });
+    if (!erRes.ok) {
+      throw new Error(
+        `[archive-er-assets] ER API returned ${erRes.status} ${erRes.statusText}`,
+      );
     }
+
+    const erJson = (await erRes.json()) as ErEventsResponse;
+    const events = erJson.data.results;
+    pagesFetched++;
+    console.log(
+      `[archive-er-assets]   page ${pagesFetched}: ${events.length} event(s) (running events-with-files=${eventsWithFiles})`,
+    );
+
+    for (const event of events) {
+      if (!event.files || event.files.length === 0) continue;
+
+      eventsWithFiles++;
+      if (eventsWithFiles > limit) break;
+
+      for (const file of event.files) {
+        const downloadUrl = file.images?.original ?? file.url;
+        if (!downloadUrl) continue;
+
+        workItems.push({
+          erEventId: event.id,
+          erFileId: file.id,
+          filename: file.filename,
+          fileType: file.file_type,
+          downloadUrl,
+          serialNumber: event.serial_number,
+        });
+      }
+    }
+
+    nextUrl = eventsWithFiles >= limit ? null : (erJson.data.next ?? null);
   }
 
   console.log(
-    `[archive-er-assets] Work list: ${workItems.length} file(s) from ${Math.min(eventsWithFiles, limit)} event(s)`,
+    `[archive-er-assets] Work list: ${workItems.length} file(s) from ${Math.min(eventsWithFiles, limit)} event(s) across ${pagesFetched} page(s)`,
   );
 
   // 4. Process each work item.
@@ -258,38 +319,44 @@ async function main(): Promise<void> {
         continue;
       }
 
-      // 4d. Download from ER.
-      console.log(`[archive-er-assets]   Downloading ${label}`);
-      const dlRes = await fetch(item.downloadUrl, {
-        headers: { Authorization: `Bearer ${ER_TOKEN}` },
-      });
+      // 4d+4e. Download from ER then upload to Telegram, wrapped in a bounded
+      //        retry so a transient network / rate-limit blip on a single file
+      //        doesn't abort the whole multi-thousand-file backfill.
+      const { bytes, mimeType, up } = await withRetry(label, async () => {
+        console.log(`[archive-er-assets]   Downloading ${label}`);
+        const dlRes = await fetch(item.downloadUrl, {
+          headers: { Authorization: `Bearer ${ER_TOKEN}` },
+        });
+        if (!dlRes.ok) {
+          throw new Error(`Download failed: ${dlRes.status} ${dlRes.statusText}`);
+        }
+        const dlBytes = new Uint8Array(await dlRes.arrayBuffer());
+        const dlMime = dlRes.headers.get("content-type") ?? undefined;
 
-      if (!dlRes.ok) {
-        throw new Error(
-          `Download failed: ${dlRes.status} ${dlRes.statusText}`,
+        console.log(
+          `[archive-er-assets]   Uploading ${label} (${dlBytes.length} bytes)`,
         );
-      }
-
-      const bytes = new Uint8Array(await dlRes.arrayBuffer());
-      const mimeType = dlRes.headers.get("content-type") ?? undefined;
-
-      // 4e. Upload to Telegram.
-      console.log(`[archive-er-assets]   Uploading ${label} (${bytes.length} bytes)`);
-      const up = await uploadDocumentToTelegram({
-        botToken,
-        chatId,
-        bytes,
-        filename: item.filename,
-        mimeType,
-        caption: `ER event #${item.serialNumber ?? item.erEventId} — ${item.filename}`,
+        const uploaded = await uploadDocumentToTelegram({
+          botToken,
+          chatId,
+          bytes: dlBytes,
+          filename: item.filename,
+          mimeType: dlMime,
+          caption: `ER event #${item.serialNumber ?? item.erEventId} — ${item.filename}`,
+        });
+        return { bytes: dlBytes, mimeType: dlMime, up: uploaded };
       });
 
-      // 4f. Record in DB.
+      // 4f. Record in DB — persist mimeType + sizeBytes so the in-app viewer can
+      //     pick the correct inline-vs-download handling without re-deriving
+      //     from the filename (closes the prior NULL-mime/size gap).
       await platformPrisma.eventAsset.upsert({
         where: {
           tenantId_erFileId: { tenantId, erFileId: item.erFileId },
         },
         update: {
+          mimeType: mimeType ?? null,
+          sizeBytes: bytes.length,
           telegramMessageId: BigInt(up.messageId),
           telegramFileId: up.fileId,
           uploadedAt: new Date(),
@@ -300,6 +367,8 @@ async function main(): Promise<void> {
           erFileId: item.erFileId,
           filename: item.filename,
           fileType: item.fileType ?? null,
+          mimeType: mimeType ?? null,
+          sizeBytes: bytes.length,
           telegramMessageId: BigInt(up.messageId),
           telegramFileId: up.fileId,
           uploadedAt: new Date(),
@@ -310,6 +379,9 @@ async function main(): Promise<void> {
         `[archive-er-assets]   OK ${label} → messageId=${up.messageId} fileId=${up.fileId}`,
       );
       archived++;
+
+      // Throttle between uploads to stay under Telegram's per-chat rate limit.
+      if (delayMs > 0) await sleep(delayMs);
     } catch (err) {
       console.error(
         `[archive-er-assets]   ERROR ${label}:`,
