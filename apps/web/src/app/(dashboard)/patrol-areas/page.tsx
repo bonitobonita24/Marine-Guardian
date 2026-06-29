@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { RebuildAreaBoundariesButton } from "./rebuild-button";
 import { ImportOfficialBoundariesButton } from "./import-official-boundaries-button";
+import { AddMpaFromFileDialog } from "./add-mpa-from-file-dialog";
 import {
   AreaBoundaryTable,
   type AreaBoundaryRow,
@@ -32,7 +33,7 @@ export default function PatrolAreasPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold">Patrol Areas</h1>
+        <h1 className="text-2xl font-semibold">Boundaries</h1>
         <div className="flex items-center gap-2">
           {isAdmin && (
             <Button
@@ -45,6 +46,7 @@ export default function PatrolAreasPage() {
             </Button>
           )}
           <ImportOfficialBoundariesButton />
+          <AddMpaFromFileDialog />
           <RebuildAreaBoundariesButton />
         </div>
       </div>

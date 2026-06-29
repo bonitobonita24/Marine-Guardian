@@ -1068,6 +1068,11 @@ model ProtectedZone {
   tenantId             String   @map("tenant_id")
   slug                 String   // e.g. "apo-reef-natural-park"
   name                 String
+  // Sub-area category for user-uploaded zones: "mpa" (Marine Protected Area) or
+  // "special_area" (a named sub-boundary under a municipality). Seeded MPAs and
+  // legacy rows default to "mpa". Both behave identically (filterable coverage
+  // zone) — this drives only the label shown in the UI.
+  category             String   @default("mpa") @map("category")
   boundaryGeojson      Json     @map("boundary_geojson")
   parentMunicipalityId String?  @map("parent_municipality_id")
   createdAt            DateTime @default(now()) @map("created_at")
