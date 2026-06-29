@@ -313,6 +313,7 @@ const eventsRouter = router({
       select: {
         id: true,
         title: true,
+        serialNumber: true,
         priority: true,
         state: true,
         locationLat: true,

@@ -36,7 +36,6 @@ import {
   eventCategoryColor,
   eventCategoryHeatHsl,
   eventPrioritySizePx,
-  eventPriorityLabel,
   eventTypeValueKey,
   isEventVisible,
   isSeriousEvent,
@@ -764,13 +763,17 @@ export function InteractiveMap({
                 )}
               </MarkerContent>
               <MarkerTooltip>
+                {/* Hover popup — owner request: show the event CATEGORY name and
+                    its EarthRanger event ID only (the serial number visible in
+                    the ER UI). No "Untitled event" title. */}
                 <div className="space-y-0.5">
                   <div className="font-medium">
-                    {event.title ?? "Untitled event"}
+                    {event.eventType?.display ?? "Unknown type"}
                   </div>
                   <div className="text-[10px] opacity-75">
-                    {event.eventType?.display ?? "Unknown type"} ·{" "}
-                    {eventPriorityLabel(event.priority)}
+                    {event.serialNumber != null && event.serialNumber !== ""
+                      ? `ER #${event.serialNumber}`
+                      : "ER ID unavailable"}
                   </div>
                 </div>
               </MarkerTooltip>
