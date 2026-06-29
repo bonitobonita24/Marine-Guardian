@@ -1,11 +1,14 @@
 # Plan — Cloudflare R2 as a 24h-TTL read-through cache for Telegram event photos
 
-> **Status: PLANNED, NOT BUILT. Deferred to a future session (owner chose Option A — measure first, then build).**
+> **Status: BUILT + ENABLED ON STAGING (2026-06-29). The R2 read-through cache layer is live —
+> photo fetches miss→Telegram→write-through R2→serve, proven on staging (mg-staging.powerbyte.app).**
 > Owner-confirmed design: R2 used as a *cache*, not storage — pull from Telegram on a miss,
 > write-through to R2 with a 24h expiry, serve; object auto-deletes 24h after creation and
 > re-populates on the next access. Keeps R2 footprint tiny (working set only).
-> Authored 2026-06-28 by the Plan architect agent (Opus 4.8 session). Respects deploy HARD HOLD
-> (local dev only until owner approves staging/prod).
+> Authored 2026-06-28 by the Plan architect agent (Opus 4.8 session). Built + staging-enabled
+> 2026-06-29. STILL OPEN (owner [WHAT] decision): whether to add Cloudflare *public edge* caching
+> on top — currently rejected/deferred to preserve tenant photo privacy (photos stay auth-gated +
+> R2 private, never on the public CF edge). See PENDING_DECISIONS.md.
 
 ## Why
 Current image path `apps/web/src/app/api/assets/[id]/route.ts` proxies Telegram on **every** view
