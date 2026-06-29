@@ -157,7 +157,11 @@ export async function GET(
     "Content-Type": contentType,
     "Content-Disposition": `${disposition}; filename="${safeName}"`,
     "Content-Length": String(bytes.byteLength),
-    "Cache-Control": "private, max-age=300",
+    // EventAsset bytes are immutable, so allow each authenticated browser to
+    // reuse a photo for repeat modal opens / marker clicks for up to a day.
+    // KEEP `private`: these are auth/tenant-scoped photos that must NEVER land
+    // in a shared CDN/edge cache (that would leak one tenant's photos to others).
+    "Cache-Control": "private, max-age=86400, immutable",
     "Content-Security-Policy": "default-src 'none'; sandbox; frame-ancestors 'none'",
     "X-Content-Type-Options": "nosniff",
   });

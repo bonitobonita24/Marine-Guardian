@@ -178,6 +178,19 @@ describe("GET /api/assets/[id]", () => {
     expect(res.headers.get("Content-Length")).toBe("8");
   });
 
+  it("sets a private, immutable, 1-day Cache-Control (browser-private; never shared/CDN cache)", async () => {
+    mockPrisma.eventAsset.findFirst.mockResolvedValueOnce(READY_ASSET);
+    const { req, ctx } = makeRouteArgs("asset-1");
+    const res = await GET(req, ctx);
+    expect(res.status).toBe(200);
+    // `private` is security-critical: these are auth/tenant-scoped photos that
+    // must NEVER land in a shared CDN/edge cache. `max-age=86400, immutable`
+    // lets each authenticated browser reuse the immutable bytes for a day.
+    expect(res.headers.get("Cache-Control")).toBe(
+      "private, max-age=86400, immutable",
+    );
+  });
+
   it("fetches bytes from Telegram with the bot token + row.telegramFileId", async () => {
     mockPrisma.eventAsset.findFirst.mockResolvedValueOnce(READY_ASSET);
     const { req, ctx } = makeRouteArgs("asset-1");
