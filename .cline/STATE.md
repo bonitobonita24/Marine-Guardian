@@ -3,9 +3,11 @@
 # ════════════════════════════════════════════════════════════════════════════
 # ════════════════════════════════════════════════════════════════════════════
 # ▶▶▶ ACTIVE QUEUE 2026-06-29n (owner gave 4 tasks, Full Auto PM, one-at-a-time/reboot-per-task) ◀◀◀
-#   T1 ✅ DONE+MERGED (main @ ed9fdae) — boundary lines → grey (#9ca3af) DOTTED (MapLibre round-cap dasharray [0,2]);
-#      MapPolygon gained dashArray prop. Visual QA pass, 0 console errors.
-#   T2 ⬜ Event hover popup (Report+CC map marker): show CATEGORY name + the event's EarthRanger event ID; REMOVE the
+#   T1 ✅ DONE+MERGED (ed9fdae) — boundary lines → grey (#9ca3af) DOTTED; MapPolygon dashArray prop. QA pass.
+#   T2 ✅ DONE+MERGED (efc8861) — event hover popup shows category (eventType.display) + ER serial id ("ER #36125"),
+#      removed "Untitled event"; map.events selects serialNumber. QA pass (Community Support / ER #36125).
+#   T3 ✅ DONE+MERGED (299a532) — municipality SelectItems pl-6 indent under province headings (report-filter-bar). QA pass.
+#   T2 (orig) ⬜ Event hover popup (Report+CC map marker): show CATEGORY name + the event's EarthRanger event ID; REMOVE the
 #      "Untitled event" title line. Find the marker popup component (eventMarkerStyle / InteractiveMap marker popup);
 #      ER id field = check Event model (erId / serial). [Image: popup shows "Untitled event / Others · Low" → want category + ER id.]
 #   T3 ⬜ MUNICIPALITY selector dropdown (map controls): INDENT each municipality under its Region heading (pl) so munis
