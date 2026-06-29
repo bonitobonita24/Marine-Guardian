@@ -922,3 +922,14 @@ errors. R2 HIT latency 145–240ms vs a cold Telegram MISS of ~2700ms (~12–18�
 Files: apps/web/src/server/lib/rate-limit.ts (new tier),
 apps/web/src/app/api/assets/[id]/route.ts (upload→assetRead).
 Locked: yes
+
+## Cloudflare public edge caching for event photos — Option A: keep auth + private R2 (2026-06-29)
+Decision: do NOT put event photos behind a Cloudflare public edge cache. Keep the
+current posture — photos are served via the auth-gated /api/assets/[id] route,
+egress-audited (ASSET_DOWNLOAD), and tenant-scoped R2 read-through cached (private).
+Option B (signed-token public-edge redesign) is NOT pursued.
+Rationale: event photos are tenant-private and auth-gated; a shared public CDN edge
+would risk cross-tenant leakage and bypass the per-request auth/audit trail. The
+private R2 read-through cache already delivers ~12-18× speedup (145-240ms HIT vs
+~2700ms Telegram MISS) without any public exposure. Owner chose A on 2026-06-29.
+Locked: yes
