@@ -25,6 +25,11 @@ import { materializePatrolTrack } from "../packages/jobs/src/lib/patrol-track-ma
 
 const prisma = new PrismaClient();
 const DRY_RUN = process.argv.includes("--dry-run");
+// --recent-first: materialize the most-recent patrols first (orderBy startTime
+// desc) instead of oldest-first. Use this to light up the Report Map's default
+// 7D/30D windows immediately while the full backlog catches up over time —
+// otherwise a --limit run only touches the oldest (off-screen) patrols.
+const RECENT_FIRST = process.argv.includes("--recent-first");
 const limitIdx = process.argv.indexOf("--limit");
 const LIMIT =
   limitIdx !== -1 ? parseInt(process.argv[limitIdx + 1] ?? "0", 10) : Infinity;
@@ -41,7 +46,7 @@ async function main() {
       track: { is: null },
     },
     select: { id: true, tenantId: true, state: true },
-    orderBy: { startTime: "asc" },
+    orderBy: { startTime: RECENT_FIRST ? "desc" : "asc" },
   });
 
   console.log(
