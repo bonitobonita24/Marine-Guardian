@@ -219,7 +219,7 @@ export async function fetchTelegramFileBytes(params: {
     }
     if (!downloadRes.ok) {
       throw new Error(
-        `Telegram file download failed: HTTP ${downloadRes.status} ${downloadRes.statusText}`,
+        `Telegram file download failed: HTTP ${String(downloadRes.status)} ${downloadRes.statusText}`,
       );
     }
 
@@ -228,7 +228,7 @@ export async function fetchTelegramFileBytes(params: {
   }
 
   throw new Error(
-    `Telegram file download rate-limited (429) after ${maxRetries} retries for file_id "${fileId}"`,
+    `Telegram file download rate-limited (429) after ${String(maxRetries)} retries for file_id "${fileId}"`,
   );
 }
 
