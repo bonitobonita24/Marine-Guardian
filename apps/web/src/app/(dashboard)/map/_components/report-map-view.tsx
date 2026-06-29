@@ -13,6 +13,10 @@ import { ReportFilterBar } from "@/components/reporting/report-filter-bar";
 import { BreakdownBars } from "@/app/(dashboard)/dashboard/_components/breakdown-bars";
 import { HighPriorityEventsCard } from "./high-priority-events-card";
 import { EventsOverTimeChart } from "@/components/reporting/events-over-time-chart";
+import {
+  ReportMapEmptyState,
+  shouldShowReportMapEmptyState,
+} from "./report-map-empty-state";
 
 /**
  * Interactive Report Map (2026-06-27) — a presentation surface for reporting to
@@ -28,6 +32,23 @@ function rangeLabel(from: Date, to: Date): string {
   const fmt = (d: Date) =>
     d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
   return `${fmt(from)} – ${fmt(to)}`;
+}
+
+/**
+ * Same month/day formatting as {@link rangeLabel}, but with the year on the end
+ * bound — used in the empty-state message where the absolute date matters to a
+ * stakeholder reading it out of context (e.g. "Jun 22 – Jun 29, 2026").
+ */
+function rangeLabelWithYear(from: Date, to: Date): string {
+  const short = (d: Date) =>
+    d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const long = (d: Date) =>
+    d.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  return `${short(from)} – ${long(to)}`;
 }
 
 function ReportMapInner() {
@@ -59,6 +80,31 @@ function ReportMapInner() {
   const breakdown = trpc.reportMap.eventBreakdown.useQuery(filter);
   const eventsOverTime = trpc.reportMap.eventsOverTime.useQuery(filter);
   const highPriority = trpc.reportMap.highPriorityEvents.useQuery(filter);
+
+  // Municipality NAME for the empty-state message — derived from the same
+  // dropdown options the filter bar renders (cached query, no extra fetch).
+  const municipalities = trpc.municipality.list.useQuery();
+  const municipalityName =
+    municipalityId === null
+      ? null
+      : (municipalities.data?.find((m) => m.id === municipalityId)?.name ??
+        null);
+
+  // Total events in the active range — the continuous daily series sums to the
+  // same total as the full event count (the where-clause already bounds events
+  // to [from,to], so every matched event lands in a bucket). Used purely to
+  // decide whether to show the "no events" empty state.
+  const totalEvents = (eventsOverTime.data ?? []).reduce(
+    (sum, d) => sum + d.count,
+    0,
+  );
+
+  const showEmptyState = shouldShowReportMapEmptyState({
+    municipalityId,
+    totalEvents,
+    isLoading: eventsOverTime.isLoading,
+    municipalityName,
+  });
 
   const label = rangeLabel(from, to);
 
@@ -94,36 +140,49 @@ function ReportMapInner() {
       </div>
 
       {/* Analytics band — full-width, compact. One row on wide displays, wraps
-          down on smaller screens. All range + municipality bound. */}
-      <div className="grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
-        <BreakdownBars
-          title="Law Enforcement and Apprehensions"
-          titleIcon={ShieldAlert}
-          variant="law_enforcement"
-          data={breakdown.data?.lawEnforcement ?? []}
-          compact
-        />
-        <BreakdownBars
-          title="Monitoring, Patrolling and Surveillance"
-          titleIcon={Binoculars}
-          variant="monitoring"
-          data={breakdown.data?.monitoring ?? []}
-          compact
-        />
-        <HighPriorityEventsCard
-          events={highPriority.data?.events ?? []}
-          total={highPriority.data?.total ?? 0}
-          isLoading={highPriority.isLoading}
-          onSelect={setSelectedEventId}
-          onLocate={locateOnMap}
-        />
-        <EventsOverTimeChart
-          data={eventsOverTime.data ?? []}
-          isLoading={eventsOverTime.isLoading}
-          rangeLabel={label}
-          compact
-        />
-      </div>
+          down on smaller screens. All range + municipality bound. When a
+          specific municipality genuinely has zero events in range, the band of
+          "0" cards reads like a malfunction, so we replace it with an explicit
+          empty-state message naming the municipality + range (the data is
+          correct — there simply were no events). */}
+      {showEmptyState && municipalityName !== null ? (
+        <div className="shrink-0">
+          <ReportMapEmptyState
+            municipalityName={municipalityName}
+            rangeLabel={rangeLabelWithYear(from, to)}
+          />
+        </div>
+      ) : (
+        <div className="grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <BreakdownBars
+            title="Law Enforcement and Apprehensions"
+            titleIcon={ShieldAlert}
+            variant="law_enforcement"
+            data={breakdown.data?.lawEnforcement ?? []}
+            compact
+          />
+          <BreakdownBars
+            title="Monitoring, Patrolling and Surveillance"
+            titleIcon={Binoculars}
+            variant="monitoring"
+            data={breakdown.data?.monitoring ?? []}
+            compact
+          />
+          <HighPriorityEventsCard
+            events={highPriority.data?.events ?? []}
+            total={highPriority.data?.total ?? 0}
+            isLoading={highPriority.isLoading}
+            onSelect={setSelectedEventId}
+            onLocate={locateOnMap}
+          />
+          <EventsOverTimeChart
+            data={eventsOverTime.data ?? []}
+            isLoading={eventsOverTime.isLoading}
+            rangeLabel={label}
+            compact
+          />
+        </div>
+      )}
 
       <EventDetailModal
         eventId={selectedEventId}
