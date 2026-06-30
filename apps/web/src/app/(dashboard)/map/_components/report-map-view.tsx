@@ -128,7 +128,13 @@ function ReportMapInner() {
   const label = rangeLabel(from, to);
 
   return (
-    <div className="command-center flex h-full min-h-0 flex-col gap-2 overflow-y-auto">
+    <div className="command-center flex h-full min-h-0 flex-col overflow-y-auto">
+      {/* Above-the-fold block — the map + the 4-column analytics band fill the
+          whole screen (in fullscreen AND normal view). The Events Over Time
+          chart is rendered AFTER this block so it sits below the fold and is only
+          reached by scrolling (owner request 2026-06-30: it must not be part of
+          the full-screen view). */}
+      <div className="flex h-full min-h-0 shrink-0 flex-col gap-2">
       {/* Slim header band — title only. The shared FROM/TO/municipality filter
           now lives inside the floating map-controls card (passed as filterSlot
           below) so the map gets the reclaimed height. */}
@@ -207,11 +213,14 @@ function ReportMapInner() {
           />
         </div>
       )}
+      </div>
+      {/* end above-the-fold block */}
 
-      {/* Events Over Time — its own full-width section below the analytics band
-          so the trend reads clearly (moved out of the 4-up grid). */}
+      {/* Events Over Time — BELOW the fold (scroll to see). Full-width + taller
+          so the trend reads clearly; intentionally NOT part of the map+analytics
+          full-screen view (owner request 2026-06-30). */}
       {!showEmptyState && (
-        <div className="shrink-0">
+        <div className="shrink-0 pt-2">
           <EventsOverTimeChart
             data={eventsOverTime.data ?? []}
             isLoading={eventsOverTime.isLoading}
