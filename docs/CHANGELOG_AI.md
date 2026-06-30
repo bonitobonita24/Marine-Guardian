@@ -3,6 +3,19 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-06-30 — Spec-Driven framework upgrade V32.14 -> V32.18 (governance layer only)
+
+- Agent:               CLAUDE_CODE (Opus 4.8)
+- Why:                 Roll the app's Spec-Driven governance layer forward from framework V32.14 to V32.18. GOVERNANCE-ONLY sync — no application code was read, generated, or modified.
+- Branch / merge:      chore/framework-sync-v32.18 → fast-forwarded to main (commit 1108b1466b97676f2ba9935c67e7c8db5774d30c). NOT pushed to origin.
+- Scope:               Only the governance set changed — .ai_prompt/, AI/, project-root CLAUDE.md, deploy.sh, scripts/. No src/, components/, prisma/, package.json, lockfiles, or any .ts/.tsx/.css touched (verified: governance only — no app code, CONFIRMED before commit).
+- What V32.17 adds:    Design anti-slop gate — scripts/lint-design.sh (deliverable #26) checking the 7 cardinal design sins (D1–D7) + ALL-CAPS letter-spacing advisory (P1a). ADVISORY/report-only at all design phases (exit 0 always); paired design-principles.md additions (letter-spacing / five-states / Pillar 8).
+- What V32.18 adds:    App-Hardening security harvest — security.md gains AI/LLM/MCP + API-authorization-depth + injection-family hardening; Security_Checklist.md grows to 114 items across 16 sections (new §15 AI/LLM/MCP security, §16 API authorization depth + injection family).
+- Files (sync commit):  24 governance files changed (17,338 insertions / 186 deletions). Notable: new .ai_prompt/lint-design.sh, .ai_prompt/CLAUDE_compact.md now headed V32.18, AI/Master_Prompt.md refreshed, version-stripped orphan AI/Master_Prompt_v31.md removed. deploy.sh *.bak backups created during the run were deleted post-verify.
+- Schema/migrations:   none.
+- Errors encountered:  none. lefthook pre-commit (shellcheck) passed.
+- NEXT SESSION:        Restart Claude Code in this project so the new V32.18 hooks + on-demand governance files load (hooks load at session start only).
+
 ## 2026-06-29 — Phase 7: Report Map zero-events empty state + immutable photo cache header
 
 - Agent:               CLAUDE_CODE (Opus 4.8)
