@@ -127,6 +127,19 @@ description: Library-agnostic UI/UX design-principles reference. Read on-demand 
 - Do not use font-weight variation as the only hierarchy signal — pair with size.
 - No underline on button labels in any state.
 
+**Letter-spacing (tracking) — the rule most-skipped in AI output. No exceptions:**
+
+| Context | Letter-spacing |
+|---|---|
+| Body text (14–18px) | `0` (default) |
+| Small text (11–13px) | `0.01em`–`0.02em` (positive) |
+| UI labels & button text | `0.02em` |
+| **ALL CAPS** | **`0.06em`–`0.1em` (REQUIRED)** |
+| Headings 32px+ | `-0.01em`–`-0.02em` |
+| Display 48px+ | `-0.02em`–`-0.03em` |
+
+ALL-CAPS without positive tracking reads cramped and amateur; display text without negative tracking reads loose and weak — the two most reliable AI-slop type tells. The `0.06em` caps floor is the print/web convergence (Bringhurst §3.2.7, 5–10% of the em). `lint-design.sh` P1a flags uppercase with no tracking.
+
 **Responsive rules:**
 - Design mobile-first: if type works at 360px it almost always works on desktop; the reverse is rarely true.
 - Test at 320px, 360px, 768px, 1024px, 1440px, 1920px+.
@@ -227,6 +240,15 @@ The 12 operative laws an agent applies when designing flows (law → build impli
 - Error messages must explain the problem and offer a next step: "Email already used — log in instead?" not "Unknown error."
 - Empty states must explain why empty and offer an action when one exists.
 
+**Five required render states (the single most reliable AI-design failure is shipping only the populated state):** every data-driven surface must render all five —
+1. **Empty** — explain why empty + offer the action that fills it (never a blank panel).
+2. **Loading** — by wait length: < 300ms none; 300ms–2s spinner; 2–10s skeleton; > 10s progress + "this is taking longer"; stop/cancel by 60s (never an indefinite spinner).
+3. **Error** — name the problem + a next step (above); plus a retry affordance.
+4. **Populated** — the happy path.
+5. **Partial** — some-but-not-all data (paginated, degraded, stale) — design it, don't assume full.
+
+DESIGN.md decides how each LOOKS; this contract decides which must EXIST. WCAG 2.2.2: any motion running > 5s (skeleton shimmer, carousel) needs a pause control.
+
 **Form design:**
 - Labels visible at all times — not placeholder-only (placeholder disappears on input).
 - Validate inline as the user types, not only after submission.
@@ -315,6 +337,25 @@ The 12 operative laws an agent applies when designing flows (law → build impli
 - [ ] No flashing content > 3/sec.
 - [ ] `prefers-reduced-motion` respected — no auto-play animations in reduced-motion mode.
 - [ ] `lang` attribute on `<html>`.
+
+---
+
+## Pillar 8 — Anti-AI-Slop (the seven cardinal sins)
+
+Concrete tells that separate "shipped by a designer" from "default LLM output." Surfaced by `scripts/lint-design.sh` (D1–D7), which runs `--report-only` at the design phases (3.3 / Parts 5-6 / Phase 5) — advisory, for agent self-correction, not a hard block.
+
+1. Default Tailwind indigo/violet as accent — use `var(--accent)`.
+2. Two-stop purple/blue/cyan "trust" gradient on the hero — flat surface + type beats it.
+3. Emoji as feature icons — 1.6–1.8px monoline SVG with `currentColor` (lucide-react).
+4. Sans-serif on display text when the seed binds a serif — use `var(--font-display)`.
+5. Rounded card + coloured left-border (the "AI dashboard tile") — drop one.
+6. Invented metrics ("10× faster", "99.9% uptime") — real source or labelled placeholder.
+7. Filler copy (lorem ipsum, "feature one/two/three") — solve emptiness with composition.
+
+**Add soul without breaking rules:** one deliberate accent moment, real content, an authored type hierarchy, asymmetry where the grid earns it. (Guidance — not auto-checked.)
+
+**Testable checks:**
+- [ ] `bash scripts/lint-design.sh --report-only <ui-dir>` reviewed; no unresolved D1–D7 sins.
 
 ---
 

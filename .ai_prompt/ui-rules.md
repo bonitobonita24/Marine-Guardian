@@ -136,7 +136,7 @@ Rule 14 (Motion & Micro-interactions) was added in V32.14 — Motion (motion.dev
     OFF-TOKEN SMUGGLING IS NOT POSSIBLE: with the default palette disabled and arbitrary
     color values blocked by lint/CI, the only available primitives are the compiled vars.
     This is the enforcement mechanism for Rule 31 (Design-as-Contract).
-    Reference: Master_Prompt_v31.md Rule 31 + templates.md (generated-tokens.css + globals.css bridge).
+    Reference: Master_Prompt.md Rule 31 + templates.md (generated-tokens.css + globals.css bridge).
 
 13. Accessibility — WCAG 2.2 AA target (NEW V32.9 — Rule 33 Compliance & Data Privacy).
     WCAG 2.2 AA is the framework's named accessibility target for all apps.
@@ -172,8 +172,9 @@ Rule 14 (Motion & Micro-interactions) was added in V32.14 — Motion (motion.dev
 
     shadcn/ui components are WCAG 2.2 AA-aligned by default (built on Radix UI primitives).
     Custom components and design token overrides must be audited — accessibility-agents catches drift.
+    At the design phases (3.3 / Parts 5-6 / Phase 5), `bash scripts/lint-design.sh --report-only apps/web/src` runs alongside accessibility-agents as a companion D1–D7 design-anti-slop check (V32.17 — advisory, never blocks Phase 5 close; see .ai_prompt/design-principles.md Pillar 8).
 
-    Reference: Master_Prompt_v31.md Rule 33 + .ai_prompt/privacy.md (gov/LGU gate definition).
+    Reference: Master_Prompt.md Rule 33 + .ai_prompt/privacy.md (gov/LGU gate definition).
 
 14. Motion & micro-interactions (NEW V32.14 — Rule 33-aligned, ties to R13 WCAG gate).
     Motion is part of the design system, not improvised per component. shadcn/ui already builds on
@@ -208,7 +209,7 @@ Rule 14 (Motion & Micro-interactions) was added in V32.14 — Motion (motion.dev
     For the full library-agnostic principles (when/when-not, easing families, duration budgets,
     spring-vs-tween, interruptibility, CSS-vs-JS, the Motion+Tailwind mapping appendix, and the
     motion QA checklist), Read .ai_prompt/motion.md.
-    Reference: Master_Prompt_v31.md V32.14 changelog + .ai_prompt/motion.md + Rule 13 (WCAG gate).
+    Reference: Master_Prompt.md V32.14 changelog + .ai_prompt/motion.md + Rule 13 (WCAG gate).
 ```
 
 **shadcn/ui MCP Server** — enables agents to search and install components via natural language.

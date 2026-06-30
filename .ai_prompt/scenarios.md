@@ -1641,7 +1641,7 @@ PRIMARY: Claude Sonnet 4.6 via Claude Code       ★ All phases. Primary executi
 GOVERNANCE: gemini-2.5-flash-lite                 (CHANGELOG_AI, agent-log, STATE.md — cheapest)
 
 Budget alternatives are controlled via inputs.yml model routing.
-See AI_Tools_Skills_MCPs_Reference_v31.md for full model list and routing rules.
+See AI_Tools_Reference.md for full model list and routing rules.
 ```
 V31 model routing (locked in inputs.yml):
   planning:   claude-code (Phase 2 — V31 primary)
@@ -2140,12 +2140,12 @@ CONTEXT:
 
 SCOPE ROUTING TABLE (Rule 32):
   project scope   → stays in .cline/memory/lessons.md (already there, no action)
-  framework scope → a framework deliverable (deploy-v31.sh ships it to new apps)
+  framework scope → a framework deliverable (deploy.sh ships it to new apps)
   conductor scope → /memory (MEMORY.md or a topic file in the conductor's memory dir)
 
 PROBLEM:
   Keeping a broadly-applicable check in one project's lessons.md means every new
-  project re-discovers the same failure. The framework's deploy-v31.sh and the
+  project re-discovers the same failure. The framework's deploy.sh and the
   conductor's /memory exist precisely to propagate durable lessons; bypassing them
   is a governance gap that Rule 32 closes.
 
@@ -2167,9 +2167,9 @@ SOLUTION — Promote protocol:
        Bootstrap step → bootstrap.md
        Security pattern → security.md
        General standing check with no better home → LESSONS_REGISTRY.md template
-         (so deploy-v31.sh seeds it into new apps from the start)
+         (so deploy.sh seeds it into new apps from the start)
      Edit the target deliverable file to embed the check.
-     Update deploy-v31.sh if a new file or template needs to be shipped.
+     Update deploy.sh if a new file or template needs to be shipped.
      Commit with message: "feat(framework): promote lesson to <deliverable> — <check-name>"
 
   3. CONDUCTOR SCOPE — /memory route.
@@ -2187,7 +2187,7 @@ SOLUTION — Promote protocol:
      This marks the promotion as complete and prevents double-promotion.
 
   5. VERIFY PROPAGATION.
-     Framework route: run deploy-v31.sh against a scratch folder and confirm the check
+     Framework route: run deploy.sh against a scratch folder and confirm the check
        appears in the target location.
      Conductor route: confirm the memory file exists and is loadable.
 
@@ -2202,7 +2202,7 @@ AGENT BEHAVIOR:
 
 VERIFICATION:
   - LESSONS_REGISTRY.md entry has a non-empty promoted_to field.
-  - Framework route: the check is present in the target deliverable file + deploy-v31.sh
+  - Framework route: the check is present in the target deliverable file + deploy.sh
     ships it (confirmed via dry-run or grep).
   - Conductor route: memory topic file exists and contains a machine-executable check.
   - No duplicate entries in the registry for the same check.

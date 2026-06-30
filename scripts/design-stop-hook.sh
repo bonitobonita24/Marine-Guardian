@@ -6,7 +6,7 @@
 #   captured_output. Implements Rule 32 "Verifiable-Done" enforcement.
 #
 # DEPLOYED TO:
-#   scripts/design-stop-hook.sh (chmod +x) in target app projects via deploy-v31.sh
+#   scripts/design-stop-hook.sh (chmod +x) in target app projects via deploy.sh
 #
 # HOW IT WORKS:
 #   A Claude Code Stop hook receives the assistant's final response on stdin as JSON.

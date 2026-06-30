@@ -695,7 +695,7 @@ it works at any point in the project lifecycle without structural changes.
 
 **STEP 1 — Install the governance file**
 
-Run `deploy-v31.sh` (or `spec-update`) to copy `memory-governance.md` into your project's `.ai_prompt/` directory (V32.7 — was `.claude/rules/` in V32.6.1 and earlier).
+Run `deploy.sh` (or `spec-update`) to copy `memory-governance.md` into your project's `.ai_prompt/` directory (V32.7 — was `.claude/rules/` in V32.6.1 and earlier).
 The Contextual File Loading table in CLAUDE.md already contains the correct Read command:
 
 ```
@@ -791,10 +791,10 @@ If you are experiencing thrashing RIGHT NOW in a Phase 7/8 project:
 | Scope | Example | Check lands in | Reaches new apps via |
 |---|---|---|---|
 | **project** | "this app's X needs Y" | `lessons.md` (in-repo) | n/a (project-local) |
-| **framework** | "`COPY . .` → phantom CVEs" | a deliverable (`lint-deploy.sh` Cn, `templates.md` rule, phase output contract) | **`deploy-v31.sh` (automatic)** |
+| **framework** | "`COPY . .` → phantom CVEs" | a deliverable (`lint-deploy.sh` Cn, `templates.md` rule, phase output contract) | **`deploy.sh` (automatic)** |
 | **conductor** | "cheap-scout all surfaces before a per-surface wave" | a `/memory` feedback file | **auto-loads each session** |
 
-Framework-scope inheritance is therefore mostly already solved: promotion = "edit the deliverable + add its check", and `deploy-v31.sh` carries deliverables into every new app automatically. Conductor-scope auto-loads via `/memory`.
+Framework-scope inheritance is therefore mostly already solved: promotion = "edit the deliverable + add its check", and `deploy.sh` carries deliverables into every new app automatically. Conductor-scope auto-loads via `/memory`.
 
 ### Two-Part Fingerprint
 
@@ -859,7 +859,7 @@ When promoting a lesson to the registry:
 □ Add machine_signature if the failure is machine-emitted
 □ Route the check to its scope destination:
      project  → lessons.md entry in the target app
-     framework → edit the relevant deliverable; verify deploy-v31.sh ships it
+     framework → edit the relevant deliverable; verify deploy.sh ships it
      conductor → write /memory feedback file
 □ Append entry to LESSONS_REGISTRY.md (append-only — never edit existing entries)
 □ Update the /memory mirror index (one-line summary per entry)

@@ -77,7 +77,7 @@ PHASE_COMPLETE
 
 ## PROMPT VERSIONING CONVENTION
 
-Files named: `Master_Prompt_v29.md`, `Master_Prompt_v30.md`, `Master_Prompt_v31.md`, etc.
+Files named: `Master_Prompt_v29.md`, `Master_Prompt_v30.md`, `Master_Prompt.md`, etc.
 All 16 files in the complete set always share the same version number.
 
 Version increments when: new Rule added, new Phase added, new Scenario added,
@@ -524,7 +524,7 @@ Infrastructure is split into **separate compose files per service group**.
 ```
 deploy/compose/[env]/
   docker-compose.db.yml       — PostgreSQL + PgBouncer      → Amazon RDS
-  docker-compose.storage.yml  — MinIO (S3-compatible)       → Amazon S3
+  docker-compose.storage.yml  — MinIO (S3-compatible)       → Amazon S3 / Cloudflare R2 (opt-in)
   docker-compose.cache.yml    — Valkey (cache + BullMQ)     → Amazon ElastiCache
   docker-compose.infra.yml    — MailHog dev / SMTP relay    → Amazon SES
   docker-compose.app.yml      — Next.js app(s) + worker(s)  → ECS / EC2
@@ -533,6 +533,47 @@ deploy/compose/[env]/
 
 `docker-compose.db.yml` always starts first — it creates the shared Docker network.
 All other compose files reference it as `external: true`.
+
+---
+
+### OPT-IN: Cloudflare R2 for staging/prod object storage (V32.16 — NOT the default)
+
+**Default storage stays MinIO** (dev + staging + prod). Cloudflare R2 is an S3-wire-compatible,
+zero-egress alternative you MAY opt into per app for staging/prod once you accept the budget caveat
+below. The storage layer is provider-agnostic (`STORAGE_*` env + `packages/storage/` wrapper), so
+switching is a one-edit change — **no code changes**.
+
+> ⚠️ **BUDGET CAVEAT — read before opting in (this is why R2 is opt-in, not default).**
+> R2's free tier — **10 GB-month storage · 1,000,000 Class A (write) · 10,000,000 Class B (read) ops
+> per month · $0 egress** — is **per Cloudflare ACCOUNT, NOT per bucket.** Every app's bucket draws
+> from the *same shared pool*, and R2 has **no native per-bucket spend cap** and only coarse
+> per-bucket attribution. With a growing fleet, combined I/O is hard to measure/limit and can produce
+> a surprise bill. Before adopting: (a) decide how you'll monitor per-bucket usage (CF dashboard
+> per-bucket metrics / GraphQL Analytics API), (b) set a Cloudflare billing alert, (c) confirm an
+> account-wide budget you're comfortable with. Overage rate beyond the free pool: storage
+> $0.015/GB-mo · Class A $4.50/M · Class B $0.36/M (rounded up per unit). **Never put gov/LGU or
+> PII assets on a backend you can't bound + attribute** (PH Data Privacy Act). Full evaluation:
+> conductor memory `reference_telegram_as_s3_storage`.
+
+**To opt an app into R2 for staging/prod (owner-run):**
+
+1. In `.env.staging` / `.env.prod`, replace the MinIO `FILE STORAGE` block with:
+   ```
+   # FILE STORAGE (Cloudflare R2 — S3-compatible — OPT-IN)
+   STORAGE_PROVIDER=r2
+   STORAGE_ENDPOINT=https://<cloudflare-account-id>.r2.cloudflarestorage.com
+   STORAGE_BUCKET=${app_slug}-staging        # prod: ${app_slug}-prod (separate bucket per env)
+   STORAGE_ACCESS_KEY=<r2-access-key-id — from Server-Setups cloudflare-r2>
+   STORAGE_SECRET_KEY=<r2-secret-access-key — from Server-Setups cloudflare-r2>
+   STORAGE_REGION=auto
+   ```
+   Credentials source of truth: `Server-Setups/Powerbyte-Hostinger/secrets/cloudflare-r2.enc.yaml`
+   (SOPS+age — `sops -d`). **Never copy R2 keys into the app repo — point back to Server-Setups.**
+2. Create the R2 buckets `${app_slug}-staging` / `${app_slug}-prod` in the Cloudflare dashboard.
+3. **Remove `docker-compose.storage.yml` from the staging/prod startup** (no MinIO container needed —
+   storage is now external R2). Dev keeps MinIO via its own `docker-compose.storage.yml`.
+4. Phase 0 still mints MinIO keys for dev; staging/prod no longer need generated MinIO keys.
+5. AWS S3 is the same kind of swap — repoint the identical `STORAGE_*` vars.
 
 ```yaml
 networks:
@@ -1780,7 +1821,7 @@ import "@aejkatappaja/phantom-ui";
 
 ## V32.8 — DESIGN PIPELINE TEMPLATES
 
-> These skeletons are scaffolded by `bootstrap.md` Phase 0 and shipped by `deploy-v31.sh`.
+> These skeletons are scaffolded by `bootstrap.md` Phase 0 and shipped by `deploy.sh`.
 > They implement the Design-as-Contract pipeline: DESIGN.md tokens → Style Dictionary compile →
 > generated-tokens.css → globals.css bridge → Tailwind/shadcn utilities.
 > `generated-tokens.css` (SD output, never hand-edit) and `globals.css` (hand-authored bridge)
@@ -2282,7 +2323,7 @@ console.log(`✓ tokens/tokens.json DTCG valid (${topKeys.length} groups: ${topK
 
 > These skeletons implement Rule 32 "Verifiable-Done + Learning Loop".
 > One canonical copy lives here; `bootstrap.md` Phase 0, `phases.md` hooks,
-> and `deploy-v31.sh` reference or ship them to target apps.
+> and `deploy.sh` reference or ship them to target apps.
 
 ---
 
@@ -2356,14 +2397,14 @@ _Promoted: YYYY-MM-DD_
 
 **Scope routing:**
 - `project` → check lands in `lessons.md` (in-repo, project-local)
-- `framework` → check lands in a deliverable (`lint-deploy.sh`, `templates.md` rule, phase output contract); shipped to new apps via `deploy-v31.sh`
+- `framework` → check lands in a deliverable (`lint-deploy.sh`, `templates.md` rule, phase output contract); shipped to new apps via `deploy.sh`
 - `conductor` → check lands in a `/memory` feedback file; auto-loads each session
 
 ---
 
 ### `settings.json` Stop hook config block
 
-**ONE canonical copy here.** `bootstrap.md` Phase 0 and `deploy-v31.sh` reference this.
+**ONE canonical copy here.** `bootstrap.md` Phase 0 and `deploy.sh` reference this.
 Merges into `.claude/settings.json` in target app projects (extends deliverable #19).
 
 The Stop hook blocks a done-claim whose `evidence:` field is empty or absent.
@@ -2422,7 +2463,7 @@ overwrite the file. Final merged shape:
 ## V32.9 — COMPLIANCE & DATA PRIVACY TEMPLATES
 
 > These templates implement Rule 33 (Compliance & Data Privacy) from V32.9.
-> Reference: Master_Prompt_v31.md Rule 33 · `.ai_prompt/privacy.md` · ui-rules.md Rule 13.
+> Reference: Master_Prompt.md Rule 33 · `.ai_prompt/privacy.md` · ui-rules.md Rule 13.
 
 ---
 

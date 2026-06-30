@@ -1187,7 +1187,7 @@ ul.checklist li:last-child { border-bottom: none; }
 
     <!-- HERO -->
     <div class="hero">
-      <div class="hero-eyebrow">v32.9 locked · release ready</div>
+      <div class="hero-eyebrow">v32.14 locked · release ready</div>
       <h1>Prompt <span class="accent-word">References</span></h1>
       <p class="hero-lede">Every prompt you need from empty project folder to production-ready app. Four scenario groups match your actual lifecycle — no noise, no filler.</p>
 
@@ -1205,7 +1205,7 @@ ul.checklist li:last-child { border-bottom: none; }
           <div class="stat-label">New ✨</div>
         </div>
         <div class="stat">
-          <div class="stat-num">23</div>
+          <div class="stat-num">25</div>
           <div class="stat-label">Framework Files</div>
         </div>
       </div>
@@ -1509,8 +1509,8 @@ ul.checklist li:last-child { border-bottom: none; }
         <div>
           <strong>WSL2 Ubuntu</strong> installed, Node 22 + pnpm + Docker Desktop all working<br>
           <strong>VS Code + Claude Code CLI</strong> installed (Cline extension optional — deprecated V31, kept only as emergency fallback)<br>
-          <strong>PRODUCT.md</strong> finalized in claude.ai using <code>Product_md_Planning_Assistant_v31.md</code><br>
-          <strong>All 23 V32 framework files</strong> available (17 in <code>.ai_prompt/</code> + <code>spec-executor.md</code> + <code>settings.json</code> deployed to <code>.claude/</code> + <code>deploy-v31.sh</code> + <code>lint-deploy.sh</code> deployed to <code>scripts/</code>) — see Appendix A for the V32 <code>spec-update</code> deployment workflow
+          <strong>PRODUCT.md</strong> finalized in claude.ai using <code>Planning_Assistant.md</code><br>
+          <strong>All 23 V32 framework files</strong> available (17 in <code>.ai_prompt/</code> + <code>spec-executor.md</code> + <code>settings.json</code> deployed to <code>.claude/</code> + <code>deploy.sh</code> + <code>lint-deploy.sh</code> deployed to <code>scripts/</code>) — see Appendix A for the V32 <code>spec-update</code> deployment workflow
         </div>
       </div>
 
@@ -1522,8 +1522,8 @@ ul.checklist li:last-child { border-bottom: none; }
         </div>
         <div class="code-body">your-project/                      ← empty folder (or existing project)
 ├── .ai_prompt/                    ← you drop all 16 V32 reference files in here
-│   ├── CLAUDE_v31_compact.md
-│   ├── Master_Prompt_v31.md
+│   ├── CLAUDE_compact.md
+│   ├── Master_Prompt.md
 │   ├── bootstrap.md
 │   ├── phases.md
 │   ├── security.md
@@ -1531,18 +1531,18 @@ ul.checklist li:last-child { border-bottom: none; }
 │   ├── scenarios.md
 │   ├── templates.md
 │   ├── memory-governance.md       ← V31.1 Memory Governance Layer (NEW)
-│   ├── Product_md_Planning_Assistant_v31.md
-│   ├── Framework_Feature_Index_v31.md
-│   ├── AI_Tools_Skills_MCPs_Reference_v31.md
-│   ├── Post_Generation_Security_Checklist_v31.md
-│   ├── ChatGPT_V31_Cross_Audit_Prompt.md
+│   ├── Planning_Assistant.md
+│   ├── Framework_Feature_Index.md
+│   ├── AI_Tools_Reference.md
+│   ├── Security_Checklist.md
+│   ├── ChatGPT_Cross_Audit.md
 │   ├── Prompt_References.md       ← markdown version
 │   └── Prompt_References.html     ← you are reading this
 ├── .claude/
 │   ├── agents/
 │   │   └── spec-executor.md       ← V32.7.2 Sonnet executor subagent (deployed by script)
 │   └── settings.json              ← V32.7.2 framework settings caps (merge-deployed by script)
-├── deploy-v31.sh                  ← you drop this at project root (19th file)
+├── deploy.sh                  ← you drop this at project root (19th file)
 └── docs/
     ├── PRODUCT.md                 ← from Planning Assistant — required
     ├── DESIGN.md                  ← from Planning Assistant Step 7b — if you chose a shadcn/ui theme direction in Phase 2.8
@@ -1571,7 +1571,7 @@ ul.checklist li:last-child { border-bottom: none; }
           <div class="prompt-num">1.1</div>
           <div class="prompt-title-wrap">
             <div class="prompt-title">Deploy the V31 framework files</div>
-            <div class="prompt-summary">Copies CLAUDE.md, .ai_prompt/* (7 detail files), and AI/Master_Prompt_v31.md into your project — .claude/rules/ is intentionally empty (V32.7)</div>
+            <div class="prompt-summary">Copies CLAUDE.md, .ai_prompt/* (7 detail files), and AI/Master_Prompt.md into your project — .claude/rules/ is intentionally empty (V32.7)</div>
           </div>
           <div class="prompt-toggle">›</div>
         </div>
@@ -1586,10 +1586,10 @@ ul.checklist li:last-child { border-bottom: none; }
                 <span class="code-lang">Bash</span>
                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
               </div>
-              <div class="code-body">bash deploy-v31.sh</div>
+              <div class="code-body">bash deploy.sh</div>
             </div>
             <h4>What it does</h4>
-            <p>Copies <code>CLAUDE.md</code> (to project root) and <code>.ai_prompt/*</code> (all 7 detail files: <code>phases.md</code>, <code>memory-governance.md</code>, <code>security.md</code>, <code>ui-rules.md</code>, <code>bootstrap.md</code>, <code>scenarios.md</code>, <code>templates.md</code> — read on-demand), and <code>AI/Master_Prompt_v31.md</code> into the project. <code>.claude/rules/</code> is intentionally left empty (V32.7) — CLAUDE.md auto-loads; detail files are Read explicitly per task. Appends V31 entries to <code>.gitignore</code> (preserves your existing entries). Intelligent — skips anything already present, backs up anything it overwrites, refuses to touch PRODUCT.md / CREDENTIALS.md / .env / your app code.</p>
+            <p>Copies <code>CLAUDE.md</code> (to project root) and <code>.ai_prompt/*</code> (all 7 detail files: <code>phases.md</code>, <code>memory-governance.md</code>, <code>security.md</code>, <code>ui-rules.md</code>, <code>bootstrap.md</code>, <code>scenarios.md</code>, <code>templates.md</code> — read on-demand), and <code>AI/Master_Prompt.md</code> into the project. <code>.claude/rules/</code> is intentionally left empty (V32.7) — CLAUDE.md auto-loads; detail files are Read explicitly per task. Appends V31 entries to <code>.gitignore</code> (preserves your existing entries). Intelligent — skips anything already present, backs up anything it overwrites, refuses to touch PRODUCT.md / CREDENTIALS.md / .env / your app code.</p>
           </div>
         </div>
       </div>
@@ -1622,7 +1622,7 @@ ul.checklist li:last-child { border-bottom: none; }
             <h4>1.1.5.2 — Run the deploy script</h4>
             <div class="code-block">
               <div class="code-header"><span class="code-lang">Bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-              <div class="code-body">bash deploy-v31.sh</div>
+              <div class="code-body">bash deploy.sh</div>
             </div>
 
             <p><strong>What it does:</strong></p>
@@ -1647,7 +1647,7 @@ ls .claude/rules/
 ls .ai_prompt/
 
 # Check Master Prompt reference is present
-ls AI/Master_Prompt_v31.md</div>
+ls AI/Master_Prompt.md</div>
             </div>
 
             <h4>1.1.5.4 — Clean up old backups (after verification)</h4>
@@ -1703,7 +1703,7 @@ Check 1 — V31 framework files in place:
   [ ] CLAUDE.md at project root — confirm it's the compact (~200 line) version
   [ ] .claude/rules/ is empty (V32.7); all 7 detail files are in .ai_prompt/
   [ ] .ai_prompt/ contains 7 detail files: phases.md, memory-governance.md, security.md, ui-rules.md, bootstrap.md, scenarios.md, templates.md
-  [ ] AI/Master_Prompt_v31.md exists
+  [ ] AI/Master_Prompt.md exists
 
 Check 2 — PRODUCT.md state:
   [ ] docs/PRODUCT.md exists and has all 11 required sections
@@ -2448,7 +2448,7 @@ Read ONLY PRODUCT.md sections for this module.</div>
                 <div class="meta-item"><span class="meta-label">Duration</span><span class="meta-value">15-30 min (read-only)</span></div>
               </div>
 
-              <p><strong>Prerequisite:</strong> V31 framework files must already be deployed via <code>bash deploy-v31.sh</code> (prompt 1.1). That's what the agent uses to know what V31 <em>expects</em>. If you haven't deployed V31 files yet, run 1.1 first.</p>
+              <p><strong>Prerequisite:</strong> V31 framework files must already be deployed via <code>bash deploy.sh</code> (prompt 1.1). That's what the agent uses to know what V31 <em>expects</em>. If you haven't deployed V31 files yet, run 1.1 first.</p>
 
               <p><strong>What it does:</strong> Agent reads governance docs + spot-checks code compliance via <code>codebase_search</code> and <code>grep</code>. Produces single-shot report (~300-500 lines) with 8 dimensions + prioritized fix plan. No writes, no modifications.</p>
 
@@ -2457,7 +2457,7 @@ Read ONLY PRODUCT.md sections for this module.</div>
                 <div class="code-body">Deep Pre-Upgrade Analysis
 
 My project is an existing Spec-Driven codebase built on a prior version (V24-V30).
-V31 files are now deployed via deploy-v31.sh. Before I run 1.4.2 reconciliation,
+V31 files are now deployed via deploy.sh. Before I run 1.4.2 reconciliation,
 I need a comprehensive 8-dimension analysis of my current state.
 
 You are reading the new V31 compact CLAUDE.md. Execute ALL 8 dimensions below and
@@ -2478,10 +2478,10 @@ Before analyzing, verify V31 files are deployed:
   0.1  CLAUDE.md exists at project root AND is ~200 lines (compact V31)
   0.2  .claude/rules/ is empty (V32.7); .ai_prompt/ contains 7 detail files (phases.md,
        memory-governance.md, security.md, ui-rules.md, bootstrap.md, scenarios.md, templates.md)
-  0.3  AI/Master_Prompt_v31.md exists
+  0.3  AI/Master_Prompt.md exists
 
 IF any of 0.1-0.3 is missing:
-  → STOP. Output: "V31 files not deployed. Run 1.1 (bash deploy-v31.sh) first."
+  → STOP. Output: "V31 files not deployed. Run 1.1 (bash deploy.sh) first."
   → Do NOT proceed to Dimensions 1-7.
 
 IF all 0.1-0.3 pass → continue.
@@ -2709,7 +2709,7 @@ git tag "pre-v31-upgrade-$(date +%Y%m%d)"</div>
               <div class="code-body">V31 Upgrade Reconciliation
 
 My project is already on a prior Spec-Driven version. The new V31 compact CLAUDE.md
-and .ai_prompt/ detail files are in place via deploy-v31.sh. Execute this reconciliation:
+and .ai_prompt/ detail files are in place via deploy.sh. Execute this reconciliation:
 
 1. Read project.memory.md + docs/IMPLEMENTATION_MAP.md + docs/DECISIONS_LOG.md.
    State what phase this project is in and what's been built.
@@ -3647,7 +3647,7 @@ Situation: [describe which failure mode]</div>
           <div class="prompt-num">3.5</div>
           <div class="prompt-title-wrap">
             <div class="prompt-title">Post-Generation Security Checklist</div>
-            <div class="prompt-summary">98 items across 14 sections — run after every scaffold + before prod deploys</div>
+            <div class="prompt-summary">114 items across 16 sections — run after every scaffold + before prod deploys</div>
           </div>
           <div class="prompt-toggle">›</div>
         </div>
@@ -3667,9 +3667,9 @@ Check every item and report PASS / FAIL / N/A per item with exact file paths
 and line numbers.</div>
             </div>
 
-            <p>Attach <code>Post_Generation_Security_Checklist_v31.md</code> + relevant code files.</p>
+            <p>Attach <code>Security_Checklist.md</code> + relevant code files.</p>
 
-            <p>Agent runs all <strong>98 items across 14 sections</strong> (Authentication, RBAC, Multi-tenant isolation L1–L6, Input validation, Database safety, File uploads, Queue/cache, Production errors, Security headers, Webhooks, Secrets, Production defaults, Phase 5 baseline, Compliance & Data Privacy). <strong>Fix all FAILs before merging or deploying.</strong></p>
+            <p>Agent runs all <strong>114 items across 16 sections</strong> (Authentication, RBAC, Multi-tenant isolation L1–L6, Input validation, Database safety, File uploads, Queue/cache, Production errors, Security headers, Webhooks, Secrets, Production defaults, Phase 5 baseline, Compliance & Data Privacy, AI/LLM/MCP Security, API Authorization & Injection Family). <strong>Fix all FAILs before merging or deploying.</strong></p>
           </div>
         </div>
       </div>
@@ -3696,7 +3696,7 @@ and line numbers.</div>
             <h4>Steps</h4>
             <ol>
               <li>Open ChatGPT (GPT-4o or newer)</li>
-              <li>Paste <code>ChatGPT_V31_Cross_Audit_Prompt.md</code></li>
+              <li>Paste <code>ChatGPT_Cross_Audit.md</code></li>
               <li>Upload 16 framework files (or code files to audit)</li>
               <li>Wait for PASS/FAIL report across 86+ items</li>
               <li>Bring findings to Claude — <strong>NEVER apply ChatGPT findings directly</strong></li>
@@ -3863,13 +3863,13 @@ cp -r .ai_prompt .ai_prompt-v31-backup</div>
             <div class="code-block">
               <div class="code-header"><span class="code-lang">Bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
               <div class="code-body"># Remove only the versioned V31 files (not user-added docs)
-rm -f .ai_prompt/CLAUDE_v31_compact.md
-rm -f .ai_prompt/Master_Prompt_v31.md
-rm -f .ai_prompt/Product_md_Planning_Assistant_v31.md
-rm -f .ai_prompt/Framework_Feature_Index_v31.md
-rm -f .ai_prompt/AI_Tools_Skills_MCPs_Reference_v31.md
-rm -f .ai_prompt/Post_Generation_Security_Checklist_v31.md
-rm -f .ai_prompt/ChatGPT_V31_Cross_Audit_Prompt.md
+rm -f .ai_prompt/CLAUDE_compact.md
+rm -f .ai_prompt/Master_Prompt.md
+rm -f .ai_prompt/Planning_Assistant.md
+rm -f .ai_prompt/Framework_Feature_Index.md
+rm -f .ai_prompt/AI_Tools_Reference.md
+rm -f .ai_prompt/Security_Checklist.md
+rm -f .ai_prompt/ChatGPT_Cross_Audit.md
 rm -f .ai_prompt/bootstrap.md .ai_prompt/phases.md .ai_prompt/security.md
 rm -f .ai_prompt/ui-rules.md .ai_prompt/scenarios.md .ai_prompt/templates.md
 rm -f .ai_prompt/Prompt_References.md .ai_prompt/Prompt_References.html
@@ -3888,7 +3888,7 @@ rm -f .ai_prompt/Prompt_References.md .ai_prompt/Prompt_References.html
               <div class="code-header"><span class="code-lang">Bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
               <div class="code-body">bash deploy-v[NEW].sh</div>
             </div>
-            <p>The deploy script (analogous to <code>deploy-v31.sh</code>) handles backup of old <code>CLAUDE.md</code>, writes new <code>CLAUDE.md</code>, <code>.ai_prompt/*</code> (all 7 detail files), and <code>AI/Master_Prompt_v[NEW].md</code>, and updates <code>.gitignore</code>. <code>.claude/rules/</code> is intentionally empty in V32.7+.</p>
+            <p>The deploy script (analogous to <code>deploy.sh</code>) handles backup of old <code>CLAUDE.md</code>, writes new <code>CLAUDE.md</code>, <code>.ai_prompt/*</code> (all 7 detail files), and <code>AI/Master_Prompt_v[NEW].md</code>, and updates <code>.gitignore</code>. <code>.claude/rules/</code> is intentionally empty in V32.7+.</p>
 
             <h4>3.11.4 — Run the Universal Analyzer</h4>
             <p>Use the prompt from 1.2, but note: the new compact CLAUDE.md is V[NEW]. The Analyzer will classify your project as <strong>Situation B (V[NEW] upgrade)</strong> and point to the new Reconciliation prompt.</p>
@@ -4525,13 +4525,13 @@ Operate under V32.x ZERO OPUS EXECUTION discipline: dispatch a Sonnet to run the
               <div class="code-body">The project has been nuked. We're now rebuilding from scratch on the current V32.x framework.
 
 STEP 1 — Re-deploy the framework files. Run from project root:
-  bash deploy-v31.sh
+  bash deploy.sh
 
 Verify after deploy:
 - .claude/rules/ is empty (V32.7 — all detail files are in .ai_prompt/)
 - .ai_prompt/ contains 7 detail files (phases.md / memory-governance.md / security.md / ui-rules.md / bootstrap.md / scenarios.md / templates.md)
 - CLAUDE.md is at root (the compact card — the ONLY auto-loaded file)
-- AI/Master_Prompt_v31.md exists
+- AI/Master_Prompt.md exists
 - CLAUDE.md at root header reads the current V32.x version
 - docs/ is intact and untouched
 - CREDENTIALS.md is intact and untouched
@@ -4687,7 +4687,7 @@ STEP 2 — RESTART CLAUDE CODE BEFORE PROCEEDING. The new compact CLAUDE.md need
           <div class="prompt-content">
             <div class="meta-row">
               <div class="meta-item"><span class="meta-label">Where</span><span class="meta-value">Claude Code PA session (preferred) or new Claude.ai chat</span></div>
-              <div class="meta-item"><span class="meta-label">Setup</span><span class="meta-value">Place <code>Product_md_Planning_Assistant_v31.md</code> in project folder (Claude Code) or paste as first message (Claude.ai)</span></div>
+              <div class="meta-item"><span class="meta-label">Setup</span><span class="meta-value">Place <code>Planning_Assistant.md</code> in project folder (Claude Code) or paste as first message (Claude.ai)</span></div>
             </div>
 
             <p><strong>No trigger prompt needed.</strong> Planning Assistant recognizes empty input and auto-runs all 9 interview steps. Assistant asks questions one-by-one.</p>
@@ -5604,13 +5604,13 @@ Scope: ONLY automation wiring. Do not touch unrelated code.</div>
             <ul>
               <li>You have at least one of: source code, repo zip, README, screenshots, mockup file (<code>.jsx</code> / <code>.html</code>), Figma export, partial spec notes</li>
               <li>Claude.ai access (Pro recommended — the artifact bundle can be large) or a Claude Code PA session in the project folder</li>
-              <li>A copy of <code>Product_md_Planning_Assistant_v31.md</code> on hand</li>
+              <li>A copy of <code>Planning_Assistant.md</code> on hand</li>
             </ul>
 
             <h4>4.14.1 — Gather the artifacts</h4>
             <p>Pull together <em>everything that describes what the app does today</em>:</p>
             <ul>
-              <li><code>Product_md_Planning_Assistant_v31.md</code> — the PA template itself (required, uploaded as the first attachment)</li>
+              <li><code>Planning_Assistant.md</code> — the PA template itself (required, uploaded as the first attachment)</li>
               <li>Repo zip <strong>or</strong> the high-signal files: <code>README.md</code>, <code>package.json</code>, route map, Prisma schema, env example, key components</li>
               <li>Screenshots of the running app (one per main screen)</li>
               <li>Mockup file(s) — <code>.jsx</code>, <code>.html</code>, exported PNG / PDF</li>
@@ -5622,7 +5622,7 @@ Scope: ONLY automation wiring. Do not touch unrelated code.</div>
             <p>In a fresh Claude.ai chat (or a Claude Code PA session in the project folder):</p>
             <ol>
               <li>Name the chat/session <code>[AppName] — PRODUCT.md Reverse-Extract (Brownfield)</code></li>
-              <li>Attach <code>Product_md_Planning_Assistant_v31.md</code> + every artifact from 4.14.1</li>
+              <li>Attach <code>Planning_Assistant.md</code> + every artifact from 4.14.1</li>
               <li>Paste the kickoff prompt below as the message body</li>
             </ol>
             <div class="code-block">
@@ -5705,7 +5705,7 @@ Not sure                                     → prompt 1.2 (Universal Analyzer)
             </div>
             <p>If PA generated a Phase 2.8 mockup (because you had no working UI to upload), save it per <strong>prompt 4.7 (Mockup Continuity Workflow)</strong> so Phase 4 Part 5 can read its <code>data-*</code> tags.</p>
 
-            <p><strong>One-time gotcha:</strong> the Planning Assistant file (<code>Product_md_Planning_Assistant_v31.md</code>) does not currently document Situation D natively — this prompt <em>injects</em> the mode into the chat session. If PA ever ships a version that supports brownfield extraction first-class, this prompt becomes a thin wrapper around the native flow.</p>
+            <p><strong>One-time gotcha:</strong> the Planning Assistant file (<code>Planning_Assistant.md</code>) does not currently document Situation D natively — this prompt <em>injects</em> the mode into the chat session. If PA ever ships a version that supports brownfield extraction first-class, this prompt becomes a thin wrapper around the native flow.</p>
           </div>
         </div>
       </div>
@@ -5869,7 +5869,7 @@ spec-update() {
   fi
   (cd /home/me/UbuntuDevFiles/1_COMPANY_DEV/Powerbyte-AIEF &amp;&amp; git pull) &amp;&amp; \
     sync-to-project "$target" &amp;&amp; \
-    (cd "$target" &amp;&amp; bash deploy-v31.sh) &amp;&amp; \
+    (cd "$target" &amp;&amp; bash deploy.sh) &amp;&amp; \
     echo "" &amp;&amp; \
     echo "✓ Spec-Driven framework updated in $target" &amp;&amp; \
     echo "  Next: restart Claude Code in this project (hooks load at session start)."
@@ -5888,7 +5888,7 @@ spec-update() {
         </div>
         <div class="code-body">cd /path/to/target-project
 sync-to-project
-bash deploy-v31.sh</div>
+bash deploy.sh</div>
       </div>
 
       <p><strong>Flavor B — Explicit <code>git pull</code></strong> <span class="meta-value">(use after working on another machine)</span></p>
@@ -5900,7 +5900,7 @@ bash deploy-v31.sh</div>
         <div class="code-body">cd /home/me/UbuntuDevFiles/1_COMPANY_DEV/Powerbyte-AIEF &amp;&amp; git pull
 cd /path/to/target-project
 sync-to-project
-bash deploy-v31.sh</div>
+bash deploy.sh</div>
       </div>
 
       <p><strong>Flavor C — One-shot via <code>spec-update</code></strong> <span class="meta-value">(recommended default — wraps A + git pull)</span></p>
@@ -5929,8 +5929,8 @@ spec-update .</div>
         <p>Target already has <code>.ai_prompt/</code> from a previous deploy (<code>.claude/rules/</code> is empty in V32.7+). You're moving it forward to the current framework version.</p>
         <ul>
           <li><code>git pull</code> → fetches the latest framework from <code>origin/main</code></li>
-          <li><code>sync-to-project</code> → overwrites <code>&lt;target&gt;/.ai_prompt/*.md</code> and <code>&lt;target&gt;/deploy-v31.sh</code> (backups happen in deploy step, not here)</li>
-          <li><code>bash deploy-v31.sh</code> → re-fans out to <code>.ai_prompt/</code>, backing up user-modified detail files with timestamped <code>.bak</code></li>
+          <li><code>sync-to-project</code> → overwrites <code>&lt;target&gt;/.ai_prompt/*.md</code> and <code>&lt;target&gt;/deploy.sh</code> (backups happen in deploy step, not here)</li>
+          <li><code>bash deploy.sh</code> → re-fans out to <code>.ai_prompt/</code>, backing up user-modified detail files with timestamped <code>.bak</code></li>
         </ul>
         <p><strong>What to do after spec-update:</strong> <strong>restart Claude Code in the target</strong> (<code>cd &lt;target&gt; &amp;&amp; claude</code>) so the new rules load. Then continue from whatever Phase you were on. <strong>Skip prompt 1.4.2</strong> — it's a V30→V31 reconciliation prompt and has nothing to check for V31.x or V32.x targets. See Scenario 3 below for the patch shortcut.</p>
       </div>
@@ -5943,8 +5943,8 @@ spec-update .</div>
         <p>Target has only <code>docs/PRODUCT.md</code>, <code>docs/DESIGN.md</code>, <code>docs/MOCKUP.jsx</code> from the Planning Assistant session (Claude Code or Claude.ai). No <code>.ai_prompt/</code> yet. No framework files of any kind.</p>
         <ul>
           <li><code>sync-to-project</code> detects missing <code>.ai_prompt/</code> and prompts: <em>"Directory does not exist. Create it? [y/N]"</em></li>
-          <li>Answer <strong>y</strong> → folder created, all 16 V32 reference files copied in, <code>deploy-v31.sh</code> dropped at project root</li>
-          <li><code>deploy-v31.sh</code> bootstraps <code>.ai_prompt/</code>, <code>AI/</code>, and <code>CLAUDE.md</code> cleanly from zero (<code>.claude/rules/</code> is intentionally empty)</li>
+          <li>Answer <strong>y</strong> → folder created, all 16 V32 reference files copied in, <code>deploy.sh</code> dropped at project root</li>
+          <li><code>deploy.sh</code> bootstraps <code>.ai_prompt/</code>, <code>AI/</code>, and <code>CLAUDE.md</code> cleanly from zero (<code>.claude/rules/</code> is intentionally empty)</li>
           <li>The V32.1.4 deploy script detects the PA artifacts and prints the Bootstrap → Phase 2 → Phase 3 path directly (instead of recommending prompt 1.2)</li>
         </ul>
         <p><strong>What to do after spec-update:</strong> if you haven't yet, <code>git init</code> + first commit (the script doesn't do this for you). Then open Claude Code and type <code>Bootstrap</code> → <code>Start Phase 2</code> → <code>Start Phase 3</code> per the V32.1.1 Step 7d sequence. <strong>Skip prompts 1.2 and 1.4.2</strong> — neither applies to fresh PA projects.</p>
@@ -5999,7 +5999,7 @@ head -1 CLAUDE.md                                              # expect: # SPEC-
             <tr><th>Anti-pattern</th><th>Why it's wrong</th><th>Do instead</th></tr>
           </thead>
           <tbody>
-            <tr><td>Run <code>deploy-v31.sh</code> without <code>sync-to-project</code> first when a new framework version exists</td><td>Deploys the OLD <code>.ai_prompt/</code> staging files into final locations</td><td>Always pair sync + deploy</td></tr>
+            <tr><td>Run <code>deploy.sh</code> without <code>sync-to-project</code> first when a new framework version exists</td><td>Deploys the OLD <code>.ai_prompt/</code> staging files into final locations</td><td>Always pair sync + deploy</td></tr>
             <tr><td>Run Flavor A then Flavor C back-to-back</td><td>Idempotent but creates duplicate <code>.bak</code> files</td><td>Pick one flavor per update</td></tr>
             <tr><td>Edit framework files inside a target project's <code>.ai_prompt/</code> directly</td><td>Changes get overwritten on next sync</td><td>Edit in <code>Powerbyte-AIEF/specdrivenprompt/</code>, commit, sync</td></tr>
             <tr><td><code>cp -r specdrivenprompt/* target/.ai_prompt/</code> blindly</td><td>Leaks repo-internal files (<code>CLAUDE_framework_repo.md</code>, <code>ClaudeCodeChanges-*.md</code>)</td><td>Use <code>sync-to-project</code> — whitelisted, 16 files only</td></tr>
@@ -6019,7 +6019,7 @@ head -1 CLAUDE.md                                              # expect: # SPEC-
       <h4>A.7 — Safety Guarantees (built into the scripts)</h4>
       <ul class="checklist">
         <li><code>sync-to-project</code> validates source files exist before copying; refuses self-sync; whitelist-based</li>
-        <li><code>deploy-v31.sh</code> backs up every overwritten file with a timestamped <code>.bak</code> suffix; aborts if it would touch NEVER-TOUCH files (<code>PRODUCT.md</code>, <code>DECISIONS_LOG.md</code>, codebase, <code>.env*</code>)</li>
+        <li><code>deploy.sh</code> backs up every overwritten file with a timestamped <code>.bak</code> suffix; aborts if it would touch NEVER-TOUCH files (<code>PRODUCT.md</code>, <code>DECISIONS_LOG.md</code>, codebase, <code>.env*</code>)</li>
         <li>Both scripts use <code>set -euo pipefail</code> — refuse to proceed on validation failure</li>
         <li>Easy rollback: <code>cp foo.md.20260527_120000.bak foo.md</code></li>
       </ul>
@@ -6154,8 +6154,8 @@ git pull</div>
       <p><strong>Behind the scenes:</strong></p>
       <ol>
         <li><code>git pull</code> in Powerbyte-AIEF (idempotent re-check)</li>
-        <li><code>sync-to-project .</code> — copies 16 framework files to <code>&lt;target&gt;/.ai_prompt/</code> + drops <code>deploy-v31.sh</code> at project root (whitelist-based)</li>
-        <li><code>bash deploy-v31.sh</code> — fans the 7 detail files into <code>.ai_prompt/</code>, writes <code>AI/Master_Prompt_v31.md</code>, writes <code>CLAUDE.md</code> at root; <code>.claude/rules/</code> is intentionally empty (V32.7); backs up modified files with timestamped <code>.bak</code></li>
+        <li><code>sync-to-project .</code> — copies 16 framework files to <code>&lt;target&gt;/.ai_prompt/</code> + drops <code>deploy.sh</code> at project root (whitelist-based)</li>
+        <li><code>bash deploy.sh</code> — fans the 7 detail files into <code>.ai_prompt/</code>, writes <code>AI/Master_Prompt.md</code>, writes <code>CLAUDE.md</code> at root; <code>.claude/rules/</code> is intentionally empty (V32.7); backs up modified files with timestamped <code>.bak</code></li>
         <li>Prints conditional next-steps based on PA artifact detection</li>
       </ol>
 
@@ -6287,7 +6287,7 @@ cd ~/project-3 && spec-update . && claude   # restart + rehydrate</div>
           </thead>
           <tbody>
             <tr><td>Say <code>Bootstrap</code> to Claude after <code>spec-update</code> on a mid-build project</td><td>Use Prompt 1.4.0 rehydrate instead</td></tr>
-            <tr><td>Run <code>bash deploy-v31.sh</code> without <code>sync-to-project</code> first</td><td>Always pair sync → deploy (or use <code>spec-update</code>)</td></tr>
+            <tr><td>Run <code>bash deploy.sh</code> without <code>sync-to-project</code> first</td><td>Always pair sync → deploy (or use <code>spec-update</code>)</td></tr>
             <tr><td>Skip the restart, keep chatting in the old session</td><td>Always restart — rules are session-scoped</td></tr>
             <tr><td>Run prompt 1.2 or 1.4.2 on a V32.x project</td><td>Both are out-of-scope for in-band V32 patches</td></tr>
             <tr><td>Edit files inside <code>&lt;target&gt;/.ai_prompt/</code> directly</td><td>Edit in <code>Powerbyte-AIEF/specdrivenprompt/</code>, commit, re-run <code>spec-update</code></td></tr>
