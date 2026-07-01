@@ -6,6 +6,29 @@
 PHASE: Phase 8 (ongoing buildout)
 FRAMEWORK_VERSION: V32.9
 
+SESSION_SAVE_2026_07_01_S5 (Swarm S5 — Admin Settings — Report Template list + create/edit form):
+  ✅ DONE THIS SESSION:
+    - Created apps/web/src/app/(dashboard)/settings/report-templates/page.tsx
+    - Created apps/web/src/app/(dashboard)/settings/report-templates/_components/report-template-form.tsx
+        WCAG 2.2 AA: FormLabel+FormMessage via shadcn Form, aria-invalid auto-wired, logo inputs
+        have explicit htmlFor labels + aria-label, dialog has DialogTitle + aria-describedby,
+        error blocks use role="alert" + aria-live="assertive", 44px min touch targets throughout
+        useReducedMotion() guards Loader2 animate-spin per R14
+        Client-side MIME type + size validation (PNG/JPEG only, max 10 MB) before submit
+        RHF + Zod (createReportTemplateInputSchema / updateReportTemplateInputSchema)
+        Logo upload: FileReader → base64 → {data, contentType} → router municipalLogoUpload/partnerLogoUpload
+    - Created apps/web/src/app/(dashboard)/settings/report-templates/_components/report-template-list.tsx
+        shadcn Table with template rows (name, layout label, reportTitle, Default badge)
+        Create / Edit / Set Default / Delete actions with WCAG aria-labels
+        Delete confirmation Dialog showing template name to prevent accidental deletion
+        limit: 200 (schema max) — avoids pagination complexity on a settings page
+    - Updated apps/web/src/app/(dashboard)/settings/page.tsx — added Report Templates link card
+    - Code-review fixes (4 confirmed findings):
+        Dead liveRegionRef removed; file type cast → runtime MIME validation + early error;
+        pagination truncation → limit: 200; delete dialog now shows template name
+    - Validation: lint ✅ · test 1206/1206 ✅ · build ✅
+  STATE: branch swarm/printable-report-map, changes staged.
+
 SESSION_SAVE_2026_07_01_S4 (Swarm S4 — reportTemplate tRPC router — CRUD + setDefault):
   ✅ DONE THIS SESSION:
     - Created apps/web/src/server/trpc/routers/reportTemplate.ts

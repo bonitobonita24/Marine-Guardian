@@ -3,6 +3,16 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-07-01 — Admin Settings — Report Template list + create/edit form (Phase 4 S5)
+
+- Agent:               CLAUDE_CODE (Sonnet 4.6) — Swarm S5
+- Why:                 Phase 4 S5 — Admin Settings UI for Report Templates: list page with CRUD table, create/edit Dialog form (RHF + Zod, shadcn-only), and Report Templates card on main settings page. WCAG 2.2 AA hard gate: labelled inputs, role="alert" error blocks, aria-live regions, DialogTitle + aria-describedby, 44px touch targets, useReducedMotion() guards spinner. R14 motion guard applied. Client-side logo MIME/size validation before upload.
+- Files:               apps/web/src/app/(dashboard)/settings/report-templates/page.tsx (new), _components/report-template-form.tsx (new), _components/report-template-list.tsx (new), settings/page.tsx (Report Templates link added)
+- Tests:               1206 pass (no new tests — UI-only components; CRUD exercised via S4 router tests)
+- Validation:          lint ✅ · test ✅ · build ✅
+- Code-review:         4 in-scope findings fixed: dead liveRegionRef removed; file.type cast → runtime MIME validation; pagination limit 50 → 200 (schema max); delete dialog now shows template name. 0 deferred blockers.
+- Rule 15:             Swarm session S5. No Opus used (Sonnet-inline, subagent dispatch suppressed per memory feedback_subagent_dispatch_overflows_in_repo).
+
 ## 2026-07-01 — reportTemplate tRPC router — CRUD + setDefault (Phase 4 S4)
 
 - Agent:               CLAUDE_CODE (Sonnet 4.6) — Swarm S4

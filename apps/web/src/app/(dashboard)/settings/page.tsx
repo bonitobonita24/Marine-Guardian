@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ShieldAlert } from "lucide-react";
+import { FileText, ShieldAlert } from "lucide-react";
 import { ErConnectionCard } from "./_components/er-connection-card";
 import { ErSyncCard } from "./_components/er-sync-card";
 import { DataPrivacyCard } from "./_components/data-privacy-card";
@@ -11,6 +11,13 @@ export default function SettingsPage() {
       <ErConnectionCard />
       <ErSyncCard />
       <DataPrivacyCard />
+      <Link
+        href="/settings/report-templates"
+        className="inline-flex min-h-[44px] items-center gap-2 rounded-md border border-border bg-card px-4 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      >
+        <FileText className="h-4 w-4" aria-hidden="true" />
+        Report Templates (administrators)
+      </Link>
       <Link
         href="/settings/breach"
         className="inline-flex min-h-[44px] items-center gap-2 rounded-md border border-border bg-card px-4 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
