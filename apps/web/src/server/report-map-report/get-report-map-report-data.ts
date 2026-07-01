@@ -378,6 +378,7 @@ export async function getReportMapReportData(
       // Patrol track polylines
       prisma.patrolTrack.findMany({
         where: { tenantId: tenant.id, patrol: patrolFilter },
+        take: 300,
         orderBy: { until: "desc" },
         select: {
           trackGeojson: true,

@@ -3,6 +3,16 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-07-01 — Wire 'report-map' dispatch into print-render page (Phase 4 S8)
+
+- Agent:               CLAUDE_CODE (Sonnet 4.6) — Swarm S8
+- Why:                 Phase 4 S8 — Wire report_map dispatch into the print-render route. The page.tsx wiring was already completed in S7; this session confirmed correctness, ran the full code-review gate, and applied one fix from the review: patrolTrack query missing take:300 limit in get-report-map-report-data.ts (L379), consistent with adjacent patrol query (take:300 at L360) to prevent unbounded memory load on large patrol histories.
+- Files:               apps/web/src/server/report-map-report/get-report-map-report-data.ts (+1 line: take:300 on patrolTrack query), docs/STATE.md, docs/CHANGELOG_AI.md
+- Tests:               1225 pass
+- Validation:          lint ✅ · test ✅ · build ✅
+- Code-review:         1 in-scope fix applied (patrolTrack limit). 3 deferred Bucket-A: (1) LANDSCAPE_REPORT_TYPES includes report_map while portrait-layout templates set @page portrait CSS — Puppeteer landscape flag vs CSS precedence needs real-browser test; (2) MapReadySignal copy-paste across 4 Leaflet islands (pre-existing S7 defer); (3) partner logo alt text hardcoded "Blue Alliance logo" vs template-driven value for WCAG 1.1.1.
+- Rule 15:             Swarm session S8. No Opus used (Sonnet-inline).
+
 ## 2026-07-01 — Print report body — 5 chart+map pages + template-driven LGU header/footer/layout (Phase 4 S7)
 
 - Agent:               CLAUDE_CODE (Sonnet 4.6) — Swarm S7

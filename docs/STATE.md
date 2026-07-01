@@ -6,6 +6,27 @@
 PHASE: Phase 8 (ongoing buildout)
 FRAMEWORK_VERSION: V32.9
 
+SESSION_SAVE_2026_07_01_S8 (Swarm S8 — Wire 'report-map' dispatch into print-render page):
+  ✅ DONE THIS SESSION:
+    - Confirmed page.tsx dispatch already wired in S7 (commit 50b96a5):
+        "report_map" in VALID_REPORT_TYPES + import getReportMapReportData + import ReportMapReport
+        + dispatch block if (reportType === "report_map") { ... }
+    - Fixed patrolTrack query missing take:300 limit in get-report-map-report-data.ts (L379)
+        Consistent with adjacent patrol query (L360 take:300); prevents unbounded memory load
+        for tenants with large patrol histories
+    - Code-review: 4 finders × 4 verifiers; 1 in-scope fix (patrolTrack limit); 3 deferred
+        Bucket-A findings raised as questions (landscape/portrait Puppeteer conflict, MapReadySignal
+        copy-paste, partner logo alt text hardcoded)
+    - Validation: lint ✅ · test 1225/1225 ✅ · build ✅
+  DEFERRED (code-review Bucket-A, out-of-scope for S8):
+    - landscape/portrait Puppeteer flag conflict: LANDSCAPE_REPORT_TYPES includes report_map so
+      Puppeteer always passes landscape:true, but portrait-layout templates apply @page portrait in CSS.
+      Behavior depends on Puppeteer/Chromium CSS-vs-flag precedence (PLAUSIBLE, needs real-browser test).
+    - MapReadySignal copy-pasted across 4 Leaflet islands — extract to shared component (pre-existing S7 defer)
+    - Partner logo alt text hardcoded "Blue Alliance logo" (L127 report-map-report.tsx) — should be
+      template-driven for WCAG 1.1.1 compliance in white-label deployments
+  STATE: branch swarm/printable-report-map, committed.
+
 SESSION_SAVE_2026_07_01_S7 (Swarm S7 — Print report body — 5 chart+map pages):
   ✅ DONE THIS SESSION:
     - Created apps/web/src/app/print-render/[tenantSlug]/[reportType]/[exportId]/report-map-report.tsx
