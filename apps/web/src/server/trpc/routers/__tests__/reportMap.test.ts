@@ -10,6 +10,9 @@ vi.mock("@marine-guardian/db", () => ({
     patrol: {
       count: vi.fn(),
     },
+    patrolTrack: {
+      findMany: vi.fn(),
+    },
   },
 }));
 
@@ -271,5 +274,237 @@ describe("reportMap.highPriorityEvents", () => {
 
     expect(result.total).toBe(0);
     expect(result.events).toEqual([]);
+  });
+});
+
+describe("reportMap.eventBreakdownWithCoords", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("counts match eventBreakdown and points exclude null-coord rows", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([
+      {
+        id: "e1",
+        title: "Blast Fishing A",
+        locationLat: 13.41,
+        locationLon: 121.18,
+        eventType: { category: "law-enforcement-and-apprehensions", display: "Blast Fishing" },
+      },
+      {
+        id: "e2",
+        title: "Blast Fishing B",
+        locationLat: null, // null coord — must be excluded from points
+        locationLon: null,
+        eventType: { category: "law-enforcement-and-apprehensions", display: "Blast Fishing" },
+      },
+      {
+        id: "e3",
+        title: "Vessel Sighting",
+        locationLat: 13.42,
+        locationLon: 121.19,
+        eventType: { category: "monitoring_patrolling_and_surveillance", display: "Vessel Sighting" },
+      },
+      {
+        // Serious event (compressor fishing) — must appear in highPriority
+        id: "e4",
+        title: "Compressor Fishing",
+        locationLat: 13.43,
+        locationLon: 121.20,
+        eventType: { category: "law-enforcement-and-apprehensions", display: "Compressor Fishing" },
+      },
+    ] as any);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.eventBreakdownWithCoords({ municipalityId: "muni-1" });
+
+    // Count parity: 2 Blast Fishing, 1 Compressor Fishing (LE bucket)
+    const blastType = result.lawEnforcement.find((t) => t.type === "Blast Fishing");
+    expect(blastType?.count).toBe(2);
+    // Only e1 has non-null coords
+    expect(blastType?.points).toHaveLength(1);
+    expect(blastType?.points[0]).toMatchObject({ id: "e1", lat: 13.41, lon: 121.18 });
+
+    const compressor = result.lawEnforcement.find((t) => t.type === "Compressor Fishing");
+    expect(compressor?.count).toBe(1);
+    expect(compressor?.points).toHaveLength(1);
+
+    // Monitoring bucket
+    expect(result.monitoring).toHaveLength(1);
+    expect(result.monitoring[0]).toMatchObject({ type: "Vessel Sighting", count: 1 });
+    expect(result.monitoring[0]?.points).toHaveLength(1);
+    expect(result.monitoring[0]?.points[0]).toMatchObject({ id: "e3" });
+
+    // High priority: e4 is "Compressor Fishing" → matches "compressor" pattern
+    expect(result.highPriority.total).toBe(1);
+    expect(result.highPriority.points).toHaveLength(1);
+    expect(result.highPriority.points[0]).toMatchObject({ id: "e4", lat: 13.43, lon: 121.20 });
+
+    // Tenant scoping
+    const where = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where;
+    expect(where).toMatchObject({ tenantId: TENANT_ID, municipalityId: "muni-1" });
+    expect(where).toHaveProperty("NOT.eventType.display.contains", "skylight");
+  });
+
+  it("excludes cross-tenant events via eventWhere tenantId scoping", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx("other-tenant"));
+    await caller.eventBreakdownWithCoords({});
+
+    const where = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where;
+    expect(where).toMatchObject({ tenantId: "other-tenant" });
+  });
+
+  it("high-priority total is zero when no events match serious patterns", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([
+      {
+        id: "e1",
+        title: "Vessel Sighting",
+        locationLat: 13.41,
+        locationLon: 121.18,
+        eventType: { category: "monitoring_patrolling_and_surveillance", display: "Vessel Sighting" },
+      },
+    ] as any);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.eventBreakdownWithCoords({});
+
+    expect(result.highPriority.total).toBe(0);
+    expect(result.highPriority.points).toEqual([]);
+  });
+});
+
+describe("reportMap.allEventPointsInRange", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns total = rows.length and points with only non-null coords, tenant-scoped", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([
+      { id: "e1", title: "Event A", locationLat: 13.41, locationLon: 121.18 },
+      { id: "e2", title: null, locationLat: null, locationLon: null }, // excluded from points
+      { id: "e3", title: "Event C", locationLat: 13.43, locationLon: 121.20 },
+    ] as any);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.allEventPointsInRange({
+      from: new Date("2026-06-01"),
+      to: new Date("2026-06-27"),
+      municipalityId: "muni-1",
+    });
+
+    expect(result.total).toBe(3); // rows.length (includes null-coord row)
+    expect(result.points).toHaveLength(2);
+    expect(result.points[0]).toMatchObject({ id: "e1", lat: 13.41, lon: 121.18 });
+    expect(result.points[1]).toMatchObject({ id: "e3", lat: 13.43, lon: 121.20 });
+
+    const findManyWhere = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where;
+    expect(findManyWhere).toMatchObject({
+      tenantId: TENANT_ID,
+      reportedAt: { gte: new Date("2026-06-01"), lte: new Date("2026-06-27") },
+      municipalityId: "muni-1",
+      NOT: { eventType: { display: { contains: "skylight", mode: "insensitive" } } },
+    });
+  });
+
+  it("excludes cross-tenant events via tenantId", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx("tenant-xyz"));
+    await caller.allEventPointsInRange({});
+
+    const where = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where;
+    expect(where).toMatchObject({ tenantId: "tenant-xyz" });
+  });
+});
+
+describe("reportMap.patrolTrackPointsInRange", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const sampleGeojson = {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        geometry: {
+          type: "LineString",
+          coordinates: [
+            [121.18, 13.41],
+            [121.19, 13.42],
+            [121.20, 13.43],
+          ],
+        },
+      },
+    ],
+  };
+
+  it("returns patrol track polylines tenant-scoped, excludes tracks with < 2 points", async () => {
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([
+      {
+        trackGeojson: sampleGeojson,
+        patrol: { id: "p1", title: "Patrol Alpha", serialNumber: "PN-001" },
+      },
+      {
+        // empty geojson — < 2 points, must be filtered out
+        trackGeojson: { type: "FeatureCollection", features: [] },
+        patrol: { id: "p2", title: "Patrol Beta", serialNumber: "PN-002" },
+      },
+    ] as any);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.patrolTrackPointsInRange({
+      from: new Date("2026-06-01"),
+      to: new Date("2026-06-27"),
+      municipalityId: "muni-1",
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      patrolId: "p1",
+      label: "Patrol Alpha",
+    });
+    expect(result[0]?.path).toHaveLength(3);
+    expect(result[0]?.path[0]).toEqual({ lat: 13.41, lon: 121.18 });
+    expect(result[0]?.path[2]).toEqual({ lat: 13.43, lon: 121.20 });
+
+    const trackWhere = vi.mocked(prisma.patrolTrack.findMany).mock.calls[0]?.[0]?.where;
+    expect(trackWhere).toMatchObject({
+      tenantId: TENANT_ID,
+      patrol: {
+        tenantId: TENANT_ID,
+        isDeleted: false,
+        isTestPatrol: false,
+        startTime: { gte: new Date("2026-06-01"), lte: new Date("2026-06-27") },
+        municipalityId: "muni-1",
+      },
+    });
+  });
+
+  it("uses serialNumber as label when title is null", async () => {
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([
+      {
+        trackGeojson: sampleGeojson,
+        patrol: { id: "p1", title: null, serialNumber: "PN-007" },
+      },
+    ] as any);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.patrolTrackPointsInRange({});
+
+    expect(result[0]?.label).toBe("PN-007");
+  });
+
+  it("patrol tracks are scoped to the authenticated tenant", async () => {
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx("tenant-xyz"));
+    await caller.patrolTrackPointsInRange({});
+
+    const where = vi.mocked(prisma.patrolTrack.findMany).mock.calls[0]?.[0]?.where as any;
+    expect(where).toMatchObject({ tenantId: "tenant-xyz" });
+    expect(where?.patrol).toMatchObject({ tenantId: "tenant-xyz" });
   });
 });

@@ -23,6 +23,7 @@ import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
 import { prisma } from "@marine-guardian/db";
 import { SERIOUS_EVENT_PATTERNS } from "@/components/map/eventMarkerStyle";
+import { pointsFromTrackGeojson } from "./map";
 
 const LAW_CATEGORY = "law-enforcement-and-apprehensions";
 const MONITORING_CATEGORY = "monitoring_patrolling_and_surveillance";
@@ -95,6 +96,96 @@ function patrolWhere(tenantId: string, input: ReportFilterInput) {
     where.coveredZones = { some: { protectedZoneId: input.protectedZoneId } };
   }
   return where;
+}
+
+type EventPoint = { id: string; title: string | null; lat: number; lon: number };
+
+/**
+ * Single-query implementation shared by `eventBreakdownWithCoords` (tRPC) and
+ * the SSR print loader (S6). Returns breakdown rows WITH geo-points so the
+ * printable report map can render category-coloured dot clusters without a
+ * second round-trip.
+ *
+ * Contract: per-type `count` values MUST equal `eventBreakdown` for the same
+ * filter; `highPriority.total` MUST equal `highPriorityEvents.total`.
+ * Points include ONLY events where both lat AND lon are non-null.
+ */
+export async function buildEventBreakdownWithCoords(
+  tenantId: string,
+  input: ReportFilterInput,
+) {
+  const events = await prisma.event.findMany({
+    where: eventWhere(tenantId, input),
+    select: {
+      id: true,
+      title: true,
+      locationLat: true,
+      locationLon: true,
+      eventType: { select: { category: true, display: true } },
+    },
+  });
+
+  const lawMap: Record<string, { count: number; points: EventPoint[] }> = {};
+  const monMap: Record<string, { count: number; points: EventPoint[] }> = {};
+  let highTotal = 0;
+  const highPoints: EventPoint[] = [];
+
+  for (const e of events) {
+    const category = e.eventType?.category ?? "uncategorized";
+    const display = e.eventType?.display ?? "Unknown";
+    const lower = display.toLowerCase();
+    const isSerious = SERIOUS_EVENT_PATTERNS.some((p) => lower.includes(p));
+
+    if (isSerious) {
+      highTotal++;
+      if (e.locationLat != null && e.locationLon != null) {
+        highPoints.push({
+          id: e.id,
+          title: e.title,
+          lat: e.locationLat,
+          lon: e.locationLon,
+        });
+      }
+    }
+
+    if (category === LAW_CATEGORY) {
+      const bucket = (lawMap[display] ??= { count: 0, points: [] });
+      bucket.count++;
+      if (e.locationLat != null && e.locationLon != null) {
+        bucket.points.push({
+          id: e.id,
+          title: e.title,
+          lat: e.locationLat,
+          lon: e.locationLon,
+        });
+      }
+    } else if (category === MONITORING_CATEGORY) {
+      const bucket = (monMap[display] ??= { count: 0, points: [] });
+      bucket.count++;
+      if (e.locationLat != null && e.locationLon != null) {
+        bucket.points.push({
+          id: e.id,
+          title: e.title,
+          lat: e.locationLat,
+          lon: e.locationLon,
+        });
+      }
+    }
+  }
+
+  return {
+    lawEnforcement: Object.entries(lawMap).map(([type, { count, points }]) => ({
+      type,
+      count,
+      points,
+    })),
+    monitoring: Object.entries(monMap).map(([type, { count, points }]) => ({
+      type,
+      count,
+      points,
+    })),
+    highPriority: { total: highTotal, points: highPoints },
+  };
 }
 
 /** Local-calendar `yyyy-MM-dd` key for daily bucketing. */
@@ -260,6 +351,96 @@ export const reportMapRouter = router({
           locationLon: e.locationLon ?? null,
         })),
       };
+    }),
+
+  /**
+   * Event breakdown WITH geo-points — powers the printable report map's
+   * per-category dot overlays (LE, Monitoring, High-Priority clusters).
+   * Counts are identical to `eventBreakdown`; `highPriority.total` is identical
+   * to `highPriorityEvents.total` for the same filter — both derived in one pass.
+   */
+  eventBreakdownWithCoords: tenantProcedure
+    .input(reportFilterInput)
+    .query(({ ctx, input }) =>
+      buildEventBreakdownWithCoords(ctx.tenantId, input),
+    ),
+
+  /**
+   * All event points in range — feeds the Events-Over-Time OVERVIEW map.
+   * Same `eventWhere` as every other aggregation (tenant-scoped, Skylight
+   * excluded, date + municipality filtered). Points include only events where
+   * both lat AND lon are non-null; `total` is the unbounded event count so the
+   * caller can show "N events" even when the point list is large.
+   */
+  allEventPointsInRange: tenantProcedure
+    .input(reportFilterInput)
+    .query(async ({ ctx, input }) => {
+      const rows = await prisma.event.findMany({
+        where: eventWhere(ctx.tenantId, input),
+        select: {
+          id: true,
+          title: true,
+          locationLat: true,
+          locationLon: true,
+        },
+      });
+
+      const points: EventPoint[] = [];
+      for (const e of rows) {
+        if (e.locationLat != null && e.locationLon != null) {
+          points.push({
+            id: e.id,
+            title: e.title,
+            lat: e.locationLat,
+            lon: e.locationLon,
+          });
+        }
+      }
+
+      return { total: rows.length, points };
+    }),
+
+  /**
+   * Patrol track polylines for the Patrol-List print map. Reuses `patrolWhere`
+   * (same tenant-scope, date-range, municipality filter as `patrolsInRange`) and
+   * reads the materialized PatrolTrack.trackGeojson geometry — the same source
+   * the live interactive map's `tracks.inRange` procedure uses. Returns one entry
+   * per patrol that has a materialized track with >= 2 renderable points.
+   */
+  patrolTrackPointsInRange: tenantProcedure
+    .input(reportFilterInput)
+    .query(async ({ ctx, input }) => {
+      const trackRows = await prisma.patrolTrack.findMany({
+        where: {
+          tenantId: ctx.tenantId,
+          patrol: patrolWhere(ctx.tenantId, input),
+        },
+        orderBy: { until: "desc" },
+        select: {
+          trackGeojson: true,
+          patrol: {
+            select: {
+              id: true,
+              title: true,
+              serialNumber: true,
+            },
+          },
+        },
+      });
+
+      const result: { patrolId: string; label: string; path: { lat: number; lon: number }[] }[] =
+        [];
+      for (const row of trackRows) {
+        const pts = pointsFromTrackGeojson(row.trackGeojson);
+        if (pts.length < 2) continue;
+        const { id, title, serialNumber } = row.patrol;
+        result.push({
+          patrolId: id,
+          label: title ?? serialNumber ?? id,
+          path: pts.map(({ lat, lon }) => ({ lat, lon })),
+        });
+      }
+      return result;
     }),
 
   eventsOverTime: tenantProcedure

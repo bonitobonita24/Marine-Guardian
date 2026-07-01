@@ -3,6 +3,16 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-07-01 — Data gap #1: reportMap geo data for ALL 5 charts (Phase 4 S0)
+
+- Agent:               CLAUDE_CODE (Sonnet 4.6) — Swarm S0
+- Why:                 Phase 4 S0 — add three new tenantProcedures + exported helper to reportMap router to provide geo-data for the printable report map's 5 chart overlays: eventBreakdownWithCoords (LE/monitoring/high-priority points), allEventPointsInRange (events-over-time overview map), patrolTrackPointsInRange (patrol polylines). Single-pass helper buildEventBreakdownWithCoords exported for SSR reuse (S6).
+- Files:               apps/web/src/server/trpc/routers/reportMap.ts (3 procedures + exported helper), apps/web/src/server/trpc/routers/__tests__/reportMap.test.ts (+8 tests, patrolTrack mock)
+- Tests:               1188 pass (was 1180 before this session, +8 new)
+- Validation:          lint ✓ · test ✓ · typecheck pre-existing errors only (exports/page.tsx, reportExport.ts — not in scope)
+- Code-review:         1 finding fixed (redundant event.count in allEventPointsInRange → use rows.length)
+- Rule 15:             Swarm session S0. No Opus used (Sonnet-inline, scope was single-file pair).
+
 ## 2026-07-01 — Data gap #2a: register 'report-map' reportType (enum + landscape orientation)
 
 - Agent:               CLAUDE_CODE (Sonnet 4.6) — Swarm S1

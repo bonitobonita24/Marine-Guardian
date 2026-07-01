@@ -6,6 +6,17 @@
 PHASE: Phase 8 (ongoing buildout)
 FRAMEWORK_VERSION: V32.9
 
+SESSION_SAVE_2026_07_01_S0 (Swarm S0 — Data gap #1: reportMap geo data):
+  ✅ DONE THIS SESSION:
+    - Added buildEventBreakdownWithCoords() exported helper (single-pass, SSR-reusable)
+    - Added eventBreakdownWithCoords tenantProcedure (LE/monitoring/high-priority with lat/lon points)
+    - Added allEventPointsInRange tenantProcedure (all events with lat/lon for overview map)
+    - Added patrolTrackPointsInRange tenantProcedure (patrol polylines from PatrolTrack.trackGeojson)
+    - Extended reportMap.test.ts: +8 tests, added patrolTrack mock; 1188 tests total
+    - Code-review fix: eliminated redundant event.count in allEventPointsInRange (use rows.length)
+  STATE: branch swarm/printable-report-map-S0 committed. Lint ✓ test ✓.
+    Pre-existing typecheck errors in exports/page.tsx + reportExport.ts (not in scope).
+
 SESSION_SAVE_2026_07_01_S1 (Swarm S1 — Data gap #2a):
   ✅ DONE THIS SESSION:
     - Registered `"report-map"` in reportTypeSchema (packages/shared/src/schemas/enums.ts)
