@@ -28,6 +28,7 @@ import { breachRouter } from "./breach";
 import { municipalityCoverageRouter } from "./municipalityCoverage";
 import { municipalityRouter } from "./municipality";
 import { reportMapRouter } from "./reportMap";
+import { reportTemplateRouter } from "./reportTemplate";
 
 export const appRouter = router({
   settings: settingsRouter,
@@ -59,6 +60,7 @@ export const appRouter = router({
   municipalityCoverage: municipalityCoverageRouter,
   municipality: municipalityRouter,
   reportMap: reportMapRouter,
+  reportTemplate: reportTemplateRouter,
 });
 
 export type AppRouter = typeof appRouter;
