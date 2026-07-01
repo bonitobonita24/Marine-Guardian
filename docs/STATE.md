@@ -6,6 +6,35 @@
 PHASE: Phase 8 (ongoing buildout)
 FRAMEWORK_VERSION: V32.9
 
+SESSION_SAVE_2026_07_01_S9 (Swarm S9 — UI — 'Generate Printable' button + template picker):
+  ✅ DONE THIS SESSION:
+    - Created apps/web/src/app/(dashboard)/map/_components/generate-printable-button.tsx
+        GeneratePrintableButton client component placed under EventsOverTimeChart in report-map-view.tsx
+        Template picker: trpc.reportTemplate.list (enabled only when dialog open); defaults to isDefault
+        template; native select with "Loading templates…" / "No templates available" states
+        On confirm: reportExport.create with reportType:'report_map', paperSize:'A4', paramsJson:
+          { templateId, from, to, municipalityId?, protectedZoneId? } from useReportFilter()
+        create→queue→link lifecycle mirrors generate-report-button.tsx VERBATIM
+        WCAG: aria-label="Generate printable report" (button), aria-label="Report template" (select),
+          aria-live="polite" sr-only region (pending + success); role="alert" for errors only (no
+          double-announcement); aria-busy on confirm button
+        <DialogTrigger asChild> wrapping so Radix returns focus to trigger on close (WCAG 2.4.3)
+        useEffect cleanup for timeoutRef prevents setState on unmounted component
+    - Updated apps/web/src/app/(dashboard)/map/_components/report-map-view.tsx
+        Import + render GeneratePrintableButton in flex justify-end div directly under EventsOverTimeChart
+    - Code-review gate: 4 confirmed/plausible findings, all fixed inline:
+        (1) Missing DialogTrigger → wrapped with <DialogTrigger asChild> (WCAG 2.4.3)
+        (2) Double error announcement polite+assertive → removed error from aria-live region
+        (3) No unmount cleanup for timeout → added useEffect(() => clearRequestTimeout, [])
+        (4) aria-busy on <select> semantically meaningless → removed
+        (5) Dead prefersReducedMotion ternary (no spinner) → removed hook + dead ternary
+    - Validation: lint ✅ · test 1225/1225 ✅ · build ✅
+  DEFERRED (code-review Bucket-A, out-of-scope for S9):
+    - useReducedMotion duplicated in report-template-form.tsx and this file (now removed from S9) —
+      extract to shared apps/web/src/lib/hooks/use-reduced-motion.ts when a Loader2 spinner is
+      added to either component (R14 will need real wiring at that point)
+  STATE: branch swarm/printable-report-map, committed.
+
 SESSION_SAVE_2026_07_01_S8 (Swarm S8 — Wire 'report-map' dispatch into print-render page):
   ✅ DONE THIS SESSION:
     - Confirmed page.tsx dispatch already wired in S7 (commit 50b96a5):

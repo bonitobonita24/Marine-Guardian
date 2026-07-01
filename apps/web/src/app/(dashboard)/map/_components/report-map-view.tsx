@@ -21,6 +21,7 @@ import {
   ReportMapEmptyState,
   shouldShowReportMapEmptyState,
 } from "./report-map-empty-state";
+import { GeneratePrintableButton } from "./generate-printable-button";
 
 /**
  * Interactive Report Map (2026-06-27) — a presentation surface for reporting to
@@ -220,12 +221,15 @@ function ReportMapInner() {
           so the trend reads clearly; intentionally NOT part of the map+analytics
           full-screen view (owner request 2026-06-30). */}
       {!showEmptyState && (
-        <div className="shrink-0 pt-2">
+        <div className="shrink-0 space-y-2 pt-2">
           <EventsOverTimeChart
             data={eventsOverTime.data ?? []}
             isLoading={eventsOverTime.isLoading}
             rangeLabel={label}
           />
+          <div className="flex justify-end">
+            <GeneratePrintableButton />
+          </div>
         </div>
       )}
 

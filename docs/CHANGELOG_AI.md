@@ -3,6 +3,16 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-07-01 — UI — 'Generate Printable' button + template picker under Events Over Time (Phase 4 S9)
+
+- Agent:               CLAUDE_CODE (Sonnet 4.6) — Swarm S9
+- Why:                 Phase 4 S9 — Add a 'Generate Printable' action directly under the Events Over Time chart in the Report Map page. Replicates create→queue→link lifecycle from generate-report-button.tsx; adds a template picker populated from reportTemplate.list defaulting to the tenant's isDefault template; passes current live filter (from/to/municipalityId/protectedZoneId) as paramsJson.
+- Files:               apps/web/src/app/(dashboard)/map/_components/generate-printable-button.tsx (new), apps/web/src/app/(dashboard)/map/_components/report-map-view.tsx (+import +render), docs/STATE.md, docs/CHANGELOG_AI.md
+- Tests:               1225 pass
+- Validation:          lint ✅ · test ✅ · build ✅
+- Code-review:         4 confirmed/plausible findings fixed inline: (1) added <DialogTrigger asChild> for WCAG 2.4.3 focus-return; (2) removed error from aria-live polite region to prevent double-announcement; (3) added useEffect unmount cleanup for timeoutRef; (4) removed semantically meaningless aria-busy from <select>; (5) removed dead prefersReducedMotion ternary (no spinner in this component). 1 deferred: useReducedMotion extraction to shared hook (bucket A, follow-up when Loader2 spinner is added).
+- Rule 15:             Swarm session S9. No Opus used (Sonnet-inline).
+
 ## 2026-07-01 — Wire 'report-map' dispatch into print-render page (Phase 4 S8)
 
 - Agent:               CLAUDE_CODE (Sonnet 4.6) — Swarm S8
