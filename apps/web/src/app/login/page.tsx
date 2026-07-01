@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -15,6 +16,7 @@ function LoginForm() {
   const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard";
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
 
   async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -41,6 +43,7 @@ function LoginForm() {
         password,
         callbackUrl,
         json: "true",
+        rememberMe: rememberMe ? "true" : "false",
       });
 
       const res = await fetch("/api/auth/callback/credentials", {
@@ -109,6 +112,18 @@ function LoginForm() {
                 autoComplete="current-password"
                 className="min-h-[44px]"
               />
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="rememberMe"
+                checked={rememberMe}
+                onCheckedChange={(checked) => {
+                  setRememberMe(checked === true);
+                }}
+              />
+              <Label htmlFor="rememberMe" className="text-sm font-normal">
+                {t("rememberMe")}
+              </Label>
             </div>
             <Button
               type="submit"
