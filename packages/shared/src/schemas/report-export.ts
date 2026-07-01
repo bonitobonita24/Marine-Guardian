@@ -41,6 +41,7 @@ export const getReportExportByIdInputSchema = z.object({
   id: z.string(),
 });
 
+// For report-map exports, paramsJson carries { templateId, from, to, municipalityId, protectedZoneId }.
 export const createReportExportInputSchema = z.object({
   reportType: reportTypeSchema,
   paramsJson: z.record(z.unknown()),

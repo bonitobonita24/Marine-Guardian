@@ -3,6 +3,14 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-07-01 — Data gap #2a: register 'report-map' reportType (enum + landscape orientation)
+
+- Agent:               CLAUDE_CODE (Sonnet 4.6) — Swarm S1
+- Why:                 Phase 4 S1 — register new `report-map` reportType in Zod enum, mark it A4-landscape in pdf-render processor, document paramsJson shape for future print-render wiring.
+- Files:               packages/shared/src/schemas/enums.ts (reportTypeSchema), packages/jobs/src/processors/pdf-render.processor.ts (LANDSCAPE_REPORT_TYPES), packages/shared/src/schemas/report-export.ts (comment)
+- Branch / merge:      swarm/printable-report-map-S1 (not yet merged — awaiting owner approval)
+- Validation:          shared typecheck ✅ | jobs 203/203 tests ✅ | code-review clean (1 deferred: Prisma enum migration in separate session)
+
 ## 2026-06-30 — Spec-Driven framework upgrade V32.14 -> V32.18 (governance layer only)
 
 - Agent:               CLAUDE_CODE (Opus 4.8)

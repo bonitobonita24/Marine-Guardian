@@ -6,6 +6,17 @@
 PHASE: Phase 8 (ongoing buildout)
 FRAMEWORK_VERSION: V32.9
 
+SESSION_SAVE_2026_07_01_S1 (Swarm S1 — Data gap #2a):
+  ✅ DONE THIS SESSION:
+    - Registered `"report-map"` in reportTypeSchema (packages/shared/src/schemas/enums.ts)
+    - Added `"report-map"` to LANDSCAPE_REPORT_TYPES in pdf-render.processor.ts (A4 landscape per PM decision)
+    - Added paramsJson shape comment to createReportExportInputSchema in report-export.ts
+    - Validation: shared typecheck ✅ | jobs 203/203 ✅ | code-review clean (0 in-scope blockers)
+  ⚠ DEFERRED (separate session required):
+    - Prisma `ReportType` enum migration — add `report_map` value to packages/db/prisma/schema.prisma (L124)
+      and generate+deploy the migration before report-map exports can be created at the DB layer.
+  STATE: swarm/printable-report-map-S1 committed. Awaiting owner approval to merge.
+
 SESSION_SAVE_2026_06_27 (read FIRST on reboot):
   ✅ DONE THIS SESSION:
     - Command Center tactical redesign GOAL COMPLETE (full auto): 4 gated sub-batches A 23c97a4 / B c6f6527 /
