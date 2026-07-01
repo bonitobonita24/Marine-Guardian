@@ -69,11 +69,25 @@ const TEMPLATE_ROW = {
   partnerLogoKey: null,
 };
 
+type EventDetailFixture = {
+  id: string;
+  title: string | null;
+  typeDisplay: string;
+  priority: number;
+  reportedAt: Date | null;
+  locationName: string | null;
+  municipalityName: string | null;
+  areaName: string | null;
+  reportedByName: string | null;
+  lat: number | null;
+  lon: number | null;
+};
+
 type BreakdownRow = {
   type: string;
   count: number;
   points: { id: string; title: string | null; lat: number; lon: number }[];
-  events: { id: string; typeDisplay: string; reportedAt: Date | null; locationName: string | null; reportedByName: string | null; lat: number | null; lon: number | null }[];
+  events: EventDetailFixture[];
 };
 
 // buildEventBreakdownWithCoords returns empty arrays — these are assignable
@@ -81,7 +95,11 @@ type BreakdownRow = {
 const EMPTY_BREAKDOWN = {
   lawEnforcement: [] as BreakdownRow[],
   monitoring: [] as BreakdownRow[],
-  highPriority: { total: 0, points: [] as { id: string; title: string | null; lat: number; lon: number }[] },
+  highPriority: {
+    total: 0,
+    points: [] as { id: string; title: string | null; lat: number; lon: number }[],
+    events: [] as EventDetailFixture[],
+  },
 };
 
 function setupHappyPath() {
@@ -258,6 +276,7 @@ describe("getReportMapReportData", () => {
       highPriority: {
         total: 3,
         points: [{ id: "e1", title: "Catch", lat: 12, lon: 121 }],
+        events: [],
       },
     });
     vi.mocked(prisma.event.findMany).mockResolvedValue([

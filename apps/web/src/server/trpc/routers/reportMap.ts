@@ -102,9 +102,13 @@ type EventPoint = { id: string; title: string | null; lat: number; lon: number }
 
 export type EventDetail = {
   id: string;
+  title: string | null;
   typeDisplay: string;
+  priority: number;
   reportedAt: Date | null;
   locationName: string | null;
+  municipalityName: string | null;
+  areaName: string | null;
   reportedByName: string | null;
   lat: number | null;
   lon: number | null;
@@ -129,6 +133,7 @@ export async function buildEventBreakdownWithCoords(
     select: {
       id: true,
       title: true,
+      priority: true,
       locationLat: true,
       locationLon: true,
       reportedAt: true,
@@ -143,6 +148,7 @@ export async function buildEventBreakdownWithCoords(
   const monMap: Record<string, { count: number; points: EventPoint[]; events: EventDetail[] }> = {};
   let highTotal = 0;
   const highPoints: EventPoint[] = [];
+  const highEvents: EventDetail[] = [];
 
   for (const e of events) {
     const category = e.eventType?.category ?? "uncategorized";
@@ -150,8 +156,23 @@ export async function buildEventBreakdownWithCoords(
     const lower = display.toLowerCase();
     const isSerious = SERIOUS_EVENT_PATTERNS.some((p) => lower.includes(p));
 
+    const eventDetail: EventDetail = {
+      id: e.id,
+      title: e.title,
+      typeDisplay: display,
+      priority: e.priority,
+      reportedAt: e.reportedAt,
+      locationName: e.municipality?.name ?? e.areaName ?? null,
+      municipalityName: e.municipality?.name ?? null,
+      areaName: e.areaName ?? null,
+      reportedByName: e.reportedByName ?? null,
+      lat: e.locationLat ?? null,
+      lon: e.locationLon ?? null,
+    };
+
     if (isSerious) {
       highTotal++;
+      highEvents.push(eventDetail);
       if (e.locationLat != null && e.locationLon != null) {
         highPoints.push({
           id: e.id,
@@ -161,16 +182,6 @@ export async function buildEventBreakdownWithCoords(
         });
       }
     }
-
-    const eventDetail: EventDetail = {
-      id: e.id,
-      typeDisplay: display,
-      reportedAt: e.reportedAt,
-      locationName: e.municipality?.name ?? e.areaName ?? null,
-      reportedByName: e.reportedByName ?? null,
-      lat: e.locationLat ?? null,
-      lon: e.locationLon ?? null,
-    };
 
     if (category === LAW_CATEGORY) {
       const bucket = (lawMap[display] ??= { count: 0, points: [], events: [] });
@@ -212,7 +223,7 @@ export async function buildEventBreakdownWithCoords(
       points,
       events,
     })),
-    highPriority: { total: highTotal, points: highPoints },
+    highPriority: { total: highTotal, points: highPoints, events: highEvents },
   };
 }
 

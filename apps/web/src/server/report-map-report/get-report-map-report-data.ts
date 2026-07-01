@@ -44,9 +44,13 @@ export interface ReportMapEventPoint {
 
 export interface ReportMapEventDetail {
   id: string;
+  title: string | null;
   typeDisplay: string;
+  priority: number;
   reportedAt: Date | null;
   locationName: string | null;
+  municipalityName: string | null;
+  areaName: string | null;
   reportedByName: string | null;
   lat: number | null;
   lon: number | null;
@@ -78,6 +82,7 @@ export interface HighPriorityChartData {
   title: string;
   total: number;
   points: ReportMapEventPoint[];
+  events: ReportMapEventDetail[];
 }
 
 export interface ReportMapPatrolRow {
@@ -85,11 +90,17 @@ export interface ReportMapPatrolRow {
   label: string;
   serialNumber: string | null;
   patrolType: string;
+  boatName: string | null;
   startTime: Date | null;
   endTime: Date | null;
   distanceKm: number | null;
   hours: number | null;
+  /** First leader (backward-compat with the summary table). */
   leaderName: string | null;
+  /** All distinct leaders across the patrol's segments, in segment order. */
+  leaderNames: string[];
+  startLocationLat: number | null;
+  startLocationLon: number | null;
 }
 
 export interface ReportMapTrackRow {
@@ -128,6 +139,7 @@ export interface EventsOverTimeChartData {
   total: number;
   series: ReportMapTimeSeriesPoint[];
   overviewPoints: ReportMapEventPoint[];
+  events: ReportMapEventDetail[];
 }
 
 // ─── Template + top-level payload ───────────────────────────────────────────
@@ -366,33 +378,43 @@ export async function getReportMapReportData(
     Promise.all([
       // LE / Monitoring / High Priority — via exported S0 helper (single query, DRY)
       buildEventBreakdownWithCoords(tenant.id, filterInput),
-      // Events Over Time overview points + series source
+      // Events Over Time overview points + series source + full event detail
+      // (NO LIMIT — the report's full-list portrait table needs every row).
       prisma.event.findMany({
         where: eventFilter,
         select: {
           id: true,
           title: true,
+          priority: true,
           locationLat: true,
           locationLon: true,
           reportedAt: true,
+          reportedByName: true,
+          areaName: true,
+          eventType: { select: { display: true } },
+          municipality: { select: { name: true } },
         },
       }),
-      // Patrol List breakdown
+      // Patrol List breakdown — NO LIMIT (the full-list portrait table needs
+      // every patrol; the 300-row cap stays ONLY on the track-polyline query
+      // below, which feeds the map, not the list).
       prisma.patrol.findMany({
         where: patrolFilter,
-        take: 300,
         orderBy: { startTime: "desc" },
         select: {
           id: true,
           title: true,
           serialNumber: true,
           patrolType: true,
+          boatName: true,
           startTime: true,
           endTime: true,
           totalDistanceKm: true,
           computedDistanceKm: true,
           totalHours: true,
           computedDurationHours: true,
+          startLocationLat: true,
+          startLocationLon: true,
           segments: {
             where: { leaderName: { not: null } },
             orderBy: { actualStart: "asc" },
@@ -447,6 +469,7 @@ export async function getReportMapReportData(
     title: "High Priority Events",
     total: breakdown.highPriority.total,
     points: breakdown.highPriority.points,
+    events: breakdown.highPriority.events,
   };
 
   // ─── Patrol List chart ────────────────────────────────────────────────────
@@ -463,6 +486,7 @@ export async function getReportMapReportData(
       label: p.title ?? p.serialNumber ?? p.id,
       serialNumber: p.serialNumber,
       patrolType: p.patrolType,
+      boatName: p.boatName ?? null,
       startTime: p.startTime,
       endTime: p.endTime,
       // Prefer haversine-recomputed distance (v2) over ER-supplied total
@@ -470,6 +494,9 @@ export async function getReportMapReportData(
       // Prefer haversine-recomputed duration (v2) over ER-supplied total
       hours: p.computedDurationHours ?? p.totalHours ?? null,
       leaderName: leaders[0] ?? null,
+      leaderNames: leaders,
+      startLocationLat: p.startLocationLat ?? null,
+      startLocationLon: p.startLocationLon ?? null,
     };
   });
 
@@ -524,6 +551,7 @@ export async function getReportMapReportData(
 
   // ─── Events Over Time chart ───────────────────────────────────────────────
   const overviewPoints: ReportMapEventPoint[] = [];
+  const overviewEvents: ReportMapEventDetail[] = [];
   const dayCounts: Record<string, number> = {};
 
   for (const e of allEventRows) {
@@ -539,6 +567,19 @@ export async function getReportMapReportData(
         lon: e.locationLon,
       });
     }
+    overviewEvents.push({
+      id: e.id,
+      title: e.title,
+      typeDisplay: e.eventType?.display ?? "Unknown",
+      priority: e.priority,
+      reportedAt: e.reportedAt,
+      locationName: e.municipality?.name ?? e.areaName ?? null,
+      municipalityName: e.municipality?.name ?? null,
+      areaName: e.areaName ?? null,
+      reportedByName: e.reportedByName ?? null,
+      lat: e.locationLat ?? null,
+      lon: e.locationLon ?? null,
+    });
   }
 
   let series: ReportMapTimeSeriesPoint[];
@@ -574,6 +615,7 @@ export async function getReportMapReportData(
     total: allEventRows.length,
     series,
     overviewPoints,
+    events: overviewEvents,
   };
 
   return {

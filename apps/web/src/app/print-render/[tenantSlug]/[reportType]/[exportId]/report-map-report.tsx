@@ -1,25 +1,48 @@
 /**
- * Report Map PDF render — template-driven, 5 chart+map sections.
+ * Report Map PDF render — template-driven, 5 chart+map sections, each
+ * immediately followed by a dedicated full-list portrait page (10 pages
+ * total).
  *
  * Pure RSC: server-renders a fully self-contained HTML document. Puppeteer
  * waits for window.__renderReady (set by the last map island to mount).
  *
- * Layout options (driven by template.layout):
+ * Layout options (driven by template.layout) govern the 5 MAIN (chart+map)
+ * pages only — the 5 full-list pages are ALWAYS A4 portrait, independent of
+ * this setting (see the "@page list-page" CSS rule):
  *   landscape-one-per-page (default) — ONE chart+map per A4 landscape page
  *   portrait-one-per-page            — ONE chart+map per A4 portrait page
- *   continuous                        — all 5 sections in one flowing document
+ *   continuous                        — all 5 main sections in one flowing
+ *                                        document (full-list pages still each
+ *                                        force their own page break)
  *
  * Every page carries:
  *   Header — municipal logo LEFT · reportTitle CENTRE · partner logo RIGHT
- *   Footer — footerNotes · generated-at · page N of 5
+ *   Footer — footerNotes · generated-at · page N of 10
  * All values come from the resolved template payload — nothing hardcoded.
  *
- * Five sections (one per chart):
- *   1. Law Enforcement — EventBreakdownChart + event-points map (red)
- *   2. Monitoring       — EventBreakdownChart + event-points map (cyan)
- *   3. High Priority    — event table + event-points map (orange)
- *   4. Patrol List      — patrol table + patrol-tracks map
- *   5. Events Over Time — line chart + overview event-points map (blue)
+ * Five main sections (one per chart) + five full-list sections (uncapped,
+ * ALL fields, ALL rows):
+ *   1.  Law Enforcement       — EventBreakdownChart + event-points map (red)
+ *   1b. Law Enforcement list  — full event table (portrait)
+ *   2.  Monitoring            — EventBreakdownChart + event-points map (cyan)
+ *   2b. Monitoring list       — full event table (portrait)
+ *   3.  High Priority         — event-points map (orange)
+ *   3b. High Priority list    — full event table (portrait)
+ *   4.  Patrol List           — patrol-tracks map + seaborne/foot time series
+ *   4b. Patrol List — list    — full patrol table (portrait)
+ *   5.  Events Over Time      — line chart + overview event-points map (blue)
+ *   5b. Events Over Time list — full event table (portrait)
+ *
+ * Mixed orientation: every main "report-section" is pinned to the named
+ * "@page main-page" (the template's configured size); every full-list
+ * "report-section-list" is pinned to "@page list-page" (always A4 portrait).
+ * Chromium's Puppeteer `page.pdf({ preferCSSPageSize: true })` gives these
+ * @page rules priority over the page.pdf() `landscape`/`format` JS options
+ * (see the CSS block below + docs/DECISIONS_LOG.md "Report Map full-list
+ * portrait pages" for the empirical verification).
+ *
+ * No full-list page contains a map — the __renderPending=5 map-island
+ * counter (4 EventPointsMap + 1 PatrolTracksMap) is unaffected.
  *
  * WCAG 2.2 AA:
  *   - Heading order per section (h1 report title, h2 section title)
@@ -165,82 +188,121 @@ function PageFooter({
   );
 }
 
-// ─── Event list table (LE / Monitoring sections) ──────────────────────────────
+// ─── Full-list event/patrol tables (dedicated portrait pages) ─────────────────
+//
+// Formerly `EventListTable` capped its rows to PRINT_EVENT_LIST_ROW_CAP (6) and
+// squeezed the preview into a fixed-height slot beside the chart+map on the
+// LANDSCAPE page, because the print page had NO room to grow: Puppeteer's
+// `page.pdf()` used a single fixed `@page` size with no scroll container, so
+// an uncapped table would overflow onto extra (tile-heavy) landscape pages and
+// blow up render time/output size (root cause of the printable-report-map
+// regression — see docs/CHANGELOG_AI.md).
+//
+// The fix: full lists now render on DEDICATED PORTRAIT pages (named `@page
+// list-page` — see the `.report-section-list` CSS rule below), completely
+// decoupled from the chart+map landscape page. No cap, no truncation note.
+// `<thead>` repeats per printed page (`display: table-header-group`); every
+// `<tr>` carries `break-inside: avoid` so a row is never split across a page
+// boundary. These pages carry zero maps — the __renderPending map-island
+// counter (5 = 4 EventPointsMap + 1 PatrolTracksMap) is untouched.
 
-interface EventListTableProps {
+function fmtLatLon(v: number | null): string {
+  return v === null ? "—" : v.toFixed(5);
+}
+
+interface FullEventTableProps {
   events: ReportMapEventDetail[];
   caption: string;
 }
 
-// Row cap for the print-render table. Bounded independently of the SSR
-// query/breakdown cap (which can return up to 30 rows per data.ts) because
-// the print page has a FIXED height budget: `.section-chart` shares its
-// column with an EventBreakdownChart (min-height 180px) and must fit
-// alongside a `.section-map` sized to `mapHeightPx` (370px landscape /
-// 260px portrait). Puppeteer's `page.pdf()` uses `preferCSSPageSize: true`
-// with a fixed `@page` size and NO scroll container for `.report-section` —
-// if `EventListTable` grows taller than the remaining budget, the browser's
-// print engine paginates the OVERFLOW onto extra pages, and each extra page
-// re-renders the (tile-image-heavy) sibling Leaflet map. Measured on the
-// swarm/printable-report-map branch: growing this table from 0 → 14 real
-// rows took PDF output from ~1.4MB to 100+MB and blew past Puppeteer's 30s
-// `page.pdf()` protocol timeout (root cause of the printable-report-map
-// regression — see docs/CHANGELOG_AI.md). A small cap (6) + the
-// `max-height`/`overflow: hidden` guard below is defense-in-depth: even if
-// a future change raises this constant, the table can no longer overflow
-// the page (portrait's 260px map budget is the tighter constraint of the
-// two layouts, so the height budget below is sized to fit portrait too).
-const PRINT_EVENT_LIST_ROW_CAP = 6;
-// Leaves headroom under EventBreakdownChart's `minHeight: "180px"` even in
-// portrait layout (260px total map-column budget): ~24px caption/header +
-// ~18px per data row at 9px font + 3px vertical padding — 6 rows + header
-// fits well inside 100px, keeping the section comfortably under budget in
-// both landscape (370px) and portrait (260px) layouts.
-const PRINT_EVENT_LIST_MAX_HEIGHT_PX = 100;
-
-function EventListTable({ events, caption }: EventListTableProps) {
-  const capped = events.slice(0, PRINT_EVENT_LIST_ROW_CAP);
-  if (capped.length === 0)
+function FullEventTable({ events, caption }: FullEventTableProps) {
+  if (events.length === 0)
     return <p className="empty-note">No event details available.</p>;
-  const hiddenCount = events.length - capped.length;
   return (
-    <>
-      <div
-        style={{
-          marginTop: "6px",
-          maxHeight: `${String(PRINT_EVENT_LIST_MAX_HEIGHT_PX)}px`,
-          overflow: "hidden",
-        }}
-      >
-        <table className="report-table">
-          <caption className="sr-only">{caption}</caption>
-          <thead>
-            <tr>
-              <th scope="col">Event Type</th>
-              <th scope="col">Date</th>
-              <th scope="col">Location</th>
-              <th scope="col">Reporter</th>
-            </tr>
-          </thead>
-          <tbody>
-            {capped.map((e) => (
-              <tr key={e.id}>
-                <td>{e.typeDisplay}</td>
-                <td>{fmtDate(e.reportedAt)}</td>
-                <td>{e.locationName ?? "—"}</td>
-                <td>{e.reportedByName ?? "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {hiddenCount > 0 && (
-        <p className="empty-note" style={{ marginTop: "2px" }}>
-          +{hiddenCount.toLocaleString()} more not shown
-        </p>
-      )}
-    </>
+    <table className="report-table full-table">
+      <caption className="sr-only">{caption}</caption>
+      <thead>
+        <tr>
+          <th scope="col">Event Type</th>
+          <th scope="col">Title</th>
+          <th scope="col">Priority</th>
+          <th scope="col">Reported At</th>
+          <th scope="col">Municipality</th>
+          <th scope="col">Barangay / Area</th>
+          <th scope="col">Reporter</th>
+          <th scope="col">Latitude</th>
+          <th scope="col">Longitude</th>
+        </tr>
+      </thead>
+      <tbody>
+        {events.map((e) => (
+          <tr key={e.id}>
+            <td>{e.typeDisplay}</td>
+            <td>{e.title ?? "—"}</td>
+            <td>{e.priority}</td>
+            <td>{fmtDateTimeLocal2(e.reportedAt)}</td>
+            <td>{e.municipalityName ?? "—"}</td>
+            <td>{e.areaName ?? "—"}</td>
+            <td>{e.reportedByName ?? "—"}</td>
+            <td>{fmtLatLon(e.lat)}</td>
+            <td>{fmtLatLon(e.lon)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
+}
+
+interface FullPatrolTableProps {
+  patrols: ReportMapReportData["charts"]["patrolList"]["breakdown"];
+  caption: string;
+}
+
+function FullPatrolTable({ patrols, caption }: FullPatrolTableProps) {
+  if (patrols.length === 0)
+    return <p className="empty-note">No patrols in this period.</p>;
+  return (
+    <table className="report-table full-table">
+      <caption className="sr-only">{caption}</caption>
+      <thead>
+        <tr>
+          <th scope="col">Serial / Ref</th>
+          <th scope="col">Type</th>
+          <th scope="col">Boat Name</th>
+          <th scope="col">Start Time</th>
+          <th scope="col">End Time</th>
+          <th scope="col">Distance</th>
+          <th scope="col">Hours</th>
+          <th scope="col">Leader(s)</th>
+          <th scope="col">Start Location</th>
+        </tr>
+      </thead>
+      <tbody>
+        {patrols.map((p) => (
+          <tr key={p.patrolId}>
+            <td>{p.serialNumber ?? p.label}</td>
+            <td>{fmtPatrolType(p.patrolType)}</td>
+            <td>{p.boatName ?? "—"}</td>
+            <td>{p.startTime ? fmtDateTimeLocal2(p.startTime) : "—"}</td>
+            <td>{p.endTime ? fmtDateTimeLocal2(p.endTime) : "—"}</td>
+            <td>{fmtDistKm(p.distanceKm)}</td>
+            <td>{p.hours !== null ? fmtHours(p.hours) : "—"}</td>
+            <td>{p.leaderNames.length > 0 ? p.leaderNames.join(", ") : "—"}</td>
+            <td>
+              {p.startLocationLat !== null && p.startLocationLon !== null
+                ? `${fmtLatLon(p.startLocationLat)}, ${fmtLatLon(p.startLocationLon)}`
+                : "—"}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+// fmtDateTimeLocal expects a non-null Date; full-table rows may be null.
+function fmtDateTimeLocal2(d: Date | null): string {
+  return d === null ? "—" : fmtDateTimeLocal(d);
 }
 
 // ─── WCAG map text-alternative (table with caption + scope) ───────────────────
@@ -282,7 +344,9 @@ interface ReportMapReportProps {
   data: ReportMapReportData;
 }
 
-const TOTAL_PAGES = 5;
+// 5 main chart+map sections + 5 dedicated full-list pages (one per section) —
+// see the ".report-section-list" CSS rule + FullEventTable/FullPatrolTable.
+const TOTAL_PAGES = 10;
 
 export function ReportMapReport({ data }: ReportMapReportProps) {
   const layout = resolveLayout(data.template.layout);
@@ -329,7 +393,22 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
     layout === "landscape" ? "row" : "column";
 
   const css = `
+    /* ── Mixed page orientation via CSS Paged Media named pages ──────────────
+       Chromium's page.pdf({ preferCSSPageSize: true }) gives any CSS @page
+       size/orientation priority over the JS-level width/height/format/
+       landscape options (Puppeteer docs: PDFOptions.preferCSSPageSize).
+       Named pages (the "page" property + a matching "@page <name>" rule) let
+       ONE PDF document mix orientations: every .report-section (chart+map,
+       unchanged content/layout) stays on "main-page" at the template's
+       configured size; every .report-section-list (new, full-data tables)
+       is pinned to "list-page" — always A4 portrait, regardless of the
+       template's main layout — so a long list never has to share the
+       landscape chart+map's cramped height budget. Verified empirically
+       against a real rendered PDF (see docs/CHANGELOG_AI.md /
+       DECISIONS_LOG.md "Report Map full-list portrait pages"). */
     @page { size: ${pageCss}; margin: 12mm; }
+    @page main-page { size: ${pageCss}; margin: 12mm; }
+    @page list-page { size: A4 portrait; margin: 12mm; }
     * { box-sizing: border-box; }
     body {
       font-family: ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif;
@@ -337,10 +416,15 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
       background: #fff !important;
       margin: 0; padding: 0; font-size: 11px; line-height: 1.4;
     }
-    .report-section { padding: 8px 14px 4px; }
+    .report-section { padding: 8px 14px 4px; page: main-page; }
+    .report-section-list { padding: 8px 14px 4px; page: list-page; break-before: page; page-break-before: always; }
     ${isOnePer
-      ? ".report-section + .report-section { page-break-before: always; }"
+      ? ".report-section + .report-section { page-break-before: always; break-before: page; }"
       : ".report-section + .report-section { margin-top: 28px; border-top: 2px solid #e5e7eb; padding-top: 14px; }"}
+    /* A main section immediately following a full-list page must always
+       start fresh (orientation is switching back from portrait to the main
+       layout size) — independent of the isOnePer/continuous template mode. */
+    .report-section-list + .report-section { page-break-before: always; break-before: page; }
     .page-header {
       display: flex; justify-content: space-between; align-items: center;
       border-bottom: 2px solid #0f766e; padding-bottom: 8px; margin-bottom: 10px; gap: 8px;
@@ -364,26 +448,28 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
          ResponsiveContainer-based chart (Recharts) always has a determinate
          ancestor height to measure against. Without this, ResponsiveContainer
          can runaway-grow across many print pages when its parent's height is
-         otherwise undefined — root cause of the printable-report-map
-         pagination-blowup regression (see PRINT_EVENT_LIST_ROW_CAP comment
-         below). overflow: hidden is defense-in-depth: even if a future chart
-         addition ignores this budget, the section can no longer push the
-         printed page taller than one page. display:flex column so the fixed
-         .chart-breakdown-slot above the event-list table doesn't get
-         squeezed by percentage-height children (a plain block layout would
-         let EventBreakdownChart's height:100% claim the whole column). */
+         otherwise undefined — root cause of the historical printable-
+         report-map pagination-blowup regression (see the FullEventTable /
+         FullPatrolTable comment above: the fix now keeps every list off this
+         page entirely, on a dedicated portrait page). overflow: hidden is
+         defense-in-depth: even if a future chart addition ignores this
+         budget, the section can no longer push the printed page taller than
+         one page. display:flex column keeps the fixed .chart-breakdown-slot
+         from being squeezed by percentage-height children (a plain block
+         layout would let EventBreakdownChart's height:100% claim the whole
+         column). */
       height: ${mapHeightPx};
       overflow: hidden;
       display: flex;
       flex-direction: column;
     }
     /* Fixed sub-budget for EventBreakdownChart inside .section-chart (LE /
-       Monitoring sections only), leaving deterministic remaining room under
-       .section-chart's height for EventListTable below it. Without this,
-       EventBreakdownChart's own height:"100%" would consume the ENTIRE
-       .section-chart budget (100% of a now-determinate 370px/260px parent),
-       clipping the event-list table out of view entirely. */
+       Monitoring sections only) — the chart column no longer shares its
+       height with any list table (full lists moved to dedicated portrait
+       pages), but the fixed slot is kept so the Recharts
+       ResponsiveContainer always has a determinate ancestor height. */
     .chart-breakdown-slot { height: 200px; flex-shrink: 0; overflow: hidden; }
+    p.section-list-hint { font-size: 10px; color: #6b7280; margin: 4px 0 0; }
     .section-map {
       ${layout === "landscape" ? "flex: 0 0 60%; min-width: 0;" : "width: 100%;"}
       height: ${mapHeightPx};
@@ -402,6 +488,13 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
     }
     table.report-table thead th { background: #f3f4f6 !important; font-weight: 600; color: #374151 !important; }
     table.report-table tbody tr:nth-child(even) td { background: #f9fafb !important; }
+    /* Full-list tables (dedicated portrait pages) — uncapped, potentially
+       1000+ rows for a busy tenant/category. The header repeats on every
+       printed page and a row is never split across a page boundary. */
+    table.report-table.full-table thead { display: table-header-group; }
+    table.report-table.full-table tbody tr {
+      break-inside: avoid; page-break-inside: avoid;
+    }
     .sr-only {
       position: absolute; width: 1px; height: 1px; padding: 0;
       margin: -1px; overflow: hidden; clip: rect(0,0,0,0);
@@ -455,12 +548,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
                   topN={12}
                 />
               </div>
-              <EventListTable
-                events={data.charts.lawEnforcement.breakdown.flatMap(
-                  (r) => r.events,
-                )}
-                caption="Law enforcement event list"
-              />
+              <p className="section-list-hint">Full event list on the next page.</p>
             </div>
             <div className="section-map">
               <figure aria-label="Law enforcement event locations">
@@ -478,6 +566,25 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
             </div>
           </div>
           <PageFooter {...footerBase} pageNum={1} />
+        </section>
+
+        {/* ── Section 1b: Law Enforcement — full list (portrait) ──────────── */}
+        <section
+          className="report-section-list"
+          data-testid="section-law-enforcement-list"
+        >
+          <PageHeader {...headerProps} />
+          <h2 className="section-heading">
+            Law Enforcement Events — Full List
+            <span className="total-badge">
+              {data.charts.lawEnforcement.total.toLocaleString()}
+            </span>
+          </h2>
+          <FullEventTable
+            events={data.charts.lawEnforcement.breakdown.flatMap((r) => r.events)}
+            caption="Law enforcement full event list"
+          />
+          <PageFooter {...footerBase} pageNum={2} />
         </section>
 
         {/* ── Section 2: Monitoring ─────────────────────────────────────── */}
@@ -501,12 +608,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
                   topN={12}
                 />
               </div>
-              <EventListTable
-                events={data.charts.monitoring.breakdown.flatMap(
-                  (r) => r.events,
-                )}
-                caption="Monitoring event list"
-              />
+              <p className="section-list-hint">Full event list on the next page.</p>
             </div>
             <div className="section-map">
               <figure aria-label="Monitoring event locations">
@@ -523,7 +625,26 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
               </figure>
             </div>
           </div>
-          <PageFooter {...footerBase} pageNum={2} />
+          <PageFooter {...footerBase} pageNum={3} />
+        </section>
+
+        {/* ── Section 2b: Monitoring — full list (portrait) ───────────────── */}
+        <section
+          className="report-section-list"
+          data-testid="section-monitoring-list"
+        >
+          <PageHeader {...headerProps} />
+          <h2 className="section-heading">
+            Monitoring Events — Full List
+            <span className="total-badge">
+              {data.charts.monitoring.total.toLocaleString()}
+            </span>
+          </h2>
+          <FullEventTable
+            events={data.charts.monitoring.breakdown.flatMap((r) => r.events)}
+            caption="Monitoring full event list"
+          />
+          <PageFooter {...footerBase} pageNum={4} />
         </section>
 
         {/* ── Section 3: High Priority ──────────────────────────────────── */}
@@ -540,34 +661,12 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
           </h2>
           <div className="section-content">
             <div className="section-chart">
-              {data.charts.highPriority.points.length === 0 ? (
+              {data.charts.highPriority.total === 0 ? (
                 <p className="empty-note">
                   No high priority events in this period.
                 </p>
               ) : (
-                <table className="report-table">
-                  <caption className="sr-only">
-                    High priority event list
-                  </caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">Title</th>
-                      <th scope="col">Lat</th>
-                      <th scope="col">Lon</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.charts.highPriority.points
-                      .slice(0, 25)
-                      .map((p) => (
-                        <tr key={p.id}>
-                          <td>{p.title ?? "—"}</td>
-                          <td>{p.lat.toFixed(4)}</td>
-                          <td>{p.lon.toFixed(4)}</td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
+                <p className="section-list-hint">Full event list on the next page.</p>
               )}
             </div>
             <div className="section-map">
@@ -585,7 +684,26 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
               </figure>
             </div>
           </div>
-          <PageFooter {...footerBase} pageNum={3} />
+          <PageFooter {...footerBase} pageNum={5} />
+        </section>
+
+        {/* ── Section 3b: High Priority — full list (portrait) ────────────── */}
+        <section
+          className="report-section-list"
+          data-testid="section-high-priority-list"
+        >
+          <PageHeader {...headerProps} />
+          <h2 className="section-heading">
+            High Priority Events — Full List
+            <span className="total-badge">
+              {data.charts.highPriority.total.toLocaleString()}
+            </span>
+          </h2>
+          <FullEventTable
+            events={data.charts.highPriority.events}
+            caption="High priority full event list"
+          />
+          <PageFooter {...footerBase} pageNum={6} />
         </section>
 
         {/* ── Section 4: Patrol List ────────────────────────────────────── */}
@@ -611,29 +729,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
               {data.charts.patrolList.breakdown.length === 0 ? (
                 <p className="empty-note">No patrols in this period.</p>
               ) : (
-                <table className="report-table">
-                  <caption className="sr-only">Patrol list</caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">Serial</th>
-                      <th scope="col">Type</th>
-                      <th scope="col">Distance</th>
-                      <th scope="col">Leader</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.charts.patrolList.breakdown
-                      .slice(0, 30)
-                      .map((p) => (
-                        <tr key={p.patrolId}>
-                          <td>{p.serialNumber ?? p.label}</td>
-                          <td>{fmtPatrolType(p.patrolType)}</td>
-                          <td>{fmtDistKm(p.distanceKm)}</td>
-                          <td>{p.leaderName ?? "—"}</td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
+                <p className="section-list-hint">Full patrol list on the next page.</p>
               )}
             </div>
             <div className="section-map">
@@ -683,7 +779,26 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
               />
             </div>
           </div>
-          <PageFooter {...footerBase} pageNum={4} />
+          <PageFooter {...footerBase} pageNum={7} />
+        </section>
+
+        {/* ── Section 4b: Patrol List — full list (portrait) ──────────────── */}
+        <section
+          className="report-section-list"
+          data-testid="section-patrol-list-list"
+        >
+          <PageHeader {...headerProps} />
+          <h2 className="section-heading">
+            Patrols — Full List
+            <span className="total-badge">
+              {data.charts.patrolList.total.toLocaleString()}
+            </span>
+          </h2>
+          <FullPatrolTable
+            patrols={data.charts.patrolList.breakdown}
+            caption="Full patrol list"
+          />
+          <PageFooter {...footerBase} pageNum={8} />
         </section>
 
         {/* ── Section 5: Events Over Time ───────────────────────────────── */}
@@ -721,7 +836,26 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
               </figure>
             </div>
           </div>
-          <PageFooter {...footerBase} pageNum={5} />
+          <PageFooter {...footerBase} pageNum={9} />
+        </section>
+
+        {/* ── Section 5b: Events Over Time — full list (portrait) ─────────── */}
+        <section
+          className="report-section-list"
+          data-testid="section-events-over-time-list"
+        >
+          <PageHeader {...headerProps} />
+          <h2 className="section-heading">
+            Events Over Time — Full List
+            <span className="total-badge">
+              {data.charts.eventsOverTime.total.toLocaleString()}
+            </span>
+          </h2>
+          <FullEventTable
+            events={data.charts.eventsOverTime.events}
+            caption="Events over time — full event list"
+          />
+          <PageFooter {...footerBase} pageNum={10} />
         </section>
 
         {/* Puppeteer networkidle0 anchor. */}
