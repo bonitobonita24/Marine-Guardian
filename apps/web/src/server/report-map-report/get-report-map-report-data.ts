@@ -42,10 +42,21 @@ export interface ReportMapEventPoint {
 
 // ─── Per-chart payload shapes ────────────────────────────────────────────────
 
+export interface ReportMapEventDetail {
+  id: string;
+  typeDisplay: string;
+  reportedAt: Date | null;
+  locationName: string | null;
+  reportedByName: string | null;
+  lat: number | null;
+  lon: number | null;
+}
+
 export interface ReportMapEventBreakdownRow {
   type: string;
   count: number;
   points: ReportMapEventPoint[];
+  events: ReportMapEventDetail[];
 }
 
 export interface LawEnforcementChartData {
@@ -77,6 +88,7 @@ export interface ReportMapPatrolRow {
   startTime: Date | null;
   endTime: Date | null;
   distanceKm: number | null;
+  hours: number | null;
   leaderName: string | null;
 }
 
@@ -86,12 +98,23 @@ export interface ReportMapTrackRow {
   path: { lat: number; lon: number }[];
 }
 
+export interface PatrolTotals {
+  count: number;
+  totalHours: number;
+  totalKm: number;
+}
+
 export interface PatrolListChartData {
   key: "patrol_list";
   title: string;
   total: number;
   breakdown: ReportMapPatrolRow[];
   tracks: ReportMapTrackRow[];
+  patrolTotals: PatrolTotals;
+  patrolCountByTypeOverTime: {
+    seaborne: ReportMapTimeSeriesPoint[];
+    foot: ReportMapTimeSeriesPoint[];
+  };
 }
 
 export interface ReportMapTimeSeriesPoint {
@@ -368,6 +391,8 @@ export async function getReportMapReportData(
           endTime: true,
           totalDistanceKm: true,
           computedDistanceKm: true,
+          totalHours: true,
+          computedDurationHours: true,
           segments: {
             where: { leaderName: { not: null } },
             orderBy: { actualStart: "asc" },
@@ -442,9 +467,39 @@ export async function getReportMapReportData(
       endTime: p.endTime,
       // Prefer haversine-recomputed distance (v2) over ER-supplied total
       distanceKm: p.computedDistanceKm ?? p.totalDistanceKm,
+      // Prefer haversine-recomputed duration (v2) over ER-supplied total
+      hours: p.computedDurationHours ?? p.totalHours ?? null,
       leaderName: leaders[0] ?? null,
     };
   });
+
+  const patrolTotals: PatrolTotals = {
+    count: patrolBreakdown.length,
+    totalHours: patrolBreakdown.reduce((s, p) => s + (p.hours ?? 0), 0),
+    // Use already-coalesced distanceKm from patrolBreakdown for consistent source
+    totalKm: patrolBreakdown.reduce((s, p) => s + (p.distanceKm ?? 0), 0),
+  };
+
+  // Bucket patrols by startTime day and patrolType
+  const seaborneDayCounts: Record<string, number> = {};
+  const footDayCounts: Record<string, number> = {};
+  for (const p of patrolRows) {
+    if (p.startTime === null) continue;
+    const k = dayKey(p.startTime);
+    if (p.patrolType === "seaborne") {
+      seaborneDayCounts[k] = (seaborneDayCounts[k] ?? 0) + 1;
+    } else {
+      footDayCounts[k] = (footDayCounts[k] ?? 0) + 1;
+    }
+  }
+  const sortEntries = (counts: Record<string, number>): ReportMapTimeSeriesPoint[] =>
+    Object.entries(counts)
+      .map(([date, count]) => ({ date, count }))
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  const patrolCountByTypeOverTime = {
+    seaborne: sortEntries(seaborneDayCounts),
+    foot: sortEntries(footDayCounts),
+  };
 
   const tracks: ReportMapTrackRow[] = [];
   for (const row of trackRows) {
@@ -463,6 +518,8 @@ export async function getReportMapReportData(
     total: patrolRows.length,
     breakdown: patrolBreakdown,
     tracks,
+    patrolTotals,
+    patrolCountByTypeOverTime,
   };
 
   // ─── Events Over Time chart ───────────────────────────────────────────────

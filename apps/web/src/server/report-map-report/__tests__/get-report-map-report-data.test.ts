@@ -69,11 +69,18 @@ const TEMPLATE_ROW = {
   partnerLogoKey: null,
 };
 
+type BreakdownRow = {
+  type: string;
+  count: number;
+  points: { id: string; title: string | null; lat: number; lon: number }[];
+  events: { id: string; typeDisplay: string; reportedAt: Date | null; locationName: string | null; reportedByName: string | null; lat: number | null; lon: number | null }[];
+};
+
 // buildEventBreakdownWithCoords returns empty arrays — these are assignable
 // directly (no cast needed; the mock accepts the inferred structure).
 const EMPTY_BREAKDOWN = {
-  lawEnforcement: [] as { type: string; count: number; points: { id: string; title: string | null; lat: number; lon: number }[] }[],
-  monitoring: [] as { type: string; count: number; points: { id: string; title: string | null; lat: number; lon: number }[] }[],
+  lawEnforcement: [] as BreakdownRow[],
+  monitoring: [] as BreakdownRow[],
   highPriority: { total: 0, points: [] as { id: string; title: string | null; lat: number; lon: number }[] },
 };
 
@@ -244,10 +251,10 @@ describe("getReportMapReportData", () => {
     vi.mocked(prisma.reportTemplate.findFirst).mockResolvedValue(TEMPLATE_ROW as never);
     vi.mocked(buildEventBreakdownWithCoords).mockResolvedValue({
       lawEnforcement: [
-        { type: "Illegal Fishing", count: 5, points: [] },
-        { type: "Illegal Entry", count: 2, points: [] },
+        { type: "Illegal Fishing", count: 5, points: [], events: [] },
+        { type: "Illegal Entry", count: 2, points: [], events: [] },
       ],
-      monitoring: [{ type: "Routine Patrol", count: 10, points: [] }],
+      monitoring: [{ type: "Routine Patrol", count: 10, points: [], events: [] }],
       highPriority: {
         total: 3,
         points: [{ id: "e1", title: "Catch", lat: 12, lon: 121 }],

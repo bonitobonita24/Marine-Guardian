@@ -100,6 +100,16 @@ function patrolWhere(tenantId: string, input: ReportFilterInput) {
 
 type EventPoint = { id: string; title: string | null; lat: number; lon: number };
 
+export type EventDetail = {
+  id: string;
+  typeDisplay: string;
+  reportedAt: Date | null;
+  locationName: string | null;
+  reportedByName: string | null;
+  lat: number | null;
+  lon: number | null;
+};
+
 /**
  * Single-query implementation shared by `eventBreakdownWithCoords` (tRPC) and
  * the SSR print loader (S6). Returns breakdown rows WITH geo-points so the
@@ -121,12 +131,16 @@ export async function buildEventBreakdownWithCoords(
       title: true,
       locationLat: true,
       locationLon: true,
+      reportedAt: true,
+      reportedByName: true,
+      areaName: true,
       eventType: { select: { category: true, display: true } },
+      municipality: { select: { name: true } },
     },
   });
 
-  const lawMap: Record<string, { count: number; points: EventPoint[] }> = {};
-  const monMap: Record<string, { count: number; points: EventPoint[] }> = {};
+  const lawMap: Record<string, { count: number; points: EventPoint[]; events: EventDetail[] }> = {};
+  const monMap: Record<string, { count: number; points: EventPoint[]; events: EventDetail[] }> = {};
   let highTotal = 0;
   const highPoints: EventPoint[] = [];
 
@@ -148,9 +162,20 @@ export async function buildEventBreakdownWithCoords(
       }
     }
 
+    const eventDetail: EventDetail = {
+      id: e.id,
+      typeDisplay: display,
+      reportedAt: e.reportedAt,
+      locationName: e.municipality?.name ?? e.areaName ?? null,
+      reportedByName: e.reportedByName ?? null,
+      lat: e.locationLat ?? null,
+      lon: e.locationLon ?? null,
+    };
+
     if (category === LAW_CATEGORY) {
-      const bucket = (lawMap[display] ??= { count: 0, points: [] });
+      const bucket = (lawMap[display] ??= { count: 0, points: [], events: [] });
       bucket.count++;
+      bucket.events.push(eventDetail);
       if (e.locationLat != null && e.locationLon != null) {
         bucket.points.push({
           id: e.id,
@@ -160,8 +185,9 @@ export async function buildEventBreakdownWithCoords(
         });
       }
     } else if (category === MONITORING_CATEGORY) {
-      const bucket = (monMap[display] ??= { count: 0, points: [] });
+      const bucket = (monMap[display] ??= { count: 0, points: [], events: [] });
       bucket.count++;
+      bucket.events.push(eventDetail);
       if (e.locationLat != null && e.locationLon != null) {
         bucket.points.push({
           id: e.id,
@@ -174,15 +200,17 @@ export async function buildEventBreakdownWithCoords(
   }
 
   return {
-    lawEnforcement: Object.entries(lawMap).map(([type, { count, points }]) => ({
+    lawEnforcement: Object.entries(lawMap).map(([type, { count, points, events }]) => ({
       type,
       count,
       points,
+      events,
     })),
-    monitoring: Object.entries(monMap).map(([type, { count, points }]) => ({
+    monitoring: Object.entries(monMap).map(([type, { count, points, events }]) => ({
       type,
       count,
       points,
+      events,
     })),
     highPriority: { total: highTotal, points: highPoints },
   };
@@ -242,6 +270,8 @@ export const reportMapRouter = router({
           endTime: true,
           totalDistanceKm: true,
           computedDistanceKm: true,
+          totalHours: true,
+          computedDurationHours: true,
           startLocationLat: true,
           startLocationLon: true,
           segments: {

@@ -6,6 +6,25 @@
 PHASE: Phase 8 (ongoing buildout)
 FRAMEWORK_VERSION: V32.9
 
+SESSION_SAVE_2026_07_01_S0 (Swarm S0 — Data: per-category event rows + patrol hours + per-type per-day counts + aggregate totals):
+  ✅ DONE THIS SESSION:
+    - buildEventBreakdownWithCoords (reportMap.ts): added EventDetail export type; extended Prisma
+      select to fetch reportedAt, reportedByName, areaName, municipality.name; added events:EventDetail[]
+      array to each LE/Monitoring bucket; updated return shape to expose events per row.
+    - patrolsInRange (reportMap.ts): added totalHours + computedDurationHours to Prisma select.
+    - get-report-map-report-data.ts: added ReportMapEventDetail interface; added events field to
+      ReportMapEventBreakdownRow; added hours:number|null to ReportMapPatrolRow; added PatrolTotals
+      interface + patrolTotals to PatrolListChartData; added patrolCountByTypeOverTime to
+      PatrolListChartData; updated patrol Prisma select for totalHours/computedDurationHours;
+      mapped hours (computedDurationHours ?? totalHours ?? null) in patrol breakdown;
+      computed patrolTotals (count/totalHours/totalKm) and patrolCountByTypeOverTime (foot/seaborne day buckets).
+    - Test file: updated EMPTY_BREAKDOWN type + inline mock to include events: [].
+    - Code-review gate: 2 angles × 6 candidates each; all A+B refuted (code correct); C+cleanup
+      found 1 in-scope fix (totalKm inconsistent source array → fixed to use patrolBreakdown.distanceKm);
+      5 findings deferred as pre-existing or out-of-scope.
+    - All gates: typecheck PASS · lint PASS · 1225/1225 tests PASS.
+  STATE: branch swarm/printable-report-map, committed.
+
 SESSION_SAVE_2026_07_01_S11 (Swarm S11 — Validation + QA gate):
   ✅ DONE THIS SESSION:
     - All code gates green: lint PASS · 1225/1225 web tests PASS · build PASS

@@ -3,6 +3,29 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-07-01 — Data: per-category event rows + patrol hours + per-type per-day counts + totals (Phase 4 S0)
+
+- Agent:               CLAUDE_CODE (Sonnet 4.6) — Swarm S0
+- Branch:              swarm/printable-report-map
+- Rule 15 attribution: Spec-Driven Swarm Worker; inline execution (scope is single indivisible unit — coupled types across 2 files)
+
+### Changes
+- `apps/web/src/server/trpc/routers/reportMap.ts`
+  - Export `EventDetail` type; extend `buildEventBreakdownWithCoords` Prisma select (reportedAt,
+    reportedByName, areaName, municipality.name); add `events: EventDetail[]` per LE/Monitoring bucket
+  - `patrolsInRange`: add `totalHours` + `computedDurationHours` to select
+- `apps/web/src/server/report-map-report/get-report-map-report-data.ts`
+  - Add `ReportMapEventDetail` interface; add `events` to `ReportMapEventBreakdownRow`
+  - Add `hours: number | null` to `ReportMapPatrolRow`
+  - Add `PatrolTotals` interface; extend `PatrolListChartData` with `patrolTotals` + `patrolCountByTypeOverTime`
+  - Update patrol Prisma select; map `hours`; compute `patrolTotals` + `patrolCountByTypeOverTime`
+  - Fix: use `patrolBreakdown.distanceKm` (coalesced) for `totalKm` instead of raw `patrolRows`
+- `apps/web/src/server/report-map-report/__tests__/get-report-map-report-data.test.ts`
+  - Update `EMPTY_BREAKDOWN` type + inline mock to include `events: []`
+
+### Validation
+- typecheck: PASS · lint: PASS · 1225/1225 web tests: PASS
+
 ## 2026-07-01 — Validation + QA gate: lint · test · build · WCAG · render smoke (Phase 4 S11)
 
 - Agent:               CLAUDE_CODE (Sonnet 4.6) — Swarm S11
