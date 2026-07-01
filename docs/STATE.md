@@ -6,6 +6,28 @@
 PHASE: Phase 8 (ongoing buildout)
 FRAMEWORK_VERSION: V32.9
 
+SESSION_SAVE_2026_07_01_S4 (Swarm S4 — reportTemplate tRPC router — CRUD + setDefault):
+  ✅ DONE THIS SESSION:
+    - Created apps/web/src/server/trpc/routers/reportTemplate.ts
+        list (tenantProcedure, Prisma native cursor, createdAt DESC)
+        getById (tenantProcedure, tenant-scoped)
+        create (adminProcedure, $transaction unsets siblings if isDefault, parallel logo upload)
+        update (adminProcedure, $transaction for isDefault unset, parallel logo upload)
+        delete (adminProcedure, deleteMany for TOCTOU safety)
+        setDefault (adminProcedure, $transaction unsets siblings atomically)
+        All mutations write writeAuditLog (L3+L5+L6 invariants satisfied)
+    - Logo handling: base64 upload via @marine-guardian/storage uploadImage (parallel Promise.all)
+    - Registered in apps/web/src/server/trpc/routers/index.ts as reportTemplate
+    - Created apps/web/src/server/trpc/routers/__tests__/reportTemplate.test.ts
+        18 tests: tenant isolation, RBAC (non-admin denied), setDefault sibling unset, delete audited, logo upload
+    - Code-review fixes: cursor pagination (id-lt → Prisma native cursor), TOCTOU delete (deleteMany),
+      audit changesJson backwards logic, sequential → parallel logo uploads
+    - Validation: lint ✅ | test 1206/1206 ✅ | build ✅ | typecheck ✅
+  ⚠ DEFERRED (separate session):
+    - S3 logo orphan risk: uploadImage runs outside $transaction; if the post-upload key-persist update fails,
+      S3 objects are orphaned. Fix requires moving upload inside the transaction or adding S3 compensating cleanup.
+  STATE: branch swarm/printable-report-map committed @ eb848d6. All gates green.
+
 SESSION_SAVE_2026_07_01_S2 (Swarm S2 — Prisma ReportTemplate model + migration):
   ✅ DONE THIS SESSION:
     - Added ReportTemplate model to packages/db/prisma/schema.prisma (id/tenantId/name/layout/logoKeys/reportTitle/footerNotes/isDefault/timestamps)

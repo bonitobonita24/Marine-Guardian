@@ -3,6 +3,16 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-07-01 — reportTemplate tRPC router — CRUD + setDefault (Phase 4 S4)
+
+- Agent:               CLAUDE_CODE (Sonnet 4.6) — Swarm S4
+- Why:                 Phase 4 S4 — create reportTemplate tRPC router with CRUD + setDefault procedures. RBAC L3 (adminProcedure on mutations), AuditLog L5 (writeAuditLog on all mutations), L6 tenant-scoped. Logo upload via @marine-guardian/storage uploadImage (base64 + content-type input, parallel Promise.all).
+- Files:               apps/web/src/server/trpc/routers/reportTemplate.ts (new), apps/web/src/server/trpc/routers/__tests__/reportTemplate.test.ts (new, 18 tests), apps/web/src/server/trpc/routers/index.ts (registered)
+- Tests:               1206 pass (was 1188 pre-S4 wave, +18 new)
+- Validation:          lint ✅ · test ✅ · build ✅ · typecheck ✅
+- Code-review:         4 findings fixed in-scope (cursor pagination → Prisma native cursor; TOCTOU delete → deleteMany; audit changesJson logic; serial → parallel logo uploads). 1 deferred (S3 logo orphan risk on tx failure).
+- Rule 15:             Swarm session S4. No Opus used (Sonnet-inline).
+
 ## 2026-07-01 — Data gap #1: reportMap geo data for ALL 5 charts (Phase 4 S0)
 
 - Agent:               CLAUDE_CODE (Sonnet 4.6) — Swarm S0
