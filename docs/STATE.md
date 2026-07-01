@@ -8,21 +8,23 @@ FRAMEWORK_VERSION: V32.9
 
 SESSION_SAVE_2026_07_01_S1 (Swarm S1 — Report UI: LE/Monitoring event-list tables + patrol Hours/Km totals + Seaborne/Foot patrols-over-time charts):
   ✅ DONE THIS SESSION:
-    - report-map-report.tsx: imported PatrolOverTimeChart; added fmtHours helper; added event-list
-      tables (Event Type | Date | Location | Reporter, cap 30) inside .section-chart below
-      EventBreakdownChart in Section 1 (Law Enforcement) and Section 2 (Monitoring), using flatMap
-      over breakdown rows; added Total Hours + Total Km badges in Section 4 (Patrols) h2 heading;
-      added two PatrolOverTimeChart charts (Seaborne + Foot) in a .patrol-charts-row below
-      section-content; added .patrol-charts-row/.patrol-chart-col CSS; fixed ARIA (role=group on
-      patrol-charts-row div). window.__renderPending=5 NOT changed — new charts are not map islands.
-    - New component: components/patrol-over-time-chart.tsx — cloned from print-events-over-time-chart.tsx;
-      accepts series, title, color props; Recharts LineChart; isAnimationActive=false; "use client".
-    - Code-review gate: 4 angles × candidates; REFUTED: fmtDate string crash (direct SSR, no JSON
-      boundary), undefined series (sortEntries always returns []), badge labels (h2 text provides AT
-      context). FIXED: aria-label on roleless div → added role=group. Deferred: IIFE→named component
-      extraction, shortDay duplication, PatrolOverTimeChart/PrintEventsOverTimeChart merge.
-    - All gates: typecheck PASS · 1225/1225 tests PASS · build PASS.
-  STATE: branch swarm/printable-report-map, committed.
+    - report-map-report.tsx: added fmtHours helper; EventListTable named component (answer A1);
+      replaced two IIFE event-list blocks with <EventListTable> in Section 1 (LE) and Section 2
+      (Monitoring); added Total Hours + Total Km badges in Section 4 (Patrols) h2 heading; added
+      two PrintTimeSeriesChart charts (Seaborne + Foot) in .patrol-charts-row. window.__renderPending=5
+      NOT changed — patrol charts are not map islands.
+    - New component: components/print-time-series-chart.tsx — merged PrintEventsOverTimeChart +
+      PatrolOverTimeChart per answer A3; props: series, title?, color, valueLabel, height; compact
+      mode when title provided (110px); full mode (100%/180px min-height); empty-state interpolates
+      title. "use client"; isAnimationActive=false.
+    - Deleted: patrol-over-time-chart.tsx, print-events-over-time-chart.tsx (retired per A3).
+    - Code-review gate: 8 finder angles (A/B/C/Reuse/Simplif/Efficiency/Altitude/Conventions);
+      REFUTED: totalKm null (non-nullable), fmtDate JSON boundary (same RSC tree), deleted testids
+      (no test files), fmtDate null→'' (has !d guard). CONFIRMED+FIXED: empty-state ignores title
+      prop → now interpolates title; IIFE altitude violation → extracted to EventListTable (A1).
+      Deferred/PLAUSIBLE: compact empty-string activates heading (no current caller).
+    - All gates: typecheck PASS · lint PASS · 1225/1225 tests PASS · build PASS.
+  STATE: branch swarm/printable-report-map, ready to commit.
 
 SESSION_SAVE_2026_07_01_S0 (Swarm S0 — Data: per-category event rows + patrol hours + per-type per-day counts + aggregate totals):
   ✅ DONE THIS SESSION:

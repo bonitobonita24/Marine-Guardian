@@ -28,13 +28,12 @@
  *   - Logo img elements carry descriptive alt text
  */
 
-import type { ReportMapReportData } from "@/server/report-map-report/get-report-map-report-data";
+import type { ReportMapEventDetail, ReportMapReportData } from "@/server/report-map-report/get-report-map-report-data";
 import { EventBreakdownChart } from "./components/event-breakdown-chart";
 // Leaflet islands are loaded dynamically (ssr:false) via the client wrapper to
 // prevent window-is-not-defined during Next.js server-side bundle evaluation.
 import { EventPointsMap, PatrolTracksMap } from "./components/map-islands-client";
-import { PatrolOverTimeChart } from "./components/patrol-over-time-chart";
-import { PrintEventsOverTimeChart } from "./components/print-events-over-time-chart";
+import { PrintTimeSeriesChart } from "./components/print-time-series-chart";
 
 // ─── Layout resolution ────────────────────────────────────────────────────────
 
@@ -163,6 +162,41 @@ function PageFooter({
         Page {pageNum} of {totalPages} &bull; Generated {generatedAt}
       </div>
     </footer>
+  );
+}
+
+// ─── Event list table (LE / Monitoring sections) ──────────────────────────────
+
+interface EventListTableProps {
+  events: ReportMapEventDetail[];
+  caption: string;
+}
+
+function EventListTable({ events, caption }: EventListTableProps) {
+  if (events.length === 0)
+    return <p className="empty-note">No event details available.</p>;
+  return (
+    <table className="report-table" style={{ marginTop: "6px" }}>
+      <caption className="sr-only">{caption}</caption>
+      <thead>
+        <tr>
+          <th scope="col">Event Type</th>
+          <th scope="col">Date</th>
+          <th scope="col">Location</th>
+          <th scope="col">Reporter</th>
+        </tr>
+      </thead>
+      <tbody>
+        {events.map((e) => (
+          <tr key={e.id}>
+            <td>{e.typeDisplay}</td>
+            <td>{fmtDate(e.reportedAt)}</td>
+            <td>{e.locationName ?? "—"}</td>
+            <td>{e.reportedByName ?? "—"}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
@@ -353,38 +387,12 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
                 variant="lawEnforcement"
                 topN={12}
               />
-              {(() => {
-                const events = data.charts.lawEnforcement.breakdown
+              <EventListTable
+                events={data.charts.lawEnforcement.breakdown
                   .flatMap((r) => r.events)
-                  .slice(0, 30);
-                return events.length === 0 ? (
-                  <p className="empty-note">No event details available.</p>
-                ) : (
-                  <table className="report-table" style={{ marginTop: "6px" }}>
-                    <caption className="sr-only">
-                      Law enforcement event list
-                    </caption>
-                    <thead>
-                      <tr>
-                        <th scope="col">Event Type</th>
-                        <th scope="col">Date</th>
-                        <th scope="col">Location</th>
-                        <th scope="col">Reporter</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {events.map((e) => (
-                        <tr key={e.id}>
-                          <td>{e.typeDisplay}</td>
-                          <td>{fmtDate(e.reportedAt)}</td>
-                          <td>{e.locationName ?? "—"}</td>
-                          <td>{e.reportedByName ?? "—"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                );
-              })()}
+                  .slice(0, 30)}
+                caption="Law enforcement event list"
+              />
             </div>
             <div className="section-map">
               <figure aria-label="Law enforcement event locations">
@@ -423,38 +431,12 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
                 variant="monitoring"
                 topN={12}
               />
-              {(() => {
-                const events = data.charts.monitoring.breakdown
+              <EventListTable
+                events={data.charts.monitoring.breakdown
                   .flatMap((r) => r.events)
-                  .slice(0, 30);
-                return events.length === 0 ? (
-                  <p className="empty-note">No event details available.</p>
-                ) : (
-                  <table className="report-table" style={{ marginTop: "6px" }}>
-                    <caption className="sr-only">
-                      Monitoring event list
-                    </caption>
-                    <thead>
-                      <tr>
-                        <th scope="col">Event Type</th>
-                        <th scope="col">Date</th>
-                        <th scope="col">Location</th>
-                        <th scope="col">Reporter</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {events.map((e) => (
-                        <tr key={e.id}>
-                          <td>{e.typeDisplay}</td>
-                          <td>{fmtDate(e.reportedAt)}</td>
-                          <td>{e.locationName ?? "—"}</td>
-                          <td>{e.reportedByName ?? "—"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                );
-              })()}
+                  .slice(0, 30)}
+                caption="Monitoring event list"
+              />
             </div>
             <div className="section-map">
               <figure aria-label="Monitoring event locations">
@@ -615,17 +597,19 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
             aria-label="Patrol counts over time by type"
           >
             <div className="patrol-chart-col">
-              <PatrolOverTimeChart
+              <PrintTimeSeriesChart
                 series={data.charts.patrolList.patrolCountByTypeOverTime.seaborne}
                 title="Seaborne Patrols Over Time"
                 color="#0891b2"
+                valueLabel="Patrols"
               />
             </div>
             <div className="patrol-chart-col">
-              <PatrolOverTimeChart
+              <PrintTimeSeriesChart
                 series={data.charts.patrolList.patrolCountByTypeOverTime.foot}
                 title="Foot Patrols Over Time"
                 color="#0f766e"
+                valueLabel="Patrols"
               />
             </div>
           </div>
@@ -646,8 +630,10 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
           </h2>
           <div className="section-content">
             <div className="section-chart">
-              <PrintEventsOverTimeChart
+              <PrintTimeSeriesChart
                 series={data.charts.eventsOverTime.series}
+                color="#0891b2"
+                valueLabel="Events"
               />
             </div>
             <div className="section-map">

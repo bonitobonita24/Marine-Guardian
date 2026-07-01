@@ -7,25 +7,31 @@
 
 - Agent:               CLAUDE_CODE (Sonnet 4.6) — Swarm S1
 - Branch:              swarm/printable-report-map
-- Rule 15 attribution: Spec-Driven Swarm Worker; inline execution (2 files, coupled import)
+- Rule 15 attribution: Spec-Driven Swarm Worker; inline execution (answers A1/A3 applied)
 
 ### Changes
 - `apps/web/src/app/print-render/[tenantSlug]/[reportType]/[exportId]/report-map-report.tsx`
-  - Import PatrolOverTimeChart; add fmtHours helper
-  - Section 1 (LE) + Section 2 (Monitoring): add event-list tables below EventBreakdownChart
+  - Import ReportMapEventDetail; add fmtHours helper
+  - Add EventListTable({ events, caption }) named component (answer A1 — matching MapAltTable convention)
+  - Section 1 (LE) + Section 2 (Monitoring): event-list tables via EventListTable (not IIFEs)
     (columns: Event Type, Date, Location, Reporter; cap 30 events via flatMap over breakdown rows)
   - Section 4 (Patrol) h2: add Total Hours + Total Km badges using patrolTotals from S0 data
-  - Section 4: add .patrol-charts-row with two PatrolOverTimeChart charts (Seaborne/Foot)
+  - Section 4: add .patrol-charts-row with two PrintTimeSeriesChart charts (Seaborne/Foot)
   - CSS: .patrol-charts-row / .patrol-chart-col; ARIA: role=group on patrol-charts-row div
-  - window.__renderPending=5 unchanged (PatrolOverTimeChart is not a map island)
-- `apps/web/src/app/print-render/[tenantSlug]/[reportType]/[exportId]/components/patrol-over-time-chart.tsx` (NEW)
-  - Recharts LineChart cloned from PrintEventsOverTimeChart; parametric title/color props
-  - "use client"; isAnimationActive=false; empty-state handled; ReportMapTimeSeriesPoint data shape
+  - window.__renderPending=5 unchanged (patrol charts are not map islands)
+- `apps/web/src/app/print-render/[tenantSlug]/[reportType]/[exportId]/components/print-time-series-chart.tsx` (NEW)
+  - Merged PrintEventsOverTimeChart + PatrolOverTimeChart per answer A3 (retired both)
+  - Props: series, title?, color, valueLabel, height; compact mode (title provided) = 110px
+  - Empty-state interpolates title for patrol-type-specific messages
+  - "use client"; isAnimationActive=false
+- Deleted: patrol-over-time-chart.tsx, print-events-over-time-chart.tsx (retired)
 
-### Code Review
-- FIXED: aria-label on roleless div → added role=group (WCAG ARIA authoring practice)
-- REFUTED: fmtDate string crash, undefined series, badge labels — all confirmed safe
-- Deferred (bucket-A): IIFE extraction to EventListTable, shortDay dedup, chart component merge
+### Code Review (8-angle, 1-vote verify)
+- CONFIRMED+FIXED: empty-state ignored title prop → now interpolates title in message
+- CONFIRMED+FIXED: IIFE altitude violation → extracted to EventListTable named component (A1)
+- REFUTED: totalKm null (PatrolTotals.totalKm is number, non-nullable), fmtDate JSON boundary
+  (same RSC tree, no serialization), deleted testids (no test files reference them)
+- DEFERRED/PLAUSIBLE: compact mode activates on empty-string title (no current caller)
 
 ---
 
