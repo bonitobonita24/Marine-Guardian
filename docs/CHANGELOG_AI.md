@@ -3,6 +3,35 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-07-01 — QA gate: typecheck·lint·build + render smoke verification (Phase 4 S2)
+
+- Agent:               CLAUDE_CODE (Sonnet 4.6) — Swarm S2
+- Branch:              swarm/printable-report-map
+- Rule 15 attribution: Spec-Driven Swarm Worker; QA-only session (no code changes)
+
+### Changes
+- `docs/STATE.md` — S2 checkpoint appended
+- `docs/CHANGELOG_AI.md` — S2 entry appended
+
+### Validation
+- typecheck: PASS · lint: PASS · build: PASS
+- Render smoke (standalone :3013, renderer token):
+    HTTP 200 · 6.8MB HTML · 5 sections · window.__renderPending=5
+    (a) LE/Monitoring event-list tables: Date/Location/Reporter/Event Type headers confirmed
+    (b) Patrol h2: '6 h' + '22.3 km' total badges confirmed
+    (c) 'Seaborne Patrols Over Time' + 'Foot Patrols Over Time' charts confirmed in RSC payload
+    (d) __renderPending=5 intact (renderer not hung)
+
+### Code-review gate
+- 5 finder angles · verify pass · 0 in-scope blocking findings
+- REFUTED: fmtDate JSON-boundary crash (same RSC tree); null→NaN in totalKm (null coerces to 0)
+- DEFERRED (bucket-A): take:300 cap means patrol Hours/Km totals cover displayed rows only;
+  shortDay() locale-stable print duplicate; dayKey() mirrors reportMap.ts local fn;
+  EventListTable altitude (inline vs. components/); flatMap in render layer; compact title
+  dual-role prop; total-badges inside h2
+
+---
+
 ## 2026-07-01 — Report UI: LE/Monitoring event-list tables + patrol Hours/Km totals + Seaborne/Foot patrols-over-time charts (Phase 4 S1)
 
 - Agent:               CLAUDE_CODE (Sonnet 4.6) — Swarm S1

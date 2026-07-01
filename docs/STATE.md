@@ -6,6 +6,29 @@
 PHASE: Phase 8 (ongoing buildout)
 FRAMEWORK_VERSION: V32.9
 
+SESSION_SAVE_2026_07_01_S2 (Swarm S2 — QA gate: typecheck·lint·build + render smoke with 4-feature verification):
+  ✅ DONE THIS SESSION:
+    - Static gates: typecheck PASS · lint PASS · build PASS (print-render route 53.7kB compiled)
+    - Render smoke (standalone server port 3013, renderer token validated):
+        HTTP 200 · 6.8MB · all 5 sections present (data-testid confirmed)
+        (a) Event-list tables: <th> headers Date/Location/Reporter/Event Type confirmed in LE+Monitoring
+        (b) Patrol Total Hours+Km: h2 heading shows '6 h' + '22.3 km' badges confirmed
+        (c) Patrol charts: 'Seaborne Patrols Over Time' in RSC payload + print-time-series-chart
+            testid confirmed for both Seaborne/Foot charts on patrol page
+        (d) window.__renderPending=5 intact — renderer did not hang
+    - Code-review gate (5 angles × 6 candidates → 1-vote verify):
+        REFUTED: fmtDate JSON boundary (same RSC tree, no serialization); null→NaN in totalKm
+          (null coerces to 0 in JS + explicit ?? 0 guard)
+        CONFIRMED: take:300 patrol cap means Hours/Km totals cover only displayed rows
+          — DEFERRED (pre-existing architecture, no regression from S0/S1 per se)
+        PLAUSIBLE: shortDay() locale-stable duplicate in print-time-series-chart.tsx — DEFERRED
+        PLAUSIBLE: dayKey() local mirrors reportMap.ts fn — DEFERRED (cleanup)
+        Non-blocking altitude: EventListTable inlined; flatMap in render layer; compact title
+          dual-role; total-badges inside <h2> — all DEFERRED bucket-A
+        All in-scope blocking: 0
+    - No code changes made (QA-only session).
+  STATE: branch swarm/printable-report-map, committed.
+
 SESSION_SAVE_2026_07_01_S1 (Swarm S1 — Report UI: LE/Monitoring event-list tables + patrol Hours/Km totals + Seaborne/Foot patrols-over-time charts):
   ✅ DONE THIS SESSION:
     - report-map-report.tsx: added fmtHours helper; EventListTable named component (answer A1);
