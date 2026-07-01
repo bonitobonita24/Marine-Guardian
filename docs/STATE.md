@@ -6,6 +6,24 @@
 PHASE: Phase 8 (ongoing buildout)
 FRAMEWORK_VERSION: V32.9
 
+SESSION_SAVE_2026_07_01_S3 (Swarm S3 — Storage: generic image upload + read helper):
+  ✅ DONE THIS SESSION:
+    - Extended packages/storage/src/index.ts (same S3 client, same exports bucket):
+        buildLogoKey(tenantId, templateId, ext) → logos/{tenantId}/{templateId}.{ext}
+          Leading dot stripped defensively (path.extname returns ".png" → "png")
+        uploadImage(input): image/png|jpeg content-type, 10 MiB size guard
+        getImageReadStream(input): mirrors getPdfReadStream
+        getImageBytes(input): collects stream into Buffer (for print body)
+    - Extended packages/storage/src/__tests__/storage.test.ts: +27 tests (49 total)
+        buildLogoKey (key shape, jpeg, prefix collision, leading-dot normalization)
+        uploadImage (png, jpeg, oversized guard, at-limit)
+        getImageReadStream (round-trip, missing body)
+        getImageBytes (single chunk, multi-chunk concat)
+    - Code-review fix: buildLogoKey ext leading-dot normalization (path.extname compat)
+  STATE: branch swarm/printable-report-map-S3 committed @ cf17320.
+    pnpm --filter @marine-guardian/storage test: 49/49 ✓
+    pnpm --filter @marine-guardian/storage exec tsc --noEmit: clean ✓
+
 SESSION_SAVE_2026_07_01_S0 (Swarm S0 — Data gap #1: reportMap geo data):
   ✅ DONE THIS SESSION:
     - Added buildEventBreakdownWithCoords() exported helper (single-pass, SSR-reusable)

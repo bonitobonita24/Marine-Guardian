@@ -1534,3 +1534,18 @@
 - Errors resolved:     All above resolved; full gate green.
 - Verification:        Phase 7 HARD PRE-MERGE GATE all green: pnpm tools:check-product-sync ✓ (5 docs, no private tags), pnpm typecheck ✓ (7/7 packages), tests ✓ (1055 web + 180 shared vitest), pnpm --filter @marine-guardian/web build ✓ (Next.js production build, /api/assets/[id] compiled). LIVE-PROVEN: real telegram_file_id → getFile → downloaded 1.06 MB JPEG (4080×2288) from the private channel via the bot token. VISUAL QA PASS (Rule 16): rebuilt dev_app from branch, logged in (admin@mail.com site_admin), deep-linked the event with 4 archived assets — Photos (4) rendered all 4 real community-support photos, all four GET /api/assets/[id] returned 200 OK, 0 console errors.
 - Final ship:          branch feat/telegram-asset-display → squash-merge to main + push origin (consistent with Stage 1-3; NO staging/prod deploy per HARD HOLD).
+
+---
+## [swarm S3 · 2026-07-01] Storage — generic image (logo) upload + read helper
+
+- **Session:** S3 (Swarm run-5, branch swarm/printable-report-map-S3, commit cf17320)
+- **Scope:** packages/storage/src/index.ts + __tests__/storage.test.ts
+- **Changes:**
+  - buildLogoKey(tenantId, templateId, ext) → logos/${tenantId}/${templateId}.${ext} (leading-dot stripped)
+  - uploadImage: image/png|jpeg content-type, 10 MiB size guard, mirrors uploadPdf
+  - getImageReadStream: mirrors getPdfReadStream
+  - getImageBytes: collects S3 stream into Buffer for print body
+  - +27 tests (49 total in storage package)
+- **Schema/migrations:** none
+- **Errors encountered:** code-review flagged buildLogoKey ext leading-dot (path.extname returns ".png") → fixed with normalization
+- **Verification:** pnpm --filter @marine-guardian/storage test 49/49 ✓, tsc --noEmit clean ✓
