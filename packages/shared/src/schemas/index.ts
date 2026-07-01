@@ -20,3 +20,4 @@ export * from "./accompanying-ranger";
 export * from "./known-ranger";
 export * from "./fuel-entry";
 export * from "./report-export";
+export * from "./report-template";

@@ -88,7 +88,7 @@ export interface RenderResult {
  * exported) because it is a render-time concern, not a spec-level decision —
  * any future per-tenant override would belong in the row's paramsJson.
  */
-const LANDSCAPE_REPORT_TYPES: ReadonlySet<string> = new Set(["coverage", "report-map"]);
+const LANDSCAPE_REPORT_TYPES: ReadonlySet<string> = new Set(["coverage", "report_map"]);
 
 function isLastAttempt(job: Job<PdfRenderJobPayload>): boolean {
   const attempts = job.opts.attempts ?? 1;

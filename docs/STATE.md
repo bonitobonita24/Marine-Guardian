@@ -6,6 +6,23 @@
 PHASE: Phase 8 (ongoing buildout)
 FRAMEWORK_VERSION: V32.9
 
+SESSION_SAVE_2026_07_01_S2 (Swarm S2 — Prisma ReportTemplate model + migration):
+  ✅ DONE THIS SESSION:
+    - Added ReportTemplate model to packages/db/prisma/schema.prisma (id/tenantId/name/layout/logoKeys/reportTitle/footerNotes/isDefault/timestamps)
+    - Added reportTemplates relation to Tenant model (packages/db/prisma/schema.prisma)
+    - Created migration 20260701000000_add_report_template (CREATE TABLE report_templates + 2 indexes + FK)
+    - Added report_map to Prisma ReportType enum (schema.prisma) + migration 20260701000001_add_report_type_report_map
+    - Fixed S1 regression: "report-map" → "report_map" in reportTypeSchema (enums.ts) + pdf-render.processor.ts
+      (S1 used hyphen, inconsistent with Prisma enum; caused exports/page.tsx build failure via tRPC type cascade)
+    - Added reportLayoutSchema to packages/shared/src/schemas/enums.ts (3 layout values, hyphenated)
+    - Created packages/shared/src/schemas/report-template.ts (reportTemplateSchema + CRUD input schemas)
+    - Exported report-template from packages/shared/src/schemas/index.ts
+    - Code-review fix: createReportTemplateInputSchema logo keys now accept null (.nullable().optional())
+    - Validation: prisma generate ✅ | shared typecheck ✅ | web lint ✅ | web build ✅ | 1188/1188 tests ✅
+  ⚠ DEFERRED (separate session required):
+    - print-render page.tsx VALID_REPORT_TYPES and dispatch block need 'report_map' entry (S6 scope — when renderer is built)
+  STATE: branch swarm/printable-report-map-S2 committed. All gates green.
+
 SESSION_SAVE_2026_07_01_S3 (Swarm S3 — Storage: generic image upload + read helper):
   ✅ DONE THIS SESSION:
     - Extended packages/storage/src/index.ts (same S3 client, same exports bucket):

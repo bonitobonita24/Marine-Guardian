@@ -1549,3 +1549,22 @@
 - **Schema/migrations:** none
 - **Errors encountered:** code-review flagged buildLogoKey ext leading-dot (path.extname returns ".png") → fixed with normalization
 - **Verification:** pnpm --filter @marine-guardian/storage test 49/49 ✓, tsc --noEmit clean ✓
+
+## [swarm-S2] 2026-07-01 — Prisma ReportTemplate model + migration
+
+- **Session:** Swarm S2 / swarm/printable-report-map-S2
+- **Scope:** packages/db/prisma/schema.prisma + packages/shared/src/schemas/ + migrations
+- **Changes:**
+  - ReportTemplate Prisma model (id/tenantId/name/layout(String)/logoKeys/reportTitle/footerNotes/isDefault/timestamps)
+  - Tenant.reportTemplates relation added
+  - Migration 20260701000000_add_report_template: CREATE TABLE + 2 indexes (tenantId, tenantId+isDefault) + FK
+  - Added report_map to ReportType enum; migration 20260701000001_add_report_type_report_map: ALTER TYPE ADD VALUE
+  - Fixed S1 regression: "report-map" → "report_map" in reportTypeSchema + pdf-render.processor.ts LANDSCAPE_REPORT_TYPES
+  - reportLayoutSchema z.enum([landscape-one-per-page, portrait-one-per-page, continuous]) added to enums.ts
+  - report-template.ts: reportTemplateSchema + CRUD input schemas (list/get/create/update/delete)
+  - index.ts: export * from ./report-template
+  - Code-review fix: create schema logo keys accept null (nullable().optional())
+- **Schema/migrations:** 2 new migrations (additive-only)
+- **Errors encountered:** S1 regression — "report-map" hyphen mismatch with Prisma enum caused tRPC type cascade → exports/page.tsx build failure; fixed by renaming to "report_map" throughout
+- **Verification:** prisma generate ✓, shared typecheck ✓, web lint ✓, web build ✓, 1188/1188 tests ✓
+- **Deferred:** print-render VALID_REPORT_TYPES needs 'report_map' when report-map renderer is built (S6 scope)

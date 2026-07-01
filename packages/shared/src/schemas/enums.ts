@@ -71,7 +71,7 @@ export const reportTypeSchema = z.enum([
   "detailed",
   "rangers",
   "patrol_filtered",
-  "report-map",
+  "report_map",
 ]);
 
 export const paperSizeSchema = z.enum(["A4", "Letter", "Legal"]);
@@ -81,4 +81,10 @@ export const reportExportStatusSchema = z.enum([
   "rendering",
   "ready",
   "failed",
+]);
+
+export const reportLayoutSchema = z.enum([
+  "landscape-one-per-page",
+  "portrait-one-per-page",
+  "continuous",
 ]);

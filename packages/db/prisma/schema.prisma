@@ -128,6 +128,7 @@ enum ReportType {
   detailed
   rangers
   patrol_filtered
+  report_map
 }
 
 enum PaperSize {
@@ -247,6 +248,8 @@ model Tenant {
   protectedZones      ProtectedZone[]
   patrolCoveredZones  PatrolCoveredZone[]
   eventCoveredZones   EventCoveredZone[]
+
+  reportTemplates     ReportTemplate[]
 
   @@map("tenants")
 }
@@ -1147,4 +1150,24 @@ model EventAsset {
   @@index([tenantId])
   @@index([eventId])
   @@map("event_assets")
+}
+
+model ReportTemplate {
+  id               String   @id @default(cuid())
+  tenantId         String   @map("tenant_id")
+  name             String
+  layout           String
+  municipalLogoKey String?  @map("municipal_logo_key")
+  partnerLogoKey   String?  @map("partner_logo_key")
+  reportTitle      String   @map("report_title")
+  footerNotes      String?  @map("footer_notes")
+  isDefault        Boolean  @default(false) @map("is_default")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([tenantId, isDefault])
+  @@map("report_templates")
 }
