@@ -172,31 +172,74 @@ interface EventListTableProps {
   caption: string;
 }
 
+// Row cap for the print-render table. Bounded independently of the SSR
+// query/breakdown cap (which can return up to 30 rows per data.ts) because
+// the print page has a FIXED height budget: `.section-chart` shares its
+// column with an EventBreakdownChart (min-height 180px) and must fit
+// alongside a `.section-map` sized to `mapHeightPx` (370px landscape /
+// 260px portrait). Puppeteer's `page.pdf()` uses `preferCSSPageSize: true`
+// with a fixed `@page` size and NO scroll container for `.report-section` —
+// if `EventListTable` grows taller than the remaining budget, the browser's
+// print engine paginates the OVERFLOW onto extra pages, and each extra page
+// re-renders the (tile-image-heavy) sibling Leaflet map. Measured on the
+// swarm/printable-report-map branch: growing this table from 0 → 14 real
+// rows took PDF output from ~1.4MB to 100+MB and blew past Puppeteer's 30s
+// `page.pdf()` protocol timeout (root cause of the printable-report-map
+// regression — see docs/CHANGELOG_AI.md). A small cap (6) + the
+// `max-height`/`overflow: hidden` guard below is defense-in-depth: even if
+// a future change raises this constant, the table can no longer overflow
+// the page (portrait's 260px map budget is the tighter constraint of the
+// two layouts, so the height budget below is sized to fit portrait too).
+const PRINT_EVENT_LIST_ROW_CAP = 6;
+// Leaves headroom under EventBreakdownChart's `minHeight: "180px"` even in
+// portrait layout (260px total map-column budget): ~24px caption/header +
+// ~18px per data row at 9px font + 3px vertical padding — 6 rows + header
+// fits well inside 100px, keeping the section comfortably under budget in
+// both landscape (370px) and portrait (260px) layouts.
+const PRINT_EVENT_LIST_MAX_HEIGHT_PX = 100;
+
 function EventListTable({ events, caption }: EventListTableProps) {
-  if (events.length === 0)
+  const capped = events.slice(0, PRINT_EVENT_LIST_ROW_CAP);
+  if (capped.length === 0)
     return <p className="empty-note">No event details available.</p>;
+  const hiddenCount = events.length - capped.length;
   return (
-    <table className="report-table" style={{ marginTop: "6px" }}>
-      <caption className="sr-only">{caption}</caption>
-      <thead>
-        <tr>
-          <th scope="col">Event Type</th>
-          <th scope="col">Date</th>
-          <th scope="col">Location</th>
-          <th scope="col">Reporter</th>
-        </tr>
-      </thead>
-      <tbody>
-        {events.map((e) => (
-          <tr key={e.id}>
-            <td>{e.typeDisplay}</td>
-            <td>{fmtDate(e.reportedAt)}</td>
-            <td>{e.locationName ?? "—"}</td>
-            <td>{e.reportedByName ?? "—"}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <>
+      <div
+        style={{
+          marginTop: "6px",
+          maxHeight: `${String(PRINT_EVENT_LIST_MAX_HEIGHT_PX)}px`,
+          overflow: "hidden",
+        }}
+      >
+        <table className="report-table">
+          <caption className="sr-only">{caption}</caption>
+          <thead>
+            <tr>
+              <th scope="col">Event Type</th>
+              <th scope="col">Date</th>
+              <th scope="col">Location</th>
+              <th scope="col">Reporter</th>
+            </tr>
+          </thead>
+          <tbody>
+            {capped.map((e) => (
+              <tr key={e.id}>
+                <td>{e.typeDisplay}</td>
+                <td>{fmtDate(e.reportedAt)}</td>
+                <td>{e.locationName ?? "—"}</td>
+                <td>{e.reportedByName ?? "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {hiddenCount > 0 && (
+        <p className="empty-note" style={{ marginTop: "2px" }}>
+          +{hiddenCount.toLocaleString()} more not shown
+        </p>
+      )}
+    </>
   );
 }
 
@@ -316,8 +359,31 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
     }
     .section-content { display: flex; flex-direction: ${contentFlex}; gap: 10px; }
     .section-chart {
-      ${layout === "landscape" ? "flex: 0 0 40%; min-width: 0;" : "width: 100%; min-height: 180px;"}
+      ${layout === "landscape" ? "flex: 0 0 40%; min-width: 0;" : "width: 100%;"}
+      /* Explicit height matching .section-map (not just min-height) so a
+         ResponsiveContainer-based chart (Recharts) always has a determinate
+         ancestor height to measure against. Without this, ResponsiveContainer
+         can runaway-grow across many print pages when its parent's height is
+         otherwise undefined — root cause of the printable-report-map
+         pagination-blowup regression (see PRINT_EVENT_LIST_ROW_CAP comment
+         below). overflow: hidden is defense-in-depth: even if a future chart
+         addition ignores this budget, the section can no longer push the
+         printed page taller than one page. display:flex column so the fixed
+         .chart-breakdown-slot above the event-list table doesn't get
+         squeezed by percentage-height children (a plain block layout would
+         let EventBreakdownChart's height:100% claim the whole column). */
+      height: ${mapHeightPx};
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
     }
+    /* Fixed sub-budget for EventBreakdownChart inside .section-chart (LE /
+       Monitoring sections only), leaving deterministic remaining room under
+       .section-chart's height for EventListTable below it. Without this,
+       EventBreakdownChart's own height:"100%" would consume the ENTIRE
+       .section-chart budget (100% of a now-determinate 370px/260px parent),
+       clipping the event-list table out of view entirely. */
+    .chart-breakdown-slot { height: 200px; flex-shrink: 0; overflow: hidden; }
     .section-map {
       ${layout === "landscape" ? "flex: 0 0 60%; min-width: 0;" : "width: 100%;"}
       height: ${mapHeightPx};
@@ -382,15 +448,17 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
           </h2>
           <div className="section-content">
             <div className="section-chart">
-              <EventBreakdownChart
-                rows={lawRows}
-                variant="lawEnforcement"
-                topN={12}
-              />
+              <div className="chart-breakdown-slot">
+                <EventBreakdownChart
+                  rows={lawRows}
+                  variant="lawEnforcement"
+                  topN={12}
+                />
+              </div>
               <EventListTable
-                events={data.charts.lawEnforcement.breakdown
-                  .flatMap((r) => r.events)
-                  .slice(0, 30)}
+                events={data.charts.lawEnforcement.breakdown.flatMap(
+                  (r) => r.events,
+                )}
                 caption="Law enforcement event list"
               />
             </div>
@@ -426,15 +494,17 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
           </h2>
           <div className="section-content">
             <div className="section-chart">
-              <EventBreakdownChart
-                rows={monRows}
-                variant="monitoring"
-                topN={12}
-              />
+              <div className="chart-breakdown-slot">
+                <EventBreakdownChart
+                  rows={monRows}
+                  variant="monitoring"
+                  topN={12}
+                />
+              </div>
               <EventListTable
-                events={data.charts.monitoring.breakdown
-                  .flatMap((r) => r.events)
-                  .slice(0, 30)}
+                events={data.charts.monitoring.breakdown.flatMap(
+                  (r) => r.events,
+                )}
                 caption="Monitoring event list"
               />
             </div>
