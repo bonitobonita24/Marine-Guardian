@@ -33,6 +33,7 @@
     "signOut": "Log Keluar",
     "email": "Emel",
     "password": "Kata Laluan",
+    "rememberMe": "Ingat saya",
     "invalidCredentials": "Kelayakan tidak sah."
   }
 }

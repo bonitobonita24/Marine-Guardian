@@ -33,6 +33,7 @@
     "signOut": "Sign Out",
     "email": "Email",
     "password": "Password",
+    "rememberMe": "Remember me",
     "invalidCredentials": "Invalid credentials."
   }
 }

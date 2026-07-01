@@ -6,6 +6,7 @@ declare module "next-auth" {
     tenantId: string | null;
     roles: string[];
     securityVersion: number;
+    rememberMe?: boolean;
   }
 
   interface Session {
@@ -26,5 +27,6 @@ declare module "next-auth/jwt" {
     roles?: string[] | undefined;
     securityVersion?: number | undefined;
     expired?: boolean | undefined;
+    rememberMe?: boolean | undefined;
   }
 }
