@@ -3,6 +3,17 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-07-01 — Print report body — 5 chart+map pages + template-driven LGU header/footer/layout (Phase 4 S7)
+
+- Agent:               CLAUDE_CODE (Sonnet 4.6) — Swarm S7
+- Why:                 Phase 4 S7 — Report Map PDF render target body. RSC composer (report-map-report.tsx) with 5 sections (Law Enforcement, Monitoring, High Priority, Patrol List, Events Over Time); each section renders a chart/table LEFT and a Leaflet map island RIGHT. Template-driven: layout (landscape/portrait/continuous), reportTitle, municipal + partner logos, footerNotes — all sourced from S6 ReportMapReportData payload, nothing hardcoded. WCAG 2.2 AA: h1/h2 heading order per section, figure/figcaption+sr-only table as map text-alternative.
+- Files:               report-map-report.tsx (new, ~560 lines), components/event-points-map.tsx (new), components/patrol-tracks-map.tsx (new), components/print-events-over-time-chart.tsx (new), page.tsx (report_map dispatch added)
+- Tests:               1225 pass (no new tests — new components are RSC/client Leaflet islands; print pipeline validated via existing infrastructure)
+- Validation:          lint ✅ · test ✅ · build ✅
+- Code-review:         2 in-scope findings fixed: (1) window.__renderReady race with 5 map islands → __renderPending=5 counter initialized by RSC host script; each MapReadySignal decrements, Puppeteer waitForFunction only resolves when counter ≤ 0. Backward-compatible (single-map docs leave __renderPending undefined → direct-flip path). (2) AutoFitBounds in patrol-tracks-map received full tracks array including single-point tracks → changed to renderableTracks (length > 1) to avoid bbox skew. 2 deferred Bucket-A non-blockers: MapReadySignal duplicated across 4 Leaflet islands (extract to shared component); map.whenReady/once("load") timing (pre-existing pattern).
+- Commit:              50b96a5
+- Rule 15:             Swarm session S7. No Opus used (Sonnet-inline).
+
 ## 2026-07-01 — SSR loader — getReportMapReportData + 19-test suite (Phase 4 S6)
 
 - Agent:               CLAUDE_CODE (Sonnet 4.6) — Swarm S6

@@ -6,6 +6,41 @@
 PHASE: Phase 8 (ongoing buildout)
 FRAMEWORK_VERSION: V32.9
 
+SESSION_SAVE_2026_07_01_S7 (Swarm S7 — Print report body — 5 chart+map pages):
+  ✅ DONE THIS SESSION:
+    - Created apps/web/src/app/print-render/[tenantSlug]/[reportType]/[exportId]/report-map-report.tsx
+        RSC composer (~560 lines). resolveLayout maps template.layout string → "landscape"|"portrait"|"continuous"
+        ("two-column" APP_DEFAULT + unknown strings fall through to "landscape")
+        PageHeader: municipal logo LEFT | h1 reportTitle CENTRE | partner logo RIGHT (null-guarded)
+        PageFooter: footerNotes | "Page N of 5 · Generated <timestamp>"
+        5 sections: Law Enforcement · Monitoring · High Priority · Patrol List · Events Over Time
+        Layout CSS: @page A4 landscape/portrait; page-break-before:always for one-per-page layouts
+        Multi-map coordination: <script>window.__renderPending=5</script> → each island decrements
+        WCAG: h1/h2 heading order per section; <figure aria-label>/<figcaption class="sr-only"> with
+          <table caption+scope> as map text-alternative; logo alt attrs
+    - Created components/event-points-map.tsx — Leaflet client island; CircleMarker per point;
+        AutoFitBounds (skip if <2 points); MapReadySignal with __renderPending counter protocol;
+        0-points: renders basemap + "No located items" overlay, flips immediately without tile wait
+    - Created components/patrol-tracks-map.tsx — Leaflet client island; Polyline per renderable track;
+        renderableTracks = tracks.filter(t => t.path.length > 1) (single-point track guard);
+        AutoFitBounds on renderableTracks only (code-review fix — was `tracks`, skewed bbox);
+        same MapReadySignal pattern
+    - Created components/print-events-over-time-chart.tsx — Recharts LineChart with hardcoded colors
+        (no shadcn CSS vars; print-safe); shortDay() for tick/tooltip labels; isAnimationActive=false
+    - Updated page.tsx — added "report_map" to VALID_REPORT_TYPES + dispatch block
+    - Code-review fixes applied (2 in-scope):
+        __renderReady race: 5 map islands each independently flip → added __renderPending=5 counter;
+          Puppeteer waitForFunction waits for all 5 to decrement (backward-compat: undefined falls through)
+        AutoFitBounds passed all tracks → changed to renderableTracks (excludes single-point entries)
+    - Validation: lint ✅ · test 1225/1225 ✅ · build ✅
+    - Commit: 50b96a5
+  DEFERRED (code-review Bucket-A, out-of-scope for S7):
+    - MapReadySignal copy-pasted across 4 Leaflet islands (area-coverage-map, per-area-heatmap-map,
+      event-points-map, patrol-tracks-map) — extract to shared components/map-ready-signal.tsx
+    - map.whenReady(() => { map.once("load", paintFlush) }) timing: whenReady may fire before
+      "load" is registered on some tile-load paths (pre-existing in area-coverage-map.tsx)
+  STATE: branch swarm/printable-report-map, committed.
+
 SESSION_SAVE_2026_07_01_S6 (Swarm S6 — SSR loader — getReportMapReportData + tests):
   ✅ DONE THIS SESSION:
     - Created apps/web/src/server/report-map-report/get-report-map-report-data.ts
