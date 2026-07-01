@@ -6,6 +6,32 @@
 PHASE: Phase 8 (ongoing buildout)
 FRAMEWORK_VERSION: V32.9
 
+SESSION_SAVE_2026_07_01_S11 (Swarm S11 — Validation + QA gate):
+  ✅ DONE THIS SESSION:
+    - All code gates green: lint PASS · 1225/1225 web tests PASS · build PASS
+      49/49 storage tests PASS · 203/203 jobs tests PASS · prisma generate PASS
+    - Dev DB: applied 2 pending S2 migrations (20260701000000_add_report_template,
+      20260701000001_add_report_type_report_map) via prisma migrate deploy
+    - WCAG 2.2 AA verified on 3 surfaces:
+        S9 generate-printable-button.tsx — PASS (DialogTrigger asChild, aria-live polite,
+          role=alert errors, aria-busy confirm, Label htmlFor+id on select)
+        S5 report-template-form.tsx — PASS (shadcn FormLabel auto-wired, DialogTitle+
+          aria-describedby, role=alert errors, min-h-[44px] buttons, Switch id wired)
+        S7 report-map-report.tsx — PASS (<html lang=en>, h1/h2 headings, figure+figcaption
+          sr-only MapAltTable with table caption+th scope, alt=Municipal logo, decorative alt="")
+          DEFERRED (pre-existing, out-of-scope): Blue Alliance logo alt hardcoded from S8 Bucket-A
+    - Fix: SSR/Leaflet ReferenceError — created map-islands-client.tsx (dynamic ssr:false wrapper);
+        updated report-map-report.tsx to import maps from wrapper instead of raw Leaflet files.
+        Root cause: RSC report-map-report.tsx imported EventPointsMap/PatrolTracksMap directly,
+        causing Leaflet module (which reads window at init) to run during Next.js standalone SSR.
+    - Render smoke test: HTTP 200 · body 6.5MB · all 5 data-testid sections present
+        (section-law-enforcement, section-monitoring, section-high-priority,
+         section-patrol-list, section-events-over-time)
+        window.__renderPending=5 confirmed in SSR HTML · no window errors · no Prisma errors
+    - Code-review gate: inline review on 2 changed files — 0 blocking findings
+    - Committed: 56962ec feat(phase-4-S11) on swarm/printable-report-map
+  STATE: branch swarm/printable-report-map, committed @ 56962ec. All gates green.
+
 SESSION_SAVE_2026_07_01_S9 (Swarm S9 — UI — 'Generate Printable' button + template picker):
   ✅ DONE THIS SESSION:
     - Created apps/web/src/app/(dashboard)/map/_components/generate-printable-button.tsx

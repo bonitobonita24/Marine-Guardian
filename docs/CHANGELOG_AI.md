@@ -3,6 +3,17 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-07-01 — Validation + QA gate: lint · test · build · WCAG · render smoke (Phase 4 S11)
+
+- Agent:               CLAUDE_CODE (Sonnet 4.6) — Swarm S11
+- Why:                 Phase 4 S11 — Full validation gate for the printable-report-map swarm branch. Verifies all code gates, WCAG 2.2 AA on 3 surfaces, and render smoke on the /print-render/[tenantSlug]/report_map/[exportId] standalone server. Fixes a Leaflet SSR bug (ReferenceError: window is not defined) discovered during render smoke.
+- Files:               apps/web/src/app/print-render/[tenantSlug]/[reportType]/[exportId]/components/map-islands-client.tsx (new — dynamic ssr:false wrapper for Leaflet), apps/web/src/app/print-render/[tenantSlug]/[reportType]/[exportId]/report-map-report.tsx (import swap to use wrapper), docs/STATE.md, docs/CHANGELOG_AI.md
+- Tests:               1225 web PASS · 49 storage PASS · 203 jobs PASS
+- Validation:          lint ✅ · test ✅ · build ✅ · prisma generate ✅ · render smoke HTTP 200 ✅
+- Code-review:         Inline review on 2 files (map-islands-client.tsx + report-map-report.tsx import change). 0 blocking findings.
+- Fix (SSR):           Root cause — report-map-report.tsx (RSC) directly imported EventPointsMap/PatrolTracksMap, which import leaflet/dist/leaflet.css and react-leaflet that reference window at module init time. This triggered ReferenceError during Next.js standalone server-side bundle evaluation. Fix: thin client wrapper map-islands-client.tsx wraps both with dynamic({ ssr: false }) so Leaflet loads only in the browser.
+- Rule 15:             Swarm session S11. No Opus used (Sonnet-inline).
+
 ## 2026-07-01 — UI — 'Generate Printable' button + template picker under Events Over Time (Phase 4 S9)
 
 - Agent:               CLAUDE_CODE (Sonnet 4.6) — Swarm S9
