@@ -6,6 +6,29 @@
 PHASE: Phase 8 (ongoing buildout)
 FRAMEWORK_VERSION: V32.9
 
+SESSION_SAVE_2026_07_01_S6 (Swarm S6 — SSR loader — getReportMapReportData + tests):
+  ✅ DONE THIS SESSION:
+    - Created apps/web/src/server/report-map-report/get-report-map-report-data.ts
+        Mirrors null-contract of get-per-area-report-data.ts
+        Template resolution: paramsJson.templateId → isDefault → APP_DEFAULT_TEMPLATE fallback
+        Logos: resolveLogoDataUri (getImageBytes → base64 data URI, null on error)
+        5-chart payload: LawEnforcement, Monitoring, HighPriority (via buildEventBreakdownWithCoords),
+          PatrolList (Prisma patrol + patrolTrack, take:300), EventsOverTime (day-bucket series)
+        Concurrent: logo S3 + chart Prisma queries in single outer Promise.all (code-review fix)
+        dayKey() mirrors reportMap.ts local-time pattern
+        patrolBreakdown: computedDistanceKm ?? totalDistanceKm (v2 pattern)
+        EventsOverTime: continuous daily fill when both from+to present (400-day guard)
+    - Created apps/web/src/server/report-map-report/__tests__/get-report-map-report-data.test.ts
+        19 tests: 4 for parseReportMapParams, 15 for getReportMapReportData
+        ESLint-clean: if (!result) return; narrowing pattern, typed empty arrays for EMPTY_BREAKDOWN
+    - Validation: lint ✅ · test 1225/1225 ✅ · build ✅
+    - Commit: 8eacd0c
+  DEFERRED (owner [WHAT] / known issues logged):
+    - patrolList.total capped at 300 (take limit, no count query)
+    - eventFilter/patrolFilter replicated inline (unexported from reportMap.ts)
+    - dayKey() duplicated 3× across codebase (no shared lib)
+  STATE: branch swarm/printable-report-map, committed.
+
 SESSION_SAVE_2026_07_01_S5 (Swarm S5 — Admin Settings — Report Template list + create/edit form):
   ✅ DONE THIS SESSION:
     - Created apps/web/src/app/(dashboard)/settings/report-templates/page.tsx

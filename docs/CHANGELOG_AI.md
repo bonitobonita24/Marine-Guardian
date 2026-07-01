@@ -3,6 +3,17 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-07-01 — SSR loader — getReportMapReportData + 19-test suite (Phase 4 S6)
+
+- Agent:               CLAUDE_CODE (Sonnet 4.6) — Swarm S6
+- Why:                 Phase 4 S6 — SSR data loader for the printable Report Map render target. Mirrors null-contract of get-per-area-report-data.ts. Template resolution cascade (paramsJson.templateId → isDefault → APP_DEFAULT_TEMPLATE). 5-chart payload: LawEnforcement + Monitoring + HighPriority (via exported buildEventBreakdownWithCoords), PatrolList (Prisma patrol + patrolTrack, take:300), EventsOverTime (day-bucket series with continuous fill). Logo S3 reads + chart Prisma queries run concurrently in a single outer Promise.all (code-review fix). computedDistanceKm ?? totalDistanceKm (v2 pattern).
+- Files:               apps/web/src/server/report-map-report/get-report-map-report-data.ts (new), apps/web/src/server/report-map-report/__tests__/get-report-map-report-data.test.ts (new, 19 tests)
+- Tests:               1225 pass (was 1206 pre-S6, +19 new)
+- Validation:          lint ✅ · test ✅ · build ✅
+- Code-review:         1 in-scope finding fixed: logo S3 fetches sequential before charts → merged into single concurrent outer Promise.all. 3 deferred non-blockers: patrolList.total capped at 300 (no count query); filter shapes replicated inline (unexported from reportMap.ts); dayKey() duplicated 3× codebase.
+- Commit:              8eacd0c
+- Rule 15:             Swarm session S6. No Opus used (Sonnet-inline).
+
 ## 2026-07-01 — Admin Settings — Report Template list + create/edit form (Phase 4 S5)
 
 - Agent:               CLAUDE_CODE (Sonnet 4.6) — Swarm S5
