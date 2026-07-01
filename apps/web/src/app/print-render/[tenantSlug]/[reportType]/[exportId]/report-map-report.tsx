@@ -30,8 +30,9 @@
 
 import type { ReportMapReportData } from "@/server/report-map-report/get-report-map-report-data";
 import { EventBreakdownChart } from "./components/event-breakdown-chart";
-import { EventPointsMap } from "./components/event-points-map";
-import { PatrolTracksMap } from "./components/patrol-tracks-map";
+// Leaflet islands are loaded dynamically (ssr:false) via the client wrapper to
+// prevent window-is-not-defined during Next.js server-side bundle evaluation.
+import { EventPointsMap, PatrolTracksMap } from "./components/map-islands-client";
 import { PrintEventsOverTimeChart } from "./components/print-events-over-time-chart";
 
 // ─── Layout resolution ────────────────────────────────────────────────────────
