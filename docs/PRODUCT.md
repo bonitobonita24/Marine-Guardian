@@ -188,6 +188,37 @@ EarthRanger is an excellent field data collection platform but provides no repor
 - Recent activity timeline: events reported, events accompanied, patrols led, patrols accompanied, actions taken
 - Breakdown: "Reported: X events | Accompanied: Y events | Total credit: Z"
 
+### Report Map (Interactive + Printable)
+Interactive surface:
+- Shared date range (FROM / TO) and municipality filter scoping the map + all five chart panels simultaneously
+- MapLibre GL map with event-point overlay (Dots ↔ Heatmap toggle) and patrol tracks overlay for the selected range
+- Municipality boundaries overlay (grey dotted lines)
+- Floating controls card (upper-left): date range, municipality, tracks toggle, law enforcement toggle, monitoring toggle, heatmap toggle
+- Five data panels:
+  1. **Law Enforcement breakdown** — horizontal bar chart (counts per violation type)
+  2. **Monitoring breakdown** — horizontal bar chart (counts per monitoring sub-type)
+  3. **High-Priority Events list** — scrollable list of serious-incident events (red marker set); click any row to zoom the map to that event's location
+  4. **Patrol List by Range** — scrollable patrol-summary card list; click a card to zoom the map to that patrol's track
+  5. **Events Over Time** — full-width chart placed below the full-screen fold (below the map + 4-column card band) so the above-the-fold view is a clean operational map surface
+- Fullscreen toggle; Events Over Time stays below the fold in fullscreen mode
+
+Printable Report (PDF export, A4 landscape, one chart+map spread per page):
+- **Page 1 — Law Enforcement:** event breakdown bar chart + per-category event-point map
+- **Page 2 — Monitoring:** event breakdown bar chart + per-category event-point map
+- **Page 3 — High-Priority Events:** high-priority event list + event-point map (high-priority markers only)
+- **Page 4 — Patrol List:** patrol summary list + patrol tracks map
+- **Page 5 — Events Over Time:** events-over-time chart + all-events overview map
+- Every page carries a standardized **LGU page header** (municipal logo LEFT · report title CENTER · Blue Alliance partner logo RIGHT) and a **footer** with configurable notes text
+- User selects a Report Template at generate-time (or the isDefault template is auto-selected); the selected template's UUID is passed as `templateId` in the print route params
+- Print route uses the pinned slug `report-map`
+
+### Report Templates (Admin)
+- CRUD interface for Site Admins to define branded report templates
+- Fields: name, layout (reserved for future multi-layout variants), municipal logo (image upload), partner logo (image upload), title, footer notes, isDefault (boolean)
+- Only one template may be isDefault per tenant; setting a new default clears the previous one
+- All roles may select an available template at print/generate-time; only Site Admin may create, edit, or delete templates
+- Selected at generate-time by templateId (UUID) — the slug `report-map` stays stable across template changes
+
 ### Alert System
 - Configurable alert rules per tenant (e.g., "notify on any Destructive Practices event", "notify on critical priority events", "stale GPS warning")
 - Rule definition: condition (event type, priority threshold, category), notification channels (in-app, email)
@@ -245,7 +276,7 @@ EarthRanger is an excellent field data collection platform but provides no repor
 | Role | Can do | Cannot do |
 |------|--------|-----------|
 | Super Admin | Create/manage tenants, assign Site Admins, view platform health, access any tenant for support, manage platform-level settings | Cannot operate within a tenant as a regular user without being explicitly added; cannot modify EarthRanger configurations |
-| Site Admin | Configure EarthRanger connection, manage users within own tenant, configure alert rules, view all reports, perform all Operator and Coordinator actions within own tenant | Cannot create or manage other tenants; cannot access other tenants' data; cannot modify platform-level settings |
+| Site Admin | Configure EarthRanger connection, manage users within own tenant, configure alert rules, view all reports, perform all Operator and Coordinator actions within own tenant; create/edit/delete Report Templates | Cannot create or manage other tenants; cannot access other tenants' data; cannot modify platform-level settings |
 | Field Coordinator | Plan patrol areas (draw polygons), schedule ranger assignments (Gantt), monitor patrols, review and edit event details, view all reports, export reports, manage Kanban board | Cannot manage users; cannot configure EarthRanger connection or alert rules; cannot access tenant settings |
 | Command Center Operator | Monitor War Room and live map, monitor event feed, update event states (new→active→resolved), acknowledge alerts, escalate critical events, fill in event details via Kanban, log fuel entries, view dashboards and reports | Cannot plan patrol areas; cannot schedule rangers; cannot manage users; cannot configure tenant settings or alert rules; cannot export reports |
 
@@ -290,6 +321,9 @@ EarthRanger is an excellent field data collection platform but provides no repor
 **KnownRanger (Command Center native):** id, tenant_id, name, source (earthranger_sync | manual_entry), er_subject_id (nullable — if synced from ER subjects of type "person"/"ranger"), is_active, created_at, updated_at
 — Purpose: maintains a registry of all known rangers for the autocomplete dropdown. Populated from three sources: (1) synced from EarthRanger subjects with subject_type="person"/"ranger" (source=earthranger_sync), (2) users registered in the Command Center, (3) free-text names promoted via the `event.promoteToKnownRanger` tRPC procedure (source=manual_entry) — idempotent: duplicate names are rejected by a case-insensitive existence check scoped to the tenant.
 — Autocomplete procedure `event.suggestAccompanyingRangers(query)` merges all three sources, dedupes by normalised name and erSubjectId, and returns up to 20 suggestions ranked by name. Each result carries: id (knownRangerId or null), name, source ("known_ranger" | "recent_freetext" | "er_subject"), erSubjectId.
+
+**ReportTemplate (Command Center native):** id, tenant_id, name, layout (varchar — reserved for future multi-layout support; default 'standard'), municipal_logo_url (nullable), partner_logo_url (nullable), title, footer_notes (nullable), is_default (boolean — max one true per tenant), created_by_user_id, created_at, updated_at
+— Purpose: Stores the branded LGU page-header + footer configuration used when generating a Printable Report Map. One template per tenant may be flagged is_default and is auto-selected when the user generates a report without manually choosing one. The templateId (UUID primary key) is passed in paramsJson / query params — not as a URL slug — so the report-map slug remains stable across template changes.
 
 ## Integrations
 **EarthRanger API (per tenant):** REST API v1.0 + v2.0 for data sync (subjects, events, event types, patrols, observations, subject groups, tracks). Auth uses Bearer token in `Authorization` header — token is a 40-char alphanumeric string created in ER Admin (DAS Access Tokens). SocketIO WebSocket for real-time subject position updates uses the same Bearer token mechanism (sent as `authorization` message after WebSocket connect). Each tenant may have two separate tokens: DAS Web Token (REST API) and ER Track Token (SocketIO). Command Center pushes event state updates back to ER via API. — OSS/Self-hosted
@@ -394,6 +428,7 @@ Retention:        Audit & security logs 5 years · operational/patrol/observatio
 Breach:           NPC Circular 16-03 lifecycle tracked (DETECTED→ASSESSED→NOTIFIED→REPORTED→CLOSED); NPC notify within 72h of knowledge + full written report within +5 business days. Admin-only breach register at /settings/breach.
 Surfaces:         Public /privacy notice · in-app Settings → Data & Privacy self-service · admin breach register · honest ComplianceFooter (design-claims ON, cert-badges OFF).
 WCAG:             2.2 AA on compliance + auth surfaces (DICT MC 004 alignment if ever deployed for PH gov/LGU).
+Logo assets:      Report Template logo images (municipal_logo_url, partner_logo_url) are organisational/institutional branding — NOT personal data; no DSR or data-retention obligation applies. Stored via the same private asset pipeline (R2 / MinIO) as other tenant uploads.
 STILL PENDING (owner — do NOT treat as final): DPO contact (interim placeholder bonitobonita24@gmail.com) · NPC registration number / PIA · per-activity lawful-basis fine-tuning.
 
 ## Security Requirements

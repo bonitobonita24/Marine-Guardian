@@ -933,3 +933,4 @@ would risk cross-tenant leakage and bypass the per-request auth/audit trail. The
 private R2 read-through cache already delivers ~12-18× speedup (145-240ms HIT vs
 ~2700ms Telegram MISS) without any public exposure. Owner chose A on 2026-06-29.
 Locked: yes
+- [swarm S1 · 2026-07-01 09:44:28] 2026-07-01 q-S1-01 insert_session: inserted session S0.5 (Prisma ReportType enum + hand-authored SQL migration for report_map) before S1 to satisfy hand-authored-migration policy and unblock DB-touching code paths.
