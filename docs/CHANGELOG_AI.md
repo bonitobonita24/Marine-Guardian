@@ -3,6 +3,32 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-07-01 — Report UI: LE/Monitoring event-list tables + patrol Hours/Km totals + Seaborne/Foot patrols-over-time charts (Phase 4 S1)
+
+- Agent:               CLAUDE_CODE (Sonnet 4.6) — Swarm S1
+- Branch:              swarm/printable-report-map
+- Rule 15 attribution: Spec-Driven Swarm Worker; inline execution (2 files, coupled import)
+
+### Changes
+- `apps/web/src/app/print-render/[tenantSlug]/[reportType]/[exportId]/report-map-report.tsx`
+  - Import PatrolOverTimeChart; add fmtHours helper
+  - Section 1 (LE) + Section 2 (Monitoring): add event-list tables below EventBreakdownChart
+    (columns: Event Type, Date, Location, Reporter; cap 30 events via flatMap over breakdown rows)
+  - Section 4 (Patrol) h2: add Total Hours + Total Km badges using patrolTotals from S0 data
+  - Section 4: add .patrol-charts-row with two PatrolOverTimeChart charts (Seaborne/Foot)
+  - CSS: .patrol-charts-row / .patrol-chart-col; ARIA: role=group on patrol-charts-row div
+  - window.__renderPending=5 unchanged (PatrolOverTimeChart is not a map island)
+- `apps/web/src/app/print-render/[tenantSlug]/[reportType]/[exportId]/components/patrol-over-time-chart.tsx` (NEW)
+  - Recharts LineChart cloned from PrintEventsOverTimeChart; parametric title/color props
+  - "use client"; isAnimationActive=false; empty-state handled; ReportMapTimeSeriesPoint data shape
+
+### Code Review
+- FIXED: aria-label on roleless div → added role=group (WCAG ARIA authoring practice)
+- REFUTED: fmtDate string crash, undefined series, badge labels — all confirmed safe
+- Deferred (bucket-A): IIFE extraction to EventListTable, shortDay dedup, chart component merge
+
+---
+
 ## 2026-07-01 — Data: per-category event rows + patrol hours + per-type per-day counts + totals (Phase 4 S0)
 
 - Agent:               CLAUDE_CODE (Sonnet 4.6) — Swarm S0

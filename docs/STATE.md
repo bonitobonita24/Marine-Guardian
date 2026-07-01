@@ -6,6 +6,24 @@
 PHASE: Phase 8 (ongoing buildout)
 FRAMEWORK_VERSION: V32.9
 
+SESSION_SAVE_2026_07_01_S1 (Swarm S1 — Report UI: LE/Monitoring event-list tables + patrol Hours/Km totals + Seaborne/Foot patrols-over-time charts):
+  ✅ DONE THIS SESSION:
+    - report-map-report.tsx: imported PatrolOverTimeChart; added fmtHours helper; added event-list
+      tables (Event Type | Date | Location | Reporter, cap 30) inside .section-chart below
+      EventBreakdownChart in Section 1 (Law Enforcement) and Section 2 (Monitoring), using flatMap
+      over breakdown rows; added Total Hours + Total Km badges in Section 4 (Patrols) h2 heading;
+      added two PatrolOverTimeChart charts (Seaborne + Foot) in a .patrol-charts-row below
+      section-content; added .patrol-charts-row/.patrol-chart-col CSS; fixed ARIA (role=group on
+      patrol-charts-row div). window.__renderPending=5 NOT changed — new charts are not map islands.
+    - New component: components/patrol-over-time-chart.tsx — cloned from print-events-over-time-chart.tsx;
+      accepts series, title, color props; Recharts LineChart; isAnimationActive=false; "use client".
+    - Code-review gate: 4 angles × candidates; REFUTED: fmtDate string crash (direct SSR, no JSON
+      boundary), undefined series (sortEntries always returns []), badge labels (h2 text provides AT
+      context). FIXED: aria-label on roleless div → added role=group. Deferred: IIFE→named component
+      extraction, shortDay duplication, PatrolOverTimeChart/PrintEventsOverTimeChart merge.
+    - All gates: typecheck PASS · 1225/1225 tests PASS · build PASS.
+  STATE: branch swarm/printable-report-map, committed.
+
 SESSION_SAVE_2026_07_01_S0 (Swarm S0 — Data: per-category event rows + patrol hours + per-type per-day counts + aggregate totals):
   ✅ DONE THIS SESSION:
     - buildEventBreakdownWithCoords (reportMap.ts): added EventDetail export type; extended Prisma
