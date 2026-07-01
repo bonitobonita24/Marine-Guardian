@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, cleanup, fireEvent, screen } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
+import { render, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 
 const { stubs } = vi.hoisted(() => ({
   stubs: {
@@ -9,6 +9,14 @@ const { stubs } = vi.hoisted(() => ({
       { id: "m-1", name: "Calapan City", province: "Oriental Mindoro", slug: "calapan-city" },
       { id: "m-2", name: "Naujan", province: "Oriental Mindoro", slug: "naujan" },
     ] as { id: string; name: string; province: string; slug: string }[],
+    protectedZones: [] as {
+      id: string;
+      name: string;
+      slug: string;
+      category: string;
+      parentMunicipalityId: string | null;
+    }[],
+    protectedZonesLoading: false,
   },
 }));
 
@@ -19,7 +27,10 @@ vi.mock("@/lib/trpc/client", () => ({
         useQuery: () => ({ data: stubs.municipalities, isLoading: false }),
       },
       protectedZones: {
-        useQuery: () => ({ data: [], isLoading: false }),
+        useQuery: () => ({
+          data: stubs.protectedZones,
+          isLoading: stubs.protectedZonesLoading,
+        }),
       },
     },
   },
@@ -33,17 +44,20 @@ import { ReportFilterBar } from "../report-filter-bar";
 
 afterEach(() => {
   cleanup();
+  stubs.protectedZones = [];
+  stubs.protectedZonesLoading = false;
 });
 
 // Read-out probe so we can assert the bar drives the shared context.
 function Probe() {
-  const { from, to, municipalityId } = useReportFilter();
+  const { from, to, municipalityId, protectedZoneId } = useReportFilter();
   return (
     <div
       data-testid="probe"
       data-from={from.toISOString()}
       data-to={to.toISOString()}
       data-municipality={municipalityId ?? "null"}
+      data-zone={protectedZoneId ?? "null"}
     />
   );
 }
@@ -55,6 +69,24 @@ function renderBar() {
       <Probe />
     </ReportFilterProvider>,
   );
+}
+
+// jsdom doesn't implement scrollIntoView / pointer-capture, both of which
+// Radix Select's open/scroll-into-view-on-open logic touches — stub them so
+// the real Select popup can actually open under jsdom.
+beforeEach(() => {
+  Element.prototype.scrollIntoView = () => {};
+  Element.prototype.hasPointerCapture = () => false;
+  Element.prototype.releasePointerCapture = () => {};
+});
+
+/** Open a shadcn/Radix Select by its trigger testid, then click the option
+ *  matching `optionText`. */
+async function openAndPick(triggerTestId: string, optionText: string) {
+  fireEvent.pointerDown(screen.getByTestId(triggerTestId));
+  fireEvent.click(screen.getByTestId(triggerTestId));
+  const option = await screen.findByText(optionText);
+  fireEvent.click(option);
 }
 
 describe("ReportFilterBar", () => {
@@ -133,5 +165,99 @@ describe("ReportFilterBar", () => {
         new Date(probe.getAttribute("data-from") as string).getTime();
       expect(Math.abs(span - days * 24 * 60 * 60 * 1000)).toBeLessThan(2000);
     }
+  });
+
+  it("shows the MPA Zone select when 'All municipalities' is active, even with zero zones total", () => {
+    stubs.protectedZones = [];
+    renderBar();
+    expect(screen.getByTestId("report-protected-zone")).toBeTruthy();
+  });
+
+  it("hides the MPA Zone select when the selected municipality has zero protected zones", async () => {
+    stubs.protectedZones = [
+      {
+        id: "z-1",
+        name: "Zone One",
+        slug: "zone-one",
+        category: "mpa",
+        parentMunicipalityId: "m-1",
+      },
+    ];
+    renderBar();
+    expect(screen.getByTestId("report-protected-zone")).toBeTruthy();
+
+    // Naujan (m-2) has no zones in the stub → the control should disappear.
+    await openAndPick("report-municipality", "Naujan");
+    await waitFor(() => {
+      expect(screen.queryByTestId("report-protected-zone")).toBeNull();
+    });
+  });
+
+  it("filters the MPA Zone options to only the selected municipality's zones", async () => {
+    stubs.protectedZones = [
+      {
+        id: "z-1",
+        name: "Zone One",
+        slug: "zone-one",
+        category: "mpa",
+        parentMunicipalityId: "m-1",
+      },
+      {
+        id: "z-2",
+        name: "Zone Two",
+        slug: "zone-two",
+        category: "mpa",
+        parentMunicipalityId: "m-2",
+      },
+    ];
+    renderBar();
+
+    await openAndPick("report-municipality", "Calapan City"); // m-1
+    await waitFor(() => {
+      expect(screen.getByTestId("report-protected-zone")).toBeTruthy();
+    });
+
+    fireEvent.pointerDown(screen.getByTestId("report-protected-zone"));
+    fireEvent.click(screen.getByTestId("report-protected-zone"));
+    expect(await screen.findByText("Zone One")).toBeTruthy();
+    expect(screen.queryByText("Zone Two")).toBeNull();
+  });
+
+  it("resets protectedZoneId to 'all zones' when the municipality changes out from under the current selection", async () => {
+    stubs.protectedZones = [
+      {
+        id: "z-1",
+        name: "Zone One",
+        slug: "zone-one",
+        category: "mpa",
+        parentMunicipalityId: "m-1",
+      },
+      {
+        id: "z-2",
+        name: "Zone Two",
+        slug: "zone-two",
+        category: "mpa",
+        parentMunicipalityId: "m-2",
+      },
+    ];
+    renderBar();
+
+    await openAndPick("report-municipality", "Calapan City"); // m-1
+    await waitFor(() => {
+      expect(screen.getByTestId("report-protected-zone")).toBeTruthy();
+    });
+    await openAndPick("report-protected-zone", "Zone One"); // z-1
+
+    expect(screen.getByTestId("probe").getAttribute("data-zone")).toBe("z-1");
+
+    // Switching to Naujan (m-2) invalidates z-1 (it belongs to m-1) — the
+    // selection must reset back to the "all zones" sentinel (null), not
+    // silently keep filtering by a zone that's no longer in scope.
+    await openAndPick("report-municipality", "Naujan");
+    await waitFor(() => {
+      expect(screen.getByTestId("probe").getAttribute("data-zone")).toBe(
+        "null",
+      );
+    });
   });
 });

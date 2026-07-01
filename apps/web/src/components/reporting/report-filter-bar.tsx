@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -73,6 +74,42 @@ export function ReportFilterBar({
 
   const municipalities = trpc.municipality.list.useQuery();
   const protectedZones = trpc.municipality.protectedZones.useQuery();
+
+  // Zones scoped to the active municipality — "all municipalities" shows every
+  // zone (current behavior); a specific municipality narrows the list to zones
+  // whose `parentMunicipalityId` matches it. Zones with a null
+  // `parentMunicipalityId` (unassigned/orphan zones) never surface under a
+  // specific municipality, only under "all". Memoized on the query data +
+  // municipalityId so the array reference stays stable across renders where
+  // neither input changed (keeps the reset effect below from re-running for
+  // no reason).
+  const allZones = useMemo(() => protectedZones.data ?? [], [protectedZones.data]);
+  const visibleZones = useMemo(() => {
+    if (municipalityId === null) return allZones;
+    return allZones.filter((z) => z.parentMunicipalityId === municipalityId);
+  }, [allZones, municipalityId]);
+  // While the zones query is still loading we don't yet know whether the
+  // selected municipality has zones, so treat "loading" as "not yet decided"
+  // and keep the control visible rather than prematurely hiding it.
+  const showZoneFilter =
+    municipalityId === null || protectedZones.isLoading || visibleZones.length > 0;
+
+  // Whenever the municipality changes (or the zone list narrows out from
+  // under the current selection) a stale protectedZoneId must not silently
+  // persist — reset it back to the "all zones" sentinel (null) so a hidden or
+  // out-of-scope control can never keep filtering behind the user's back.
+  // Guarded on `protectedZones.isLoading` so we don't reset while the zones
+  // query hasn't resolved yet, and on `protectedZoneId !== null` /
+  // `stillValid` so this never fires (and therefore never loops) once the
+  // selection is already valid or already "all".
+  useEffect(() => {
+    if (protectedZones.isLoading) return;
+    if (protectedZoneId === null) return;
+    const stillValid = visibleZones.some((z) => z.id === protectedZoneId);
+    if (!stillValid) {
+      setProtectedZoneId(null);
+    }
+  }, [protectedZoneId, protectedZones.isLoading, visibleZones, setProtectedZoneId]);
 
   // Group the (already canonically-ordered) municipalities by province so the
   // Select shows the owner's province headings (Oriental Mindoro → Occidental
@@ -243,35 +280,38 @@ export function ReportFilterBar({
       </div>
 
       {/* MPA scope — narrow events/patrols to a single protected zone (Apo Reef,
-          Harka Piloto). Independent of the municipality filter. */}
-      <div className={fieldClass}>
-        <Label
-          htmlFor="report-protected-zone"
-          className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
-        >
-          MPA Zone
-        </Label>
-        <Select
-          value={protectedZoneId ?? ALL_ZONES}
-          onValueChange={handleProtectedZoneChange}
-        >
-          <SelectTrigger
-            id="report-protected-zone"
-            data-testid="report-protected-zone"
-            className={cn(stacked ? "h-7 w-full text-[11px]" : "h-8 w-[12rem] text-xs")}
+          Harka Piloto), scoped to the selected municipality. Hidden entirely
+          when the selected municipality has no protected zones. */}
+      {showZoneFilter && (
+        <div className={fieldClass}>
+          <Label
+            htmlFor="report-protected-zone"
+            className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
           >
-            <SelectValue placeholder="All zones" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_ZONES}>All zones</SelectItem>
-            {(protectedZones.data ?? []).map((z) => (
-              <SelectItem key={z.id} value={z.id}>
-                {z.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+            MPA Zone
+          </Label>
+          <Select
+            value={protectedZoneId ?? ALL_ZONES}
+            onValueChange={handleProtectedZoneChange}
+          >
+            <SelectTrigger
+              id="report-protected-zone"
+              data-testid="report-protected-zone"
+              className={cn(stacked ? "h-7 w-full text-[11px]" : "h-8 w-[12rem] text-xs")}
+            >
+              <SelectValue placeholder="All zones" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_ZONES}>All zones</SelectItem>
+              {visibleZones.map((z) => (
+                <SelectItem key={z.id} value={z.id}>
+                  {z.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
     </div>
   );
 }
