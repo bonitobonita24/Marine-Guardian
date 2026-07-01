@@ -17,6 +17,10 @@
 //   assertBucketExists   — idempotent bucket creation (HEAD → CREATE on 404)
 //   getExportsBucketName — single source of truth for bucket name shape
 //   buildExportKey       — single source of truth for object key shape
+//   buildLogoKey         — key shape for template logo images
+//   uploadImage          — write an image buffer (png/jpeg) to (bucket, key)
+//   getImageReadStream   — open a download stream for logo image bytes
+//   getImageBytes        — collect the full image into a Buffer (for print body)
 //
 // Bucket convention (locked in DECISIONS_LOG §142):
 //   marine-guardian-${env}-exports  where env ∈ {dev, staging, prod}
@@ -28,8 +32,9 @@
 //   production  → prod
 //   (unset)     → dev   (safe default for local pnpm work)
 // Adding a new APP_ENV value? Extend APP_ENV_TO_BUCKET_ENV below.
-// Key shape (locked):
-//   ${tenantId}/${YYYY}/${MM}/${exportId}.pdf
+// Key shapes (locked):
+//   PDF:   ${tenantId}/${YYYY}/${MM}/${exportId}.pdf
+//   Logo:  logos/${tenantId}/${templateId}.${ext}
 //   Per-tenant prefix gives us natural IAM scoping when we move to AWS S3.
 //
 // The S3Client is created lazily so the package can be imported in tests
@@ -65,6 +70,23 @@ export interface DeleteInput {
   bucket: string;
   key: string;
 }
+
+/** Accepted MIME types for logo/template images. */
+export type ImageContentType = "image/png" | "image/jpeg";
+
+export interface UploadImageInput {
+  bucket: string;
+  key: string;
+  body: Buffer;
+  contentType: ImageContentType;
+}
+
+export interface UploadImageResult {
+  key: string;
+}
+
+/** 10 MiB — logo images for print templates should never exceed this. */
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 let cachedClient: S3Client | null = null;
 
@@ -147,6 +169,22 @@ export function buildExportKey(
   return `${tenantId}/${year}/${month}/${exportId}.pdf`;
 }
 
+/**
+ * Key shape for report-template logo images stored in the exports bucket.
+ * Shape: logos/${tenantId}/${templateId}.${ext}
+ * ext must not include a leading dot ("png", not ".png") — a leading dot is
+ * stripped defensively so callers that derive ext from a filename do not
+ * produce double-dot keys (e.g. "logos/t/id..png") that are unreachable.
+ */
+export function buildLogoKey(
+  tenantId: string,
+  templateId: string,
+  ext: string,
+): string {
+  const normalizedExt = ext.startsWith(".") ? ext.slice(1) : ext;
+  return `logos/${tenantId}/${templateId}.${normalizedExt}`;
+}
+
 export async function uploadPdf(
   input: UploadPdfInput,
 ): Promise<UploadPdfResult> {
@@ -191,6 +229,58 @@ export async function deletePdf(input: DeleteInput): Promise<void> {
       Key: input.key,
     }),
   );
+}
+
+export async function uploadImage(
+  input: UploadImageInput,
+): Promise<UploadImageResult> {
+  if (input.body.length > MAX_IMAGE_BYTES) {
+    throw new Error(
+      `uploadImage: body size ${input.body.length} exceeds maximum ${MAX_IMAGE_BYTES} bytes`,
+    );
+  }
+  const client = getClient();
+  await client.send(
+    new PutObjectCommand({
+      Bucket: input.bucket,
+      Key: input.key,
+      Body: input.body,
+      ContentType: input.contentType,
+      ContentLength: input.body.length,
+    }),
+  );
+  return { key: input.key };
+}
+
+export async function getImageReadStream(
+  input: GetReadStreamInput,
+): Promise<Readable> {
+  const client = getClient();
+  const response = await client.send(
+    new GetObjectCommand({
+      Bucket: input.bucket,
+      Key: input.key,
+    }),
+  );
+  const body = response.Body;
+  if (body === undefined) {
+    throw new Error(
+      `getImageReadStream: no body returned for s3://${input.bucket}/${input.key}`,
+    );
+  }
+  return body as Readable;
+}
+
+export async function getImageBytes(
+  input: GetReadStreamInput,
+): Promise<Buffer> {
+  const stream = await getImageReadStream(input);
+  return new Promise<Buffer>((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    stream.on("data", (chunk: Buffer) => chunks.push(chunk));
+    stream.on("end", () => resolve(Buffer.concat(chunks)));
+    stream.on("error", reject);
+  });
 }
 
 interface S3LikeError {

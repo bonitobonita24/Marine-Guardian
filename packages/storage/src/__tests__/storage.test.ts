@@ -51,6 +51,10 @@ import {
   assertBucketExists,
   getExportsBucketName,
   buildExportKey,
+  buildLogoKey,
+  uploadImage,
+  getImageReadStream,
+  getImageBytes,
   __resetClientForTesting,
 } from "../index";
 
@@ -232,6 +236,157 @@ describe("packages/storage", () => {
 
       // Should NOT attempt to create the bucket on a non-404 error.
       expect(mockSend).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("buildLogoKey", () => {
+    it("produces logos/${tenantId}/${templateId}.${ext} key shape", () => {
+      expect(buildLogoKey("tenant-abc", "tmpl-1", "png")).toBe(
+        "logos/tenant-abc/tmpl-1.png",
+      );
+    });
+
+    it("works with jpeg extension", () => {
+      expect(buildLogoKey("tenant-xyz", "default", "jpeg")).toBe(
+        "logos/tenant-xyz/default.jpeg",
+      );
+    });
+
+    it("includes logos/ prefix so PDF and logo keys never collide", () => {
+      const logoKey = buildLogoKey("tenant-abc", "tmpl-1", "png");
+      expect(logoKey.startsWith("logos/")).toBe(true);
+    });
+
+    it("strips a leading dot from ext so callers deriving ext from filename do not produce double-dot keys", () => {
+      // path.extname("logo.png") returns ".png" — normalise to avoid "id..png"
+      expect(buildLogoKey("tenant-abc", "tmpl-1", ".png")).toBe(
+        "logos/tenant-abc/tmpl-1.png",
+      );
+    });
+  });
+
+  describe("uploadImage", () => {
+    it("sends PutObjectCommand with image/png content-type", async () => {
+      mockSend.mockResolvedValueOnce({});
+      const body = Buffer.from([0x89, 0x50, 0x4e, 0x47]); // PNG magic bytes
+
+      const result = await uploadImage({
+        bucket: "marine-guardian-test-exports",
+        key: "logos/tenant-1/tmpl-1.png",
+        body,
+        contentType: "image/png",
+      });
+
+      expect(mockSend).toHaveBeenCalledTimes(1);
+      const cmd = mockSend.mock.calls[0]?.[0] as PutObjectCommand;
+      expect(cmd).toBeInstanceOf(PutObjectCommand);
+      expect(cmd.input.Bucket).toBe("marine-guardian-test-exports");
+      expect(cmd.input.Key).toBe("logos/tenant-1/tmpl-1.png");
+      expect(cmd.input.Body).toBe(body);
+      expect(cmd.input.ContentType).toBe("image/png");
+      expect(cmd.input.ContentLength).toBe(body.length);
+      expect(result.key).toBe("logos/tenant-1/tmpl-1.png");
+    });
+
+    it("sends PutObjectCommand with image/jpeg content-type", async () => {
+      mockSend.mockResolvedValueOnce({});
+      const body = Buffer.from([0xff, 0xd8, 0xff]); // JPEG magic bytes
+
+      const result = await uploadImage({
+        bucket: "marine-guardian-test-exports",
+        key: "logos/tenant-1/tmpl-1.jpeg",
+        body,
+        contentType: "image/jpeg",
+      });
+
+      const cmd = mockSend.mock.calls[0]?.[0] as PutObjectCommand;
+      expect(cmd.input.ContentType).toBe("image/jpeg");
+      expect(result.key).toBe("logos/tenant-1/tmpl-1.jpeg");
+    });
+
+    it("throws before calling S3 when body exceeds 10 MiB size guard", async () => {
+      const oversized = Buffer.alloc(10 * 1024 * 1024 + 1);
+      await expect(
+        uploadImage({
+          bucket: "marine-guardian-test-exports",
+          key: "logos/tenant-1/big.png",
+          body: oversized,
+          contentType: "image/png",
+        }),
+      ).rejects.toThrow(/exceeds maximum/);
+      expect(mockSend).not.toHaveBeenCalled();
+    });
+
+    it("accepts a body exactly at the 10 MiB size limit", async () => {
+      mockSend.mockResolvedValueOnce({});
+      const atLimit = Buffer.alloc(10 * 1024 * 1024);
+      await expect(
+        uploadImage({
+          bucket: "marine-guardian-test-exports",
+          key: "logos/tenant-1/at-limit.png",
+          body: atLimit,
+          contentType: "image/png",
+        }),
+      ).resolves.toEqual({ key: "logos/tenant-1/at-limit.png" });
+    });
+  });
+
+  describe("getImageReadStream", () => {
+    it("returns the Body stream from GetObjectCommand response", async () => {
+      const fakeStream = Readable.from([Buffer.from("png-bytes")]);
+      mockSend.mockResolvedValueOnce({ Body: fakeStream });
+
+      const stream = await getImageReadStream({
+        bucket: "marine-guardian-test-exports",
+        key: "logos/tenant-1/tmpl-1.png",
+      });
+
+      expect(mockSend).toHaveBeenCalledTimes(1);
+      const cmd = mockSend.mock.calls[0]?.[0] as GetObjectCommand;
+      expect(cmd).toBeInstanceOf(GetObjectCommand);
+      expect(cmd.input.Bucket).toBe("marine-guardian-test-exports");
+      expect(cmd.input.Key).toBe("logos/tenant-1/tmpl-1.png");
+      expect(stream).toBe(fakeStream);
+    });
+
+    it("throws when Body is missing from S3 response (defensive)", async () => {
+      mockSend.mockResolvedValueOnce({});
+      await expect(
+        getImageReadStream({
+          bucket: "marine-guardian-test-exports",
+          key: "logos/tenant-1/missing.png",
+        }),
+      ).rejects.toThrow(/no body/i);
+    });
+  });
+
+  describe("getImageBytes", () => {
+    it("collects the stream into a Buffer", async () => {
+      const originalBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a]);
+      const fakeStream = Readable.from([originalBytes]);
+      mockSend.mockResolvedValueOnce({ Body: fakeStream });
+
+      const result = await getImageBytes({
+        bucket: "marine-guardian-test-exports",
+        key: "logos/tenant-1/tmpl-1.png",
+      });
+
+      expect(result).toBeInstanceOf(Buffer);
+      expect(result).toEqual(originalBytes);
+    });
+
+    it("concatenates multiple stream chunks into one Buffer", async () => {
+      const chunk1 = Buffer.from([0x01, 0x02]);
+      const chunk2 = Buffer.from([0x03, 0x04]);
+      const fakeStream = Readable.from([chunk1, chunk2]);
+      mockSend.mockResolvedValueOnce({ Body: fakeStream });
+
+      const result = await getImageBytes({
+        bucket: "marine-guardian-test-exports",
+        key: "logos/tenant-1/multi-chunk.png",
+      });
+
+      expect(result).toEqual(Buffer.concat([chunk1, chunk2]));
     });
   });
 });
