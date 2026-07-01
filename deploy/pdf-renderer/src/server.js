@@ -24,7 +24,10 @@ const PORT = Number(process.env.PORT ?? "4000");
 const SERVICE_TOKEN = process.env.PDF_RENDERER_SERVICE_TOKEN ?? "";
 const CHROMIUM_PATH =
   process.env.PUPPETEER_EXECUTABLE_PATH ?? "/usr/bin/chromium";
-const NAV_TIMEOUT_MS = Number(process.env.PDF_NAV_TIMEOUT_MS ?? "30000");
+// Raised 30s→120s (owner 2026-07-01): full-length portrait reports (all events/patrols,
+// multi-hundred pages) render well under 30s when filtered, but a large/unfiltered tenant
+// can approach the ceiling — 120s gives safe margin. Override per-env via PDF_NAV_TIMEOUT_MS.
+const NAV_TIMEOUT_MS = Number(process.env.PDF_NAV_TIMEOUT_MS ?? "120000");
 
 if (!SERVICE_TOKEN || SERVICE_TOKEN.length < 32) {
   console.error(
