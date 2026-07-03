@@ -23,19 +23,30 @@
  * Five main sections (one per chart) + five full-list sections (uncapped,
  * ALL fields, ALL rows):
  *   1.  Law Enforcement       — EventBreakdownChart + event-points map (red)
- *   1b. Law Enforcement list  — full event table (portrait)
+ *   1b. Law Enforcement list  — per-type event tables (landscape)
  *   2.  Monitoring            — EventBreakdownChart + event-points map (cyan)
- *   2b. Monitoring list       — full event table (portrait)
+ *   2b. Monitoring list       — per-type event tables (landscape)
  *   3.  High Priority         — event-points map (orange)
- *   3b. High Priority list    — full event table (portrait)
+ *   3b. High Priority list    — per-type event tables (landscape)
  *   4.  Patrol List           — patrol-tracks map + seaborne/foot time series
  *   4b. Patrol List — list    — full patrol table (portrait)
  *   5.  Events Over Time      — line chart + overview event-points map (blue)
- *   5b. Events Over Time list — full event table (portrait)
+ *   5b. Events Over Time list — per-type event tables (landscape)
+ *
+ * EVENT full-list pages (owner directive 2026-07-03) render one SEPARATE table
+ * per EventType — each type's columns are the union of ER field keys present
+ * in that type's events' eventDetailsJson (plus date/location/reporter) — on
+ * A4 LANDSCAPE so the wide per-type column sets fit, with a small photo
+ * thumbnail per row when the event has an archived image asset (served via
+ * the existing /api/assets/[id] proxy; the pdf-renderer's
+ * page.setExtraHTTPHeaders propagates the X-PDF-Renderer-Token onto these
+ * <img> subresource fetches, which middleware + the route accept).
  *
  * Mixed orientation: every main "report-section" is pinned to the named
- * "@page main-page" (the template's configured size); every full-list
- * "report-section-list" is pinned to "@page list-page" (always A4 portrait).
+ * "@page main-page" (the template's configured size); the patrol full-list
+ * "report-section-list" stays pinned to "@page list-page" (A4 portrait) while
+ * the four EVENT full-list sections add the "event-list" class, pinning them
+ * to "@page event-list-page" (A4 landscape).
  * Chromium's Puppeteer `page.pdf({ preferCSSPageSize: true })` gives these
  * @page rules priority over the page.pdf() `landscape`/`format` JS options
  * (see the CSS block below + docs/DECISIONS_LOG.md "Report Map full-list
@@ -52,6 +63,11 @@
  */
 
 import type { ReportMapEventDetail, ReportMapReportData } from "@/server/report-map-report/get-report-map-report-data";
+import {
+  detailCell,
+  groupEventsByType,
+  humanizeDetailKey,
+} from "@/server/report-map-report/event-type-grouping";
 import { EventBreakdownChart } from "./components/event-breakdown-chart";
 // Leaflet islands are loaded dynamically (ssr:false) via the client wrapper to
 // prevent window-is-not-defined during Next.js server-side bundle evaluation.
@@ -188,7 +204,9 @@ function PageFooter({
   );
 }
 
-// ─── Full-list event/patrol tables (dedicated portrait pages) ─────────────────
+// ─── Full-list event/patrol tables (dedicated pages) ──────────────────────────
+// Event lists: LANDSCAPE per-type tables (EventTypeTables). Patrol list:
+// PORTRAIT single table (FullPatrolTable).
 //
 // Formerly `EventListTable` capped its rows to PRINT_EVENT_LIST_ROW_CAP (6) and
 // squeezed the preview into a fixed-height slot beside the chart+map on the
@@ -210,46 +228,98 @@ function fmtLatLon(v: number | null): string {
   return v === null ? "—" : v.toFixed(5);
 }
 
-interface FullEventTableProps {
+interface EventTypeTablesProps {
   events: ReportMapEventDetail[];
-  caption: string;
+  captionPrefix: string;
 }
 
-function FullEventTable({ events, caption }: FullEventTableProps) {
+/**
+ * One SEPARATE table per EventType (owner directive 2026-07-03): each table's
+ * dynamic columns are the union of eventDetailsJson keys present across that
+ * type's events — the type's own ER field set — after the common
+ * date/title/location/reporter columns. A Photo column (small thumbnail via
+ * the /api/assets/[id] proxy) appears only when the group has at least one
+ * archived image. Rendered on the LANDSCAPE "event-list-page" so wide per-type
+ * column sets fit.
+ */
+function EventPhotoCell({
+  event,
+  groupType,
+}: {
+  event: ReportMapEventDetail;
+  groupType: string;
+}) {
+  const photoId = event.photoAssetIds[0];
+  return (
+    <td className="photo-cell">
+      {photoId !== undefined ? (
+        // Broken/unavailable photos (asset 404/502) degrade to the alt
+        // text — the render itself is unaffected.
+        <img
+          className="event-thumb"
+          src={`/api/assets/${photoId}`}
+          alt={`Photo: ${event.title ?? groupType}`}
+        />
+      ) : (
+        "—"
+      )}
+    </td>
+  );
+}
+
+function EventTypeTables({ events, captionPrefix }: EventTypeTablesProps) {
   if (events.length === 0)
     return <p className="empty-note">No event details available.</p>;
   return (
-    <table className="report-table full-table">
-      <caption className="sr-only">{caption}</caption>
-      <thead>
-        <tr>
-          <th scope="col">Event Type</th>
-          <th scope="col">Title</th>
-          <th scope="col">Priority</th>
-          <th scope="col">Reported At</th>
-          <th scope="col">Municipality</th>
-          <th scope="col">Barangay / Area</th>
-          <th scope="col">Reporter</th>
-          <th scope="col">Latitude</th>
-          <th scope="col">Longitude</th>
-        </tr>
-      </thead>
-      <tbody>
-        {events.map((e) => (
-          <tr key={e.id}>
-            <td>{e.typeDisplay}</td>
-            <td>{e.title ?? "—"}</td>
-            <td>{e.priority}</td>
-            <td>{fmtDateTimeLocal2(e.reportedAt)}</td>
-            <td>{e.municipalityName ?? "—"}</td>
-            <td>{e.areaName ?? "—"}</td>
-            <td>{e.reportedByName ?? "—"}</td>
-            <td>{fmtLatLon(e.lat)}</td>
-            <td>{fmtLatLon(e.lon)}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <>
+      {groupEventsByType(events).map((g) => (
+        <div className="event-type-block" key={g.type}>
+          <h3 className="event-type-heading">
+            {g.type}
+            <span className="total-badge">
+              {g.events.length.toLocaleString()}
+            </span>
+          </h3>
+          <table className="report-table full-table">
+            <caption className="sr-only">
+              {captionPrefix} — {g.type}
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Reported At</th>
+                <th scope="col">Title</th>
+                <th scope="col">Municipality</th>
+                <th scope="col">Barangay / Area</th>
+                <th scope="col">Reporter</th>
+                {g.detailKeys.map((k) => (
+                  <th scope="col" key={k}>
+                    {humanizeDetailKey(k)}
+                  </th>
+                ))}
+                {g.hasAnyPhoto ? <th scope="col">Photo</th> : null}
+              </tr>
+            </thead>
+            <tbody>
+              {g.events.map((e) => (
+                <tr key={e.id}>
+                  <td>{fmtDateTimeLocal2(e.reportedAt)}</td>
+                  <td>{e.title ?? "—"}</td>
+                  <td>{e.municipalityName ?? "—"}</td>
+                  <td>{e.areaName ?? "—"}</td>
+                  <td>{e.reportedByName ?? "—"}</td>
+                  {g.detailKeys.map((k) => (
+                    <td key={k}>{detailCell(e, k)}</td>
+                  ))}
+                  {g.hasAnyPhoto ? (
+                    <EventPhotoCell event={e} groupType={g.type} />
+                  ) : null}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -409,6 +479,11 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
     @page { size: ${pageCss}; margin: 12mm; }
     @page main-page { size: ${pageCss}; margin: 12mm; }
     @page list-page { size: A4 portrait; margin: 12mm; }
+    /* EVENT full-list pages are ALWAYS A4 landscape (owner directive
+       2026-07-03): per-type tables carry each type's full ER field set as
+       columns, which does not fit a portrait width. The patrol full-list page
+       keeps the portrait list-page. */
+    @page event-list-page { size: A4 landscape; margin: 12mm; }
     * { box-sizing: border-box; }
     body {
       font-family: ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif;
@@ -418,6 +493,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
     }
     .report-section { padding: 8px 14px 4px; page: main-page; }
     .report-section-list { padding: 8px 14px 4px; page: list-page; break-before: page; page-break-before: always; }
+    .report-section-list.event-list { page: event-list-page; }
     ${isOnePer
       ? ".report-section + .report-section { page-break-before: always; break-before: page; }"
       : ".report-section + .report-section { margin-top: 28px; border-top: 2px solid #e5e7eb; padding-top: 14px; }"}
@@ -495,6 +571,19 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
     table.report-table.full-table tbody tr {
       break-inside: avoid; page-break-inside: avoid;
     }
+    /* Per-event-type tables (landscape event-list pages). Long ER detail
+       values wrap inside their cell instead of widening the table off-page. */
+    table.report-table.full-table td { word-break: break-word; }
+    h3.event-type-heading {
+      font-size: 11px; font-weight: 600; color: #374151;
+      margin: 10px 0 4px; break-after: avoid; page-break-after: avoid;
+    }
+    .event-type-block + .event-type-block { margin-top: 12px; }
+    td.photo-cell { width: 96px; }
+    img.event-thumb {
+      display: block; max-height: 56px; max-width: 90px; width: auto;
+      object-fit: contain; border-radius: 4px;
+    }
     .sr-only {
       position: absolute; width: 1px; height: 1px; padding: 0;
       margin: -1px; overflow: hidden; clip: rect(0,0,0,0);
@@ -568,9 +657,9 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
           <PageFooter {...footerBase} pageNum={1} />
         </section>
 
-        {/* ── Section 1b: Law Enforcement — full list (portrait) ──────────── */}
+        {/* ── Section 1b: Law Enforcement — per-type tables (landscape) ───── */}
         <section
-          className="report-section-list"
+          className="report-section-list event-list"
           data-testid="section-law-enforcement-list"
         >
           <PageHeader {...headerProps} />
@@ -580,9 +669,9 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
               {data.charts.lawEnforcement.total.toLocaleString()}
             </span>
           </h2>
-          <FullEventTable
+          <EventTypeTables
             events={data.charts.lawEnforcement.breakdown.flatMap((r) => r.events)}
-            caption="Law enforcement full event list"
+            captionPrefix="Law enforcement full event list"
           />
           <PageFooter {...footerBase} pageNum={2} />
         </section>
@@ -628,9 +717,9 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
           <PageFooter {...footerBase} pageNum={3} />
         </section>
 
-        {/* ── Section 2b: Monitoring — full list (portrait) ───────────────── */}
+        {/* ── Section 2b: Monitoring — per-type tables (landscape) ────────── */}
         <section
-          className="report-section-list"
+          className="report-section-list event-list"
           data-testid="section-monitoring-list"
         >
           <PageHeader {...headerProps} />
@@ -640,9 +729,9 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
               {data.charts.monitoring.total.toLocaleString()}
             </span>
           </h2>
-          <FullEventTable
+          <EventTypeTables
             events={data.charts.monitoring.breakdown.flatMap((r) => r.events)}
-            caption="Monitoring full event list"
+            captionPrefix="Monitoring full event list"
           />
           <PageFooter {...footerBase} pageNum={4} />
         </section>
@@ -687,9 +776,9 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
           <PageFooter {...footerBase} pageNum={5} />
         </section>
 
-        {/* ── Section 3b: High Priority — full list (portrait) ────────────── */}
+        {/* ── Section 3b: High Priority — per-type tables (landscape) ─────── */}
         <section
-          className="report-section-list"
+          className="report-section-list event-list"
           data-testid="section-high-priority-list"
         >
           <PageHeader {...headerProps} />
@@ -699,9 +788,9 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
               {data.charts.highPriority.total.toLocaleString()}
             </span>
           </h2>
-          <FullEventTable
+          <EventTypeTables
             events={data.charts.highPriority.events}
-            caption="High priority full event list"
+            captionPrefix="High priority full event list"
           />
           <PageFooter {...footerBase} pageNum={6} />
         </section>
@@ -839,9 +928,9 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
           <PageFooter {...footerBase} pageNum={9} />
         </section>
 
-        {/* ── Section 5b: Events Over Time — full list (portrait) ─────────── */}
+        {/* ── Section 5b: Events Over Time — per-type tables (landscape) ──── */}
         <section
-          className="report-section-list"
+          className="report-section-list event-list"
           data-testid="section-events-over-time-list"
         >
           <PageHeader {...headerProps} />
@@ -851,9 +940,9 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
               {data.charts.eventsOverTime.total.toLocaleString()}
             </span>
           </h2>
-          <FullEventTable
+          <EventTypeTables
             events={data.charts.eventsOverTime.events}
-            caption="Events over time — full event list"
+            captionPrefix="Events over time — full event list"
           />
           <PageFooter {...footerBase} pageNum={10} />
         </section>

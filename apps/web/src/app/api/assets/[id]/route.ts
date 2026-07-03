@@ -20,11 +20,15 @@ import { type NextRequest, NextResponse } from "next/server";
 import { TRPCError } from "@trpc/server";
 
 import { prisma } from "@marine-guardian/db";
-import { mimeFromFilename } from "@marine-guardian/shared/lib/asset-mime";
+import {
+  mimeFromFilename,
+  SAFE_INLINE_IMAGE_TYPES,
+} from "@marine-guardian/shared/lib/asset-mime";
 import { getTelegramBotToken } from "@marine-guardian/jobs/lib/telegram-storage";
 import { requireRouteAuth, RouteAuthError } from "@/server/lib/route-auth";
 import { rateLimiters } from "@/server/lib/rate-limit";
 import { resolveAssetBytes } from "@/server/lib/asset-bytes";
+import { verifyServiceToken } from "@/server/lib/service-token-guard";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -32,48 +36,68 @@ interface RouteParams {
 
 // Content-Types safe to serve inline (inert — no script execution). Anything
 // not in this set is forced to a neutral download. SVG is deliberately absent
-// (image/svg+xml can carry embedded script — security.md).
+// (image/svg+xml can carry embedded script — security.md). The image subset
+// is the shared SAFE_INLINE_IMAGE_TYPES so the print-report thumbnail picker
+// (photoAssetIdsFrom) gates on exactly what this route will render inline.
 const SAFE_INLINE_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-  "image/bmp",
-  "image/heic",
-  "image/heif",
+  ...SAFE_INLINE_IMAGE_TYPES,
   "application/pdf",
 ]);
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: RouteParams,
 ): Promise<NextResponse | Response> {
-  let ctx;
-  try {
-    ctx = await requireRouteAuth();
-  } catch (e) {
-    if (e instanceof RouteAuthError) return e.response;
-    throw e;
+  // Renderer-service mode (2026-07-03): the printable Report Map's event
+  // tables embed <img src="/api/assets/{id}"> thumbnails; headless Chrome
+  // sends the X-PDF-Renderer-Token on those subresource fetches (Puppeteer
+  // page.setExtraHTTPHeaders). A VALID token bypasses the session gate —
+  // the same shared secret already grants the full print-render HTML (a
+  // strict superset of these photo bytes), so trust parity holds. Tenant
+  // scoping is waived only in this mode: the renderer is an internal,
+  // token-gated service rendering server-composed URLs, never user input.
+  const presentedRendererToken = req.headers.get("x-pdf-renderer-token");
+  const isRendererService =
+    presentedRendererToken !== null &&
+    verifyServiceToken(
+      presentedRendererToken,
+      process.env.PDF_RENDERER_SERVICE_TOKEN,
+    );
+  if (presentedRendererToken !== null && !isRendererService) {
+    // A presented-but-invalid service token NEVER falls back to session auth.
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  try {
-    rateLimiters.assetRead.check(ctx.userId);
-  } catch (e) {
-    if (e instanceof TRPCError && e.code === "TOO_MANY_REQUESTS") {
-      return NextResponse.json(
-        { error: "Rate limit exceeded. Try again later." },
-        { status: 429 },
-      );
+  let ctx = null;
+  if (!isRendererService) {
+    try {
+      ctx = await requireRouteAuth();
+    } catch (e) {
+      if (e instanceof RouteAuthError) return e.response;
+      throw e;
     }
-    throw e;
+
+    try {
+      rateLimiters.assetRead.check(ctx.userId);
+    } catch (e) {
+      if (e instanceof TRPCError && e.code === "TOO_MANY_REQUESTS") {
+        return NextResponse.json(
+          { error: "Rate limit exceeded. Try again later." },
+          { status: 429 },
+        );
+      }
+      throw e;
+    }
   }
 
   const { id } = await params;
 
   const row = await prisma.eventAsset.findFirst({
-    where: { id, tenantId: ctx.tenantId },
+    // Session mode: tenant-scoped lookup. Renderer mode: id-only (see above).
+    where: ctx !== null ? { id, tenantId: ctx.tenantId } : { id },
     select: {
       id: true,
+      tenantId: true,
       eventId: true,
       filename: true,
       mimeType: true,
@@ -92,20 +116,24 @@ export async function GET(
   }
 
   // Audit the egress BEFORE the Telegram fetch so an interrupted fetch still
-  // leaves a record of who attempted the download.
-  await prisma.auditLog.create({
-    data: {
-      action: "ASSET_DOWNLOAD",
-      userId: ctx.userId,
-      tenantId: ctx.tenantId,
-      entityType: "EventAsset",
-      entityId: row.id,
-      changesJson: {
-        eventId: row.eventId,
-        filename: row.filename,
+  // leaves a record of who attempted the download. Renderer-mode reads carry
+  // no user identity (AuditLog.userId is non-nullable) — that egress is
+  // covered by the report export's own job/audit trail instead.
+  if (ctx !== null) {
+    await prisma.auditLog.create({
+      data: {
+        action: "ASSET_DOWNLOAD",
+        userId: ctx.userId,
+        tenantId: ctx.tenantId,
+        entityType: "EventAsset",
+        entityId: row.id,
+        changesJson: {
+          eventId: row.eventId,
+          filename: row.filename,
+        },
       },
-    },
-  });
+    });
+  }
 
   const botToken = getTelegramBotToken();
 
@@ -125,6 +153,15 @@ export async function GET(
   const rawType =
     row.mimeType ?? mimeFromFilename(row.filename) ?? "application/octet-stream";
 
+  // Renderer mode serves ONLY inline-safe image types — the print report's
+  // <img> thumbnails are its sole use case. This narrows what a leaked
+  // service token could exfiltrate through this route to the image class
+  // (PDFs/videos/unknown types stay session-gated). 404, not 403, to match
+  // the route's no-leak posture.
+  if (ctx === null && !SAFE_INLINE_IMAGE_TYPES.has(rawType)) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   // Resolve bytes via the R2 read-through cache (when enabled) → Telegram.
   // Any failure (Telegram down, rate-limited beyond retries, >20MB getFile cap)
   // becomes a clean 502 instead of an unhandled 500, so the UI degrades to a
@@ -132,7 +169,10 @@ export async function GET(
   let bytes: Buffer;
   try {
     const resolved = await resolveAssetBytes({
-      tenantId: ctx.tenantId,
+      // The asset row's OWN tenant (identical to ctx.tenantId in session mode
+      // — the lookup was tenant-scoped) keeps the R2 cache key tenant-correct
+      // in renderer mode too.
+      tenantId: row.tenantId,
       assetId: row.id,
       telegramFileId: row.telegramFileId,
       botToken,

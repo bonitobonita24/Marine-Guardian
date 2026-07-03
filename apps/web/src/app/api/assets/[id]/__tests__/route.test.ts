@@ -49,12 +49,17 @@ vi.mock("@marine-guardian/jobs/lib/telegram-storage", () => ({
 import { GET } from "../route";
 import { RouteAuthError } from "@/server/lib/route-auth";
 
-function makeRouteArgs(id: string): {
+function makeRouteArgs(
+  id: string,
+  headers?: Record<string, string>,
+): {
   req: Parameters<typeof GET>[0];
   ctx: Parameters<typeof GET>[1];
 } {
   return {
-    req: {} as Parameters<typeof GET>[0],
+    req: { headers: new Headers(headers) } as unknown as Parameters<
+      typeof GET
+    >[0],
     ctx: { params: Promise.resolve({ id }) },
   };
 }
@@ -66,6 +71,7 @@ const VALID_AUTH = {
 };
 const READY_ASSET = {
   id: "asset-1",
+  tenantId: "tenant-1",
   eventId: "event-1",
   filename: "photo.jpg",
   mimeType: "image/jpeg",
@@ -79,6 +85,7 @@ describe("GET /api/assets/[id]", () => {
     // delegates straight to the mocked Telegram fetch (cache paths are unit-tested
     // separately in server/lib/__tests__/asset-bytes.test.ts).
     delete process.env.R2_CACHE_ENABLED;
+    delete process.env.PDF_RENDERER_SERVICE_TOKEN;
     mockRequireRouteAuth.mockResolvedValue(VALID_AUTH);
     mockRateLimitCheck.mockReturnValue(undefined);
     mockPrisma.eventAsset.findFirst.mockResolvedValue(null);
@@ -307,5 +314,79 @@ describe("GET /api/assets/[id]", () => {
     expect(cd).not.toContain("\r");
     expect(cd).not.toContain("\n");
     expect(cd).toBe('inline; filename="a_.jpg__Set-Cookie: x=1"');
+  });
+
+  // ── Renderer-service mode (print-render <img> thumbnails, 2026-07-03) ──────
+  describe("X-PDF-Renderer-Token renderer-service mode", () => {
+    const SERVICE_TOKEN = "render-secret-token-0123456789abcdef";
+
+    it("serves the asset without session auth, rate limit, or audit on a valid token", async () => {
+      process.env.PDF_RENDERER_SERVICE_TOKEN = SERVICE_TOKEN;
+      mockPrisma.eventAsset.findFirst.mockResolvedValueOnce(READY_ASSET);
+      const { req, ctx } = makeRouteArgs("asset-1", {
+        "x-pdf-renderer-token": SERVICE_TOKEN,
+      });
+      const res = await GET(req, ctx);
+      expect(res.status).toBe(200);
+      expect(mockRequireRouteAuth).not.toHaveBeenCalled();
+      expect(mockRateLimitCheck).not.toHaveBeenCalled();
+      // No user identity exists — egress is covered by the export's own audit.
+      expect(mockPrisma.auditLog.create).not.toHaveBeenCalled();
+      // Lookup is id-only in renderer mode (trusted internal service).
+      const call = mockPrisma.eventAsset.findFirst.mock.calls[0]?.[0] as {
+        where: Record<string, unknown>;
+      };
+      expect(call.where).toEqual({ id: "asset-1" });
+    });
+
+    it("rejects an invalid presented token with 401 — never falls back to session auth", async () => {
+      process.env.PDF_RENDERER_SERVICE_TOKEN = SERVICE_TOKEN;
+      const { req, ctx } = makeRouteArgs("asset-1", {
+        "x-pdf-renderer-token": "wrong-token-0123456789abcdef-wrong!",
+      });
+      const res = await GET(req, ctx);
+      expect(res.status).toBe(401);
+      expect(mockRequireRouteAuth).not.toHaveBeenCalled();
+      expect(mockPrisma.eventAsset.findFirst).not.toHaveBeenCalled();
+    });
+
+    it("rejects a presented token with 401 when the server has no expected token configured", async () => {
+      // verifyServiceToken never grants access on a missing expected secret.
+      const { req, ctx } = makeRouteArgs("asset-1", {
+        "x-pdf-renderer-token": SERVICE_TOKEN,
+      });
+      const res = await GET(req, ctx);
+      expect(res.status).toBe(401);
+      expect(mockPrisma.eventAsset.findFirst).not.toHaveBeenCalled();
+    });
+
+    it("404s non-image types in renderer mode (thumbnails are the only use case)", async () => {
+      process.env.PDF_RENDERER_SERVICE_TOKEN = SERVICE_TOKEN;
+      mockPrisma.eventAsset.findFirst.mockResolvedValueOnce({
+        ...READY_ASSET,
+        mimeType: "application/pdf",
+        filename: "report.pdf",
+      });
+      const { req, ctx } = makeRouteArgs("asset-1", {
+        "x-pdf-renderer-token": SERVICE_TOKEN,
+      });
+      const res = await GET(req, ctx);
+      expect(res.status).toBe(404);
+      expect(mockFetchBytes).not.toHaveBeenCalled();
+    });
+
+    it("uses normal session auth when no token header is presented", async () => {
+      process.env.PDF_RENDERER_SERVICE_TOKEN = SERVICE_TOKEN;
+      mockPrisma.eventAsset.findFirst.mockResolvedValueOnce(READY_ASSET);
+      const { req, ctx } = makeRouteArgs("asset-1");
+      const res = await GET(req, ctx);
+      expect(res.status).toBe(200);
+      expect(mockRequireRouteAuth).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.auditLog.create).toHaveBeenCalledTimes(1);
+      const call = mockPrisma.eventAsset.findFirst.mock.calls[0]?.[0] as {
+        where: Record<string, unknown>;
+      };
+      expect(call.where).toEqual({ id: "asset-1", tenantId: "tenant-1" });
+    });
   });
 });

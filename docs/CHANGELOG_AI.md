@@ -83,6 +83,45 @@
 ### Validation
 - typecheck 7/7 · lint (web+jobs) · web build · tests: 1240 web + 211 jobs +
   183 shared + 49 storage — all green.
+## 2026-07-03 — Event report: LANDSCAPE per-event-type tables (own ER field set) + small photo thumbnails (Phase 4 run-20 S2)
+
+- Agent:               CLAUDE_CODE (Fable 5) — Swarm S2
+- Branch:              swarm/mappanel-exports-telegram-eventreport-S2
+- Rule 15 attribution: Spec-Driven Swarm Worker; build implemented inline (single cohesive
+  template/data surface within budget); code-review finders dispatched as 4 parallel subagents
+  (Agent dispatch WORKS again in this repo — supersedes the recorded overflow lesson).
+
+### Changes
+- reportMap.ts: EventDetail += eventDetailsJson/hasPhoto/photoAssetIds; new photoAssetIdsFrom
+  (inline-safe image filter); buildEventBreakdownWithCoords gains `includeEventDetails` opt-in —
+  the tRPC path stays LEAN (no ER JSON blobs / assets join on the live endpoint), only the SSR
+  print loader opts in.
+- get-report-map-report-data.ts: ReportMapEventDetail mirrors the new fields; events-over-time
+  query selects eventDetailsJson + archived-image assets; builder called with includeEventDetails.
+- NEW event-type-grouping.ts (+tests): pure per-type grouping — union of eventDetailsJson keys per
+  EventType (first-seen order), key humanization, ER-value formatting (choice objects, arrays,
+  booleans), hasAnyPhoto.
+- report-map-report.tsx: the four EVENT full-list pages now render ONE TABLE PER EVENT TYPE with
+  that type's own ER columns (+ date/title/municipality/area/reporter) on A4 LANDSCAPE (named
+  `@page event-list-page`); small photo thumbnail per row (max-h 56px, contain, rounded) via
+  <img src="/api/assets/{id}">. Patrol full-list page stays portrait. __renderPending=5 untouched.
+- middleware.ts + api/assets/[id]/route.ts: a VALID X-PDF-Renderer-Token (sent by Puppeteer's
+  setExtraHTTPHeaders on <img> subresource fetches) is accepted on /api/assets/* — renderer mode
+  serves ONLY inline-safe image types, skips session/rate-limit/audit (the export job carries the
+  audit trail); invalid presented token → 401 with no session fallback; no token → session gate
+  exactly as before.
+- packages/shared asset-mime: NEW SAFE_INLINE_IMAGE_TYPES + isInlineSafeImageAsset (the route's
+  allowlist now derives from it — thumbnail picker and proxy can never disagree).
+
+### Verification
+- typecheck/lint PASS · 1242 web + 183 shared tests PASS · build PASS.
+- Live render smoke (worktree dev server, real dev DB, renderer token): HTTP 200; A4-landscape
+  @page present; 4 event-list sections; per-type tables with type-specific ER columns; thumbnails
+  in LE/Monitoring/HP/EOT lists; thumbnail URL serves 200 image/jpeg with token, 307→login
+  without, 401 on wrong token.
+- Code review (4 finder angles, parallel subagents): payload-bloat + unsafe-image-mime +
+  renderer-exposure findings FIXED in-session; perf-at-extreme-photo-count + dedup cleanups
+  deferred (see STATE.md).
 
 ## 2026-07-01 — QA gate: typecheck·lint·build + render smoke verification (Phase 4 S2)
 
