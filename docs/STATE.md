@@ -35,6 +35,39 @@ SESSION_SAVE_2026_07_03_S0 (Swarm S0 — Report Map: selected-patrol floating ma
       dedup vs ui/map PopupCloseButton; helpers → shared lib module.
   STATE: branch swarm/mappanel-exports-telegram-eventreport-S0, committed. Print-render
   report map + reportMap.ts data untouched.
+SESSION_SAVE_2026_07_03_S1 (Swarm S1 — Report exports stored in Telegram, not MinIO):
+  ✅ DONE THIS SESSION:
+    - Additive migration 20260703000000_add_report_export_telegram_file_id:
+      report_exports.telegram_file_id TEXT NULL (+ prisma generate). NOT yet
+      applied to the shared dev DB (worktree session) — run `prisma migrate
+      deploy` at integration.
+    - pdf-render processor: PRIMARY store = Telegram. After render, sends the
+      PDF via lib/telegram-storage.uploadDocumentToTelegram to chatId =
+      tenant.telegramChannelId ?? TELEGRAM_DEFAULT_CHANNEL_ID, wrapped in the
+      archive-er-assets bounded-retry pattern (3 attempts, exp backoff);
+      persists telegramFileId + fileSizeBytes + status=ready. MinIO write only
+      when REPORT_EXPORTS_MINIO_FALLBACK=true (default OFF) or as graceful
+      degrade (Telegram unconfigured / PDF > 20MB getFile cap → legacy
+      MinIO-only write, warn-logged).
+    - Download route /api/exports/reports/[id]/download: dual-read — Telegram
+      bytes when telegramFileId set (clean 502 on failure, same posture as
+      /api/assets), MinIO stream for legacy rows. EXPORT_DOWNLOAD AuditLog
+      still BEFORE fetch; tenant-scope, ready-gating, headers/filename kept.
+    - reportExport router: getDownloadUrl treats ready+(telegramFileId OR
+      filePath) as downloadable; list/getById/create/retry use Prisma
+      omit:{telegramFileId} — the file_id NEVER crosses the tRPC boundary;
+      retry also nulls telegramFileId.
+    - Env (documented in .env.example): worker + web need TELEGRAM_BOT_TOKEN;
+      per-tenant channel via tenants.telegram_channel_id (same as ER photo
+      archiving) or TELEGRAM_DEFAULT_CHANNEL_ID.
+    - Tests: +8 processor (Telegram primary/fallbacks/retry/oversize/empty
+      file_id), +7 download route (Telegram read, 502, audit order, no leak,
+      legacy MinIO), +4 router (Telegram-only URL, no-location null, omit
+      contracts). All gates green: typecheck 7/7 · lint · build ·
+      1240 web + 211 jobs + 183 shared + 49 storage tests.
+  STATE: branch swarm/mappanel-exports-telegram-eventreport-S1, committed.
+  ⬜ INTEGRATION TODO: apply migration to dev/staging DB; ensure worker
+     container env has TELEGRAM_BOT_TOKEN (web already has it for /api/assets).
 
 SESSION_SAVE_2026_07_01_S2 (Swarm S2 — QA gate: typecheck·lint·build + render smoke with 4-feature verification):
   ✅ DONE THIS SESSION:
