@@ -22,6 +22,7 @@ import { z } from "zod";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
 import { prisma } from "@marine-guardian/db";
+import { isInlineSafeImageAsset } from "@marine-guardian/shared/lib/asset-mime";
 import { SERIOUS_EVENT_PATTERNS } from "@/components/map/eventMarkerStyle";
 import { pointsFromTrackGeojson } from "./map";
 
@@ -112,7 +113,35 @@ export type EventDetail = {
   reportedByName: string | null;
   lat: number | null;
   lon: number | null;
+  /** ER per-type dynamic field values (Event.eventDetailsJson, verbatim). */
+  eventDetailsJson: unknown;
+  hasPhoto: boolean;
+  /**
+   * EventAsset ids of archived IMAGE assets (telegramFileId present, image
+   * mime), servable via the existing /api/assets/[id] proxy.
+   */
+  photoAssetIds: string[];
 };
+
+/**
+ * Ids of the archived image assets among an event's EventAssets. Only assets
+ * already archived to Telegram (telegramFileId non-null — enforced by the
+ * caller's `where`) whose mime is INLINE-SAFE (same allowlist the
+ * /api/assets/[id] proxy serves inline — an image/svg+xml or image/tiff
+ * asset would come back as a forced download an <img> cannot render, i.e. a
+ * guaranteed-broken thumbnail) qualify.
+ */
+export function photoAssetIdsFrom(
+  // Optional so callers can pass a mocked/partial row straight through —
+  // unit-test fixtures routinely omit the relation.
+  assets:
+    | Array<{ id: string; mimeType: string | null; filename: string }>
+    | undefined,
+): string[] {
+  return (assets ?? [])
+    .filter((a) => isInlineSafeImageAsset(a.mimeType, a.filename))
+    .map((a) => a.id);
+}
 
 /**
  * Single-query implementation shared by `eventBreakdownWithCoords` (tRPC) and
@@ -123,25 +152,59 @@ export type EventDetail = {
  * Contract: per-type `count` values MUST equal `eventBreakdown` for the same
  * filter; `highPriority.total` MUST equal `highPriorityEvents.total`.
  * Points include ONLY events where both lat AND lon are non-null.
+ *
+ * `includeEventDetails` (S2, print loader ONLY): additionally fetches each
+ * event's full eventDetailsJson blob + archived-image asset ids for the
+ * printable per-type tables. The tRPC path deliberately stays LEAN — the
+ * interactive map never renders these fields, and the query is unbounded, so
+ * shipping ER JSON blobs + an assets join for every event in range would
+ * bloat the live payload for nothing (S2 code-review finding). Lean rows
+ * carry eventDetailsJson=null / photoAssetIds=[].
  */
 export async function buildEventBreakdownWithCoords(
   tenantId: string,
   input: ReportFilterInput,
+  opts?: { includeEventDetails?: boolean },
 ) {
-  const events = await prisma.event.findMany({
-    where: eventWhere(tenantId, input),
-    select: {
-      id: true,
-      title: true,
-      priority: true,
-      locationLat: true,
-      locationLon: true,
-      reportedAt: true,
-      reportedByName: true,
-      areaName: true,
-      eventType: { select: { category: true, display: true } },
-      municipality: { select: { name: true } },
-    },
+  const includeEventDetails = opts?.includeEventDetails ?? false;
+  const baseSelect = {
+    id: true,
+    title: true,
+    priority: true,
+    locationLat: true,
+    locationLon: true,
+    reportedAt: true,
+    reportedByName: true,
+    areaName: true,
+    hasPhoto: true,
+    eventType: { select: { category: true, display: true } },
+    municipality: { select: { name: true } },
+  } as const;
+  const where = eventWhere(tenantId, input);
+  const events = includeEventDetails
+    ? await prisma.event.findMany({
+        where,
+        select: {
+          ...baseSelect,
+          eventDetailsJson: true,
+          assets: {
+            where: { telegramFileId: { not: null } },
+            orderBy: { createdAt: "asc" },
+            select: { id: true, mimeType: true, filename: true },
+          },
+        },
+      })
+    : await prisma.event.findMany({ where, select: baseSelect });
+
+  // Union-safe accessors: the lean branch's rows simply lack these props
+  // (`id` is present in both branches — it anchors the structural check).
+  const detailFields = (e: {
+    id: string;
+    eventDetailsJson?: unknown;
+    assets?: Array<{ id: string; mimeType: string | null; filename: string }>;
+  }) => ({
+    eventDetailsJson: e.eventDetailsJson ?? null,
+    photoAssetIds: photoAssetIdsFrom(e.assets),
   });
 
   const lawMap: Record<string, { count: number; points: EventPoint[]; events: EventDetail[] }> = {};
@@ -168,6 +231,8 @@ export async function buildEventBreakdownWithCoords(
       reportedByName: e.reportedByName ?? null,
       lat: e.locationLat ?? null,
       lon: e.locationLon ?? null,
+      hasPhoto: e.hasPhoto,
+      ...detailFields(e),
     };
 
     if (isSerious) {

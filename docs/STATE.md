@@ -6,6 +6,44 @@
 PHASE: Phase 8 (ongoing buildout)
 FRAMEWORK_VERSION: V32.9
 
+SESSION_SAVE_2026_07_03_RUN20_S2 (Swarm S2 — Event report: LANDSCAPE per-EVENT-TYPE tables + small photo thumbnails):
+  ✅ DONE THIS SESSION:
+    - Data (additive): EventDetail/ReportMapEventDetail += eventDetailsJson·hasPhoto·photoAssetIds;
+      buildEventBreakdownWithCoords(includeEventDetails) — SSR print loader opts in, tRPC stays lean
+      (code-review fix: no ER JSON blobs/assets join on the unbounded live endpoint); loader's
+      events-over-time query extended the same way.
+    - NEW server/report-map-report/event-type-grouping.ts (+16 tests): per-type grouping (busiest
+      first), per-type detailKeys union (first-seen order), humanizeDetailKey, formatDetailValue
+      (ER choice objects/arrays/booleans), detailCell.
+    - Template: 4 EVENT full-list pages (1b/2b/3b/5b) = ONE TABLE PER EVENT TYPE (h3 heading +
+      count badge; columns = Reported At/Title/Municipality/Barangay-Area/Reporter + that type's
+      eventDetailsJson key union + Photo when the group has any) pinned to NEW `@page
+      event-list-page` A4 LANDSCAPE via `.report-section-list.event-list`; patrol page 4b stays
+      portrait; thumbnails img.event-thumb (max-h 56px, contain, rounded) via /api/assets/{id};
+      __renderPending=5 untouched.
+    - Renderer-token asset access: middleware + /api/assets/[id] accept a VALID X-PDF-Renderer-Token
+      (Puppeteer setExtraHTTPHeaders propagates it to <img> fetches); renderer mode = inline-safe
+      IMAGE types only, id-only lookup, no session/rate-limit/audit (export job = audit trail);
+      invalid token → 401 (never falls to session); no token → session gate unchanged (+5 route tests).
+    - Shared: SAFE_INLINE_IMAGE_TYPES + isInlineSafeImageAsset in packages/shared asset-mime; the
+      route's SAFE_INLINE_TYPES derives from it (thumbnail picker ↔ proxy can't disagree — fixes
+      svg/tiff "guaranteed-broken thumbnail" review finding).
+    - Gates: typecheck PASS · lint PASS · 1242 web + 183 shared tests PASS · build PASS.
+    - Live render smoke (worktree dev server on real dev DB, token-gated): HTTP 200 3.8MB; landscape
+      @page + 4 event-list sections + per-type ER columns (e.g. Boat Name, Kind Of Threat, Species)
+      + thumbnails in LE(8)/Mon(49)/HP(8)/EOT lists; asset URL: 200 image/jpeg w/ token, 307→login
+      w/o, 401 wrong token.
+  ⚠ DEFERRED (code-review, non-blocking — architect follow-ups):
+    - Perf at extreme photo counts: uncapped event lists (owner-directed, add8332) now fan out one
+      /api/assets img per photo-bearing event; a cold-R2, photo-heavy range could stress the 120s
+      pdf-nav timeout. Consider renderer-side image concurrency/caps if real exports slow down.
+    - Residual renderer-token posture: token grants image-asset reads across tenants (parity with
+      its existing full-report-HTML grant, ids are unguessable cuids, image-only) — per-export
+      scoped asset auth would be stricter.
+    - Cleanup dedup: humanizeDetailKey vs events-list.tsx humanizeCode; asset sub-select duplicated
+      between loader query and builder; middleware token-gate branch duplication.
+  STATE: branch swarm/mappanel-exports-telegram-eventreport-S2, committed.
+
 SESSION_SAVE_2026_07_01_S2 (Swarm S2 — QA gate: typecheck·lint·build + render smoke with 4-feature verification):
   ✅ DONE THIS SESSION:
     - Static gates: typecheck PASS · lint PASS · build PASS (print-render route 53.7kB compiled)

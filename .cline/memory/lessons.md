@@ -929,3 +929,22 @@ docker inspect on yelli_dev_mailhog showed com.docker.compose.project=yelli_dev 
   (add `--no-build` if the image was already built). Verify recreation by uptime ("Up X seconds", not hours)
   before driving Playwright. Also: Radix Select can't be driven by Playwright `select_option` (not a native
   <select>) — click the trigger then click `role=option[name="..."]`.
+
+## 2026-07-03 — run-20 S2 (event report per-type tables + thumbnails)
+
+- 🔴 A FAILED Edit call ("File has been modified since read") silently drops the change — a later
+  perl in-place edit on the same file invalidated a queued Edit, and the `includeEventDetails: true`
+  wiring in get-report-map-report-data.ts never landed. Every static gate stayed GREEN (typecheck,
+  lint, 1242 tests, build) because lean mode is type-valid; only the LIVE render smoke caught it
+  (breakdown sections rendered 0 thumbnails / 0 detail columns). Lessons: (1) after any failed
+  Edit, re-read and re-apply — never assume it landed; (2) always re-run the runtime smoke AFTER
+  post-review fixes, not just after the initial build.
+- Supersedes `feedback_subagent_dispatch_overflows_in_repo`: Agent()/subagent dispatch WORKS in this
+  repo again (4 parallel code-review finders, ~100K tokens each, no "Prompt is too long"). Prefer
+  fan-out for review/finder work; keep the old lesson only as history.
+- `ugrep -c` counts MATCHING LINES, not occurrences — a single-line SSR HTML file returns "1"/"4"
+  for hundreds of hits. Use `grep -o | wc -l` or Python .count() when asserting on rendered HTML.
+- Prisma conditional select (two findMany branches sharing a base select) — access branch-only
+  fields via a small typed accessor taking `{ id: string; optionalField?: T }`; a bare weak type
+  `{ optionalField?: T }` fails TS2559 ("no properties in common") against the lean branch, and
+  `"field" in e` narrows to `unknown` on Prisma payload unions.

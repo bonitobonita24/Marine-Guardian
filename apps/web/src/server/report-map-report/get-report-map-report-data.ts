@@ -28,7 +28,10 @@
 
 import { prisma } from "@marine-guardian/db";
 import { getImageBytes, getExportsBucketName } from "@marine-guardian/storage";
-import { buildEventBreakdownWithCoords } from "@/server/trpc/routers/reportMap";
+import {
+  buildEventBreakdownWithCoords,
+  photoAssetIdsFrom,
+} from "@/server/trpc/routers/reportMap";
 import { pointsFromTrackGeojson } from "@/server/trpc/routers/map";
 
 // ─── Shared point shape ──────────────────────────────────────────────────────
@@ -54,6 +57,11 @@ export interface ReportMapEventDetail {
   reportedByName: string | null;
   lat: number | null;
   lon: number | null;
+  /** ER per-type dynamic field values (Event.eventDetailsJson, verbatim). */
+  eventDetailsJson: unknown;
+  hasPhoto: boolean;
+  /** Archived image EventAsset ids, servable via /api/assets/[id]. */
+  photoAssetIds: string[];
 }
 
 export interface ReportMapEventBreakdownRow {
@@ -376,8 +384,13 @@ export async function getReportMapReportData(
     ]),
     // Chart data — all four Prisma queries concurrently
     Promise.all([
-      // LE / Monitoring / High Priority — via exported S0 helper (single query, DRY)
-      buildEventBreakdownWithCoords(tenant.id, filterInput),
+      // LE / Monitoring / High Priority — via exported S0 helper (single query,
+      // DRY). includeEventDetails: the print per-type tables render each
+      // event's full ER field set + photo thumbnails (S2); the tRPC path
+      // stays lean.
+      buildEventBreakdownWithCoords(tenant.id, filterInput, {
+        includeEventDetails: true,
+      }),
       // Events Over Time overview points + series source + full event detail
       // (NO LIMIT — the report's full-list portrait table needs every row).
       prisma.event.findMany({
@@ -391,8 +404,15 @@ export async function getReportMapReportData(
           reportedAt: true,
           reportedByName: true,
           areaName: true,
+          eventDetailsJson: true,
+          hasPhoto: true,
           eventType: { select: { display: true } },
           municipality: { select: { name: true } },
+          assets: {
+            where: { telegramFileId: { not: null } },
+            orderBy: { createdAt: "asc" },
+            select: { id: true, mimeType: true, filename: true },
+          },
         },
       }),
       // Patrol List breakdown — NO LIMIT (the full-list portrait table needs
@@ -579,6 +599,9 @@ export async function getReportMapReportData(
       reportedByName: e.reportedByName ?? null,
       lat: e.locationLat ?? null,
       lon: e.locationLon ?? null,
+      eventDetailsJson: e.eventDetailsJson,
+      hasPhoto: e.hasPhoto,
+      photoAssetIds: photoAssetIdsFrom(e.assets),
     });
   }
 

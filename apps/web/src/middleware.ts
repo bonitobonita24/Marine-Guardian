@@ -25,6 +25,8 @@ const publicPaths = ["/login", "/api/auth", "/api/health", "/api/trpc"];
 // Router treats underscore-prefixed folders as private (excluded from
 // routing). See DECISIONS_LOG.md "PDF Renderer Internal Route Path".
 const PRINT_RENDER_PREFIX = "/print-render/";
+// Asset proxy prefix — renderer-token access for print-render <img> thumbnails.
+const RENDERER_ASSET_PREFIX = "/api/assets/";
 
 export default async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -36,6 +38,23 @@ export default async function middleware(request: NextRequest) {
       return NextResponse.next();
     }
     return new NextResponse(null, { status: 401 });
+  }
+
+  // Event-report thumbnails (2026-07-03): the print-render event tables embed
+  // <img src="/api/assets/{id}">. Puppeteer's page.setExtraHTTPHeaders sends
+  // the same X-PDF-Renderer-Token on every subresource fetch, so a presented
+  // token routes the asset proxy through the renderer trust boundary (the
+  // token already grants the full report HTML, a superset of these photos).
+  // No token → the normal session gate below, exactly as before. An INVALID
+  // presented token is rejected outright — it never falls back to session.
+  if (pathname.startsWith(RENDERER_ASSET_PREFIX)) {
+    const presented = request.headers.get("x-pdf-renderer-token");
+    if (presented !== null) {
+      if (verifyServiceToken(presented, process.env.PDF_RENDERER_SERVICE_TOKEN)) {
+        return NextResponse.next();
+      }
+      return new NextResponse(null, { status: 401 });
+    }
   }
 
   if (publicPaths.some((p) => pathname.startsWith(p))) {

@@ -20,6 +20,9 @@ vi.mock("@marine-guardian/storage", () => ({
 
 vi.mock("@/server/trpc/routers/reportMap", () => ({
   buildEventBreakdownWithCoords: vi.fn(),
+  // Real-shaped stub: [] when the relation is absent (mock rows omit it).
+  photoAssetIdsFrom: (assets: Array<{ id: string }> | undefined) =>
+    (assets ?? []).map((a) => a.id),
 }));
 
 vi.mock("@/server/trpc/routers/map", () => ({
@@ -81,6 +84,9 @@ type EventDetailFixture = {
   reportedByName: string | null;
   lat: number | null;
   lon: number | null;
+  eventDetailsJson: unknown;
+  hasPhoto: boolean;
+  photoAssetIds: string[];
 };
 
 type BreakdownRow = {

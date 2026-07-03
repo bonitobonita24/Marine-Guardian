@@ -47,3 +47,34 @@ export function isImageAsset(
   const effective = mimeType ?? mimeFromFilename(filename);
   return effective?.startsWith("image/") ?? false;
 }
+
+/**
+ * Image MIME types that /api/assets/[id] serves INLINE (inert — no script
+ * execution). Mirrors that route's SAFE_INLINE_TYPES image subset; SVG is
+ * deliberately absent (image/svg+xml can carry embedded script — security.md).
+ * Types outside this set are forced to a download by the route, which an
+ * <img> destination cannot render — so thumbnail pickers must gate on THIS
+ * set, not on a bare image/* prefix.
+ */
+export const SAFE_INLINE_IMAGE_TYPES: ReadonlySet<string> = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "image/bmp",
+  "image/heic",
+  "image/heif",
+]);
+
+/**
+ * True when an asset will actually render as an inline <img> through the
+ * /api/assets/[id] proxy: its effective MIME (stored mimeType, falling back
+ * to the filename extension) is in the inline-safe image allowlist.
+ */
+export function isInlineSafeImageAsset(
+  mimeType: string | null | undefined,
+  filename: string,
+): boolean {
+  const effective = mimeType ?? mimeFromFilename(filename);
+  return effective !== null && SAFE_INLINE_IMAGE_TYPES.has(effective);
+}
