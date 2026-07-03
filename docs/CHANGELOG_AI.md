@@ -3,6 +3,58 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-07-03 — Report Map: selected-patrol floating map panel + track isolation + background-click deselect (Phase 4 S0)
+
+- Agent:               CLAUDE_CODE (Fable 5) — Swarm S0
+- Branch:              swarm/mappanel-exports-telegram-eventreport-S0
+- Rule 15 attribution: Spec-Driven Swarm Worker; executed inline (no Sonnet fan-out —
+  Agent() dispatch overflows in this repo per project memory; scope is one
+  tightly-coupled unit across 4 files sharing a prop contract)
+
+### Changes
+- `apps/web/src/app/(dashboard)/map/_components/selected-patrol-map-panel.tsx` — NEW:
+  floating selected-patrol detail Card (title, patrol-type badge+icon, ER #, leader,
+  boat, km, start→end). WCAG: role=region + aria-label, autofocus on open, Esc closes
+  (guarded against Radix-consumed Escapes), X close button.
+- `apps/web/src/app/(dashboard)/map/_components/patrol-list-by-range-card.tsx` — inline
+  selected-patrol detail strip REMOVED (detail now lives only in the map panel); row
+  selected-highlight kept; formatPatrolDateTime/patrolTypeLabel/PatrolTypeIcon exported
+  for the panel.
+- `apps/web/src/components/map/InteractiveMap.tsx` — new props topRightSlot (floating
+  overlay in the map container's upper-right, z-20, survives fullscreen),
+  onPatrolTrackClick (click a track polyline → select its patrol), onBackgroundClick
+  (click empty basemap → deselect; marker clicks excluded via canvas-target check,
+  track clicks excluded via 6px-padded queryRenderedFeatures). Track isolation: while
+  selectedPatrolId is set the all-tracks overlay renders ONLY that patrol's track
+  (displayedTracks memo); per-type styling/legend/toggles unchanged. Map instance now
+  mirrored to state via callback ref so the click binding attaches reliably.
+- `apps/web/src/app/(dashboard)/map/_components/report-map-view.tsx` — wires
+  selectedPatrol → SelectedPatrolMapPanel via topRightSlot; deselectPatrol via
+  onBackgroundClick/onClose; selectPatrolById via onPatrolTrackClick (same fly-to
+  path as list rows).
+
+### Validation
+- typecheck: PASS · lint: PASS (--max-warnings 0) · test: 1229/1229 PASS · build: PASS
+- Visual QA (worktree next dev :3210 against real dev DB, Playwright):
+  click patrol row → panel top-right w/ full detail + focus, only that patrol's track
+  drawn; click empty basemap → panel gone + all tracks restored (cyan solid / orange
+  dashed intact); Esc closes panel. Console: only pre-existing /api/assets 502s
+  (Telegram photo proxy unreachable from host env — out of scope).
+
+### Code-review gate (8 finder angles via parallel agents → verify → fix)
+- CONFIRMED+FIXED: track isolation leaked to Command Center/Live Map internal
+  PatrolSelector (2 independent finders) → isolation now keys the CONTROLLED
+  selectedPatrolId only; stale selection after filter refetch left every track hidden
+  → report-map-view clears selection when loaded data lacks the id (runtime-verified:
+  7D→30D round trip, panel does not resurrect); hand-rolled type chip → shadcn Badge;
+  IMPLEMENTATION_MAP.md Rule-3 bullet added.
+- REFUTED: scrollIntoView on track click (map must be visible to click it);
+  duplicate blue-over-typed track (pre-existing selected-track overlay, unchanged).
+- DEFERRED (bucket-A): panel autofocus fires on mount only, not on patrol switch
+  (refocus-per-row-click would yank keyboard users — needs a11y design call);
+  close-button duplication vs ui/map.tsx PopupCloseButton (vendor registry file);
+  patrol format helpers live in the list-card module vs a shared lib module.
+
 ## 2026-07-01 — QA gate: typecheck·lint·build + render smoke verification (Phase 4 S2)
 
 - Agent:               CLAUDE_CODE (Sonnet 4.6) — Swarm S2

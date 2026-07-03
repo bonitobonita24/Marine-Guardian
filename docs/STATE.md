@@ -6,6 +6,36 @@
 PHASE: Phase 8 (ongoing buildout)
 FRAMEWORK_VERSION: V32.9
 
+SESSION_SAVE_2026_07_03_S0 (Swarm S0 — Report Map: selected-patrol floating map panel + track isolation + background-click deselect):
+  ✅ DONE THIS SESSION:
+    - NEW selected-patrol-map-panel.tsx: floating detail Card on the map's upper-right
+      (title, type badge+icon, ER #, leader, boat, km, start→end). WCAG: role=region,
+      aria-label, autofocus, Esc closes (Radix-guard), X button.
+    - patrol-list-by-range-card.tsx: inline detail strip removed (detail lives only in
+      the map panel); row highlight kept; date/label/icon helpers exported for reuse.
+    - InteractiveMap.tsx: topRightSlot overlay prop (inside map container → survives
+      fullscreen); track ISOLATION while selectedPatrolId set (displayedTracks memo —
+      only that patrol's track; per-type styling/legend/toggles untouched);
+      onBackgroundClick (empty-basemap click → deselect; markers excluded by
+      canvas-target check, tracks by 6px-padded queryRenderedFeatures);
+      onPatrolTrackClick (track polyline click → select). Map instance mirrored to
+      state via callback ref for reliable listener binding.
+    - report-map-view.tsx: full wiring (panel via topRightSlot, deselect on background
+      click/close/Esc, track click reuses the list's select+fly-to path).
+    - Gates: typecheck PASS · lint PASS · 1229/1229 tests PASS · build PASS.
+    - Visual QA on worktree dev server :3210 vs real dev DB (Playwright): select →
+      panel + isolated track; background click → panel gone + all tracks restored;
+      Esc closes. Only pre-existing /api/assets 502s in console (host env, out of scope).
+    - Code-review gate (8 angles, parallel agents — NOTE: Agent() dispatch WORKS again
+      in this repo; the "prompt too long" overflow memory is stale): FIXED isolation
+      leak to CC/Live Map internal PatrolSelector (isolation now controlled-id only);
+      FIXED stale selection on filter refetch (clear when loaded data lacks id,
+      runtime-verified); type chip → shadcn Badge; IMPLEMENTATION_MAP Rule-3 bullet.
+      Deferred bucket-A: panel autofocus per patrol-switch (a11y call); close-button
+      dedup vs ui/map PopupCloseButton; helpers → shared lib module.
+  STATE: branch swarm/mappanel-exports-telegram-eventreport-S0, committed. Print-render
+  report map + reportMap.ts data untouched.
+
 SESSION_SAVE_2026_07_01_S2 (Swarm S2 — QA gate: typecheck·lint·build + render smoke with 4-feature verification):
   ✅ DONE THIS SESSION:
     - Static gates: typecheck PASS · lint PASS · build PASS (print-render route 53.7kB compiled)

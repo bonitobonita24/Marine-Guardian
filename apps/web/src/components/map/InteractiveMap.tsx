@@ -170,8 +170,23 @@ type InteractiveMapProps = {
   /** Controlled patrol selection — when provided (not undefined), the map
    *  renders this patrol's track instead of the internal PatrolSelector state.
    *  Used by the Report Map "Patrols in range" list so clicking a row draws
-   *  that patrol's track. null = none selected. */
+   *  that patrol's track. null = none selected. While a patrol is selected
+   *  through THIS prop the all-tracks overlay is isolated to ONLY that
+   *  patrol's track; clearing the selection restores every (toggle-visible)
+   *  track. The internal PatrolSelector (uncontrolled) never isolates. */
   selectedPatrolId?: string | null;
+  /** Rendered as a floating overlay in the map's upper-RIGHT corner, above the
+   *  canvas — symmetric with the floating controls card on the left. The
+   *  Report Map passes the selected-patrol detail panel here so it lives
+   *  inside the map container (and survives fullscreen). */
+  topRightSlot?: ReactNode;
+  /** Clicking one of the all-tracks patrol polylines calls this with its
+   *  patrolId (Report Map: select that patrol from the map itself). */
+  onPatrolTrackClick?: (patrolId: string) => void;
+  /** Clicking the empty basemap — not a marker, not a patrol track — calls
+   *  this. The Report Map uses it to clear the selected patrol (dismisses the
+   *  floating panel and restores all tracks). */
+  onBackgroundClick?: () => void;
 };
 
 export function InteractiveMap({
@@ -190,6 +205,9 @@ export function InteractiveMap({
   filterSlot,
   focusLocation,
   selectedPatrolId: controlledSelectedPatrolId,
+  topRightSlot,
+  onPatrolTrackClick,
+  onBackgroundClick,
 }: InteractiveMapProps) {
   const subjectsQuery = trpc.map.subjects.list.useQuery();
   const eventsQuery = trpc.map.events.list.useQuery({
@@ -305,6 +323,22 @@ export function InteractiveMap({
     [tracksData, showTracks, trackVisibility],
   );
 
+  // Selected-patrol track isolation (2026-07-03): while a patrol is selected
+  // via the CONTROLLED prop (Report Map list / track click), the all-tracks
+  // overlay shows ONLY that patrol's track so it reads clearly against the
+  // basemap; deselecting restores every toggle-visible track. Deliberately
+  // keyed to the controlled id, NOT the merged selection: the Command Center /
+  // Live Map internal PatrolSelector drill-down must keep showing every other
+  // live track (war-room situational awareness), exactly as before. Per-type
+  // styling / legend / toggles are untouched.
+  const displayedTracks = useMemo(
+    () =>
+      controlledSelectedPatrolId != null
+        ? visibleTracks.filter((t) => t.patrolId === controlledSelectedPatrolId)
+        : visibleTracks,
+    [visibleTracks, controlledSelectedPatrolId],
+  );
+
   const subjects = (subjectsQuery.data ?? []).filter(
     (s): s is typeof s & { lastPositionLat: number; lastPositionLon: number } =>
       s.lastPositionLat !== null && s.lastPositionLon !== null,
@@ -388,7 +422,17 @@ export function InteractiveMap({
     patrolTracksQuery.data?.points ?? []
   ).map((p) => [p.lon, p.lat]);
 
-  const mapRef = useRef<MapRef>(null);
+  const mapRef = useRef<MapRef | null>(null);
+  // The map instance is also mirrored into state: effects that must bind map
+  // listeners as soon as the map exists (background-click deselect below)
+  // can't rely on mapRef.current — the ref is populated after this
+  // component's mount effects have already run. The callback ref keeps both
+  // in sync.
+  const [mapInstance, setMapInstance] = useState<MapRef | null>(null);
+  const attachMapRef = useCallback((m: MapRef | null) => {
+    mapRef.current = m;
+    setMapInstance(m);
+  }, []);
   // Track whether we've already auto-fit to the initial dataset so manual
   // panning isn't overridden on every query refetch.
   const didFitInitialRef = useRef(false);
@@ -468,6 +512,41 @@ export function InteractiveMap({
     map.fitBounds(bounds, { padding: 60, maxZoom: 13, duration: 800 });
   }, [municipalityId, officialBoundaries]);
 
+  // Background-click deselect (2026-07-03): a click on the empty basemap —
+  // NOT on a marker (markers are DOM overlays, so their clicks bubble to the
+  // map with a non-canvas target) and NOT on/near a patrol-track line — calls
+  // onBackgroundClick so the Report Map can clear the selected patrol. Track
+  // proximity is checked with a small padded box so a near-miss on a thin
+  // 3px line doesn't read as "empty map".
+  const onBackgroundClickRef = useRef(onBackgroundClick);
+  onBackgroundClickRef.current = onBackgroundClick;
+  const backgroundClickEnabled = onBackgroundClick !== undefined;
+  useEffect(() => {
+    const map = mapInstance;
+    if (!map || !backgroundClickEnabled) return;
+    const TRACK_HIT_PAD = 6; // px around the click point counted as "on a track"
+    const handleClick = (e: maplibregl.MapMouseEvent) => {
+      if (e.originalEvent.target !== map.getCanvas()) return;
+      const hitBox: [maplibregl.PointLike, maplibregl.PointLike] = [
+        [e.point.x - TRACK_HIT_PAD, e.point.y - TRACK_HIT_PAD],
+        [e.point.x + TRACK_HIT_PAD, e.point.y + TRACK_HIT_PAD],
+      ];
+      const onTrack = map
+        .queryRenderedFeatures(hitBox)
+        .some(
+          (f) =>
+            f.layer.id.startsWith("route-layer-active-track-") ||
+            f.layer.id === "route-layer-selected-patrol-track",
+        );
+      if (onTrack) return;
+      onBackgroundClickRef.current?.();
+    };
+    map.on("click", handleClick);
+    return () => {
+      map.off("click", handleClick);
+    };
+  }, [mapInstance, backgroundClickEnabled]);
+
   const floating = floatingControls;
   return (
     <div className={cn("flex h-full w-full flex-col gap-2", className)}>
@@ -534,8 +613,16 @@ export function InteractiveMap({
           />
         </div>
       )}
+      {/* Upper-right floating overlay (Report Map: selected-patrol detail
+          panel). Above the canvas (z-20), clamped to the map's height so a
+          tall panel scrolls instead of spilling past the map. */}
+      {topRightSlot != null && (
+        <div className="absolute right-3 top-3 z-20 max-h-[calc(100%-1.5rem)] w-72 max-w-[calc(100%-1.5rem)] overflow-y-auto">
+          {topRightSlot}
+        </div>
+      )}
       <Map
-        ref={mapRef}
+        ref={attachMapRef}
         center={DEFAULT_CENTER}
         zoom={DEFAULT_ZOOM}
         className="h-full w-full"
@@ -587,8 +674,11 @@ export function InteractiveMap({
           })}
 
         {/* All-active-tracks overlay: one polyline per open patrol, styled by
-            patrol type (seaborne solid/cyan, foot dashed/orange). */}
-        {visibleTracks.map((track) => {
+            patrol type (seaborne solid/cyan, foot dashed/orange). Isolated to
+            the selected patrol's track while one is selected (displayedTracks).
+            Clicking a polyline selects its patrol when the parent wires
+            onPatrolTrackClick. */}
+        {displayedTracks.map((track) => {
           const style = patrolTrackStyle(track.patrolType);
           const coordinates: [number, number][] = track.points.map((p) => [
             p.lon,
@@ -603,6 +693,13 @@ export function InteractiveMap({
               width={style.width}
               opacity={style.opacity}
               {...(style.dashArray ? { dashArray: style.dashArray } : {})}
+              {...(onPatrolTrackClick
+                ? {
+                    onClick: () => {
+                      onPatrolTrackClick(track.patrolId);
+                    },
+                  }
+                : {})}
             />
           );
         })}

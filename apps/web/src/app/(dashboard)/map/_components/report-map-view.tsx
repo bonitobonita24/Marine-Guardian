@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ShieldAlert, Binoculars } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 import { InteractiveMap } from "@/components/map/InteractiveMap";
@@ -16,6 +16,7 @@ import {
   PatrolListByRangeCard,
   type RangePatrol,
 } from "./patrol-list-by-range-card";
+import { SelectedPatrolMapPanel } from "./selected-patrol-map-panel";
 import { EventsOverTimeChart } from "@/components/reporting/events-over-time-chart";
 import {
   ReportMapEmptyState,
@@ -88,8 +89,11 @@ function ReportMapInner() {
   const highPriority = trpc.reportMap.highPriorityEvents.useQuery(filter);
   const patrolsInRange = trpc.reportMap.patrolsInRange.useQuery(filter);
 
-  // Selected patrol from the "Patrols" list → the map draws that patrol's track
-  // (controlled selectedPatrolId) and flies to its start point.
+  // Selected patrol from the "Patrols" list (or a track click on the map) →
+  // the map isolates + draws that patrol's track (controlled selectedPatrolId),
+  // flies to its start point, and shows its full detail in the floating panel
+  // on the map's upper-right (SelectedPatrolMapPanel). Clicking the empty
+  // basemap deselects: panel dismissed, highlight cleared, all tracks restored.
   const [selectedPatrolId, setSelectedPatrolId] = useState<string | null>(null);
   const selectPatrol = useCallback(
     (p: RangePatrol) => {
@@ -99,6 +103,34 @@ function ReportMapInner() {
       }
     },
     [locateOnMap],
+  );
+  const patrols = patrolsInRange.data;
+  const selectedPatrol =
+    selectedPatrolId === null
+      ? null
+      : (patrols?.find((p) => p.id === selectedPatrolId) ?? null);
+  // A filter change (date range / municipality / zone) can refetch the patrol
+  // list WITHOUT the currently-selected patrol. Left set, the stale id would
+  // keep the map's track isolation active against a list it no longer matches
+  // (every track hidden, no panel, no visible selection) — so clear the
+  // selection once the loaded data genuinely lacks it. While the query is
+  // in-flight (data undefined) the selection is kept.
+  useEffect(() => {
+    if (selectedPatrolId === null || patrols === undefined) return;
+    if (!patrols.some((p) => p.id === selectedPatrolId)) {
+      setSelectedPatrolId(null);
+    }
+  }, [patrols, selectedPatrolId]);
+  const deselectPatrol = useCallback(() => {
+    setSelectedPatrolId(null);
+  }, []);
+  // Map track click → the same select path the list rows use (fly-to included).
+  const selectPatrolById = useCallback(
+    (patrolId: string) => {
+      const p = patrols?.find((x) => x.id === patrolId);
+      if (p !== undefined) selectPatrol(p);
+    },
+    [patrols, selectPatrol],
   );
 
   // Municipality NAME for the empty-state message — derived from the same
@@ -164,6 +196,16 @@ function ReportMapInner() {
           onEventClick={setSelectedEventId}
           focusLocation={focusLocation}
           selectedPatrolId={selectedPatrolId}
+          onPatrolTrackClick={selectPatrolById}
+          onBackgroundClick={deselectPatrol}
+          topRightSlot={
+            selectedPatrol !== null ? (
+              <SelectedPatrolMapPanel
+                patrol={selectedPatrol}
+                onClose={deselectPatrol}
+              />
+            ) : null
+          }
         />
       </div>
 

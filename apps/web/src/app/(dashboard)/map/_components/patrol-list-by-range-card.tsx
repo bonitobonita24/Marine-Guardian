@@ -1,6 +1,6 @@
 "use client";
 
-import { Route, Footprints, Ship, MapPin } from "lucide-react";
+import { Route, Footprints, Ship } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
 /**
@@ -9,8 +9,10 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
  * row below). Lists every patrol whose start falls in the selected date range +
  * municipality/zone scope (reportMap.patrolsInRange), showing whose patrol it is
  * (segment leader) and when it started / finished. Selecting a row tells the map
- * to draw that patrol's track (and fly to it) and reveals the patrol's full
- * details — including its EarthRanger title — in the strip at the top.
+ * to isolate + fly to that patrol's track and opens the patrol's full details —
+ * including its EarthRanger title — in the floating panel on the map's
+ * upper-right (SelectedPatrolMapPanel, 2026-07-03; formerly an inline strip
+ * at the top of this card). The row keeps its selected highlight.
  */
 
 export type RangePatrol = {
@@ -35,7 +37,9 @@ function toDate(value: Date | string | null): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-function formatDateTime(value: Date | string | null): string {
+/** Shared with SelectedPatrolMapPanel — the floating detail panel renders the
+ *  same start → end datetimes as the list rows. */
+export function formatPatrolDateTime(value: Date | string | null): string {
   const d = toDate(value);
   if (d === null) return "—";
   return d.toLocaleString(undefined, {
@@ -46,13 +50,15 @@ function formatDateTime(value: Date | string | null): string {
   });
 }
 
-function patrolTypeLabel(type: string): string {
+/** Shared with SelectedPatrolMapPanel (patrol-type badge label). */
+export function patrolTypeLabel(type: string): string {
   return type
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function PatrolTypeIcon({ type, className }: { type: string; className?: string }) {
+/** Shared with SelectedPatrolMapPanel (patrol-type badge icon). */
+export function PatrolTypeIcon({ type, className }: { type: string; className?: string }) {
   const t = type.toLowerCase();
   if (t.includes("foot") || t.includes("land")) return <Footprints className={className} />;
   if (t.includes("sea") || t.includes("boat") || t.includes("marine")) return <Ship className={className} />;
@@ -68,11 +74,10 @@ export function PatrolListByRangeCard({
   patrols: RangePatrol[];
   isLoading: boolean;
   selectedPatrolId: string | null;
-  /** Select a patrol → map draws + flies to its track; detail strip updates. */
+  /** Select a patrol → map isolates + flies to its track; the floating
+   *  selected-patrol panel (upper-right of the map) shows its detail. */
   onSelect: (patrol: RangePatrol) => void;
 }) {
-  const selected = patrols.find((p) => p.id === selectedPatrolId) ?? null;
-
   return (
     <Card className="flex h-full min-w-0 flex-1 flex-col gap-2 border-border py-2">
       <CardHeader className="flex flex-row items-stretch justify-between gap-2 border-b px-3 py-1.5">
@@ -87,37 +92,6 @@ export function PatrolListByRangeCard({
           {patrols.length.toLocaleString()}
         </span>
       </CardHeader>
-
-      {/* Selected-patrol detail strip — its full data incl. ER title. */}
-      {selected !== null && (
-        <div className="mx-2 rounded border border-primary/40 bg-primary/5 px-2 py-1.5">
-          <div className="flex items-center gap-1.5">
-            <MapPin className="size-3 shrink-0 text-primary" aria-hidden="true" />
-            <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-foreground">
-              {selected.title ?? "Untitled patrol"}
-            </span>
-            {selected.serialNumber != null && selected.serialNumber !== "" && (
-              <span className="shrink-0 text-[9px] tabular-nums text-muted-foreground">
-                ER #{selected.serialNumber}
-              </span>
-            )}
-          </div>
-          <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 text-[9px] text-muted-foreground">
-            <span>{patrolTypeLabel(selected.patrolType)}</span>
-            {selected.leaderName != null && <span>· {selected.leaderName}</span>}
-            {selected.boatName != null && selected.boatName !== "" && (
-              <span>· {selected.boatName}</span>
-            )}
-            {(() => {
-              const km = selected.computedDistanceKm ?? selected.totalDistanceKm;
-              return km != null ? <span>· {km.toFixed(1)} km</span> : null;
-            })()}
-          </div>
-          <div className="mt-0.5 text-[9px] tabular-nums text-muted-foreground">
-            {formatDateTime(selected.startTime)} → {formatDateTime(selected.endTime)}
-          </div>
-        </div>
-      )}
 
       <CardContent className="relative min-h-0 flex-1 px-0 pb-1 pt-0">
         {isLoading ? (
@@ -151,9 +125,9 @@ export function PatrolListByRangeCard({
                       {who}
                     </span>
                     <span className="shrink-0 text-[9px] tabular-nums text-muted-foreground">
-                      {formatDateTime(p.startTime)}
+                      {formatPatrolDateTime(p.startTime)}
                       {" → "}
-                      {formatDateTime(p.endTime)}
+                      {formatPatrolDateTime(p.endTime)}
                     </span>
                   </button>
                 </li>
