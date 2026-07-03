@@ -63,6 +63,12 @@ vi.mock("../../lib/pdf-renderer-client", () => ({
   },
 }));
 
+const mockUploadDocumentToTelegram = vi.fn();
+vi.mock("../../lib/telegram-storage", () => ({
+  uploadDocumentToTelegram: (...args: unknown[]): unknown =>
+    mockUploadDocumentToTelegram(...args),
+}));
+
 const mockUploadPdf = vi.fn();
 vi.mock("@marine-guardian/storage", () => ({
   uploadPdf: (...args: unknown[]): unknown => mockUploadPdf(...args),
@@ -106,10 +112,20 @@ const fakePdfBuffer = Buffer.from("%PDF-1.4 fake pdf bytes for testing");
 
 describe("processPdfRender", () => {
   const ORIGINAL_ENV = process.env.WEB_APP_INTERNAL_URL;
+  const ORIGINAL_TELEGRAM_ENV = {
+    TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
+    TELEGRAM_DEFAULT_CHANNEL_ID: process.env.TELEGRAM_DEFAULT_CHANNEL_ID,
+    REPORT_EXPORTS_MINIO_FALLBACK: process.env.REPORT_EXPORTS_MINIO_FALLBACK,
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.WEB_APP_INTERNAL_URL = "http://marine-guardian_test_app:3000";
+    // Default = Telegram NOT configured, so the legacy MinIO-path tests
+    // below exercise the graceful degrade; Telegram tests opt in per-test.
+    delete process.env.TELEGRAM_BOT_TOKEN;
+    delete process.env.TELEGRAM_DEFAULT_CHANNEL_ID;
+    delete process.env.REPORT_EXPORTS_MINIO_FALLBACK;
 
     mockReportExportFindFirstOrThrow.mockResolvedValue({
       id: "export-1",
@@ -121,9 +137,14 @@ describe("processPdfRender", () => {
     mockTenantFindUniqueOrThrow.mockResolvedValue({
       id: "tenant-1",
       slug: "marine-guardian-sample",
+      telegramChannelId: null,
     });
     mockReportExportUpdate.mockResolvedValue({});
     mockRenderPdfViaService.mockResolvedValue(fakePdfBuffer);
+    mockUploadDocumentToTelegram.mockResolvedValue({
+      messageId: 42,
+      fileId: "tg-file-abc",
+    });
     mockUploadPdf.mockImplementation(
       (input: { bucket: string; key: string; body: Buffer }) =>
         Promise.resolve({ key: input.key }),
@@ -135,6 +156,23 @@ describe("processPdfRender", () => {
       delete process.env.WEB_APP_INTERNAL_URL;
     } else {
       process.env.WEB_APP_INTERNAL_URL = ORIGINAL_ENV;
+    }
+    if (ORIGINAL_TELEGRAM_ENV.TELEGRAM_BOT_TOKEN === undefined) {
+      delete process.env.TELEGRAM_BOT_TOKEN;
+    } else {
+      process.env.TELEGRAM_BOT_TOKEN = ORIGINAL_TELEGRAM_ENV.TELEGRAM_BOT_TOKEN;
+    }
+    if (ORIGINAL_TELEGRAM_ENV.TELEGRAM_DEFAULT_CHANNEL_ID === undefined) {
+      delete process.env.TELEGRAM_DEFAULT_CHANNEL_ID;
+    } else {
+      process.env.TELEGRAM_DEFAULT_CHANNEL_ID =
+        ORIGINAL_TELEGRAM_ENV.TELEGRAM_DEFAULT_CHANNEL_ID;
+    }
+    if (ORIGINAL_TELEGRAM_ENV.REPORT_EXPORTS_MINIO_FALLBACK === undefined) {
+      delete process.env.REPORT_EXPORTS_MINIO_FALLBACK;
+    } else {
+      process.env.REPORT_EXPORTS_MINIO_FALLBACK =
+        ORIGINAL_TELEGRAM_ENV.REPORT_EXPORTS_MINIO_FALLBACK;
     }
   });
 
@@ -387,6 +425,182 @@ describe("processPdfRender", () => {
     expect(failedUpdate.data.status).toBe("failed");
     expect(failedUpdate.data.errorMessage).toContain("bucket policy denied");
     expect(failedUpdate.data.completedAt).toBeInstanceOf(Date);
+  });
+
+  // -------------------------------------------------------------------------
+  // Phase 4 S1 — Telegram-primary storage.
+  // -------------------------------------------------------------------------
+
+  describe("Telegram-primary storage (Phase 4 S1)", () => {
+    function configureTelegram(channelOnTenant = true): void {
+      process.env.TELEGRAM_BOT_TOKEN = "test-bot-token";
+      mockTenantFindUniqueOrThrow.mockResolvedValue({
+        id: "tenant-1",
+        slug: "marine-guardian-sample",
+        telegramChannelId: channelOnTenant ? "-1003816125998" : null,
+      });
+    }
+
+    it("sends the PDF to the tenant's Telegram channel and persists telegramFileId (MinIO NOT written, flag off)", async () => {
+      configureTelegram();
+
+      const result = await processPdfRender(makeJob());
+
+      expect(mockUploadDocumentToTelegram).toHaveBeenCalledTimes(1);
+      const call = mockUploadDocumentToTelegram.mock.calls[0]?.[0] as {
+        botToken: string;
+        chatId: string;
+        bytes: Uint8Array;
+        filename: string;
+        mimeType: string;
+      };
+      expect(call.botToken).toBe("test-bot-token");
+      expect(call.chatId).toBe("-1003816125998");
+      expect(call.bytes).toBeInstanceOf(Uint8Array);
+      expect(Buffer.from(call.bytes).equals(fakePdfBuffer)).toBe(true);
+      expect(call.filename).toBe("coverage-export-1.pdf");
+      expect(call.mimeType).toBe("application/pdf");
+
+      // Telegram is PRIMARY: default (flag off) skips the MinIO write.
+      expect(mockUploadPdf).not.toHaveBeenCalled();
+
+      const finalUpdate = mockReportExportUpdate.mock.calls[1]?.[0] as {
+        data: {
+          status: string;
+          telegramFileId: string | null;
+          filePath: string | null;
+          fileSizeBytes: number;
+        };
+      };
+      expect(finalUpdate.data.status).toBe("ready");
+      expect(finalUpdate.data.telegramFileId).toBe("tg-file-abc");
+      expect(finalUpdate.data.filePath).toBeNull();
+      expect(finalUpdate.data.fileSizeBytes).toBe(fakePdfBuffer.length);
+      expect(result.telegramFileId).toBe("tg-file-abc");
+      expect(result.filePath).toBeUndefined();
+    });
+
+    it("falls back to TELEGRAM_DEFAULT_CHANNEL_ID when the tenant has no telegramChannelId", async () => {
+      configureTelegram(false);
+      process.env.TELEGRAM_DEFAULT_CHANNEL_ID = "-1009999999999";
+
+      await processPdfRender(makeJob());
+
+      expect(mockUploadDocumentToTelegram).toHaveBeenCalledTimes(1);
+      expect(
+        (mockUploadDocumentToTelegram.mock.calls[0]?.[0] as { chatId: string })
+          .chatId,
+      ).toBe("-1009999999999");
+    });
+
+    it("REPORT_EXPORTS_MINIO_FALLBACK=true additionally mirrors the PDF to MinIO (both locations persisted)", async () => {
+      configureTelegram();
+      process.env.REPORT_EXPORTS_MINIO_FALLBACK = "true";
+      process.env.APP_ENV = "test";
+
+      await processPdfRender(makeJob());
+
+      expect(mockUploadDocumentToTelegram).toHaveBeenCalledTimes(1);
+      expect(mockUploadPdf).toHaveBeenCalledTimes(1);
+      const finalUpdate = mockReportExportUpdate.mock.calls[1]?.[0] as {
+        data: { telegramFileId: string | null; filePath: string | null };
+      };
+      expect(finalUpdate.data.telegramFileId).toBe("tg-file-abc");
+      expect(finalUpdate.data.filePath).toMatch(
+        /^tenant-1\/\d{4}\/\d{2}\/export-1\.pdf$/,
+      );
+    });
+
+    it("degrades gracefully to MinIO when Telegram is unconfigured (no token / no channel)", async () => {
+      // beforeEach default: no TELEGRAM_BOT_TOKEN, tenant channel null.
+      await processPdfRender(makeJob());
+
+      expect(mockUploadDocumentToTelegram).not.toHaveBeenCalled();
+      expect(mockUploadPdf).toHaveBeenCalledTimes(1);
+      const finalUpdate = mockReportExportUpdate.mock.calls[1]?.[0] as {
+        data: { telegramFileId: string | null; filePath: string | null };
+      };
+      expect(finalUpdate.data.telegramFileId).toBeNull();
+      expect(finalUpdate.data.filePath).toMatch(/export-1\.pdf$/);
+    });
+
+    it("skips Telegram for PDFs above the 20 MB getFile cap (stored-but-undownloadable guard) → MinIO", async () => {
+      configureTelegram();
+      const oversized = Buffer.alloc(20 * 1024 * 1024 + 1, 0x25);
+      mockRenderPdfViaService.mockResolvedValueOnce(oversized);
+
+      await processPdfRender(makeJob());
+
+      expect(mockUploadDocumentToTelegram).not.toHaveBeenCalled();
+      expect(mockUploadPdf).toHaveBeenCalledTimes(1);
+    });
+
+    it("retries the Telegram send on transient failure, then persists the file_id (archive-er-assets retry pattern)", async () => {
+      configureTelegram();
+      mockUploadDocumentToTelegram
+        .mockRejectedValueOnce(new Error("Telegram sendDocument failed: 500"))
+        .mockRejectedValueOnce(new Error("Telegram sendDocument failed: 429"))
+        .mockResolvedValueOnce({ messageId: 7, fileId: "tg-file-retried" });
+
+      vi.useFakeTimers();
+      try {
+        const pending = processPdfRender(makeJob());
+        await vi.runAllTimersAsync();
+        const result = await pending;
+        expect(result.telegramFileId).toBe("tg-file-retried");
+      } finally {
+        vi.useRealTimers();
+      }
+      expect(mockUploadDocumentToTelegram).toHaveBeenCalledTimes(3);
+    });
+
+    it("re-throws after retries are exhausted WITHOUT flipping status=failed on a non-final BullMQ attempt", async () => {
+      configureTelegram();
+      mockUploadDocumentToTelegram.mockRejectedValue(
+        new Error("Telegram sendDocument failed: chat not found"),
+      );
+
+      vi.useFakeTimers();
+      try {
+        const pending = processPdfRender(
+          makeJob({}, { attemptsMade: 0, attempts: 3 }),
+        );
+        const assertion = expect(pending).rejects.toThrow("chat not found");
+        await vi.runAllTimersAsync();
+        await assertion;
+      } finally {
+        vi.useRealTimers();
+      }
+
+      expect(mockUploadDocumentToTelegram).toHaveBeenCalledTimes(3);
+      const updates = mockReportExportUpdate.mock.calls.map(
+        (c) => (c[0] as { data: { status?: string } }).data.status,
+      );
+      expect(updates).toEqual(["rendering"]);
+    });
+
+    it("throws when Telegram returns an empty file_id (never persists a ready row without a locator)", async () => {
+      configureTelegram();
+      mockUploadDocumentToTelegram.mockResolvedValue({
+        messageId: 7,
+        fileId: "",
+      });
+
+      vi.useFakeTimers();
+      try {
+        const pending = processPdfRender(makeJob());
+        const assertion = expect(pending).rejects.toThrow("no document file_id");
+        await vi.runAllTimersAsync();
+        await assertion;
+      } finally {
+        vi.useRealTimers();
+      }
+
+      const updates = mockReportExportUpdate.mock.calls.map(
+        (c) => (c[0] as { data: { status?: string } }).data.status,
+      );
+      expect(updates).not.toContain("ready");
+    });
   });
 
 });

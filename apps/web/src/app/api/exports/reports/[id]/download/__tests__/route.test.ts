@@ -18,16 +18,22 @@ import { Readable } from "node:stream";
 import { NextResponse } from "next/server";
 import { TRPCError } from "@trpc/server";
 
-const { mockRequireRouteAuth, mockRateLimitCheck, mockPrisma, mockGetStream } =
-  vi.hoisted(() => ({
-    mockRequireRouteAuth: vi.fn(),
-    mockRateLimitCheck: vi.fn(),
-    mockPrisma: {
-      reportExport: { findFirst: vi.fn() },
-      auditLog: { create: vi.fn() },
-    },
-    mockGetStream: vi.fn(),
-  }));
+const {
+  mockRequireRouteAuth,
+  mockRateLimitCheck,
+  mockPrisma,
+  mockGetStream,
+  mockFetchTelegramFileBytes,
+} = vi.hoisted(() => ({
+  mockRequireRouteAuth: vi.fn(),
+  mockRateLimitCheck: vi.fn(),
+  mockPrisma: {
+    reportExport: { findFirst: vi.fn() },
+    auditLog: { create: vi.fn() },
+  },
+  mockGetStream: vi.fn(),
+  mockFetchTelegramFileBytes: vi.fn(),
+}));
 
 // Fully mock route-auth — `vi.importActual` would pull in next-auth via the
 // `auth` import, which then tries to load `next/headers` (unavailable in the
@@ -59,6 +65,12 @@ vi.mock("@marine-guardian/db", () => ({
 vi.mock("@marine-guardian/storage", () => ({
   getPdfReadStream: (...args: unknown[]): unknown => mockGetStream(...args),
   getExportsBucketName: (): string => "marine-guardian-test-exports",
+}));
+
+vi.mock("@marine-guardian/jobs/lib/telegram-storage", () => ({
+  getTelegramBotToken: (): string => "test-bot-token",
+  fetchTelegramFileBytes: (...args: unknown[]): unknown =>
+    mockFetchTelegramFileBytes(...args),
 }));
 
 import { GET } from "../route";
@@ -141,6 +153,7 @@ describe("GET /api/exports/reports/[id]/download", () => {
       tenantId: "tenant-1",
       status: "rendering",
       filePath: null,
+      telegramFileId: null,
       fileSizeBytes: null,
       reportType: "coverage",
       completedAt: null,
@@ -154,12 +167,13 @@ describe("GET /api/exports/reports/[id]/download", () => {
     expect(mockGetStream).not.toHaveBeenCalled();
   });
 
-  it("returns 404 when status=ready but filePath is null (defensive)", async () => {
+  it("returns 404 when status=ready but BOTH filePath and telegramFileId are null (defensive)", async () => {
     mockPrisma.reportExport.findFirst.mockResolvedValueOnce({
       id: "export-1",
       tenantId: "tenant-1",
       status: "ready",
       filePath: null,
+      telegramFileId: null,
       fileSizeBytes: 1234,
       reportType: "coverage",
       completedAt: new Date(),
@@ -179,6 +193,7 @@ describe("GET /api/exports/reports/[id]/download", () => {
       tenantId: "tenant-1",
       status: "ready",
       filePath: "tenant-1/2026/05/export-1.pdf",
+      telegramFileId: null,
       fileSizeBytes: 123_456,
       reportType: "coverage",
       completedAt,
@@ -215,6 +230,7 @@ describe("GET /api/exports/reports/[id]/download", () => {
       tenantId: "tenant-1",
       status: "ready",
       filePath: "tenant-1/2026/05/export-1.pdf",
+      telegramFileId: null,
       fileSizeBytes: 123_456,
       reportType: "coverage",
       completedAt,
@@ -239,6 +255,7 @@ describe("GET /api/exports/reports/[id]/download", () => {
       tenantId: "tenant-1",
       status: "ready",
       filePath: "tenant-1/2026/05/export-1.pdf",
+      telegramFileId: null,
       fileSizeBytes: 1234,
       reportType: "per-area",
       completedAt: new Date(),
@@ -263,6 +280,7 @@ describe("GET /api/exports/reports/[id]/download", () => {
       tenantId: "tenant-1",
       status: "ready",
       filePath: "tenant-1/2026/05/export-1.pdf",
+      telegramFileId: null,
       fileSizeBytes: 1234,
       reportType: "coverage",
       completedAt: new Date(),
@@ -276,5 +294,137 @@ describe("GET /api/exports/reports/[id]/download", () => {
       mockPrisma.auditLog.create.mock.invocationCallOrder[0] ?? Infinity;
     const streamOrder = mockGetStream.mock.invocationCallOrder[0] ?? -Infinity;
     expect(auditOrder).toBeLessThan(streamOrder);
+  });
+
+  // ---------------------------------------------------------------------
+  // Phase 4 S1 — Telegram-primary storage (dual-read).
+  // ---------------------------------------------------------------------
+
+  const TELEGRAM_ROW = {
+    id: "export-tg",
+    tenantId: "tenant-1",
+    status: "ready",
+    filePath: null,
+    telegramFileId: "BQACAgUAAxkDAAII_file_id",
+    fileSizeBytes: 9,
+    reportType: "report_map",
+    completedAt: new Date(Date.UTC(2026, 6, 3)), // 2026-07-03
+  };
+
+  it("on ready row with telegramFileId: fetches bytes from Telegram and returns 200 with PDF headers (MinIO NOT touched)", async () => {
+    mockPrisma.reportExport.findFirst.mockResolvedValueOnce(TELEGRAM_ROW);
+    const pdfBytes = new TextEncoder().encode("%PDF-tele").buffer;
+    mockFetchTelegramFileBytes.mockResolvedValueOnce({
+      bytes: pdfBytes,
+      filePath: "documents/file_1.pdf",
+    });
+
+    const { req, ctx } = makeRouteArgs("export-tg");
+    const res = await GET(req, ctx);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("application/pdf");
+    expect(res.headers.get("Content-Disposition")).toBe(
+      'attachment; filename="report_map-2026-07-03.pdf"',
+    );
+    // Content-Length reflects the ACTUAL fetched bytes, not row.fileSizeBytes.
+    expect(res.headers.get("Content-Length")).toBe("9");
+    expect(res.headers.get("Cache-Control")).toBe("no-store");
+
+    expect(mockFetchTelegramFileBytes).toHaveBeenCalledTimes(1);
+    const call = mockFetchTelegramFileBytes.mock.calls[0]?.[0] as {
+      botToken: string;
+      fileId: string;
+    };
+    expect(call.botToken).toBe("test-bot-token");
+    expect(call.fileId).toBe("BQACAgUAAxkDAAII_file_id");
+    expect(mockGetStream).not.toHaveBeenCalled();
+  });
+
+  it("prefers Telegram over MinIO when BOTH telegramFileId and filePath are set (fallback-mirror rows)", async () => {
+    mockPrisma.reportExport.findFirst.mockResolvedValueOnce({
+      ...TELEGRAM_ROW,
+      filePath: "tenant-1/2026/07/export-tg.pdf",
+    });
+    mockFetchTelegramFileBytes.mockResolvedValueOnce({
+      bytes: new TextEncoder().encode("%PDF-tele").buffer,
+      filePath: "documents/file_1.pdf",
+    });
+
+    const { req, ctx } = makeRouteArgs("export-tg");
+    const res = await GET(req, ctx);
+
+    expect(res.status).toBe(200);
+    expect(mockFetchTelegramFileBytes).toHaveBeenCalledTimes(1);
+    expect(mockGetStream).not.toHaveBeenCalled();
+  });
+
+  it("returns a clean 502 (never 500) when the Telegram fetch fails", async () => {
+    mockPrisma.reportExport.findFirst.mockResolvedValueOnce(TELEGRAM_ROW);
+    mockFetchTelegramFileBytes.mockRejectedValueOnce(
+      new Error("Telegram getFile failed: file is too big"),
+    );
+
+    const { req, ctx } = makeRouteArgs("export-tg");
+    const res = await GET(req, ctx);
+
+    expect(res.status).toBe(502);
+    expect(mockGetStream).not.toHaveBeenCalled();
+  });
+
+  it("writes the EXPORT_DOWNLOAD AuditLog BEFORE the Telegram fetch", async () => {
+    mockPrisma.reportExport.findFirst.mockResolvedValueOnce(TELEGRAM_ROW);
+    mockFetchTelegramFileBytes.mockResolvedValueOnce({
+      bytes: new TextEncoder().encode("%PDF-tele").buffer,
+      filePath: "documents/file_1.pdf",
+    });
+
+    const { req, ctx } = makeRouteArgs("export-tg");
+    await GET(req, ctx);
+
+    expect(mockPrisma.auditLog.create).toHaveBeenCalledTimes(1);
+    const auditOrder =
+      mockPrisma.auditLog.create.mock.invocationCallOrder[0] ?? Infinity;
+    const fetchOrder =
+      mockFetchTelegramFileBytes.mock.invocationCallOrder[0] ?? -Infinity;
+    expect(auditOrder).toBeLessThan(fetchOrder);
+  });
+
+  it("AuditLog is still written even when the Telegram fetch subsequently fails (attempt is recorded)", async () => {
+    mockPrisma.reportExport.findFirst.mockResolvedValueOnce(TELEGRAM_ROW);
+    mockFetchTelegramFileBytes.mockRejectedValueOnce(new Error("down"));
+
+    const { req, ctx } = makeRouteArgs("export-tg");
+    const res = await GET(req, ctx);
+
+    expect(res.status).toBe(502);
+    expect(mockPrisma.auditLog.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("never exposes telegramFileId in any response body", async () => {
+    mockPrisma.reportExport.findFirst.mockResolvedValueOnce(TELEGRAM_ROW);
+    mockFetchTelegramFileBytes.mockRejectedValueOnce(new Error("down"));
+
+    const { req, ctx } = makeRouteArgs("export-tg");
+    const res = await GET(req, ctx);
+
+    const body = await res.text();
+    expect(body).not.toContain("BQACAgUAAxkDAAII_file_id");
+  });
+
+  it("legacy rows (telegramFileId null, filePath set) still stream from MinIO", async () => {
+    mockPrisma.reportExport.findFirst.mockResolvedValueOnce({
+      ...TELEGRAM_ROW,
+      telegramFileId: null,
+      filePath: "tenant-1/2026/07/export-tg.pdf",
+    });
+    mockGetStream.mockResolvedValueOnce(Readable.from([Buffer.from("pdf")]));
+
+    const { req, ctx } = makeRouteArgs("export-tg");
+    const res = await GET(req, ctx);
+
+    expect(res.status).toBe(200);
+    expect(mockGetStream).toHaveBeenCalledTimes(1);
+    expect(mockFetchTelegramFileBytes).not.toHaveBeenCalled();
   });
 });

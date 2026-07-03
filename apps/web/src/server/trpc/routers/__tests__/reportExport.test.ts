@@ -180,17 +180,21 @@ describe("reportExport.create (RBAC + 5.3b pipeline wiring)", () => {
     });
 
     expect(result.id).toBe("re-new");
-    expect(vi.mocked(prisma.reportExport.create)).toHaveBeenCalledWith({
-      data: partial<{
-        tenantId: string;
-        requestedByUserId: string;
-        status: string;
-      }>({
-        tenantId: TENANT_ID,
-        requestedByUserId: USER_ID,
-        status: "queued",
-      }),
-    });
+    expect(vi.mocked(prisma.reportExport.create)).toHaveBeenCalledWith(
+      partial({
+        // telegramFileId is a server-side storage locator — never returned.
+        omit: { telegramFileId: true },
+        data: partial<{
+          tenantId: string;
+          requestedByUserId: string;
+          status: string;
+        }>({
+          tenantId: TENANT_ID,
+          requestedByUserId: USER_ID,
+          status: "queued",
+        }),
+      })
+    );
   });
 
   it("rejects create when role is operator (report.export requires coordinator+)", async () => {
@@ -363,6 +367,70 @@ describe("reportExport.getDownloadUrl", () => {
       TRPCError
     );
   });
+
+  it("returns the download URL for a Telegram-only row (telegramFileId set, filePath null) WITHOUT leaking the file_id", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
+      id: "re-tg",
+      status: "ready",
+      filePath: null,
+      telegramFileId: "BQACAgUAAxkDAAII",
+      tenantId: TENANT_ID,
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.getDownloadUrl({ id: "re-tg" });
+
+    expect(result.downloadUrl).toBe(`/api/exports/reports/re-tg/download`);
+    expect(result.status).toBe("ready");
+    // The Telegram file_id must never cross the tRPC boundary.
+    expect(JSON.stringify(result)).not.toContain("BQACAgUAAxkDAAII");
+    expect(result).not.toHaveProperty("telegramFileId");
+  });
+
+  it("returns null downloadUrl when ready but NO storage location exists (both filePath and telegramFileId null)", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
+      id: "re-empty",
+      status: "ready",
+      filePath: null,
+      telegramFileId: null,
+      tenantId: TENANT_ID,
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.getDownloadUrl({ id: "re-empty" });
+
+    expect(result.downloadUrl).toBeNull();
+  });
+});
+
+describe("reportExport telegramFileId non-exposure (Phase 4 S1)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("list omits telegramFileId from the query result", async () => {
+    vi.mocked(prisma.reportExport.findMany).mockResolvedValue([] as never);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50 });
+
+    expect(vi.mocked(prisma.reportExport.findMany)).toHaveBeenCalledWith(
+      partial({
+        omit: { telegramFileId: true },
+      })
+    );
+  });
+
+  it("getById omits telegramFileId from the query result", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx());
+    await caller.getById({ id: "re-1" });
+
+    expect(vi.mocked(prisma.reportExport.findFirst)).toHaveBeenCalledWith(
+      partial({
+        omit: { telegramFileId: true },
+      })
+    );
+  });
 });
 
 describe("reportExport.retry (5.3d)", () => {
@@ -418,9 +486,11 @@ describe("reportExport.retry (5.3d)", () => {
     expect(vi.mocked(prisma.reportExport.update)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(prisma.reportExport.update)).toHaveBeenCalledWith({
       where: { id: "re-failed-1" },
+      omit: { telegramFileId: true },
       data: {
         status: "queued",
         filePath: null,
+        telegramFileId: null,
         fileSizeBytes: null,
         errorMessage: null,
         completedAt: null,

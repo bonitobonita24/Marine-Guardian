@@ -3,6 +3,36 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-07-03 — Report exports stored in Telegram, not MinIO (Phase 4 S1)
+
+- Agent:               CLAUDE_CODE (Fable 5) — Swarm S1
+- Branch:              swarm/mappanel-exports-telegram-eventreport-S1
+- Rule 15 attribution: Spec-Driven Swarm Worker; executed inline (subagent
+  dispatch overflows in this repo — documented deviation from R7 fan-out)
+
+### Changes
+- `packages/db/prisma/schema.prisma` + migration
+  `20260703000000_add_report_export_telegram_file_id`: additive
+  `ReportExport.telegramFileId String? @map("telegram_file_id")`.
+- `packages/jobs/src/processors/pdf-render.processor.ts`: Telegram is the
+  PRIMARY export store — sendDocument to tenant.telegramChannelId ??
+  TELEGRAM_DEFAULT_CHANNEL_ID (archive-er-assets retry pattern), persists
+  telegramFileId; MinIO only behind REPORT_EXPORTS_MINIO_FALLBACK=true or as
+  graceful degrade (unconfigured Telegram / >20MB getFile cap).
+- `apps/web/src/app/api/exports/reports/[id]/download/route.ts`: dual-read —
+  Telegram fetch when telegramFileId set (clean 502 on failure), MinIO stream
+  for legacy rows; audit-before-fetch and all security gates preserved.
+- `apps/web/src/server/trpc/routers/reportExport.ts`: downloadable =
+  ready + (telegramFileId | filePath); Prisma omit keeps telegramFileId
+  server-side everywhere; retry resets it.
+- `.env.example`: TELEGRAM_BOT_TOKEN / TELEGRAM_DEFAULT_CHANNEL_ID /
+  REPORT_EXPORTS_MINIO_FALLBACK documented.
+- Tests: +19 across processor / download route / router.
+
+### Validation
+- typecheck 7/7 · lint (web+jobs) · web build · tests: 1240 web + 211 jobs +
+  183 shared + 49 storage — all green.
+
 ## 2026-07-01 — QA gate: typecheck·lint·build + render smoke verification (Phase 4 S2)
 
 - Agent:               CLAUDE_CODE (Sonnet 4.6) — Swarm S2

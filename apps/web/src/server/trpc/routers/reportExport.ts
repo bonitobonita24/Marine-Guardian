@@ -46,6 +46,10 @@ export const reportExportRouter = router({
         take: input.limit + 1,
         ...(input.cursor !== undefined ? { cursor: { id: input.cursor } } : {}),
         orderBy: { createdAt: "desc" },
+        // telegramFileId is a server-side storage locator (Telegram Bot API
+        // file_id) — never exposed to the client. Downloads go through the
+        // Route Handler, which resolves it server-side.
+        omit: { telegramFileId: true },
         include: {
           requestedBy: { select: { id: true, fullName: true } },
         },
@@ -63,6 +67,8 @@ export const reportExportRouter = router({
     .query(async ({ ctx, input }) => {
       return prisma.reportExport.findFirst({
         where: { id: input.id, tenantId: ctx.tenantId },
+        // Same posture as list: telegramFileId stays server-side.
+        omit: { telegramFileId: true },
         include: {
           requestedBy: { select: { id: true, fullName: true } },
         },
@@ -108,6 +114,7 @@ export const reportExportRouter = router({
     .input(createReportExportInputSchema)
     .mutation(async ({ ctx, input }) => {
       const created = await prisma.reportExport.create({
+        omit: { telegramFileId: true },
         data: {
           tenantId: ctx.tenantId,
           requestedByUserId: ctx.userId,
@@ -177,12 +184,19 @@ export const reportExportRouter = router({
           id: true,
           status: true,
           filePath: true,
+          telegramFileId: true,
         },
       });
       if (!row) {
         throw new TRPCError({ code: "NOT_FOUND" });
       }
-      if (row.status !== "ready" || row.filePath === null) {
+      // Downloadable when ready AND at least one storage location exists —
+      // Telegram (primary since Phase 4 S1) or MinIO (legacy/fallback).
+      // telegramFileId itself is never returned to the client.
+      if (
+        row.status !== "ready" ||
+        (row.telegramFileId === null && row.filePath === null)
+      ) {
         return { downloadUrl: null as string | null, status: row.status };
       }
       return {
@@ -219,9 +233,11 @@ export const reportExportRouter = router({
 
       const updated = await prisma.reportExport.update({
         where: { id: existing.id },
+        omit: { telegramFileId: true },
         data: {
           status: "queued",
           filePath: null,
+          telegramFileId: null,
           fileSizeBytes: null,
           errorMessage: null,
           completedAt: null,

@@ -664,6 +664,7 @@ model ReportExport {
   paperSize         PaperSize          @default(A4) @map("paper_size")
   status            ReportExportStatus @default(queued)
   filePath          String?            @map("file_path")
+  telegramFileId    String?            @map("telegram_file_id")
   fileSizeBytes     Int?               @map("file_size_bytes")
   errorMessage      String?            @map("error_message")
   createdAt         DateTime           @default(now()) @map("created_at")
