@@ -97,3 +97,30 @@ export function formatKm(km: number | null | undefined): string {
   if (km === null || km === undefined || Number.isNaN(km)) return "—";
   return km.toFixed(1);
 }
+
+/** "4h23m" duration string from a decimal-hours figure, or "—" when unknown.
+ *  Mirrors elapsedHm's format but for a computed/reported total rather than
+ *  an ongoing "since start" elapsed time. */
+export function formatHoursHm(
+  hours: number | null | undefined,
+): string {
+  if (hours === null || hours === undefined || Number.isNaN(hours)) return "—";
+  const totalMin = Math.max(0, Math.round(hours * 60));
+  const hr = Math.floor(totalMin / 60);
+  const min = totalMin % 60;
+  return `${String(hr)}h${String(min).padStart(2, "0")}m`;
+}
+
+/** Signed lat/lon pair formatted to 4 decimals with N/S · E/W suffixes, or
+ *  "—" when either coordinate is unknown. */
+export function formatCoords(
+  lat: number | null | undefined,
+  lon: number | null | undefined,
+): string {
+  if (lat === null || lat === undefined || lon === null || lon === undefined) {
+    return "—";
+  }
+  const ns = lat >= 0 ? "N" : "S";
+  const ew = lon >= 0 ? "E" : "W";
+  return `${Math.abs(lat).toFixed(4)}°${ns}, ${Math.abs(lon).toFixed(4)}°${ew}`;
+}

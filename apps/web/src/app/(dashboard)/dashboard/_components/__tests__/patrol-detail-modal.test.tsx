@@ -30,6 +30,12 @@ const patrol: ActivePatrol = {
   startTime: new Date("2026-06-25T08:00:00Z"),
   totalDistanceKm: 12.34,
   computedDistanceKm: null,
+  totalHours: 4.5,
+  computedDurationHours: null,
+  startLocationLat: 13.7565,
+  startLocationLon: 121.0583,
+  endLocationLat: 13.7601,
+  endLocationLon: 121.0702,
   leaderName: "Ranger Cruz",
 };
 

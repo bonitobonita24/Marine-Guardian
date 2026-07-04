@@ -124,6 +124,12 @@ describe("ActivePatrols", () => {
       startTime: new Date("2026-06-21T05:48:00Z"),
       totalDistanceKm: 80,
       computedDistanceKm: 87.3,
+      totalHours: 6,
+      computedDurationHours: 6.2,
+      startLocationLat: 13.5,
+      startLocationLon: 120.9,
+      endLocationLat: 13.6,
+      endLocationLon: 121.0,
       leaderName: "Pottoli Tobin 2",
     },
   ];

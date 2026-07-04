@@ -22,6 +22,12 @@ export type ActivePatrol = {
   startTime: Date | string | null;
   totalDistanceKm: number | null;
   computedDistanceKm: number | null;
+  totalHours: number | null;
+  computedDurationHours: number | null;
+  startLocationLat: number | null;
+  startLocationLon: number | null;
+  endLocationLat: number | null;
+  endLocationLon: number | null;
   leaderName: string | null;
 };
 

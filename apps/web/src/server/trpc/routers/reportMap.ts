@@ -350,6 +350,8 @@ export const reportMapRouter = router({
           computedDurationHours: true,
           startLocationLat: true,
           startLocationLon: true,
+          endLocationLat: true,
+          endLocationLon: true,
           segments: {
             where: { leaderName: { not: null } },
             orderBy: { actualStart: "asc" },

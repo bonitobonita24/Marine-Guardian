@@ -6,7 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   PatrolTypeIcon,
+  formatPatrolCoords,
   formatPatrolDateTime,
+  formatPatrolHours,
   patrolTypeLabel,
   type RangePatrol,
 } from "./patrol-list-by-range-card";
@@ -52,6 +54,15 @@ export function SelectedPatrolMapPanel({
   }, []);
 
   const km = patrol.computedDistanceKm ?? patrol.totalDistanceKm;
+  const hours = patrol.computedDurationHours ?? patrol.totalHours;
+  const startCoords = formatPatrolCoords(
+    patrol.startLocationLat,
+    patrol.startLocationLon,
+  );
+  const endCoords = formatPatrolCoords(
+    patrol.endLocationLat,
+    patrol.endLocationLon,
+  );
 
   return (
     <Card
@@ -96,10 +107,17 @@ export function SelectedPatrolMapPanel({
             <span>· {patrol.boatName}</span>
           )}
           {km != null && <span>· {km.toFixed(1)} km</span>}
+          <span>· {formatPatrolHours(hours)}</span>
         </div>
         <div className="text-[10px] tabular-nums text-muted-foreground">
           {formatPatrolDateTime(patrol.startTime)} →{" "}
           {formatPatrolDateTime(patrol.endTime)}
+        </div>
+        <div className="text-[10px] tabular-nums text-muted-foreground">
+          Start: {startCoords}
+        </div>
+        <div className="text-[10px] tabular-nums text-muted-foreground">
+          End: {endCoords}
         </div>
       </CardContent>
     </Card>

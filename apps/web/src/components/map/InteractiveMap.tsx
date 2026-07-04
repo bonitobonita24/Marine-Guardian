@@ -43,7 +43,7 @@ import {
 } from "./eventMarkerStyle";
 import { isImageAsset } from "@marine-guardian/shared/lib/asset-mime";
 import { eventTypeIcon } from "@/lib/event-type-icon";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Flag, FlagTriangleRight } from "lucide-react";
 
 // MapLibre coordinate convention is [longitude, latitude] (locked in DECISIONS_LOG).
 // Default view spans Marine Guardian's primary operating area; the map auto-fits
@@ -338,6 +338,27 @@ export function InteractiveMap({
         : visibleTracks,
     [visibleTracks, controlledSelectedPatrolId],
   );
+
+  // Start/finish flag markers (2026-07-04): the endpoints of whichever track
+  // is currently the "selected patrol" line — the controlled Report Map
+  // selection (displayedTracks, already isolated to one patrol) or the
+  // internal CC PatrolSelector drill-down (patrolTracksQuery). Both maps
+  // share this component, so deriving the endpoints here renders the flags
+  // on both without extra wiring.
+  const flagCoordinates = useMemo(() => {
+    const points =
+      controlledSelectedPatrolId != null
+        ? displayedTracks[0]?.points
+        : patrolTracksQuery.data?.points;
+    if (points === undefined || points.length < 2) return null;
+    const first = points[0];
+    const last = points[points.length - 1];
+    if (first === undefined || last === undefined) return null;
+    return {
+      start: [first.lon, first.lat] as [number, number],
+      finish: [last.lon, last.lat] as [number, number],
+    };
+  }, [controlledSelectedPatrolId, displayedTracks, patrolTracksQuery.data]);
 
   const subjects = (subjectsQuery.data ?? []).filter(
     (s): s is typeof s & { lastPositionLat: number; lastPositionLon: number } =>
@@ -713,6 +734,45 @@ export function InteractiveMap({
             width={3}
             opacity={0.85}
           />
+        )}
+
+        {/* Start / finish flags for the selected patrol's track (owner
+            request 2026-07-04) — green flag at the first recorded point,
+            checkered flag at the last. Shared across the Report Map
+            (controlled selection) and the Command Center (PatrolSelector
+            drill-down) via flagCoordinates above. */}
+        {flagCoordinates !== null && (
+          <>
+            <MapMarker
+              longitude={flagCoordinates.start[0]}
+              latitude={flagCoordinates.start[1]}
+            >
+              <MarkerContent>
+                <div className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-emerald-600 shadow-lg">
+                  <Flag className="h-3.5 w-3.5 text-white" aria-hidden="true" />
+                </div>
+              </MarkerContent>
+              <MarkerTooltip>
+                <div className="font-medium">Patrol start</div>
+              </MarkerTooltip>
+            </MapMarker>
+            <MapMarker
+              longitude={flagCoordinates.finish[0]}
+              latitude={flagCoordinates.finish[1]}
+            >
+              <MarkerContent>
+                <div className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-rose-600 shadow-lg">
+                  <FlagTriangleRight
+                    className="h-3.5 w-3.5 text-white"
+                    aria-hidden="true"
+                  />
+                </div>
+              </MarkerContent>
+              <MarkerTooltip>
+                <div className="font-medium">Patrol end</div>
+              </MarkerTooltip>
+            </MapMarker>
+          </>
         )}
 
         {hideSubjects !== true &&

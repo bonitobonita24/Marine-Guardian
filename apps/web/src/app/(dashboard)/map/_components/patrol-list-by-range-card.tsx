@@ -25,11 +25,37 @@ export type RangePatrol = {
   endTime: Date | string | null;
   totalDistanceKm: number | null;
   computedDistanceKm: number | null;
+  totalHours: number | null;
+  computedDurationHours: number | null;
   startLocationLat: number | null;
   startLocationLon: number | null;
+  endLocationLat: number | null;
+  endLocationLon: number | null;
   leaderName: string | null;
   leaders: string[];
 };
+
+/** Shared with SelectedPatrolMapPanel — "Xh YYm" duration string, or "—" when
+ *  no hours figure is available. */
+export function formatPatrolHours(hours: number | null): string {
+  if (hours === null || Number.isNaN(hours)) return "—";
+  const totalMin = Math.round(hours * 60);
+  const hr = Math.floor(totalMin / 60);
+  const min = totalMin % 60;
+  return `${String(hr)}h ${String(min).padStart(2, "0")}m`;
+}
+
+/** Shared with SelectedPatrolMapPanel — signed lat/lon pair formatted to 4
+ *  decimals with N/S · E/W suffixes, or "—" when either coordinate is null. */
+export function formatPatrolCoords(
+  lat: number | null,
+  lon: number | null,
+): string {
+  if (lat === null || lon === null) return "—";
+  const ns = lat >= 0 ? "N" : "S";
+  const ew = lon >= 0 ? "E" : "W";
+  return `${Math.abs(lat).toFixed(4)}°${ns}, ${Math.abs(lon).toFixed(4)}°${ew}`;
+}
 
 function toDate(value: Date | string | null): Date | null {
   if (value === null) return null;

@@ -133,6 +133,12 @@ export const dashboardRouter = router({
           startTime: true,
           totalDistanceKm: true,
           computedDistanceKm: true,
+          totalHours: true,
+          computedDurationHours: true,
+          startLocationLat: true,
+          startLocationLon: true,
+          endLocationLat: true,
+          endLocationLon: true,
           segments: { select: { leaderName: true } },
         },
       });
@@ -144,6 +150,12 @@ export const dashboardRouter = router({
         startTime: p.startTime,
         totalDistanceKm: p.totalDistanceKm,
         computedDistanceKm: p.computedDistanceKm,
+        totalHours: p.totalHours,
+        computedDurationHours: p.computedDurationHours,
+        startLocationLat: p.startLocationLat,
+        startLocationLon: p.startLocationLon,
+        endLocationLat: p.endLocationLat,
+        endLocationLon: p.endLocationLon,
         leaderName:
           p.segments.find(
             (s) => s.leaderName != null && s.leaderName.length > 0,

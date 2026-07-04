@@ -8,7 +8,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { ActivePatrol } from "./active-patrols";
-import { elapsedHm, formatKm, patrolTypeMeta } from "./lib";
+import {
+  elapsedHm,
+  formatCoords,
+  formatHoursHm,
+  formatKm,
+  patrolTypeMeta,
+} from "./lib";
 
 /**
  * WAR ROOM patrol detail modal.
@@ -30,6 +36,9 @@ export function PatrolDetailModal({
   const open = patrol !== null;
   const meta = patrol ? patrolTypeMeta(patrol.patrolType) : null;
   const km = patrol ? (patrol.computedDistanceKm ?? patrol.totalDistanceKm) : null;
+  const hours = patrol
+    ? (patrol.computedDurationHours ?? patrol.totalHours)
+    : null;
 
   return (
     <Dialog
@@ -76,6 +85,19 @@ export function PatrolDetailModal({
             <dt className="font-medium text-muted-foreground">Distance</dt>
             <dd className="tabular-nums">
               {km === null ? "—" : `${formatKm(km)} km`}
+            </dd>
+
+            <dt className="font-medium text-muted-foreground">Hours spent</dt>
+            <dd className="tabular-nums">{formatHoursHm(hours)}</dd>
+
+            <dt className="font-medium text-muted-foreground">Start coords</dt>
+            <dd className="tabular-nums">
+              {formatCoords(patrol.startLocationLat, patrol.startLocationLon)}
+            </dd>
+
+            <dt className="font-medium text-muted-foreground">End coords</dt>
+            <dd className="tabular-nums">
+              {formatCoords(patrol.endLocationLat, patrol.endLocationLon)}
             </dd>
           </dl>
         )}
