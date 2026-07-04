@@ -18,6 +18,7 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 import { TRPCError } from "@trpc/server";
+import sharp from "sharp";
 
 import { prisma } from "@marine-guardian/db";
 import {
@@ -43,6 +44,35 @@ const SAFE_INLINE_TYPES = new Set([
   ...SAFE_INLINE_IMAGE_TYPES,
   "application/pdf",
 ]);
+
+// Resizable raster types: the ones sharp can decode+re-encode. SVG is
+// deliberately excluded (it's not in SAFE_INLINE_IMAGE_TYPES at all — never
+// reaches here), and non-raster inline types (application/pdf) skip resize.
+const RESIZABLE_IMAGE_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
+
+// `?w=` clamp range. Below 16 is pointless (near-invisible); above 400 there's
+// no realistic print-report use case for this proxy, so junk/huge values are
+// ignored rather than honoured.
+const MIN_RESIZE_WIDTH = 16;
+const MAX_RESIZE_WIDTH = 400;
+
+/**
+ * Parse + clamp the `?w=` query param. Returns null when absent, non-numeric,
+ * or out of the sane [16, 400] range — callers then skip resizing entirely
+ * (original behavior preserved).
+ */
+function parseRequestedWidth(searchParams: URLSearchParams): number | null {
+  const raw = searchParams.get("w");
+  if (raw === null) return null;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  if (parsed < MIN_RESIZE_WIDTH || parsed > MAX_RESIZE_WIDTH) return null;
+  return parsed;
+}
 
 export async function GET(
   req: NextRequest,
@@ -150,7 +180,7 @@ export async function GET(
   // rawType is computed BEFORE byte resolution so it can double as the R2
   // write-through metadata. The inline-serve allowlist below gates on THIS
   // row-derived type, never on the cached object's contentType.
-  const rawType =
+  let rawType =
     row.mimeType ?? mimeFromFilename(row.filename) ?? "application/octet-stream";
 
   // Renderer mode serves ONLY inline-safe image types — the print report's
@@ -184,6 +214,30 @@ export async function GET(
       { error: "Asset temporarily unavailable" },
       { status: 502 },
     );
+  }
+
+  // On-the-fly thumbnail resize (2026-07-04): report/list <img> consumers
+  // pass ?w= so a 48px-on-screen photo doesn't embed at full 8000x6000
+  // camera resolution — that bloats PDF exports past Telegram's 20MB
+  // getFile cap and forces a MinIO fallback (see report-map-report.tsx).
+  // Only applies to resizable raster types; SVG/PDF/unknown pass through
+  // untouched. Any resize failure falls back to the ORIGINAL bytes — a
+  // thumbnail request must never 500 a report over an encode error.
+  const requestedWidth = parseRequestedWidth(req.nextUrl.searchParams);
+  if (requestedWidth !== null && RESIZABLE_IMAGE_TYPES.has(rawType)) {
+    try {
+      const image = sharp(bytes);
+      const metadata = await image.metadata();
+      const targetWidth = Math.min(requestedWidth, metadata.width);
+      const resized = await image
+        .resize({ width: targetWidth, withoutEnlargement: true })
+        .toFormat("jpeg", { quality: 80 })
+        .toBuffer();
+      bytes = resized;
+      rawType = "image/jpeg";
+    } catch {
+      // Swallow — serve the original bytes untouched.
+    }
   }
 
   const inlineSafe = SAFE_INLINE_TYPES.has(rawType);

@@ -13,6 +13,9 @@ const {
   mockPrisma,
   mockGetToken,
   mockFetchBytes,
+  mockSharpMetadata,
+  mockSharpToBuffer,
+  mockSharpFactory,
 } = vi.hoisted(() => ({
   mockRequireRouteAuth: vi.fn(),
   mockRateLimitCheck: vi.fn(),
@@ -22,6 +25,16 @@ const {
   },
   mockGetToken: vi.fn(),
   mockFetchBytes: vi.fn(),
+  mockSharpMetadata: vi.fn(),
+  mockSharpToBuffer: vi.fn(),
+  mockSharpFactory: vi.fn(),
+}));
+
+// sharp is mocked so route tests never touch a real image codec — the
+// resize behavior is verified via call shape + the mocked output buffer,
+// not actual pixel decoding.
+vi.mock("sharp", () => ({
+  default: (...args: unknown[]): unknown => mockSharpFactory(...args),
 }));
 
 vi.mock("@/server/lib/route-auth", () => {
@@ -52,14 +65,18 @@ import { RouteAuthError } from "@/server/lib/route-auth";
 function makeRouteArgs(
   id: string,
   headers?: Record<string, string>,
+  searchParams?: Record<string, string>,
 ): {
   req: Parameters<typeof GET>[0];
   ctx: Parameters<typeof GET>[1];
 } {
   return {
-    req: { headers: new Headers(headers) } as unknown as Parameters<
-      typeof GET
-    >[0],
+    req: {
+      headers: new Headers(headers),
+      nextUrl: {
+        searchParams: new URLSearchParams(searchParams),
+      },
+    } as unknown as Parameters<typeof GET>[0],
     ctx: { params: Promise.resolve({ id }) },
   };
 }
@@ -94,6 +111,20 @@ describe("GET /api/assets/[id]", () => {
     mockFetchBytes.mockResolvedValue({
       bytes: new ArrayBuffer(8),
       filePath: "photos/x.jpg",
+    });
+
+    // Default sharp mock: a chainable pipeline that reports a large source
+    // image and "resizes" down to a small output buffer.
+    mockSharpMetadata.mockResolvedValue({ width: 8000, height: 6000 });
+    mockSharpToBuffer.mockResolvedValue(Buffer.from("small-resized"));
+    mockSharpFactory.mockImplementation(() => {
+      const pipeline = {
+        metadata: mockSharpMetadata,
+        resize: vi.fn().mockReturnThis(),
+        toFormat: vi.fn().mockReturnThis(),
+        toBuffer: mockSharpToBuffer,
+      };
+      return pipeline;
     });
   });
 
@@ -387,6 +418,111 @@ describe("GET /api/assets/[id]", () => {
         where: Record<string, unknown>;
       };
       expect(call.where).toEqual({ id: "asset-1", tenantId: "tenant-1" });
+    });
+  });
+
+  // ── ?w= thumbnail resize (2026-07-04) ───────────────────────────────────
+  describe("?w= on-the-fly resize", () => {
+    it("resizes a raster image and returns the smaller output with updated Content-Length/Type", async () => {
+      mockPrisma.eventAsset.findFirst.mockResolvedValueOnce(READY_ASSET);
+      const { req, ctx } = makeRouteArgs("asset-1", undefined, { w: "160" });
+      const res = await GET(req, ctx);
+      expect(res.status).toBe(200);
+      expect(mockSharpFactory).toHaveBeenCalledTimes(1);
+      expect(mockSharpToBuffer).toHaveBeenCalledTimes(1);
+      expect(res.headers.get("Content-Type")).toBe("image/jpeg");
+      const buf = Buffer.from("small-resized");
+      expect(res.headers.get("Content-Length")).toBe(String(buf.byteLength));
+    });
+
+    it("does NOT upscale — clamps the target width to the source image's own width", async () => {
+      mockPrisma.eventAsset.findFirst.mockResolvedValueOnce(READY_ASSET);
+      mockSharpMetadata.mockResolvedValueOnce({ width: 100, height: 75 });
+      const { req, ctx } = makeRouteArgs("asset-1", undefined, { w: "160" });
+      await GET(req, ctx);
+      const pipeline = mockSharpFactory.mock.results[0]?.value as {
+        resize: (opts: { width: number; withoutEnlargement: boolean }) => unknown;
+      };
+      const resizeMock = pipeline.resize as unknown as {
+        mock: { calls: Array<[{ width: number; withoutEnlargement: boolean }]> };
+      };
+      expect(resizeMock.mock.calls[0]?.[0]).toEqual({
+        width: 100,
+        withoutEnlargement: true,
+      });
+    });
+
+    it("leaves the response untouched when no ?w= is present", async () => {
+      mockPrisma.eventAsset.findFirst.mockResolvedValueOnce(READY_ASSET);
+      mockFetchBytes.mockResolvedValueOnce({
+        bytes: new ArrayBuffer(8),
+        filePath: "p.jpg",
+      });
+      const { req, ctx } = makeRouteArgs("asset-1");
+      const res = await GET(req, ctx);
+      expect(res.status).toBe(200);
+      expect(mockSharpFactory).not.toHaveBeenCalled();
+      expect(res.headers.get("Content-Type")).toBe("image/jpeg");
+      expect(res.headers.get("Content-Length")).toBe("8");
+    });
+
+    it("ignores ?w= for a non-resizable inline type (e.g. application/pdf)", async () => {
+      mockPrisma.eventAsset.findFirst.mockResolvedValueOnce({
+        ...READY_ASSET,
+        mimeType: "application/pdf",
+        filename: "report.pdf",
+      });
+      mockFetchBytes.mockResolvedValueOnce({
+        bytes: new ArrayBuffer(8),
+        filePath: "r.pdf",
+      });
+      const { req, ctx } = makeRouteArgs("asset-1", undefined, { w: "160" });
+      const res = await GET(req, ctx);
+      expect(res.status).toBe(200);
+      expect(mockSharpFactory).not.toHaveBeenCalled();
+      expect(res.headers.get("Content-Type")).toBe("application/pdf");
+    });
+
+    it("ignores a junk/out-of-range ?w= value (falls back to original, no resize attempted)", async () => {
+      mockPrisma.eventAsset.findFirst.mockResolvedValueOnce(READY_ASSET);
+      mockFetchBytes.mockResolvedValueOnce({
+        bytes: new ArrayBuffer(8),
+        filePath: "p.jpg",
+      });
+      const { req, ctx } = makeRouteArgs("asset-1", undefined, {
+        w: "999999",
+      });
+      const res = await GET(req, ctx);
+      expect(res.status).toBe(200);
+      expect(mockSharpFactory).not.toHaveBeenCalled();
+      expect(res.headers.get("Content-Length")).toBe("8");
+    });
+
+    it("falls back to the ORIGINAL bytes when the resize pipeline throws (never 500s)", async () => {
+      mockPrisma.eventAsset.findFirst.mockResolvedValueOnce(READY_ASSET);
+      mockFetchBytes.mockResolvedValueOnce({
+        bytes: new ArrayBuffer(8),
+        filePath: "p.jpg",
+      });
+      mockSharpToBuffer.mockRejectedValueOnce(new Error("bad codec"));
+      const { req, ctx } = makeRouteArgs("asset-1", undefined, { w: "160" });
+      const res = await GET(req, ctx);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Content-Length")).toBe("8");
+      expect(res.headers.get("Content-Type")).toBe("image/jpeg");
+    });
+
+    it("still enforces auth/tenant scope when ?w= is present", async () => {
+      mockRequireRouteAuth.mockRejectedValueOnce(
+        new RouteAuthError(
+          NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+        ),
+      );
+      const { req, ctx } = makeRouteArgs("asset-1", undefined, { w: "160" });
+      const res = await GET(req, ctx);
+      expect(res.status).toBe(401);
+      expect(mockPrisma.eventAsset.findFirst).not.toHaveBeenCalled();
+      expect(mockSharpFactory).not.toHaveBeenCalled();
     });
   });
 });

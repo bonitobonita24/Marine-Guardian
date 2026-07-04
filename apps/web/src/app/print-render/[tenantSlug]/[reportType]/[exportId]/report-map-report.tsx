@@ -257,7 +257,14 @@ function EventPhotoCell({
         // text — the render itself is unaffected.
         <img
           className="event-thumb"
-          src={`/api/assets/${photoId}`}
+          // Request a small resized thumbnail (w=160) instead of the
+          // full camera-resolution original — the cell renders at ~48px,
+          // so embedding the source image bloats the PDF by 10-100x for
+          // no visual gain (owner directive 2026-07-04: keep event images
+          // small in BYTES, not just on screen; also keeps each export
+          // under Telegram's 20MB getFile cap so it can land in Telegram
+          // instead of falling back to MinIO).
+          src={`/api/assets/${photoId}?w=160`}
           alt={`Photo: ${event.title ?? groupType}`}
         />
       ) : (
