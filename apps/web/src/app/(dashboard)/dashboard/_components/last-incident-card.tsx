@@ -18,17 +18,10 @@ export function LastIncidentCard({
   incident,
   now,
   onSelect,
-  live,
 }: {
   incident: LastIncident;
   now?: Date | undefined;
   onSelect?: (id: string) => void;
-  /**
-   * When true, renders a compact "LIVE · last 48h" badge (2026-07-04 — the
-   * Command Center moved this tile into the KPI strip's leading slot as a
-   * fixed rolling 48h window, replacing the manual date-range picker).
-   */
-  live?: boolean;
 }) {
   const clickable = incident !== null && onSelect !== undefined;
   const incidentTitle =
@@ -66,21 +59,6 @@ export function LastIncidentCard({
         >
           Last Incident
         </h2>
-        {live === true && (
-          <span
-            className="inline-flex items-center gap-1 rounded-full border border-[hsl(var(--destructive))]/30 bg-[hsl(var(--destructive))]/10 px-1.5 py-[1px] text-[8px] font-bold uppercase tracking-wide text-[hsl(var(--destructive))]"
-            title="Rolling 48-hour live window"
-          >
-            <span
-              aria-hidden="true"
-              className="h-1.5 w-1.5 animate-pulse rounded-full bg-[hsl(var(--destructive))]"
-            />
-            Live
-            <span className="font-medium normal-case text-[hsl(var(--destructive))]/80">
-              · last 48h
-            </span>
-          </span>
-        )}
       </div>
       {incident === null ? (
         <p className="mt-1 text-xs text-muted-foreground">None</p>

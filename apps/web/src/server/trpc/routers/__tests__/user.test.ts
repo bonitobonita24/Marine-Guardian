@@ -6,6 +6,7 @@ vi.mock("@marine-guardian/db", () => ({
     user: {
       findMany: vi.fn(),
       findFirst: vi.fn(),
+      findUnique: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
       updateMany: vi.fn(),
@@ -337,5 +338,84 @@ describe("user.activate", () => {
         changesJson: { before: { isActive: false }, after: { isActive: true } },
       })
     );
+  });
+});
+
+describe("user.getCommandCenterMunicipality", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns the current user's saved municipality id", async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      commandCenterMunicipalityId: "muni-1",
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.getCommandCenterMunicipality();
+
+    expect(result).toEqual({ municipalityId: "muni-1" });
+    expect(vi.mocked(prisma.user.findUnique)).toHaveBeenCalledWith({
+      where: { id: USER_ID },
+      select: { commandCenterMunicipalityId: true },
+    });
+  });
+
+  it("returns null when the user has no saved preference", async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      commandCenterMunicipalityId: null,
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.getCommandCenterMunicipality();
+
+    expect(result).toEqual({ municipalityId: null });
+  });
+
+  it("returns null when the user record is not found", async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.getCommandCenterMunicipality();
+
+    expect(result).toEqual({ municipalityId: null });
+  });
+});
+
+describe("user.setCommandCenterMunicipality", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("updates the CURRENT user's municipality preference (never a userId from input)", async () => {
+    vi.mocked(prisma.user.update).mockResolvedValue({
+      id: USER_ID,
+      commandCenterMunicipalityId: "muni-2",
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.setCommandCenterMunicipality({
+      municipalityId: "muni-2",
+    });
+
+    expect(result).toEqual({ municipalityId: "muni-2" });
+    expect(vi.mocked(prisma.user.update)).toHaveBeenCalledWith({
+      where: { id: USER_ID },
+      data: { commandCenterMunicipalityId: "muni-2" },
+    });
+  });
+
+  it("clears the preference when passed null (All municipalities)", async () => {
+    vi.mocked(prisma.user.update).mockResolvedValue({
+      id: USER_ID,
+      commandCenterMunicipalityId: null,
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.setCommandCenterMunicipality({
+      municipalityId: null,
+    });
+
+    expect(result).toEqual({ municipalityId: null });
+    expect(vi.mocked(prisma.user.update)).toHaveBeenCalledWith({
+      where: { id: USER_ID },
+      data: { commandCenterMunicipalityId: null },
+    });
   });
 });

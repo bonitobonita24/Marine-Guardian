@@ -287,6 +287,13 @@ model User {
   fullName           String    @map("full_name")
   role               UserRole
   languagePreference Language  @default(en) @map("language_preference")
+  // Command Center map municipality preference (2026-07-04) — persists the
+  // operator's last-selected CC map municipality filter so it restores across
+  // refresh and re-login on any device. Nullable = "All municipalities" (no
+  // filter). Soft reference to Municipality.id (no FK: keeps the migration
+  // additive/minimal, mirrors other soft-reference id columns in this schema;
+  // an invalid/stale id is treated as null by the client, never enforced here).
+  commandCenterMunicipalityId String? @map("command_center_municipality_id")
   isActive           Boolean   @default(true) @map("is_active")
   securityVersion    Int       @default(1) @map("security_version")
   lastLoginAt        DateTime? @map("last_login_at")

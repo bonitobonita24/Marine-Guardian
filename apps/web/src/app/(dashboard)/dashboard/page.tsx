@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Zap, BellRing, Shield, Users, BarChart3 } from "lucide-react";
 import { InteractiveMap } from "@/components/map/InteractiveMap";
 import { trpc } from "@/lib/trpc/client";
@@ -16,9 +16,11 @@ import {
   LastIncidentCard,
   type LastIncident,
 } from "./_components/last-incident-card";
+import { LiveTile } from "./_components/live-tile";
 import { BreakdownBars } from "./_components/breakdown-bars";
 import { ProtectedZoneCard } from "./_components/protected-zone-card";
 import { RangerRoster } from "./_components/ranger-roster";
+import { MapMunicipalitySelect } from "./_components/map-municipality-select";
 import {
   DashboardRangeProvider,
   useDashboardRange,
@@ -90,6 +92,47 @@ function DashboardContent() {
 
   // Track which alert ID is currently being acknowledged (optimistic spinner).
   const [ackingId, setAckingId] = useState<string | null>(null);
+
+  // Command Center map municipality filter (2026-07-04) — CC-local state, not
+  // shared with the Interactive Report Map's ReportFilterProvider. Selecting a
+  // municipality narrows the CC map's event markers and auto-frames that
+  // municipality (InteractiveMap's own officialBoundaries fitBounds effect);
+  // null means "all municipalities" (no filter, default CC framing).
+  const [mapMunicipalityId, setMapMunicipalityId] = useState<string | null>(
+    null,
+  );
+
+  // Per-user CC map municipality persistence (2026-07-04) — restores the
+  // saved selection across refresh + re-login on any device. `hydratedMuniPref`
+  // guards against the resolving query clobbering an in-session change the
+  // operator makes before the initial fetch resolves; it fires exactly once.
+  const ccMuniPref = trpc.user.getCommandCenterMunicipality.useQuery();
+  const municipalitiesForValidation = trpc.municipality.list.useQuery();
+  const setCcMuniPref = trpc.user.setCommandCenterMunicipality.useMutation();
+  const hydratedMuniPref = useRef(false);
+  useEffect(() => {
+    if (hydratedMuniPref.current) return;
+    if (ccMuniPref.data === undefined) return; // still loading
+    const savedId = ccMuniPref.data.municipalityId;
+    if (savedId === null) {
+      hydratedMuniPref.current = true;
+      return;
+    }
+    if (municipalitiesForValidation.data === undefined) return; // wait to validate
+    const isValid = municipalitiesForValidation.data.some(
+      (m) => m.id === savedId,
+    );
+    setMapMunicipalityId(isValid ? savedId : null);
+    hydratedMuniPref.current = true;
+  }, [ccMuniPref.data, municipalitiesForValidation.data]);
+
+  const handleMapMunicipalityChange = useCallback(
+    (id: string | null) => {
+      setMapMunicipalityId(id);
+      setCcMuniPref.mutate({ municipalityId: id });
+    },
+    [setCcMuniPref],
+  );
 
   // Click→detail drill-down (T5): event-feed rows + last-incident open the
   // shared EventDetailModal; active-patrols rows open a lightweight patrol modal.
@@ -250,21 +293,25 @@ function DashboardContent() {
     <div className="command-center flex h-full min-h-0 flex-col gap-3 overflow-y-auto">
       <h1 className="sr-only">Command Center — War Room</h1>
 
-      {/* Status band — the Last Incident tile folds into the left of the KPI
-          strip (one slim band instead of two stacked rows) + at-a-glance KPIs.
-          The Command Center is a fixed LIVE last-48h window (no date picker —
-          2026-07-04), so Last Incident carries the "LIVE · last 48h" badge. */}
+      {/* Status band — a dedicated LIVE status tile + the Last Incident tile
+          fold into the left of the KPI strip (one slim band instead of two
+          stacked rows) + at-a-glance KPIs. The Command Center is a fixed LIVE
+          last-48h window (no date picker — 2026-07-04); the LIVE badge now has
+          its own tile (split out of Last Incident) so it reads as a real
+          status indicator rather than a clickable incident metric. */}
       <KpiStrip
         kpis={kpiTiles}
         lastSyncedAt={lastSyncedAt || undefined}
         onSelectKpi={setSelectedKpi}
         leading={
-          <LastIncidentCard
-            incident={incident}
-            now={nowValue}
-            onSelect={setSelectedEventId}
-            live
-          />
+          <>
+            <LiveTile />
+            <LastIncidentCard
+              incident={incident}
+              now={nowValue}
+              onSelect={setSelectedEventId}
+            />
+          </>
         }
       />
 
@@ -283,8 +330,18 @@ function DashboardContent() {
             className="relative z-10 h-full w-full"
             dateFrom={from}
             dateTo={to}
+            trackMode="inRange"
             controlsPlacement="floating"
             defaultEventLayers={{ lawEnforcement: true, monitoring: true }}
+            filterSlot={
+              <MapMunicipalitySelect
+                value={mapMunicipalityId}
+                onChange={handleMapMunicipalityChange}
+              />
+            }
+            {...(mapMunicipalityId !== null
+              ? { municipalityId: mapMunicipalityId }
+              : {})}
           />
         </div>
 

@@ -1,10 +1,8 @@
 "use client";
 
 import { type ReactNode } from "react";
-import { Minimize2 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
-import { Button } from "@/components/ui/button";
 import {
   FullscreenProvider,
   useFullscreen,
@@ -18,8 +16,10 @@ import {
  * state — lives here. It:
  *   - provides FullscreenProvider so the Header toggle + this shell share state,
  *   - registers the root element so the Fullscreen API targets it,
- *   - hides Sidebar + Header when fullscreen so only the dashboard shows,
- *   - renders a small floating "Exit fullscreen" button (ESC also exits).
+ *   - hides Sidebar + Header when fullscreen so only the dashboard shows.
+ *
+ * Exiting fullscreen is via the ESC key (native) or the Header toggle — there is
+ * intentionally no floating on-screen exit button.
  */
 export function FullscreenShell({ children }: { children: ReactNode }) {
   return (
@@ -30,7 +30,7 @@ export function FullscreenShell({ children }: { children: ReactNode }) {
 }
 
 function FullscreenShellInner({ children }: { children: ReactNode }) {
-  const { isFullscreen, registerRoot, exit } = useFullscreen();
+  const { isFullscreen, registerRoot } = useFullscreen();
 
   return (
     <div ref={registerRoot} className="flex h-screen overflow-hidden bg-background">
@@ -39,20 +39,6 @@ function FullscreenShellInner({ children }: { children: ReactNode }) {
         {!isFullscreen && <Header />}
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>
-
-      {isFullscreen && (
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          onClick={exit}
-          aria-label="Exit fullscreen"
-          className="fixed right-4 top-4 z-50 gap-2 shadow-lg"
-        >
-          <Minimize2 className="h-4 w-4" aria-hidden="true" />
-          Exit fullscreen
-        </Button>
-      )}
     </div>
   );
 }

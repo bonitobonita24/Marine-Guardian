@@ -248,4 +248,26 @@ export const userRouter = router({
 
       return { id: input.id };
     }),
+
+  // Command Center map municipality preference (2026-07-04) — per-user, scoped
+  // strictly to the authenticated caller (ctx.userId), never a userId from
+  // input. Persists the CC map's selected municipality filter so it restores
+  // across refresh and re-login on any device.
+  getCommandCenterMunicipality: tenantProcedure.query(async ({ ctx }) => {
+    const user = await prisma.user.findUnique({
+      where: { id: ctx.userId },
+      select: { commandCenterMunicipalityId: true },
+    });
+    return { municipalityId: user?.commandCenterMunicipalityId ?? null };
+  }),
+
+  setCommandCenterMunicipality: tenantProcedure
+    .input(z.object({ municipalityId: z.string().nullable() }))
+    .mutation(async ({ ctx, input }) => {
+      await prisma.user.update({
+        where: { id: ctx.userId },
+        data: { commandCenterMunicipalityId: input.municipalityId },
+      });
+      return { municipalityId: input.municipalityId };
+    }),
 });
