@@ -13,8 +13,15 @@ type MapHeatmapProps = {
   points: HeatPoint[];
   /** Base HSL of the ramp (per category — matches the dot markers / legend). */
   hsl: { h: number; s: number; l: number };
-  /** Heat radius in px (default 22). */
+  /** Heat radius in px (default 40 — tuned so a single point still blooms into
+   *  a clearly visible, sizable blob rather than a faint dot). */
   radius?: number;
+  /** `heatmap-intensity` paint value (default 3 — amplifies density so low
+   *  point counts still read as a strong hot core). */
+  intensity?: number;
+  /** `heatmap-weight` paint value (default 2 — per-point contribution to
+   *  density; raised alongside intensity for single-event visibility). */
+  weight?: number;
 };
 
 /**
@@ -28,7 +35,14 @@ type MapHeatmapProps = {
  * Concrete HSL values come from eventCategoryHeatHsl (MapLibre paint cannot read
  * CSS custom properties).
  */
-export function MapHeatmap({ id: propId, points, hsl, radius = 22 }: MapHeatmapProps) {
+export function MapHeatmap({
+  id: propId,
+  points,
+  hsl,
+  radius = 40,
+  intensity = 3,
+  weight = 2,
+}: MapHeatmapProps) {
   const { map, isLoaded } = useMap();
   const autoId = useId();
   const id = propId ?? autoId;
@@ -61,24 +75,29 @@ export function MapHeatmap({ id: propId, points, hsl, radius = 22 }: MapHeatmapP
       type: "heatmap",
       source: sourceId,
       paint: {
-        "heatmap-weight": 1,
-        "heatmap-intensity": 1,
+        "heatmap-weight": weight,
+        "heatmap-intensity": intensity,
         "heatmap-radius": radius,
         "heatmap-opacity": 0.85,
+        // Low-density stops lifted well above transparent (only the true 0
+        // stop stays invisible) so a single point still blooms into a
+        // saturated, sizable blob instead of fading out.
         "heatmap-color": [
           "interpolate",
           ["linear"],
           ["heatmap-density"],
           0,
           ramp(0),
-          0.2,
-          ramp(0.3),
+          0.05,
+          ramp(0.55),
+          0.15,
+          ramp(0.75),
           0.4,
-          ramp(0.5),
+          ramp(0.85),
           0.7,
-          ramp(0.7),
+          ramp(0.92),
           1,
-          ramp(0.9),
+          ramp(1),
         ],
       },
     });

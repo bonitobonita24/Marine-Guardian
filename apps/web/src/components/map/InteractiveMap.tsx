@@ -28,6 +28,7 @@ import {
   DEFAULT_TRACK_VISIBILITY,
   filterVisibleTracks,
   patrolTrackStyle,
+  patrolTrackHeatHsl,
   type PatrolTrackVisibility,
   type PatrolType,
 } from "./patrolTrackStyle";
@@ -310,6 +311,11 @@ export function InteractiveMap({
   const [displayMode, setDisplayMode] = useState<"dots" | "heatmap">(
     initialDisplayMode,
   );
+  // Patrol-track display mode (Interactive Report Map): line overlay
+  // (default) vs a density heatmap of the currently-visible tracks, split by
+  // patrol type so seaborne/foot stay color-distinct. Local, mirrors
+  // `displayMode` above; only surfaced via TrackLegend on the inRange path.
+  const [showTrackHeatmap, setShowTrackHeatmap] = useState(false);
   // Current map zoom — drives zoom-responsive event-pin sizing + image previews.
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
 
@@ -337,6 +343,25 @@ export function InteractiveMap({
         ? visibleTracks.filter((t) => t.patrolId === controlledSelectedPatrolId)
         : visibleTracks,
     [visibleTracks, controlledSelectedPatrolId],
+  );
+
+  // Per-patrol-type point sets for the track-heatmap toggle, flattened from
+  // the SAME `displayedTracks` the line overlay renders — so the heatmap only
+  // ever shows what the lines would (visibility toggles + selected-patrol
+  // isolation already applied).
+  const seaborneHeatPoints = useMemo(
+    () =>
+      displayedTracks
+        .filter((t) => t.patrolType === "seaborne")
+        .flatMap((t) => t.points.map((p) => ({ lon: p.lon, lat: p.lat }))),
+    [displayedTracks],
+  );
+  const footHeatPoints = useMemo(
+    () =>
+      displayedTracks
+        .filter((t) => t.patrolType === "foot")
+        .flatMap((t) => t.points.map((p) => ({ lon: p.lon, lat: p.lat }))),
+    [displayedTracks],
   );
 
   // Start/finish flag markers (2026-07-04): the endpoints of whichever track
@@ -589,7 +614,12 @@ export function InteractiveMap({
           showBoundaries={showBoundaries}
           onShowBoundariesChange={setShowBoundaries}
           {...(useInRangeTracks
-            ? { displayMode, onDisplayModeChange: setDisplayMode }
+            ? {
+                displayMode,
+                onDisplayModeChange: setDisplayMode,
+                showTrackHeatmap,
+                onShowTrackHeatmapChange: setShowTrackHeatmap,
+              }
             : {})}
           className="shrink-0"
         />
@@ -629,7 +659,12 @@ export function InteractiveMap({
             onTypeValueToggle={handleTypeValueToggle}
             typeValueCounts={typeValueCounts}
             {...(useInRangeTracks
-              ? { displayMode, onDisplayModeChange: setDisplayMode }
+              ? {
+                  displayMode,
+                  onDisplayModeChange: setDisplayMode,
+                  showTrackHeatmap,
+                  onShowTrackHeatmapChange: setShowTrackHeatmap,
+                }
               : {})}
           />
         </div>
@@ -698,8 +733,9 @@ export function InteractiveMap({
             patrol type (seaborne solid/cyan, foot dashed/orange). Isolated to
             the selected patrol's track while one is selected (displayedTracks).
             Clicking a polyline selects its patrol when the parent wires
-            onPatrolTrackClick. */}
-        {displayedTracks.map((track) => {
+            onPatrolTrackClick. Hidden while the track heatmap is on (below) so
+            the two views don't overlap — toggle-reversible. */}
+        {!showTrackHeatmap && displayedTracks.map((track) => {
           const style = patrolTrackStyle(track.patrolType);
           const coordinates: [number, number][] = track.points.map((p) => [
             p.lon,
@@ -801,6 +837,29 @@ export function InteractiveMap({
             </MarkerTooltip>
           </MapMarker>
         ))}
+
+        {/* Patrol-track heatmap: density surfaces for the currently-visible
+            tracks, split by patrol type so seaborne (cyan) and foot (orange)
+            stay color-distinct in heat form. Replaces the polyline overlay
+            above while on. */}
+        {showTrackHeatmap && (
+          <>
+            {seaborneHeatPoints.length > 0 && (
+              <MapHeatmap
+                id="tracks-seaborne"
+                points={seaborneHeatPoints}
+                hsl={patrolTrackHeatHsl("seaborne")}
+              />
+            )}
+            {footHeatPoints.length > 0 && (
+              <MapHeatmap
+                id="tracks-foot"
+                points={footHeatPoints}
+                hsl={patrolTrackHeatHsl("foot")}
+              />
+            )}
+          </>
+        )}
 
         {/* Heatmap display mode: per-category density surfaces (each gated by
             its layer toggle). Concrete HSL ramps match the dot-marker colours. */}

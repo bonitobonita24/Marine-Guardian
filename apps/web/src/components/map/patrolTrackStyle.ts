@@ -52,6 +52,21 @@ export function patrolTrackStyle(type: PatrolType): PatrolTrackTypeStyle {
   return PATROL_TRACK_STYLES[type];
 }
 
+/**
+ * Concrete HSL triple for a patrol type's heatmap ramp (Interactive Report
+ * Map track-heatmap toggle). MapLibre paint cannot read CSS custom properties
+ * at runtime, so this converts the same PATROL_TRACK_STYLES hex swatches used
+ * by the line overlay to literal HSL — seaborne (#00C9DB -> {h:185,s:100,l:43})
+ * and foot (#E8912D -> {h:32,s:80,l:54}) stay color-distinct in heat form,
+ * matching the track lines + legend swatches exactly.
+ */
+export function patrolTrackHeatHsl(
+  type: PatrolType,
+): { h: number; s: number; l: number } {
+  if (type === "seaborne") return { h: 185, s: 100, l: 43 };
+  return { h: 32, s: 80, l: 54 };
+}
+
 export type PatrolTrackVisibility = Record<PatrolType, boolean>;
 
 export const DEFAULT_TRACK_VISIBILITY: PatrolTrackVisibility = {

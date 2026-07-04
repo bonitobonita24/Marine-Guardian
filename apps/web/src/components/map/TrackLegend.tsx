@@ -87,6 +87,12 @@ type TrackLegendProps = {
    *  shown. Off = "dots" (default), on = "heatmap". */
   displayMode?: "dots" | "heatmap";
   onDisplayModeChange?: (next: "dots" | "heatmap") => void;
+  /** Patrol-track display mode (Interactive Report Map): line overlay vs a
+   *  density heatmap of the currently-visible tracks, color-distinguished by
+   *  patrol type (seaborne = cyan, foot = orange). When provided, a toggle is
+   *  shown inside the patrol-tracks group. Off = lines (default), on = heat. */
+  showTrackHeatmap?: boolean;
+  onShowTrackHeatmapChange?: (next: boolean) => void;
   /** Official coverage boundary overlay (municipality land/water + MPA outlines).
    *  Master show/hide; rendered on both orientations when provided. */
   showBoundaries?: boolean;
@@ -166,6 +172,8 @@ export function TrackLegend({
   typeValueCounts,
   displayMode,
   onDisplayModeChange,
+  showTrackHeatmap,
+  onShowTrackHeatmapChange,
   showBoundaries,
   onShowBoundariesChange,
   orientation = "vertical",
@@ -223,7 +231,28 @@ export function TrackLegend({
           );
         })}
 
-        {/* Event-marker layers — operator-triggered, default OFF (2026-06-27). */}
+        {/* Patrol-track display mode — lines vs heatmap (Interactive Report
+            Map). Relocated into the patrol-tracks group. */}
+        {showTrackHeatmap !== undefined && onShowTrackHeatmapChange !== undefined && (
+          <div className="flex min-h-9 items-center gap-2">
+            <Label
+              htmlFor="track-display-mode"
+              className="cursor-pointer font-medium"
+            >
+              Tracks as heatmap
+            </Label>
+            <Switch
+              id="track-display-mode"
+              checked={showTrackHeatmap}
+              onCheckedChange={onShowTrackHeatmapChange}
+              aria-label="Show patrol tracks as a density heatmap (cyan = seaborne, orange = foot)"
+            />
+          </div>
+        )}
+
+        {/* Event-marker layers — operator-triggered, default OFF (2026-06-27).
+            The events-heatmap toggle lives inside this group (relocated
+            2026-07-04) so it reads as "heatmap for event types". */}
         {eventLayers !== undefined && onEventLayerChange !== undefined && (
           <>
             <div
@@ -250,32 +279,24 @@ export function TrackLegend({
                 </div>
               );
             })}
-          </>
-        )}
-
-        {/* Event display mode — Dots vs Heatmap (Interactive Report Map). */}
-        {displayMode !== undefined && onDisplayModeChange !== undefined && (
-          <>
-            <div
-              className="hidden h-5 w-px bg-border sm:block"
-              aria-hidden="true"
-            />
-            <div className="flex min-h-9 items-center gap-2">
-              <Label
-                htmlFor="event-display-mode"
-                className="cursor-pointer font-medium"
-              >
-                Heatmap
-              </Label>
-              <Switch
-                id="event-display-mode"
-                checked={displayMode === "heatmap"}
-                onCheckedChange={(next) => {
-                  onDisplayModeChange(next ? "heatmap" : "dots");
-                }}
-                aria-label="Show events as a density heatmap instead of individual markers"
-              />
-            </div>
+            {displayMode !== undefined && onDisplayModeChange !== undefined && (
+              <div className="flex min-h-9 items-center gap-2">
+                <Label
+                  htmlFor="event-display-mode"
+                  className="cursor-pointer font-medium"
+                >
+                  Show events as heatmap
+                </Label>
+                <Switch
+                  id="event-display-mode"
+                  checked={displayMode === "heatmap"}
+                  onCheckedChange={(next) => {
+                    onDisplayModeChange(next ? "heatmap" : "dots");
+                  }}
+                  aria-label="Show events as a density heatmap instead of individual markers"
+                />
+              </div>
+            )}
           </>
         )}
 
@@ -323,6 +344,8 @@ export function TrackLegend({
     typeValueCounts={typeValueCounts}
     displayMode={displayMode}
     onDisplayModeChange={onDisplayModeChange}
+    showTrackHeatmap={showTrackHeatmap}
+    onShowTrackHeatmapChange={onShowTrackHeatmapChange}
     showBoundaries={showBoundaries}
     onShowBoundariesChange={onShowBoundariesChange}
     header={header}
@@ -355,6 +378,8 @@ function VerticalTrackLegend({
   typeValueCounts,
   displayMode,
   onDisplayModeChange,
+  showTrackHeatmap,
+  onShowTrackHeatmapChange,
   showBoundaries,
   onShowBoundariesChange,
   header,
@@ -377,6 +402,8 @@ function VerticalTrackLegend({
   typeValueCounts: Record<string, number> | undefined;
   displayMode: "dots" | "heatmap" | undefined;
   onDisplayModeChange: ((next: "dots" | "heatmap") => void) | undefined;
+  showTrackHeatmap: boolean | undefined;
+  onShowTrackHeatmapChange: ((next: boolean) => void) | undefined;
   showBoundaries: boolean | undefined;
   onShowBoundariesChange: ((next: boolean) => void) | undefined;
   header: ReactNode;
@@ -506,6 +533,34 @@ function VerticalTrackLegend({
                 </div>
               );
             })}
+
+            {/* Patrol-track display mode — lines vs a density heatmap of the
+                currently-visible tracks, color-distinguished by patrol type
+                (seaborne = cyan, foot = orange). Interactive Report Map only. */}
+            {showTrackHeatmap !== undefined &&
+              onShowTrackHeatmapChange !== undefined && (
+                <>
+                  <div className="mt-0.5 flex min-h-7 items-center justify-between gap-2 border-t pt-0.5">
+                    <Label
+                      htmlFor="track-display-mode"
+                      className="cursor-pointer text-[12px] font-medium"
+                    >
+                      Show tracks as heatmap
+                    </Label>
+                    <Switch
+                      id="track-display-mode"
+                      checked={showTrackHeatmap}
+                      onCheckedChange={onShowTrackHeatmapChange}
+                      aria-label="Show patrol tracks as a density heatmap (cyan = seaborne, orange = foot)"
+                    />
+                  </div>
+                  {showTrackHeatmap && (
+                    <p className="px-0.5 pb-0.5 text-[10px] text-muted-foreground">
+                      Cyan = seaborne · Orange = foot
+                    </p>
+                  )}
+                </>
+              )}
           </div>
 
           {/* Official coverage boundaries (municipality land/water + MPA). */}
@@ -717,28 +772,28 @@ function VerticalTrackLegend({
                   </div>
                 );
               })}
-            </div>
-          )}
 
-          {/* Event display mode — Dots vs Heatmap. */}
-          {displayMode !== undefined && onDisplayModeChange !== undefined && (
-            <div className="border-t pt-0.5">
-              <div className="flex min-h-7 items-center justify-between gap-2">
-                <Label
-                  htmlFor="event-display-mode"
-                  className="cursor-pointer font-medium"
-                >
-                  Heatmap
-                </Label>
-                <Switch
-                  id="event-display-mode"
-                  checked={displayMode === "heatmap"}
-                  onCheckedChange={(next) => {
-                    onDisplayModeChange(next ? "heatmap" : "dots");
-                  }}
-                  aria-label="Show events as a density heatmap instead of individual markers"
-                />
-              </div>
+              {/* Events heatmap toggle — relocated inside the events group
+                  (2026-07-04) so it reads as "heatmap for event types" rather
+                  than a separate, unrelated block below. */}
+              {displayMode !== undefined && onDisplayModeChange !== undefined && (
+                <div className="mt-0.5 flex min-h-7 items-center justify-between gap-2 border-t pt-0.5">
+                  <Label
+                    htmlFor="event-display-mode"
+                    className="cursor-pointer text-[12px] font-medium"
+                  >
+                    Show events as heatmap
+                  </Label>
+                  <Switch
+                    id="event-display-mode"
+                    checked={displayMode === "heatmap"}
+                    onCheckedChange={(next) => {
+                      onDisplayModeChange(next ? "heatmap" : "dots");
+                    }}
+                    aria-label="Show events as a density heatmap instead of individual markers"
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>
