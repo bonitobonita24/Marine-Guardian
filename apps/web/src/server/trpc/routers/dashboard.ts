@@ -35,10 +35,12 @@ export const dashboardRouter = router({
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    // activeEvents honors the selected range (events needing attention in the
-    // window). activePatrols / rangersOnDuty are live-status metrics (currently
-    // open patrols) and eventsThisMonth/eventsLastMonth are an explicit
-    // month-over-month comparison — both intentionally range-independent.
+    // activeEvents honors the selected range AND is scoped to events tied to an
+    // OPEN patrol — so the KPI count matches its drilldown list (which filters
+    // event.list with state=active + linkedToActivePatrol). activePatrols /
+    // rangersOnDuty are live-status metrics (currently open patrols) and
+    // eventsThisMonth/eventsLastMonth are an explicit month-over-month
+    // comparison — both intentionally range-independent.
     const eventRange = buildRange(input);
 
     const [
@@ -51,7 +53,8 @@ export const dashboardRouter = router({
       prisma.event.count({
         where: {
           tenantId: ctx.tenantId,
-          state: { not: "resolved" },
+          state: "active",
+          patrol: { is: { state: "open", isDeleted: false } },
           ...(eventRange ? { reportedAt: eventRange } : {}),
         },
       }),

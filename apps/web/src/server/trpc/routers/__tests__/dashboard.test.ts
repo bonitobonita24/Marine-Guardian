@@ -276,12 +276,14 @@ describe("dashboard — WAR ROOM date range (goal items 3-4, 2026-06-25)", () =>
     expect(call.where.firedAt?.lte).toBeUndefined();
   });
 
-  it("kpis scopes the activeEvents count to the supplied range", async () => {
+  it("kpis scopes the activeEvents count to the supplied range and open-patrol events", async () => {
     await createCaller(makeCtx()).kpis({ dateFrom: FROM, dateTo: TO });
     const call = mockPrisma.event.count.mock.calls[0]?.[0] as {
-      where: { reportedAt?: unknown; state?: unknown };
+      where: { reportedAt?: unknown; state?: unknown; patrol?: unknown };
     };
-    expect(call.where.state).toEqual({ not: "resolved" });
+    // count matches its drilldown list: state=active + linked to an open patrol
+    expect(call.where.state).toEqual("active");
+    expect(call.where.patrol).toEqual({ is: { state: "open", isDeleted: false } });
     expect(call.where.reportedAt).toEqual({ gte: FROM, lte: TO });
   });
 });
