@@ -436,6 +436,22 @@ async function syncPatrols(
       select: { id: true },
     });
 
+    // event-patrol-link — derive Event.patrolId from the patrol side (ER's
+    // event→patrol back-reference is unreliable; patrol.patrol_segments[].events[]
+    // is the only trustworthy source). This must run AFTER the patrol upsert so
+    // `patrol.id` exists. If the corresponding Event rows haven't synced yet,
+    // updateMany matches zero rows here and self-heals on the NEXT patrol sync
+    // pass (or via the offline backfill script) once syncEvents() has run.
+    const erEventIds = Array.from(
+      new Set(segments.flatMap((s) => (s.events ?? []).map((e) => e.id))),
+    );
+    if (erEventIds.length > 0) {
+      await platformPrisma.event.updateMany({
+        where: { tenantId, erEventId: { in: erEventIds } },
+        data: { patrolId: patrol.id },
+      });
+    }
+
     try {
       await enqueueAreaRederive({
         tenantId,

@@ -23,7 +23,6 @@ import {
   DashboardRangeProvider,
   useDashboardRange,
 } from "./_components/range-context";
-import { DateRangeHeader } from "./_components/date-range-header";
 import { PatrolDetailModal } from "./_components/patrol-detail-modal";
 import { BreakdownDrilldownModal } from "./_components/breakdown-drilldown-modal";
 import { KpiDrilldownModal } from "./_components/kpi-drilldown-modal";
@@ -251,13 +250,22 @@ function DashboardContent() {
     <div className="command-center flex h-full min-h-0 flex-col gap-3 overflow-y-auto">
       <h1 className="sr-only">Command Center — War Room</h1>
 
-      {/* Status band — the FROM/TO range picker folds into the left of the KPI
-          strip (one slim band instead of two stacked rows) + at-a-glance KPIs. */}
+      {/* Status band — the Last Incident tile folds into the left of the KPI
+          strip (one slim band instead of two stacked rows) + at-a-glance KPIs.
+          The Command Center is a fixed LIVE last-48h window (no date picker —
+          2026-07-04), so Last Incident carries the "LIVE · last 48h" badge. */}
       <KpiStrip
         kpis={kpiTiles}
         lastSyncedAt={lastSyncedAt || undefined}
         onSelectKpi={setSelectedKpi}
-        leading={<DateRangeHeader />}
+        leading={
+          <LastIncidentCard
+            incident={incident}
+            now={nowValue}
+            onSelect={setSelectedEventId}
+            live
+          />
+        }
       />
 
       {/* Main row — dominant live map (2/3) + the live operations rail (1/3).
@@ -280,9 +288,10 @@ function DashboardContent() {
           />
         </div>
 
-        {/* Live operations rail — alerts → feed → active patrols → last incident.
-            Scrolls internally so the four live panels never push the page taller
-            than the viewport. */}
+        {/* Live operations rail — alerts → feed → active patrols. Last Incident
+            now lives in the KPI strip leading slot (2026-07-04). Scrolls
+            internally so the live panels never push the page taller than the
+            viewport. */}
         <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
           <AlertsPanel
             alerts={alertItems}
@@ -304,11 +313,6 @@ function DashboardContent() {
             isLoading={patrols.isLoading}
             now={nowValue}
             onSelectPatrol={setSelectedPatrol}
-          />
-          <LastIncidentCard
-            incident={incident}
-            now={nowValue}
-            onSelect={setSelectedEventId}
           />
         </div>
       </div>

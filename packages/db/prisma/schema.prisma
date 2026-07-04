@@ -373,6 +373,13 @@ model Event {
   municipalityId         String?    @map("municipality_id")
   municipalityAssignedAt DateTime?  @map("municipality_assigned_at")
 
+  // event-patrol-link — derived from patrol.patrol_segments[].events[].id on
+  // every patrol sync (see syncPatrols in er-sync.processor.ts). Nullable:
+  // an event may not (yet) belong to any patrol, or the linking patrol sync
+  // may not have run yet. ALWAYS derived from the patrol side — never trust
+  // an event-side back-reference from ER.
+  patrolId String? @map("patrol_id")
+
   syncedAt                DateTime   @map("synced_at")
   createdAt               DateTime   @default(now()) @map("created_at")
   updatedAt               DateTime   @updatedAt @map("updated_at")
@@ -383,6 +390,7 @@ model Event {
   municipality          Municipality?        @relation(fields: [municipalityId], references: [id])
   reportedByUser        User?                @relation("EventReportedByUser", fields: [reportedByUserId], references: [id])
   reportedByKnownRanger KnownRanger?         @relation("EventReportedByKnownRanger", fields: [reportedByKnownRangerId], references: [id])
+  patrol                Patrol?              @relation("PatrolEvents", fields: [patrolId], references: [id], onDelete: SetNull)
   notifications         Notification[]
   alertHistory          AlertHistory[]
   accompanyingRangers   AccompanyingRanger[] @relation("AccompanyingRangerEvent")
@@ -398,6 +406,7 @@ model Event {
   @@index([tenantId, municipalityId])
   @@index([tenantId, reportedByUserId])
   @@index([tenantId, reportedByKnownRangerId])
+  @@index([tenantId, patrolId])
   @@map("events")
 }
 
@@ -505,6 +514,9 @@ model Patrol {
   track               PatrolTrack?
   revisions           PatrolRevision[]
   coveredZones        PatrolCoveredZone[]
+  // event-patrol-link — events surfaced via patrol.patrol_segments[].events[]
+  // on every ER patrol sync (see syncPatrols in er-sync.processor.ts).
+  events              Event[]              @relation("PatrolEvents")
 
   @@unique([tenantId, erPatrolId])
   @@index([tenantId])

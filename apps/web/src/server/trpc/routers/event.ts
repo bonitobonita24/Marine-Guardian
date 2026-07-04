@@ -106,6 +106,10 @@ export const eventListFilters = z.object({
   typeDisplay: z.string().max(200).optional(),
   dateFrom: z.string().optional(), // ISO date, inclusive lower bound on reportedAt
   dateTo: z.string().optional(),   // ISO date, inclusive upper bound on reportedAt
+  // event-patrol-link — Command Center "Active Events" drilldown: restrict to
+  // events tied to a currently-open (non-deleted) patrol. Events with no
+  // linked patrol (patrolId null) are intentionally excluded when this is true.
+  linkedToActivePatrol: z.boolean().optional(),
 });
 
 export const eventRouter = router({
@@ -151,6 +155,11 @@ export const eventRouter = router({
                   ...(dateToParsed   !== undefined ? { lte: dateToParsed   } : {}),
                 },
               }
+            : {}),
+          // event-patrol-link — Active Events drilldown filter (q-ops event-patrol-link).
+          // Relation filter also excludes events with a null patrolId, which is intended.
+          ...(input.linkedToActivePatrol === true
+            ? { patrol: { is: { state: "open", isDeleted: false } } }
             : {}),
         },
         take: input.limit + 1,

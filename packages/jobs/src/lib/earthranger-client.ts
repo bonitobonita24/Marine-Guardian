@@ -55,6 +55,11 @@ interface ErPatrolSegment {
   // v2 additive — ER returns GeoJSON Point: { type: "Point", coordinates: [lon, lat] }
   start_location?: { type?: string; coordinates?: [number, number] } | null;
   end_location?: { type?: string; coordinates?: [number, number] } | null;
+  // event-patrol-link additive — ER attaches the events reported during this
+  // segment. This is the ONLY reliable source for event→patrol linkage; the
+  // event side does not carry a dependable back-reference. Each entry is the
+  // ER event object; only `id` is needed to correlate against Event.erEventId.
+  events?: { id: string }[];
 }
 
 interface ErObservation {

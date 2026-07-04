@@ -1195,6 +1195,62 @@ describe("event.list — server-side filters (M3)", () => {
     );
   });
 
+  // event-patrol-link — Command Center "Active Events" drilldown filter
+  it("applies patrol.state=open filter when linkedToActivePatrol is true", async () => {
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50, linkedToActivePatrol: true });
+
+    expect(vi.mocked(prisma.event.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          patrol: { is: { state: "open", isDeleted: false } },
+        }),
+      })
+    );
+  });
+
+  it("omits the patrol filter when linkedToActivePatrol is not set", async () => {
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50 });
+
+    expect(vi.mocked(prisma.event.findMany)).not.toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ patrol: expect.anything() }) })
+    );
+  });
+
+  it("omits the patrol filter when linkedToActivePatrol is explicitly false", async () => {
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50, linkedToActivePatrol: false });
+
+    expect(vi.mocked(prisma.event.findMany)).not.toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ patrol: expect.anything() }) })
+    );
+  });
+
+  it("combines linkedToActivePatrol with state + dateFrom/dateTo (Active Events drilldown shape)", async () => {
+    const caller = createCaller(makeCtx());
+    await caller.list({
+      limit: 100,
+      state: "active",
+      dateFrom: "2026-06-01T00:00:00.000Z",
+      dateTo: "2026-06-30T23:59:59.999Z",
+      linkedToActivePatrol: true,
+    });
+
+    expect(vi.mocked(prisma.event.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          state: "active",
+          patrol: { is: { state: "open", isDeleted: false } },
+          reportedAt: expect.objectContaining({
+            gte: new Date("2026-06-01T00:00:00.000Z"),
+            lte: new Date("2026-06-30T23:59:59.999Z"),
+          }),
+        }),
+      })
+    );
+  });
+
   it("combines state + category + areaName filters in a single where clause", async () => {
     const caller = createCaller(makeCtx());
     await caller.list({

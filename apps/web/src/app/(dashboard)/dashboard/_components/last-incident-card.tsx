@@ -18,10 +18,17 @@ export function LastIncidentCard({
   incident,
   now,
   onSelect,
+  live,
 }: {
   incident: LastIncident;
   now?: Date | undefined;
   onSelect?: (id: string) => void;
+  /**
+   * When true, renders a compact "LIVE · last 48h" badge (2026-07-04 — the
+   * Command Center moved this tile into the KPI strip's leading slot as a
+   * fixed rolling 48h window, replacing the manual date-range picker).
+   */
+  live?: boolean;
 }) {
   const clickable = incident !== null && onSelect !== undefined;
   const incidentTitle =
@@ -46,23 +53,40 @@ export function LastIncidentCard({
             },
           }
         : {})}
-      className={`flex min-w-[6.5rem] flex-col items-center justify-center rounded-lg border border-border bg-card px-3 py-2 text-center ${
+      className={`flex min-w-[6.5rem] flex-1 self-stretch flex-col items-center justify-center gap-0.5 rounded-lg border border-border bg-card px-3 py-1.5 text-center ${
         clickable
           ? "cursor-pointer hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           : ""
       }`}
     >
-      <h2
-        id="warroom-incident-heading"
-        className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground"
-      >
-        Last Incident
-      </h2>
+      <div className="flex items-center gap-1.5">
+        <h2
+          id="warroom-incident-heading"
+          className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground"
+        >
+          Last Incident
+        </h2>
+        {live === true && (
+          <span
+            className="inline-flex items-center gap-1 rounded-full border border-[hsl(var(--destructive))]/30 bg-[hsl(var(--destructive))]/10 px-1.5 py-[1px] text-[8px] font-bold uppercase tracking-wide text-[hsl(var(--destructive))]"
+            title="Rolling 48-hour live window"
+          >
+            <span
+              aria-hidden="true"
+              className="h-1.5 w-1.5 animate-pulse rounded-full bg-[hsl(var(--destructive))]"
+            />
+            Live
+            <span className="font-medium normal-case text-[hsl(var(--destructive))]/80">
+              · last 48h
+            </span>
+          </span>
+        )}
+      </div>
       {incident === null ? (
         <p className="mt-1 text-xs text-muted-foreground">None</p>
       ) : (
         <>
-          <p className="text-2xl font-extrabold text-[hsl(var(--warning))]">
+          <p className="text-2xl font-extrabold leading-tight text-[hsl(var(--warning))]">
             {relativeShort(incident.reportedAt, now)}
             <span className="sr-only"> ago</span>
           </p>

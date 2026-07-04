@@ -18,7 +18,7 @@ import { patrolTypeMeta } from "./lib";
  * Opened when an operator clicks a list-backed KPI tile. Lists the underlying
  * in-range records by re-using the existing `event.list` / `patrol.list`
  * procedures with the active FROM/TO range + the matching filter:
- *   - activeEvents    → event.list  { state: "active", dateFrom, dateTo }
+ *   - activeEvents    → event.list  { state: "active", dateFrom, dateTo, linkedToActivePatrol: true }
  *   - eventsThisMonth → event.list  { dateFrom: monthStart, dateTo: now }
  *   - activePatrols   → patrol.list { state: "open" }
  * No new tRPC procedure is introduced.
@@ -52,7 +52,9 @@ export function KpiDrilldownModal({
   const eventsQuery = trpc.event.list.useQuery(
     kind === "eventsThisMonth"
       ? { dateFrom: monthStart, dateTo, limit: 100 }
-      : { state: "active", dateFrom, dateTo, limit: 100 },
+      // event-patrol-link — restrict Active Events to events tied to an
+      // open patrol (see event.ts eventListFilters.linkedToActivePatrol).
+      : { state: "active", dateFrom, dateTo, linkedToActivePatrol: true, limit: 100 },
     { enabled: open && (kind === "activeEvents" || kind === "eventsThisMonth") },
   );
 
