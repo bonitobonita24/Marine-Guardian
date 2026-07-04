@@ -18,6 +18,7 @@ import {
 } from "./patrol-list-by-range-card";
 import { SelectedPatrolMapPanel } from "./selected-patrol-map-panel";
 import { EventsOverTimeChart } from "@/components/reporting/events-over-time-chart";
+import { MunicipalityCoverageChart } from "@/app/(dashboard)/dashboard/_components/municipality-coverage-chart";
 import {
   ReportMapEmptyState,
   shouldShowReportMapEmptyState,
@@ -88,6 +89,16 @@ function ReportMapInner() {
   const eventsOverTime = trpc.reportMap.eventsOverTime.useQuery(filter);
   const highPriority = trpc.reportMap.highPriorityEvents.useQuery(filter);
   const patrolsInRange = trpc.reportMap.patrolsInRange.useQuery(filter);
+  // Municipality Coverage chart — same report filter, mapped to the
+  // {dateFrom,dateTo} shape this router expects. Scoped to the selected
+  // municipality when one is picked (province-wide otherwise), matching every
+  // other panel on this page.
+  const municipalityCoverage =
+    trpc.municipalityCoverage.municipalityCoverage.useQuery({
+      dateFrom: from,
+      dateTo: to,
+      ...(municipalityId !== null ? { municipalityId } : {}),
+    });
 
   // Selected patrol from the "Patrols" list (or a track click on the map) →
   // the map isolates + draws that patrol's track (controlled selectedPatrolId),
@@ -264,11 +275,20 @@ function ReportMapInner() {
           full-screen view (owner request 2026-06-30). */}
       {!showEmptyState && (
         <div className="shrink-0 space-y-2 pt-2">
-          <EventsOverTimeChart
-            data={eventsOverTime.data ?? []}
-            isLoading={eventsOverTime.isLoading}
-            rangeLabel={label}
-          />
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+            <EventsOverTimeChart
+              data={eventsOverTime.data ?? []}
+              isLoading={eventsOverTime.isLoading}
+              rangeLabel={label}
+              compact
+            />
+            <MunicipalityCoverageChart
+              data={municipalityCoverage.data ?? []}
+              isLoading={municipalityCoverage.isLoading}
+              rangeLabel={label}
+              compact
+            />
+          </div>
           <div className="flex justify-end">
             <GeneratePrintableButton />
           </div>

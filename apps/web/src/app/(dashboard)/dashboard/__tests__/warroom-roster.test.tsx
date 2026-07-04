@@ -22,6 +22,7 @@ describe("RangerRoster", () => {
       status: "on_patrol",
       lastSeenAt: new Date(),
       patrolsInRange: 2,
+      patrolHoursInRange: 5.5,
     },
     {
       id: "r2",
@@ -29,6 +30,7 @@ describe("RangerRoster", () => {
       status: "active",
       lastSeenAt: new Date(Date.now() - 3 * 60 * 60 * 1000),
       patrolsInRange: 1,
+      patrolHoursInRange: 3,
     },
     {
       id: "r3",
@@ -36,6 +38,7 @@ describe("RangerRoster", () => {
       status: "idle",
       lastSeenAt: null,
       patrolsInRange: 0,
+      patrolHoursInRange: 0,
     },
   ];
   const summary = { total: 3, onPatrol: 1, active: 1, idle: 1 };

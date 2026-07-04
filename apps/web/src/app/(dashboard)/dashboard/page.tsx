@@ -17,7 +17,6 @@ import {
   type LastIncident,
 } from "./_components/last-incident-card";
 import { BreakdownBars } from "./_components/breakdown-bars";
-import { MunicipalityCoverageChart } from "./_components/municipality-coverage-chart";
 import { ProtectedZoneCard } from "./_components/protected-zone-card";
 import { RangerRoster } from "./_components/ranger-roster";
 import {
@@ -78,13 +77,11 @@ function DashboardContent() {
   // (2026-06-27): pass the active FROM/TO window so it re-queries in lock-step.
   const alerts = trpc.alertHistory.list.useQuery({ limit: 10, ...range });
   const patrols = trpc.dashboard.activePatrols.useQuery(range);
-  // municipality / protected-zone coverage are time-based activity aggregations
-  // (patrol startTime / event reportedAt / zone-coverage assignedAt), so both
-  // honour the War Room range (T4b). Their procedures now accept the same
-  // { dateFrom, dateTo } shape as dashboard.* (backward-compatible: omitting it
-  // keeps the original 30-day default), so they re-query in lock-step too.
-  const coverageData =
-    trpc.municipalityCoverage.municipalityCoverage.useQuery(range);
+  // protected-zone coverage is a time-based activity aggregation (zone-coverage
+  // assignedAt), so it honours the War Room range (T4b). Its procedure accepts
+  // the same { dateFrom, dateTo } shape as dashboard.* (backward-compatible:
+  // omitting it keeps the original 30-day default), so it re-queries in
+  // lock-step too.
   const zoneData =
     trpc.municipalityCoverage.protectedZoneCoverage.useQuery(range);
   // KPI sparkline series + ranger roster (Command Center redesign, sub-batch C)
@@ -278,6 +275,8 @@ function DashboardContent() {
             className="relative z-10 h-full w-full"
             dateFrom={from}
             dateTo={to}
+            controlsPlacement="floating"
+            defaultEventLayers={{ lawEnforcement: true, monitoring: true }}
           />
         </div>
 
@@ -316,24 +315,24 @@ function DashboardContent() {
 
       {/* Analytics band — full width beneath the map: breakdowns + coverage +
           ranger roster. One row on wide command-center displays, wrapping down
-          on smaller screens. */}
-      <div className="grid shrink-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+          on smaller screens. `compact` on the breakdown cards + the tighter
+          gap keep the band's height visually balanced with the rest of the
+          dashboard (it previously ran noticeably taller than every other
+          section). */}
+      <div className="grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
         <BreakdownBars
           title="Law Enforcement and Apprehensions"
           data={breakdown.data?.lawEnforcement ?? []}
           variant="law_enforcement"
           onSelectType={setSelectedBreakdownType}
+          compact
         />
         <BreakdownBars
           title="Monitoring, Patrolling & Surveillance"
           data={breakdown.data?.monitoring ?? []}
           variant="monitoring"
           onSelectType={setSelectedBreakdownType}
-        />
-        <MunicipalityCoverageChart
-          data={coverageData.data ?? []}
-          isLoading={coverageData.isLoading}
-          rangeLabel={rangeLabel}
+          compact
         />
         <ProtectedZoneCard
           zones={zoneData.data ?? []}

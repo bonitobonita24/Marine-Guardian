@@ -92,7 +92,7 @@ export function ProtectedZoneCard({
           // Bounded + internally scrollable (hidden bar via .command-center CSS)
           // so the card stays a fixed height as more MPAs/zones are added — the
           // extra rows scroll into view instead of growing the card. (2026-06-27)
-          <div className="max-h-44 overflow-y-auto">
+          <div className="max-h-44 overflow-y-auto pb-2">
           <ul className="mt-1 flex flex-col gap-2 pr-1">
             {sorted.map((z) => (
               <li key={z.zone} className="flex items-start justify-between gap-2">

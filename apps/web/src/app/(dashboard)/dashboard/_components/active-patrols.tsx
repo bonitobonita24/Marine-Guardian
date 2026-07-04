@@ -54,7 +54,7 @@ export function ActivePatrols({
         </span>
       </div>
 
-      <div className="max-h-44 overflow-y-auto">
+      <div className="max-h-44 overflow-y-auto pb-2">
         {isLoading ? (
           <p className="px-3 py-6 text-center text-xs text-muted-foreground">
             Loading patrols…

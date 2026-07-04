@@ -70,7 +70,7 @@ export function EventFeed({
         </h2>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto pb-2">
         <ul className="space-y-0.5 p-2">
           {isLoading ? (
             <li className="px-2 py-6 text-center text-xs text-muted-foreground">

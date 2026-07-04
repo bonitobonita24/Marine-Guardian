@@ -18,6 +18,7 @@ export type RosterRanger = {
   status: RangerStatus;
   lastSeenAt: Date | string | null;
   patrolsInRange: number;
+  patrolHoursInRange: number;
 };
 
 export type RosterSummary = {
@@ -26,6 +27,22 @@ export type RosterSummary = {
   active: number;
   idle: number;
 };
+
+// Mirrors the server-side comparator in dashboard.ts rangerRoster: status
+// group priority (on_patrol > active > idle) first, then patrolHoursInRange
+// descending within each group. Applied client-side too as a safety net so
+// ordering holds regardless of what order the server happens to return.
+const STATUS_RANK: Record<RangerStatus, number> = {
+  on_patrol: 0,
+  active: 1,
+  idle: 2,
+};
+
+function compareRangers(a: RosterRanger, b: RosterRanger): number {
+  const rankDiff = STATUS_RANK[a.status] - STATUS_RANK[b.status];
+  if (rankDiff !== 0) return rankDiff;
+  return b.patrolHoursInRange - a.patrolHoursInRange;
+}
 
 const STATUS_META: Record<
   RangerStatus,
@@ -83,8 +100,11 @@ export function RangerRoster({
           viewport ignores max-height) — bounds the 56-row roster and scrolls;
           scrollbar hidden by the .command-center CSS. A max-h (not flex-1) is
           used on purpose: flex-1 inside the auto-sized analytics grid lets the
-          full list drive the row taller instead of bounding it. (2026-06-27) */}
-      <div className="max-h-[15rem] overflow-y-auto">
+          full list drive the row taller instead of bounding it. (2026-06-27)
+          Bottom padding (pb-1.5) added so the last row's own py-1.5 clears the
+          scroll boundary instead of being clipped mid-height when scrolled to
+          the bottom (2026-07-04). */}
+      <div className="max-h-44 overflow-y-auto pb-1.5">
         {isLoading ? (
           <p className="px-3 py-6 text-center text-xs text-muted-foreground">
             Loading roster…
@@ -95,7 +115,7 @@ export function RangerRoster({
           </p>
         ) : (
           <ul className="divide-y divide-border">
-            {rangers.map((r) => {
+            {[...rangers].sort(compareRangers).map((r) => {
               const meta = STATUS_META[r.status];
               return (
                 <li
@@ -109,6 +129,11 @@ export function RangerRoster({
                   <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground">
                     {r.name}
                   </span>
+                  {r.patrolHoursInRange > 0 ? (
+                    <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+                      {r.patrolHoursInRange.toFixed(1)}h
+                    </span>
+                  ) : null}
                   <span
                     className={`shrink-0 text-[10px] font-semibold uppercase tracking-wide ${meta.text}`}
                   >

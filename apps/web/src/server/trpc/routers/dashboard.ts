@@ -344,11 +344,16 @@ export const dashboardRouter = router({
   // their patrol involvement (AccompanyingRanger → Patrol). A ranger is
   // `on_patrol` when linked to a currently-open patrol, `active` when they have
   // a patrol within the active range, otherwise `idle`. lastSeenAt is the most
-  // recent in-range patrol startTime they were on. Read-only aggregation.
+  // recent in-range patrol startTime they were on. patrolHoursInRange is the
+  // sum, in hours, of the ranger's in-range patrol durations (startTime→endTime;
+  // for a still-open patrol, startTime→now). Default sort (owner spec,
+  // 2026-07-04): status group priority on_patrol > active > idle, then within
+  // each group by patrolHoursInRange descending. Read-only aggregation.
   rangerRoster: tenantProcedure
     .input(rangeInput)
     .query(async ({ ctx, input }) => {
       const startRange = buildRange(input);
+      const now = new Date();
 
       const [knownRangers, openPatrols, rangePatrols, accompanying] =
         await Promise.all([
@@ -372,7 +377,7 @@ export const dashboardRouter = router({
               isTestPatrol: false,
               ...(startRange ? { startTime: startRange } : {}),
             },
-            select: { id: true, startTime: true },
+            select: { id: true, startTime: true, endTime: true },
           }),
           prisma.accompanyingRanger.findMany({
             where: {
@@ -386,7 +391,7 @@ export const dashboardRouter = router({
 
       const openIds = new Set(openPatrols.map((p) => p.id));
       const rangePatrolById = new Map(
-        rangePatrols.map((p) => [p.id, p.startTime]),
+        rangePatrols.map((p) => [p.id, { startTime: p.startTime, endTime: p.endTime }]),
       );
 
       // ranger id → patrol ids they are linked to (via AccompanyingRanger).
@@ -398,17 +403,33 @@ export const dashboardRouter = router({
         patrolsByRanger.set(a.knownRangerId, list);
       }
 
+      const STATUS_RANK: Record<"on_patrol" | "active" | "idle", number> = {
+        on_patrol: 0,
+        active: 1,
+        idle: 2,
+      };
+
       const rangers = knownRangers.map((r) => {
         const patrolIds = patrolsByRanger.get(r.id) ?? [];
         const onPatrol = patrolIds.some((id) => openIds.has(id));
         let patrolsInRange = 0;
+        let patrolHoursInRange = 0;
         let lastSeenAt: Date | null = null;
         for (const id of patrolIds) {
-          if (!rangePatrolById.has(id)) continue;
+          const patrol = rangePatrolById.get(id);
+          if (patrol == null) continue;
           patrolsInRange += 1;
-          const st = rangePatrolById.get(id) ?? null;
-          if (st != null && (lastSeenAt == null || st > lastSeenAt)) {
-            lastSeenAt = st;
+          const { startTime, endTime } = patrol;
+          if (startTime != null && (lastSeenAt == null || startTime > lastSeenAt)) {
+            lastSeenAt = startTime;
+          }
+          // Duration in hours: completed patrols use startTime→endTime; a
+          // still-open patrol (no endTime yet) counts startTime→now so its
+          // accruing hours still weigh into the sort.
+          if (startTime != null) {
+            const end = endTime ?? now;
+            const hours = (end.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+            if (hours > 0) patrolHoursInRange += hours;
           }
         }
         const status: "on_patrol" | "active" | "idle" = onPatrol
@@ -416,7 +437,23 @@ export const dashboardRouter = router({
           : patrolsInRange > 0
             ? "active"
             : "idle";
-        return { id: r.id, name: r.name, status, lastSeenAt, patrolsInRange };
+        return {
+          id: r.id,
+          name: r.name,
+          status,
+          lastSeenAt,
+          patrolsInRange,
+          patrolHoursInRange,
+        };
+      });
+
+      // Primary: status group (on_patrol > active > idle). Secondary: patrol
+      // hours in range, descending — most-hours ranger sits at the top of its
+      // group. Client applies the same comparator as a safety net.
+      rangers.sort((a, b) => {
+        const rankDiff = STATUS_RANK[a.status] - STATUS_RANK[b.status];
+        if (rankDiff !== 0) return rankDiff;
+        return b.patrolHoursInRange - a.patrolHoursInRange;
       });
 
       return {

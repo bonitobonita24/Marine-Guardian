@@ -59,9 +59,13 @@ export function KpiStrip({
 }) {
   // items-stretch gives every KPI tile a UNIFORM height (so a tile with a longer
   // label + sub — e.g. "Events This Month" — no longer sticks out taller than
-  // its neighbours). The folded-in date picker opts out of the stretch via
-  // `self-center` on its own root (it stays compact and centered, never
-  // ballooning to the tile height) and is shrink-0 so the tiles wrap below it.
+  // its neighbours). The folded-in date picker joins that same stretch via
+  // `self-stretch` on its own root (rather than opting out) so its outer card
+  // matches the row's height exactly like every tile/ClockCard; its own
+  // `items-center` row then centers the FROM/TO/reset content vertically
+  // inside that stretched height, keeping it flush with the KPI tile row
+  // instead of floating at a mismatched size. shrink-0 keeps it from shrinking
+  // in width so the tiles wrap below it instead.
   return (
     <div className="flex flex-wrap items-stretch gap-2">
       {leading}
