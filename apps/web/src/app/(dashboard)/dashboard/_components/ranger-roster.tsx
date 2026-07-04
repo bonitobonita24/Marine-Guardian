@@ -104,7 +104,7 @@ export function RangerRoster({
           Bottom padding (pb-1.5) added so the last row's own py-1.5 clears the
           scroll boundary instead of being clipped mid-height when scrolled to
           the bottom (2026-07-04). */}
-      <div className="max-h-44 overflow-y-auto pb-1.5">
+      <div className="max-h-32 overflow-y-auto pb-1.5">
         {isLoading ? (
           <p className="px-3 py-6 text-center text-xs text-muted-foreground">
             Loading roster…
