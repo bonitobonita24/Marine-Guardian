@@ -25,7 +25,7 @@
 // animated spinner + elapsed time computed from createdAt, ticking forward on
 // the existing 3s poll interval (no separate timer — see InFlightIndicator).
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -78,6 +78,33 @@ const MONTH_NAMES = [
 function humanizeReportType(reportType: string): string {
   const withSpaces = reportType.replace(/_/g, " ");
   return withSpaces.charAt(0).toUpperCase() + withSpaces.slice(1);
+}
+
+/**
+ * Trigger a single, deterministic file download from a fetch Response whose
+ * Content-Disposition carries `attachment; filename="…"`. Mirrors the Events
+ * page's downloadResponse() idiom. Using an explicit fetch → blob → one-shot
+ * hidden-anchor click (instead of a bare `<a download>`) is what fixes the
+ * reported glitch: a bare `<a download>` gave NO on-screen feedback (the file
+ * lands silently in Downloads), so users thought the first click failed and
+ * clicked again → two files. The button now shows a "Downloading…" state and
+ * disables itself while in flight, so one click = one clearly-acknowledged
+ * download.
+ */
+async function downloadResponse(res: Response): Promise<void> {
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const cd = res.headers.get("Content-Disposition") ?? "";
+  const match = /filename="([^"]+)"/.exec(cd);
+  const filename = match?.[1] ?? "report.pdf";
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function formatDate(date: Date | null): string {
@@ -286,6 +313,34 @@ export function ExportRow({ row }: ExportRowProps) {
   const summaryLabel = useMemo(() => buildReportSummaryLabel(row), [row]);
   const summaryParts = useMemo(() => buildReportSummaryParts(row), [row]);
 
+  // Download is an explicit fetch → blob → one-shot download with an in-flight
+  // state, replacing a bare `<a download>` (see downloadResponse above). The
+  // `inFlightRef` is a SYNCHRONOUS guard: React's setState is async, so two
+  // clicks fired in the same tick would both see dlState="idle" (stale closure)
+  // and both fetch. The ref flips immediately, so any second click — however
+  // fast — is a no-op until the first download settles. This is what makes a
+  // double click physically incapable of producing a double download.
+  const [dlState, setDlState] = useState<"idle" | "loading" | "error">("idle");
+  const inFlightRef = useRef(false);
+  const handleDownload = useCallback(async () => {
+    if (downloadUrl === null || inFlightRef.current) return;
+    inFlightRef.current = true;
+    setDlState("loading");
+    try {
+      const res = await fetch(downloadUrl, { credentials: "same-origin" });
+      if (!res.ok) {
+        setDlState("error");
+        return;
+      }
+      await downloadResponse(res);
+      setDlState("idle");
+    } catch {
+      setDlState("error");
+    } finally {
+      inFlightRef.current = false;
+    }
+  }, [downloadUrl]);
+
   return (
     <TableRow data-testid={`export-row-${row.id}`}>
       <TableCell className="font-medium capitalize">
@@ -348,14 +403,16 @@ export function ExportRow({ row }: ExportRowProps) {
                       View
                     </a>
                   </Button>
-                  <Button asChild size="sm" variant="outline">
-                    <a
-                      data-testid="export-download-link"
-                      href={downloadUrl}
-                      download
-                    >
-                      Download
-                    </a>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    data-testid="export-download-link"
+                    disabled={dlState === "loading"}
+                    onClick={() => {
+                      void handleDownload();
+                    }}
+                  >
+                    {dlState === "loading" ? "Downloading…" : "Download"}
                   </Button>
                 </>
               )}

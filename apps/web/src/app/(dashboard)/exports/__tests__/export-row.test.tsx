@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, cleanup } from "@testing-library/react";
+import { render, cleanup, fireEvent } from "@testing-library/react";
 import type { ExportRowItem } from "../export-row";
 import type { ExportStatus } from "../status-badge";
 
@@ -177,16 +177,43 @@ describe("ExportRow (5.3d)", () => {
     expect(stubs.pollRefetchInterval).toBe(false);
   });
 
-  it("surfaces Download link only when status=ready and downloadUrl resolves", () => {
+  it("surfaces the Download control only when status=ready and downloadUrl resolves", () => {
     stubs.downloadUrl = "/api/exports/reports/re-1/download";
     const { queryByTestId } = renderInTable(makeRow({ status: "ready" }));
 
     const dl = queryByTestId("export-download-link");
     expect(dl).toBeTruthy();
-    expect((dl as HTMLAnchorElement).getAttribute("href")).toBe(
-      "/api/exports/reports/re-1/download",
-    );
+    // Download is now a button that fetches → blob-downloads (no bare `<a
+    // download>`), so it carries no href. It is enabled (not mid-download).
+    expect(dl?.tagName).toBe("BUTTON");
+    expect((dl as HTMLButtonElement).disabled).toBe(false);
+    expect(dl?.textContent).toContain("Download");
     expect(stubs.downloadEnabled).toBe(true);
+  });
+
+  it("double-clicking Download fires exactly ONE fetch (synchronous in-flight guard)", () => {
+    stubs.downloadUrl = "/api/exports/reports/re-1/download";
+    // fetch never resolves → the first download stays in-flight for the whole
+    // test, so a second click must be blocked by the synchronous ref guard,
+    // not by post-resolution state. Two clicks in the same tick would both slip
+    // through a setState-based guard (stale closure); the ref makes it one.
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(() => new Promise<Response>(() => undefined));
+    try {
+      const { queryByTestId } = renderInTable(makeRow({ status: "ready" }));
+      const btn = queryByTestId("export-download-link");
+      if (btn === null) throw new Error("Download button not found");
+      fireEvent.click(btn);
+      fireEvent.click(btn);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/exports/reports/re-1/download",
+        expect.objectContaining({ credentials: "same-origin" }),
+      );
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 
   it("renders Retry button + error message when status=failed", () => {
