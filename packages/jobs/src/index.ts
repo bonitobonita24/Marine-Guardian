@@ -39,23 +39,15 @@ export {
   type PptxRenderJobPayload,
 } from "./queues/index";
 
-export {
-  createWorker,
-  validateTenantContext,
-  type WorkerOptions,
-  startAreaRederiveWorker,
-  AREA_REDERIVE_LIMITER,
-  AREA_REDERIVE_CONCURRENCY,
-  startPatrolTrackMaterializeWorker,
-  PATROL_TRACK_MATERIALIZE_LIMITER,
-  PATROL_TRACK_MATERIALIZE_CONCURRENCY,
-  startPdfRenderWorker,
-  PDF_RENDER_LIMITER,
-  PDF_RENDER_CONCURRENCY,
-  startPptxRenderWorker,
-  PPTX_RENDER_LIMITER,
-  PPTX_RENDER_CONCURRENCY,
-} from "./workers/index";
+// NOTE: worker start-functions (startPdfRenderWorker, startPptxRenderWorker, …)
+// are intentionally NOT re-exported from this barrel. They are consumed ONLY by
+// start-workers.ts, which imports them directly from "./workers/<name>.worker".
+// Re-exporting the whole "./workers/index" here dragged the entire worker graph
+// into every barrel importer — including apps/web (which only needs the queue
+// producer enqueue* helpers + schemas + types). The pptx-render worker pulls in
+// pdf-to-pptx.ts → @napi-rs/canvas, whose native `.node` binary webpack cannot
+// parse, breaking `next build`. Keeping worker exports off the barrel keeps the
+// native render deps out of the web bundle entirely.
 
 // 5.3b — re-export the pdf-renderer-client helper. Relocated from
 // apps/web/src/server/lib/ to packages/jobs/src/lib/ in this sub-batch
