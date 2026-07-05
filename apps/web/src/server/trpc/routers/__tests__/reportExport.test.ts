@@ -34,6 +34,7 @@ vi.mock("@marine-guardian/db", () => ({
 vi.mock("@marine-guardian/jobs", () => ({
   enqueuePdfRender: vi.fn(),
   cancelPdfRender: vi.fn(),
+  enqueuePptxRender: vi.fn(),
 }));
 
 vi.mock("../../../lib/rate-limit", () => ({
@@ -50,7 +51,11 @@ vi.mock("../../../auth", () => ({
 }));
 
 import { prisma } from "@marine-guardian/db";
-import { cancelPdfRender, enqueuePdfRender } from "@marine-guardian/jobs";
+import {
+  cancelPdfRender,
+  enqueuePdfRender,
+  enqueuePptxRender,
+} from "@marine-guardian/jobs";
 import { createCallerFactory } from "../../trpc";
 import { reportExportRouter } from "../reportExport";
 
@@ -380,7 +385,7 @@ describe("reportExport.create (RBAC + 5.3b pipeline wiring)", () => {
     expect(vi.mocked(prisma.reportExport.create)).toHaveBeenCalledWith(
       partial({
         // telegramFileId is a server-side storage locator — never returned.
-        omit: { telegramFileId: true },
+        omit: { telegramFileId: true, pptxTelegramFileId: true },
         data: partial<{
           tenantId: string;
           requestedByUserId: string;
@@ -621,7 +626,7 @@ describe("reportExport.getDownloadUrl", () => {
 describe("reportExport telegramFileId non-exposure (Phase 4 S1)", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("list omits telegramFileId from the query result", async () => {
+  it("list omits telegramFileId AND pptxTelegramFileId from the query result", async () => {
     vi.mocked(prisma.reportExport.findMany).mockResolvedValue([] as never);
 
     const caller = createCaller(makeCtx());
@@ -629,12 +634,12 @@ describe("reportExport telegramFileId non-exposure (Phase 4 S1)", () => {
 
     expect(vi.mocked(prisma.reportExport.findMany)).toHaveBeenCalledWith(
       partial({
-        omit: { telegramFileId: true },
+        omit: { telegramFileId: true, pptxTelegramFileId: true },
       })
     );
   });
 
-  it("getById omits telegramFileId from the query result", async () => {
+  it("getById omits telegramFileId AND pptxTelegramFileId from the query result", async () => {
     vi.mocked(prisma.reportExport.findFirst).mockResolvedValue(null);
 
     const caller = createCaller(makeCtx());
@@ -642,7 +647,7 @@ describe("reportExport telegramFileId non-exposure (Phase 4 S1)", () => {
 
     expect(vi.mocked(prisma.reportExport.findFirst)).toHaveBeenCalledWith(
       partial({
-        omit: { telegramFileId: true },
+        omit: { telegramFileId: true, pptxTelegramFileId: true },
       })
     );
   });
@@ -701,7 +706,7 @@ describe("reportExport.retry (5.3d)", () => {
     expect(vi.mocked(prisma.reportExport.update)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(prisma.reportExport.update)).toHaveBeenCalledWith({
       where: { id: "re-failed-1" },
-      omit: { telegramFileId: true },
+      omit: { telegramFileId: true, pptxTelegramFileId: true },
       data: {
         status: "queued",
         filePath: null,
@@ -1099,5 +1104,204 @@ describe("reportExport.delete (Delete button — remove a terminal ready/failed 
     expect(auditOrder).toBeDefined();
     expect(findOrder).toBeLessThan(deleteOrder as number);
     expect(deleteOrder).toBeLessThan(auditOrder as number);
+  });
+});
+
+describe("reportExport.renderPptx (on-demand PDF→PowerPoint)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("rejects renderPptx when role is operator (adminProcedure — site_admin+)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["operator"]));
+
+    await expect(caller.renderPptx({ id: "re-1" })).rejects.toThrow(TRPCError);
+    expect(vi.mocked(prisma.reportExport.findFirst)).not.toHaveBeenCalled();
+    expect(vi.mocked(enqueuePptxRender)).not.toHaveBeenCalled();
+  });
+
+  it("rejects renderPptx when role is field_coordinator (adminProcedure gate — more restrictive than the coordinatorProcedure gating PDF create)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["field_coordinator"]));
+
+    await expect(caller.renderPptx({ id: "re-1" })).rejects.toThrow(TRPCError);
+    expect(vi.mocked(enqueuePptxRender)).not.toHaveBeenCalled();
+  });
+
+  it("throws NOT_FOUND when the row does not exist for this tenant (no cross-tenant leak)", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    await expect(caller.renderPptx({ id: "re-other" })).rejects.toThrow(
+      TRPCError,
+    );
+    expect(vi.mocked(enqueuePptxRender)).not.toHaveBeenCalled();
+  });
+
+  it("throws PRECONDITION_FAILED when the PDF is not yet ready (queued/rendering)", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
+      id: "re-not-ready",
+      status: "rendering",
+      telegramFileId: null,
+    } as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    await expect(
+      caller.renderPptx({ id: "re-not-ready" }),
+    ).rejects.toThrow(TRPCError);
+    expect(vi.mocked(enqueuePptxRender)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.reportExport.update)).not.toHaveBeenCalled();
+  });
+
+  it("throws PRECONDITION_FAILED when the PDF is ready but has no telegramFileId (nothing to convert)", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
+      id: "re-no-file",
+      status: "ready",
+      telegramFileId: null,
+    } as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    await expect(caller.renderPptx({ id: "re-no-file" })).rejects.toThrow(
+      TRPCError,
+    );
+    expect(vi.mocked(enqueuePptxRender)).not.toHaveBeenCalled();
+  });
+
+  it("admin happy path: resets pptxStatus=queued + nullifies pptx fields, then enqueues pptx-render", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
+      id: "re-ready-1",
+      status: "ready",
+      telegramFileId: "tg-pdf-file",
+    } as never);
+    vi.mocked(prisma.reportExport.update).mockResolvedValue({
+      id: "re-ready-1",
+      pptxStatus: "queued",
+    } as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const result = await caller.renderPptx({ id: "re-ready-1" });
+
+    expect(result.id).toBe("re-ready-1");
+    expect(vi.mocked(prisma.reportExport.update)).toHaveBeenCalledWith({
+      where: { id: "re-ready-1" },
+      omit: { telegramFileId: true, pptxTelegramFileId: true },
+      data: {
+        pptxStatus: "queued",
+        pptxTelegramFileId: null,
+        pptxFileSizeBytes: null,
+        pptxErrorMessage: null,
+      },
+    });
+    expect(vi.mocked(enqueuePptxRender)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(enqueuePptxRender)).toHaveBeenCalledWith({
+      exportId: "re-ready-1",
+      tenantId: TENANT_ID,
+      userId: USER_ID,
+    });
+  });
+
+  it("admin happy path: writes EXPORT_PPTX_REQUESTED AuditLog with the row id as entityId", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
+      id: "re-ready-2",
+      status: "ready",
+      telegramFileId: "tg-pdf-file",
+    } as never);
+    vi.mocked(prisma.reportExport.update).mockResolvedValue({
+      id: "re-ready-2",
+      pptxStatus: "queued",
+    } as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    await caller.renderPptx({ id: "re-ready-2" });
+
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith({
+      data: partial<{
+        action: string;
+        userId: string;
+        tenantId: string;
+        entityType: string;
+        entityId: string;
+      }>({
+        action: "EXPORT_PPTX_REQUESTED",
+        userId: USER_ID,
+        tenantId: TENANT_ID,
+        entityType: "ReportExport",
+        entityId: "re-ready-2",
+      }),
+    });
+  });
+});
+
+describe("reportExport.pollPptxStatus", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns a slim payload scoped to tenant", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
+      id: "re-1",
+      pptxStatus: "rendering",
+      pptxErrorMessage: null,
+      pptxFileSizeBytes: null,
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.pollPptxStatus({ id: "re-1" });
+
+    expect(result).toEqual(
+      partial({ id: "re-1", pptxStatus: "rendering" }),
+    );
+    expect(vi.mocked(prisma.reportExport.findFirst)).toHaveBeenCalledWith(
+      partial({ where: partial({ id: "re-1", tenantId: TENANT_ID }) }),
+    );
+  });
+});
+
+describe("reportExport.getPptxDownloadUrl", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("throws NOT_FOUND when the export does not exist for this tenant (no cross-tenant leak)", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.getPptxDownloadUrl({ id: "re-missing" }),
+    ).rejects.toThrow(TRPCError);
+  });
+
+  it("returns null downloadUrl when pptxStatus is not ready", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
+      id: "re-1",
+      pptxStatus: "rendering",
+      pptxTelegramFileId: null,
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.getPptxDownloadUrl({ id: "re-1" });
+
+    expect(result.downloadUrl).toBeNull();
+  });
+
+  it("returns null downloadUrl when pptxStatus is ready but pptxTelegramFileId is missing (defensive)", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
+      id: "re-1",
+      pptxStatus: "ready",
+      pptxTelegramFileId: null,
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.getPptxDownloadUrl({ id: "re-1" });
+
+    expect(result.downloadUrl).toBeNull();
+  });
+
+  it("returns the canonical PPTX download URL when pptxStatus=ready, without leaking the file_id", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
+      id: "re-1",
+      pptxStatus: "ready",
+      pptxTelegramFileId: "tg-pptx-file-abc",
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.getPptxDownloadUrl({ id: "re-1" });
+
+    expect(result.downloadUrl).toBe("/api/exports/reports/re-1/pptx");
+    expect(JSON.stringify(result)).not.toContain("tg-pptx-file-abc");
   });
 });

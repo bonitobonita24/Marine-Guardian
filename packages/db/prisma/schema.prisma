@@ -701,6 +701,17 @@ model ReportExport {
   createdAt         DateTime           @default(now()) @map("created_at")
   completedAt       DateTime?          @map("completed_at")
 
+  /// On-demand PDF→PowerPoint rendering. Independent of the PDF status
+  /// columns above — a row can be status=ready (PDF) with pptxStatus=null
+  /// (never requested), or any ReportExportStatus value once a "Render to
+  /// PowerPoint" request has been made. Same Telegram-only storage contract
+  /// as the PDF: pptxTelegramFileId is the sole store — no server-side/MinIO
+  /// copy of the .pptx exists at any point.
+  pptxStatus         ReportExportStatus? @map("pptx_status")
+  pptxTelegramFileId String?             @map("pptx_telegram_file_id")
+  pptxFileSizeBytes  Int?                @map("pptx_file_size_bytes")
+  pptxErrorMessage   String?             @map("pptx_error_message")
+
   tenant      Tenant @relation(fields: [tenantId], references: [id])
   requestedBy User   @relation("ReportExportRequestedBy", fields: [requestedByUserId], references: [id])
 

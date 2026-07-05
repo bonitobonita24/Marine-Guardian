@@ -92,6 +92,30 @@ export interface PdfRenderJobPayload extends BaseJobPayload {
 }
 
 /**
+ * PPTX-render job payload — on-demand PDF→PowerPoint rendering. Enqueued
+ * only when:
+ *  - reportExport.renderPptx mutation fires (an admin explicitly clicks
+ *    "Render to PowerPoint" on an already-`ready` PDF export row).
+ *
+ * NEVER enqueued automatically alongside pdf-render — this is a strictly
+ * on-demand, opt-in conversion of an existing PDF, not part of the normal
+ * report generation pipeline.
+ *
+ * jobId pattern: `pptx-render__${exportId}` — same double-underscore
+ * convention as pdf-render (BullMQ rejects `:` in jobIds). exportId is the
+ * ReportExport.id PK (cuid, globally unique across all tenants), so
+ * re-requesting PPTX render for the same export collapses to one job.
+ *
+ * tenantId is included for observability/logging + validateTenantContext
+ * (required by BaseJobPayload). The processor re-loads the ReportExport
+ * row and uses row.tenantId as the source of truth for tenant scoping.
+ * userId is set to the triggering admin user — required by BaseJobPayload.
+ */
+export interface PptxRenderJobPayload extends BaseJobPayload {
+  exportId: string;
+}
+
+/**
  * Sync-needed rescan job payload. Enqueued when:
  *  - a scheduler (follow-up work — not wired in this session) periodically
  *    fans out one rescan job per active tenant to drain drift-flagged patrols.
@@ -132,6 +156,7 @@ export type JobPayloadMap = {
   "area-rederive": AreaRederiveJobPayload;
   "patrol-track-materialize": PatrolTrackMaterializeJobPayload;
   "pdf-render": PdfRenderJobPayload;
+  "pptx-render": PptxRenderJobPayload;
   "sync-needed-rescan": SyncNeededRescanJobPayload;
   "municipality-assign": MunicipalityAssignJobPayload;
 };
@@ -146,6 +171,7 @@ export const QUEUE_NAMES = {
   AREA_REDERIVE: "area-rederive",
   PATROL_TRACK_MATERIALIZE: "patrol-track-materialize",
   PDF_RENDER: "pdf-render",
+  PPTX_RENDER: "pptx-render",
   SYNC_NEEDED_RESCAN: "sync-needed-rescan",
   MUNICIPALITY_ASSIGN: "municipality-assign",
 } as const satisfies Record<string, QueueName>;

@@ -14,3 +14,8 @@ export {
   PDF_RENDER_LIMITER,
   PDF_RENDER_CONCURRENCY,
 } from "./pdf-render.worker";
+export {
+  startPptxRenderWorker,
+  PPTX_RENDER_LIMITER,
+  PPTX_RENDER_CONCURRENCY,
+} from "./pptx-render.worker";

@@ -13,7 +13,7 @@
     "./lib/telegram-storage": "./src/lib/telegram-storage.ts"
   },
   "scripts": {
-    "build": "esbuild src/start-workers.ts --bundle --platform=node --format=esm --outfile=dist/start-workers.mjs --banner:js=\"import{createRequire}from'module';import{fileURLToPath}from'url';import{dirname}from'path';const require=createRequire(import.meta.url);const __filename=fileURLToPath(import.meta.url);const __dirname=dirname(__filename);\" --external:@prisma/client --external:.prisma/client --external:child_process --external:fs --external:path --external:os --external:net --external:tls --external:dns --external:crypto --external:stream --external:events --external:util --external:assert --external:http --external:https --external:zlib --external:url --external:querystring --external:string_decoder --external:buffer --external:worker_threads --external:cluster --external:dgram --external:readline",
+    "build": "esbuild src/start-workers.ts --bundle --platform=node --format=esm --outfile=dist/start-workers.mjs --banner:js=\"import{createRequire}from'module';import{fileURLToPath}from'url';import{dirname}from'path';const require=createRequire(import.meta.url);const __filename=fileURLToPath(import.meta.url);const __dirname=dirname(__filename);\" --external:@prisma/client --external:.prisma/client --external:@napi-rs/canvas --external:child_process --external:fs --external:path --external:os --external:net --external:tls --external:dns --external:crypto --external:stream --external:events --external:util --external:assert --external:http --external:https --external:zlib --external:url --external:querystring --external:string_decoder --external:buffer --external:worker_threads --external:cluster --external:dgram --external:readline",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/"
@@ -22,9 +22,12 @@
     "@marine-guardian/db": "workspace:*",
     "@marine-guardian/shared": "workspace:*",
     "@marine-guardian/storage": "workspace:*",
+    "@napi-rs/canvas": "^1.0.2",
     "@prisma/client": "^6.8.0",
     "bullmq": "^5.34.0",
-    "ioredis": "^5.4.2"
+    "ioredis": "^5.4.2",
+    "pdfjs-dist": "^6.1.200",
+    "pptxgenjs": "^4.0.1"
   },
   "devDependencies": {
     "esbuild": ">=0.25.0",

@@ -27,6 +27,11 @@ export {
   cancelPdfRender,
 } from "./pdf-render.queue";
 export {
+  getPptxRenderQueue,
+  enqueuePptxRender,
+  cancelPptxRender,
+} from "./pptx-render.queue";
+export {
   getSyncNeededRescanQueue,
   enqueueSyncNeededRescan,
 } from "./sync-needed-rescan.queue";
@@ -46,6 +51,7 @@ export {
   type AreaRederiveJobPayload,
   type PatrolTrackMaterializeJobPayload,
   type PdfRenderJobPayload,
+  type PptxRenderJobPayload,
   type SyncNeededRescanJobPayload,
   type MunicipalityAssignJobPayload,
 } from "./types";

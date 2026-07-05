@@ -7,6 +7,7 @@ import { processMaintenance } from "./processors/maintenance.processor";
 import { startAreaRederiveWorker } from "./workers/area-rederive.worker";
 import { startPatrolTrackMaterializeWorker } from "./workers/patrol-track-materialize.worker";
 import { startPdfRenderWorker } from "./workers/pdf-render.worker";
+import { startPptxRenderWorker } from "./workers/pptx-render.worker";
 import { scheduleRecurringErSync, removeRecurringErSync } from "./queues/er-sync.queue";
 import { platformPrisma } from "@marine-guardian/db";
 
@@ -34,6 +35,11 @@ const workers = [
   // ~1-3s per page), so concurrency stays low to avoid OOM and the
   // limiter smooths bursty admin "rebuild all reports" actions.
   startPdfRenderWorker(),
+  // V-pptx-export — pptx-render worker. Strictly on-demand (a user
+  // explicitly clicks "Render to PowerPoint" on an already-generated PDF
+  // export) — never fired automatically alongside pdf-render. Concurrency
+  // + limiter live inside the factory (see workers/pptx-render.worker.ts).
+  startPptxRenderWorker(),
 ];
 
 console.log(`[worker] ${String(workers.length)} workers registered: ${Object.values(QUEUE_NAMES).join(", ")}`);
