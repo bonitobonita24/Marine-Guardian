@@ -24,6 +24,7 @@ export {
 export {
   getPdfRenderQueue,
   enqueuePdfRender,
+  cancelPdfRender,
 } from "./pdf-render.queue";
 export {
   getSyncNeededRescanQueue,

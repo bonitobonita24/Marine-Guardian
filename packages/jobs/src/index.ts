@@ -21,6 +21,7 @@ export {
   enqueuePatrolTrackMaterialize,
   getPdfRenderQueue,
   enqueuePdfRender,
+  cancelPdfRender,
   QUEUE_NAMES,
   type QueueName,
   type JobPayloadMap,

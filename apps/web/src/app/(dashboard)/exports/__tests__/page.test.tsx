@@ -71,6 +71,20 @@ vi.mock("@/lib/trpc/client", () => ({
           isPending: false,
         }),
       },
+      cancel: {
+        useMutation: () => ({
+          mutate: vi.fn(),
+          reset: vi.fn(),
+          isPending: false,
+        }),
+      },
+      delete: {
+        useMutation: () => ({
+          mutate: vi.fn(),
+          reset: vi.fn(),
+          isPending: false,
+        }),
+      },
     },
     useUtils: () => ({
       reportExport: { list: { invalidate: vi.fn() } },

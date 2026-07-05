@@ -32,6 +32,8 @@ import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc/client";
 import { StatusBadge, type ExportStatus } from "./status-badge";
 import { RetryButton } from "./retry-button";
+import { StopButton } from "./stop-button";
+import { DeleteButton } from "./delete-button";
 
 /** Resolved-name summary of a report's generation parameters (paramsJson),
  * batch-resolved server-side by reportExport.list. Optional/nullable because
@@ -317,18 +319,26 @@ export function ExportRow({ row }: ExportRowProps) {
       <TableCell className="text-right">
         <div className="flex items-center justify-end gap-2">
           {(currentStatus === "queued" || currentStatus === "rendering") && (
-            <InFlightIndicator status={currentStatus} createdAt={row.createdAt} />
+            <>
+              <InFlightIndicator status={currentStatus} createdAt={row.createdAt} />
+              <StopButton exportId={row.id} />
+            </>
           )}
-          {currentStatus === "ready" && downloadUrl !== null && (
-            <Button asChild size="sm" variant="outline">
-              <a
-                data-testid="export-download-link"
-                href={downloadUrl}
-                download
-              >
-                Download
-              </a>
-            </Button>
+          {currentStatus === "ready" && (
+            <>
+              {downloadUrl !== null && (
+                <Button asChild size="sm" variant="outline">
+                  <a
+                    data-testid="export-download-link"
+                    href={downloadUrl}
+                    download
+                  >
+                    Download
+                  </a>
+                </Button>
+              )}
+              <DeleteButton exportId={row.id} />
+            </>
           )}
           {currentStatus === "failed" && (
             <>
@@ -342,6 +352,7 @@ export function ExportRow({ row }: ExportRowProps) {
                 </span>
               )}
               <RetryButton exportId={row.id} />
+              <DeleteButton exportId={row.id} />
             </>
           )}
         </div>

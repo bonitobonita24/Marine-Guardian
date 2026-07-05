@@ -64,3 +64,22 @@ export const getReportExportDownloadUrlInputSchema = z.object({
 export const retryReportExportInputSchema = z.object({
   id: z.string(),
 });
+
+/**
+ * Delete input — admin removes a terminal (ready/failed) export row.
+ * Tenant scope enforced server-side via session.tenantId.
+ */
+export const deleteReportExportInputSchema = z.object({
+  id: z.string(),
+});
+
+/**
+ * Cancel input — admin stops a pending (queued/rendering) export. There is
+ * no dedicated "cancelled" status value on ReportExportStatus; cancel
+ * reuses "failed" with errorMessage="Cancelled by user" rather than adding
+ * an enum value / migration. Tenant scope enforced server-side via
+ * session.tenantId.
+ */
+export const cancelReportExportInputSchema = z.object({
+  id: z.string(),
+});
