@@ -272,9 +272,14 @@ async function resolveLogoDataUri(key: string | null | undefined): Promise<strin
 // ─── Municipality bounds helper ──────────────────────────────────────────────
 
 /**
- * Flatten every [lon, lat] coordinate out of a Polygon / MultiPolygon geometry.
- * Mirrors the tolerant recursive walker in components/map/InteractiveMap.tsx
- * (geometryCoordinates) — GeoJSON coordinates are [lon, lat].
+ * Flatten every [lon, lat] coordinate out of a GeoJSON value. Handles both bare
+ * geometries (Polygon / MultiPolygon with a top-level `coordinates`) AND the
+ * wrapper shapes actually stored in the Municipality Json columns — seed data is
+ * a **FeatureCollection** (`{ features: [{ geometry: { coordinates } }] }`), so a
+ * top-level-`coordinates`-only walker returns nothing and the map silently falls
+ * back to the whole-region view. Descends through FeatureCollection (`features`),
+ * Feature (`geometry`), and GeometryCollection (`geometries`). GeoJSON
+ * coordinates are [lon, lat].
  */
 function geometryCoordinates(geometry: unknown): [number, number][] {
   const out: [number, number][] = [];
@@ -290,9 +295,20 @@ function geometryCoordinates(geometry: unknown): [number, number][] {
     }
     for (const child of node) walk(child);
   };
-  if (typeof geometry === "object" && geometry !== null) {
-    walk((geometry as { coordinates?: unknown }).coordinates);
-  }
+  const extract = (node: unknown): void => {
+    if (typeof node !== "object" || node === null) return;
+    const n = node as {
+      coordinates?: unknown;
+      features?: unknown;
+      geometry?: unknown;
+      geometries?: unknown;
+    };
+    if (n.coordinates !== undefined) walk(n.coordinates);
+    if (Array.isArray(n.features)) for (const f of n.features) extract(f);
+    if (n.geometry !== undefined) extract(n.geometry);
+    if (Array.isArray(n.geometries)) for (const g of n.geometries) extract(g);
+  };
+  extract(geometry);
   return out;
 }
 

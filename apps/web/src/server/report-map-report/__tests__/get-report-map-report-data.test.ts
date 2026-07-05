@@ -642,6 +642,52 @@ describe("unionGeometryBounds", () => {
     });
   });
 
+  it("extracts bounds from a FeatureCollection wrapper (the stored shape)", () => {
+    // Municipality boundary/water Json columns are stored as a FeatureCollection
+    // — {features:[{geometry:{coordinates}}]} — NOT a bare geometry. This is the
+    // exact case that silently returned null and left the report map on the
+    // whole-region view.
+    const fc = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [120.82, 13.31],
+                [120.96, 13.35],
+                [120.96, 13.5],
+                [120.82, 13.5],
+                [120.82, 13.31],
+              ],
+            ],
+          },
+        },
+      ],
+    };
+    expect(unionGeometryBounds(fc)).toEqual({
+      south: 13.31,
+      west: 120.82,
+      north: 13.5,
+      east: 120.96,
+    });
+  });
+
+  it("extracts bounds from a bare Feature wrapper", () => {
+    const feature = {
+      type: "Feature",
+      geometry: { type: "Polygon", coordinates: [[[121.0, 13.0], [121.2, 13.2]]] },
+    };
+    expect(unionGeometryBounds(feature)).toEqual({
+      south: 13.0,
+      west: 121.0,
+      north: 13.2,
+      east: 121.2,
+    });
+  });
+
   it("unions across multiple geometry arguments", () => {
     const a = { type: "Polygon", coordinates: [[[121.0, 13.0], [121.1, 13.1]]] };
     const b = { type: "Polygon", coordinates: [[[120.5, 12.5], [121.0, 13.0]]] };
