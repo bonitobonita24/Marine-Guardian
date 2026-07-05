@@ -91,6 +91,12 @@ COPY --from=builder /prisma-deps/.prisma/client ./node_modules/.prisma/client
 COPY --from=builder /napi-canvas-deps/@napi-rs/canvas ./node_modules/@napi-rs/canvas
 COPY --from=builder /napi-canvas-deps/@napi-rs/canvas-linux-x64-musl ./node_modules/@napi-rs/canvas-linux-x64-musl
 COPY --from=builder /app/packages/jobs/dist/start-workers.mjs ./worker/start-workers.mjs
+# V-pptx-export — pdf.js parses PDFs in a separate worker module. Bundled and
+# shipped next to start-workers.mjs so pdf.js's default workerSrc resolution
+# (relative to import.meta.url → /app/worker/pdf.worker.mjs) finds it; without
+# this the pptx-render job fails with "Setting up fake worker failed: Cannot
+# find module '/app/worker/pdf.worker.mjs'".
+COPY --from=builder /app/packages/jobs/dist/pdf.worker.mjs ./worker/pdf.worker.mjs
 USER nextjs
 EXPOSE 3000
 ENV PORT=3000
