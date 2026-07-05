@@ -19,7 +19,12 @@
  *
  * Logo resolution: municipalLogoKey / partnerLogoKey are fetched from S3 and
  * returned as data URIs for inline embedding in the print body. A missing or
- * inaccessible logo resolves to null — the renderer degrades gracefully.
+ * inaccessible municipal logo resolves to null — the renderer degrades
+ * gracefully. The partner logo NEVER resolves to null: when no
+ * partnerLogoKey is set (including the APP_DEFAULT_TEMPLATE path) or the S3
+ * fetch fails, it falls back to the bundled BLUE_ALLIANCE_DEFAULT_LOGO_DATA_URI
+ * — honoring the editor form's "leave empty to use Blue Alliance default"
+ * promise (report-template-form.tsx).
  *
  * The 5 charts call Prisma directly (SSR path — no tRPC HTTP overhead).
  * buildEventBreakdownWithCoords from the reportMap router is imported for the
@@ -33,6 +38,7 @@ import {
   photoAssetIdsFrom,
 } from "@/server/trpc/routers/reportMap";
 import { pointsFromTrackGeojson } from "@/server/trpc/routers/map";
+import { BLUE_ALLIANCE_DEFAULT_LOGO_DATA_URI } from "@/server/report-map-report/assets/blue-alliance-default-logo";
 
 // ─── Shared point shape ──────────────────────────────────────────────────────
 
@@ -159,7 +165,8 @@ export interface ReportMapTemplate {
   reportTitle: string;
   footerNotes: string | null;
   municipalLogoDataUri: string | null;
-  partnerLogoDataUri: string | null;
+  /** Never null — falls back to the bundled Blue Alliance default logo. */
+  partnerLogoDataUri: string;
 }
 
 export interface ReportMapReportData {
@@ -374,10 +381,12 @@ export async function getReportMapReportData(
 
   // 4. Fetch logos + all chart data concurrently (logos and charts are independent)
   const [
-    [municipalLogoDataUri, partnerLogoDataUri],
+    [municipalLogoDataUri, resolvedPartnerLogoDataUri],
     [breakdown, allEventRows, patrolRows, trackRows],
   ] = await Promise.all([
-    // Logo S3 reads — null on missing or S3 error (graceful degradation)
+    // Logo S3 reads — null on missing or S3 error (graceful degradation).
+    // Partner logo is coalesced to the bundled Blue Alliance default below —
+    // it must never reach the renderer as null.
     Promise.all([
       resolveLogoDataUri(templateSource.municipalLogoKey),
       resolveLogoDataUri(templateSource.partnerLogoKey),
@@ -454,6 +463,13 @@ export async function getReportMapReportData(
       }),
     ]),
   ] as const);
+
+  // Partner logo default fallback: the editor form promises "leave empty to
+  // use Blue Alliance default" (report-template-form.tsx) — honor it here so
+  // partnerLogoDataUri is NEVER null, covering: no partnerLogoKey set, an
+  // S3-fetch failure, and the APP_DEFAULT_TEMPLATE fallback path.
+  const partnerLogoDataUri =
+    resolvedPartnerLogoDataUri ?? BLUE_ALLIANCE_DEFAULT_LOGO_DATA_URI;
 
   const template: ReportMapTemplate = {
     id: templateSource.id,

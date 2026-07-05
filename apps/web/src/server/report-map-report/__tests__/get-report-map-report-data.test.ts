@@ -37,6 +37,7 @@ import {
   getReportMapReportData,
   parseReportMapParams,
 } from "../get-report-map-report-data";
+import { BLUE_ALLIANCE_DEFAULT_LOGO_DATA_URI } from "../assets/blue-alliance-default-logo";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -252,7 +253,9 @@ describe("getReportMapReportData", () => {
     expect(result.template.id).toBeNull();
     expect(result.template.reportTitle).toBe("Marine Guardian Report");
     expect(result.template.municipalLogoDataUri).toBeNull();
-    expect(result.template.partnerLogoDataUri).toBeNull();
+    // APP_DEFAULT_TEMPLATE has no partnerLogoKey → falls back to the bundled
+    // Blue Alliance default logo, never null.
+    expect(result.template.partnerLogoDataUri).toBe(BLUE_ALLIANCE_DEFAULT_LOGO_DATA_URI);
   });
 
   // ── 5-chart shape ──────────────────────────────────────────────────────────
@@ -380,8 +383,49 @@ describe("getReportMapReportData", () => {
     expect(result.template.footerNotes).toBe("Confidential");
     // municipalLogoKey is set → resolves to a data: URL
     expect(result.template.municipalLogoDataUri).toMatch(/^data:image\/png;base64,/);
-    // partnerLogoKey is null → no S3 fetch, dataUri is null
-    expect(result.template.partnerLogoDataUri).toBeNull();
+    // partnerLogoKey is null → no S3 fetch, falls back to the bundled Blue
+    // Alliance default logo (never null).
+    expect(result.template.partnerLogoDataUri).toBe(BLUE_ALLIANCE_DEFAULT_LOGO_DATA_URI);
+  });
+
+  it("uses the uploaded partner logo when partnerLogoKey is set", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValue(TENANT_ROW as never);
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValue(EXPORT_ROW as never);
+    vi.mocked(prisma.reportTemplate.findFirst).mockResolvedValue({
+      ...TEMPLATE_ROW,
+      partnerLogoKey: "logos/tenant_a/partner.png",
+    } as never);
+    vi.mocked(buildEventBreakdownWithCoords).mockResolvedValue(EMPTY_BREAKDOWN);
+    vi.mocked(prisma.event.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([] as never);
+    vi.mocked(getImageBytes).mockResolvedValue(Buffer.from("uploaded-partner-bytes"));
+
+    const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(result).not.toBeNull();
+    if (!result) return;
+    // Uploaded partner logo present → used verbatim, NOT the bundled default.
+    expect(result.template.partnerLogoDataUri).toMatch(/^data:image\/png;base64,/);
+    expect(result.template.partnerLogoDataUri).not.toBe(BLUE_ALLIANCE_DEFAULT_LOGO_DATA_URI);
+  });
+
+  it("falls back to the Blue Alliance default when the partner logo S3 fetch fails", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValue(TENANT_ROW as never);
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValue(EXPORT_ROW as never);
+    vi.mocked(prisma.reportTemplate.findFirst).mockResolvedValue({
+      ...TEMPLATE_ROW,
+      partnerLogoKey: "logos/tenant_a/partner.png",
+    } as never);
+    vi.mocked(buildEventBreakdownWithCoords).mockResolvedValue(EMPTY_BREAKDOWN);
+    vi.mocked(prisma.event.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([] as never);
+    vi.mocked(getImageBytes).mockRejectedValue(new Error("S3 unavailable"));
+
+    const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(result).not.toBeNull();
+    if (!result) return;
+    expect(result.template.partnerLogoDataUri).toBe(BLUE_ALLIANCE_DEFAULT_LOGO_DATA_URI);
   });
 
   it("resolves jpeg logo key to data:image/jpeg dataUri", async () => {
