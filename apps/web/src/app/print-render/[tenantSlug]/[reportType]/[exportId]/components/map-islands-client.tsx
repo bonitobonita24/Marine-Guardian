@@ -16,7 +16,11 @@
  */
 
 import dynamic from "next/dynamic";
-import type { ReportMapEventPoint, ReportMapTrackRow } from "@/server/report-map-report/get-report-map-report-data";
+import type {
+  ReportMapBounds,
+  ReportMapEventPoint,
+  ReportMapTrackRow,
+} from "@/server/report-map-report/get-report-map-report-data";
 
 const EventPointsMapDynamic = dynamic(
   () =>
@@ -35,10 +39,12 @@ const PatrolTracksMapDynamic = dynamic(
 interface EventPointsMapProps {
   points: ReportMapEventPoint[];
   markerColor?: string;
+  municipalityBounds?: ReportMapBounds | null;
 }
 
 interface PatrolTracksMapProps {
   tracks: ReportMapTrackRow[];
+  municipalityBounds?: ReportMapBounds | null;
 }
 
 export function EventPointsMap(props: EventPointsMapProps) {

@@ -18,7 +18,10 @@
 import "leaflet/dist/leaflet.css";
 import { useEffect, useRef } from "react";
 import { MapContainer, Polyline, TileLayer, useMap } from "react-leaflet";
-import type { ReportMapTrackRow } from "@/server/report-map-report/get-report-map-report-data";
+import type {
+  ReportMapBounds,
+  ReportMapTrackRow,
+} from "@/server/report-map-report/get-report-map-report-data";
 
 declare global {
   interface Window {
@@ -30,6 +33,10 @@ declare global {
 
 interface PatrolTracksMapProps {
   tracks: ReportMapTrackRow[];
+  /** When set (report scoped to one municipality), the map frames this area
+   *  instead of fitting to the track paths — fixes the whole-region /
+   *  empty-ocean-margin view on a single-municipality report. */
+  municipalityBounds?: ReportMapBounds | null;
 }
 
 function MapReadySignal({ hasAnyOverlay }: { hasAnyOverlay: boolean }) {
@@ -74,9 +81,29 @@ function MapReadySignal({ hasAnyOverlay }: { hasAnyOverlay: boolean }) {
   return null;
 }
 
-function AutoFitBounds({ tracks }: { tracks: ReportMapTrackRow[] }) {
+function AutoFitBounds({
+  tracks,
+  municipalityBounds,
+}: {
+  tracks: ReportMapTrackRow[];
+  municipalityBounds?: ReportMapBounds | null;
+}) {
   const map = useMap();
   useEffect(() => {
+    // A specific municipality is in scope — always frame it, even when there
+    // are 0/1 renderable tracks (the case that used to fall through to the
+    // fixed whole-region fallback).
+    if (municipalityBounds) {
+      const { south, west, north, east } = municipalityBounds;
+      map.fitBounds(
+        [
+          [south, west],
+          [north, east],
+        ],
+        { padding: [16, 16], maxZoom: 13 },
+      );
+      return;
+    }
     const points: Array<[number, number]> = [];
     for (const t of tracks) {
       for (const pt of t.path) {
@@ -85,11 +112,14 @@ function AutoFitBounds({ tracks }: { tracks: ReportMapTrackRow[] }) {
     }
     if (points.length < 2) return;
     map.fitBounds(points, { padding: [16, 16] });
-  }, [map, tracks]);
+  }, [map, tracks, municipalityBounds]);
   return null;
 }
 
-export function PatrolTracksMap({ tracks }: PatrolTracksMapProps) {
+export function PatrolTracksMap({
+  tracks,
+  municipalityBounds = null,
+}: PatrolTracksMapProps) {
   const renderableTracks = tracks.filter((t) => t.path.length > 1);
   const hasTracks = renderableTracks.length > 0;
 
@@ -119,7 +149,10 @@ export function PatrolTracksMap({ tracks }: PatrolTracksMapProps) {
             pathOptions={{ color: "#1f2937", weight: 2, opacity: 0.85 }}
           />
         ))}
-        <AutoFitBounds tracks={renderableTracks} />
+        <AutoFitBounds
+          tracks={renderableTracks}
+          municipalityBounds={municipalityBounds}
+        />
         <MapReadySignal hasAnyOverlay={hasTracks} />
       </MapContainer>
       {!hasTracks && (

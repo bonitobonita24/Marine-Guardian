@@ -10,6 +10,7 @@ vi.mock("@marine-guardian/db", () => ({
     event: { findMany: vi.fn() },
     patrol: { findMany: vi.fn() },
     patrolTrack: { findMany: vi.fn() },
+    municipality: { findUnique: vi.fn() },
   },
 }));
 
@@ -36,6 +37,7 @@ import { pointsFromTrackGeojson } from "@/server/trpc/routers/map";
 import {
   getReportMapReportData,
   parseReportMapParams,
+  unionGeometryBounds,
 } from "../get-report-map-report-data";
 import { BLUE_ALLIANCE_DEFAULT_LOGO_DATA_URI } from "../assets/blue-alliance-default-logo";
 
@@ -117,6 +119,7 @@ function setupHappyPath() {
   vi.mocked(prisma.event.findMany).mockResolvedValue([] as never);
   vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
   vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([] as never);
+  vi.mocked(prisma.municipality.findUnique).mockResolvedValue(null);
   vi.mocked(getImageBytes).mockResolvedValue(Buffer.from("fake-png-data"));
 }
 
@@ -490,5 +493,188 @@ describe("getReportMapReportData", () => {
     expect(series[1]?.count).toBe(1);
     expect(series[2]?.date).toBe("2026-05-03");
     expect(series[2]?.count).toBe(0);
+  });
+
+  // ── municipalityBounds ─────────────────────────────────────────────────────
+
+  it("returns null municipalityBounds when no municipalityId is set", async () => {
+    setupHappyPath();
+    const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(result).not.toBeNull();
+    if (!result) return;
+    expect(result.municipalityBounds).toBeNull();
+    expect(prisma.municipality.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("returns null municipalityBounds when the municipality has no geometry", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValue(TENANT_ROW as never);
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValue({
+      ...EXPORT_ROW,
+      paramsJson: { ...EXPORT_ROW.paramsJson, municipalityId: "muni_a" },
+    } as never);
+    vi.mocked(prisma.reportTemplate.findFirst).mockResolvedValue(TEMPLATE_ROW as never);
+    vi.mocked(buildEventBreakdownWithCoords).mockResolvedValue(EMPTY_BREAKDOWN);
+    vi.mocked(prisma.event.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.municipality.findUnique).mockResolvedValue(null);
+    vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
+
+    const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(result).not.toBeNull();
+    if (!result) return;
+    expect(result.municipalityBounds).toBeNull();
+    expect(prisma.municipality.findUnique).toHaveBeenCalledWith({
+      where: { id: "muni_a" },
+      select: { boundaryGeojson: true, waterGeojson: true },
+    });
+  });
+
+  it("computes municipalityBounds from boundaryGeojson + waterGeojson when municipalityId resolves", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValue(TENANT_ROW as never);
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValue({
+      ...EXPORT_ROW,
+      paramsJson: { ...EXPORT_ROW.paramsJson, municipalityId: "muni_a" },
+    } as never);
+    vi.mocked(prisma.reportTemplate.findFirst).mockResolvedValue(TEMPLATE_ROW as never);
+    vi.mocked(buildEventBreakdownWithCoords).mockResolvedValue(EMPTY_BREAKDOWN);
+    vi.mocked(prisma.event.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.municipality.findUnique).mockResolvedValue({
+      boundaryGeojson: {
+        type: "Polygon",
+        coordinates: [
+          [
+            [121.0, 13.0],
+            [121.2, 13.0],
+            [121.2, 13.2],
+            [121.0, 13.2],
+            [121.0, 13.0],
+          ],
+        ],
+      },
+      // Coastal waters extend further east/south than the land boundary.
+      waterGeojson: {
+        type: "MultiPolygon",
+        coordinates: [
+          [
+            [
+              [121.0, 12.8],
+              [121.4, 12.8],
+              [121.4, 13.0],
+              [121.0, 13.0],
+              [121.0, 12.8],
+            ],
+          ],
+        ],
+      },
+    } as never);
+    vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
+
+    const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(result).not.toBeNull();
+    if (!result) return;
+    // Union of boundary (13.0–13.2 lat, 121.0–121.2 lon) and water
+    // (12.8–13.0 lat, 121.0–121.4 lon).
+    expect(result.municipalityBounds).toEqual({
+      south: 12.8,
+      west: 121.0,
+      north: 13.2,
+      east: 121.4,
+    });
+  });
+});
+
+// ─── unionGeometryBounds ──────────────────────────────────────────────────────
+
+describe("unionGeometryBounds", () => {
+  it("computes bounds from a single Polygon", () => {
+    const polygon = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [121.0, 13.0],
+          [121.5, 13.0],
+          [121.5, 13.5],
+          [121.0, 13.5],
+          [121.0, 13.0],
+        ],
+      ],
+    };
+    expect(unionGeometryBounds(polygon)).toEqual({
+      south: 13.0,
+      west: 121.0,
+      north: 13.5,
+      east: 121.5,
+    });
+  });
+
+  it("unions a MultiPolygon across multiple parts", () => {
+    const multi = {
+      type: "MultiPolygon",
+      coordinates: [
+        [
+          [
+            [121.0, 13.0],
+            [121.2, 13.0],
+            [121.2, 13.2],
+            [121.0, 13.2],
+            [121.0, 13.0],
+          ],
+        ],
+        [
+          [
+            [122.0, 14.0],
+            [122.3, 14.0],
+            [122.3, 14.3],
+            [122.0, 14.3],
+            [122.0, 14.0],
+          ],
+        ],
+      ],
+    };
+    expect(unionGeometryBounds(multi)).toEqual({
+      south: 13.0,
+      west: 121.0,
+      north: 14.3,
+      east: 122.3,
+    });
+  });
+
+  it("unions across multiple geometry arguments", () => {
+    const a = { type: "Polygon", coordinates: [[[121.0, 13.0], [121.1, 13.1]]] };
+    const b = { type: "Polygon", coordinates: [[[120.5, 12.5], [121.0, 13.0]]] };
+    expect(unionGeometryBounds(a, b)).toEqual({
+      south: 12.5,
+      west: 120.5,
+      north: 13.1,
+      east: 121.1,
+    });
+  });
+
+  it("returns null for empty, null, or malformed geometry", () => {
+    expect(unionGeometryBounds(null)).toBeNull();
+    expect(unionGeometryBounds(undefined)).toBeNull();
+    expect(unionGeometryBounds({})).toBeNull();
+    expect(unionGeometryBounds({ type: "Polygon", coordinates: [] })).toBeNull();
+    expect(unionGeometryBounds("not-geojson")).toBeNull();
+  });
+
+  it("returns null when called with no geometries", () => {
+    expect(unionGeometryBounds()).toBeNull();
+  });
+
+  it("ignores a null geometry argument mixed with a valid one", () => {
+    const polygon = {
+      type: "Polygon",
+      coordinates: [[[121.0, 13.0], [121.5, 13.5]]],
+    };
+    expect(unionGeometryBounds(polygon, null)).toEqual({
+      south: 13.0,
+      west: 121.0,
+      north: 13.5,
+      east: 121.5,
+    });
   });
 });

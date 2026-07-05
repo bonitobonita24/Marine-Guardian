@@ -19,7 +19,10 @@
 import "leaflet/dist/leaflet.css";
 import { useEffect, useRef } from "react";
 import { CircleMarker, MapContainer, TileLayer, useMap } from "react-leaflet";
-import type { ReportMapEventPoint } from "@/server/report-map-report/get-report-map-report-data";
+import type {
+  ReportMapBounds,
+  ReportMapEventPoint,
+} from "@/server/report-map-report/get-report-map-report-data";
 
 declare global {
   interface Window {
@@ -35,6 +38,10 @@ declare global {
 interface EventPointsMapProps {
   points: ReportMapEventPoint[];
   markerColor?: string;
+  /** When set (report scoped to one municipality), the map frames this area
+   *  instead of fitting to the data points — fixes the whole-region /
+   *  empty-ocean-margin view on a single-municipality report. */
+  municipalityBounds?: ReportMapBounds | null;
 }
 
 function MapReadySignal({ hasAnyOverlay }: { hasAnyOverlay: boolean }) {
@@ -80,19 +87,40 @@ function MapReadySignal({ hasAnyOverlay }: { hasAnyOverlay: boolean }) {
   return null;
 }
 
-function AutoFitBounds({ points }: { points: ReportMapEventPoint[] }) {
+function AutoFitBounds({
+  points,
+  municipalityBounds,
+}: {
+  points: ReportMapEventPoint[];
+  municipalityBounds?: ReportMapBounds | null;
+}) {
   const map = useMap();
   useEffect(() => {
+    // A specific municipality is in scope — always frame it, even when there
+    // are 0/1 located event points (the case that used to fall through to
+    // the fixed whole-region fallback).
+    if (municipalityBounds) {
+      const { south, west, north, east } = municipalityBounds;
+      map.fitBounds(
+        [
+          [south, west],
+          [north, east],
+        ],
+        { padding: [16, 16], maxZoom: 13 },
+      );
+      return;
+    }
     if (points.length < 2) return;
     const latLngs = points.map((p) => [p.lat, p.lon] as [number, number]);
     map.fitBounds(latLngs, { padding: [16, 16] });
-  }, [map, points]);
+  }, [map, points, municipalityBounds]);
   return null;
 }
 
 export function EventPointsMap({
   points,
   markerColor = "#2563eb",
+  municipalityBounds = null,
 }: EventPointsMapProps) {
   return (
     <div
@@ -124,7 +152,7 @@ export function EventPointsMap({
             }}
           />
         ))}
-        <AutoFitBounds points={points} />
+        <AutoFitBounds points={points} municipalityBounds={municipalityBounds} />
         <MapReadySignal hasAnyOverlay={points.length > 0} />
       </MapContainer>
       {points.length === 0 && (

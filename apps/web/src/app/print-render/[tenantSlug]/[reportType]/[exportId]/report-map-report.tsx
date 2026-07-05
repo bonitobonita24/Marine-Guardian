@@ -788,6 +788,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
                 <EventPointsMap
                   points={lawPoints}
                   markerColor="#dc2626"
+                  municipalityBounds={data.municipalityBounds}
                 />
               </figure>
             </div>
@@ -848,6 +849,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
                 <EventPointsMap
                   points={monPoints}
                   markerColor="#0891b2"
+                  municipalityBounds={data.municipalityBounds}
                 />
               </figure>
             </div>
@@ -907,6 +909,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
                 <EventPointsMap
                   points={data.charts.highPriority.points}
                   markerColor="#ea580c"
+                  municipalityBounds={data.municipalityBounds}
                 />
               </figure>
             </div>
@@ -980,7 +983,10 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
                     </tbody>
                   </table>
                 </figcaption>
-                <PatrolTracksMap tracks={data.charts.patrolList.tracks} />
+                <PatrolTracksMap
+                  tracks={data.charts.patrolList.tracks}
+                  municipalityBounds={data.municipalityBounds}
+                />
               </figure>
             </div>
           </div>
@@ -1059,6 +1065,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
                 <EventPointsMap
                   points={data.charts.eventsOverTime.overviewPoints}
                   markerColor="#2563eb"
+                  municipalityBounds={data.municipalityBounds}
                 />
               </figure>
             </div>

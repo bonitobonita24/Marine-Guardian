@@ -169,6 +169,15 @@ export interface ReportMapTemplate {
   partnerLogoDataUri: string;
 }
 
+/** Lat/lon bounding box, in plain-number form (serializable across the RSC
+ *  boundary — unlike a Leaflet LatLngBounds instance). */
+export interface ReportMapBounds {
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+}
+
 export interface ReportMapReportData {
   tenant: {
     id: string;
@@ -184,6 +193,11 @@ export interface ReportMapReportData {
   };
   generatedAt: Date;
   template: ReportMapTemplate;
+  /** Set when filter.municipalityId resolves to a Municipality with geometry
+   *  (boundaryGeojson ∪ waterGeojson). Null for an "All municipalities" /
+   *  regional report, or when the municipality has no geometry — the print
+   *  maps then keep the existing fit-to-data-points behavior. */
+  municipalityBounds: ReportMapBounds | null;
   charts: {
     lawEnforcement: LawEnforcementChartData;
     monitoring: MonitoringChartData;
@@ -253,6 +267,62 @@ async function resolveLogoDataUri(key: string | null | undefined): Promise<strin
   } catch {
     return null;
   }
+}
+
+// ─── Municipality bounds helper ──────────────────────────────────────────────
+
+/**
+ * Flatten every [lon, lat] coordinate out of a Polygon / MultiPolygon geometry.
+ * Mirrors the tolerant recursive walker in components/map/InteractiveMap.tsx
+ * (geometryCoordinates) — GeoJSON coordinates are [lon, lat].
+ */
+function geometryCoordinates(geometry: unknown): [number, number][] {
+  const out: [number, number][] = [];
+  const walk = (node: unknown): void => {
+    if (!Array.isArray(node)) return;
+    if (
+      node.length >= 2 &&
+      typeof node[0] === "number" &&
+      typeof node[1] === "number"
+    ) {
+      out.push([node[0], node[1]]);
+      return;
+    }
+    for (const child of node) walk(child);
+  };
+  if (typeof geometry === "object" && geometry !== null) {
+    walk((geometry as { coordinates?: unknown }).coordinates);
+  }
+  return out;
+}
+
+/**
+ * Union every coordinate from one or more GeoJSON geometries (Polygon /
+ * MultiPolygon, loosely typed as stored in Prisma Json columns) into a single
+ * lat/lon bounding box. Returns null when no well-formed coordinate was
+ * found in any input geometry — callers fall back to the data-point fit.
+ */
+export function unionGeometryBounds(
+  ...geometries: unknown[]
+): ReportMapBounds | null {
+  let south = Number.POSITIVE_INFINITY;
+  let west = Number.POSITIVE_INFINITY;
+  let north = Number.NEGATIVE_INFINITY;
+  let east = Number.NEGATIVE_INFINITY;
+  let found = false;
+
+  for (const geometry of geometries) {
+    for (const [lon, lat] of geometryCoordinates(geometry)) {
+      found = true;
+      if (lat < south) south = lat;
+      if (lat > north) north = lat;
+      if (lon < west) west = lon;
+      if (lon > east) east = lon;
+    }
+  }
+
+  if (!found) return null;
+  return { south, west, north, east };
 }
 
 // ─── Day-key helper (mirrors reportMap.ts local fn) ──────────────────────────
@@ -379,10 +449,12 @@ export async function getReportMapReportData(
     patrolFilter.coveredZones = { some: { protectedZoneId: params.protectedZoneId } };
   }
 
-  // 4. Fetch logos + all chart data concurrently (logos and charts are independent)
+  // 4. Fetch logos + all chart data + municipality geometry concurrently
+  // (all independent reads).
   const [
     [municipalLogoDataUri, resolvedPartnerLogoDataUri],
     [breakdown, allEventRows, patrolRows, trackRows],
+    municipalityGeometry,
   ] = await Promise.all([
     // Logo S3 reads — null on missing or S3 error (graceful degradation).
     // Partner logo is coalesced to the bundled Blue Alliance default below —
@@ -462,7 +534,23 @@ export async function getReportMapReportData(
         },
       }),
     ]),
+    // Municipality boundary + water geometry — only when the report is
+    // scoped to a specific municipality. Feeds municipalityBounds below so
+    // the print maps frame that municipality instead of the whole region.
+    params.municipalityId !== undefined
+      ? prisma.municipality.findUnique({
+          where: { id: params.municipalityId },
+          select: { boundaryGeojson: true, waterGeojson: true },
+        })
+      : Promise.resolve(null),
   ] as const);
+
+  const municipalityBounds: ReportMapBounds | null = municipalityGeometry
+    ? unionGeometryBounds(
+        municipalityGeometry.boundaryGeojson,
+        municipalityGeometry.waterGeojson,
+      )
+    : null;
 
   // Partner logo default fallback: the editor form promises "leave empty to
   // use Blue Alliance default" (report-template-form.tsx) — honor it here so
@@ -667,6 +755,7 @@ export async function getReportMapReportData(
     filter: filterInput,
     generatedAt: new Date(),
     template,
+    municipalityBounds,
     charts: {
       lawEnforcement,
       monitoring,
