@@ -16,7 +16,9 @@
  *                                        force their own page break)
  *
  * Every page carries:
- *   Header — municipal logo LEFT · reportTitle CENTRE · partner logo RIGHT
+ *   Header — one centred cluster: municipal logo · reportTitle · partner
+ *            logo, flanking the title and grouped/centred together (not
+ *            pinned to the far page margins)
  *   Footer — footerNotes · generated-at · page N of 10
  * All values come from the resolved template payload — nothing hardcoded.
  *
@@ -144,36 +146,35 @@ function PageHeader({
 }: HeaderProps) {
   return (
     <header className="page-header" role="banner">
-      <div className="header-logo-slot">
-        {municipalLogoDataUri !== null ? (
-          <img
-            src={municipalLogoDataUri}
-            alt="Municipal logo"
-            className="header-logo"
-          />
-        ) : (
-          <div className="header-logo-placeholder" aria-hidden="true" />
-        )}
-      </div>
-      <div className="header-center">
-        <h1 className="report-title">{reportTitle}</h1>
-        <p className="report-subtitle">
-          {tenantName} &middot; {period}
-        </p>
-      </div>
-      <div
-        className="header-logo-slot"
-        style={{ justifyContent: "flex-end" }}
-      >
-        {partnerLogoDataUri !== null ? (
-          <img
-            src={partnerLogoDataUri}
-            alt="Blue Alliance logo"
-            className="header-logo"
-          />
-        ) : (
-          <div className="header-logo-placeholder" aria-hidden="true" />
-        )}
+      <div className="header-cluster">
+        <div className="header-logo-slot">
+          {municipalLogoDataUri !== null ? (
+            <img
+              src={municipalLogoDataUri}
+              alt="Municipal logo"
+              className="header-logo"
+            />
+          ) : (
+            <div className="header-logo-placeholder" aria-hidden="true" />
+          )}
+        </div>
+        <div className="header-center">
+          <h1 className="report-title">{reportTitle}</h1>
+          <p className="report-subtitle">
+            {tenantName} &middot; {period}
+          </p>
+        </div>
+        <div className="header-logo-slot">
+          {partnerLogoDataUri !== null ? (
+            <img
+              src={partnerLogoDataUri}
+              alt="Blue Alliance logo"
+              className="header-logo"
+            />
+          ) : (
+            <div className="header-logo-placeholder" aria-hidden="true" />
+          )}
+        </div>
       </div>
     </header>
   );
@@ -498,8 +499,14 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
       background: #fff !important;
       margin: 0; padding: 0; font-size: 11px; line-height: 1.4;
     }
-    .report-section { padding: 8px 14px 4px; page: main-page; }
-    .report-section-list { padding: 8px 14px 4px; page: list-page; break-before: page; page-break-before: always; }
+    /* Print-friendly L/R body margin (owner directive 2026-07-05): 24px
+       horizontal padding on every section keeps chart/map/table content off
+       the physical page edge, independent of the @page 12mm paper margin
+       above (that margin is Chromium's print-area inset; this is the
+       visual breathing room WITHIN that print area). Symmetric left/right
+       so nothing reads as accidentally off-centre. */
+    .report-section { padding: 8px 24px 4px; page: main-page; }
+    .report-section-list { padding: 8px 24px 4px; page: list-page; break-before: page; page-break-before: always; }
     .report-section-list.event-list { page: event-list-page; }
     ${isOnePer
       ? ".report-section + .report-section { page-break-before: always; break-before: page; }"
@@ -508,14 +515,24 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
        start fresh (orientation is switching back from portrait to the main
        layout size) — independent of the isOnePer/continuous template mode. */
     .report-section-list + .report-section { page-break-before: always; break-before: page; }
+    /* Header cluster (owner directive 2026-07-05): municipal logo, title
+       block, and Blue Alliance logo render as ONE centred group — logos sit
+       immediately beside the title instead of pinned to the far page
+       margins. .page-header centres the whole cluster; .header-cluster is
+       a plain content-sized flex row so the logos hug the title rather
+       than being pushed apart by justify-content: space-between. */
     .page-header {
-      display: flex; justify-content: space-between; align-items: center;
-      border-bottom: 2px solid #0f766e; padding-bottom: 8px; margin-bottom: 10px; gap: 8px;
+      display: flex; justify-content: center; align-items: center;
+      border-bottom: 2px solid #0f766e; padding-bottom: 8px; margin-bottom: 10px;
     }
-    .header-logo-slot { flex: 0 0 80px; display: flex; align-items: center; }
+    .header-cluster {
+      display: flex; align-items: center; justify-content: center; gap: 16px;
+      max-width: 100%;
+    }
+    .header-logo-slot { flex: 0 0 auto; display: flex; align-items: center; }
     .header-logo { max-height: 40px; max-width: 80px; object-fit: contain; }
     .header-logo-placeholder { width: 80px; height: 40px; }
-    .header-center { flex: 1 1 auto; text-align: center; }
+    .header-center { flex: 0 1 auto; text-align: center; }
     h1.report-title { font-size: 14px; font-weight: 700; margin: 0 0 2px; color: #0f766e; }
     p.report-subtitle { font-size: 9px; color: #6b7280; margin: 0; }
     h2.section-heading { font-size: 12px; font-weight: 600; color: #374151; margin: 0 0 6px; }
