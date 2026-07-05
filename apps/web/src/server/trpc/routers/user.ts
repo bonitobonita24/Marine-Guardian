@@ -10,7 +10,13 @@ import { TRPCError } from "@trpc/server";
 
 const BCRYPT_ROUNDS = 12;
 
-const userRoleSchema = z.enum(["super_admin", "site_admin", "field_coordinator", "operator"]);
+const userRoleSchema = z.enum([
+  "super_admin",
+  "site_admin",
+  "field_coordinator",
+  "operator",
+  "viewer",
+]);
 
 export const userRouter = router({
   create: adminProcedure
@@ -152,7 +158,13 @@ export const userRouter = router({
     .input(
       z.object({
         id: z.string(),
-        role: z.enum(["super_admin", "site_admin", "field_coordinator", "operator"]),
+        role: z.enum([
+          "super_admin",
+          "site_admin",
+          "field_coordinator",
+          "operator",
+          "viewer",
+        ]),
       })
     )
     .mutation(async ({ ctx, input }) => {

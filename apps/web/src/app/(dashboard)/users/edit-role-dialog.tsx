@@ -20,13 +20,19 @@ import {
 } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc/client";
 
-type UserRole = "super_admin" | "site_admin" | "field_coordinator" | "operator";
+type UserRole =
+  | "super_admin"
+  | "site_admin"
+  | "field_coordinator"
+  | "operator"
+  | "viewer";
 
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: "super_admin", label: "Super Admin" },
   { value: "site_admin", label: "Site Admin" },
   { value: "field_coordinator", label: "Field Coordinator" },
   { value: "operator", label: "Operator" },
+  { value: "viewer", label: "Viewer" },
 ];
 
 interface EditRoleDialogProps {

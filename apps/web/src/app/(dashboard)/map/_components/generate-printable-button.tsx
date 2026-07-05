@@ -8,10 +8,16 @@
 // is open), defaults to the tenant's isDefault template. On confirm calls
 // reportExport.create with reportType:'report_map' + current live filter from
 // report-filter-context. Server RBAC enforced by coordinatorProcedure in the
-// reportExport.create handler — no client-side role gate needed here.
+// reportExport.create handler.
+//
+// viewer role (2026-07-05): read-only, cannot generate reports (reportExport.
+// create is coordinatorProcedure — a viewer session gets FORBIDDEN if it ever
+// reached the mutation). Hidden client-side too so the CTA never renders on
+// this otherwise-viewer-visible page.
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,6 +33,7 @@ import { trpc } from "@/lib/trpc/client";
 import { useReportFilter } from "@/components/reporting/report-filter-context";
 
 export function GeneratePrintableButton() {
+  const { data: session } = useSession();
   const { from, to, municipalityId, protectedZoneId } = useReportFilter();
   const [open, setOpen] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
@@ -79,6 +86,11 @@ export function GeneratePrintableButton() {
   // Ensure the timeout is always cancelled on unmount to prevent setState
   // being called on an unmounted component if the user navigates away.
   useEffect(() => clearRequestTimeout, []);
+
+  const roles = session?.user.roles ?? [];
+  if (roles.includes("viewer")) {
+    return null;
+  }
 
   function handleConfirm() {
     setFeedback(null);

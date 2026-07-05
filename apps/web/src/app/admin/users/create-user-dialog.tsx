@@ -22,7 +22,12 @@ import {
 } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc/client";
 
-type UserRole = "super_admin" | "site_admin" | "field_coordinator" | "operator";
+type UserRole =
+  | "super_admin"
+  | "site_admin"
+  | "field_coordinator"
+  | "operator"
+  | "viewer";
 
 export function CreateUserDialog() {
   const [open, setOpen] = useState(false);
@@ -141,6 +146,7 @@ export function CreateUserDialog() {
                   <SelectItem value="site_admin">Site Admin</SelectItem>
                   <SelectItem value="field_coordinator">Field Coordinator</SelectItem>
                   <SelectItem value="operator">Operator</SelectItem>
+                  <SelectItem value="viewer">Viewer</SelectItem>
                 </SelectContent>
               </Select>
             </div>

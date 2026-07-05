@@ -130,6 +130,21 @@ describe("user.create", () => {
       })
     ).rejects.toThrow(TRPCError);
   });
+
+  // viewer role (2026-07-05) — strictly read-only. It is never listed in
+  // adminProcedure/coordinatorProcedure/operatorProcedure (rbac.ts), so a
+  // viewer session must be rejected FORBIDDEN by this admin-only mutation,
+  // same as any other non-admin role.
+  it("rejects a viewer session with FORBIDDEN", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["viewer"]));
+    await expect(
+      caller.create({
+        email: "new@example.com",
+        fullName: "New User",
+        role: "operator",
+      })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
 });
 
 describe("user.resetPassword", () => {

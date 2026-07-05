@@ -406,6 +406,24 @@ describe("reportExport.create (RBAC + 5.3b pipeline wiring)", () => {
     expect(vi.mocked(enqueuePdfRender)).not.toHaveBeenCalled();
   });
 
+  // viewer role (2026-07-05) — read-only, cannot generate reports. viewer is
+  // never listed in coordinatorProcedure (rbac.ts), so it is rejected exactly
+  // like operator above; this is the /map "Generate Printable" mutation the
+  // viewer's client-side GeneratePrintableButton hides.
+  it("rejects create when role is viewer (viewer cannot generate reports)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["viewer"]));
+
+    await expect(
+      caller.create({
+        reportType: "coverage",
+        paramsJson: {},
+        paperSize: "A4",
+      })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(vi.mocked(prisma.reportExport.create)).not.toHaveBeenCalled();
+    expect(vi.mocked(enqueuePdfRender)).not.toHaveBeenCalled();
+  });
+
   it("enqueues a pdf-render job with the created row's id + tenantId + userId (5.3b wiring)", async () => {
     vi.mocked(prisma.reportExport.create).mockResolvedValue({
       id: "re-enqueue-1",
