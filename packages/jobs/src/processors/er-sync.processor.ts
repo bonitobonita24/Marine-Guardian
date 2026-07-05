@@ -219,6 +219,17 @@ async function syncSubjects(
   return subjects.length;
 }
 
+// Skylight automated vessel-detection events flood MG (~33k of ~35.7k
+// events historically). The reliable marker (established in dashboard.ts:179
+// / reportMap.ts:59) is the event type's `display` containing "skylight"
+// (case-insensitive) — Skylight event types arrive from EarthRanger with
+// eventType.category = "analyzer_event", but display is what's actually
+// checked. Never create/update an Event for a Skylight-display type so a
+// recurring sync can't re-add rows the PM deletes.
+function isSkylightDisplay(display: string | undefined): boolean {
+  return display != null && /skylight/i.test(display);
+}
+
 async function syncEvents(
   client: EarthRangerClient,
   tenantId: string,
@@ -227,7 +238,25 @@ async function syncEvents(
   const events = await client.getEvents(since);
   const now = new Date();
 
+  // Resolve each ER event's `event_type` (a value string, e.g. "poaching")
+  // to its synced EventType.display so the Skylight check can run before any
+  // Event row is touched. EventType is synced separately (syncEventTypes);
+  // an event_type with no matching row (not yet synced) is treated as
+  // non-Skylight and proceeds normally.
+  const eventTypes = await platformPrisma.eventType.findMany({
+    where: { tenantId },
+    select: { value: true, display: true },
+  });
+  const displayByValue = new Map(eventTypes.map((t) => [t.value, t.display]));
+
+  let skippedSkylightCount = 0;
+
   for (const e of events) {
+    if (e.event_type != null && isSkylightDisplay(displayByValue.get(e.event_type))) {
+      skippedSkylightCount++;
+      continue;
+    }
+
     const resolved = await resolveReportedBy(platformPrisma, tenantId, e.reported_by);
     const liveFields = {
       serialNumber: e.serial_number != null ? String(e.serial_number) : null,
@@ -328,7 +357,13 @@ async function syncEvents(
     }
   }
 
-  return events.length;
+  if (skippedSkylightCount > 0) {
+    console.debug(
+      `[er-sync] skipped ${String(skippedSkylightCount)} Skylight event(s) for tenant ${tenantId}`,
+    );
+  }
+
+  return events.length - skippedSkylightCount;
 }
 
 /**

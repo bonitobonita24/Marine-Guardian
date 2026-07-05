@@ -1251,6 +1251,38 @@ describe("event.list — server-side filters (M3)", () => {
     );
   });
 
+  // Skylight automated vessel-detection events must never show in the
+  // Operations List (defense-in-depth alongside the ER-sync ingestion block;
+  // same marker as dashboard.ts:179 / reportMap.ts:59 — eventType.display
+  // contains "skylight", case-insensitive).
+  it("always excludes Skylight-display events via NOT eventType.display filter", async () => {
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50 });
+
+    expect(vi.mocked(prisma.event.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          NOT: { eventType: { display: { contains: "skylight", mode: "insensitive" } } },
+        }),
+      })
+    );
+  });
+
+  it("keeps the Skylight exclusion alongside other filters (state + category)", async () => {
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50, state: "active", category: "Law Enforcement" });
+
+    expect(vi.mocked(prisma.event.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          state: "active",
+          eventType: { category: { equals: "Law Enforcement", mode: "insensitive" } },
+          NOT: { eventType: { display: { contains: "skylight", mode: "insensitive" } } },
+        }),
+      })
+    );
+  });
+
   it("combines state + category + areaName filters in a single where clause", async () => {
     const caller = createCaller(makeCtx());
     await caller.list({

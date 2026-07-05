@@ -161,6 +161,12 @@ export const eventRouter = router({
           ...(input.linkedToActivePatrol === true
             ? { patrol: { is: { state: "open", isDeleted: false } } }
             : {}),
+          // Exclude Skylight automated vessel-detection events from the
+          // Operations List — defense-in-depth alongside the ER-sync
+          // ingestion block (er-sync.processor.ts). Same marker as
+          // dashboard.ts:179 / reportMap.ts:59: the joined eventType.display
+          // contains "skylight" (case-insensitive).
+          NOT: { eventType: { display: { contains: "skylight", mode: "insensitive" } } },
         },
         take: input.limit + 1,
         ...(input.cursor !== undefined ? { cursor: { id: input.cursor } } : {}),
