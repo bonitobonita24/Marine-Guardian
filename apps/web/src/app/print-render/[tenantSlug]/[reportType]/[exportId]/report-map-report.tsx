@@ -93,7 +93,16 @@ function resolveLayout(raw: string): LayoutKey {
 
 function fmtDate(d: Date | undefined | null): string {
   if (!d) return "—";
-  return d.toISOString().slice(0, 10);
+  // +08:00 (Asia/Manila) — same convention as fmtDateTimeLocal below. A range
+  // boundary picked as local midnight is stored as the prior day at 16:00 UTC,
+  // so a raw toISOString() printed the day BEFORE the one the user selected
+  // (e.g. "May 1" → "2026-04-30"). Shift into Manila time before slicing the
+  // calendar date so the printed range matches what was selected on the map.
+  const shifted = new Date(d.getTime() + 480 * 60_000);
+  const y = shifted.getUTCFullYear();
+  const mo = String(shifted.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(shifted.getUTCDate()).padStart(2, "0");
+  return `${String(y)}-${mo}-${day}`;
 }
 
 function fmtDateTimeLocal(d: Date): string {
