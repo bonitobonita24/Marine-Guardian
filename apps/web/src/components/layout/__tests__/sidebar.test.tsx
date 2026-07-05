@@ -143,11 +143,13 @@ describe("Sidebar — viewer role nav filtering", () => {
     cleanup();
   });
 
+  // NOTE: "observations" was removed from the sidebar in T18 (2026-07-06 nav
+  // reorg — PATROLS folded into OPERATIONS, Observations link dropped), so it
+  // is intentionally absent from this "full nav" set.
   const ALL_NAV_LABEL_KEYS = [
     "dashboard",
     "map",
     "events",
-    "observations",
     "notifications",
     "patrols",
     "patrolAreas",

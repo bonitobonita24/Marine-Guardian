@@ -236,7 +236,7 @@ export async function uploadImage(
 ): Promise<UploadImageResult> {
   if (input.body.length > MAX_IMAGE_BYTES) {
     throw new Error(
-      `uploadImage: body size ${input.body.length} exceeds maximum ${MAX_IMAGE_BYTES} bytes`,
+      `uploadImage: body size ${String(input.body.length)} exceeds maximum ${String(MAX_IMAGE_BYTES)} bytes`,
     );
   }
   const client = getClient();
@@ -278,7 +278,9 @@ export async function getImageBytes(
   return new Promise<Buffer>((resolve, reject) => {
     const chunks: Buffer[] = [];
     stream.on("data", (chunk: Buffer) => chunks.push(chunk));
-    stream.on("end", () => resolve(Buffer.concat(chunks)));
+    stream.on("end", () => {
+      resolve(Buffer.concat(chunks));
+    });
     stream.on("error", reject);
   });
 }
