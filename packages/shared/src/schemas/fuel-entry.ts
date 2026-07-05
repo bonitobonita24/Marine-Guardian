@@ -3,10 +3,13 @@ import { z } from "zod";
 /**
  * FuelEntry — Command Center native (per v2 PRODUCT.md §492).
  *
- * Tracks bulk fuel allocations per municipal area. Both `area_name` (free-text
- * snapshot at logging time) and `area_boundary_id` (nullable FK) are stored
- * for resilience: if the boundary is later renamed or deleted, the name
- * survives on the row.
+ * Tracks bulk fuel allocations per municipality. `area_name` is a free-text
+ * snapshot of the selected municipality's name at logging time; `municipality_id`
+ * is the nullable FK the create-fuel-entry dialog now writes (2026-07 —
+ * relabeled from "Area" to "Municipality"). `area_boundary_id` is kept for
+ * back-compat with pre-2026-07 rows but is no longer written by `create`.
+ * Both name/FK pairs survive independently: if the referenced row is later
+ * renamed or deleted, the snapshot name survives on the fuel entry.
  *
  * Numeric fields (`liters`, `total_price`) are PostgreSQL decimal and serialized
  * as strings by Prisma — schema uses `z.string()` to mirror that wire shape;
@@ -17,6 +20,7 @@ export const fuelEntrySchema = z.object({
   tenantId: z.string().cuid(),
   areaName: z.string().min(1).max(200),
   areaBoundaryId: z.string().cuid().nullable(),
+  municipalityId: z.string().cuid().nullable(),
   dateReceived: z.coerce.date(),
   liters: z.string(),
   totalPrice: z.string(),
@@ -52,7 +56,7 @@ const positiveDecimalString = z
 
 export const createFuelEntryInputSchema = z.object({
   areaName: z.string().min(1).max(200),
-  areaBoundaryId: z.string().cuid().nullable(),
+  municipalityId: z.string().cuid().nullable(),
   dateReceived: z.coerce.date(),
   liters: positiveDecimalString,
   totalPrice: positiveDecimalString,
