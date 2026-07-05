@@ -660,6 +660,10 @@ model FuelEntry {
   tenantId        String   @map("tenant_id")
   areaName        String   @map("area_name")
   areaBoundaryId  String?  @map("area_boundary_id")
+  // Kept in addition to areaBoundaryId (legacy/back-compat — not dropped).
+  // Going forward this is the FK the create-fuel-entry dialog writes;
+  // areaName stores the selected municipality's name as the display snapshot.
+  municipalityId  String?  @map("municipality_id")
   dateReceived    DateTime @map("date_received") @db.Date
   liters          Decimal  @db.Decimal(12, 3)
   totalPrice      Decimal  @map("total_price") @db.Decimal(14, 2)
@@ -672,11 +676,13 @@ model FuelEntry {
 
   tenant       Tenant        @relation(fields: [tenantId], references: [id])
   areaBoundary AreaBoundary? @relation(fields: [areaBoundaryId], references: [id], onDelete: SetNull)
+  municipality Municipality? @relation(fields: [municipalityId], references: [id], onDelete: SetNull)
   loggedBy     User          @relation("FuelEntryLoggedBy", fields: [loggedByUserId], references: [id])
 
   @@index([tenantId])
   @@index([tenantId, dateReceived])
   @@index([tenantId, areaBoundaryId])
+  @@index([tenantId, municipalityId])
   @@map("fuel_entries")
 }
 
@@ -1083,6 +1089,7 @@ model Municipality {
   patrols        Patrol[]
   events         Event[]
   protectedZones ProtectedZone[]
+  fuelEntries    FuelEntry[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])

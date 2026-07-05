@@ -221,7 +221,7 @@ export function FuelEntryTable({
           <TableHeader>
             <TableRow>
               <TableHead>Date</TableHead>
-              <TableHead>Area</TableHead>
+              <TableHead>Municipality</TableHead>
               <TableHead className="text-right">Liters</TableHead>
               <TableHead className="text-right">Total Price</TableHead>
               <TableHead>Logged by</TableHead>

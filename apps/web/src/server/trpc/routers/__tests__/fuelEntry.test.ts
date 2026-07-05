@@ -16,6 +16,9 @@ vi.mock("@marine-guardian/db", () => ({
     tenant: {
       findFirst: vi.fn(),
     },
+    municipality: {
+      findFirst: vi.fn(),
+    },
   },
 }));
 
@@ -72,10 +75,12 @@ function makeCtx(
 // Real-shape cuid for areaBoundaryId — zod cuid validator requires a 25-char id
 // starting with 'c'. "ab-1" is rejected; we use a synthetic cuid throughout tests.
 const AB_ID = "cabc123def456ghi789jkl012";
+// Real-shape cuid for municipalityId — same 25-char zod cuid requirement.
+const MUNI_ID = "cmun123def456ghi789jkl012";
 
 const VALID_CREATE_INPUT = {
   areaName: "Solan Bajo",
-  areaBoundaryId: AB_ID,
+  municipalityId: MUNI_ID,
   dateReceived: new Date("2026-05-10"),
   liters: "100.500",
   totalPrice: "1500000.00",
@@ -172,6 +177,9 @@ describe("fuelEntry.create / update / delete (RBAC)", () => {
     vi.mocked(prisma.tenant.findFirst).mockResolvedValue({
       currency: "IDR",
     } as never);
+    vi.mocked(prisma.municipality.findFirst).mockResolvedValue({
+      id: MUNI_ID,
+    } as never);
     vi.mocked(prisma.fuelEntry.create).mockResolvedValue({
       id: "fe-new",
       tenantId: TENANT_ID,
@@ -184,17 +192,72 @@ describe("fuelEntry.create / update / delete (RBAC)", () => {
     const result = await caller.create(VALID_CREATE_INPUT);
 
     expect(result.id).toBe("fe-new");
+    expect(vi.mocked(prisma.municipality.findFirst)).toHaveBeenCalledWith({
+      where: { id: MUNI_ID, tenantId: TENANT_ID },
+      select: { id: true },
+    });
     expect(vi.mocked(prisma.fuelEntry.create)).toHaveBeenCalledWith({
       data: partial<{
         tenantId: string;
+        municipalityId: string;
         loggedByUserId: string;
         currency: string;
       }>({
         tenantId: TENANT_ID,
+        municipalityId: MUNI_ID,
         loggedByUserId: USER_ID,
         currency: "IDR",
       }),
     });
+  });
+
+  it("creates an entry with a null municipalityId without querying municipality", async () => {
+    vi.mocked(prisma.tenant.findFirst).mockResolvedValue({
+      currency: "IDR",
+    } as never);
+    vi.mocked(prisma.fuelEntry.create).mockResolvedValue({
+      id: "fe-new",
+      tenantId: TENANT_ID,
+      loggedByUserId: USER_ID,
+      currency: "IDR",
+    } as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["operator"]));
+    await caller.create({ ...VALID_CREATE_INPUT, municipalityId: null });
+
+    expect(vi.mocked(prisma.municipality.findFirst)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.fuelEntry.create)).toHaveBeenCalledWith({
+      data: partial<{ municipalityId: null }>({ municipalityId: null }),
+    });
+  });
+
+  it("rejects create when municipalityId belongs to another tenant", async () => {
+    vi.mocked(prisma.tenant.findFirst).mockResolvedValue({
+      currency: "IDR",
+    } as never);
+    // findFirst is itself tenant-scoped in the where-clause, so a
+    // cross-tenant municipality id resolves to null (uniform NOT_FOUND-style
+    // behavior — never leaks cross-tenant existence).
+    vi.mocked(prisma.municipality.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx(OTHER_TENANT_ID, ["operator"]));
+    await expect(caller.create(VALID_CREATE_INPUT)).rejects.toThrow(
+      TRPCError,
+    );
+    expect(vi.mocked(prisma.fuelEntry.create)).not.toHaveBeenCalled();
+  });
+
+  it("rejects create when municipalityId does not exist at all", async () => {
+    vi.mocked(prisma.tenant.findFirst).mockResolvedValue({
+      currency: "IDR",
+    } as never);
+    vi.mocked(prisma.municipality.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["operator"]));
+    await expect(caller.create(VALID_CREATE_INPUT)).rejects.toThrow(
+      TRPCError,
+    );
+    expect(vi.mocked(prisma.fuelEntry.create)).not.toHaveBeenCalled();
   });
 
   it("update allows owner to edit their own entry (fuel.edit_own)", async () => {

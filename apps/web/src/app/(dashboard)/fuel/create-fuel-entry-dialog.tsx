@@ -15,7 +15,9 @@ import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -46,7 +48,7 @@ export function CreateFuelEntryDialog({
 }: Props) {
   const utils = trpc.useUtils();
 
-  const [areaBoundaryId, setAreaBoundaryId] = useState<string | null>(null);
+  const [municipalityId, setMunicipalityId] = useState<string | null>(null);
   const [dateReceivedRaw, setDateReceivedRaw] = useState<string>(
     new Date().toISOString().slice(0, 10),
   );
@@ -58,14 +60,25 @@ export function CreateFuelEntryDialog({
     { kind: "success" } | { kind: "error"; message: string } | null
   >(null);
 
-  const areasQuery = trpc.areaBoundary.list.useQuery({
-    limit: 200,
-    isEnabled: true,
-  });
-  const areaOptions = useMemo(() => {
-    const items = areasQuery.data?.items ?? [];
-    return items.map((a) => ({ id: a.id, name: a.name }));
-  }, [areasQuery.data]);
+  const municipalitiesQuery = trpc.municipality.list.useQuery();
+  const municipalityOptions = useMemo(() => {
+    return (municipalitiesQuery.data ?? []).map((m) => ({
+      id: m.id,
+      name: m.name,
+      province: m.province,
+    }));
+  }, [municipalitiesQuery.data]);
+  // Grouped by province — mirrors MapMunicipalitySelect / report-filter-bar's
+  // province-grouped Select pattern (first-appearance order).
+  const provinceGroups = useMemo(() => {
+    const groups = new Map<string, { id: string; name: string }[]>();
+    for (const m of municipalityOptions) {
+      const list = groups.get(m.province) ?? [];
+      list.push({ id: m.id, name: m.name });
+      groups.set(m.province, list);
+    }
+    return [...groups.entries()];
+  }, [municipalityOptions]);
 
   const create = trpc.fuelEntry.create.useMutation({
     onSuccess: () => {
@@ -79,7 +92,7 @@ export function CreateFuelEntryDialog({
   });
 
   function resetForm() {
-    setAreaBoundaryId(null);
+    setMunicipalityId(null);
     setDateReceivedRaw(new Date().toISOString().slice(0, 10));
     setLiters("");
     setTotalPrice("");
@@ -103,13 +116,15 @@ export function CreateFuelEntryDialog({
     setValidationError(null);
     setFeedback(null);
 
-    if (areaBoundaryId === null) {
-      setValidationError("Area is required.");
+    if (municipalityId === null) {
+      setValidationError("Municipality is required.");
       return;
     }
-    const selectedArea = areaOptions.find((a) => a.id === areaBoundaryId);
-    if (selectedArea === undefined) {
-      setValidationError("Selected area is no longer available.");
+    const selectedMunicipality = municipalityOptions.find(
+      (m) => m.id === municipalityId,
+    );
+    if (selectedMunicipality === undefined) {
+      setValidationError("Selected municipality is no longer available.");
       return;
     }
     if (dateReceivedRaw === "") {
@@ -131,8 +146,8 @@ export function CreateFuelEntryDialog({
     }
 
     create.mutate({
-      areaName: selectedArea.name,
-      areaBoundaryId,
+      areaName: selectedMunicipality.name,
+      municipalityId,
       dateReceived,
       liters,
       totalPrice,
@@ -151,7 +166,7 @@ export function CreateFuelEntryDialog({
         <DialogHeader>
           <DialogTitle>Log fuel entry</DialogTitle>
           <DialogDescription>
-            Record a bulk fuel allocation for a patrol area. Liters and
+            Record a bulk fuel allocation for a municipality. Liters and
             total price are mandatory. Receipt photo upload coming in a
             follow-up release.
           </DialogDescription>
@@ -159,24 +174,29 @@ export function CreateFuelEntryDialog({
 
         <div className="grid gap-4">
           <div className="space-y-2">
-            <Label htmlFor="fuel-create-area">Area</Label>
+            <Label htmlFor="fuel-create-municipality">Municipality</Label>
             <Select
-              value={areaBoundaryId ?? ""}
+              value={municipalityId ?? ""}
               onValueChange={(v) => {
-                setAreaBoundaryId(v);
+                setMunicipalityId(v);
               }}
             >
               <SelectTrigger
-                id="fuel-create-area"
-                data-testid="fuel-create-area"
+                id="fuel-create-municipality"
+                data-testid="fuel-create-municipality"
               >
-                <SelectValue placeholder="Select area" />
+                <SelectValue placeholder="Select municipality" />
               </SelectTrigger>
               <SelectContent>
-                {areaOptions.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>
-                    {a.name}
-                  </SelectItem>
+                {provinceGroups.map(([province, items]) => (
+                  <SelectGroup key={province}>
+                    <SelectLabel>{province}</SelectLabel>
+                    {items.map((m) => (
+                      <SelectItem key={m.id} value={m.id} className="pl-6">
+                        {m.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 ))}
               </SelectContent>
             </Select>

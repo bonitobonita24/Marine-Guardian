@@ -100,11 +100,27 @@ export const fuelEntryRouter = router({
           message: "Tenant not found.",
         });
       }
+      // Relabeled "Area" → "Municipality" (2026-07): verify the selected
+      // municipality belongs to this tenant BEFORE writing — mirrors the
+      // tenant-scoping pattern used elsewhere (e.g. createBoundaryFromUpload's
+      // parent-municipality check).
+      if (input.municipalityId !== null) {
+        const municipality = await prisma.municipality.findFirst({
+          where: { id: input.municipalityId, tenantId: ctx.tenantId },
+          select: { id: true },
+        });
+        if (!municipality) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "The selected municipality was not found.",
+          });
+        }
+      }
       return prisma.fuelEntry.create({
         data: {
           tenantId: ctx.tenantId,
           areaName: input.areaName,
-          areaBoundaryId: input.areaBoundaryId,
+          municipalityId: input.municipalityId,
           dateReceived: input.dateReceived,
           liters: input.liters,
           totalPrice: input.totalPrice,
