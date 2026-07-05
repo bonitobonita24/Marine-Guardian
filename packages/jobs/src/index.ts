@@ -22,6 +22,9 @@ export {
   getPdfRenderQueue,
   enqueuePdfRender,
   cancelPdfRender,
+  getPptxRenderQueue,
+  enqueuePptxRender,
+  cancelPptxRender,
   QUEUE_NAMES,
   type QueueName,
   type JobPayloadMap,
@@ -33,6 +36,7 @@ export {
   type AreaRederiveJobPayload,
   type PatrolTrackMaterializeJobPayload,
   type PdfRenderJobPayload,
+  type PptxRenderJobPayload,
 } from "./queues/index";
 
 export {
@@ -48,6 +52,9 @@ export {
   startPdfRenderWorker,
   PDF_RENDER_LIMITER,
   PDF_RENDER_CONCURRENCY,
+  startPptxRenderWorker,
+  PPTX_RENDER_LIMITER,
+  PPTX_RENDER_CONCURRENCY,
 } from "./workers/index";
 
 // 5.3b — re-export the pdf-renderer-client helper. Relocated from
@@ -65,6 +72,11 @@ export {
 // UI list page surfaces filePath + fileSizeBytes from the result row)
 // can reach the type through the stable package boundary.
 export { type RenderResult } from "./processors/pdf-render.processor";
+
+// V-pptx-export — re-export the pptx-render processor's result type, same
+// arc as RenderResult above (apps/web can surface fileSizeBytes etc. from
+// the job result through the stable package boundary).
+export { type PptxRenderResult } from "./processors/pptx-render.processor";
 
 // 5.1c — re-export the area-derivation helper so apps/web (5.1e admin
 // manual-rebuild tRPC mutation) can consume the helper through the

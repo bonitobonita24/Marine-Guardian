@@ -85,6 +85,27 @@ vi.mock("@/lib/trpc/client", () => ({
           isPending: false,
         }),
       },
+      // Stub the on-demand PowerPoint export procedures so ExportRow
+      // children don't blow up during page render (same rationale as
+      // pollStatus/getDownloadUrl above).
+      pollPptxStatus: {
+        useQuery: (
+          _input: { id: string },
+          opts?: { initialData?: unknown },
+        ) => ({
+          data: opts?.initialData,
+          refetch: vi.fn(),
+        }),
+      },
+      renderPptx: {
+        useMutation: () => ({
+          mutate: vi.fn(),
+          isPending: false,
+        }),
+      },
+      getPptxDownloadUrl: {
+        useQuery: () => ({ data: undefined }),
+      },
     },
     useUtils: () => ({
       reportExport: { list: { invalidate: vi.fn() } },

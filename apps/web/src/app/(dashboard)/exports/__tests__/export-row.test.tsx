@@ -21,6 +21,17 @@ const { stubs } = vi.hoisted(() => {
     pollCallCount: number;
     downloadUrl: string | null;
     downloadEnabled: boolean | undefined;
+    pptxPollData:
+      | {
+          id: string;
+          pptxStatus: string | null;
+          pptxErrorMessage: string | null;
+          pptxFileSizeBytes: number | null;
+        }
+      | undefined;
+    pptxDownloadUrl: string | null;
+    renderPptxMutate: ReturnType<typeof vi.fn>;
+    renderPptxIsPending: boolean;
   } = {
     pollData: undefined,
     pollEnabled: undefined,
@@ -28,6 +39,10 @@ const { stubs } = vi.hoisted(() => {
     pollCallCount: 0,
     downloadUrl: null,
     downloadEnabled: undefined,
+    pptxPollData: undefined,
+    pptxDownloadUrl: null,
+    renderPptxMutate: vi.fn(),
+    renderPptxIsPending: false,
   };
   return { stubs: s };
 });
@@ -103,6 +118,40 @@ vi.mock("@/lib/trpc/client", () => ({
           isPending: false,
         }),
       },
+      pollPptxStatus: {
+        useQuery: (
+          _input: { id: string },
+          opts?: {
+            enabled?: boolean;
+            initialData?: {
+              id: string;
+              pptxStatus: string | null;
+              pptxErrorMessage: string | null;
+              pptxFileSizeBytes: number | null;
+            };
+          },
+        ) => ({
+          data: stubs.pptxPollData ?? opts?.initialData,
+          refetch: vi.fn(),
+        }),
+      },
+      renderPptx: {
+        useMutation: () => ({
+          mutate: stubs.renderPptxMutate,
+          isPending: stubs.renderPptxIsPending,
+        }),
+      },
+      getPptxDownloadUrl: {
+        useQuery: (
+          _input: { id: string },
+          opts?: { enabled?: boolean },
+        ) => ({
+          data:
+            opts?.enabled === true
+              ? { downloadUrl: stubs.pptxDownloadUrl, pptxStatus: "ready" as const }
+              : undefined,
+        }),
+      },
     },
     useUtils: () => ({
       reportExport: { list: { invalidate: vi.fn() } },
@@ -148,6 +197,10 @@ describe("ExportRow (5.3d)", () => {
     stubs.pollCallCount = 0;
     stubs.downloadUrl = null;
     stubs.downloadEnabled = undefined;
+    stubs.pptxPollData = undefined;
+    stubs.pptxDownloadUrl = null;
+    stubs.renderPptxMutate = vi.fn();
+    stubs.renderPptxIsPending = false;
   });
   afterEach(() => {
     cleanup();
@@ -226,6 +279,86 @@ describe("ExportRow (5.3d)", () => {
       "Puppeteer timeout",
     );
   });
+
+  // -------------------------------------------------------------------------
+  // On-demand "Render to PowerPoint" (V-pptx-export).
+  // -------------------------------------------------------------------------
+
+  it("shows 'Render to PowerPoint' when the PDF is ready and PPTX has never been requested (pptxStatus null)", () => {
+    const { queryByTestId } = renderInTable(makeRow({ status: "ready" }));
+    const btn = queryByTestId("export-render-pptx-button");
+    expect(btn).toBeTruthy();
+    expect(btn?.textContent).toContain("Render to PowerPoint");
+    expect(queryByTestId("export-pptx-in-flight-indicator")).toBeNull();
+    expect(queryByTestId("export-download-pptx-link")).toBeNull();
+  });
+
+  it("does NOT show the PPTX affordance while the PDF itself is still queued/rendering", () => {
+    const { queryByTestId } = renderInTable(makeRow({ status: "rendering" }));
+    expect(queryByTestId("export-render-pptx-button")).toBeNull();
+  });
+
+  it("clicking 'Render to PowerPoint' calls the renderPptx mutation with the row id", () => {
+    const { queryByTestId } = renderInTable(makeRow({ status: "ready" }));
+    const btn = queryByTestId("export-render-pptx-button");
+    if (btn === null) throw new Error("Render to PowerPoint button not found");
+    fireEvent.click(btn);
+    expect(stubs.renderPptxMutate).toHaveBeenCalledWith({ id: "re-1" });
+  });
+
+  it("shows an in-flight indicator (not the trigger button) while pptxStatus is queued/rendering", () => {
+    stubs.pptxPollData = {
+      id: "re-1",
+      pptxStatus: "rendering",
+      pptxErrorMessage: null,
+      pptxFileSizeBytes: null,
+    };
+    const { queryByTestId } = renderInTable(
+      makeRow({ status: "ready", pptxStatus: "rendering" }),
+    );
+    expect(queryByTestId("export-pptx-in-flight-indicator")).toBeTruthy();
+    expect(queryByTestId("export-render-pptx-button")).toBeNull();
+  });
+
+  it("shows 'Download PPTX' once pptxStatus is ready and the download URL resolves", () => {
+    stubs.pptxPollData = {
+      id: "re-1",
+      pptxStatus: "ready",
+      pptxErrorMessage: null,
+      pptxFileSizeBytes: 4321,
+    };
+    stubs.pptxDownloadUrl = "/api/exports/reports/re-1/pptx";
+    const { queryByTestId } = renderInTable(
+      makeRow({ status: "ready", pptxStatus: "ready" }),
+    );
+
+    const dl = queryByTestId("export-download-pptx-link");
+    expect(dl).toBeTruthy();
+    expect(dl?.textContent).toContain("Download PPTX");
+    expect(queryByTestId("export-render-pptx-button")).toBeNull();
+  });
+
+  it("shows 'Retry PowerPoint' when a prior PPTX render failed", () => {
+    stubs.pptxPollData = {
+      id: "re-1",
+      pptxStatus: "failed",
+      pptxErrorMessage: "rasterize failed",
+      pptxFileSizeBytes: null,
+    };
+    const { queryByTestId } = renderInTable(
+      makeRow({ status: "ready", pptxStatus: "failed" }),
+    );
+    const btn = queryByTestId("export-render-pptx-button");
+    expect(btn?.textContent).toContain("Retry PowerPoint");
+  });
+
+  // Note: this file's useSession mock is fixed at module scope to
+  // roles=["site_admin"] (hoisted before the component import), so a
+  // non-admin render of THIS component isn't exercisable per-test without
+  // restructuring the mock. The role gate itself
+  // (super_admin/site_admin-only) is the same `canRenderPptx` pattern as
+  // RetryButton/StopButton, whose own suites already cover the non-admin
+  // (hidden) case for that shared gating idiom.
 
   // -------------------------------------------------------------------------
   // Delete / Stop actions.

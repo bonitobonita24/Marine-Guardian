@@ -3,17 +3,24 @@ import {
   cancelReportExportInputSchema,
   createReportExportInputSchema,
   deleteReportExportInputSchema,
+  getPptxReportExportDownloadUrlInputSchema,
   getReportExportByIdInputSchema,
   getReportExportDownloadUrlInputSchema,
   listReportExportsInputSchema,
+  pollPptxReportExportStatusInputSchema,
   pollReportExportStatusInputSchema,
+  renderPptxReportExportInputSchema,
   retryReportExportInputSchema,
 } from "@marine-guardian/shared/schemas";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
 import { adminProcedure, coordinatorProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
-import { cancelPdfRender, enqueuePdfRender } from "@marine-guardian/jobs";
+import {
+  cancelPdfRender,
+  enqueuePdfRender,
+  enqueuePptxRender,
+} from "@marine-guardian/jobs";
 
 /**
  * ReportExport router — async PDF export tracker per v2 PRODUCT.md §505-506.
@@ -77,7 +84,7 @@ export const reportExportRouter = router({
         // telegramFileId is a server-side storage locator (Telegram Bot API
         // file_id) — never exposed to the client. Downloads go through the
         // Route Handler, which resolves it server-side.
-        omit: { telegramFileId: true },
+        omit: { telegramFileId: true, pptxTelegramFileId: true },
         include: {
           requestedBy: { select: { id: true, fullName: true } },
         },
@@ -179,7 +186,7 @@ export const reportExportRouter = router({
       return prisma.reportExport.findFirst({
         where: { id: input.id, tenantId: ctx.tenantId },
         // Same posture as list: telegramFileId stays server-side.
-        omit: { telegramFileId: true },
+        omit: { telegramFileId: true, pptxTelegramFileId: true },
         include: {
           requestedBy: { select: { id: true, fullName: true } },
         },
@@ -225,7 +232,7 @@ export const reportExportRouter = router({
     .input(createReportExportInputSchema)
     .mutation(async ({ ctx, input }) => {
       const created = await prisma.reportExport.create({
-        omit: { telegramFileId: true },
+        omit: { telegramFileId: true, pptxTelegramFileId: true },
         data: {
           tenantId: ctx.tenantId,
           requestedByUserId: ctx.userId,
@@ -344,7 +351,7 @@ export const reportExportRouter = router({
 
       const updated = await prisma.reportExport.update({
         where: { id: existing.id },
-        omit: { telegramFileId: true },
+        omit: { telegramFileId: true, pptxTelegramFileId: true },
         data: {
           status: "queued",
           filePath: null,
@@ -408,7 +415,7 @@ export const reportExportRouter = router({
 
       const updated = await prisma.reportExport.update({
         where: { id: existing.id },
-        omit: { telegramFileId: true },
+        omit: { telegramFileId: true, pptxTelegramFileId: true },
         data: {
           status: "failed",
           errorMessage: "Cancelled by user",
@@ -467,5 +474,122 @@ export const reportExportRouter = router({
       });
 
       return { id: existing.id };
+    }),
+
+  /**
+   * renderPptx — on-demand "Render to PowerPoint" for an already-`ready`
+   * PDF export. NEVER auto-fired — strictly a user-initiated conversion of
+   * an existing report PDF into a .pptx (one slide per PDF page). Requires
+   * the row's PDF status to already be "ready"; a queued/rendering/failed
+   * PDF cannot be converted (the row has no finished PDF to convert yet).
+   *
+   * Resets pptxStatus=queued + clears prior pptx fields (a re-request after
+   * a completed/failed prior PPTX render must actually re-run, not surface
+   * stale state), then enqueues the pptx-render job. Same jobId-dedupe
+   * posture as reportExport.create/retry — the BullMQ jobId pattern
+   * `pptx-render__${id}` collapses double-clicks to one job.
+   *
+   * RBAC: adminProcedure (super_admin + site_admin) — more restrictive
+   * than the coordinatorProcedure gating the original PDF `create`, since
+   * PPTX rendering is an additional, optional, admin-triggered conversion
+   * rather than the primary report-generation flow.
+   */
+  renderPptx: adminProcedure
+    .input(renderPptxReportExportInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const existing = await prisma.reportExport.findFirst({
+        where: { id: input.id, tenantId: ctx.tenantId },
+        select: { id: true, status: true, telegramFileId: true },
+      });
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+      if (existing.status !== "ready" || existing.telegramFileId === null) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Cannot render PowerPoint until the PDF report has finished generating.",
+        });
+      }
+
+      const updated = await prisma.reportExport.update({
+        where: { id: existing.id },
+        omit: { telegramFileId: true, pptxTelegramFileId: true },
+        data: {
+          pptxStatus: "queued",
+          pptxTelegramFileId: null,
+          pptxFileSizeBytes: null,
+          pptxErrorMessage: null,
+        },
+      });
+
+      await enqueuePptxRender({
+        exportId: existing.id,
+        tenantId: ctx.tenantId,
+        userId: ctx.userId,
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          action: "EXPORT_PPTX_REQUESTED",
+          userId: ctx.userId,
+          tenantId: ctx.tenantId,
+          entityType: "ReportExport",
+          entityId: existing.id,
+          changesJson: {},
+        },
+      });
+
+      return updated;
+    }),
+
+  /**
+   * pollPptxStatus — lightweight read for the UI to poll while waiting for
+   * an on-demand PPTX render to complete. Mirrors pollStatus.
+   */
+  pollPptxStatus: tenantProcedure
+    .input(pollPptxReportExportStatusInputSchema)
+    .query(async ({ ctx, input }) => {
+      return prisma.reportExport.findFirst({
+        where: { id: input.id, tenantId: ctx.tenantId },
+        select: {
+          id: true,
+          pptxStatus: true,
+          pptxErrorMessage: true,
+          pptxFileSizeBytes: true,
+        },
+      });
+    }),
+
+  /**
+   * getPptxDownloadUrl — returns the PPTX download URL once pptxStatus is
+   * "ready". Mirrors getDownloadUrl's NOT_FOUND-on-cross-tenant posture —
+   * never leaks existence. telegramFileId itself is never returned to the
+   * client.
+   */
+  getPptxDownloadUrl: tenantProcedure
+    .input(getPptxReportExportDownloadUrlInputSchema)
+    .query(async ({ ctx, input }) => {
+      const row = await prisma.reportExport.findFirst({
+        where: { id: input.id, tenantId: ctx.tenantId },
+        select: {
+          id: true,
+          pptxStatus: true,
+          pptxTelegramFileId: true,
+        },
+      });
+      if (!row) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+      if (row.pptxStatus !== "ready" || row.pptxTelegramFileId === null) {
+        return {
+          downloadUrl: null as string | null,
+          pptxStatus: row.pptxStatus,
+        };
+      }
+      return {
+        downloadUrl: `/api/exports/reports/${row.id}/pptx`,
+        pptxStatus: row.pptxStatus,
+      };
     }),
 });

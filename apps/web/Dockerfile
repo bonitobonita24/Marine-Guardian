@@ -43,6 +43,22 @@ RUN PRISMA_CLIENT_REAL=$(readlink -f /app/packages/db/node_modules/@prisma/clien
     mkdir -p /prisma-deps/@prisma/client /prisma-deps/.prisma/client && \
     cp -r "${PRISMA_CLIENT_REAL}/." /prisma-deps/@prisma/client/ && \
     cp -r "${PRISMA_GENERATED_REAL}/." /prisma-deps/.prisma/client/
+# V-pptx-export — @napi-rs/canvas is a NATIVE module (prebuilt per-platform
+# binary) that esbuild cannot bundle, so packages/jobs/package.json's build
+# script marks it `--external:@napi-rs/canvas` — the worker bundle just does
+# a plain `require("@napi-rs/canvas")` at runtime. That require needs the
+# real package + its platform-specific binding package physically present
+# in the runtime image's node_modules — same "dereference the pnpm symlink
+# + copy the real files" pattern as the @prisma/client copy above.
+# Hardcoded to linux-x64-musl to match this Dockerfile's fixed base image
+# (node:22-alpine, same musl target the Prisma engine copy above already
+# assumes via "libquery_engine-linux-musl-openssl-3.0.x.so.node"). If this
+# Dockerfile's base image ever changes off Alpine/x64, update this name.
+RUN NAPI_CANVAS_REAL=$(readlink -f /app/packages/jobs/node_modules/@napi-rs/canvas) && \
+    NAPI_CANVAS_PLATFORM_REAL=$(find /app -maxdepth 8 -type d -path "*/node_modules/@napi-rs/canvas-linux-x64-musl" 2>/dev/null | head -1 | xargs readlink -f) && \
+    mkdir -p "/napi-canvas-deps/@napi-rs/canvas" "/napi-canvas-deps/@napi-rs/canvas-linux-x64-musl" && \
+    cp -r "${NAPI_CANVAS_REAL}/." "/napi-canvas-deps/@napi-rs/canvas/" && \
+    cp -r "${NAPI_CANVAS_PLATFORM_REAL}/." "/napi-canvas-deps/@napi-rs/canvas-linux-x64-musl/"
 
 FROM node:22-alpine AS runner
 WORKDIR /app
@@ -70,6 +86,10 @@ COPY --from=builder /prisma-engines/ ./apps/web/.next/server/
 # Ship @prisma/client + generated client for worker's external requires
 COPY --from=builder /prisma-deps/@prisma/client ./node_modules/@prisma/client
 COPY --from=builder /prisma-deps/.prisma/client ./node_modules/.prisma/client
+# V-pptx-export — ship @napi-rs/canvas (native binary) for the pptx-render
+# worker's external require. See the builder-stage RUN block above for why.
+COPY --from=builder /napi-canvas-deps/@napi-rs/canvas ./node_modules/@napi-rs/canvas
+COPY --from=builder /napi-canvas-deps/@napi-rs/canvas-linux-x64-musl ./node_modules/@napi-rs/canvas-linux-x64-musl
 COPY --from=builder /app/packages/jobs/dist/start-workers.mjs ./worker/start-workers.mjs
 USER nextjs
 EXPOSE 3000

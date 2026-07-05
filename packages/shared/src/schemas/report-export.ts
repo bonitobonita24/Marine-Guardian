@@ -83,3 +83,28 @@ export const deleteReportExportInputSchema = z.object({
 export const cancelReportExportInputSchema = z.object({
   id: z.string(),
 });
+
+/**
+ * renderPptx input — admin triggers on-demand PDF→PowerPoint rendering for
+ * an already-`ready` export. Never auto-fired; strictly a user-initiated
+ * conversion of an existing report PDF. Tenant scope enforced server-side
+ * via session.tenantId.
+ */
+export const renderPptxReportExportInputSchema = z.object({
+  id: z.string(),
+});
+
+/**
+ * pollPptxStatus input — lightweight read for the UI to poll while a PPTX
+ * render is in flight. Mirrors pollReportExportStatusInputSchema.
+ */
+export const pollPptxReportExportStatusInputSchema = z.object({
+  id: z.string(),
+});
+
+/**
+ * getPptxDownloadUrl input — mirrors getReportExportDownloadUrlInputSchema.
+ */
+export const getPptxReportExportDownloadUrlInputSchema = z.object({
+  id: z.string(),
+});

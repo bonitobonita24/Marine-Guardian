@@ -27,6 +27,7 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc/client";
@@ -34,6 +35,12 @@ import { StatusBadge, type ExportStatus } from "./status-badge";
 import { RetryButton } from "./retry-button";
 import { StopButton } from "./stop-button";
 import { DeleteButton } from "./delete-button";
+
+/** pollPptxStatus/list return pptxStatus using the same ReportExportStatus
+ * enum as the PDF `status` column, but it is nullable — null means "PPTX
+ * has never been requested for this export" (distinct from any in-flight
+ * or terminal value). */
+type PptxStatus = ExportStatus | null;
 
 /** Resolved-name summary of a report's generation parameters (paramsJson),
  * batch-resolved server-side by reportExport.list. Optional/nullable because
@@ -62,6 +69,12 @@ export interface ExportRowItem {
   // column may omit this or pass undefined explicitly; the cell falls back
   // to just the humanized report type when absent.
   reportSummary?: ReportExportSummary | null | undefined;
+  // Optional — older test fixtures / callers that predate the on-demand
+  // PowerPoint export feature may omit these. null/undefined both mean
+  // "PPTX never requested for this row" and render the same "Render to
+  // PowerPoint" affordance.
+  pptxStatus?: PptxStatus | undefined;
+  pptxErrorMessage?: string | null | undefined;
 }
 
 interface ExportRowProps {
@@ -341,6 +354,74 @@ export function ExportRow({ row }: ExportRowProps) {
     }
   }, [downloadUrl]);
 
+  // ── On-demand "Render to PowerPoint" (renderPptx is adminProcedure —
+  // client-side role gate mirrors RetryButton/StopButton so non-admins
+  // never see an affordance the server would reject anyway). ──────────────
+  const { data: session } = useSession();
+  const roles = session?.user.roles ?? [];
+  const canRenderPptx =
+    roles.includes("super_admin") || roles.includes("site_admin");
+
+  const pptxInFlight =
+    row.pptxStatus === "queued" || row.pptxStatus === "rendering";
+
+  const pptxPollQuery = trpc.reportExport.pollPptxStatus.useQuery(
+    { id: row.id },
+    {
+      // Only worth polling once the PDF itself is ready (a PPTX can only
+      // be requested for a ready PDF) — avoids an unnecessary query on
+      // every still-rendering PDF row.
+      enabled: currentStatus === "ready",
+      refetchInterval: pptxInFlight ? POLL_INTERVAL_MS : false,
+      initialData: {
+        id: row.id,
+        pptxStatus: row.pptxStatus ?? null,
+        pptxErrorMessage: row.pptxErrorMessage ?? null,
+        pptxFileSizeBytes: null,
+      },
+    },
+  );
+  const currentPptxStatus: PptxStatus =
+    pptxPollQuery.data?.pptxStatus ?? row.pptxStatus ?? null;
+
+  const renderPptx = trpc.reportExport.renderPptx.useMutation({
+    onSuccess: () => {
+      void pptxPollQuery.refetch();
+    },
+  });
+
+  const pptxDownloadQuery = trpc.reportExport.getPptxDownloadUrl.useQuery(
+    { id: row.id },
+    { enabled: currentPptxStatus === "ready" },
+  );
+  const pptxDownloadUrl = useMemo(
+    () => pptxDownloadQuery.data?.downloadUrl ?? null,
+    [pptxDownloadQuery.data?.downloadUrl],
+  );
+
+  const [pptxDlState, setPptxDlState] = useState<
+    "idle" | "loading" | "error"
+  >("idle");
+  const pptxInFlightRef = useRef(false);
+  const handlePptxDownload = useCallback(async () => {
+    if (pptxDownloadUrl === null || pptxInFlightRef.current) return;
+    pptxInFlightRef.current = true;
+    setPptxDlState("loading");
+    try {
+      const res = await fetch(pptxDownloadUrl, { credentials: "same-origin" });
+      if (!res.ok) {
+        setPptxDlState("error");
+        return;
+      }
+      await downloadResponse(res);
+      setPptxDlState("idle");
+    } catch {
+      setPptxDlState("error");
+    } finally {
+      pptxInFlightRef.current = false;
+    }
+  }, [pptxDownloadUrl]);
+
   return (
     <TableRow data-testid={`export-row-${row.id}`}>
       <TableCell className="font-medium capitalize">
@@ -414,6 +495,60 @@ export function ExportRow({ row }: ExportRowProps) {
                   >
                     {dlState === "loading" ? "Downloading…" : "Download"}
                   </Button>
+                </>
+              )}
+              {/* On-demand PowerPoint export — admin-only (server-enforced
+                  via adminProcedure; gated client-side here so a non-admin
+                  never sees an affordance the mutation would reject). */}
+              {canRenderPptx && (
+                <>
+                  {(currentPptxStatus === null ||
+                    currentPptxStatus === "failed") && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      data-testid="export-render-pptx-button"
+                      disabled={renderPptx.isPending}
+                      onClick={() => {
+                        renderPptx.mutate({ id: row.id });
+                      }}
+                    >
+                      {renderPptx.isPending
+                        ? "Requesting…"
+                        : currentPptxStatus === "failed"
+                          ? "Retry PowerPoint"
+                          : "Render to PowerPoint"}
+                    </Button>
+                  )}
+                  {(currentPptxStatus === "queued" ||
+                    currentPptxStatus === "rendering") && (
+                    <span
+                      data-testid="export-pptx-in-flight-indicator"
+                      className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
+                    >
+                      <Loader2
+                        className="size-3 animate-spin"
+                        aria-hidden="true"
+                      />
+                      Rendering PPTX…
+                    </span>
+                  )}
+                  {currentPptxStatus === "ready" &&
+                    pptxDownloadUrl !== null && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        data-testid="export-download-pptx-link"
+                        disabled={pptxDlState === "loading"}
+                        onClick={() => {
+                          void handlePptxDownload();
+                        }}
+                      >
+                        {pptxDlState === "loading"
+                          ? "Downloading…"
+                          : "Download PPTX"}
+                      </Button>
+                    )}
                 </>
               )}
               <DeleteButton exportId={row.id} />
