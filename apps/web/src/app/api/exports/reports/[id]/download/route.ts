@@ -2,21 +2,22 @@
 //
 // Streams a finished ReportExport PDF. Phase 8 Batch 5 Sub-batch 5.3c
 // completed the consumer side of the pdf-render pipeline (v2 PRODUCT.md
-// §505-506); Phase 4 S1 moved the primary store to Telegram:
+// §505-506); Phase 4 S2 made Telegram the STRICT-ONLY store — there is no
+// server-side/MinIO copy at any point:
 //
 //   tRPC reportExport.create (5.3b) → BullMQ pdf-render worker (5.3b) →
-//   Puppeteer service (5.3a) → Telegram sendDocument (primary) or MinIO
-//   (fallback) → row.status=ready →
+//   Puppeteer service (5.3a) → Telegram sendDocument (sole store) →
+//   row.status=ready →
 //   tRPC reportExport.getDownloadUrl returns `/api/exports/reports/{id}/download` →
 //   THIS ROUTE HANDLER streams the file with a download Content-Disposition.
 //
-// Dual-read: rows with telegramFileId set are fetched from Telegram via
-// fetchTelegramFileBytes (bounded 429 retry inside); legacy rows (or
-// REPORT_EXPORTS_MINIO_FALLBACK-era mirrors without a telegramFileId) fall
-// back to the MinIO stream path. Any Telegram failure (down, rate-limited
-// beyond retries, >20MB getFile cap) becomes a clean 502 — same posture as
-// /api/assets/[id]. telegramFileId is NEVER exposed to the client; it only
-// selects the server-side fetch path.
+// Telegram-only read: every ready row is fetched from Telegram via
+// fetchTelegramFileBytes (bounded 429 retry inside). Any Telegram failure
+// (down, rate-limited beyond retries, >20MB getFile cap) becomes a clean
+// 502 — same posture as /api/assets/[id]. telegramFileId is NEVER exposed
+// to the client; it only selects the server-side fetch path. Legacy rows
+// written before this contract (telegramFileId null) now 404 — there is
+// no MinIO fallback path.
 //
 // Security posture (per security.md):
 //   - Manual auth via requireRouteAuth (tRPC bypassed — no middleware chain).
@@ -32,14 +33,9 @@
 //   - Rate-limited via the `upload` tier (file-streaming endpoint).
 
 import { type NextRequest, NextResponse } from "next/server";
-import { Readable } from "node:stream";
 import { TRPCError } from "@trpc/server";
 
 import { prisma } from "@marine-guardian/db";
-import {
-  getPdfReadStream,
-  getExportsBucketName,
-} from "@marine-guardian/storage";
 import {
   getTelegramBotToken,
   fetchTelegramFileBytes,
@@ -93,7 +89,6 @@ export async function GET(
       id: true,
       tenantId: true,
       status: true,
-      filePath: true,
       telegramFileId: true,
       fileSizeBytes: true,
       reportType: true,
@@ -109,12 +104,10 @@ export async function GET(
 
   // 404 on non-ready rows. Owning caller polls status via the tRPC
   // pollStatus endpoint; this download path is strictly for finished PDFs.
-  // A ready row must have at least one storage location (Telegram primary
-  // or MinIO legacy/fallback).
-  if (
-    row.status !== "ready" ||
-    (row.telegramFileId === null && row.filePath === null)
-  ) {
+  // A ready row must carry a telegramFileId — Telegram is the sole store,
+  // so a row without one (e.g. a legacy pre-Telegram-only row) has no
+  // retrievable file.
+  if (row.status !== "ready" || row.telegramFileId === null) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -147,49 +140,27 @@ export async function GET(
     "Cache-Control": "no-store",
   });
 
-  // Telegram-primary read: rows written by the Telegram-storage processor
-  // carry telegramFileId. Any failure (token unset, Telegram down, 429
-  // beyond retries, >20MB getFile cap) maps to a clean 502 — never an
-  // unhandled 500, and never a fall-through to a MinIO object that may not
-  // exist for Telegram-era rows.
-  if (row.telegramFileId !== null) {
-    let bytes: ArrayBuffer;
-    try {
-      const botToken = getTelegramBotToken();
-      ({ bytes } = await fetchTelegramFileBytes({
-        botToken,
-        fileId: row.telegramFileId,
-      }));
-    } catch (err) {
-      console.error(
-        `[exports/download] Telegram fetch failed for export ${row.id}:`,
-        err instanceof Error ? err.message : err,
-      );
-      return NextResponse.json(
-        { error: "Report file temporarily unavailable" },
-        { status: 502 },
-      );
-    }
-    headers.set("Content-Length", String(bytes.byteLength));
-    return new Response(bytes, { status: 200, headers });
+  // Telegram-only read: the ready-row gate above guarantees telegramFileId
+  // is non-null here. Any failure (token unset, Telegram down, 429 beyond
+  // retries, >20MB getFile cap) maps to a clean 502 — never an unhandled
+  // 500, and never a fall-through to a server-side copy (there isn't one).
+  let bytes: ArrayBuffer;
+  try {
+    const botToken = getTelegramBotToken();
+    ({ bytes } = await fetchTelegramFileBytes({
+      botToken,
+      fileId: row.telegramFileId,
+    }));
+  } catch (err) {
+    console.error(
+      `[exports/download] Telegram fetch failed for export ${row.id}:`,
+      err instanceof Error ? err.message : err,
+    );
+    return NextResponse.json(
+      { error: "Report file temporarily unavailable" },
+      { status: 502 },
+    );
   }
-
-  // MinIO path — legacy rows written before Telegram-primary storage.
-  // The ready-row gate above guarantees filePath is non-null here.
-  if (row.filePath === null) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-  const bucket = getExportsBucketName();
-  const nodeStream = await getPdfReadStream({ bucket, key: row.filePath });
-
-  if (row.fileSizeBytes !== null) {
-    headers.set("Content-Length", String(row.fileSizeBytes));
-  }
-
-  // Node Readable → Web ReadableStream conversion is required for the Fetch
-  // Response body. Available since Node 18 / supported on Vercel Functions
-  // and any Node 20+ runtime (we run Node 22 per project .nvmrc).
-  const webStream = Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>;
-
-  return new Response(webStream, { status: 200, headers });
+  headers.set("Content-Length", String(bytes.byteLength));
+  return new Response(bytes, { status: 200, headers });
 }
