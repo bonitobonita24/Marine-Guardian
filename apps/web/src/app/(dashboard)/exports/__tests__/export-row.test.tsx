@@ -89,6 +89,20 @@ vi.mock("@/lib/trpc/client", () => ({
           isPending: false,
         }),
       },
+      cancel: {
+        useMutation: () => ({
+          mutate: vi.fn(),
+          reset: vi.fn(),
+          isPending: false,
+        }),
+      },
+      delete: {
+        useMutation: () => ({
+          mutate: vi.fn(),
+          reset: vi.fn(),
+          isPending: false,
+        }),
+      },
     },
     useUtils: () => ({
       reportExport: { list: { invalidate: vi.fn() } },
@@ -184,6 +198,35 @@ describe("ExportRow (5.3d)", () => {
     expect(queryByTestId("export-error-message")?.textContent).toContain(
       "Puppeteer timeout",
     );
+  });
+
+  // -------------------------------------------------------------------------
+  // Delete / Stop actions.
+  // -------------------------------------------------------------------------
+
+  it("renders Stop button (not Delete) when status=queued", () => {
+    const { queryByTestId } = renderInTable(makeRow({ status: "queued" }));
+    expect(queryByTestId("stop-export-button")).toBeTruthy();
+    expect(queryByTestId("delete-export-button")).toBeNull();
+  });
+
+  it("renders Stop button (not Delete) when status=rendering", () => {
+    const { queryByTestId } = renderInTable(makeRow({ status: "rendering" }));
+    expect(queryByTestId("stop-export-button")).toBeTruthy();
+    expect(queryByTestId("delete-export-button")).toBeNull();
+  });
+
+  it("renders Delete button (not Stop) when status=ready", () => {
+    const { queryByTestId } = renderInTable(makeRow({ status: "ready" }));
+    expect(queryByTestId("delete-export-button")).toBeTruthy();
+    expect(queryByTestId("stop-export-button")).toBeNull();
+  });
+
+  it("renders both Retry and Delete buttons when status=failed", () => {
+    const { queryByTestId } = renderInTable(makeRow({ status: "failed" }));
+    expect(queryByTestId("retry-export-button")).toBeTruthy();
+    expect(queryByTestId("delete-export-button")).toBeTruthy();
+    expect(queryByTestId("stop-export-button")).toBeNull();
   });
 
   it("renders the colored status badge corresponding to the current status", () => {

@@ -1,6 +1,8 @@
 import { TRPCError } from "@trpc/server";
 import {
+  cancelReportExportInputSchema,
   createReportExportInputSchema,
+  deleteReportExportInputSchema,
   getReportExportByIdInputSchema,
   getReportExportDownloadUrlInputSchema,
   listReportExportsInputSchema,
@@ -11,7 +13,7 @@ import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
 import { adminProcedure, coordinatorProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
-import { enqueuePdfRender } from "@marine-guardian/jobs";
+import { cancelPdfRender, enqueuePdfRender } from "@marine-guardian/jobs";
 
 /**
  * ReportExport router — async PDF export tracker per v2 PRODUCT.md §505-506.
@@ -371,5 +373,99 @@ export const reportExportRouter = router({
       });
 
       return updated;
+    }),
+
+  /**
+   * cancel — admin stops a pending (queued/rendering) export, giving a
+   * stuck-"Queued" (or unwanted "Rendering") row an escape hatch. Best-effort
+   * removes the underlying BullMQ job via cancelPdfRender (jobId
+   * `pdf-render__${id}`) — a job the worker already has ACTIVE/locked cannot
+   * be force-removed, so cancelPdfRender is a no-op in that case (see its
+   * doc comment). Regardless of queue-removal outcome, the row is always
+   * flipped to the terminal state so the UI stops treating it as in-flight.
+   *
+   * There is no "cancelled" value on ReportExportStatus — reusing "failed"
+   * with an explicit errorMessage avoids an enum migration (per spec).
+   *
+   * RBAC: adminProcedure (super_admin + site_admin), same posture as retry.
+   * Tenant scope enforced via findFirst {id, tenantId} — NOT_FOUND for
+   * cross-tenant rows (never leaks existence).
+   */
+  cancel: adminProcedure
+    .input(cancelReportExportInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const existing = await prisma.reportExport.findFirst({
+        where: { id: input.id, tenantId: ctx.tenantId },
+        select: { id: true, status: true },
+      });
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+
+      // Best-effort queue cleanup first (never throws) — see cancelPdfRender
+      // doc comment for the active-job caveat.
+      await cancelPdfRender(existing.id);
+
+      const updated = await prisma.reportExport.update({
+        where: { id: existing.id },
+        omit: { telegramFileId: true },
+        data: {
+          status: "failed",
+          errorMessage: "Cancelled by user",
+          completedAt: new Date(),
+        },
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          action: "EXPORT_CANCELLED",
+          userId: ctx.userId,
+          tenantId: ctx.tenantId,
+          entityType: "ReportExport",
+          entityId: existing.id,
+          changesJson: { previousStatus: existing.status },
+        },
+      });
+
+      return updated;
+    }),
+
+  /**
+   * delete — admin permanently removes a terminal (ready/failed) export
+   * row. Also best-effort clears any lingering BullMQ job for the id via
+   * cancelPdfRender, so a delete fully cleans up even if the row was left
+   * in a stuck queued/rendering state before being deleted directly.
+   *
+   * RBAC: adminProcedure (super_admin + site_admin). Tenant scope enforced
+   * via findFirst {id, tenantId} — NOT_FOUND for cross-tenant rows (never
+   * leaks existence), same posture as retry/cancel.
+   */
+  delete: adminProcedure
+    .input(deleteReportExportInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      const existing = await prisma.reportExport.findFirst({
+        where: { id: input.id, tenantId: ctx.tenantId },
+        select: { id: true, status: true },
+      });
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+
+      await cancelPdfRender(existing.id);
+
+      await prisma.reportExport.delete({ where: { id: existing.id } });
+
+      await prisma.auditLog.create({
+        data: {
+          action: "EXPORT_DELETED",
+          userId: ctx.userId,
+          tenantId: ctx.tenantId,
+          entityType: "ReportExport",
+          entityId: existing.id,
+          changesJson: { previousStatus: existing.status },
+        },
+      });
+
+      return { id: existing.id };
     }),
 });

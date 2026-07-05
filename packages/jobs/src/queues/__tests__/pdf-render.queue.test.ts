@@ -34,6 +34,7 @@ vi.mock("../queue-factory", () => ({
 }));
 
 import {
+  cancelPdfRender,
   enqueuePdfRender,
   EnqueueTimeoutError,
   getPdfRenderQueue,
@@ -252,6 +253,59 @@ describe("pdf-render queue", () => {
 
       expect(jobId).toBe("job-degraded-1");
       expect(mockAdd).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ---------------------------------------------------------------------
+  // cancelPdfRender — Exports page "Stop"/"Delete" queue cleanup.
+  // ---------------------------------------------------------------------
+
+  describe("cancelPdfRender", () => {
+    it("removes a WAITING job under the export's jobId", async () => {
+      const mockRemove = vi.fn().mockResolvedValue(undefined);
+      mockGetJob.mockResolvedValueOnce({
+        getState: vi.fn().mockResolvedValue("waiting"),
+        remove: mockRemove,
+      });
+
+      await cancelPdfRender("export-cancel-1");
+
+      expect(mockGetJob).toHaveBeenCalledWith("pdf-render__export-cancel-1");
+      expect(mockRemove).toHaveBeenCalledTimes(1);
+    });
+
+    it("does NOT remove an ACTIVE job (worker holds the lock) — no-op, never throws", async () => {
+      const mockRemove = vi.fn().mockResolvedValue(undefined);
+      mockGetJob.mockResolvedValueOnce({
+        getState: vi.fn().mockResolvedValue("active"),
+        remove: mockRemove,
+      });
+
+      await expect(cancelPdfRender("export-cancel-2")).resolves.toBeUndefined();
+      expect(mockRemove).not.toHaveBeenCalled();
+    });
+
+    it("is a no-op when no job exists under the id (already terminal/never enqueued)", async () => {
+      mockGetJob.mockResolvedValueOnce(undefined);
+
+      await expect(cancelPdfRender("export-cancel-3")).resolves.toBeUndefined();
+    });
+
+    it("swallows a getJob() failure — never throws (best-effort)", async () => {
+      mockGetJob.mockRejectedValueOnce(new Error("Valkey blip"));
+
+      await expect(cancelPdfRender("export-cancel-4")).resolves.toBeUndefined();
+    });
+
+    it("swallows a job.remove() failure — never throws (best-effort)", async () => {
+      const mockRemove = vi.fn().mockRejectedValue(new Error("locked"));
+      mockGetJob.mockResolvedValueOnce({
+        getState: vi.fn().mockResolvedValue("waiting"),
+        remove: mockRemove,
+      });
+
+      await expect(cancelPdfRender("export-cancel-5")).resolves.toBeUndefined();
+      expect(mockRemove).toHaveBeenCalledTimes(1);
     });
   });
 });

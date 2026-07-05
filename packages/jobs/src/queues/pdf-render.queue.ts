@@ -80,6 +80,49 @@ export function getPdfRenderQueue(): Queue<PdfRenderJobPayload> {
 }
 
 /**
+ * cancelPdfRender — best-effort removal of a still-pending BullMQ job for
+ * `exportId`. Backs the Exports page "Stop" action (reportExport.cancel) and
+ * the "Delete" action's queue cleanup (reportExport.delete), giving stuck
+ * queued/rendering rows an escape hatch.
+ *
+ * Removes the job when it is in any removable state (waiting/delayed/
+ * prioritized/completed/failed). A job that is currently ACTIVE (a worker
+ * already holds its lock, mid-Puppeteer-render) cannot be force-removed —
+ * BullMQ's Job#remove throws when called on a locked/active job — so this
+ * is a no-op in that case. The caller (reportExport.cancel) still marks the
+ * ReportExport row failed/"Cancelled by user" regardless, so the UI stops
+ * treating the row as in-flight; the in-progress render simply finishes (or
+ * fails) naturally in the background and its eventual write is harmless —
+ * the row is already terminal, so a later completion/failure write just
+ * overwrites the cancelled state. Same accepted trade-off as any other
+ * lost-race write elsewhere in this pipeline.
+ *
+ * Never throws — a Valkey hiccup here must not block the cancel/delete
+ * mutation from settling the row's DB state.
+ */
+export async function cancelPdfRender(exportId: string): Promise<void> {
+  const queue = getPdfRenderQueue();
+  const jobId = `pdf-render__${exportId}`;
+  try {
+    const job = await queue.getJob(jobId);
+    if (job === undefined) return;
+    const state = await job.getState();
+    if (state === "active") {
+      console.warn(
+        `[pdf-render.queue] cancelPdfRender(${exportId}): job is active (worker holds lock) — leaving the BullMQ job in place; DB row is still marked cancelled/deleted`,
+      );
+      return;
+    }
+    await job.remove();
+  } catch (err) {
+    console.warn(
+      `[pdf-render.queue] cancelPdfRender(${exportId}) failed — proceeding, DB row is still marked cancelled/deleted:`,
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+}
+
+/**
  * Max time we wait for the BullMQ producer `queue.add` to resolve before
  * giving up. The shared Redis/Valkey connection uses `maxRetriesPerRequest:
  * null` (required by BullMQ for blocking worker commands), which means a

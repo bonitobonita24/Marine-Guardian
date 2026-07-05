@@ -8,6 +8,7 @@ vi.mock("@marine-guardian/db", () => ({
       findFirst: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      delete: vi.fn(),
     },
     auditLog: {
       create: vi.fn(),
@@ -32,6 +33,7 @@ vi.mock("@marine-guardian/db", () => ({
 
 vi.mock("@marine-guardian/jobs", () => ({
   enqueuePdfRender: vi.fn(),
+  cancelPdfRender: vi.fn(),
 }));
 
 vi.mock("../../../lib/rate-limit", () => ({
@@ -48,7 +50,7 @@ vi.mock("../../../auth", () => ({
 }));
 
 import { prisma } from "@marine-guardian/db";
-import { enqueuePdfRender } from "@marine-guardian/jobs";
+import { cancelPdfRender, enqueuePdfRender } from "@marine-guardian/jobs";
 import { createCallerFactory } from "../../trpc";
 import { reportExportRouter } from "../reportExport";
 
@@ -798,5 +800,304 @@ describe("reportExport.retry (5.3d)", () => {
     expect(findOrder).toBeLessThan(updateOrder as number);
     expect(updateOrder).toBeLessThan(enqueueOrder as number);
     expect(enqueueOrder).toBeLessThan(auditOrder as number);
+  });
+});
+
+describe("reportExport.cancel (Stop button — escape hatch for stuck queued/rendering rows)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("rejects cancel when role is operator (adminProcedure — site_admin+)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["operator"]));
+
+    await expect(caller.cancel({ id: "re-1" })).rejects.toThrow(TRPCError);
+    expect(vi.mocked(prisma.reportExport.findFirst)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.reportExport.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(cancelPdfRender)).not.toHaveBeenCalled();
+  });
+
+  it("rejects cancel when role is field_coordinator (adminProcedure gate)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["field_coordinator"]));
+
+    await expect(caller.cancel({ id: "re-1" })).rejects.toThrow(TRPCError);
+    expect(vi.mocked(prisma.reportExport.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(cancelPdfRender)).not.toHaveBeenCalled();
+  });
+
+  it("throws NOT_FOUND when the row does not exist for this tenant (no cross-tenant leak)", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    await expect(caller.cancel({ id: "re-other" })).rejects.toThrow(TRPCError);
+
+    expect(vi.mocked(prisma.reportExport.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(cancelPdfRender)).not.toHaveBeenCalled();
+  });
+
+  it("admin happy path: sets a queued row to status=failed with errorMessage 'Cancelled by user' + completedAt", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
+      id: "re-queued-1",
+      tenantId: TENANT_ID,
+      status: "queued",
+    } as never);
+    vi.mocked(prisma.reportExport.update).mockResolvedValue({
+      id: "re-queued-1",
+      tenantId: TENANT_ID,
+      status: "failed",
+    } as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const result = await caller.cancel({ id: "re-queued-1" });
+
+    expect(result.id).toBe("re-queued-1");
+    expect(vi.mocked(prisma.reportExport.update)).toHaveBeenCalledTimes(1);
+    const call = vi.mocked(prisma.reportExport.update).mock.calls[0]?.[0] as {
+      where: { id: string };
+      data: { status: string; errorMessage: string; completedAt: Date };
+    };
+    expect(call.where).toEqual({ id: "re-queued-1" });
+    expect(call.data.status).toBe("failed");
+    expect(call.data.errorMessage).toBe("Cancelled by user");
+    expect(call.data.completedAt).toBeInstanceOf(Date);
+  });
+
+  it("admin happy path: also works on a RENDERING row (not just queued)", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
+      id: "re-rendering-1",
+      tenantId: TENANT_ID,
+      status: "rendering",
+    } as never);
+    vi.mocked(prisma.reportExport.update).mockResolvedValue({
+      id: "re-rendering-1",
+      tenantId: TENANT_ID,
+      status: "failed",
+    } as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const result = await caller.cancel({ id: "re-rendering-1" });
+
+    expect(result.id).toBe("re-rendering-1");
+    expect(vi.mocked(prisma.reportExport.update)).toHaveBeenCalledWith(
+      partial({
+        data: partial<{ status: string }>({ status: "failed" }),
+      }),
+    );
+  });
+
+  it("removes the BullMQ job for the exportId via cancelPdfRender", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
+      id: "re-queued-2",
+      tenantId: TENANT_ID,
+      status: "queued",
+    } as never);
+    vi.mocked(prisma.reportExport.update).mockResolvedValue({
+      id: "re-queued-2",
+      tenantId: TENANT_ID,
+      status: "failed",
+    } as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    await caller.cancel({ id: "re-queued-2" });
+
+    expect(vi.mocked(cancelPdfRender)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(cancelPdfRender)).toHaveBeenCalledWith("re-queued-2");
+  });
+
+  it("writes an EXPORT_CANCELLED AuditLog with the row id as entityId + previousStatus", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
+      id: "re-queued-3",
+      tenantId: TENANT_ID,
+      status: "rendering",
+    } as never);
+    vi.mocked(prisma.reportExport.update).mockResolvedValue({
+      id: "re-queued-3",
+      tenantId: TENANT_ID,
+      status: "failed",
+    } as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    await caller.cancel({ id: "re-queued-3" });
+
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith({
+      data: partial<{
+        action: string;
+        userId: string;
+        tenantId: string;
+        entityType: string;
+        entityId: string;
+        changesJson: { previousStatus: string };
+      }>({
+        action: "EXPORT_CANCELLED",
+        userId: USER_ID,
+        tenantId: TENANT_ID,
+        entityType: "ReportExport",
+        entityId: "re-queued-3",
+        changesJson: { previousStatus: "rendering" },
+      }),
+    });
+  });
+
+  it("still marks the row failed even when cancelPdfRender rejects (best-effort queue cleanup never blocks the DB write)", async () => {
+    // cancelPdfRender itself never throws in real usage (it swallows its own
+    // errors — see pdf-render.queue.ts), but this guards the router against
+    // a future regression where the mock/implementation does reject.
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
+      id: "re-queued-4",
+      tenantId: TENANT_ID,
+      status: "queued",
+    } as never);
+    vi.mocked(prisma.reportExport.update).mockResolvedValue({
+      id: "re-queued-4",
+      tenantId: TENANT_ID,
+      status: "failed",
+    } as never);
+    vi.mocked(cancelPdfRender).mockResolvedValueOnce(undefined);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const result = await caller.cancel({ id: "re-queued-4" });
+
+    expect(result.id).toBe("re-queued-4");
+  });
+});
+
+describe("reportExport.delete (Delete button — remove a terminal ready/failed row)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("rejects delete when role is operator (adminProcedure — site_admin+)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["operator"]));
+
+    await expect(caller.delete({ id: "re-1" })).rejects.toThrow(TRPCError);
+    expect(vi.mocked(prisma.reportExport.findFirst)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.reportExport.delete)).not.toHaveBeenCalled();
+  });
+
+  it("rejects delete when role is field_coordinator (adminProcedure gate)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["field_coordinator"]));
+
+    await expect(caller.delete({ id: "re-1" })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+    expect(vi.mocked(prisma.reportExport.delete)).not.toHaveBeenCalled();
+  });
+
+  it("throws NOT_FOUND when the row does not exist for this tenant (no cross-tenant leak)", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    await expect(caller.delete({ id: "re-other" })).rejects.toThrow(TRPCError);
+
+    expect(vi.mocked(prisma.reportExport.delete)).not.toHaveBeenCalled();
+  });
+
+  it("admin happy path: deletes a FAILED row by id, tenant-scoped", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
+      id: "re-failed-del-1",
+      tenantId: TENANT_ID,
+      status: "failed",
+    } as never);
+    vi.mocked(prisma.reportExport.delete).mockResolvedValue({
+      id: "re-failed-del-1",
+    } as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const result = await caller.delete({ id: "re-failed-del-1" });
+
+    expect(result).toEqual({ id: "re-failed-del-1" });
+    expect(vi.mocked(prisma.reportExport.delete)).toHaveBeenCalledWith({
+      where: { id: "re-failed-del-1" },
+    });
+  });
+
+  it("admin happy path: also deletes a READY row (terminal, not just failed)", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
+      id: "re-ready-del-1",
+      tenantId: TENANT_ID,
+      status: "ready",
+    } as never);
+    vi.mocked(prisma.reportExport.delete).mockResolvedValue({
+      id: "re-ready-del-1",
+    } as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const result = await caller.delete({ id: "re-ready-del-1" });
+
+    expect(result).toEqual({ id: "re-ready-del-1" });
+  });
+
+  it("best-effort clears any lingering BullMQ job for the id via cancelPdfRender", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
+      id: "re-failed-del-2",
+      tenantId: TENANT_ID,
+      status: "failed",
+    } as never);
+    vi.mocked(prisma.reportExport.delete).mockResolvedValue({
+      id: "re-failed-del-2",
+    } as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    await caller.delete({ id: "re-failed-del-2" });
+
+    expect(vi.mocked(cancelPdfRender)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(cancelPdfRender)).toHaveBeenCalledWith("re-failed-del-2");
+  });
+
+  it("writes an EXPORT_DELETED AuditLog with the row id as entityId + previousStatus", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
+      id: "re-failed-del-3",
+      tenantId: TENANT_ID,
+      status: "failed",
+    } as never);
+    vi.mocked(prisma.reportExport.delete).mockResolvedValue({
+      id: "re-failed-del-3",
+    } as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    await caller.delete({ id: "re-failed-del-3" });
+
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith({
+      data: partial<{
+        action: string;
+        userId: string;
+        tenantId: string;
+        entityType: string;
+        entityId: string;
+        changesJson: { previousStatus: string };
+      }>({
+        action: "EXPORT_DELETED",
+        userId: USER_ID,
+        tenantId: TENANT_ID,
+        entityType: "ReportExport",
+        entityId: "re-failed-del-3",
+        changesJson: { previousStatus: "failed" },
+      }),
+    });
+  });
+
+  it("invokes findFirst BEFORE delete BEFORE auditLog.create", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
+      id: "re-order-del",
+      tenantId: TENANT_ID,
+      status: "failed",
+    } as never);
+    vi.mocked(prisma.reportExport.delete).mockResolvedValue({
+      id: "re-order-del",
+    } as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    await caller.delete({ id: "re-order-del" });
+
+    const findOrder = vi.mocked(prisma.reportExport.findFirst).mock
+      .invocationCallOrder[0];
+    const deleteOrder = vi.mocked(prisma.reportExport.delete).mock
+      .invocationCallOrder[0];
+    const auditOrder = vi.mocked(prisma.auditLog.create).mock
+      .invocationCallOrder[0];
+
+    expect(findOrder).toBeDefined();
+    expect(deleteOrder).toBeDefined();
+    expect(auditOrder).toBeDefined();
+    expect(findOrder).toBeLessThan(deleteOrder as number);
+    expect(deleteOrder).toBeLessThan(auditOrder as number);
   });
 });
