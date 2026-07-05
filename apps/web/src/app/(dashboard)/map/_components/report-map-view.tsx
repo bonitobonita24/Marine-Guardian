@@ -156,16 +156,23 @@ function ReportMapInner() {
   // Total events in the active range — the continuous daily series sums to the
   // same total as the full event count (the where-clause already bounds events
   // to [from,to], so every matched event lands in a bucket). Used purely to
-  // decide whether to show the "no events" empty state.
+  // decide whether to show the "nothing to show" empty state.
   const totalEvents = (eventsOverTime.data ?? []).reduce(
     (sum, d) => sum + d.count,
     0,
   );
+  // Total patrols in the active range — a municipality can have foot-patrol
+  // tracks with zero events in-window (patrols and events are independent
+  // entities), so the blanket empty state must not fire just because events
+  // are zero. Counted alongside totalEvents so the gate only fires when BOTH
+  // are empty (see shouldShowReportMapEmptyState).
+  const totalPatrols = (patrolsInRange.data ?? []).length;
 
   const showEmptyState = shouldShowReportMapEmptyState({
     municipalityId,
     totalEvents,
-    isLoading: eventsOverTime.isLoading,
+    totalPatrols,
+    isLoading: eventsOverTime.isLoading || patrolsInRange.isLoading,
     municipalityName,
   });
 

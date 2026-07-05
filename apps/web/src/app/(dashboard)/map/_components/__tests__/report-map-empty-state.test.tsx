@@ -11,11 +11,12 @@ describe("shouldShowReportMapEmptyState", () => {
   const base = {
     municipalityId: "muni-1",
     totalEvents: 0,
+    totalPatrols: 0,
     isLoading: false,
     municipalityName: "Calapan City",
   };
 
-  it("shows when a specific municipality is selected and the count is zero", () => {
+  it("shows when a specific municipality is selected and BOTH events and patrols are zero", () => {
     expect(shouldShowReportMapEmptyState(base)).toBe(true);
   });
 
@@ -32,6 +33,12 @@ describe("shouldShowReportMapEmptyState", () => {
   it("does NOT show when there are events in range", () => {
     expect(
       shouldShowReportMapEmptyState({ ...base, totalEvents: 12 }),
+    ).toBe(false);
+  });
+
+  it("does NOT show when patrols exist even though events are zero (Calapan City foot-patrol case)", () => {
+    expect(
+      shouldShowReportMapEmptyState({ ...base, totalEvents: 0, totalPatrols: 3 }),
     ).toBe(false);
   });
 
