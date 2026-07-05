@@ -31,19 +31,74 @@ function detailRecord(v: unknown): Record<string, unknown> | null {
   return v as Record<string, unknown>;
 }
 
+// ─── Machine-JSON column filter (owner complaint (c) 2026-07-05) ──────────────
+//
+// Some ER detail keys carry machine audit/activity-log data rather than human
+// input — e.g. an "updates" key whose value is a serialized log entry
+// (`{"text":"","time":"...","type":"add_eventdetails","user":{...}}`). Printed
+// verbatim this renders as raw JSON in the PDF — unreadable noise for a human
+// reviewer, not a genuine ER field. `isHumanReadableColumn` drops a detail
+// column when it is EITHER a known machine-audit key OR its sampled values
+// are predominantly JSON-object/array shaped after formatting.
+// `formatDetailValue` already unwraps genuine ER choice payloads
+// (`{name, value}`) down to a plain string, so a column that STILL stringifies
+// to `{...}`/`[...]` is real structured/audit data, not a human-entered field.
+
+const MACHINE_KEY_FRAGMENTS = ["updates", "eventdetails", "auditlog", "activitylog", "history"];
+
+function normalizeKeyForMatch(key: string): string {
+  return key.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function isKnownMachineKey(key: string): boolean {
+  const normalized = normalizeKeyForMatch(key);
+  return MACHINE_KEY_FRAGMENTS.some((f) => normalized.includes(f));
+}
+
+function looksLikeJson(formatted: string): boolean {
+  const t = formatted.trim();
+  return (t.startsWith("{") && t.endsWith("}")) || (t.startsWith("[") && t.endsWith("]"));
+}
+
+/**
+ * True when a detail column should be shown to a human reviewer. `values` are
+ * the raw (pre-format) eventDetailsJson values sampled for this key across a
+ * type's events.
+ */
+export function isHumanReadableColumn(key: string, values: unknown[]): boolean {
+  if (isKnownMachineKey(key)) return false;
+  const nonEmpty = values.filter(
+    (v) => v !== null && v !== undefined && !(typeof v === "string" && v.trim() === ""),
+  );
+  if (nonEmpty.length === 0) return true; // nothing to judge by yet — keep it
+  const jsonLikeCount = nonEmpty.filter((v) => looksLikeJson(formatDetailValue(v))).length;
+  return jsonLikeCount / nonEmpty.length < 0.5;
+}
+
 /**
  * Group events by their type display name. Groups are ordered by descending
  * event count (busiest type first), ties broken alphabetically; events keep
- * their input order within each group.
+ * their input order within each group. Detail columns whose values are
+ * predominantly machine/JSON audit data (not human input) are excluded from
+ * `detailKeys` — see `isHumanReadableColumn`.
  */
 export function groupEventsByType(
   events: ReportMapEventDetail[],
 ): EventTypeGroup[] {
-  const groups = new Map<string, EventTypeGroup>();
+  interface WorkingGroup extends EventTypeGroup {
+    detailValues: Map<string, unknown[]>;
+  }
+  const groups = new Map<string, WorkingGroup>();
   for (const e of events) {
     let g = groups.get(e.typeDisplay);
     if (g === undefined) {
-      g = { type: e.typeDisplay, events: [], detailKeys: [], hasAnyPhoto: false };
+      g = {
+        type: e.typeDisplay,
+        events: [],
+        detailKeys: [],
+        hasAnyPhoto: false,
+        detailValues: new Map(),
+      };
       groups.set(e.typeDisplay, g);
     }
     g.events.push(e);
@@ -52,13 +107,25 @@ export function groupEventsByType(
     if (details !== null) {
       for (const key of Object.keys(details)) {
         if (!g.detailKeys.includes(key)) g.detailKeys.push(key);
+        let values = g.detailValues.get(key);
+        if (values === undefined) {
+          values = [];
+          g.detailValues.set(key, values);
+        }
+        values.push(details[key]);
       }
     }
   }
-  return Array.from(groups.values()).sort(
-    (a, b) =>
-      b.events.length - a.events.length || a.type.localeCompare(b.type),
-  );
+  return Array.from(groups.values())
+    .map((g) => ({
+      type: g.type,
+      events: g.events,
+      hasAnyPhoto: g.hasAnyPhoto,
+      detailKeys: g.detailKeys.filter((k) =>
+        isHumanReadableColumn(k, g.detailValues.get(k) ?? []),
+      ),
+    }))
+    .sort((a, b) => b.events.length - a.events.length || a.type.localeCompare(b.type));
 }
 
 /**
@@ -105,4 +172,91 @@ export function detailCell(e: ReportMapEventDetail, key: string): string {
   const details = detailRecord(e.eventDetailsJson);
   if (details === null || !(key in details)) return "—";
   return formatDetailValue(details[key]);
+}
+
+// ─── 2-page landscape column split (owner complaint (a) 2026-07-05) ───────────
+//
+// A busy EventType can carry ~15 columns (5 fixed + 10 dynamic ER fields),
+// which crushed every column to an unreadable ~30px on ONE landscape page.
+// Fix: split each type's column set into two halves and render each half as
+// its OWN landscape table/page, with the "identity" columns (Reported At +
+// Title — enough to correlate a row across the split) repeated as the leading
+// columns on BOTH halves.
+
+export type EventColumnKind =
+  | "reportedAt"
+  | "title"
+  | "municipality"
+  | "area"
+  | "reporter"
+  | "detail"
+  | "photo";
+
+export interface EventColumn {
+  kind: EventColumnKind;
+  /** Present only for kind "detail" — the eventDetailsJson key. */
+  key?: string;
+  label: string;
+}
+
+export interface EventColumnSplit {
+  /** Always non-empty — the first (or only) landscape page's columns. */
+  page1: EventColumn[];
+  /**
+   * The second landscape page's columns, WITH the identity columns repeated
+   * as leaders. Empty when the type's full column set already fits on one
+   * page (nothing worth forcing onto a second page for).
+   */
+  page2: EventColumn[];
+}
+
+/** Columns repeated as leaders on every split page — enough to correlate a row. */
+const IDENTITY_COLUMNS: EventColumn[] = [
+  { kind: "reportedAt", label: "Reported At" },
+  { kind: "title", label: "Title" },
+];
+
+/** The full ordered column set for one EventType group (before splitting). */
+export function buildEventColumns(g: EventTypeGroup): EventColumn[] {
+  const columns: EventColumn[] = [
+    ...IDENTITY_COLUMNS,
+    { kind: "municipality", label: "Municipality" },
+    { kind: "area", label: "Barangay / Area" },
+    { kind: "reporter", label: "Reporter" },
+    ...g.detailKeys.map(
+      (key): EventColumn => ({ kind: "detail", key, label: humanizeDetailKey(key) }),
+    ),
+  ];
+  if (g.hasAnyPhoto) columns.push({ kind: "photo", label: "Photo" });
+  return columns;
+}
+
+/**
+ * Non-identity column count at/under which a single landscape page already
+ * gives every column reasonable width — no split needed. Above this, a
+ * busy EventType's ~10-15 total columns (owner complaint (a)) get crushed to
+ * ~30px each on one page, so we force a second page.
+ */
+const SPLIT_THRESHOLD = 6;
+
+/**
+ * Split one EventType group's columns into two landscape-page-sized halves.
+ * The identity columns (Reported At, Title) never count toward either half —
+ * they are prepended to both. When the non-identity column count is small
+ * enough to not need a split, `page2` is returned empty and callers should
+ * render `page1` alone (no forced second page).
+ */
+export function splitEventColumns(g: EventTypeGroup): EventColumnSplit {
+  const all = buildEventColumns(g);
+  const rest = all.slice(IDENTITY_COLUMNS.length);
+  if (rest.length <= SPLIT_THRESHOLD) {
+    return { page1: all, page2: [] };
+  }
+  const mid = Math.ceil(rest.length / 2);
+  const restPage1 = rest.slice(0, mid);
+  const restPage2 = rest.slice(mid);
+  return {
+    page1: [...IDENTITY_COLUMNS, ...restPage1],
+    page2: [...IDENTITY_COLUMNS, ...restPage2],
+  };
 }

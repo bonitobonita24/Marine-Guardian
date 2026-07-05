@@ -67,8 +67,9 @@
 import type { ReportMapEventDetail, ReportMapReportData } from "@/server/report-map-report/get-report-map-report-data";
 import {
   detailCell,
+  type EventColumn,
   groupEventsByType,
-  humanizeDetailKey,
+  splitEventColumns,
 } from "@/server/report-map-report/event-type-grouping";
 import { EventBreakdownChart } from "./components/event-breakdown-chart";
 // Leaflet islands are loaded dynamically (ssr:false) via the client wrapper to
@@ -275,58 +276,137 @@ function EventPhotoCell({
   );
 }
 
+/**
+ * One column's <td> for one event row. A single switch covers every
+ * `EventColumn.kind` so both split halves (and any future non-split caller)
+ * render identically from the shared column model in event-type-grouping.ts.
+ */
+function EventColumnCell({
+  column,
+  event,
+  groupType,
+}: {
+  column: EventColumn;
+  event: ReportMapEventDetail;
+  groupType: string;
+}) {
+  switch (column.kind) {
+    case "reportedAt":
+      return <td>{fmtDateTimeLocal2(event.reportedAt)}</td>;
+    case "title":
+      return <td>{event.title ?? "—"}</td>;
+    case "municipality":
+      return <td>{event.municipalityName ?? "—"}</td>;
+    case "area":
+      return <td>{event.areaName ?? "—"}</td>;
+    case "reporter":
+      return <td>{event.reportedByName ?? "—"}</td>;
+    case "detail":
+      return <td>{detailCell(event, column.key ?? "")}</td>;
+    case "photo":
+      return <EventPhotoCell event={event} groupType={groupType} />;
+  }
+}
+
+function columnKey(column: EventColumn): string {
+  return column.kind === "detail" ? `detail:${column.key ?? ""}` : column.kind;
+}
+
+interface EventTypeTableProps {
+  columns: EventColumn[];
+  events: ReportMapEventDetail[];
+  groupType: string;
+  captionPrefix: string;
+  pageLabel: string | null;
+}
+
+/** One landscape table for one column half — shared by both split pages. */
+function EventTypeTable({
+  columns,
+  events,
+  groupType,
+  captionPrefix,
+  pageLabel,
+}: EventTypeTableProps) {
+  return (
+    <table className="report-table full-table">
+      <caption className="sr-only">
+        {captionPrefix} — {groupType}
+        {pageLabel !== null ? ` — ${pageLabel}` : ""}
+      </caption>
+      <thead>
+        <tr>
+          {columns.map((col) => (
+            <th scope="col" key={columnKey(col)}>
+              {col.label}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {events.map((e) => (
+          <tr key={e.id}>
+            {columns.map((col) => (
+              <EventColumnCell
+                key={columnKey(col)}
+                column={col}
+                event={e}
+                groupType={groupType}
+              />
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 function EventTypeTables({ events, captionPrefix }: EventTypeTablesProps) {
   if (events.length === 0)
     return <p className="empty-note">No event details available.</p>;
   return (
     <>
-      {groupEventsByType(events).map((g) => (
-        <div className="event-type-block" key={g.type}>
-          <h3 className="event-type-heading">
-            {g.type}
-            <span className="total-badge">
-              {g.events.length.toLocaleString()}
-            </span>
-          </h3>
-          <table className="report-table full-table">
-            <caption className="sr-only">
-              {captionPrefix} — {g.type}
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">Reported At</th>
-                <th scope="col">Title</th>
-                <th scope="col">Municipality</th>
-                <th scope="col">Barangay / Area</th>
-                <th scope="col">Reporter</th>
-                {g.detailKeys.map((k) => (
-                  <th scope="col" key={k}>
-                    {humanizeDetailKey(k)}
-                  </th>
-                ))}
-                {g.hasAnyPhoto ? <th scope="col">Photo</th> : null}
-              </tr>
-            </thead>
-            <tbody>
-              {g.events.map((e) => (
-                <tr key={e.id}>
-                  <td>{fmtDateTimeLocal2(e.reportedAt)}</td>
-                  <td>{e.title ?? "—"}</td>
-                  <td>{e.municipalityName ?? "—"}</td>
-                  <td>{e.areaName ?? "—"}</td>
-                  <td>{e.reportedByName ?? "—"}</td>
-                  {g.detailKeys.map((k) => (
-                    <td key={k}>{detailCell(e, k)}</td>
-                  ))}
-                  {g.hasAnyPhoto ? (
-                    <EventPhotoCell event={e} groupType={g.type} />
-                  ) : null}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ))}
+      {groupEventsByType(events).map((g) => {
+        const split = splitEventColumns(g);
+        const hasSecondPage = split.page2.length > 0;
+        return (
+          <div className="event-type-block" key={g.type}>
+            <h3 className="event-type-heading">
+              {g.type}
+              <span className="total-badge">
+                {g.events.length.toLocaleString()}
+              </span>
+            </h3>
+            <EventTypeTable
+              columns={split.page1}
+              events={g.events}
+              groupType={g.type}
+              captionPrefix={captionPrefix}
+              pageLabel={hasSecondPage ? "page 1 of 2" : null}
+            />
+            {hasSecondPage ? (
+              // Forces the second column half onto its OWN landscape page
+              // (owner complaint (a) 2026-07-05) instead of squeezing every
+              // column onto one crowded page. Identity columns (Reported At,
+              // Title) repeat as leaders so a row can be correlated across
+              // both pages.
+              <div className="event-type-column-page-break">
+                <h3 className="event-type-heading">
+                  {g.type}
+                  <span className="cont-note"> (continued — columns 2 of 2)</span>
+                </h3>
+                <EventTypeTable
+                  columns={split.page2}
+                  events={g.events}
+                  groupType={g.type}
+                  captionPrefix={captionPrefix}
+                  pageLabel="page 2 of 2"
+                />
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
     </>
   );
 }
@@ -596,13 +676,28 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
       break-inside: avoid; page-break-inside: avoid;
     }
     /* Per-event-type tables (landscape event-list pages). Long ER detail
-       values wrap inside their cell instead of widening the table off-page. */
-    table.report-table.full-table td { word-break: break-word; }
+       values wrap inside their cell by WHOLE WORD instead of widening the
+       table off-page. owner complaint (b) 2026-07-05: "word-break: break-word"
+       breaks mid-word ("Illegal" → "Illeg/al") because it is treated the same
+       as break-all by Chromium's table layout. "word-break: normal" +
+       "overflow-wrap: break-word" wraps at whitespace first and only breaks
+       an unbreakable single long token (URL/hash) as a last resort. */
+    table.report-table.full-table td {
+      white-space: normal; overflow-wrap: break-word; word-break: normal;
+    }
     h3.event-type-heading {
       font-size: 11px; font-weight: 600; color: #374151;
       margin: 10px 0 4px; break-after: avoid; page-break-after: avoid;
     }
     .event-type-block + .event-type-block { margin-top: 12px; }
+    /* 2-page column split (owner complaint (a) 2026-07-05): a busy EventType's
+       second column half always starts on its OWN landscape page instead of
+       squeezing every column onto one crowded page — see
+       splitEventColumns()/EventTypeTables. */
+    .event-type-column-page-break {
+      break-before: page; page-break-before: always;
+    }
+    .cont-note { font-size: 9px; font-weight: 400; font-style: italic; color: #6b7280; }
     td.photo-cell { width: 96px; }
     img.event-thumb {
       display: block; max-height: 56px; max-width: 90px; width: auto;

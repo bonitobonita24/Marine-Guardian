@@ -5,10 +5,13 @@
 
 import { describe, it, expect } from "vitest";
 import {
+  buildEventColumns,
   detailCell,
   formatDetailValue,
   groupEventsByType,
   humanizeDetailKey,
+  isHumanReadableColumn,
+  splitEventColumns,
 } from "../event-type-grouping";
 import type { ReportMapEventDetail } from "../get-report-map-report-data";
 
@@ -31,6 +34,13 @@ function makeEvent(
     photoAssetIds: [],
     ...overrides,
   };
+}
+
+/** Groups `events` and returns the first group, throwing if there is none. */
+function firstGroup(events: ReportMapEventDetail[]) {
+  const [g] = groupEventsByType(events);
+  if (g === undefined) throw new Error("expected at least one group");
+  return g;
 }
 
 describe("groupEventsByType", () => {
@@ -139,5 +149,131 @@ describe("detailCell", () => {
     expect(detailCell(e, "species")).toBe("Dugong");
     expect(detailCell(e, "missing_key")).toBe("—");
     expect(detailCell(makeEvent({ id: "2" }), "species")).toBe("—");
+  });
+});
+
+describe("isHumanReadableColumn", () => {
+  it("drops a known machine-audit key regardless of its values", () => {
+    expect(isHumanReadableColumn("updates", ["Dugong"])).toBe(false);
+    expect(isHumanReadableColumn("eventDetails", ["Dugong"])).toBe(false);
+  });
+
+  it("drops a key whose values are predominantly JSON-object/array shaped", () => {
+    const auditValues = [
+      { text: "", time: "2026-06-15T00:00:00Z", type: "add_eventdetails", user: { id: "u1" } },
+      { text: "note", time: "2026-06-16T00:00:00Z", type: "edit", user: { id: "u2" } },
+    ];
+    expect(isHumanReadableColumn("log_entries", auditValues)).toBe(false);
+  });
+
+  it("keeps a genuine human field, including ER choice payloads and blanks", () => {
+    expect(isHumanReadableColumn("vessel_name", ["MB Rosa", "MB Luz"])).toBe(true);
+    expect(
+      isHumanReadableColumn("gear_type", [{ name: "Hulbot-hulbot", value: "hh" }]),
+    ).toBe(true);
+    expect(isHumanReadableColumn("remarks", [null, "", undefined])).toBe(true);
+  });
+});
+
+describe("groupEventsByType — machine-JSON column exclusion", () => {
+  it("excludes the Updates column while keeping human ER fields", () => {
+    const groups = groupEventsByType([
+      makeEvent({
+        id: "1",
+        typeDisplay: "Illegal Fishing",
+        eventDetailsJson: {
+          vessel_name: "MB Rosa",
+          action_taken: "Apprehended",
+          updates: {
+            text: "",
+            time: "2026-06-15T00:00:00Z",
+            type: "add_eventdetails",
+            user: { id: "u1", name: "Officer Cruz" },
+          },
+        },
+      }),
+    ]);
+    const g = groups.find((x) => x.type === "Illegal Fishing");
+    expect(g?.detailKeys).toEqual(["vessel_name", "action_taken"]);
+    expect(g?.detailKeys).not.toContain("updates");
+  });
+});
+
+describe("buildEventColumns / splitEventColumns", () => {
+  it("builds the fixed + dynamic + photo column order for a group", () => {
+    const g = firstGroup([
+      makeEvent({
+        id: "1",
+        typeDisplay: "T",
+        eventDetailsJson: { vessel_name: "MB Rosa" },
+        photoAssetIds: ["a1"],
+      }),
+    ]);
+    const columns = buildEventColumns(g);
+    expect(columns.map((c) => c.kind)).toEqual([
+      "reportedAt",
+      "title",
+      "municipality",
+      "area",
+      "reporter",
+      "detail",
+      "photo",
+    ]);
+    expect(columns.map((c) => c.label)).toEqual([
+      "Reported At",
+      "Title",
+      "Municipality",
+      "Barangay / Area",
+      "Reporter",
+      "Vessel Name",
+      "Photo",
+    ]);
+  });
+
+  it("splits a wide column set into two halves with identity columns repeated on both", () => {
+    const g = firstGroup([
+      makeEvent({
+        id: "1",
+        typeDisplay: "T",
+        eventDetailsJson: {
+          k1: "a",
+          k2: "b",
+          k3: "c",
+          k4: "d",
+          k5: "e",
+          k6: "f",
+          k7: "g",
+          k8: "h",
+        },
+      }),
+    ]);
+    const split = splitEventColumns(g);
+    // Identity columns lead BOTH pages.
+    expect(split.page1.slice(0, 2).map((c) => c.kind)).toEqual([
+      "reportedAt",
+      "title",
+    ]);
+    expect(split.page2.slice(0, 2).map((c) => c.kind)).toEqual([
+      "reportedAt",
+      "title",
+    ]);
+    // Every non-identity column appears exactly once across both halves.
+    const restKeys = [...split.page1, ...split.page2]
+      .filter((c) => c.kind !== "reportedAt" && c.kind !== "title")
+      .map((c) => c.key ?? c.kind);
+    expect(new Set(restKeys).size).toBe(restKeys.length);
+    expect(restKeys).toEqual(
+      expect.arrayContaining(["municipality", "area", "reporter", "k1", "k2", "k3", "k4", "k5", "k6", "k7", "k8"]),
+    );
+    expect(split.page2.length).toBeGreaterThan(0);
+  });
+
+  it("returns an empty page2 when the column set already fits on one page", () => {
+    const g = firstGroup([
+      makeEvent({ id: "1", typeDisplay: "T", eventDetailsJson: { k1: "a" } }),
+    ]);
+    const split = splitEventColumns(g);
+    expect(split.page2).toEqual([]);
+    expect(split.page1.length).toBeGreaterThan(0);
   });
 });
