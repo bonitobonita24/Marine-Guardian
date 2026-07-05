@@ -14,11 +14,13 @@ const { stubs } = vi.hoisted(() => {
     useQueryOpts: unknown;
     useQueryCalled: boolean;
     invalidateUnreadCount: ReturnType<typeof vi.fn<() => Promise<void>>>;
+    sessionRoles: string[];
   } = {
     notificationsLength: 0,
     useQueryOpts: undefined,
     useQueryCalled: false,
     invalidateUnreadCount: vi.fn<() => Promise<void>>(),
+    sessionRoles: [],
   };
   return { stubs };
 });
@@ -71,6 +73,9 @@ vi.mock("next-intl", () => ({
 
 vi.mock("next-auth/react", () => ({
   signOut: vi.fn(),
+  useSession: () => ({
+    data: { user: { roles: stubs.sessionRoles } },
+  }),
 }));
 
 // Import AFTER mocks are registered.
@@ -83,6 +88,7 @@ describe("Sidebar — SSE-driven invalidation", () => {
     stubs.useQueryCalled = false;
     stubs.invalidateUnreadCount.mockReset();
     stubs.invalidateUnreadCount.mockResolvedValue(undefined);
+    stubs.sessionRoles = [];
   });
 
   afterEach(() => {
@@ -116,5 +122,73 @@ describe("Sidebar — SSE-driven invalidation", () => {
     const { getByLabelText } = render(<Sidebar />);
     const badge = getByLabelText("5 unread notifications");
     expect(badge.textContent).toBe("5");
+  });
+});
+
+// viewer role (2026-07-05) — nav visibility. A viewer sees ONLY "dashboard" +
+// "map" (translated via the mocked useTranslations passthrough, so the
+// labelKey itself is the rendered text). Every other role sees the full nav
+// unchanged (no regression).
+describe("Sidebar — viewer role nav filtering", () => {
+  beforeEach(() => {
+    stubs.notificationsLength = 0;
+    stubs.useQueryOpts = undefined;
+    stubs.useQueryCalled = false;
+    stubs.invalidateUnreadCount.mockReset();
+    stubs.invalidateUnreadCount.mockResolvedValue(undefined);
+    stubs.sessionRoles = [];
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  const ALL_NAV_LABEL_KEYS = [
+    "dashboard",
+    "map",
+    "events",
+    "observations",
+    "notifications",
+    "patrols",
+    "patrolAreas",
+    "patrolSchedule",
+    "fuel",
+    "alerts",
+    "subjects",
+    "sync",
+    "users",
+    "settings",
+  ];
+
+  it("renders exactly the 2 Command items for a viewer session", () => {
+    stubs.sessionRoles = ["viewer"];
+    const { getByText, queryByText } = render(<Sidebar />);
+
+    expect(getByText("dashboard")).toBeTruthy();
+    expect(getByText("map")).toBeTruthy();
+
+    for (const key of ALL_NAV_LABEL_KEYS) {
+      if (key === "dashboard" || key === "map") continue;
+      expect(queryByText(key)).toBeNull();
+    }
+  });
+
+  it.each(["super_admin", "site_admin", "field_coordinator", "operator"])(
+    "renders the full nav unchanged for %s (no regression)",
+    (role) => {
+      stubs.sessionRoles = [role];
+      const { getByText } = render(<Sidebar />);
+      for (const key of ALL_NAV_LABEL_KEYS) {
+        expect(getByText(key)).toBeTruthy();
+      }
+    },
+  );
+
+  it("renders the full nav when there is no session yet (unauthenticated render pass)", () => {
+    stubs.sessionRoles = [];
+    const { getByText } = render(<Sidebar />);
+    for (const key of ALL_NAV_LABEL_KEYS) {
+      expect(getByText(key)).toBeTruthy();
+    }
   });
 });

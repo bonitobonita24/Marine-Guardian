@@ -8,7 +8,13 @@ import { platformPrisma, writeAuditLog } from "@marine-guardian/db";
 
 const BCRYPT_ROUNDS = 12;
 
-const userRoleSchema = z.enum(["super_admin", "site_admin", "field_coordinator", "operator"]);
+const userRoleSchema = z.enum([
+  "super_admin",
+  "site_admin",
+  "field_coordinator",
+  "operator",
+  "viewer",
+]);
 
 const languageSchema = z.enum(["en", "id", "ms"]);
 

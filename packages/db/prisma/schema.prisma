@@ -24,6 +24,12 @@ enum UserRole {
   site_admin
   field_coordinator
   operator
+  // Read-only role (2026-07-05): can view ONLY Command Center (/dashboard) +
+  // Interactive Report Map (/map). No mutations anywhere — deliberately
+  // excluded from adminProcedure/coordinatorProcedure/operatorProcedure in
+  // rbac.ts, so it is rejected by every tRPC mutation gated by those. Nav +
+  // route-level gating live in sidebar.tsx + middleware.ts.
+  viewer
 }
 
 enum Language {

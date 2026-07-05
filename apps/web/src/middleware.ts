@@ -28,6 +28,19 @@ const PRINT_RENDER_PREFIX = "/print-render/";
 // Asset proxy prefix — renderer-token access for print-render <img> thumbnails.
 const RENDERER_ASSET_PREFIX = "/api/assets/";
 
+// viewer role (2026-07-05) — strictly read-only, scoped to Command Center
+// (/dashboard) + Interactive Report Map (/map). sidebar.tsx already hides
+// every other nav item for a viewer; this is the route-level enforcement so
+// a viewer can never reach a hidden page via a typed URL, bookmark, or
+// deep link — the nav hide alone is cosmetic without this.
+const VIEWER_ALLOWED_PREFIXES = ["/dashboard", "/map"];
+
+function isViewerAllowedPath(pathname: string): boolean {
+  return VIEWER_ALLOWED_PREFIXES.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  );
+}
+
 export default async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -95,6 +108,15 @@ export default async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/admin", request.url));
   }
   if (!isPlatformAdmin && isAdminPath) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+
+  // viewer route gate — a viewer requesting any tenant page outside
+  // Command Center / Interactive Report Map is redirected to /dashboard.
+  // Runs after the admin-path checks above so it never fires for an
+  // impersonating/platform-admin request (those already returned above).
+  const isViewer = session.user.roles.includes("viewer");
+  if (isViewer && !isAdminPath && !isViewerAllowedPath(pathname)) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 

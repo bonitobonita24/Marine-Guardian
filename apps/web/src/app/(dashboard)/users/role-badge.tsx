@@ -1,13 +1,19 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-type UserRole = "super_admin" | "site_admin" | "field_coordinator" | "operator";
+type UserRole =
+  | "super_admin"
+  | "site_admin"
+  | "field_coordinator"
+  | "operator"
+  | "viewer";
 
 const ROLE_LABELS: Record<UserRole, string> = {
   super_admin: "Super Admin",
   site_admin: "Site Admin",
   field_coordinator: "Field Coordinator",
   operator: "Operator",
+  viewer: "Viewer",
 };
 
 // Color mapping — reconciled against mockup (mpa-command-center-v4.jsx UserMgmt)
@@ -26,6 +32,10 @@ const ROLE_CLASS: Record<UserRole, string> = {
   field_coordinator:
     "border-transparent bg-[hsl(var(--warning))]/15 text-[hsl(var(--warning))] hover:bg-[hsl(var(--warning))]/20",
   operator: "",
+  // viewer — distinct slate/blue-gray tone so it reads visually apart from
+  // the other four roles (read-only marker, not a tier of the same ladder).
+  viewer:
+    "border-transparent bg-slate-500/15 text-slate-400 hover:bg-slate-500/20",
 };
 
 interface RoleBadgeProps {

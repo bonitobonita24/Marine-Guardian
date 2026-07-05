@@ -27,6 +27,7 @@ const ROLE_FILTER_OPTIONS: { value: RoleFilter; label: string }[] = [
   { value: "site_admin", label: "Site Admin" },
   { value: "field_coordinator", label: "Field Coordinator" },
   { value: "operator", label: "Operator" },
+  { value: "viewer", label: "Viewer" },
 ];
 
 const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
