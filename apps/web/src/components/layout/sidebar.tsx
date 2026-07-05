@@ -12,7 +12,6 @@ import {
   Ship,
   Users,
   MapPin,
-  Eye,
   Bell,
   BellRing,
   RefreshCw,
@@ -38,19 +37,16 @@ const navGroups = [
     ],
   },
   {
+    // OPERATIONS now folds in the former PATROLS group (owner 2026-07-06):
+    // Events · Patrols · Boundaries · Patrol Schedule · Notifications. The
+    // Observations link is dropped from the nav (route/data remain).
     label: "OPERATIONS",
     items: [
       { href: "/events", icon: CalendarClock, labelKey: "events" },
-      { href: "/observations", icon: Eye, labelKey: "observations" },
-      { href: "/notifications", icon: BellRing, labelKey: "notifications" },
-    ],
-  },
-  {
-    label: "PATROLS",
-    items: [
       { href: "/patrols", icon: Ship, labelKey: "patrols" },
       { href: "/patrol-areas", icon: MapPin, labelKey: "patrolAreas" },
       { href: "/patrol-schedule", icon: Calendar, labelKey: "patrolSchedule" },
+      { href: "/notifications", icon: BellRing, labelKey: "notifications" },
     ],
   },
   {

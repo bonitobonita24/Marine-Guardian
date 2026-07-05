@@ -162,10 +162,14 @@ export function MunicipalityCoverageChart({
                   type="category"
                   tickLine={false}
                   axisLine={false}
-                  width={96}
+                  // Region mode has only 3 short-list province rows, so give the
+                  // axis room to render each name IN FULL ("Occidental Mindoro"
+                  // etc.) — no truncation (owner 2026-07-06). Municipality mode
+                  // keeps the compact width + ellipsis (many, longer names).
+                  width={groupByProvince ? 132 : 96}
                   tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
                   tickFormatter={(v: string) =>
-                    v.length > 14 ? `${v.slice(0, 13)}…` : v
+                    groupByProvince || v.length <= 14 ? v : `${v.slice(0, 13)}…`
                   }
                 />
                 <XAxis
