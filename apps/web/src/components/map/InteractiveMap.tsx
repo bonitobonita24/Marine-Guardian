@@ -27,6 +27,7 @@ import { TrackLegend } from "./TrackLegend";
 import {
   DEFAULT_TRACK_VISIBILITY,
   filterVisibleTracks,
+  gridDedupeTrackPoints,
   patrolTrackStyle,
   patrolTrackHeatHsl,
   type PatrolTrackVisibility,
@@ -66,6 +67,24 @@ const PIN_PREVIEW_ZOOM = 11.5;
 // zones still stand out a touch, but the colour is uniformly grey.
 const BOUNDARY_COLOR = "#9ca3af"; // grey-400 — visible on the dark map
 const BOUNDARY_DASH = [0, 2]; // MapLibre dotted recipe (with round caps)
+
+// Patrol-track heatmap tuning. Grid-deduped tracks (gridDedupeTrackPoints) feed
+// a deliberately LOW per-point weight so a single pass reads faint in its
+// category colour (cyan/orange) and heat only escalates toward red where
+// SEPARATE patrols overlap the same ground — i.e. colour intensity = how many
+// times an area was patrolled. Event heatmaps keep the MapHeatmap defaults
+// (one event should already register), so this override is patrol-track only.
+// weight 0.04 tuned live on the real map (zoom 6.6 regional + zoom 9 municipal):
+// a single grid-deduped pass then reads as its faint category colour and heat
+// only climbs to orange→red where separate patrols overlap the same ground.
+const TRACK_HEAT_TUNING = { weight: 0.04, intensity: 1, radius: 22 } as const;
+
+// Event heatmap tuning. Events are discrete points (not dense tracks), so unlike
+// patrol tracks a single event SHOULD register on its own — a touch larger than
+// the base default so a lone event reads as a clear mark, with a slightly raised
+// weight so neighbouring events blend into a growing, combined hot blob (→ red)
+// as they cluster. Density→red ramp itself lives in MapHeatmap.
+const EVENT_HEAT_TUNING = { weight: 1.2, intensity: 1.2, radius: 34 } as const;
 const BOUNDARY_STYLE: Record<
   "land" | "water" | "mpa",
   { color: string; outlineWidth: number; fillOpacity: number; outlineOpacity: number; dashArray: number[] }
@@ -349,18 +368,23 @@ export function InteractiveMap({
   // the SAME `displayedTracks` the line overlay renders — so the heatmap only
   // ever shows what the lines would (visibility toggles + selected-patrol
   // isolation already applied).
+  // Grid-dedupe each track before flattening (gridDedupeTrackPoints): a single
+  // pass then contributes ~1 point per cell, so heat intensity reflects how
+  // many DISTINCT patrols overlapped an area (repetition) rather than how
+  // densely one track was GPS-sampled. Without this a lone track saturates the
+  // heatmap to red and the repeated-coverage signal is lost.
   const seaborneHeatPoints = useMemo(
     () =>
       displayedTracks
         .filter((t) => t.patrolType === "seaborne")
-        .flatMap((t) => t.points.map((p) => ({ lon: p.lon, lat: p.lat }))),
+        .flatMap((t) => gridDedupeTrackPoints(t.points)),
     [displayedTracks],
   );
   const footHeatPoints = useMemo(
     () =>
       displayedTracks
         .filter((t) => t.patrolType === "foot")
-        .flatMap((t) => t.points.map((p) => ({ lon: p.lon, lat: p.lat }))),
+        .flatMap((t) => gridDedupeTrackPoints(t.points)),
     [displayedTracks],
   );
 
@@ -849,6 +873,7 @@ export function InteractiveMap({
                 id="tracks-seaborne"
                 points={seaborneHeatPoints}
                 hsl={patrolTrackHeatHsl("seaborne")}
+                {...TRACK_HEAT_TUNING}
               />
             )}
             {footHeatPoints.length > 0 && (
@@ -856,6 +881,7 @@ export function InteractiveMap({
                 id="tracks-foot"
                 points={footHeatPoints}
                 hsl={patrolTrackHeatHsl("foot")}
+                {...TRACK_HEAT_TUNING}
               />
             )}
           </>
@@ -870,6 +896,7 @@ export function InteractiveMap({
                 id="events-law"
                 points={lawHeatPoints}
                 hsl={eventCategoryHeatHsl(EVENT_CATEGORY.lawEnforcement)}
+                {...EVENT_HEAT_TUNING}
               />
             )}
             {monHeatPoints.length > 0 && (
@@ -877,6 +904,7 @@ export function InteractiveMap({
                 id="events-monitoring"
                 points={monHeatPoints}
                 hsl={eventCategoryHeatHsl(EVENT_CATEGORY.monitoring)}
+                {...EVENT_HEAT_TUNING}
               />
             )}
           </>

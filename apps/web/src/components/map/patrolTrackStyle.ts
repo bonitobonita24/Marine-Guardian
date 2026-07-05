@@ -88,3 +88,34 @@ export function filterVisibleTracks<T extends TrackLike>(
   if (!showTracks) return [];
   return tracks.filter((t) => visibility[t.patrolType]);
 }
+
+/** Degrees-per-cell for the patrol-track heatmap grid. ~0.0009° ≈ 100 m at
+ * Mindoro's latitude — coarse enough that GPS sampling density (a point every
+ * few seconds) no longer inflates a single pass, fine enough that a track still
+ * reads as a continuous line. */
+export const HEAT_TRACK_GRID_DEG = 0.0009;
+
+/**
+ * Normalize ONE track's GPS points to a spatial grid, keeping a single point
+ * per cell the track enters. This is the core of the "repetition builds heat"
+ * behaviour: raw tracks are dense chains of points (one every few seconds), so
+ * a single pass alone saturates a density heatmap. After per-track grid
+ * dedupe, a lone pass contributes a uniform ~1 point per cell, and only where
+ * SEPARATE patrols overlap the same cells does the point count (and thus the
+ * heat) stack up — so colour intensity reflects how many times an area was
+ * actually patrolled, not how finely one track was sampled. Pure/unit-testable.
+ */
+export function gridDedupeTrackPoints(
+  points: { lon: number; lat: number }[],
+  cellDeg: number = HEAT_TRACK_GRID_DEG,
+): { lon: number; lat: number }[] {
+  const seen = new Set<string>();
+  const out: { lon: number; lat: number }[] = [];
+  for (const p of points) {
+    const key = `${String(Math.round(p.lon / cellDeg))}:${String(Math.round(p.lat / cellDeg))}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ lon: p.lon, lat: p.lat });
+  }
+  return out;
+}
