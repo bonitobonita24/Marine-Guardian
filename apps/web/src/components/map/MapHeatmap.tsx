@@ -13,14 +13,15 @@ type MapHeatmapProps = {
   points: HeatPoint[];
   /** Base HSL of the ramp (per category — matches the dot markers / legend). */
   hsl: { h: number; s: number; l: number };
-  /** Heat radius in px (default 40 — tuned so a single point still blooms into
-   *  a clearly visible, sizable blob rather than a faint dot). */
+  /** Maximum heat radius in px, reached at the highest zoom. The actual radius
+   *  is interpolated by zoom (small when zoomed out, up to this at zoom-in) so
+   *  the surface no longer blankets huge areas at low zoom. Default 26. */
   radius?: number;
-  /** `heatmap-intensity` paint value (default 3 — amplifies density so low
-   *  point counts still read as a strong hot core). */
+  /** `heatmap-intensity` paint value (default 1.1 — near-neutral so the surface
+   *  reflects real density instead of an amplified blob). */
   intensity?: number;
-  /** `heatmap-weight` paint value (default 2 — per-point contribution to
-   *  density; raised alongside intensity for single-event visibility). */
+  /** `heatmap-weight` paint value (default 1 — one unit of density per point;
+   *  colour now escalates with genuine overlap, not artificial weighting). */
   weight?: number;
 };
 
@@ -39,9 +40,9 @@ export function MapHeatmap({
   id: propId,
   points,
   hsl,
-  radius = 40,
-  intensity = 3,
-  weight = 2,
+  radius = 26,
+  intensity = 1.1,
+  weight = 1,
 }: MapHeatmapProps) {
   const { map, isLoaded } = useMap();
   const autoId = useId();
@@ -66,7 +67,8 @@ export function MapHeatmap({
     if (map.getSource(sourceId)) return;
 
     const { h, s, l } = hsl;
-    const ramp = (alpha: number) =>
+    // Category colour (identity) for the LOW/MID density band …
+    const cat = (alpha: number) =>
       `hsla(${String(h)}, ${String(s)}%, ${String(l)}%, ${String(alpha)})`;
 
     map.addSource(sourceId, { type: "geojson", data: featureCollection });
@@ -77,27 +79,46 @@ export function MapHeatmap({
       paint: {
         "heatmap-weight": weight,
         "heatmap-intensity": intensity,
-        "heatmap-radius": radius,
-        "heatmap-opacity": 0.85,
-        // Low-density stops lifted well above transparent (only the true 0
-        // stop stays invisible) so a single point still blooms into a
-        // saturated, sizable blob instead of fading out.
+        // Zoom-responsive radius — small when zoomed out (so the surface tracks
+        // real point clusters instead of blanketing a whole municipality),
+        // growing to `radius` px on zoom-in. This is the core fix for the
+        // "oversized heatmap on zoom-out" report.
+        "heatmap-radius": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          4,
+          Math.max(3, Math.round(radius * 0.18)),
+          8,
+          Math.max(5, Math.round(radius * 0.4)),
+          11,
+          Math.round(radius * 0.7),
+          14,
+          radius,
+          16,
+          Math.round(radius * 1.25),
+        ],
+        "heatmap-opacity": 0.8,
+        // Density → colour: sparse areas keep the category colour (so the layer
+        // toggle / legend still reads), then escalate through amber and deep
+        // orange to RED where events / patrol tracks pile up. Only the true 0
+        // stop is transparent so a lone point still shows as its category hue.
         "heatmap-color": [
           "interpolate",
           ["linear"],
           ["heatmap-density"],
           0,
-          ramp(0),
-          0.05,
-          ramp(0.55),
-          0.15,
-          ramp(0.75),
-          0.4,
-          ramp(0.85),
-          0.7,
-          ramp(0.92),
+          cat(0),
+          0.12,
+          cat(0.45),
+          0.35,
+          cat(0.7),
+          0.55,
+          "hsla(38, 92%, 52%, 0.82)",
+          0.78,
+          "hsla(20, 95%, 50%, 0.9)",
           1,
-          ramp(1),
+          "hsla(0, 90%, 48%, 0.95)",
         ],
       },
     });
