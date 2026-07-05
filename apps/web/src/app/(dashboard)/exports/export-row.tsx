@@ -314,7 +314,13 @@ export function ExportRow({ row }: ExportRowProps) {
         {formatDate(row.createdAt)}
       </TableCell>
       <TableCell className="text-muted-foreground">
-        {formatDate(pollQuery.data?.completedAt ?? row.completedAt)}
+        {/* "Completed" is only meaningful for a terminal status — a queued /
+            rendering row is NOT done, so never show a completion time for it
+            (guards against a stale/transient completedAt showing while the
+            row is still rendering; owner report 2026-07-05). */}
+        {currentStatus === "ready" || currentStatus === "failed"
+          ? formatDate(pollQuery.data?.completedAt ?? row.completedAt)
+          : "—"}
       </TableCell>
       <TableCell className="text-right">
         <div className="flex items-center justify-end gap-2">

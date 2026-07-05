@@ -189,7 +189,11 @@ export async function processPdfRender(
 
   await prisma.reportExport.update({
     where: { id: row.id },
-    data: { status: "rendering" },
+    // Clear any prior completion time / error when (re-)entering rendering — a
+    // row that is actively rendering is NOT done, so it must never carry a
+    // stale completedAt (which surfaced a "Completed" timestamp on a still-
+    // rendering row; owner report 2026-07-05) or a leftover errorMessage.
+    data: { status: "rendering", completedAt: null, errorMessage: null },
   });
 
   const printUrl = `${baseUrl}/print-render/${tenant.slug}/${row.reportType}/${row.id}`;
