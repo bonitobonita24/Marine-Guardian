@@ -23,12 +23,18 @@ export interface EventsOverTimeDatum {
   /** `yyyy-MM-dd` day key. */
   date: string;
   count: number;
+  /** Daily patrol count (same continuous zero-filled series as `count`). */
+  patrolCount: number;
 }
 
 const CHART_CONFIG = {
   count: {
     label: "Events",
     color: "hsl(var(--chart-1))",
+  },
+  patrolCount: {
+    label: "Patrols",
+    color: "hsl(var(--chart-2))",
   },
 } satisfies ChartConfig;
 
@@ -59,6 +65,7 @@ export function EventsOverTimeChart({
   compact?: boolean;
 }) {
   const total = data.reduce((s, d) => s + d.count, 0);
+  const totalPatrols = data.reduce((s, d) => s + d.patrolCount, 0);
 
   return (
     <Card
@@ -71,7 +78,7 @@ export function EventsOverTimeChart({
             id={HEADING_ID}
             className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground"
           >
-            Events Over Time
+            Events vs Patrols Over Time
           </h3>
           <span className="text-xs font-semibold tabular-nums text-muted-foreground">
             {rangeLabel}
@@ -127,20 +134,41 @@ export function EventsOverTimeChart({
                   strokeWidth={2}
                   dot={false}
                 />
+                <Line
+                  dataKey="patrolCount"
+                  type="monotone"
+                  stroke="hsl(var(--chart-2))"
+                  strokeWidth={2}
+                  dot={false}
+                />
               </LineChart>
             </ChartContainer>
 
-            <div className="mt-1 flex items-center gap-1.5">
-              <span
-                className="inline-block h-2 w-3 rounded-sm"
-                style={{ background: "hsl(var(--chart-1))" }}
-              />
-              <span className="text-[10px] text-muted-foreground">
-                Events{" "}
-                <span className="font-semibold tabular-nums text-foreground">
-                  {total.toLocaleString()}
+            <div className="mt-1 flex items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="inline-block h-2 w-3 rounded-sm"
+                  style={{ background: "hsl(var(--chart-1))" }}
+                />
+                <span className="text-[10px] text-muted-foreground">
+                  Events{" "}
+                  <span className="font-semibold tabular-nums text-foreground">
+                    {total.toLocaleString()}
+                  </span>
                 </span>
-              </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="inline-block h-2 w-3 rounded-sm"
+                  style={{ background: "hsl(var(--chart-2))" }}
+                />
+                <span className="text-[10px] text-muted-foreground">
+                  Patrols{" "}
+                  <span className="font-semibold tabular-nums text-foreground">
+                    {totalPatrols.toLocaleString()}
+                  </span>
+                </span>
+              </div>
             </div>
           </>
         )}

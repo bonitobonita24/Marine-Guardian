@@ -294,6 +294,7 @@ function ReportMapInner() {
               isLoading={municipalityCoverage.isLoading}
               rangeLabel={label}
               compact
+              groupByProvince={municipalityId === null}
             />
           </div>
           <div className="flex justify-end">

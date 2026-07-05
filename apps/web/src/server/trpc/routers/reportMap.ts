@@ -551,13 +551,27 @@ export const reportMapRouter = router({
       return result;
     }),
 
+  /**
+   * Daily event + patrol series for the "Events vs Patrols Over Time" line
+   * chart. `count` (events, bucketed by `reportedAt`) is the ORIGINAL key —
+   * `report-map-view.tsx`'s `totalEvents` reducer reads `d.count`, so it must
+   * keep meaning "events". `patrolCount` (patrols, bucketed by `startTime`)
+   * is the new series, reusing `patrolWhere` so it honours the same tenant +
+   * date + municipality + protected-zone filter as every other aggregation.
+   */
   eventsOverTime: tenantProcedure
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
-      const events = await prisma.event.findMany({
-        where: eventWhere(ctx.tenantId, input),
-        select: { reportedAt: true },
-      });
+      const [events, patrols] = await Promise.all([
+        prisma.event.findMany({
+          where: eventWhere(ctx.tenantId, input),
+          select: { reportedAt: true },
+        }),
+        prisma.patrol.findMany({
+          where: patrolWhere(ctx.tenantId, input),
+          select: { startTime: true },
+        }),
+      ]);
 
       const counts: Record<string, number> = {};
       for (const e of events) {
@@ -566,11 +580,19 @@ export const reportMapRouter = router({
         counts[key] = (counts[key] ?? 0) + 1;
       }
 
+      const patrolCounts: Record<string, number> = {};
+      for (const p of patrols) {
+        if (p.startTime === null) continue;
+        const key = dayKey(p.startTime);
+        patrolCounts[key] = (patrolCounts[key] ?? 0) + 1;
+      }
+
       // When both bounds are present, emit a continuous daily series (filling
       // zero days) so the line chart has no gaps. Otherwise return only the days
-      // that have events, ascending.
+      // that have events or patrols, ascending.
       if (input.from && input.to) {
-        const series: { date: string; count: number }[] = [];
+        const series: { date: string; count: number; patrolCount: number }[] =
+          [];
         const cursor = new Date(
           input.from.getFullYear(),
           input.from.getMonth(),
@@ -585,15 +607,27 @@ export const reportMapRouter = router({
         let guard = 0;
         while (cursor.getTime() <= end.getTime() && guard < 400) {
           const key = dayKey(cursor);
-          series.push({ date: key, count: counts[key] ?? 0 });
+          series.push({
+            date: key,
+            count: counts[key] ?? 0,
+            patrolCount: patrolCounts[key] ?? 0,
+          });
           cursor.setDate(cursor.getDate() + 1);
           guard += 1;
         }
         return series;
       }
 
-      return Object.entries(counts)
-        .map(([date, count]) => ({ date, count }))
+      const allKeys = new Set([
+        ...Object.keys(counts),
+        ...Object.keys(patrolCounts),
+      ]);
+      return Array.from(allKeys)
+        .map((date) => ({
+          date,
+          count: counts[date] ?? 0,
+          patrolCount: patrolCounts[date] ?? 0,
+        }))
         .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
     }),
 });

@@ -9,6 +9,7 @@ vi.mock("@marine-guardian/db", () => ({
     },
     patrol: {
       count: vi.fn(),
+      findMany: vi.fn(),
     },
     patrolTrack: {
       findMany: vi.fn(),
@@ -148,6 +149,11 @@ describe("reportMap.eventsOverTime", () => {
       { reportedAt: new Date("2026-06-01T20:00:00") },
       { reportedAt: new Date("2026-06-03T10:00:00") },
     ] as any);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([
+      { startTime: new Date("2026-06-01T06:00:00") },
+      { startTime: new Date("2026-06-02T09:00:00") },
+      { startTime: new Date("2026-06-02T15:00:00") },
+    ] as any);
 
     const caller = createCaller(makeCtx());
     const result = await caller.eventsOverTime({
@@ -156,36 +162,55 @@ describe("reportMap.eventsOverTime", () => {
     });
 
     expect(result).toEqual([
-      { date: "2026-06-01", count: 2 },
-      { date: "2026-06-02", count: 0 },
-      { date: "2026-06-03", count: 1 },
+      { date: "2026-06-01", count: 2, patrolCount: 1 },
+      { date: "2026-06-02", count: 0, patrolCount: 2 },
+      { date: "2026-06-03", count: 1, patrolCount: 0 },
     ]);
+
+    const patrolWhereArg = vi.mocked(prisma.patrol.findMany).mock.calls[0]?.[0]?.where;
+    expect(patrolWhereArg).toMatchObject({
+      tenantId: TENANT_ID,
+      isDeleted: false,
+      isTestPatrol: false,
+      startTime: {
+        gte: new Date("2026-06-01T00:00:00"),
+        lte: new Date("2026-06-03T23:59:59"),
+      },
+    });
   });
 
-  it("returns only days with events (ascending) when no range is given", async () => {
+  it("returns only days with events or patrols (ascending) when no range is given", async () => {
     vi.mocked(prisma.event.findMany).mockResolvedValue([
       { reportedAt: new Date("2026-06-03T10:00:00") },
       { reportedAt: new Date("2026-06-01T10:00:00") },
       { reportedAt: null },
+    ] as any);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([
+      { startTime: new Date("2026-06-02T10:00:00") },
+      { startTime: null },
     ] as any);
 
     const caller = createCaller(makeCtx());
     const result = await caller.eventsOverTime({});
 
     expect(result).toEqual([
-      { date: "2026-06-01", count: 1 },
-      { date: "2026-06-03", count: 1 },
+      { date: "2026-06-01", count: 1, patrolCount: 0 },
+      { date: "2026-06-02", count: 0, patrolCount: 1 },
+      { date: "2026-06-03", count: 1, patrolCount: 0 },
     ]);
   });
 
   it("scopes to the authenticated tenant", async () => {
     vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([]);
 
     const caller = createCaller(makeCtx("other-tenant"));
     await caller.eventsOverTime({});
 
     const where = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where;
     expect(where).toMatchObject({ tenantId: "other-tenant" });
+    const patrolWhereArg = vi.mocked(prisma.patrol.findMany).mock.calls[0]?.[0]?.where;
+    expect(patrolWhereArg).toMatchObject({ tenantId: "other-tenant" });
   });
 });
 

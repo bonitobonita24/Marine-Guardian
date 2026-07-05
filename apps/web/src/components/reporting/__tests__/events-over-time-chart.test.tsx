@@ -22,9 +22,9 @@ afterEach(() => {
 
 describe("EventsOverTimeChart", () => {
   const data = [
-    { date: "2026-06-01", count: 2 },
-    { date: "2026-06-02", count: 0 },
-    { date: "2026-06-03", count: 5 },
+    { date: "2026-06-01", count: 2, patrolCount: 1 },
+    { date: "2026-06-02", count: 0, patrolCount: 3 },
+    { date: "2026-06-03", count: 5, patrolCount: 0 },
   ];
 
   it("renders the Recharts container when data is present", () => {
@@ -50,12 +50,13 @@ describe("EventsOverTimeChart", () => {
     expect(screen.getByText(/no events in range/i)).toBeTruthy();
   });
 
-  it("renders the heading and total event count", () => {
+  it("renders the heading and total event + patrol counts", () => {
     render(
       <EventsOverTimeChart data={data} isLoading={false} rangeLabel="Jun 1 – Jun 3" />,
     );
-    expect(screen.getByText(/events over time/i)).toBeTruthy();
-    // total = 7
+    expect(screen.getByText(/events vs patrols over time/i)).toBeTruthy();
+    // total events = 7, total patrols = 4
     expect(screen.getByText("7")).toBeTruthy();
+    expect(screen.getByText("4")).toBeTruthy();
   });
 });

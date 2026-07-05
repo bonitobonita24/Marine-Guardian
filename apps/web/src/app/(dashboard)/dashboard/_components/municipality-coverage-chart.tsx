@@ -40,6 +40,38 @@ const CHART_CONFIG = {
 
 const HEADING_ID = "municipality-coverage-heading";
 
+export interface ProvinceCoverageRow {
+  municipality: string; // holds the province name once grouped (feeds the same YAxis dataKey)
+  patrolCount: number;
+  eventCount: number;
+}
+
+/**
+ * Sums per-municipality rows into one row per `province` (Oriental Mindoro /
+ * Occidental Mindoro / Palawan). Only provinces actually present in `data`
+ * are emitted — never invents an empty region. Exported (pure, no React) so
+ * the grouping math is unit-testable without rendering Recharts.
+ */
+export function groupCoverageByProvince(
+  data: MunicipalityCoverageDatum[],
+): ProvinceCoverageRow[] {
+  const byProvince = data.reduce((map, d) => {
+    const existing = map.get(d.province);
+    if (existing === undefined) {
+      map.set(d.province, {
+        municipality: d.province,
+        patrolCount: d.patrolCount,
+        eventCount: d.eventCount,
+      });
+    } else {
+      existing.patrolCount += d.patrolCount;
+      existing.eventCount += d.eventCount;
+    }
+    return map;
+  }, new Map<string, ProvinceCoverageRow>());
+  return Array.from(byProvince.values());
+}
+
 /**
  * Horizontal grouped BarChart — one bar pair per municipality.
  * Shows "No coverage data" when the data array is empty or still loading.
@@ -49,6 +81,7 @@ export function MunicipalityCoverageChart({
   isLoading,
   rangeLabel,
   compact = false,
+  groupByProvince = false,
 }: {
   data: MunicipalityCoverageDatum[];
   isLoading: boolean;
@@ -56,11 +89,22 @@ export function MunicipalityCoverageChart({
   rangeLabel: string;
   /** Half-height chart for dense surfaces (Interactive Report Map). */
   compact?: boolean;
+  /**
+   * Collapse the per-municipality rows into 3 province/region rows ("Oriental
+   * Mindoro" / "Occidental Mindoro" / "Palawan") — Interactive Report Map's
+   * "Region Coverage" view when no single municipality is selected (All).
+   * Defaults false so the War Room dashboard usage is UNCHANGED.
+   */
+  groupByProvince?: boolean;
 }) {
   // Sort descending by total activity, show top 11 (all municipalities).
   // Keep full names so ChartTooltip shows the untruncated municipality name;
   // display truncation is handled by the YAxis tickFormatter below.
-  const chartData = [...data]
+  const groupedByProvince = groupByProvince
+    ? groupCoverageByProvince(data)
+    : null;
+
+  const chartData = [...(groupedByProvince ?? data)]
     .sort((a, b) => b.patrolCount + b.eventCount - (a.patrolCount + a.eventCount))
     .map((d) => ({
       municipality: d.municipality,
@@ -70,6 +114,7 @@ export function MunicipalityCoverageChart({
 
   const totalPatrols = data.reduce((s, d) => s + d.patrolCount, 0);
   const totalEvents = data.reduce((s, d) => s + d.eventCount, 0);
+  const heading = groupByProvince ? "Region Coverage" : "Municipality Coverage";
 
   return (
     <Card
@@ -82,7 +127,7 @@ export function MunicipalityCoverageChart({
             id={HEADING_ID}
             className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground"
           >
-            Municipality Coverage
+            {heading}
           </h3>
           <span className="text-xs font-semibold tabular-nums text-muted-foreground">
             {rangeLabel}
