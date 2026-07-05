@@ -333,15 +333,31 @@ export function ExportRow({ row }: ExportRowProps) {
           {currentStatus === "ready" && (
             <>
               {downloadUrl !== null && (
-                <Button asChild size="sm" variant="outline">
-                  <a
-                    data-testid="export-download-link"
-                    href={downloadUrl}
-                    download
-                  >
-                    Download
-                  </a>
-                </Button>
+                <>
+                  {/* View opens the same Telegram-streamed PDF inline in a new
+                      tab (Content-Disposition: inline). The report is never
+                      stored server-side — the route fetches the bytes from
+                      Telegram on demand and renders them in the browser. */}
+                  <Button asChild size="sm" variant="outline">
+                    <a
+                      data-testid="export-view-link"
+                      href={`${downloadUrl}?disposition=inline`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      View
+                    </a>
+                  </Button>
+                  <Button asChild size="sm" variant="outline">
+                    <a
+                      data-testid="export-download-link"
+                      href={downloadUrl}
+                      download
+                    >
+                      Download
+                    </a>
+                  </Button>
+                </>
               )}
               <DeleteButton exportId={row.id} />
             </>

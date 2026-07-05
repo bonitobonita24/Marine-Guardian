@@ -61,6 +61,12 @@ export async function GET(
   _req: NextRequest,
   { params }: RouteParams,
 ): Promise<NextResponse | Response> {
+  // `?disposition=inline` serves the same Telegram-streamed bytes for in-browser
+  // viewing (Content-Disposition: inline) instead of forcing a download. The
+  // file is never stored server-side either way — this only flips the header and
+  // the audit action. Any other value (or absent) keeps the default attachment.
+  const inline =
+    _req.nextUrl.searchParams.get("disposition") === "inline";
   let ctx;
   try {
     ctx = await requireRouteAuth();
@@ -117,7 +123,7 @@ export async function GET(
   // reportExport.create (5.3b).
   await prisma.auditLog.create({
     data: {
-      action: "EXPORT_DOWNLOAD",
+      action: inline ? "EXPORT_VIEW" : "EXPORT_DOWNLOAD",
       userId: ctx.userId,
       tenantId: ctx.tenantId,
       entityType: "ReportExport",
@@ -136,7 +142,7 @@ export async function GET(
 
   const headers = new Headers({
     "Content-Type": "application/pdf",
-    "Content-Disposition": `attachment; filename="${filename}"`,
+    "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${filename}"`,
     "Cache-Control": "no-store",
   });
 

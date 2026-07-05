@@ -71,12 +71,20 @@ vi.mock("@marine-guardian/jobs/lib/telegram-storage", () => ({
 import { GET } from "../route";
 import { RouteAuthError } from "@/server/lib/route-auth";
 
-function makeRouteArgs(id: string): {
+function makeRouteArgs(
+  id: string,
+  disposition?: "inline",
+): {
   req: Parameters<typeof GET>[0];
   ctx: Parameters<typeof GET>[1];
 } {
+  const url = new URL(`http://localhost/api/exports/reports/${id}/download`);
+  if (disposition !== undefined) {
+    url.searchParams.set("disposition", disposition);
+  }
   return {
-    req: {} as Parameters<typeof GET>[0],
+    // The route reads only `_req.nextUrl.searchParams`; a plain URL supplies it.
+    req: { nextUrl: url } as unknown as Parameters<typeof GET>[0],
     ctx: { params: Promise.resolve({ id }) },
   };
 }
@@ -251,6 +259,31 @@ describe("GET /api/exports/reports/[id]/download", () => {
     };
     expect(call.botToken).toBe("test-bot-token");
     expect(call.fileId).toBe("BQACAgUAAxkDAAII_file_id");
+  });
+
+  it("with ?disposition=inline: serves the same Telegram bytes inline (in-browser view) and audits as EXPORT_VIEW", async () => {
+    mockPrisma.reportExport.findFirst.mockResolvedValueOnce(TELEGRAM_ROW);
+    const pdfBytes = new TextEncoder().encode("%PDF-tele").buffer;
+    mockFetchTelegramFileBytes.mockResolvedValueOnce({
+      bytes: pdfBytes,
+      filePath: "documents/file_1.pdf",
+    });
+
+    const { req, ctx } = makeRouteArgs("export-tg", "inline");
+    const res = await GET(req, ctx);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("application/pdf");
+    // inline (not attachment) — the browser renders the PDF instead of saving.
+    expect(res.headers.get("Content-Disposition")).toBe(
+      'inline; filename="report_map-2026-07-03.pdf"',
+    );
+    // Still fetched from Telegram; no server-side copy involved.
+    expect(mockFetchTelegramFileBytes).toHaveBeenCalledTimes(1);
+    const auditCall = mockPrisma.auditLog.create.mock.calls[0]?.[0] as {
+      data: { action: string };
+    };
+    expect(auditCall.data.action).toBe("EXPORT_VIEW");
   });
 
   it("AuditLog write fires BEFORE the Telegram fetch", async () => {
