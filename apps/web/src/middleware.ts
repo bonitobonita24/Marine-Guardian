@@ -111,12 +111,22 @@ export default async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
-  // viewer route gate — a viewer requesting any tenant page outside
+  // viewer route gate — a viewer requesting any tenant PAGE outside
   // Command Center / Interactive Report Map is redirected to /dashboard.
   // Runs after the admin-path checks above so it never fires for an
   // impersonating/platform-admin request (those already returned above).
+  // API routes ("/api/*", e.g. the notification SSE stream used on the
+  // dashboard) are exempt — their authorization is enforced at the route /
+  // tRPC layer (viewer is read-only there), NOT by this page-navigation gate;
+  // redirecting them would break the dashboard's live stream (HTML served to
+  // an EventSource → MIME error + reconnect loop).
   const isViewer = session.user.roles.includes("viewer");
-  if (isViewer && !isAdminPath && !isViewerAllowedPath(pathname)) {
+  if (
+    isViewer &&
+    !isAdminPath &&
+    !pathname.startsWith("/api/") &&
+    !isViewerAllowedPath(pathname)
+  ) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 

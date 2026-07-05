@@ -69,6 +69,16 @@ describe("middleware — viewer role route gate", () => {
     expect(resNested.status).toBe(200);
   });
 
+  it("does NOT redirect a viewer requesting an /api route (e.g. the notification SSE stream)", async () => {
+    // API authorization is enforced at the route / tRPC layer (viewer is
+    // read-only there); the page-navigation gate must never redirect /api/*,
+    // or the dashboard's EventSource stream breaks (HTML → MIME error).
+    mockAuth.mockResolvedValue(makeSession(["viewer"]));
+    const res = await middleware(makeRequest("/api/stream/notifications"));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
   it("does NOT redirect a non-viewer (operator) requesting /events", async () => {
     mockAuth.mockResolvedValue(makeSession(["operator"]));
     const res = await middleware(makeRequest("/events"));
