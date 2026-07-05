@@ -47,6 +47,18 @@ export const PDF_RENDER_LIMITER = {
 
 export const PDF_RENDER_CONCURRENCY = 2;
 
+/**
+ * BullMQ lock duration for this queue. Must stay >= the pdf-renderer
+ * service's Puppeteer navigation timeout (PDF_NAV_TIMEOUT_MS, currently
+ * 120000ms — see deploy/pdf-renderer/src/server.js) so a legitimately
+ * long-running render is never mistaken for a stalled job and re-queued
+ * mid-render. BullMQ auto-renews the lock every lockDuration/2 while the
+ * processor promise is pending, but a queue whose jobs can genuinely run
+ * for ~2 minutes should not depend on that renewal timing being exact
+ * under load — set an explicit ceiling well above the render timeout.
+ */
+export const PDF_RENDER_LOCK_DURATION_MS = 150_000;
+
 export function startPdfRenderWorker(): Worker<PdfRenderJobPayload> {
   return createWorker<PdfRenderJobPayload>(
     QUEUE_NAMES.PDF_RENDER,
@@ -54,6 +66,7 @@ export function startPdfRenderWorker(): Worker<PdfRenderJobPayload> {
     {
       concurrency: PDF_RENDER_CONCURRENCY,
       limiter: PDF_RENDER_LIMITER,
+      lockDuration: PDF_RENDER_LOCK_DURATION_MS,
     },
   );
 }

@@ -24,7 +24,13 @@ services:
       NODE_ENV: development
       PORT: "4000"
       PDF_RENDERER_SERVICE_TOKEN: ${PDF_RENDERER_SERVICE_TOKEN}
-      PDF_NAV_TIMEOUT_MS: "30000"
+      # 2026-07 — was "30000", silently overriding the app's own 120000ms
+      # default (deploy/pdf-renderer/src/server.js NAV_TIMEOUT_MS, raised
+      # 2026-07-01 for full-length reports). A large/unfiltered single-
+      # municipality report can legitimately exceed 30s to render, which was
+      # producing "Navigation timeout of 30000 ms exceeded" failures. Match
+      # the code default here so the compose override doesn't regress it.
+      PDF_NAV_TIMEOUT_MS: "120000"
     # No ports: — only reachable from inside app_network. The 5.3b BullMQ
     # worker calls http://${COMPOSE_PROJECT_NAME}_pdf_renderer:4000/render.
     networks: [app_network]

@@ -12,6 +12,21 @@ vi.mock("@marine-guardian/db", () => ({
     auditLog: {
       create: vi.fn(),
     },
+    // Report Summary column (2026-07 harden pass) — reportExport.list
+    // batch-resolves these ids to names. Default to empty so existing tests
+    // that don't populate paramsJson ids never trigger a lookup.
+    municipality: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+    protectedZone: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+    reportTemplate: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+    areaBoundary: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
   },
 }));
 
@@ -102,6 +117,186 @@ describe("reportExport.list", () => {
         }),
       })
     );
+  });
+});
+
+describe("reportExport.list — reportSummary enrichment (Report Summary column)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("resolves municipalityId + protectedZoneId + templateId to names for report_map rows, tenant-scoped", async () => {
+    vi.mocked(prisma.reportExport.findMany).mockResolvedValue([
+      {
+        id: "re-map-1",
+        tenantId: TENANT_ID,
+        reportType: "report_map",
+        status: "ready",
+        paramsJson: {
+          templateId: "tpl-1",
+          municipalityId: "muni-1",
+          protectedZoneId: "zone-1",
+          from: "2024-12-31T00:00:00.000Z",
+          to: "2026-07-05T00:00:00.000Z",
+        },
+      },
+    ] as never);
+    vi.mocked(prisma.municipality.findMany).mockResolvedValue([
+      { id: "muni-1", name: "Calapan City" },
+    ] as never);
+    vi.mocked(prisma.protectedZone.findMany).mockResolvedValue([
+      { id: "zone-1", name: "Apo Reef" },
+    ] as never);
+    vi.mocked(prisma.reportTemplate.findMany).mockResolvedValue([
+      { id: "tpl-1", name: "Standard" },
+    ] as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.list({ limit: 50 });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]?.reportSummary).toEqual({
+      municipalityName: "Calapan City",
+      protectedZoneName: "Apo Reef",
+      templateName: "Standard",
+      areaName: null,
+      from: "2024-12-31T00:00:00.000Z",
+      to: "2026-07-05T00:00:00.000Z",
+      period: null,
+    });
+
+    // Every lookup is tenant-scoped — never leaks a cross-tenant name.
+    expect(vi.mocked(prisma.municipality.findMany)).toHaveBeenCalledWith(
+      partial({ where: partial({ tenantId: TENANT_ID, id: { in: ["muni-1"] } }) }),
+    );
+    expect(vi.mocked(prisma.protectedZone.findMany)).toHaveBeenCalledWith(
+      partial({ where: partial({ tenantId: TENANT_ID, id: { in: ["zone-1"] } }) }),
+    );
+    expect(vi.mocked(prisma.reportTemplate.findMany)).toHaveBeenCalledWith(
+      partial({ where: partial({ tenantId: TENANT_ID, id: { in: ["tpl-1"] } }) }),
+    );
+  });
+
+  it("resolves areaBoundaryId to name for area report rows", async () => {
+    vi.mocked(prisma.reportExport.findMany).mockResolvedValue([
+      {
+        id: "re-area-1",
+        tenantId: TENANT_ID,
+        reportType: "area",
+        status: "ready",
+        paramsJson: {
+          areaBoundaryId: "area-1",
+          startDate: "2026-01-01",
+          endDate: "2026-01-31",
+        },
+      },
+    ] as never);
+    vi.mocked(prisma.areaBoundary.findMany).mockResolvedValue([
+      { id: "area-1", name: "Bulalacao Coastal Zone" },
+    ] as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.list({ limit: 50 });
+
+    expect(result.items[0]?.reportSummary).toEqual({
+      municipalityName: null,
+      protectedZoneName: null,
+      templateName: null,
+      areaName: "Bulalacao Coastal Zone",
+      from: "2026-01-01",
+      to: "2026-01-31",
+      period: null,
+    });
+  });
+
+  it("surfaces a null-filled reportSummary (no DB lookups) when paramsJson carries no known ids — coverage period fields pass through", async () => {
+    vi.mocked(prisma.reportExport.findMany).mockResolvedValue([
+      {
+        id: "re-cov-1",
+        tenantId: TENANT_ID,
+        reportType: "coverage",
+        status: "ready",
+        paramsJson: { category: "monthly", year: 2026, month: 6 },
+      },
+    ] as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.list({ limit: 50 });
+
+    expect(result.items[0]?.reportSummary).toEqual({
+      municipalityName: null,
+      protectedZoneName: null,
+      templateName: null,
+      areaName: null,
+      from: null,
+      to: null,
+      period: { year: 2026, month: 6 },
+    });
+    expect(vi.mocked(prisma.municipality.findMany)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.protectedZone.findMany)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.reportTemplate.findMany)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.areaBoundary.findMany)).not.toHaveBeenCalled();
+  });
+
+  it("batches distinct ids across multiple rows into a single findMany call per model (no N+1)", async () => {
+    vi.mocked(prisma.reportExport.findMany).mockResolvedValue([
+      {
+        id: "re-a",
+        tenantId: TENANT_ID,
+        reportType: "report_map",
+        status: "ready",
+        paramsJson: { municipalityId: "muni-1" },
+      },
+      {
+        id: "re-b",
+        tenantId: TENANT_ID,
+        reportType: "report_map",
+        status: "ready",
+        paramsJson: { municipalityId: "muni-2" },
+      },
+      {
+        id: "re-c",
+        tenantId: TENANT_ID,
+        reportType: "report_map",
+        status: "ready",
+        // Same municipalityId as re-a — must be deduped, not fetched twice.
+        paramsJson: { municipalityId: "muni-1" },
+      },
+    ] as never);
+    vi.mocked(prisma.municipality.findMany).mockResolvedValue([
+      { id: "muni-1", name: "Calapan City" },
+      { id: "muni-2", name: "Puerto Galera" },
+    ] as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.list({ limit: 50 });
+
+    expect(vi.mocked(prisma.municipality.findMany)).toHaveBeenCalledTimes(1);
+    const call = vi.mocked(prisma.municipality.findMany).mock.calls[0]?.[0] as {
+      where: { id: { in: string[] } };
+    };
+    expect(new Set(call.where.id.in)).toEqual(new Set(["muni-1", "muni-2"]));
+    expect(result.items.map((i) => i.reportSummary.municipalityName)).toEqual([
+      "Calapan City",
+      "Puerto Galera",
+      "Calapan City",
+    ]);
+  });
+
+  it("municipalityId set but unresolved (no matching row) resolves to null, not a crash", async () => {
+    vi.mocked(prisma.reportExport.findMany).mockResolvedValue([
+      {
+        id: "re-orphan",
+        tenantId: TENANT_ID,
+        reportType: "report_map",
+        status: "ready",
+        paramsJson: { municipalityId: "muni-deleted" },
+      },
+    ] as never);
+    vi.mocked(prisma.municipality.findMany).mockResolvedValue([] as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.list({ limit: 50 });
+
+    expect(result.items[0]?.reportSummary.municipalityName).toBeNull();
   });
 });
 

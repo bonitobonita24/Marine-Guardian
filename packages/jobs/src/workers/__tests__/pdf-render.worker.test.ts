@@ -40,6 +40,7 @@ import {
   startPdfRenderWorker,
   PDF_RENDER_LIMITER,
   PDF_RENDER_CONCURRENCY,
+  PDF_RENDER_LOCK_DURATION_MS,
 } from "../pdf-render.worker";
 import { QUEUE_NAMES } from "../../queues/types";
 import { processPdfRender } from "../../processors/pdf-render.processor";
@@ -52,6 +53,7 @@ type WorkerCtorArgs = [
     concurrency: number;
     autorun: boolean;
     limiter?: { max: number; duration: number };
+    lockDuration?: number;
   },
 ];
 
@@ -93,6 +95,18 @@ describe("startPdfRenderWorker", () => {
     startPdfRenderWorker();
     const [, processor] = mockWorkerCtor.mock.calls[0] as WorkerCtorArgs;
     expect(processor).toBe(processPdfRender);
+  });
+
+  // 2b — regression: BullMQ's default lockDuration (30000ms) sits well below
+  // the pdf-renderer's Puppeteer navigation timeout (raised to 120000ms —
+  // see deploy/pdf-renderer/src/server.js). This worker must set an explicit
+  // lockDuration comfortably above that so a genuinely long-running render
+  // is never mistaken for a stalled job mid-render.
+  it("registers worker with an explicit lockDuration >= the pdf-renderer nav timeout (120000ms)", () => {
+    startPdfRenderWorker();
+    const [, , opts] = mockWorkerCtor.mock.calls[0] as WorkerCtorArgs;
+    expect(opts.lockDuration).toBe(PDF_RENDER_LOCK_DURATION_MS);
+    expect(PDF_RENDER_LOCK_DURATION_MS).toBeGreaterThanOrEqual(120_000);
   });
 
   it("provides a connection object to the Worker constructor", () => {

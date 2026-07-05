@@ -96,7 +96,7 @@ vi.mock("@/lib/trpc/client", () => ({
   },
 }));
 
-import { ExportRow } from "../export-row";
+import { ExportRow, buildReportSummaryLabel } from "../export-row";
 
 function makeRow(overrides: Partial<ExportRowItem> = {}): ExportRowItem {
   return {
@@ -196,5 +196,169 @@ describe("ExportRow (5.3d)", () => {
       </table>,
     );
     expect(queryByTestId("export-status-rendering")).toBeTruthy();
+  });
+
+  // -------------------------------------------------------------------------
+  // 2c — honest in-progress affordance (spinner + elapsed time).
+  // -------------------------------------------------------------------------
+
+  it("shows an animated spinner + elapsed time while queued", () => {
+    const createdAt = new Date(Date.now() - 65_000); // 1m 5s ago
+    const { queryByTestId } = renderInTable(
+      makeRow({ status: "queued", createdAt }),
+    );
+    const indicator = queryByTestId("export-in-flight-indicator");
+    expect(indicator).toBeTruthy();
+    expect(indicator?.textContent).toContain("Queued");
+    expect(indicator?.textContent).toMatch(/1m/);
+  });
+
+  it("shows an animated spinner + elapsed time while rendering", () => {
+    const createdAt = new Date(Date.now() - 5_000);
+    const { queryByTestId } = renderInTable(
+      makeRow({ status: "rendering", createdAt }),
+    );
+    const indicator = queryByTestId("export-in-flight-indicator");
+    expect(indicator).toBeTruthy();
+    expect(indicator?.textContent).toContain("Rendering");
+  });
+
+  it("does not show the in-flight indicator for terminal statuses", () => {
+    const { queryByTestId, rerender } = renderInTable(
+      makeRow({ status: "ready" }),
+    );
+    expect(queryByTestId("export-in-flight-indicator")).toBeNull();
+
+    rerender(
+      <table>
+        <tbody>
+          <ExportRow row={makeRow({ status: "failed" })} />
+        </tbody>
+      </table>,
+    );
+    expect(queryByTestId("export-in-flight-indicator")).toBeNull();
+  });
+
+  // -------------------------------------------------------------------------
+  // Task 1 — Report Summary column.
+  // -------------------------------------------------------------------------
+
+  it("renders the resolved report summary in its own cell", () => {
+    const { queryByTestId } = renderInTable(
+      makeRow({
+        reportType: "report_map",
+        reportSummary: {
+          municipalityName: "Calapan City",
+          protectedZoneName: "Apo Reef",
+          templateName: "Standard",
+          areaName: null,
+          from: "2024-12-31T00:00:00.000Z",
+          to: "2026-07-05T00:00:00.000Z",
+          period: null,
+        },
+      }),
+    );
+    const cell = queryByTestId("export-report-summary");
+    expect(cell?.textContent).toContain("Calapan City");
+    expect(cell?.textContent).toContain("Zone: Apo Reef");
+  });
+
+  it("renders just the humanized report type when reportSummary is absent", () => {
+    const { queryByTestId } = renderInTable(
+      makeRow({ reportType: "consolidated", reportSummary: undefined }),
+    );
+    expect(queryByTestId("export-report-summary")?.textContent).toBe(
+      "Consolidated",
+    );
+  });
+});
+
+describe("buildReportSummaryLabel (Report Summary column formatting)", () => {
+  function baseRow(overrides: Partial<ExportRowItem> = {}): ExportRowItem {
+    return makeRow(overrides);
+  }
+
+  it("report_map: municipality + date range + zone, all present", () => {
+    const label = buildReportSummaryLabel(
+      baseRow({
+        reportType: "report_map",
+        reportSummary: {
+          municipalityName: "Calapan City",
+          protectedZoneName: "Apo Reef",
+          templateName: "Standard",
+          areaName: null,
+          from: "2024-12-31T00:00:00.000Z",
+          to: "2026-07-05T00:00:00.000Z",
+          period: null,
+        },
+      }),
+    );
+    expect(label.startsWith("Report map · Calapan City · ")).toBe(true);
+    expect(label).toContain("2024");
+    expect(label).toContain("2026");
+    expect(label).toContain(" – ");
+    expect(label.endsWith("Zone: Apo Reef")).toBe(true);
+  });
+
+  it("report_map: no municipalityId → 'All municipalities'; no zone → 'Zone: —'", () => {
+    const label = buildReportSummaryLabel(
+      baseRow({
+        reportType: "report_map",
+        reportSummary: {
+          municipalityName: null,
+          protectedZoneName: null,
+          templateName: null,
+          areaName: null,
+          from: null,
+          to: null,
+          period: null,
+        },
+      }),
+    );
+    expect(label).toBe("Report map · All municipalities · Zone: —");
+  });
+
+  it("area: shows area name + date range, no municipality/zone segment", () => {
+    const label = buildReportSummaryLabel(
+      baseRow({
+        reportType: "area",
+        reportSummary: {
+          municipalityName: null,
+          protectedZoneName: null,
+          templateName: null,
+          areaName: "Bulalacao Coastal Zone",
+          from: "2026-01-01",
+          to: "2026-01-31",
+          period: null,
+        },
+      }),
+    );
+    expect(label).toContain("Bulalacao Coastal Zone");
+    expect(label).not.toContain("Zone:");
+    expect(label).not.toContain("municipalities");
+  });
+
+  it("coverage: shows month + year from the period field", () => {
+    const label = buildReportSummaryLabel(
+      baseRow({
+        reportType: "coverage",
+        reportSummary: {
+          municipalityName: null,
+          protectedZoneName: null,
+          templateName: null,
+          areaName: null,
+          from: null,
+          to: null,
+          period: { year: 2026, month: 6 },
+        },
+      }),
+    );
+    expect(label).toBe("Coverage · June 2026");
+  });
+
+  it("falls back to just the humanized report type when reportSummary is missing", () => {
+    expect(
+      buildReportSummaryLabel(baseRow({ reportType: "rangers", reportSummary: undefined })),
+    ).toBe("Rangers");
   });
 });

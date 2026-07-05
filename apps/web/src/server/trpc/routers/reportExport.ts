@@ -31,6 +31,32 @@ import { enqueuePdfRender } from "@marine-guardian/jobs";
  * coordinatorProcedure or tenantProcedure (read-only access for any tenant
  * user to see their own exports).
  */
+/**
+ * paramsJson field shapes actually written by the various report-generating
+ * UIs (generate-report-button.tsx + generate-printable-button.tsx). Not
+ * every reportType populates every field — see the per-type comments at
+ * each write site. All fields are optional here because paramsJson is an
+ * untyped Json column; this is a best-effort read shape for the Exports
+ * page summary, not a validated contract.
+ */
+interface ReportExportParams {
+  templateId?: string;
+  municipalityId?: string;
+  protectedZoneId?: string;
+  areaBoundaryId?: string;
+  from?: string;
+  to?: string;
+  startDate?: string;
+  endDate?: string;
+  year?: number;
+  month?: number;
+}
+
+function extractParams(paramsJson: unknown): ReportExportParams {
+  if (paramsJson === null || typeof paramsJson !== "object") return {};
+  return paramsJson;
+}
+
 export const reportExportRouter = router({
   list: tenantProcedure
     .input(listReportExportsInputSchema)
@@ -59,7 +85,90 @@ export const reportExportRouter = router({
         const next = items.pop();
         nextCursor = next?.id;
       }
-      return { items, nextCursor };
+
+      // Report Summary column (so a user sees what they already generated
+      // before re-generating the same thing): paramsJson only carries IDs
+      // (municipalityId, protectedZoneId, templateId, areaBoundaryId) — batch
+      // resolve them to names for this page of rows only. Tenant-scoped on
+      // every lookup so a row can never leak a cross-tenant name even if a
+      // paramsJson id were ever malformed/spoofed.
+      const municipalityIds = new Set<string>();
+      const protectedZoneIds = new Set<string>();
+      const templateIds = new Set<string>();
+      const areaBoundaryIds = new Set<string>();
+      for (const item of items) {
+        const p = extractParams(item.paramsJson);
+        if (p.municipalityId !== undefined) municipalityIds.add(p.municipalityId);
+        if (p.protectedZoneId !== undefined) protectedZoneIds.add(p.protectedZoneId);
+        if (p.templateId !== undefined) templateIds.add(p.templateId);
+        if (p.areaBoundaryId !== undefined) areaBoundaryIds.add(p.areaBoundaryId);
+      }
+
+      const [municipalities, protectedZones, templates, areaBoundaries] =
+        await Promise.all([
+          municipalityIds.size > 0
+            ? prisma.municipality.findMany({
+                where: { tenantId: ctx.tenantId, id: { in: [...municipalityIds] } },
+                select: { id: true, name: true },
+              })
+            : Promise.resolve([]),
+          protectedZoneIds.size > 0
+            ? prisma.protectedZone.findMany({
+                where: { tenantId: ctx.tenantId, id: { in: [...protectedZoneIds] } },
+                select: { id: true, name: true },
+              })
+            : Promise.resolve([]),
+          templateIds.size > 0
+            ? prisma.reportTemplate.findMany({
+                where: { tenantId: ctx.tenantId, id: { in: [...templateIds] } },
+                select: { id: true, name: true },
+              })
+            : Promise.resolve([]),
+          areaBoundaryIds.size > 0
+            ? prisma.areaBoundary.findMany({
+                where: { tenantId: ctx.tenantId, id: { in: [...areaBoundaryIds] } },
+                select: { id: true, name: true },
+              })
+            : Promise.resolve([]),
+        ]);
+
+      const municipalityNameById = new Map(municipalities.map((m) => [m.id, m.name]));
+      const protectedZoneNameById = new Map(protectedZones.map((z) => [z.id, z.name]));
+      const templateNameById = new Map(templates.map((t) => [t.id, t.name]));
+      const areaNameById = new Map(areaBoundaries.map((a) => [a.id, a.name]));
+
+      const itemsWithSummary = items.map((item) => {
+        const p = extractParams(item.paramsJson);
+        return {
+          ...item,
+          reportSummary: {
+            municipalityName:
+              p.municipalityId !== undefined
+                ? municipalityNameById.get(p.municipalityId) ?? null
+                : null,
+            protectedZoneName:
+              p.protectedZoneId !== undefined
+                ? protectedZoneNameById.get(p.protectedZoneId) ?? null
+                : null,
+            templateName:
+              p.templateId !== undefined
+                ? templateNameById.get(p.templateId) ?? null
+                : null,
+            areaName:
+              p.areaBoundaryId !== undefined
+                ? areaNameById.get(p.areaBoundaryId) ?? null
+                : null,
+            from: p.from ?? p.startDate ?? null,
+            to: p.to ?? p.endDate ?? null,
+            period:
+              p.year !== undefined && p.month !== undefined
+                ? { year: p.year, month: p.month }
+                : null,
+          },
+        };
+      });
+
+      return { items: itemsWithSummary, nextCursor };
     }),
 
   getById: tenantProcedure

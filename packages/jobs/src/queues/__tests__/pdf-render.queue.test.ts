@@ -5,21 +5,31 @@
 //  (2) sets jobId for deterministic dedupe across rapid re-enqueues
 //      (reportExport.create double-fires racing the 5.3d retry button on
 //      the same exportId → second add is silently dropped by BullMQ via
-//      jobId match),
+//      jobId match — ONLY while the prior job is still active/waiting),
 //  (3) returns the BullMQ-assigned job id as a string,
 //  (4) jobId scopes by exportId ONLY — tenantId + userId do NOT affect
 //      dedupe (exportId is globally unique cuid; the row identity owns
 //      this render).
+//
+// 🔴 2026-07-05 — also verifies the stuck-at-"queued"-forever regression
+// fix: a completed/failed job under the same jobId is removed BEFORE add()
+// so an explicit retry actually re-runs instead of silently no-op'ing
+// against BullMQ's own jobId dedupe (see pdf-render.queue.ts header note).
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockAdd = vi.fn();
-const mockGetQueue = vi.fn().mockReturnValue({ add: mockAdd });
+const mockGetJob = vi.fn();
+const mockGetQueue = vi
+  .fn()
+  .mockReturnValue({ add: mockAdd, getJob: mockGetJob });
 
 vi.mock("../queue-factory", () => ({
-  getQueue: (name: string): { add: typeof mockAdd } => {
+  getQueue: (
+    name: string,
+  ): { add: typeof mockAdd; getJob: typeof mockGetJob } => {
     mockGetQueue(name);
-    return { add: mockAdd };
+    return { add: mockAdd, getJob: mockGetJob };
   },
 }));
 
@@ -34,6 +44,10 @@ import { QUEUE_NAMES } from "../types";
 describe("pdf-render queue", () => {
   beforeEach(() => {
     mockAdd.mockReset();
+    mockGetJob.mockReset();
+    // Default: no prior job under this id — the common case (first
+    // enqueue). Tests that care about a pre-existing job override this.
+    mockGetJob.mockResolvedValue(undefined);
     mockGetQueue.mockClear();
   });
 
@@ -144,5 +158,100 @@ describe("pdf-render queue", () => {
     expect(opts0.jobId).not.toBe(opts1.jobId);
     expect(opts0.jobId).toBe("pdf-render__export-cuid-a");
     expect(opts1.jobId).toBe("pdf-render__export-cuid-b");
+  });
+
+  // -------------------------------------------------------------------------
+  // 🔴 2026-07-05 regression — stuck-at-"queued" forever after Retry.
+  // -------------------------------------------------------------------------
+
+  describe("stale terminal job removal (2a fix)", () => {
+    it("removes a prior FAILED job under the same jobId before re-adding (retry path actually re-runs)", async () => {
+      const mockRemove = vi.fn().mockResolvedValue(undefined);
+      const mockGetState = vi.fn().mockResolvedValue("failed");
+      mockGetJob.mockResolvedValueOnce({
+        getState: mockGetState,
+        remove: mockRemove,
+      });
+      mockAdd.mockResolvedValueOnce({ id: "job-retry-1" });
+
+      const jobId = await enqueuePdfRender({
+        tenantId: "tenant-a",
+        userId: "user-1",
+        exportId: "export-retry-1",
+      });
+
+      expect(mockGetJob).toHaveBeenCalledWith("pdf-render__export-retry-1");
+      expect(mockGetState).toHaveBeenCalledTimes(1);
+      expect(mockRemove).toHaveBeenCalledTimes(1);
+      expect(jobId).toBe("job-retry-1");
+      // remove() must happen BEFORE add() so BullMQ's jobId dedupe doesn't
+      // see a stale terminal job still occupying the id.
+      expect(mockRemove.mock.invocationCallOrder[0]).toBeLessThan(
+        mockAdd.mock.invocationCallOrder[0] ?? Infinity,
+      );
+    });
+
+    it("removes a prior COMPLETED job under the same jobId before re-adding", async () => {
+      const mockRemove = vi.fn().mockResolvedValue(undefined);
+      mockGetJob.mockResolvedValueOnce({
+        getState: vi.fn().mockResolvedValue("completed"),
+        remove: mockRemove,
+      });
+      mockAdd.mockResolvedValueOnce({ id: "job-retry-2" });
+
+      await enqueuePdfRender({
+        tenantId: "tenant-a",
+        userId: "user-1",
+        exportId: "export-retry-2",
+      });
+
+      expect(mockRemove).toHaveBeenCalledTimes(1);
+    });
+
+    it("does NOT remove a still-active/waiting job under the same jobId (preserves double-fire dedupe)", async () => {
+      const mockRemove = vi.fn().mockResolvedValue(undefined);
+      mockGetJob.mockResolvedValueOnce({
+        getState: vi.fn().mockResolvedValue("active"),
+        remove: mockRemove,
+      });
+      mockAdd.mockResolvedValueOnce({ id: "job-active-1" });
+
+      await enqueuePdfRender({
+        tenantId: "tenant-a",
+        userId: "user-1",
+        exportId: "export-active-1",
+      });
+
+      expect(mockRemove).not.toHaveBeenCalled();
+      expect(mockAdd).toHaveBeenCalledTimes(1);
+    });
+
+    it("proceeds with add() when no prior job exists under the jobId (first enqueue, unchanged behavior)", async () => {
+      mockGetJob.mockResolvedValueOnce(undefined);
+      mockAdd.mockResolvedValueOnce({ id: "job-fresh-1" });
+
+      const jobId = await enqueuePdfRender({
+        tenantId: "tenant-a",
+        userId: "user-1",
+        exportId: "export-fresh-1",
+      });
+
+      expect(jobId).toBe("job-fresh-1");
+      expect(mockAdd).toHaveBeenCalledTimes(1);
+    });
+
+    it("proceeds with add() even when getJob() throws (best-effort, never blocks enqueue)", async () => {
+      mockGetJob.mockRejectedValueOnce(new Error("Valkey blip"));
+      mockAdd.mockResolvedValueOnce({ id: "job-degraded-1" });
+
+      const jobId = await enqueuePdfRender({
+        tenantId: "tenant-a",
+        userId: "user-1",
+        exportId: "export-degraded-1",
+      });
+
+      expect(jobId).toBe("job-degraded-1");
+      expect(mockAdd).toHaveBeenCalledTimes(1);
+    });
   });
 });

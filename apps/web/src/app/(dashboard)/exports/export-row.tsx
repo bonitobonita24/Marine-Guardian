@@ -14,13 +14,38 @@
 //
 // When status reaches "failed", the action cell shows the Retry button
 // (admin-only, gated client-side by the button itself per [[5.3c]]).
+//
+// Report Summary column (2026-07 harden pass) — surfaces what was actually
+// generated (report type, municipality, date range, MPA zone) so a user
+// doesn't re-generate the same export. reportSummary is resolved server-side
+// (reportExport.list) from paramsJson's IDs; buildReportSummaryLabel() below
+// just formats the already-resolved names/dates into one readable string.
+//
+// In-flight affordance (2026-07 harden pass) — queued/rendering rows show an
+// animated spinner + elapsed time computed from createdAt, ticking forward on
+// the existing 3s poll interval (no separate timer — see InFlightIndicator).
 
 import { useMemo } from "react";
+import { Loader2 } from "lucide-react";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc/client";
 import { StatusBadge, type ExportStatus } from "./status-badge";
 import { RetryButton } from "./retry-button";
+
+/** Resolved-name summary of a report's generation parameters (paramsJson),
+ * batch-resolved server-side by reportExport.list. Optional/nullable because
+ * not every reportType populates every field (e.g. only report_map carries
+ * municipalityId/protectedZoneId; only area carries areaBoundaryId). */
+export interface ReportExportSummary {
+  municipalityName: string | null;
+  protectedZoneName: string | null;
+  templateName: string | null;
+  areaName: string | null;
+  from: string | null;
+  to: string | null;
+  period: { year: number; month: number } | null;
+}
 
 export interface ExportRowItem {
   id: string;
@@ -31,6 +56,10 @@ export interface ExportRowItem {
   createdAt: Date;
   completedAt: Date | null;
   requestedBy: { id: string; fullName: string } | null;
+  // Optional — older test fixtures / callers that predate the Report Summary
+  // column may omit this or pass undefined explicitly; the cell falls back
+  // to just the humanized report type when absent.
+  reportSummary?: ReportExportSummary | null | undefined;
 }
 
 interface ExportRowProps {
@@ -38,6 +67,16 @@ interface ExportRowProps {
 }
 
 const POLL_INTERVAL_MS = 3000;
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+function humanizeReportType(reportType: string): string {
+  const withSpaces = reportType.replace(/_/g, " ");
+  return withSpaces.charAt(0).toUpperCase() + withSpaces.slice(1);
+}
 
 function formatDate(date: Date | null): string {
   if (date === null) return "—";
@@ -54,6 +93,114 @@ function formatDate(date: Date | null): string {
       hour: "2-digit",
       minute: "2-digit",
     })
+  );
+}
+
+/** Same short date style as the rest of the table, without the time-of-day
+ * suffix (a params date range is a calendar range, not a timestamp). Returns
+ * null for missing/invalid input so callers can omit the segment entirely. */
+function formatSummaryDate(iso: string | null | undefined): string | null {
+  if (iso === null || iso === undefined) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function formatDateRange(
+  from: string | null | undefined,
+  to: string | null | undefined,
+): string | null {
+  const fromStr = formatSummaryDate(from);
+  const toStr = formatSummaryDate(to);
+  if (fromStr !== null && toStr !== null) return `${fromStr} – ${toStr}`;
+  if (fromStr !== null) return `From ${fromStr}`;
+  if (toStr !== null) return `Until ${toStr}`;
+  return null;
+}
+
+/**
+ * Builds the human-readable "what was generated" label for the Report
+ * Summary column. Report-type-specific because paramsJson's shape (and thus
+ * what's meaningful to show) differs per reportType — see
+ * generate-report-button.tsx + generate-printable-button.tsx for the write
+ * sites. Exported for direct unit testing.
+ */
+export function buildReportSummaryLabel(row: ExportRowItem): string {
+  const typeLabel = humanizeReportType(row.reportType);
+  const s = row.reportSummary;
+  if (s === undefined || s === null) return typeLabel;
+
+  if (row.reportType === "report_map") {
+    const parts = [typeLabel];
+    parts.push(s.municipalityName ?? "All municipalities");
+    const range = formatDateRange(s.from, s.to);
+    if (range !== null) parts.push(range);
+    parts.push(`Zone: ${s.protectedZoneName ?? "—"}`);
+    return parts.join(" · ");
+  }
+
+  if (row.reportType === "area") {
+    const parts = [typeLabel];
+    if (s.areaName !== null) parts.push(s.areaName);
+    const range = formatDateRange(s.from, s.to);
+    if (range !== null) parts.push(range);
+    return parts.join(" · ");
+  }
+
+  if (row.reportType === "coverage" && s.period !== null) {
+    const monthName = MONTH_NAMES[s.period.month - 1] ?? String(s.period.month);
+    return `${typeLabel} · ${monthName} ${String(s.period.year)}`;
+  }
+
+  return typeLabel;
+}
+
+/** mm:ss (or h:mm:ss once past an hour) elapsed since `since`. */
+function formatElapsed(since: Date, now: Date): string {
+  const totalSeconds = Math.max(
+    0,
+    Math.floor((now.getTime() - since.getTime()) / 1000),
+  );
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) {
+    return `${String(hours)}h ${String(minutes)}m`;
+  }
+  if (minutes > 0) {
+    return `${String(minutes)}m ${String(seconds)}s`;
+  }
+  return `${String(seconds)}s`;
+}
+
+interface InFlightIndicatorProps {
+  status: ExportStatus;
+  createdAt: Date;
+}
+
+/**
+ * Honest in-progress affordance — there is no percent-complete field on
+ * ReportExport (pollStatus never returns one), so this never invents a fake
+ * progress bar. It shows an animated spinner + elapsed time derived from
+ * createdAt, re-computed on every render — which happens on the existing 3s
+ * poll tick (ExportRow re-renders whenever pollQuery.data changes), so no
+ * separate interval timer is needed here.
+ */
+function InFlightIndicator({ status, createdAt }: InFlightIndicatorProps) {
+  const label = status === "queued" ? "Queued" : "Rendering";
+  const elapsed = formatElapsed(createdAt, new Date());
+  return (
+    <span
+      data-testid="export-in-flight-indicator"
+      className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
+    >
+      <Loader2 className="size-3 animate-spin" aria-hidden="true" />
+      {label}… {elapsed}
+    </span>
   );
 }
 
@@ -92,10 +239,19 @@ export function ExportRow({ row }: ExportRowProps) {
     [downloadQuery.data?.downloadUrl],
   );
 
+  const summaryLabel = useMemo(() => buildReportSummaryLabel(row), [row]);
+
   return (
     <TableRow data-testid={`export-row-${row.id}`}>
       <TableCell className="font-medium capitalize">
         {row.reportType.replace(/_/g, " ")}
+      </TableCell>
+      <TableCell
+        className="max-w-xs truncate text-muted-foreground"
+        title={summaryLabel}
+        data-testid="export-report-summary"
+      >
+        {summaryLabel}
       </TableCell>
       <TableCell className="text-muted-foreground">{row.paperSize}</TableCell>
       <TableCell>
@@ -111,7 +267,10 @@ export function ExportRow({ row }: ExportRowProps) {
         {formatDate(pollQuery.data?.completedAt ?? row.completedAt)}
       </TableCell>
       <TableCell className="text-right">
-        <div className="flex justify-end gap-2">
+        <div className="flex items-center justify-end gap-2">
+          {(currentStatus === "queued" || currentStatus === "rendering") && (
+            <InFlightIndicator status={currentStatus} createdAt={row.createdAt} />
+          )}
           {currentStatus === "ready" && downloadUrl !== null && (
             <Button asChild size="sm" variant="outline">
               <a

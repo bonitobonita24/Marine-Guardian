@@ -12,6 +12,18 @@ export interface WorkerOptions {
    * See https://docs.bullmq.io/guide/rate-limiting
    */
   limiter?: RateLimiterOptions;
+  /**
+   * Optional explicit BullMQ lock duration (ms) — how long a job may hold
+   * its processing lock before BullMQ considers it stalled. BullMQ renews
+   * the lock automatically (every lockDuration/2) while the processor
+   * promise is pending, so the default (30000ms) is normally safe even for
+   * long-running jobs — but a queue whose processor legitimately runs
+   * longer than the default should set this explicitly (>= the expected
+   * worst-case processing time) rather than depend on renewal timing under
+   * load. Used by the pdf-render worker (renders can take up to
+   * PDF_NAV_TIMEOUT_MS ~120s).
+   */
+  lockDuration?: number;
 }
 
 export function createWorker<T extends BaseJobPayload>(
@@ -24,6 +36,9 @@ export function createWorker<T extends BaseJobPayload>(
     concurrency: options?.concurrency ?? 1,
     autorun: true,
     ...(options?.limiter !== undefined ? { limiter: options.limiter } : {}),
+    ...(options?.lockDuration !== undefined
+      ? { lockDuration: options.lockDuration }
+      : {}),
   });
 
   worker.on("failed", (job: Job<T> | undefined, err: Error) => {

@@ -160,6 +160,7 @@ export default function ExportsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Report Type</TableHead>
+                  <TableHead>Report Summary</TableHead>
                   <TableHead>Paper</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Requested By</TableHead>
