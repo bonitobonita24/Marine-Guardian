@@ -159,6 +159,48 @@ export function buildReportSummaryLabel(row: ExportRowItem): string {
   return typeLabel;
 }
 
+/**
+ * Same summary as buildReportSummaryLabel, but split so the date range renders
+ * on its OWN line beneath the primary details — the inline range was long
+ * enough to push/hide the other details (municipality, Zone) in the truncated
+ * cell. `primary` = type · municipality · Zone (report_map) / type · area
+ * (area) / type · month year (coverage); `dateRange` = the from–to range on
+ * its own line (null when the type has no range). Exported for unit testing.
+ */
+export function buildReportSummaryParts(row: ExportRowItem): {
+  primary: string;
+  dateRange: string | null;
+} {
+  const typeLabel = humanizeReportType(row.reportType);
+  const s = row.reportSummary;
+  if (s === undefined || s === null) return { primary: typeLabel, dateRange: null };
+
+  if (row.reportType === "report_map") {
+    const primary = [
+      typeLabel,
+      s.municipalityName ?? "All municipalities",
+      `Zone: ${s.protectedZoneName ?? "—"}`,
+    ].join(" · ");
+    return { primary, dateRange: formatDateRange(s.from, s.to) };
+  }
+
+  if (row.reportType === "area") {
+    const parts = [typeLabel];
+    if (s.areaName !== null) parts.push(s.areaName);
+    return { primary: parts.join(" · "), dateRange: formatDateRange(s.from, s.to) };
+  }
+
+  if (row.reportType === "coverage" && s.period !== null) {
+    const monthName = MONTH_NAMES[s.period.month - 1] ?? String(s.period.month);
+    return {
+      primary: `${typeLabel} · ${monthName} ${String(s.period.year)}`,
+      dateRange: null,
+    };
+  }
+
+  return { primary: typeLabel, dateRange: null };
+}
+
 /** mm:ss (or h:mm:ss once past an hour) elapsed since `since`. */
 function formatElapsed(since: Date, now: Date): string {
   const totalSeconds = Math.max(
@@ -240,6 +282,7 @@ export function ExportRow({ row }: ExportRowProps) {
   );
 
   const summaryLabel = useMemo(() => buildReportSummaryLabel(row), [row]);
+  const summaryParts = useMemo(() => buildReportSummaryParts(row), [row]);
 
   return (
     <TableRow data-testid={`export-row-${row.id}`}>
@@ -247,11 +290,16 @@ export function ExportRow({ row }: ExportRowProps) {
         {row.reportType.replace(/_/g, " ")}
       </TableCell>
       <TableCell
-        className="max-w-xs truncate text-muted-foreground"
+        className="max-w-xs text-muted-foreground"
         title={summaryLabel}
         data-testid="export-report-summary"
       >
-        {summaryLabel}
+        <span className="block truncate">{summaryParts.primary}</span>
+        {summaryParts.dateRange !== null && (
+          <span className="block truncate text-xs opacity-80">
+            {summaryParts.dateRange}
+          </span>
+        )}
       </TableCell>
       <TableCell className="text-muted-foreground">{row.paperSize}</TableCell>
       <TableCell>

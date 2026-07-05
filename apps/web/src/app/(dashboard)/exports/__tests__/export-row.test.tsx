@@ -96,7 +96,11 @@ vi.mock("@/lib/trpc/client", () => ({
   },
 }));
 
-import { ExportRow, buildReportSummaryLabel } from "../export-row";
+import {
+  ExportRow,
+  buildReportSummaryLabel,
+  buildReportSummaryParts,
+} from "../export-row";
 
 function makeRow(overrides: Partial<ExportRowItem> = {}): ExportRowItem {
   return {
@@ -360,5 +364,72 @@ describe("buildReportSummaryLabel (Report Summary column formatting)", () => {
     expect(
       buildReportSummaryLabel(baseRow({ reportType: "rangers", reportSummary: undefined })),
     ).toBe("Rangers");
+  });
+});
+
+describe("buildReportSummaryParts (date range on its own line)", () => {
+  function baseRow(overrides: Partial<ExportRowItem> = {}): ExportRowItem {
+    return makeRow(overrides);
+  }
+
+  it("report_map: primary = type · municipality · Zone (NO range); range separated", () => {
+    const parts = buildReportSummaryParts(
+      baseRow({
+        reportType: "report_map",
+        reportSummary: {
+          municipalityName: "Calapan City",
+          protectedZoneName: null,
+          templateName: null,
+          areaName: null,
+          from: "2026-06-05T00:00:00.000Z",
+          to: "2026-07-05T00:00:00.000Z",
+          period: null,
+        },
+      }),
+    );
+    // date range must NOT be in the primary line (it was hiding the Zone detail)
+    expect(parts.primary).toBe("Report map · Calapan City · Zone: —");
+    expect(parts.primary).not.toContain(" – ");
+    expect(parts.dateRange).not.toBeNull();
+    expect(parts.dateRange).toContain("2026");
+    expect(parts.dateRange).toContain(" – ");
+  });
+
+  it("area: primary = type · area; range separated", () => {
+    const parts = buildReportSummaryParts(
+      baseRow({
+        reportType: "area",
+        reportSummary: {
+          municipalityName: null,
+          protectedZoneName: null,
+          templateName: null,
+          areaName: "Bulalacao Coastal Zone",
+          from: "2026-01-01",
+          to: "2026-01-31",
+          period: null,
+        },
+      }),
+    );
+    expect(parts.primary).toBe("Area · Bulalacao Coastal Zone");
+    expect(parts.dateRange).not.toBeNull();
+  });
+
+  it("coverage: month/year stays in primary, no separate range", () => {
+    const parts = buildReportSummaryParts(
+      baseRow({
+        reportType: "coverage",
+        reportSummary: {
+          municipalityName: null,
+          protectedZoneName: null,
+          templateName: null,
+          areaName: null,
+          from: null,
+          to: null,
+          period: { year: 2026, month: 6 },
+        },
+      }),
+    );
+    expect(parts.primary).toBe("Coverage · June 2026");
+    expect(parts.dateRange).toBeNull();
   });
 });

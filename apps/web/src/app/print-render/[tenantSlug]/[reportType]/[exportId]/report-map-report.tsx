@@ -376,6 +376,9 @@ function EventTypeTables({ events, captionPrefix }: EventTypeTablesProps) {
               <span className="total-badge">
                 {g.events.length.toLocaleString()}
               </span>
+              {hasSecondPage ? (
+                <span className="cont-note"> (columns 1 of 2)</span>
+              ) : null}
             </h3>
             <EventTypeTable
               columns={split.page1}
@@ -573,6 +576,12 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
        keeps the portrait list-page. */
     @page event-list-page { size: A4 landscape; margin: 12mm; }
     * { box-sizing: border-box; }
+    /* html AND body must be white: the app's global dark theme sets a dark
+       background on <html>, which Chromium paints into the @page MARGIN area
+       (the 12mm paper inset) when printBackground is on — producing a solid
+       BLACK frame around every page (owner report 2026-07-05). Forcing both to
+       #fff makes the whole print canvas — content AND margins — white. */
+    html { background: #fff !important; }
     body {
       font-family: ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif;
       color: #111 !important;
@@ -689,7 +698,17 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
       font-size: 11px; font-weight: 600; color: #374151;
       margin: 10px 0 4px; break-after: avoid; page-break-after: avoid;
     }
-    .event-type-block + .event-type-block { margin-top: 12px; }
+    /* Each NEW event type starts on a FRESH page (owner directive
+       2026-07-05): previously a new type began in whatever space was left at
+       the bottom of the prior type's page (e.g. "Unregistered Illegal Fishing"
+       squeezed under a full "Others" table). break-before: page on every type
+       after the first-in-section pushes each type to the top of its own page.
+       The first type in a section has no preceding .event-type-block sibling
+       (the <h2 section-heading> sits between sections), so it stays with its
+       section heading. */
+    .event-type-block + .event-type-block {
+      break-before: page; page-break-before: always;
+    }
     /* 2-page column split (owner complaint (a) 2026-07-05): a busy EventType's
        second column half always starts on its OWN landscape page instead of
        squeezing every column onto one crowded page — see

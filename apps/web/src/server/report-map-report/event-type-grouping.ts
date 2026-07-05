@@ -144,6 +144,38 @@ export function humanizeDetailKey(key: string): string {
 }
 
 /**
+ * Strip a redundant leading event-type-name prefix from a humanized column
+ * label (owner complaint 2026-07-05): ER detail keys are namespaced with the
+ * event type, so the "Others" table shows "Others Actiontaken" and the
+ * "Unregistered Illegal Fishing" table shows "Unregisteredillegalfishing
+ * Unregistered Address" — the type name is already the table heading, so the
+ * prefix is noise. Consumes leading words whose normalized concatenation equals
+ * the normalized type name, handling BOTH the spaced ("Others …") and the
+ * concatenated-into-one-word ("Unregisteredillegalfishing …") forms. Returns
+ * the label unchanged when no such prefix exists or when stripping would empty
+ * it (so a column literally named the same as the type keeps its label). Never
+ * over-strips a real field that merely starts with the same word (e.g.
+ * "Unregistered Address" under type "Unregistered Illegal Fishing" stays).
+ */
+export function stripEventTypePrefix(label: string, type: string): string {
+  const target = normalizeKeyForMatch(type);
+  if (target === "") return label;
+  const words = label.split(/\s+/).filter((w) => w.length > 0);
+  let acc = "";
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
+    if (word === undefined) break;
+    acc += normalizeKeyForMatch(word);
+    if (acc === target) {
+      const rest = words.slice(i + 1).join(" ").trim();
+      return rest === "" ? label : rest;
+    }
+    if (!target.startsWith(acc)) break; // prefix can no longer match
+  }
+  return label;
+}
+
+/**
  * Format one eventDetailsJson value for a table cell. ER detail values are
  * usually strings/numbers, occasionally booleans, arrays (multi-select), or
  * nested objects (e.g. {name, value} choice payloads) — render each losslessly
@@ -224,7 +256,11 @@ export function buildEventColumns(g: EventTypeGroup): EventColumn[] {
     { kind: "area", label: "Barangay / Area" },
     { kind: "reporter", label: "Reporter" },
     ...g.detailKeys.map(
-      (key): EventColumn => ({ kind: "detail", key, label: humanizeDetailKey(key) }),
+      (key): EventColumn => ({
+        kind: "detail",
+        key,
+        label: stripEventTypePrefix(humanizeDetailKey(key), g.type),
+      }),
     ),
   ];
   if (g.hasAnyPhoto) columns.push({ kind: "photo", label: "Photo" });

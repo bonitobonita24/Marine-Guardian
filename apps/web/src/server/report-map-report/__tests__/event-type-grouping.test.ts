@@ -12,6 +12,7 @@ import {
   humanizeDetailKey,
   isHumanReadableColumn,
   splitEventColumns,
+  stripEventTypePrefix,
 } from "../event-type-grouping";
 import type { ReportMapEventDetail } from "../get-report-map-report-data";
 
@@ -105,6 +106,51 @@ describe("groupEventsByType", () => {
     ]);
     expect(groups.find((g) => g.type === "T")?.hasAnyPhoto).toBe(true);
     expect(groups.find((g) => g.type === "U")?.hasAnyPhoto).toBe(false);
+  });
+});
+
+describe("stripEventTypePrefix (drops redundant event-type name from headers)", () => {
+  it("strips a spaced type prefix (Others Actiontaken → Actiontaken)", () => {
+    expect(stripEventTypePrefix("Others Actiontaken", "Others")).toBe("Actiontaken");
+    expect(stripEventTypePrefix("Others Nameofviolators", "Others")).toBe("Nameofviolators");
+  });
+
+  it("strips a concatenated-into-one-word type prefix", () => {
+    // key "unregisteredillegalfishing_unregistered_address" → humanized
+    // "Unregisteredillegalfishing Unregistered Address"; type has spaces.
+    expect(
+      stripEventTypePrefix(
+        "Unregisteredillegalfishing Unregistered Address",
+        "Unregistered Illegal Fishing",
+      ),
+    ).toBe("Unregistered Address");
+  });
+
+  it("does NOT over-strip a real field that merely starts with a shared word", () => {
+    expect(
+      stripEventTypePrefix("Unregistered Address", "Unregistered Illegal Fishing"),
+    ).toBe("Unregistered Address");
+  });
+
+  it("leaves the label unchanged when there is no type prefix", () => {
+    expect(stripEventTypePrefix("Vessel Name", "Compressor Fishing")).toBe("Vessel Name");
+  });
+
+  it("keeps the label when it is exactly the type name (stripping would empty it)", () => {
+    expect(stripEventTypePrefix("Others", "Others")).toBe("Others");
+  });
+
+  it("is applied generically to every type via buildEventColumns", () => {
+    const cols = buildEventColumns({
+      type: "Others",
+      events: [],
+      hasAnyPhoto: false,
+      detailKeys: ["others_actiontaken", "others_address", "boat_registration"],
+    });
+    const detailLabels = cols
+      .filter((c) => c.kind === "detail")
+      .map((c) => c.label);
+    expect(detailLabels).toEqual(["Actiontaken", "Address", "Boat Registration"]);
   });
 });
 
