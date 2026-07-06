@@ -335,7 +335,12 @@ export const reportMapRouter = router({
     .query(async ({ ctx, input }) => {
       const rows = await prisma.patrol.findMany({
         where: patrolWhere(ctx.tenantId, input),
-        take: 300,
+        // Cap raised 300 -> 1200 (owner 2026-07-06: "where can I see the
+        // remaining?"). The card is scrollable, so realistic ranges now list
+        // every patrol in-card; the "Showing N of M" note only appears past the
+        // cap. The absolute-complete list (any size) lives in the generated
+        // report's "Patrols — Full List" (uncapped) + the /patrols page.
+        take: 1200,
         orderBy: { startTime: "desc" },
         select: {
           id: true,

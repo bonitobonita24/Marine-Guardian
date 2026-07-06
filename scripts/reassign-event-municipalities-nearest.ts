@@ -58,7 +58,7 @@ async function main() {
     console.log(`  ${String(municipalities.length)} municipalities`);
 
     const events = await prisma.event.findMany({
-      where: { tenantId: tenant.id, isDeleted: false },
+      where: { tenantId: tenant.id },
       select: {
         id: true,
         municipalityId: true,
