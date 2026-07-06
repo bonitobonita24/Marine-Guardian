@@ -72,6 +72,7 @@ import {
   splitEventColumns,
 } from "@/server/report-map-report/event-type-grouping";
 import { EventBreakdownChart } from "./components/event-breakdown-chart";
+import { RowHeightSync } from "./components/row-height-sync";
 // Leaflet islands are loaded dynamically (ssr:false) via the client wrapper to
 // prevent window-is-not-defined during Next.js server-side bundle evaluation.
 import { EventPointsMap, PatrolTracksMap } from "./components/map-islands-client";
@@ -1107,6 +1108,10 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
           src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
           style={{ position: "absolute", width: 1, height: 1, left: -9999 }}
         />
+        {/* Equalizes split event-type table row heights across both column
+            pages so rows line up (owner report 2026-07-06). Client island;
+            runs after layout, before the map islands flip __renderReady. */}
+        <RowHeightSync />
       </body>
     </html>
   );
