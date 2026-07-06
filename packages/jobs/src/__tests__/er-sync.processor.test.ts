@@ -128,9 +128,9 @@ describe("processErSync", () => {
     mockPrisma.syncLog.update.mockResolvedValue({ id: "sl-1" });
     mockPrisma.user.findFirst.mockResolvedValue(null);
     mockPrisma.knownRanger.findFirst.mockResolvedValue(null);
-    // Default event-type catalog resolved during syncEvents' Skylight lookup
-    // (packages/jobs/src/processors/er-sync.processor.ts syncEvents). Tests
-    // that need a Skylight-display type override this per-test.
+    // Default event-type catalog (kept for tests that still stub eventType
+    // lookups elsewhere in the processor; syncEvents itself no longer reads
+    // this table as of SKY-1 — Skylight is no longer filtered at ingest).
     mockPrisma.eventType.findMany.mockResolvedValue([
       { value: "poaching", display: "Poaching Report" },
     ]);
@@ -622,42 +622,40 @@ describe("processErSync", () => {
     );
   });
 
-  // Skylight ingestion block — an event is Skylight when its resolved event
-  // type's `display` contains "skylight" (case-insensitive), the same marker
-  // used in dashboard.ts:179 / reportMap.ts:59. Skylight events must never be
-  // created or updated by the recurring ER sync so they can't flood back in
-  // after the one-time DB cleanup.
-  it("skips creating a Skylight-display event and does not enqueue downstream jobs for it", async () => {
+  // Skylight ingestion (SKY-1) — Skylight-display event types (marker: the
+  // resolved event type's `display` contains "skylight", case-insensitive,
+  // same marker used in dashboard.ts:179 / reportMap.ts:59) are now ingested
+  // like any other event by the recurring ER sync. Skylight stays excluded
+  // from reports/dashboard/events-list/municipality coverage — only ingest
+  // behavior changed here; the /map opt-in toggle filters at query time.
+  it("ingests a Skylight-display event like any other event and enqueues downstream jobs", async () => {
     mockPrisma.eventType.findMany.mockResolvedValue([
       { value: "skylight_detection", display: "Skylight Detection Alert" },
     ]);
     mockErClient.getEvents.mockResolvedValueOnce([
       { id: "ev-sky-1", serial_number: 9001, title: "Vessel detected", priority: 50, state: "active", location: null, reported_by: null, time: "2026-06-01T08:00:00Z", end_time: null, event_type: "skylight_detection", event_details: {}, notes: [] },
     ]);
+    mockPrisma.event.findUnique.mockResolvedValue(null);
+    mockPrisma.event.create.mockResolvedValue({ id: "evt-sky-1", priority: 50 });
 
     await processErSync(makeJob({ syncType: "events" }));
 
-    expect(mockPrisma.event.findUnique).not.toHaveBeenCalled();
-    expect(mockPrisma.event.create).not.toHaveBeenCalled();
-    expect(mockPrisma.event.update).not.toHaveBeenCalled();
-    expect(mockEnqueueAlert).not.toHaveBeenCalled();
-    expect(mockEnqueueAreaRederive).not.toHaveBeenCalled();
+    expect(mockPrisma.event.create).toHaveBeenCalledWith(
+      expect.objectContaining<Record<string, unknown>>({
+        data: expect.objectContaining<Record<string, unknown>>({
+          erEventId: "ev-sky-1",
+        }),
+      }),
+    );
+    expect(mockEnqueueAlert).toHaveBeenCalledWith(
+      expect.objectContaining({ eventId: "evt-sky-1" }),
+    );
+    expect(mockEnqueueAreaRederive).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "evt-sky-1" }),
+    );
   });
 
-  it("matches Skylight display case-insensitively (e.g. 'SKYLIGHT Entry Alert')", async () => {
-    mockPrisma.eventType.findMany.mockResolvedValue([
-      { value: "skylight_entry", display: "SKYLIGHT Entry Alert" },
-    ]);
-    mockErClient.getEvents.mockResolvedValueOnce([
-      { id: "ev-sky-2", serial_number: 9002, title: "Vessel entered zone", priority: 50, state: "active", location: null, reported_by: null, time: "2026-06-01T08:00:00Z", end_time: null, event_type: "skylight_entry", event_details: {}, notes: [] },
-    ]);
-
-    await processErSync(makeJob({ syncType: "events" }));
-
-    expect(mockPrisma.event.create).not.toHaveBeenCalled();
-  });
-
-  it("still ingests a non-Skylight event when Skylight types exist in the same batch", async () => {
+  it("ingests both a Skylight-display event and a non-Skylight event in the same batch", async () => {
     mockPrisma.eventType.findMany.mockResolvedValue([
       { value: "poaching", display: "Poaching Report" },
       { value: "skylight_detection", display: "Skylight Detection Alert" },
@@ -667,12 +665,23 @@ describe("processErSync", () => {
       { id: "ev-4", serial_number: 1004, title: "Illegal fishing spotted", priority: 200, state: "active", location: null, reported_by: null, time: "2026-06-01T09:00:00Z", end_time: null, event_type: "poaching", event_details: {}, notes: [] },
     ]);
     mockPrisma.event.findUnique.mockResolvedValue(null);
-    mockPrisma.event.create.mockResolvedValue({ id: "evt-4", priority: 200 });
+    mockPrisma.event.create
+      .mockResolvedValueOnce({ id: "evt-sky-3", priority: 50 })
+      .mockResolvedValueOnce({ id: "evt-4", priority: 200 });
 
     await processErSync(makeJob({ syncType: "events" }));
 
-    expect(mockPrisma.event.create).toHaveBeenCalledTimes(1);
-    expect(mockPrisma.event.create).toHaveBeenCalledWith(
+    expect(mockPrisma.event.create).toHaveBeenCalledTimes(2);
+    expect(mockPrisma.event.create).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining<Record<string, unknown>>({
+        data: expect.objectContaining<Record<string, unknown>>({
+          erEventId: "ev-sky-3",
+        }),
+      }),
+    );
+    expect(mockPrisma.event.create).toHaveBeenNthCalledWith(
+      2,
       expect.objectContaining<Record<string, unknown>>({
         data: expect.objectContaining<Record<string, unknown>>({
           erEventId: "ev-4",

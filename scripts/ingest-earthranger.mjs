@@ -56,13 +56,11 @@ const PATROL_PAGE_DELAY = Number(args["patrol-page-delay-ms"] || 1500);
 // walks past the cutoff, so a gap fill doesn't re-page the full 36k feed.
 const UPDATED_SINCE = args["updated-since"] || process.env.ER_UPDATED_SINCE || null;
 
-// Skylight automated vessel-detection events flood ER (~33k of ~36.9k) and are
-// excluded from MG — mirror er-sync.processor.isSkylightDisplay EXACTLY: skip
-// any event whose event-type DISPLAY contains "skylight" (case-insensitive).
-const displayByValue = new Map(); // event_type value -> eventType display
-function isSkylightDisplay(display) {
-  return display != null && /skylight/i.test(display);
-}
+// Skylight automated vessel-detection events (event-type DISPLAY containing
+// "skylight", case-insensitive) are ingested like any other event as of
+// SKY-1 — mirrors er-sync.processor.ts syncEvents. Skylight stays excluded
+// from reports/dashboard/events-list/municipality coverage (unchanged); the
+// /map opt-in toggle filters at query time.
 
 const prisma = new PrismaClient();
 const now = () => new Date();
@@ -154,7 +152,6 @@ async function ingestEventTypes() {
         create: { tenantId: TENANT_ID, erEventtypeId: String(erId), value: et.value, display: et.display || et.value, category: cat, defaultPriority: Number(et.default_priority) || 0, iconId: et.icon_id || null, schemaJson: et.schema || undefined, syncedAt: now() },
       });
       eventTypeIdByValue.set(et.value, row.id);
-      displayByValue.set(et.value, et.display || et.value);
       stats.eventTypes++;
     }
   }
@@ -190,12 +187,6 @@ async function ingestEvents() {
       if (cutoff) {
         const u = new Date(ev.updated_at || ev.time);
         if (!isNaN(u) && u < cutoff) { reachedCutoff = true; break; }
-      }
-      // Skip Skylight — never insert an Event for a Skylight-display type
-      // (matches er-sync.processor so a backfill can't re-introduce them).
-      if (ev.event_type != null && isSkylightDisplay(displayByValue.get(ev.event_type))) {
-        stats.skippedSkylight = (stats.skippedSkylight || 0) + 1;
-        continue;
       }
       const etId = await ensureEventType(ev.event_type, ev.title);
       const loc = ev.location || {};

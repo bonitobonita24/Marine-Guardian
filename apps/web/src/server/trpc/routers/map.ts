@@ -30,6 +30,12 @@ const eventsListInput = z
     // inside a given protected zone (EventCoveredZone join). Independent of the
     // municipality filter — both may apply.
     protectedZoneId: z.string().optional(),
+    // SKY-1: opt-in toggle for the Interactive Report Map only. Default false
+    // preserves the existing Skylight exclusion; when true, Skylight events are
+    // included in the map markers. Every OTHER surface (reports, dashboard,
+    // /events list, municipality coverage) keeps excluding Skylight unconditionally
+    // and does not read this input.
+    includeSkylight: z.boolean().default(false),
   })
   .strict();
 
@@ -278,7 +284,7 @@ const eventsRouter = router({
       tenantId: string;
       locationLat: { not: null };
       locationLon: { not: null };
-      NOT: { eventType: { display: { contains: string; mode: "insensitive" } } };
+      NOT?: { eventType: { display: { contains: string; mode: "insensitive" } } };
       reportedAt?: { gte?: Date; lte?: Date };
       municipalityId?: string;
       coveredZones?: { some: { protectedZoneId: string } };
@@ -286,11 +292,15 @@ const eventsRouter = router({
       tenantId: ctx.tenantId,
       locationLat: { not: null },
       locationLon: { not: null },
-      // Exclude Skylight automated vessel-detection events from the Live Map —
-      // same display-based filter as the dashboard queries (Skylight events are
-      // category="analyzer_event" with the marker only in eventType.display).
-      NOT: { eventType: { display: { contains: "skylight", mode: "insensitive" } } },
     };
+    // Exclude Skylight automated vessel-detection events from the map by
+    // default — same display-based filter as the dashboard queries (Skylight
+    // events are category="analyzer_event" with the marker only in
+    // eventType.display). SKY-1: the Interactive Report Map may opt back in
+    // via `includeSkylight`; every other surface has no such opt-out.
+    if (!input.includeSkylight) {
+      where.NOT = { eventType: { display: { contains: "skylight", mode: "insensitive" } } };
+    }
     if (input.municipalityId !== undefined) {
       where.municipalityId = input.municipalityId;
     }

@@ -97,6 +97,11 @@ type TrackLegendProps = {
    *  Master show/hide; rendered on both orientations when provided. */
   showBoundaries?: boolean;
   onShowBoundariesChange?: (next: boolean) => void;
+  /** Skylight automated vessel-detection events (SKY-1). Default OFF — Skylight
+   *  is excluded from the map's events unless the operator opts in. Rendered on
+   *  both orientations when provided (Interactive Report Map). */
+  showSkylight?: boolean;
+  onShowSkylightChange?: (next: boolean) => void;
   /** "vertical" stacked card (overlay) or "horizontal" toolbar row (above map). */
   orientation?: "vertical" | "horizontal";
   /** Floating vertical card only: slot rendered at the top (e.g. date +
@@ -176,6 +181,8 @@ export function TrackLegend({
   onShowTrackHeatmapChange,
   showBoundaries,
   onShowBoundariesChange,
+  showSkylight,
+  onShowSkylightChange,
   orientation = "vertical",
   header,
   title,
@@ -324,6 +331,31 @@ export function TrackLegend({
               </div>
             </>
           )}
+
+        {/* Skylight automated vessel-detection events (SKY-1). Default OFF —
+            excluded from the map's events unless the operator opts in. */}
+        {showSkylight !== undefined && onShowSkylightChange !== undefined && (
+          <>
+            <div
+              className="hidden h-5 w-px bg-border sm:block"
+              aria-hidden="true"
+            />
+            <div className="flex min-h-9 items-center gap-2">
+              <Label
+                htmlFor="show-skylight"
+                className="cursor-pointer font-medium"
+              >
+                Skylight events
+              </Label>
+              <Switch
+                id="show-skylight"
+                checked={showSkylight}
+                onCheckedChange={onShowSkylightChange}
+                aria-label="Show Skylight events on the map"
+              />
+            </div>
+          </>
+        )}
       </section>
     );
   }
@@ -348,6 +380,8 @@ export function TrackLegend({
     onShowTrackHeatmapChange={onShowTrackHeatmapChange}
     showBoundaries={showBoundaries}
     onShowBoundariesChange={onShowBoundariesChange}
+    showSkylight={showSkylight}
+    onShowSkylightChange={onShowSkylightChange}
     header={header}
     title={title}
     collapsible={collapsible}
@@ -382,6 +416,8 @@ function VerticalTrackLegend({
   onShowTrackHeatmapChange,
   showBoundaries,
   onShowBoundariesChange,
+  showSkylight,
+  onShowSkylightChange,
   header,
   title,
   collapsible,
@@ -406,6 +442,8 @@ function VerticalTrackLegend({
   onShowTrackHeatmapChange: ((next: boolean) => void) | undefined;
   showBoundaries: boolean | undefined;
   onShowBoundariesChange: ((next: boolean) => void) | undefined;
+  showSkylight: boolean | undefined;
+  onShowSkylightChange: ((next: boolean) => void) | undefined;
   header: ReactNode;
   title: string | undefined;
   collapsible: boolean | undefined;
@@ -583,6 +621,27 @@ function VerticalTrackLegend({
                 </div>
               </div>
             )}
+
+          {/* Skylight automated vessel-detection events (SKY-1). Default OFF —
+              excluded from the map's events unless the operator opts in. */}
+          {showSkylight !== undefined && onShowSkylightChange !== undefined && (
+            <div className="border-t pt-0.5">
+              <div className="flex min-h-7 items-center justify-between gap-2">
+                <Label
+                  htmlFor="show-skylight"
+                  className="cursor-pointer font-medium"
+                >
+                  Skylight events
+                </Label>
+                <Switch
+                  id="show-skylight"
+                  checked={showSkylight}
+                  onCheckedChange={onShowSkylightChange}
+                  aria-label="Show Skylight events on the map"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Event-marker layers — a category master toggle, each with a
               collapsible sublist of its specific event types (the per-type

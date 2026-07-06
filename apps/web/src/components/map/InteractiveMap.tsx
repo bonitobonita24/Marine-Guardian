@@ -251,12 +251,17 @@ export function InteractiveMap({
   activeSubjectNames,
   hideIdleSubjects,
 }: InteractiveMapProps) {
+  // Skylight opt-in (SKY-1). Default OFF — Skylight events stay excluded from
+  // the map's events unless the operator toggles this on (TrackLegend "Show
+  // Skylight events" switch, wired below).
+  const [showSkylight, setShowSkylight] = useState(false);
   const subjectsQuery = trpc.map.subjects.list.useQuery();
   const eventsQuery = trpc.map.events.list.useQuery({
     ...(dateFrom !== undefined ? { from: dateFrom } : {}),
     ...(dateTo !== undefined ? { to: dateTo } : {}),
     ...(municipalityId !== undefined ? { municipalityId } : {}),
     ...(protectedZoneId !== undefined ? { protectedZoneId } : {}),
+    ...(showSkylight ? { includeSkylight: true } : {}),
   });
   const patrolAreasQuery = trpc.map.patrolAreas.list.useQuery({
     activeOnly: true,
@@ -661,6 +666,8 @@ export function InteractiveMap({
           }}
           showBoundaries={showBoundaries}
           onShowBoundariesChange={setShowBoundaries}
+          showSkylight={showSkylight}
+          onShowSkylightChange={setShowSkylight}
           {...(useInRangeTracks
             ? {
                 displayMode,
@@ -697,6 +704,8 @@ export function InteractiveMap({
             }}
             showBoundaries={showBoundaries}
             onShowBoundariesChange={setShowBoundaries}
+            showSkylight={showSkylight}
+            onShowSkylightChange={setShowSkylight}
             {...(eventTypesQuery.data !== undefined
               ? { eventTypesByCategory: eventTypesQuery.data }
               : {})}

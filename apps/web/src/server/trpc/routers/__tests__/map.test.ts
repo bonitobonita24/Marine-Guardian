@@ -116,6 +116,31 @@ describe("map.events.list", () => {
     });
   });
 
+  // SKY-1: default-OFF opt-in toggle. Skylight stays excluded from every
+  // OTHER surface (reports, dashboard, /events list, municipality coverage) —
+  // only the /map events query understands `includeSkylight`.
+  it("still excludes Skylight when includeSkylight is explicitly false", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.events.list({ includeSkylight: false });
+
+    const findManyCall = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0];
+    expect(findManyCall?.where).toMatchObject({
+      NOT: { eventType: { display: { contains: "skylight", mode: "insensitive" } } },
+    });
+  });
+
+  it("includes Skylight events when includeSkylight is true", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.events.list({ includeSkylight: true });
+
+    const findManyCall = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0];
+    expect(findManyCall?.where).not.toHaveProperty("NOT");
+  });
+
   it("scopes the query to the tenant — never leaks cross-tenant", async () => {
     vi.mocked(prisma.event.findMany).mockResolvedValue([]);
 
