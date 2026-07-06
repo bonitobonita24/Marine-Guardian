@@ -86,6 +86,7 @@ import {
   PatrolTracksMap,
 } from "./components/map-islands-client";
 import { PatrolTypeBarChart } from "./components/patrol-type-bar-chart";
+import { PrintMultiSeriesChart } from "./components/print-multi-series-chart";
 import { PrintTimeSeriesChart } from "./components/print-time-series-chart";
 
 // ─── Layout resolution ────────────────────────────────────────────────────────
@@ -1004,27 +1005,31 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
               </figure>
             </div>
           </div>
+          {/* R7 (2026-07-06): the two separate Seaborne/Foot over-time
+              charts are combined into ONE chart plotting both series on
+              shared axes with a legend — the two-column patrol-charts-row
+              collapses to a single full-width chart. */}
           <div
             className="patrol-charts-row"
             role="group"
             aria-label="Patrol counts over time by type"
           >
             <div className="patrol-chart-col">
-              <PrintTimeSeriesChart
-                series={data.charts.patrolList.patrolCountByTypeOverTime.seaborne}
-                title="Seaborne Patrols Over Time"
-                color="#0891b2"
-                valueLabel="Patrols"
+              <PrintMultiSeriesChart
+                title="Patrols Over Time by Type"
                 height={90}
-              />
-            </div>
-            <div className="patrol-chart-col">
-              <PrintTimeSeriesChart
-                series={data.charts.patrolList.patrolCountByTypeOverTime.foot}
-                title="Foot Patrols Over Time"
-                color="#0f766e"
-                valueLabel="Patrols"
-                height={90}
+                series={[
+                  {
+                    label: "Seaborne",
+                    color: "#0891b2",
+                    points: data.charts.patrolList.patrolCountByTypeOverTime.seaborne,
+                  },
+                  {
+                    label: "Foot",
+                    color: "#0f766e",
+                    points: data.charts.patrolList.patrolCountByTypeOverTime.foot,
+                  },
+                ]}
               />
             </div>
           </div>
