@@ -84,8 +84,10 @@ const TRACK_HEAT_TUNING = { weight: 0.04, intensity: 1, radius: 22 } as const;
 // patrol tracks a single event SHOULD register on its own — a touch larger than
 // the base default so a lone event reads as a clear mark, with a slightly raised
 // weight so neighbouring events blend into a growing, combined hot blob (→ red)
-// as they cluster. Density→red ramp itself lives in MapHeatmap.
-const EVENT_HEAT_TUNING = { weight: 1.2, intensity: 1.2, radius: 34 } as const;
+// as they cluster. radius 40 (was 34) — nudged wider so near-neighbour events
+// keep merging into one blob as you zoom in, rather than separating into isolated
+// dots. Density→red ramp itself lives in MapHeatmap.
+const EVENT_HEAT_TUNING = { weight: 1.2, intensity: 1.2, radius: 40 } as const;
 const BOUNDARY_STYLE: Record<
   "land" | "water" | "mpa",
   { color: string; outlineWidth: number; fillOpacity: number; outlineOpacity: number; dashArray: number[] }
