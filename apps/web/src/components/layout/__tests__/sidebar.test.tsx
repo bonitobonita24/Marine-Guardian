@@ -183,12 +183,30 @@ describe("Sidebar — viewer role nav filtering", () => {
     }
   });
 
-  it.each(["super_admin", "site_admin", "field_coordinator", "operator"])(
-    "renders the full nav unchanged for %s (no regression)",
+  it.each(["super_admin", "site_admin"])(
+    "renders the full nav (incl. users + settings) for %s",
     (role) => {
       stubs.sessionRoles = [role];
       const { getByText } = render(<Sidebar />);
       for (const key of ALL_NAV_LABEL_KEYS) {
+        expect(getByText(key)).toBeTruthy();
+      }
+    },
+  );
+
+  // field_coordinator + operator (2026-07-07): Users + Settings are
+  // super_admin/site_admin only (siteAdminProcedure) — they used to render the
+  // full nav and hit FORBIDDEN on those pages. Hide the two nav items so no
+  // role sees a menu it cannot use; every other item stays visible.
+  it.each(["field_coordinator", "operator"])(
+    "renders every nav item except 'users' and 'settings' for %s",
+    (role) => {
+      stubs.sessionRoles = [role];
+      const { getByText, queryByText } = render(<Sidebar />);
+      expect(queryByText("users")).toBeNull();
+      expect(queryByText("settings")).toBeNull();
+      for (const key of ALL_NAV_LABEL_KEYS) {
+        if (key === "users" || key === "settings") continue;
         expect(getByText(key)).toBeTruthy();
       }
     },
@@ -212,10 +230,16 @@ describe("Sidebar — viewer role nav filtering", () => {
     }
   });
 
-  it("renders the full nav when there is no session yet (unauthenticated render pass)", () => {
+  it("hides users + settings (but shows every other item) when there is no session yet", () => {
+    // No roles yet (session loading / unauthenticated render pass): treated as
+    // non-site-admin, so the two site-admin-only items stay hidden rather than
+    // flashing in before the session resolves. Route/tRPC layers enforce access.
     stubs.sessionRoles = [];
-    const { getByText } = render(<Sidebar />);
+    const { getByText, queryByText } = render(<Sidebar />);
+    expect(queryByText("users")).toBeNull();
+    expect(queryByText("settings")).toBeNull();
     for (const key of ALL_NAV_LABEL_KEYS) {
+      if (key === "users" || key === "settings") continue;
       expect(getByText(key)).toBeTruthy();
     }
   });
