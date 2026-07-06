@@ -73,8 +73,8 @@ export function ReportHeader({
       <div className="pr-header-text">
         <h1 className="pr-header-main-title">{line1}</h1>
         {hasMunicipality ? <p className="pr-header-brand">Blue Alliance Monitoring</p> : null}
+        <p className="pr-header-date-range">Date Range: {dateRange}</p>
         <p className="pr-header-report-title">{reportTitle}</p>
-        <p className="pr-header-date-range">{dateRange}</p>
       </div>
     </header>
   );
@@ -92,18 +92,21 @@ export const reportHeaderStyles = `
       gap: 18px; border-bottom: 2px solid #0f766e; padding-bottom: 8px;
       margin-bottom: 10px;
     }
-    .pr-header-logos { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; }
-    .pr-header-logo { max-height: 60px; max-width: 90px; object-fit: contain; }
+    .pr-header-logos { flex: 0 0 auto; display: flex; align-items: center; gap: 12px; }
+    /* Logos at least 1 inch tall (96px @ 96dpi); both aligned to the same
+       height so the rounded municipal logo lines up with the Blue Alliance
+       logo (owner spec 2026-07-06). */
+    .pr-header-logo { height: 96px; width: auto; max-width: 130px; object-fit: contain; }
     .pr-header-logo-placeholder {
-      width: 60px; height: 60px; flex: 0 0 auto; border-radius: 50%;
+      width: 96px; height: 96px; flex: 0 0 auto; border-radius: 50%;
       background: #1d5b78;
     }
     .pr-header-text { flex: 1 1 auto; min-width: 0; text-align: left; }
     h1.pr-header-main-title {
-      font-size: 26px; font-weight: 800; margin: 0 0 1px; color: #111;
-      line-height: 1.15; letter-spacing: -0.01em;
+      font-size: 22px; font-weight: 800; margin: 0 0 1px; color: #111;
+      line-height: 1.2; letter-spacing: -0.01em;
     }
-    p.pr-header-brand { font-size: 20px; font-weight: 700; margin: 0 0 3px; color: #111; line-height: 1.15; }
-    p.pr-header-report-title { font-size: 11px; font-weight: 500; margin: 0 0 2px; color: #374151; }
-    p.pr-header-date-range { font-size: 9px; color: #6b7280; margin: 0; }
+    p.pr-header-brand { font-size: 18px; font-weight: 700; margin: 0 0 2px; color: #111; line-height: 1.2; }
+    p.pr-header-date-range { font-size: 12px; font-weight: 500; color: #374151; margin: 0 0 1px; }
+    p.pr-header-report-title { font-size: 12px; font-weight: 500; margin: 0; color: #374151; }
 `;
