@@ -141,6 +141,11 @@ interface AutoFitBoundsProps {
 function AutoFitBounds({ areas, tracks }: AutoFitBoundsProps) {
   const map = useMap();
   useEffect(() => {
+    // Print/SSR mounts the container before it reaches its final laid-out
+    // width; Leaflet measures too-narrow and only loads tiles for that width.
+    // Re-measure the FULL container before framing, else the uncovered right
+    // band shows through as the MapContainer background.
+    map.invalidateSize({ animate: false });
     const points: Array<[number, number]> = [];
     for (const a of areas) {
       const ring = polygonToLatLngs(a.geometryGeojson);

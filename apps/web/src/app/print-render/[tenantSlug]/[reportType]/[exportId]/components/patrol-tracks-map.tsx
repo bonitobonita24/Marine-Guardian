@@ -90,6 +90,11 @@ function AutoFitBounds({
 }) {
   const map = useMap();
   useEffect(() => {
+    // Print/SSR mounts the container before it reaches its final laid-out
+    // width; Leaflet measures too-narrow and only loads tiles for that width.
+    // Re-measure the FULL container before framing, else the uncovered right
+    // band shows through as the MapContainer background.
+    map.invalidateSize({ animate: false });
     // A specific municipality is in scope — always frame it, even when there
     // are 0/1 renderable tracks (the case that used to fall through to the
     // fixed whole-region fallback).
