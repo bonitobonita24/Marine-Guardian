@@ -4,9 +4,11 @@
 //
 // Lists ReportExport rows for the current tenant with status badge, paginated
 // loader, and per-row Download / Retry actions. RBAC-gated client-side to
-// coordinator+ — operators have no business creating or managing exports
-// (the underlying list procedure is tenantProcedure, so this is a UX gate
-// not a security gate; admin actions like retry are still server-side
+// coordinator+ (plus viewer, 2026-07-06 — a viewer can generate a printable
+// report from the Interactive Report Map and must be able to retrieve it
+// here) — operators have no business creating or managing exports (the
+// underlying list procedure is tenantProcedure, so this is a UX gate not a
+// security gate; admin actions like retry/delete are still server-side
 // enforced via adminProcedure).
 //
 // Polling lives inside each ExportRow (not the list query) — only in-flight
@@ -43,7 +45,8 @@ export default function ExportsPage() {
   const canViewExports =
     roles.includes("super_admin") ||
     roles.includes("site_admin") ||
-    roles.includes("field_coordinator");
+    roles.includes("field_coordinator") ||
+    roles.includes("viewer");
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [cursor, setCursor] = useState<string | undefined>(undefined);

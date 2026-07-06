@@ -163,15 +163,18 @@ describe("Sidebar — viewer role nav filtering", () => {
     "settings",
   ];
 
-  it("renders exactly the 2 Command items for a viewer session", () => {
+  it("renders exactly the 3 Command items for a viewer session (dashboard, map, exports)", () => {
     stubs.sessionRoles = ["viewer"];
     const { getByText, queryByText } = render(<Sidebar />);
 
     expect(getByText("dashboard")).toBeTruthy();
     expect(getByText("map")).toBeTruthy();
+    // exports (2026-07-06): viewer can now generate + retrieve printable
+    // reports, so /exports joins the viewer-allowed nav set.
+    expect(getByText("exports")).toBeTruthy();
 
     for (const key of ALL_NAV_LABEL_KEYS) {
-      if (key === "dashboard" || key === "map") continue;
+      if (key === "dashboard" || key === "map" || key === "exports") continue;
       expect(queryByText(key)).toBeNull();
     }
   });
@@ -223,9 +226,9 @@ describe("Sidebar — Exports submenu item", () => {
     expect(link?.className).toMatch(/border-l/);
   });
 
-  it("does NOT show Exports for a viewer session (unchanged viewer scope)", () => {
+  it("shows Exports for a viewer session (2026-07-06: viewer can generate + retrieve reports)", () => {
     stubs.sessionRoles = ["viewer"];
-    const { queryByText } = render(<Sidebar />);
-    expect(queryByText("exports")).toBeNull();
+    const { getByText } = render(<Sidebar />);
+    expect(getByText("exports")).toBeTruthy();
   });
 });

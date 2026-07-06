@@ -85,11 +85,14 @@ const navGroups: NavGroup[] = [
   },
 ];
 
-// viewer role (2026-07-05): read-only, scoped to Command Center (/dashboard) +
-// Interactive Report Map (/map) only. Every other page is hidden from nav here
-// AND blocked at the route level in middleware.ts (defense in depth — a
-// viewer can never reach a hidden page even via a typed URL or bookmark).
-const VIEWER_ALLOWED_HREFS = new Set<string>(["/dashboard", "/map"]);
+// viewer role (2026-07-05, extended 2026-07-06): read-only, scoped to
+// Command Center (/dashboard) + Interactive Report Map (/map) + Exports
+// (/exports — viewer can now generate a printable report from /map and
+// must be able to reach /exports to retrieve it, reportGenerateProcedure).
+// Every other page is hidden from nav here AND blocked at the route level in
+// middleware.ts (defense in depth — a viewer can never reach a hidden page
+// even via a typed URL or bookmark).
+const VIEWER_ALLOWED_HREFS = new Set<string>(["/dashboard", "/map", "/exports"]);
 
 function getVisibleNavGroups(roles: readonly string[]) {
   if (!roles.includes("viewer")) {

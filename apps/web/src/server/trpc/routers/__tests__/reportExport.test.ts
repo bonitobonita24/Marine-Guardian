@@ -125,6 +125,26 @@ describe("reportExport.list", () => {
       })
     );
   });
+
+  // viewer (2026-07-06): list is tenantProcedure (any authenticated tenant
+  // user), unchanged by the reportGenerateProcedure widening on `create` —
+  // a viewer must be able to retrieve exports it generated. Still strictly
+  // tenant-scoped, same as every other role.
+  it("allows a viewer to list exports, scoped to its own tenant only", async () => {
+    vi.mocked(prisma.reportExport.findMany).mockResolvedValue([
+      { id: "re-1", tenantId: TENANT_ID, status: "ready" },
+    ] as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["viewer"]));
+    const result = await caller.list({ limit: 50 });
+
+    expect(result.items).toHaveLength(1);
+    expect(vi.mocked(prisma.reportExport.findMany)).toHaveBeenCalledWith(
+      partial({
+        where: partial<{ tenantId: string }>({ tenantId: TENANT_ID }),
+      })
+    );
+  });
 });
 
 describe("reportExport.list — reportSummary enrichment (Report Summary column)", () => {
@@ -342,6 +362,25 @@ describe("reportExport.getById / pollStatus", () => {
     );
   });
 
+  // viewer (2026-07-06): getById is tenantProcedure, unchanged by the
+  // reportGenerateProcedure widening — a viewer can retrieve its own
+  // tenant's export, and a cross-tenant id still resolves to null/NOT_FOUND
+  // exactly like any other role (no leak introduced).
+  it("allows a viewer to getById its own tenant's export, and still returns null cross-tenant", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValueOnce({
+      id: "re-1",
+      tenantId: TENANT_ID,
+      status: "ready",
+    } as never);
+    const caller = createCaller(makeCtx(TENANT_ID, ["viewer"]));
+    const owned = await caller.getById({ id: "re-1" });
+    expect(owned?.id).toBe("re-1");
+
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValueOnce(null);
+    const crossTenant = await caller.getById({ id: "re-other" });
+    expect(crossTenant).toBeNull();
+  });
+
   it("pollStatus returns slim payload scoped to tenant", async () => {
     vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
       id: "re-1",
@@ -413,22 +452,38 @@ describe("reportExport.create (RBAC + 5.3b pipeline wiring)", () => {
     expect(vi.mocked(enqueuePdfRender)).not.toHaveBeenCalled();
   });
 
-  // viewer role (2026-07-05) — read-only, cannot generate reports. viewer is
-  // never listed in coordinatorProcedure (rbac.ts), so it is rejected exactly
-  // like operator above; this is the /map "Generate Printable" mutation the
-  // viewer's client-side GeneratePrintableButton hides.
-  it("rejects create when role is viewer (viewer cannot generate reports)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["viewer"]));
+  // viewer role (2026-07-06) — reportExport.create now runs
+  // reportGenerateProcedure (rbac.ts), which allows viewer IN ADDITION to
+  // coordinator+, so a viewer CAN generate a printable report from the
+  // Interactive Report Map ("Generate Printable" button, no longer hidden
+  // for viewer sessions). This is a narrow, deliberate exception — viewer
+  // remains rejected by every other mutation in this router (see the
+  // adminProcedure-gated retry/cancel/delete/renderPptx describe blocks
+  // below).
+  it("allows create when role is viewer (viewer can generate printable reports)", async () => {
+    vi.mocked(prisma.reportExport.create).mockResolvedValue({
+      id: "re-viewer",
+      tenantId: TENANT_ID,
+      requestedByUserId: USER_ID,
+      status: "queued",
+    } as never);
 
-    await expect(
-      caller.create({
-        reportType: "coverage",
-        paramsJson: {},
-        paperSize: "A4",
+    const caller = createCaller(makeCtx(TENANT_ID, ["viewer"]));
+    const result = await caller.create({
+      reportType: "report_map",
+      paramsJson: {},
+      paperSize: "A4",
+    });
+
+    expect(result.id).toBe("re-viewer");
+    expect(vi.mocked(prisma.reportExport.create)).toHaveBeenCalledWith(
+      partial({
+        data: partial<{ tenantId: string; requestedByUserId: string }>({
+          tenantId: TENANT_ID,
+          requestedByUserId: USER_ID,
+        }),
       })
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
-    expect(vi.mocked(prisma.reportExport.create)).not.toHaveBeenCalled();
-    expect(vi.mocked(enqueuePdfRender)).not.toHaveBeenCalled();
+    );
   });
 
   it("enqueues a pdf-render job with the created row's id + tenantId + userId (5.3b wiring)", async () => {
@@ -564,6 +619,24 @@ describe("reportExport.getDownloadUrl", () => {
     expect(result.status).toBe("ready");
   });
 
+  // viewer (2026-07-06): getDownloadUrl is tenantProcedure, unchanged by
+  // the reportGenerateProcedure widening — a viewer must be able to
+  // retrieve the download URL for a report it (or a coordinator) generated.
+  it("allows a viewer to retrieve its own tenant's download URL", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
+      id: "re-1",
+      status: "ready",
+      filePath: "/exports/re-1.pdf",
+      tenantId: TENANT_ID,
+    } as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["viewer"]));
+    const result = await caller.getDownloadUrl({ id: "re-1" });
+
+    expect(result.downloadUrl).toBe(`/api/exports/reports/re-1/download`);
+    expect(result.status).toBe("ready");
+  });
+
   it("returns null downloadUrl when status is not ready", async () => {
     vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
       id: "re-1",
@@ -669,6 +742,19 @@ describe("reportExport.retry (5.3d)", () => {
     const caller = createCaller(makeCtx(TENANT_ID, ["field_coordinator"]));
 
     await expect(caller.retry({ id: "re-1" })).rejects.toThrow(TRPCError);
+    expect(vi.mocked(prisma.reportExport.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(enqueuePdfRender)).not.toHaveBeenCalled();
+  });
+
+  // viewer (2026-07-06): the reportGenerateProcedure exception is scoped to
+  // `create` ONLY — retry stays adminProcedure, so a viewer that can now
+  // generate a report still cannot retry a failed one.
+  it("rejects retry when role is viewer (viewer widening is scoped to create only)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["viewer"]));
+
+    await expect(caller.retry({ id: "re-1" })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
     expect(vi.mocked(prisma.reportExport.update)).not.toHaveBeenCalled();
     expect(vi.mocked(enqueuePdfRender)).not.toHaveBeenCalled();
   });
@@ -824,6 +910,18 @@ describe("reportExport.cancel (Stop button — escape hatch for stuck queued/ren
     const caller = createCaller(makeCtx(TENANT_ID, ["field_coordinator"]));
 
     await expect(caller.cancel({ id: "re-1" })).rejects.toThrow(TRPCError);
+    expect(vi.mocked(prisma.reportExport.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(cancelPdfRender)).not.toHaveBeenCalled();
+  });
+
+  // viewer (2026-07-06): reportGenerateProcedure only widens `create` —
+  // cancel stays adminProcedure.
+  it("rejects cancel when role is viewer (viewer widening is scoped to create only)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["viewer"]));
+
+    await expect(caller.cancel({ id: "re-1" })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
     expect(vi.mocked(prisma.reportExport.update)).not.toHaveBeenCalled();
     expect(vi.mocked(cancelPdfRender)).not.toHaveBeenCalled();
   });
@@ -985,6 +1083,18 @@ describe("reportExport.delete (Delete button — remove a terminal ready/failed 
     expect(vi.mocked(prisma.reportExport.delete)).not.toHaveBeenCalled();
   });
 
+  // viewer (2026-07-06): reportGenerateProcedure only widens `create` —
+  // delete stays adminProcedure. A viewer that can generate a report must
+  // NOT be able to delete any export.
+  it("rejects delete when role is viewer (viewer widening is scoped to create only)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["viewer"]));
+
+    await expect(caller.delete({ id: "re-1" })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+    expect(vi.mocked(prisma.reportExport.delete)).not.toHaveBeenCalled();
+  });
+
   it("throws NOT_FOUND when the row does not exist for this tenant (no cross-tenant leak)", async () => {
     vi.mocked(prisma.reportExport.findFirst).mockResolvedValue(null);
 
@@ -1122,6 +1232,17 @@ describe("reportExport.renderPptx (on-demand PDF→PowerPoint)", () => {
     const caller = createCaller(makeCtx(TENANT_ID, ["field_coordinator"]));
 
     await expect(caller.renderPptx({ id: "re-1" })).rejects.toThrow(TRPCError);
+    expect(vi.mocked(enqueuePptxRender)).not.toHaveBeenCalled();
+  });
+
+  // viewer (2026-07-06): reportGenerateProcedure only widens the PDF
+  // `create` — renderPptx stays adminProcedure.
+  it("rejects renderPptx when role is viewer (viewer widening is scoped to create only)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["viewer"]));
+
+    await expect(caller.renderPptx({ id: "re-1" })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
     expect(vi.mocked(enqueuePptxRender)).not.toHaveBeenCalled();
   });
 

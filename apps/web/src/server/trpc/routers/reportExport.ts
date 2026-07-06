@@ -14,7 +14,7 @@ import {
 } from "@marine-guardian/shared/schemas";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
-import { adminProcedure, coordinatorProcedure } from "../middleware/rbac";
+import { adminProcedure, reportGenerateProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
 import {
   cancelPdfRender,
@@ -36,9 +36,12 @@ import {
  *               (per spec §506: /[tenant]/exports/{id}/download) is future
  *               batch work.
  *
- * RBAC: report.export is coordinator+ (spec §410). All procedures here are
- * coordinatorProcedure or tenantProcedure (read-only access for any tenant
- * user to see their own exports).
+ * RBAC: report.export is coordinator+ (spec §410), with one narrow
+ * exception — `create` also allows `viewer` (2026-07-06, reportGenerateProcedure)
+ * so a viewer can generate a printable report from the Interactive Report
+ * Map; every other procedure here is unchanged and is either
+ * reportGenerateProcedure/adminProcedure or tenantProcedure (read-only
+ * access for any tenant user to see their own exports).
  */
 /**
  * paramsJson field shapes actually written by the various report-generating
@@ -227,8 +230,14 @@ export const reportExportRouter = router({
    * job). Same pattern as patrol.rebuildTracks + areaBoundary.rebuild —
    * sequential awaits rather than $transaction wrap because BullMQ writes
    * to Valkey (outside Postgres) and a $transaction cannot span both.
+   *
+   * RBAC (2026-07-06): `reportGenerateProcedure` = coordinator+ PLUS
+   * `viewer`. Viewer is allowed here ONLY because report generation is an
+   * owner-approved, read-oriented "produce a PDF of what I can already see"
+   * action — it stays excluded from every other mutation in this router
+   * (retry/cancel/delete/renderPptx remain adminProcedure).
    */
-  create: coordinatorProcedure
+  create: reportGenerateProcedure
     .input(createReportExportInputSchema)
     .mutation(async ({ ctx, input }) => {
       const created = await prisma.reportExport.create({

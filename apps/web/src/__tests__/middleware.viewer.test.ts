@@ -69,6 +69,17 @@ describe("middleware — viewer role route gate", () => {
     expect(resNested.status).toBe(200);
   });
 
+  // 2026-07-06: a viewer can generate a printable report from /map
+  // (reportGenerateProcedure) and must be able to reach /exports to
+  // retrieve it — /exports joins the viewer-allowed route set.
+  it("allows a viewer requesting /exports (and nested export sub-paths)", async () => {
+    mockAuth.mockResolvedValue(makeSession(["viewer"]));
+    const resExports = await middleware(makeRequest("/exports"));
+    expect(resExports.status).toBe(200);
+    const resNested = await middleware(makeRequest("/exports/re-1"));
+    expect(resNested.status).toBe(200);
+  });
+
   it("does NOT redirect a viewer requesting an /api route (e.g. the notification SSE stream)", async () => {
     // API authorization is enforced at the route / tRPC layer (viewer is
     // read-only there); the page-navigation gate must never redirect /api/*,

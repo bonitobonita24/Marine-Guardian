@@ -4,7 +4,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup, fireEvent } from "@testing-library/react";
 import type { ExportRowItem } from "../export-row";
 
-type Role = "super_admin" | "site_admin" | "field_coordinator" | "operator";
+type Role =
+  | "super_admin"
+  | "site_admin"
+  | "field_coordinator"
+  | "operator"
+  | "viewer";
 
 const { stubs } = vi.hoisted(() => {
   const s: {
@@ -159,6 +164,20 @@ describe("ExportsPage (5.3d)", () => {
     const { queryByTestId } = render(<ExportsPage />);
     expect(queryByTestId("export-row-re-a")).toBeTruthy();
     expect(queryByTestId("export-row-re-b")).toBeTruthy();
+  });
+
+  // viewer (2026-07-06): a viewer can now generate a printable report from
+  // /map and must be able to retrieve it here — canViewExports now includes
+  // viewer, so the page renders rows instead of the access-denied state.
+  it("renders the rows returned by trpc.reportExport.list for viewer (no longer access-denied)", () => {
+    stubs.roles = ["viewer"];
+    stubs.listData = {
+      items: [makeRow({ id: "re-viewer", status: "ready" })],
+      nextCursor: undefined,
+    };
+    const { queryByTestId } = render(<ExportsPage />);
+    expect(queryByTestId("exports-access-denied")).toBeNull();
+    expect(queryByTestId("export-row-re-viewer")).toBeTruthy();
   });
 
   it("renders the empty state when listQuery returns no items", () => {

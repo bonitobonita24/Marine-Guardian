@@ -28,12 +28,15 @@ const PRINT_RENDER_PREFIX = "/print-render/";
 // Asset proxy prefix — renderer-token access for print-render <img> thumbnails.
 const RENDERER_ASSET_PREFIX = "/api/assets/";
 
-// viewer role (2026-07-05) — strictly read-only, scoped to Command Center
-// (/dashboard) + Interactive Report Map (/map). sidebar.tsx already hides
-// every other nav item for a viewer; this is the route-level enforcement so
-// a viewer can never reach a hidden page via a typed URL, bookmark, or
-// deep link — the nav hide alone is cosmetic without this.
-const VIEWER_ALLOWED_PREFIXES = ["/dashboard", "/map"];
+// viewer role (2026-07-05, extended 2026-07-06) — strictly read-only,
+// scoped to Command Center (/dashboard) + Interactive Report Map (/map) +
+// Exports (/exports — a viewer can generate a printable report from /map
+// via reportGenerateProcedure and must be able to reach /exports to
+// retrieve it). sidebar.tsx already hides every other nav item for a
+// viewer; this is the route-level enforcement so a viewer can never reach
+// a hidden page via a typed URL, bookmark, or deep link — the nav hide
+// alone is cosmetic without this.
+const VIEWER_ALLOWED_PREFIXES = ["/dashboard", "/map", "/exports"];
 
 function isViewerAllowedPath(pathname: string): boolean {
   return VIEWER_ALLOWED_PREFIXES.some(
