@@ -45,7 +45,7 @@ describe("Page3AreaCovered", () => {
     );
     // Shared print-render header (2026-07-06 redesign) replaces the former
     // "Page 3 — Area Covered" h3 banner.
-    expect(html).toContain("Marine Guardian Report");
+    expect(html).toContain("Blue Alliance Monitoring");
     expect(html).toContain("Area Covered");
     expect(html).toContain("Mindoro MPA");
     expect(html).toContain("MAY 2026");

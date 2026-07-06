@@ -85,7 +85,7 @@ describe("Page2AreaBoundarySummary", () => {
     );
     // Shared print-render header (2026-07-06 redesign) replaces the former
     // "Page 2 — Area Boundary Summary" h3 banner.
-    expect(html).toContain("Marine Guardian Report");
+    expect(html).toContain("Blue Alliance Monitoring");
     expect(html).toContain("Area Boundaries");
     expect(html).toContain("Mindoro MPA");
     expect(html).toContain("MAY 2026");

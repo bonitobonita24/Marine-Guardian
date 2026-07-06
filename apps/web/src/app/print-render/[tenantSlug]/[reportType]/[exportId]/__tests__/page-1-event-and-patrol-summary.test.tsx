@@ -98,7 +98,7 @@ describe("Page1EventAndPatrolSummary", () => {
     // the shared 4-line header (big title / area name / report title /
     // date range); the "Event Breakdown & Patrol Summary" text now lives in
     // the header's report-title line.
-    expect(html).toContain("Marine Guardian Report");
+    expect(html).toContain("Blue Alliance Monitoring");
     expect(html).toMatch(/Event Breakdown.*Patrol Summary/);
   });
 

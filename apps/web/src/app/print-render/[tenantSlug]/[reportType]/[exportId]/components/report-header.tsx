@@ -43,44 +43,38 @@ export interface ReportHeaderProps {
 }
 
 export function ReportHeader({
-  mainTitle = "Marine Guardian Report",
+  mainTitle,
   municipalityName,
   reportTitle,
   dateRange,
   municipalLogoUrl,
   partnerLogoUrl,
 }: ReportHeaderProps) {
+  const hasMunicipality =
+    municipalityName !== null && municipalityName !== undefined && municipalityName.length > 0;
+  // Owner mockup 2026-07-06: big line 1 = "LGU <municipality name>", line 2 =
+  // "Blue Alliance Monitoring". For a report with no single municipality
+  // (regional / all-municipality), fall back to the brand line as the title.
+  const line1 = hasMunicipality ? `LGU ${municipalityName}` : (mainTitle ?? "Blue Alliance Monitoring");
   return (
     <header className="pr-header" role="banner">
-      <div className="pr-header-logo-slot">
+      <div className="pr-header-logos">
         {municipalLogoUrl !== null && municipalLogoUrl !== undefined && municipalLogoUrl.length > 0 ? (
-          <img
-            src={municipalLogoUrl}
-            alt="Municipal logo"
-            className="pr-header-logo"
-          />
+          <img src={municipalLogoUrl} alt="Municipal logo" className="pr-header-logo" />
+        ) : (
+          <div className="pr-header-logo-placeholder" aria-hidden="true" />
+        )}
+        {partnerLogoUrl !== null && partnerLogoUrl !== undefined && partnerLogoUrl.length > 0 ? (
+          <img src={partnerLogoUrl} alt="Blue Alliance logo" className="pr-header-logo" />
         ) : (
           <div className="pr-header-logo-placeholder" aria-hidden="true" />
         )}
       </div>
-      <div className="pr-header-center">
-        <h1 className="pr-header-main-title">{mainTitle}</h1>
-        {municipalityName !== null && municipalityName !== undefined && municipalityName.length > 0 ? (
-          <p className="pr-header-municipality">{municipalityName}</p>
-        ) : null}
+      <div className="pr-header-text">
+        <h1 className="pr-header-main-title">{line1}</h1>
+        {hasMunicipality ? <p className="pr-header-brand">Blue Alliance Monitoring</p> : null}
         <p className="pr-header-report-title">{reportTitle}</p>
         <p className="pr-header-date-range">{dateRange}</p>
-      </div>
-      <div className="pr-header-logo-slot">
-        {partnerLogoUrl !== null && partnerLogoUrl !== undefined && partnerLogoUrl.length > 0 ? (
-          <img
-            src={partnerLogoUrl}
-            alt="Blue Alliance logo"
-            className="pr-header-logo"
-          />
-        ) : (
-          <div className="pr-header-logo-placeholder" aria-hidden="true" />
-        )}
       </div>
     </header>
   );
@@ -94,19 +88,22 @@ export function ReportHeader({
  */
 export const reportHeaderStyles = `
     .pr-header {
-      display: flex; justify-content: space-between; align-items: center;
-      gap: 12px; border-bottom: 2px solid #0f766e; padding-bottom: 8px;
+      display: flex; justify-content: flex-start; align-items: center;
+      gap: 18px; border-bottom: 2px solid #0f766e; padding-bottom: 8px;
       margin-bottom: 10px;
     }
-    .pr-header-logo-slot { flex: 0 0 auto; display: flex; align-items: center; }
-    .pr-header-logo { max-height: 44px; max-width: 90px; object-fit: contain; }
-    .pr-header-logo-placeholder { width: 90px; height: 44px; flex: 0 0 auto; }
-    .pr-header-center { flex: 1 1 auto; min-width: 0; text-align: center; }
+    .pr-header-logos { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; }
+    .pr-header-logo { max-height: 60px; max-width: 90px; object-fit: contain; }
+    .pr-header-logo-placeholder {
+      width: 60px; height: 60px; flex: 0 0 auto; border-radius: 50%;
+      background: #1d5b78;
+    }
+    .pr-header-text { flex: 1 1 auto; min-width: 0; text-align: left; }
     h1.pr-header-main-title {
-      font-size: 30px; font-weight: 800; margin: 0 0 3px; color: #0f766e;
+      font-size: 26px; font-weight: 800; margin: 0 0 1px; color: #111;
       line-height: 1.15; letter-spacing: -0.01em;
     }
-    p.pr-header-municipality { font-size: 13px; font-weight: 600; margin: 0 0 2px; color: #111; }
+    p.pr-header-brand { font-size: 20px; font-weight: 700; margin: 0 0 3px; color: #111; line-height: 1.15; }
     p.pr-header-report-title { font-size: 11px; font-weight: 500; margin: 0 0 2px; color: #374151; }
     p.pr-header-date-range { font-size: 9px; color: #6b7280; margin: 0; }
 `;

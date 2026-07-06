@@ -54,7 +54,7 @@ describe("CoverageReport (Page 1 — Patrol Index)", () => {
     // Shared print-render header (2026-07-06 redesign) — big fixed brand
     // title, tenant name standing in for the municipality line (this
     // template has no logo/municipality concept), and a fixed report title.
-    expect(html).toContain("Marine Guardian Report");
+    expect(html).toContain("Blue Alliance Monitoring");
     expect(html).toContain("Mindoro MPA");
     expect(html).toContain("Patrol Coverage");
     expect(html).toContain("Asia/Manila");
