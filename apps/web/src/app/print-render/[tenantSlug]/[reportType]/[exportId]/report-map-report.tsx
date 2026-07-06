@@ -792,7 +792,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
                   topN={12}
                 />
               </div>
-              <p className="section-list-hint">Full event list on the next page.</p>
+              <p className="section-list-hint">Full event list in the Full Lists section.</p>
             </div>
             <div className="section-map">
               <figure aria-label="Law enforcement event locations">
@@ -811,26 +811,6 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
             </div>
           </div>
           <PageFooter {...footerBase} pageNum={1} />
-        </section>
-
-        {/* ── Section 1b: Law Enforcement — per-type tables (landscape) ───── */}
-        <section
-          className="report-section-list event-list"
-          data-testid="section-law-enforcement-list"
-        >
-          <PageHeader {...headerProps} />
-          <h2 className="section-heading">
-            Law Enforcement Events — Full List
-            <span className="total-badge">
-              {data.charts.lawEnforcement.total.toLocaleString()}
-            </span>
-          </h2>
-          <EventTypeTables
-            events={data.charts.lawEnforcement.breakdown.flatMap((r) => r.events)}
-            captionPrefix="Law enforcement full event list"
-            eventTypeColumns={data.eventTypeColumns}
-          />
-          <PageFooter {...footerBase} pageNum={2} />
         </section>
 
         {/* ── Section 2: Monitoring ─────────────────────────────────────── */}
@@ -854,7 +834,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
                   topN={12}
                 />
               </div>
-              <p className="section-list-hint">Full event list on the next page.</p>
+              <p className="section-list-hint">Full event list in the Full Lists section.</p>
             </div>
             <div className="section-map">
               <figure aria-label="Monitoring event locations">
@@ -872,27 +852,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
               </figure>
             </div>
           </div>
-          <PageFooter {...footerBase} pageNum={3} />
-        </section>
-
-        {/* ── Section 2b: Monitoring — per-type tables (landscape) ────────── */}
-        <section
-          className="report-section-list event-list"
-          data-testid="section-monitoring-list"
-        >
-          <PageHeader {...headerProps} />
-          <h2 className="section-heading">
-            Monitoring Events — Full List
-            <span className="total-badge">
-              {data.charts.monitoring.total.toLocaleString()}
-            </span>
-          </h2>
-          <EventTypeTables
-            events={data.charts.monitoring.breakdown.flatMap((r) => r.events)}
-            captionPrefix="Monitoring full event list"
-            eventTypeColumns={data.eventTypeColumns}
-          />
-          <PageFooter {...footerBase} pageNum={4} />
+          <PageFooter {...footerBase} pageNum={2} />
         </section>
 
         {/* ── Section 3: High Priority ──────────────────────────────────── */}
@@ -914,7 +874,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
                   No high priority events in this period.
                 </p>
               ) : (
-                <p className="section-list-hint">Full event list on the next page.</p>
+                <p className="section-list-hint">Full event list in the Full Lists section.</p>
               )}
             </div>
             <div className="section-map">
@@ -933,27 +893,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
               </figure>
             </div>
           </div>
-          <PageFooter {...footerBase} pageNum={5} />
-        </section>
-
-        {/* ── Section 3b: High Priority — per-type tables (landscape) ─────── */}
-        <section
-          className="report-section-list event-list"
-          data-testid="section-high-priority-list"
-        >
-          <PageHeader {...headerProps} />
-          <h2 className="section-heading">
-            High Priority Events — Full List
-            <span className="total-badge">
-              {data.charts.highPriority.total.toLocaleString()}
-            </span>
-          </h2>
-          <EventTypeTables
-            events={data.charts.highPriority.events}
-            captionPrefix="High priority full event list"
-            eventTypeColumns={data.eventTypeColumns}
-          />
-          <PageFooter {...footerBase} pageNum={6} />
+          <PageFooter {...footerBase} pageNum={3} />
         </section>
 
         {/* ── Section 4: Patrol List ────────────────────────────────────── */}
@@ -979,7 +919,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
               {data.charts.patrolList.breakdown.length === 0 ? (
                 <p className="empty-note">No patrols in this period.</p>
               ) : (
-                <p className="section-list-hint">Full patrol list on the next page.</p>
+                <p className="section-list-hint">Full patrol list in the Full Lists section.</p>
               )}
             </div>
             <div className="section-map">
@@ -1032,26 +972,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
               />
             </div>
           </div>
-          <PageFooter {...footerBase} pageNum={7} />
-        </section>
-
-        {/* ── Section 4b: Patrol List — full list (portrait) ──────────────── */}
-        <section
-          className="report-section-list"
-          data-testid="section-patrol-list-list"
-        >
-          <PageHeader {...headerProps} />
-          <h2 className="section-heading">
-            Patrols — Full List
-            <span className="total-badge">
-              {data.charts.patrolList.total.toLocaleString()}
-            </span>
-          </h2>
-          <FullPatrolTable
-            patrols={data.charts.patrolList.breakdown}
-            caption="Full patrol list"
-          />
-          <PageFooter {...footerBase} pageNum={8} />
+          <PageFooter {...footerBase} pageNum={4} />
         </section>
 
         {/* ── Section 5: Events Over Time ───────────────────────────────── */}
@@ -1090,6 +1011,85 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
               </figure>
             </div>
           </div>
+          <PageFooter {...footerBase} pageNum={5} />
+        </section>
+
+        {/* ── Section 1b: Law Enforcement — per-type tables (landscape) ───── */}
+        <section
+          className="report-section-list event-list"
+          data-testid="section-law-enforcement-list"
+        >
+          <PageHeader {...headerProps} />
+          <h2 className="section-heading">
+            Law Enforcement Events — Full List
+            <span className="total-badge">
+              {data.charts.lawEnforcement.total.toLocaleString()}
+            </span>
+          </h2>
+          <EventTypeTables
+            events={data.charts.lawEnforcement.breakdown.flatMap((r) => r.events)}
+            captionPrefix="Law enforcement full event list"
+            eventTypeColumns={data.eventTypeColumns}
+          />
+          <PageFooter {...footerBase} pageNum={6} />
+        </section>
+
+        {/* ── Section 2b: Monitoring — per-type tables (landscape) ────────── */}
+        <section
+          className="report-section-list event-list"
+          data-testid="section-monitoring-list"
+        >
+          <PageHeader {...headerProps} />
+          <h2 className="section-heading">
+            Monitoring Events — Full List
+            <span className="total-badge">
+              {data.charts.monitoring.total.toLocaleString()}
+            </span>
+          </h2>
+          <EventTypeTables
+            events={data.charts.monitoring.breakdown.flatMap((r) => r.events)}
+            captionPrefix="Monitoring full event list"
+            eventTypeColumns={data.eventTypeColumns}
+          />
+          <PageFooter {...footerBase} pageNum={7} />
+        </section>
+
+        {/* ── Section 3b: High Priority — per-type tables (landscape) ─────── */}
+        <section
+          className="report-section-list event-list"
+          data-testid="section-high-priority-list"
+        >
+          <PageHeader {...headerProps} />
+          <h2 className="section-heading">
+            High Priority Events — Full List
+            <span className="total-badge">
+              {data.charts.highPriority.total.toLocaleString()}
+            </span>
+          </h2>
+          <EventTypeTables
+            events={data.charts.highPriority.events}
+            captionPrefix="High priority full event list"
+            eventTypeColumns={data.eventTypeColumns}
+          />
+          <PageFooter {...footerBase} pageNum={8} />
+        </section>
+
+        {/* ── Section 4b: Patrol List — full list (portrait) ──────────────── */}
+        <section
+          className="report-section-list"
+          data-testid="section-patrol-list-list"
+        >
+          <PageHeader {...headerProps} />
+          <h2 className="section-heading">
+            Patrols — Full List
+            <span className="total-badge">
+              {data.charts.patrolList.total.toLocaleString()}
+            </span>
+          </h2>
+          <FullPatrolTable
+            patrols={data.charts.patrolList.breakdown}
+            caption="Full patrol list"
+          />
           <PageFooter {...footerBase} pageNum={9} />
         </section>
 
