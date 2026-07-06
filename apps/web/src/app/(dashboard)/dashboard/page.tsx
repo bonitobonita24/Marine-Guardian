@@ -322,11 +322,14 @@ function DashboardContent() {
 
   const incident: LastIncident = lastIncident.data ?? null;
 
-  // Idle-ranger names (CC-1) — derived from the roster query already fetched
-  // for the Ranger Roster panel below; no extra tRPC call.
-  const idleRangerNames = new Set(
+  // Active-ranger names (CC-1) — derived from the roster query already
+  // fetched for the Ranger Roster panel below; no extra tRPC call. This is
+  // an ALLOWLIST (status "on_patrol" or "active", i.e. anything not idle) so
+  // "Hide idle on map" also hides non-roster ER subjects that have no
+  // KnownRanger entry at all — an idle-name denylist would miss those.
+  const activeRangerNames = new Set(
     (roster.data?.rangers ?? [])
-      .filter((r) => r.status === "idle")
+      .filter((r) => r.status !== "idle")
       .map((r) => r.name),
   );
 
@@ -384,7 +387,7 @@ function DashboardContent() {
               ? { municipalityId: mapMunicipalityId }
               : {})}
             /* CC-1 — idle-ranger marker filter (roster-driven, default OFF). */
-            idleSubjectNames={idleRangerNames}
+            activeSubjectNames={activeRangerNames}
             hideIdleSubjects={hideIdleRangers}
             /* CC-2 — Recent Patrols row click focuses + isolates that
                patrol's track (only while a row-driven selection is active —

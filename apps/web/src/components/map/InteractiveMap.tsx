@@ -43,6 +43,7 @@ import {
   isSeriousEvent,
   type EventFilterState,
 } from "./eventMarkerStyle";
+import { isSubjectVisible } from "./subjectVisibility";
 import { isImageAsset } from "@marine-guardian/shared/lib/asset-mime";
 import { eventTypeIcon } from "@/lib/event-type-icon";
 import { AlertTriangle, Flag, FlagTriangleRight } from "lucide-react";
@@ -207,18 +208,24 @@ type InteractiveMapProps = {
    *  this. The Report Map uses it to clear the selected patrol (dismisses the
    *  floating panel and restores all tracks). */
   onBackgroundClick?: () => void;
-  /** Names of rangers/subjects the caller considers IDLE (Command Center
-   *  Ranger Roster — dashboard.rangerRoster status==="idle"). Paired with
-   *  `hideIdleSubjects`: when true, subject markers whose `name` matches a
-   *  name in this set are omitted from the map so a busy war-room display
-   *  isn't cluttered with rangers who aren't currently out (owner request
-   *  2026-07 — "annoying to see [idle rangers] sometimes"). Matched by name
-   *  (Subject and KnownRanger are both derived from the same EarthRanger
-   *  subject records but have no shared FK exposed to the client). Omitted /
-   *  undefined → no filtering (every subject shown, existing behavior). */
-  idleSubjectNames?: Set<string>;
-  /** Default false (idle rangers SHOWN — owner-approved default). true hides
-   *  subject markers whose name is in `idleSubjectNames`. */
+  /** Names of rangers the caller considers ACTIVE (Command Center Ranger
+   *  Roster — dashboard.rangerRoster status !== "idle", i.e. "on_patrol" or
+   *  "active"). Paired with `hideIdleSubjects`: when true, this is an
+   *  ALLOWLIST — ONLY subject markers whose `name` is in this set are kept;
+   *  every other subject (idle roster rangers AND non-roster ER subjects
+   *  with no KnownRanger entry at all) is hidden, so a busy war-room display
+   *  isn't cluttered with anyone who isn't currently out (owner request
+   *  2026-07 — "annoying to see [idle rangers] sometimes"; the previous
+   *  idle-name denylist missed ~18 non-roster subjects that never appear in
+   *  any idle set). Matched by name (Subject and KnownRanger are both
+   *  derived from the same EarthRanger subject records but have no shared FK
+   *  exposed to the client). Omitted / undefined → no filtering (every
+   *  subject shown, existing behavior) as long as `hideIdleSubjects` is also
+   *  false/undefined. */
+  activeSubjectNames?: Set<string>;
+  /** Default false (all subjects SHOWN — owner-approved default). true keeps
+   *  ONLY subject markers whose name is in `activeSubjectNames`, hiding
+   *  everything else. */
   hideIdleSubjects?: boolean;
 };
 
@@ -241,7 +248,7 @@ export function InteractiveMap({
   topRightSlot,
   onPatrolTrackClick,
   onBackgroundClick,
-  idleSubjectNames,
+  activeSubjectNames,
   hideIdleSubjects,
 }: InteractiveMapProps) {
   const subjectsQuery = trpc.map.subjects.list.useQuery();
@@ -429,9 +436,7 @@ export function InteractiveMap({
       (s): s is typeof s & { lastPositionLat: number; lastPositionLon: number } =>
         s.lastPositionLat !== null && s.lastPositionLon !== null,
     )
-    .filter(
-      (s) => hideIdleSubjects !== true || !(idleSubjectNames?.has(s.name) ?? false),
-    );
+    .filter((s) => isSubjectVisible(s.name, hideIdleSubjects, activeSubjectNames));
   const events = eventsQuery.data ?? [];
 
   // The shared L1+L2+L3 marker/heatmap predicate state (category layers, the
