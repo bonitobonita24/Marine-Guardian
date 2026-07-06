@@ -29,8 +29,8 @@
  *   3.  Patrol List           — per-type (Seaborne/Foot) figures LEFT of the
  *                                patrol-tracks map (colored by type, R1) +
  *                                seaborne/foot time series (2026-07-06)
- *   4.  Patrol Tracks Heatmap — NEW (R5): seaborne (cyan) / foot (teal) heat
- *                                layers over the same track points, map-only
+ *   4.  Patrol Tracks Heatmap — NEW (R5): seaborne (green) / foot (tangerine
+ *                                orange) heat layers over the same track points, map-only
  *                                page immediately after Patrol List
  *   5.  Events Over Time      — line chart + overview event-points map (blue)
  *   6.  Law Enforcement list  — per-type event tables (landscape)
@@ -1004,7 +1004,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
                         display: "inline-block",
                         width: "8px",
                         height: "8px",
-                        background: "#0891b2",
+                        background: "#16A34A",
                         borderRadius: "1px",
                       }}
                     />
@@ -1016,7 +1016,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
                         display: "inline-block",
                         width: "8px",
                         height: "8px",
-                        background: "#0f766e",
+                        background: "#F97316",
                         borderRadius: "1px",
                       }}
                     />
@@ -1042,12 +1042,12 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
                 series={[
                   {
                     label: "Seaborne",
-                    color: "#0891b2",
+                    color: "#16A34A",
                     points: data.charts.patrolList.patrolCountByTypeOverTime.seaborne,
                   },
                   {
                     label: "Foot",
-                    color: "#0f766e",
+                    color: "#F97316",
                     points: data.charts.patrolList.patrolCountByTypeOverTime.foot,
                   },
                 ]}
@@ -1059,7 +1059,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
 
         {/* ── Section 4: Patrol Tracks Heatmap ─────────────────────────────
             NEW (R5, 2026-07-06) — map-only page immediately after Patrol
-            List. Two heat layers (seaborne cyan / foot teal) over the SAME
+            List. Two heat layers (seaborne green / foot tangerine orange) over the SAME
             track path points the Patrol List polyline map uses (no
             re-densification — see buildPatrolHeatPoints). */}
         <section
@@ -1085,7 +1085,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
                   display: "inline-block",
                   width: "9px",
                   height: "9px",
-                  background: "#0891b2",
+                  background: "#16A34A",
                   borderRadius: "2px",
                 }}
               />
@@ -1097,7 +1097,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
                   display: "inline-block",
                   width: "9px",
                   height: "9px",
-                  background: "#0f766e",
+                  background: "#F97316",
                   borderRadius: "2px",
                 }}
               />

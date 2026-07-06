@@ -6,9 +6,9 @@
  *
  * Renders OpenStreetMap tiles + TWO heat layers, one per patrol type, so
  * seaborne and foot patrol density stay visually distinct on the same map:
- * seaborne uses the "patrol-seaborne" HeatLayer variant (cyan) and foot uses
- * "patrol-foot" (teal) — see heat-layer.tsx. Points are NOT re-densified:
- * they come straight from ReportMapTrackRow.path (already extracted via the
+ * seaborne uses the "patrol-seaborne" HeatLayer variant (green) and foot uses
+ * "patrol-foot" (tangerine orange) — see heat-layer.tsx. Points are NOT
+ * re-densified: they come straight from ReportMapTrackRow.path (already extracted via the
  * tested pointsFromTrackGeojson pipeline the patrol-tracks polyline map
  * consumes), split by patrolType and given weight 1 per point — see
  * get-report-map-report-data.ts's buildPatrolHeatPoints.

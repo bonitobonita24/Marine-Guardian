@@ -6,11 +6,12 @@
  * Renders OpenStreetMap tiles + a Polyline for every patrol track that has at
  * least two points. Auto-fits bounds over all track paths. Each polyline is
  * colored by ReportMapTrackRow.patrolType (R1, 2026-07-06) — seaborne
- * (#0891b2 cyan) / foot (#0f766e teal), matching the SEABORNE_COLOR/
- * FOOT_COLOR convention in patrol-type-bar-chart.tsx — instead of the
- * previous single hardcoded dark-gray color, so a track's mode is
- * distinguishable at a glance. An unrecognised patrolType falls back to the
- * original dark gray (#1f2937).
+ * (#16A34A green-600) / foot (#F97316 orange-500 — swapped 2026-07-06 from
+ * the former cyan/teal pair, which read too similarly to each other),
+ * matching the SEABORNE_COLOR/FOOT_COLOR convention in
+ * patrol-type-bar-chart.tsx — instead of the previous single hardcoded
+ * dark-gray color, so a track's mode is distinguishable at a glance. An
+ * unrecognised patrolType falls back to the original dark gray (#1f2937).
  *
  * Sets `window.__renderReady = true` once Leaflet finishes painting — or
  * immediately when there are no tracks with two or more points, so Puppeteer
@@ -46,8 +47,8 @@ const DEFAULT_ZOOM = 9;
 
 /** Mirrors SEABORNE_COLOR/FOOT_COLOR in patrol-type-bar-chart.tsx. */
 function trackColor(patrolType: string): string {
-  if (patrolType === "seaborne") return "#0891b2";
-  if (patrolType === "foot") return "#0f766e";
+  if (patrolType === "seaborne") return "#16A34A";
+  if (patrolType === "foot") return "#F97316";
   return "#1f2937";
 }
 

@@ -7,10 +7,12 @@
  * on unmount (and on prop change, to avoid stacked duplicate layers across
  * re-renders). Variants: `events` (red gradient) and `tracks` (blue
  * gradient), matching the Per Area Report Page 2 legend; `patrol-seaborne`
- * (cyan) and `patrol-foot` (teal) — added for the Report Map "Patrol Tracks
- * Heatmap" page (R5, 2026-07-06) — give the two patrol types visually
- * distinct density colors on the same map (colors mirror the SEABORNE_COLOR
- * /FOOT_COLOR convention in patrol-type-bar-chart.tsx: #0891b2 / #0f766e).
+ * (green) and `patrol-foot` (tangerine orange) — added for the Report Map
+ * "Patrol Tracks Heatmap" page (R5, 2026-07-06) — give the two patrol types
+ * visually distinct density colors on the same map (colors mirror the
+ * SEABORNE_COLOR/FOOT_COLOR convention in patrol-type-bar-chart.tsx:
+ * #16A34A green-600 / #F97316 orange-500 — swapped 2026-07-06 from the
+ * former cyan/teal pair, which read too similarly to each other).
  *
  * Decision lock: leaflet.heat is the framework heatmap renderer per
  * DECISIONS_LOG.md "Heatmap Renderer Choice (Phase 8 Batch 6 Sub-batch 6.2b)".
@@ -62,32 +64,35 @@ const VARIANT_OPTIONS: Record<HeatLayerVariant, L.HeatMapOptions> = {
       1.0: "#1d4ed8",
     },
   },
-  // Patrol Tracks Heatmap — seaborne — cyan gradient (cyan-200 → cyan-700),
-  // distinct from both the red "events" and blue "tracks" variants above.
+  // Patrol Tracks Heatmap — seaborne — green gradient (green-200 → green-600),
+  // distinct from both the red "events" and blue "tracks" variants above, and
+  // from the map's own blue water (2026-07-06 swap from the former cyan ramp,
+  // which read too close to "patrol-foot"'s teal).
   "patrol-seaborne": {
     radius: 14,
     blur: 20,
     maxZoom: 14,
     gradient: {
-      0.2: "#a5f3fc",
-      0.4: "#67e8f9",
-      0.6: "#22d3ee",
-      0.8: "#06b6d4",
-      1.0: "#0891b2",
+      0.2: "#bbf7d0",
+      0.4: "#86efac",
+      0.6: "#4ade80",
+      0.8: "#22c55e",
+      1.0: "#16a34a",
     },
   },
-  // Patrol Tracks Heatmap — foot — teal gradient (teal-200 → teal-700),
-  // visually distinct from the seaborne cyan gradient above.
+  // Patrol Tracks Heatmap — foot — tangerine-orange gradient (orange-100 →
+  // orange-500), visually distinct from the seaborne green gradient above and
+  // from the map's terrain (2026-07-06 swap from the former teal ramp).
   "patrol-foot": {
     radius: 14,
     blur: 20,
     maxZoom: 14,
     gradient: {
-      0.2: "#99f6e4",
-      0.4: "#5eead4",
-      0.6: "#2dd4bf",
-      0.8: "#14b8a6",
-      1.0: "#0f766e",
+      0.2: "#ffedd5",
+      0.4: "#fed7aa",
+      0.6: "#fdba74",
+      0.8: "#fb923c",
+      1.0: "#f97316",
     },
   },
 };

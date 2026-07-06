@@ -32,10 +32,12 @@
  * island) — same rationale as the other print-render charts (this sub-tree
  * has no Tailwind CSS layers): no client hydration/interactivity at all, so
  * this section never depends on a chart library mounting before Puppeteer's
- * page.pdf() fires. Colors mirror the existing Seaborne (#0891b2) / Foot
- * (#0f766e) palette used by the "Seaborne/Foot Patrols Over Time" charts in
- * this same section (see PrintTimeSeriesChart usages in report-map-report.tsx)
- * and the patrol-tracks-map polyline colors (R1). The Totals block uses the
+ * page.pdf() fires. Colors mirror the existing Seaborne (#16A34A green-600) /
+ * Foot (#F97316 orange-500 — swapped 2026-07-06 from the former cyan/teal
+ * pair, which read too similarly to each other) palette used by the
+ * "Patrols Over Time by Type" chart in this same section (see
+ * PrintMultiSeriesChart usage in report-map-report.tsx) and the
+ * patrol-tracks-map polyline colors (R1). The Totals block uses the
  * shadcn `--chart-1` token (matches the dashboard's neutral/primary accent)
  * since it aggregates BOTH types rather than representing either alone.
  *
@@ -52,8 +54,8 @@ interface PatrolTypeBarChartProps {
   totals: { seaborne: PatrolTypeTotal; foot: PatrolTypeTotal };
 }
 
-const SEABORNE_COLOR = "#0891b2"; // cyan-600 — matches "Seaborne Patrols Over Time" + patrol-tracks-map
-const FOOT_COLOR = "#0f766e"; // teal-700 — matches "Foot Patrols Over Time" + patrol-tracks-map
+const SEABORNE_COLOR = "#16A34A"; // green-600 — matches "Patrols Over Time by Type" (Seaborne) + patrol-tracks-map
+const FOOT_COLOR = "#F97316"; // orange-500 — matches "Patrols Over Time by Type" (Foot) + patrol-tracks-map
 const TOTAL_COLOR = "hsl(var(--chart-1))"; // shadcn chart-token — aggregates both types
 
 type PatrolTypeKey = "seaborne" | "foot";

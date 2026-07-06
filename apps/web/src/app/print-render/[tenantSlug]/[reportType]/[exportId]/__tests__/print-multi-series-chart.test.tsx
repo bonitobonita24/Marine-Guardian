@@ -26,8 +26,8 @@ function pt(date: string, count: number): ReportMapTimeSeriesPoint {
 describe("mergeSeries", () => {
   it("unions buckets across series and zero-fills missing values", () => {
     const merged = mergeSeries([
-      { label: "Seaborne", color: "#0891b2", points: [pt("2026-05-01", 3), pt("2026-05-03", 5)] },
-      { label: "Foot", color: "#0f766e", points: [pt("2026-05-02", 2), pt("2026-05-03", 1)] },
+      { label: "Seaborne", color: "#16A34A", points: [pt("2026-05-01", 3), pt("2026-05-03", 5)] },
+      { label: "Foot", color: "#F97316", points: [pt("2026-05-02", 2), pt("2026-05-03", 1)] },
     ]);
     expect(merged.map((r) => r.date)).toEqual([
       "2026-05-01",
@@ -58,8 +58,8 @@ describe("PrintMultiSeriesChart", () => {
       <PrintMultiSeriesChart
         title="Patrols Over Time by Type"
         series={[
-          { label: "Seaborne", color: "#0891b2", points: [pt("2026-05-01", 3)] },
-          { label: "Foot", color: "#0f766e", points: [pt("2026-05-01", 2)] },
+          { label: "Seaborne", color: "#16A34A", points: [pt("2026-05-01", 3)] },
+          { label: "Foot", color: "#F97316", points: [pt("2026-05-01", 2)] },
         ]}
       />,
     );
@@ -81,8 +81,8 @@ describe("PrintMultiSeriesChart", () => {
       <PrintMultiSeriesChart
         title="Patrols Over Time by Type"
         series={[
-          { label: "Seaborne", color: "#0891b2", points: [] },
-          { label: "Foot", color: "#0f766e", points: [] },
+          { label: "Seaborne", color: "#16A34A", points: [] },
+          { label: "Foot", color: "#F97316", points: [] },
         ]}
       />,
     );
