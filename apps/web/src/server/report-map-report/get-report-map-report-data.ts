@@ -315,6 +315,15 @@ export interface ReportMapReportData {
    *  maps then keep the existing fit-to-data-points behavior. */
   municipalityBounds: ReportMapBounds | null;
   /**
+   * Report-level municipality display name for the print header (2026-07-06
+   * header redesign). "All Municipalities" for a regional/all-municipality
+   * report (filter.municipalityId undefined); the resolved Municipality.name
+   * when scoped to one municipality; null only if a municipalityId was set
+   * but the municipality record could not be resolved (degrades gracefully —
+   * the header simply omits the municipality line).
+   */
+  municipalityName: string | null;
+  /**
    * Per-event-type-display GLOBAL (all-time, tenant-wide) ordered detail-key
    * list — owner Option A (2026-07-06): every printable report's per-type
    * event table renders this SAME standard column set, regardless of how
@@ -691,7 +700,7 @@ export async function getReportMapReportData(
     params.municipalityId !== undefined
       ? prisma.municipality.findUnique({
           where: { id: params.municipalityId },
-          select: { boundaryGeojson: true, waterGeojson: true },
+          select: { name: true, boundaryGeojson: true, waterGeojson: true },
         })
       : Promise.resolve(null),
   ] as const);
@@ -707,6 +716,15 @@ export async function getReportMapReportData(
         municipalityGeometry.waterGeojson ?? municipalityGeometry.boundaryGeojson,
       )
     : null;
+
+  // Header municipality line (2026-07-06 header redesign): "All
+  // Municipalities" for a regional report (no municipalityId filter);
+  // otherwise the resolved Municipality.name, or null if the id didn't
+  // resolve (header degrades gracefully and omits the line).
+  const municipalityName: string | null =
+    params.municipalityId === undefined
+      ? "All Municipalities"
+      : (municipalityGeometry?.name ?? null);
 
   // Partner logo default fallback: the editor form promises "leave empty to
   // use Blue Alliance default" (report-template-form.tsx) — honor it here so
@@ -972,6 +990,7 @@ export async function getReportMapReportData(
     generatedAt: new Date(),
     template,
     municipalityBounds,
+    municipalityName,
     eventTypeColumns,
     charts: {
       lawEnforcement,

@@ -654,6 +654,9 @@ describe("getReportMapReportData", () => {
     if (!result) return;
     expect(result.municipalityBounds).toBeNull();
     expect(prisma.municipality.findUnique).not.toHaveBeenCalled();
+    // Header municipality line (2026-07-06): regional/all-municipality
+    // report — no municipalityId filter.
+    expect(result.municipalityName).toBe("All Municipalities");
   });
 
   it("returns null municipalityBounds when the municipality has no geometry", async () => {
@@ -676,8 +679,11 @@ describe("getReportMapReportData", () => {
     expect(result.municipalityBounds).toBeNull();
     expect(prisma.municipality.findUnique).toHaveBeenCalledWith({
       where: { id: "muni_a" },
-      select: { boundaryGeojson: true, waterGeojson: true },
+      select: { name: true, boundaryGeojson: true, waterGeojson: true },
     });
+    // Header municipality line (2026-07-06): a municipalityId was set but
+    // the record didn't resolve — the header omits the line gracefully.
+    expect(result.municipalityName).toBeNull();
   });
 
   it("computes municipalityBounds from waterGeojson ONLY (water-centered framing, R10) when both boundaryGeojson + waterGeojson resolve", async () => {
@@ -692,6 +698,7 @@ describe("getReportMapReportData", () => {
     vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
     vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([] as never);
     vi.mocked(prisma.municipality.findUnique).mockResolvedValue({
+      name: "Puerto Galera",
       boundaryGeojson: {
         type: "Polygon",
         coordinates: [
@@ -735,6 +742,8 @@ describe("getReportMapReportData", () => {
       north: 13.0,
       east: 121.4,
     });
+    // Header municipality line (2026-07-06): resolved Municipality.name.
+    expect(result.municipalityName).toBe("Puerto Galera");
   });
 
   it("falls back to boundaryGeojson when the municipality has no waterGeojson", async () => {
@@ -749,6 +758,7 @@ describe("getReportMapReportData", () => {
     vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
     vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([] as never);
     vi.mocked(prisma.municipality.findUnique).mockResolvedValue({
+      name: "Puerto Galera",
       boundaryGeojson: {
         type: "Polygon",
         coordinates: [

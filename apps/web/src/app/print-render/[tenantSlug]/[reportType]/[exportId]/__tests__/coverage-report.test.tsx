@@ -49,13 +49,16 @@ function buildData(
 }
 
 describe("CoverageReport (Page 1 — Patrol Index)", () => {
-  it("renders the header with tenant name, period label, generated timestamp, paper size", () => {
+  it("renders the header with tenant name, report title, date range, generated timestamp, paper size", () => {
     const html = renderToStaticMarkup(<CoverageReport data={buildData()} />);
+    // Shared print-render header (2026-07-06 redesign) — big fixed brand
+    // title, tenant name standing in for the municipality line (this
+    // template has no logo/municipality concept), and a fixed report title.
+    expect(html).toContain("Marine Guardian Report");
     expect(html).toContain("Mindoro MPA");
-    expect(html).toContain("Patrol Coverage Report — MAY 2026");
+    expect(html).toContain("Patrol Coverage");
     expect(html).toContain("Asia/Manila");
     expect(html).toContain("<strong>Paper:</strong> A4");
-    expect(html).toContain("Marine Guardian Command Center");
   });
 
   it("renders empty state when there are zero patrols", () => {

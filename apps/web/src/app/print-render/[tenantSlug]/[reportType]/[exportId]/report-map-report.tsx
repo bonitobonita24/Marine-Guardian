@@ -16,11 +16,17 @@
  *                                        force their own page break)
  *
  * Every page carries:
- *   Header — one centred cluster: municipal logo · reportTitle · partner
- *            logo, flanking the title and grouped/centred together (not
- *            pinned to the far page margins)
+ *   Header — municipal logo flanking the LEFT edge · centered 4-line title
+ *            block ("Marine Guardian Report" big/bold · municipality name ·
+ *            per-page report title · date range) · partner logo flanking
+ *            the RIGHT edge (2026-07-06 header redesign — see
+ *            components/report-header.tsx + REPORT_MAP_SECTION_TITLES below;
+ *            supersedes the prior "logos hug the title as one centred
+ *            cluster" layout)
  *   Footer — footerNotes · generated-at · page N of 9
- * All values come from the resolved template payload — nothing hardcoded.
+ * All values come from the resolved template payload (logos) plus the
+ * per-section REPORT_MAP_SECTION_TITLES mapping — nothing hardcoded per call
+ * site.
  *
  * Page order (2026-07-06 revision — R6 removed the High Priority pages, R5
  * added the Patrol Tracks Heatmap page):
@@ -77,6 +83,7 @@ import {
   splitEventColumns,
 } from "@/server/report-map-report/event-type-grouping";
 import { EventBreakdownChart } from "./components/event-breakdown-chart";
+import { ReportHeader, reportHeaderStyles } from "./components/report-header";
 import { RowHeightSync } from "./components/row-height-sync";
 // Leaflet islands are loaded dynamically (ssr:false) via the client wrapper to
 // prevent window-is-not-defined during Next.js server-side bundle evaluation.
@@ -153,51 +160,44 @@ function fmtHours(h: number): string {
 }
 
 // ─── Page header ──────────────────────────────────────────────────────────────
+// Per-page report title mapping (owner mockup, 2026-07-06 header redesign) —
+// a single centralized object so a future section rename/addition only
+// touches this one place. Keys mirror the data-testid section names below.
+
+const REPORT_MAP_SECTION_TITLES = {
+  lawEnforcement: "Law Enforcement Events",
+  monitoring: "Monitoring Events",
+  patrolList: "Patrol Tracks",
+  patrolHeatmap: "Patrol Tracks Heatmap",
+  eventsOverTime: "Events Over Time",
+} as const;
 
 interface HeaderProps {
   municipalLogoDataUri: string | null;
-  reportTitle: string;
   partnerLogoDataUri: string | null;
+  municipalityName: string | null;
   period: string;
 }
 
+/** Wraps the shared <ReportHeader> — every report-map-report page passes
+ *  its own per-section `reportTitle` (see REPORT_MAP_SECTION_TITLES above)
+ *  alongside the shared municipal/partner logo + municipality + date-range
+ *  props threaded from the top-level component. */
 function PageHeader({
   municipalLogoDataUri,
-  reportTitle,
   partnerLogoDataUri,
+  municipalityName,
   period,
-}: HeaderProps) {
+  reportTitle,
+}: HeaderProps & { reportTitle: string }) {
   return (
-    <header className="page-header" role="banner">
-      <div className="header-cluster">
-        <div className="header-logo-slot">
-          {municipalLogoDataUri !== null ? (
-            <img
-              src={municipalLogoDataUri}
-              alt="Municipal logo"
-              className="header-logo"
-            />
-          ) : (
-            <div className="header-logo-placeholder" aria-hidden="true" />
-          )}
-        </div>
-        <div className="header-center">
-          <h1 className="report-title">{reportTitle}</h1>
-          <p className="report-subtitle">{period}</p>
-        </div>
-        <div className="header-logo-slot">
-          {partnerLogoDataUri !== null ? (
-            <img
-              src={partnerLogoDataUri}
-              alt="Blue Alliance logo"
-              className="header-logo"
-            />
-          ) : (
-            <div className="header-logo-placeholder" aria-hidden="true" />
-          )}
-        </div>
-      </div>
-    </header>
+    <ReportHeader
+      municipalLogoUrl={municipalLogoDataUri}
+      partnerLogoUrl={partnerLogoDataUri}
+      municipalityName={municipalityName}
+      reportTitle={reportTitle}
+      dateRange={period}
+    />
   );
 }
 
@@ -561,8 +561,8 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
 
   const headerProps: HeaderProps = {
     municipalLogoDataUri: data.template.municipalLogoDataUri,
-    reportTitle: data.template.reportTitle,
     partnerLogoDataUri: data.template.partnerLogoDataUri,
+    municipalityName: data.municipalityName,
     period,
   };
 
@@ -663,26 +663,14 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
        start fresh (orientation is switching back from portrait to the main
        layout size) — independent of the isOnePer/continuous template mode. */
     .report-section-list + .report-section { page-break-before: always; break-before: page; }
-    /* Header cluster (owner directive 2026-07-05): municipal logo, title
-       block, and Blue Alliance logo render as ONE centred group — logos sit
-       immediately beside the title instead of pinned to the far page
-       margins. .page-header centres the whole cluster; .header-cluster is
-       a plain content-sized flex row so the logos hug the title rather
-       than being pushed apart by justify-content: space-between. */
-    .page-header {
-      display: flex; justify-content: center; align-items: center;
-      border-bottom: 2px solid #0f766e; padding-bottom: 8px; margin-bottom: 10px;
-    }
-    .header-cluster {
-      display: flex; align-items: center; justify-content: center; gap: 16px;
-      max-width: 100%;
-    }
-    .header-logo-slot { flex: 0 0 auto; display: flex; align-items: center; }
-    .header-logo { max-height: 40px; max-width: 80px; object-fit: contain; }
-    .header-logo-placeholder { width: 80px; height: 40px; }
-    .header-center { flex: 0 1 auto; text-align: center; }
-    h1.report-title { font-size: 14px; font-weight: 700; margin: 0 0 2px; color: #0f766e; }
-    p.report-subtitle { font-size: 9px; color: #6b7280; margin: 0; }
+    /* Shared print-render header (owner mockup, 2026-07-06 redesign):
+       municipal logo FLANKS the left edge, partner (Blue Alliance) logo
+       FLANKS the right edge, with a centered 4-line title block between
+       them (big bold "Marine Guardian Report" · municipality · per-page
+       report title · date range) — see components/report-header.tsx. This
+       SUPERSEDES the prior "logos hug the title as one centred cluster"
+       layout (2026-07-05). Shared across every print-render template. */
+    ${reportHeaderStyles}
     h2.section-heading { font-size: 12px; font-weight: 600; color: #374151; margin: 0 0 6px; }
     .total-badge {
       display: inline-block; font-size: 11px; font-weight: 700;
@@ -838,7 +826,10 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
           className="report-section"
           data-testid="section-law-enforcement"
         >
-          <PageHeader {...headerProps} />
+          <PageHeader
+            {...headerProps}
+            reportTitle={REPORT_MAP_SECTION_TITLES.lawEnforcement}
+          />
           <h2 className="section-heading">
             Law Enforcement Events
             <span className="total-badge">
@@ -880,7 +871,10 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
           className="report-section"
           data-testid="section-monitoring"
         >
-          <PageHeader {...headerProps} />
+          <PageHeader
+            {...headerProps}
+            reportTitle={REPORT_MAP_SECTION_TITLES.monitoring}
+          />
           <h2 className="section-heading">
             Monitoring Events
             <span className="total-badge">
@@ -927,7 +921,10 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
           className="report-section"
           data-testid="section-patrol-list"
         >
-          <PageHeader {...headerProps} />
+          <PageHeader
+            {...headerProps}
+            reportTitle={REPORT_MAP_SECTION_TITLES.patrolList}
+          />
           <h2 className="section-heading">Patrols</h2>
           <div className="section-content patrol-section-content">
             <div className="section-chart">
@@ -1066,7 +1063,10 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
           className="report-section"
           data-testid="section-patrol-heatmap"
         >
-          <PageHeader {...headerProps} />
+          <PageHeader
+            {...headerProps}
+            reportTitle={REPORT_MAP_SECTION_TITLES.patrolHeatmap}
+          />
           <h2 className="section-heading">Patrol Tracks Heatmap</h2>
           <div
             className="patrol-heatmap-legend"
@@ -1142,7 +1142,10 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
           className="report-section"
           data-testid="section-events-over-time"
         >
-          <PageHeader {...headerProps} />
+          <PageHeader
+            {...headerProps}
+            reportTitle={REPORT_MAP_SECTION_TITLES.eventsOverTime}
+          />
           <h2 className="section-heading">
             Events Over Time
             <span className="total-badge">
@@ -1181,7 +1184,10 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
           className="report-section-list event-list"
           data-testid="section-law-enforcement-list"
         >
-          <PageHeader {...headerProps} />
+          <PageHeader
+            {...headerProps}
+            reportTitle={REPORT_MAP_SECTION_TITLES.lawEnforcement}
+          />
           <h2 className="section-heading">
             Law Enforcement Events — Full List
             <span className="total-badge">
@@ -1201,7 +1207,10 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
           className="report-section-list event-list"
           data-testid="section-monitoring-list"
         >
-          <PageHeader {...headerProps} />
+          <PageHeader
+            {...headerProps}
+            reportTitle={REPORT_MAP_SECTION_TITLES.monitoring}
+          />
           <h2 className="section-heading">
             Monitoring Events — Full List
             <span className="total-badge">
@@ -1221,7 +1230,10 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
           className="report-section-list"
           data-testid="section-patrol-list-list"
         >
-          <PageHeader {...headerProps} />
+          <PageHeader
+            {...headerProps}
+            reportTitle={REPORT_MAP_SECTION_TITLES.patrolList}
+          />
           <h2 className="section-heading">
             Patrols — Full List
             <span className="total-badge">
@@ -1240,7 +1252,10 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
           className="report-section-list event-list"
           data-testid="section-events-over-time-list"
         >
-          <PageHeader {...headerProps} />
+          <PageHeader
+            {...headerProps}
+            reportTitle={REPORT_MAP_SECTION_TITLES.eventsOverTime}
+          />
           <h2 className="section-heading">
             Events Over Time — Full List
             <span className="total-badge">

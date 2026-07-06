@@ -24,9 +24,14 @@ import type {
 import type { AreaPatrolCount } from "@marine-guardian/shared/lib/area-attribution";
 import { AreaCoverageMap } from "./components/area-coverage-map";
 import { PatrolAreaBarChart } from "./components/patrol-area-bar-chart";
+import { ReportHeader } from "./components/report-header";
 import { VarianceInfoCallout } from "./components/variance-info-callout";
 
 interface Page2Props {
+  /** Coverage Report has no municipality/logo concept — tenant name stands
+   *  in for the shared header's municipality line (2026-07-06 redesign). */
+  tenantName: string;
+  dateRange: string;
   enabledAreas: CoverageReportArea[];
   patrols: CoverageReportPatrolRow[];
   attributions: CoverageReportAttribution[];
@@ -78,6 +83,8 @@ function rankRowsByPatrolsDesc(
 }
 
 export function Page2AreaBoundarySummary({
+  tenantName,
+  dateRange,
   enabledAreas,
   patrols,
   attributions,
@@ -96,19 +103,11 @@ export function Page2AreaBoundarySummary({
       data-testid="page-2-area-boundary-summary"
       style={{ pageBreakBefore: "always", paddingTop: "8px" }}
     >
-      <header className="page-header" style={{ marginBottom: "8px" }}>
-        <h3
-          style={{
-            fontSize: "13px",
-            margin: 0,
-            color: "#0f766e",
-            borderBottom: "1px solid #d1d5db",
-            paddingBottom: "4px",
-          }}
-        >
-          Page 2 — Area Boundary Summary
-        </h3>
-      </header>
+      <ReportHeader
+        municipalityName={tenantName}
+        reportTitle="Area Boundaries"
+        dateRange={dateRange}
+      />
 
       <div
         className="map-container"

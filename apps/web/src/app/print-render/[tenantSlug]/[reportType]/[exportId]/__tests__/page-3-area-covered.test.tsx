@@ -37,25 +37,32 @@ describe("Page3AreaCovered", () => {
   it("renders the section frame with section header + methodology footer", () => {
     const html = renderToStaticMarkup(
       <Page3AreaCovered
+        tenantName="Mindoro MPA"
+        dateRange="MAY 2026"
         areaCoverage={[row("b1", "Alpha Reef", 2, 4.2, 1.6, 2)]}
         missingTracksCount={0}
       />,
     );
-    expect(html).toContain("Page 3 — Area Covered");
+    // Shared print-render header (2026-07-06 redesign) replaces the former
+    // "Page 3 — Area Covered" h3 banner.
+    expect(html).toContain("Marine Guardian Report");
+    expect(html).toContain("Area Covered");
+    expect(html).toContain("Mindoro MPA");
+    expect(html).toContain("MAY 2026");
     expect(html).toContain('data-testid="page-3-footer-notes"');
     expect(html).toContain("Coverage KMS = clipped length");
   });
 
   it("forces page-break-before: always so Page 3 starts on a new physical page", () => {
     const html = renderToStaticMarkup(
-      <Page3AreaCovered areaCoverage={[]} missingTracksCount={0} />,
+      <Page3AreaCovered tenantName="Mindoro MPA" dateRange="MAY 2026" areaCoverage={[]} missingTracksCount={0} />,
     );
     expect(html).toMatch(/page-break-before:\s*always/);
   });
 
   it("shows empty state when areaCoverage is an empty array", () => {
     const html = renderToStaticMarkup(
-      <Page3AreaCovered areaCoverage={[]} missingTracksCount={0} />,
+      <Page3AreaCovered tenantName="Mindoro MPA" dateRange="MAY 2026" areaCoverage={[]} missingTracksCount={0} />,
     );
     expect(html).toContain('data-testid="page-3-empty"');
     expect(html).toContain("No coverage in monitored boundaries for this period.");
@@ -64,6 +71,8 @@ describe("Page3AreaCovered", () => {
   it("renders the coverage table with one row per boundary sorted by coverageKm DESC", () => {
     const html = renderToStaticMarkup(
       <Page3AreaCovered
+        tenantName="Mindoro MPA"
+        dateRange="MAY 2026"
         areaCoverage={[
           row("b1", "Alpha Reef", 2, 1.5, 0.8, 2),
           row("b2", "Bravo Bank", 5, 12.4, 6.2, 5),
@@ -85,6 +94,8 @@ describe("Page3AreaCovered", () => {
   it("breaks coverageKm ties alphabetically by areaName ASC", () => {
     const html = renderToStaticMarkup(
       <Page3AreaCovered
+        tenantName="Mindoro MPA"
+        dateRange="MAY 2026"
         areaCoverage={[
           row("b1", "Zulu Zone", 1, 5.0, 2.0, 1),
           row("b2", "Alpha Reef", 1, 5.0, 2.0, 1),
@@ -103,6 +114,8 @@ describe("Page3AreaCovered", () => {
   it("shows an Est. badge on rows where hrsEstimatedCount > 0", () => {
     const html = renderToStaticMarkup(
       <Page3AreaCovered
+        tenantName="Mindoro MPA"
+        dateRange="MAY 2026"
         areaCoverage={[
           row("b1", "Alpha Reef", 2, 4.2, 1.6, 2),
           row("b2", "Bravo Bank", 0, 0, 0, 0),
@@ -117,6 +130,8 @@ describe("Page3AreaCovered", () => {
   it("emphasises the Est. label in the footer when any row is estimated", () => {
     const html = renderToStaticMarkup(
       <Page3AreaCovered
+        tenantName="Mindoro MPA"
+        dateRange="MAY 2026"
         areaCoverage={[row("b1", "Alpha Reef", 2, 4.2, 1.6, 2)]}
         missingTracksCount={0}
       />,
@@ -127,6 +142,8 @@ describe("Page3AreaCovered", () => {
   it("renders a footer callout line when missingTracksCount > 0", () => {
     const html = renderToStaticMarkup(
       <Page3AreaCovered
+        tenantName="Mindoro MPA"
+        dateRange="MAY 2026"
         areaCoverage={[row("b1", "Alpha Reef", 1, 2.0, 1.0, 1)]}
         missingTracksCount={3}
       />,
@@ -139,6 +156,8 @@ describe("Page3AreaCovered", () => {
   it("uses singular 'patrol has' in the missing-tracks note when missingTracksCount === 1", () => {
     const html = renderToStaticMarkup(
       <Page3AreaCovered
+        tenantName="Mindoro MPA"
+        dateRange="MAY 2026"
         areaCoverage={[row("b1", "Alpha Reef", 1, 2.0, 1.0, 1)]}
         missingTracksCount={1}
       />,
@@ -150,6 +169,8 @@ describe("Page3AreaCovered", () => {
   it("omits the missing-tracks footer line when missingTracksCount === 0", () => {
     const html = renderToStaticMarkup(
       <Page3AreaCovered
+        tenantName="Mindoro MPA"
+        dateRange="MAY 2026"
         areaCoverage={[row("b1", "Alpha Reef", 1, 2.0, 1.0, 1)]}
         missingTracksCount={0}
       />,
@@ -160,6 +181,8 @@ describe("Page3AreaCovered", () => {
   it("computes totals row from the sum of all coverage rows", () => {
     const html = renderToStaticMarkup(
       <Page3AreaCovered
+        tenantName="Mindoro MPA"
+        dateRange="MAY 2026"
         areaCoverage={[
           row("b1", "Alpha", 2, 3.5, 1.5, 2),
           row("b2", "Bravo", 3, 6.5, 3.0, 3),
@@ -174,6 +197,8 @@ describe("Page3AreaCovered", () => {
   it("mounts the chart column when there is at least one boundary row", () => {
     const html = renderToStaticMarkup(
       <Page3AreaCovered
+        tenantName="Mindoro MPA"
+        dateRange="MAY 2026"
         areaCoverage={[row("b1", "Alpha Reef", 1, 2.0, 1.0, 1)]}
         missingTracksCount={0}
       />,

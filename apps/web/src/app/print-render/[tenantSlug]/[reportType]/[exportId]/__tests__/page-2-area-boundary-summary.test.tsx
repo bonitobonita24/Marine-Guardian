@@ -74,6 +74,8 @@ describe("Page2AreaBoundarySummary", () => {
   it("renders the section frame with section header + variance-info callout", () => {
     const html = renderToStaticMarkup(
       <Page2AreaBoundarySummary
+        tenantName="Mindoro MPA"
+        dateRange="MAY 2026"
         enabledAreas={[]}
         patrols={[]}
         attributions={[]}
@@ -81,7 +83,12 @@ describe("Page2AreaBoundarySummary", () => {
         unattributedPatrolCount={0}
       />,
     );
-    expect(html).toContain("Page 2 — Area Boundary Summary");
+    // Shared print-render header (2026-07-06 redesign) replaces the former
+    // "Page 2 — Area Boundary Summary" h3 banner.
+    expect(html).toContain("Marine Guardian Report");
+    expect(html).toContain("Area Boundaries");
+    expect(html).toContain("Mindoro MPA");
+    expect(html).toContain("MAY 2026");
     expect(html).toContain('data-testid="variance-info-callout"');
     expect(html).toContain("How patrols are attributed");
   });
@@ -89,6 +96,8 @@ describe("Page2AreaBoundarySummary", () => {
   it("forces page-break-before: always so Page 2 starts on a new physical page", () => {
     const html = renderToStaticMarkup(
       <Page2AreaBoundarySummary
+        tenantName="Mindoro MPA"
+        dateRange="MAY 2026"
         enabledAreas={[]}
         patrols={[]}
         attributions={[]}
@@ -104,6 +113,8 @@ describe("Page2AreaBoundarySummary", () => {
   it("shows the empty-state map message when there are no boundaries AND no patrols", () => {
     const html = renderToStaticMarkup(
       <Page2AreaBoundarySummary
+        tenantName="Mindoro MPA"
+        dateRange="MAY 2026"
         enabledAreas={[]}
         patrols={[]}
         attributions={[]}
@@ -118,6 +129,8 @@ describe("Page2AreaBoundarySummary", () => {
   it("shows the empty-state boundary table when there are no enabled boundaries", () => {
     const html = renderToStaticMarkup(
       <Page2AreaBoundarySummary
+        tenantName="Mindoro MPA"
+        dateRange="MAY 2026"
         enabledAreas={[]}
         patrols={[]}
         attributions={[]}
@@ -139,6 +152,8 @@ describe("Page2AreaBoundarySummary", () => {
 
     const html = renderToStaticMarkup(
       <Page2AreaBoundarySummary
+        tenantName="Mindoro MPA"
+        dateRange="MAY 2026"
         enabledAreas={[
           makeArea("alpha", "Alpha Reef"),
           makeArea("bravo", "Bravo Bank"),
@@ -176,6 +191,8 @@ describe("Page2AreaBoundarySummary", () => {
 
     const html = renderToStaticMarkup(
       <Page2AreaBoundarySummary
+        tenantName="Mindoro MPA"
+        dateRange="MAY 2026"
         enabledAreas={[makeArea("alpha", "Alpha Reef")]}
         patrols={[]}
         attributions={attributions}
@@ -196,6 +213,8 @@ describe("Page2AreaBoundarySummary", () => {
     ];
     const html = renderToStaticMarkup(
       <Page2AreaBoundarySummary
+        tenantName="Mindoro MPA"
+        dateRange="MAY 2026"
         enabledAreas={[makeArea("alpha", "Alpha Reef")]}
         patrols={[]}
         attributions={[]}
@@ -212,6 +231,8 @@ describe("Page2AreaBoundarySummary", () => {
   it("mounts the map container and chart column when content exists", () => {
     const html = renderToStaticMarkup(
       <Page2AreaBoundarySummary
+        tenantName="Mindoro MPA"
+        dateRange="MAY 2026"
         enabledAreas={[makeArea("alpha", "Alpha Reef")]}
         patrols={[makePatrolStub("p1")]}
         attributions={[]}

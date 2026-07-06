@@ -26,8 +26,13 @@
 
 import type { BoundaryCoverage } from "@marine-guardian/shared/lib/coverage-clip";
 import { AreaCoveredChart } from "./components/area-covered-chart";
+import { ReportHeader } from "./components/report-header";
 
 interface Page3Props {
+  /** Coverage Report has no municipality/logo concept — tenant name stands
+   *  in for the shared header's municipality line (2026-07-06 redesign). */
+  tenantName: string;
+  dateRange: string;
   areaCoverage: BoundaryCoverage[];
   missingTracksCount: number;
 }
@@ -47,6 +52,8 @@ function formatHours(hrs: number): string {
 }
 
 export function Page3AreaCovered({
+  tenantName,
+  dateRange,
   areaCoverage,
   missingTracksCount,
 }: Page3Props) {
@@ -73,19 +80,11 @@ export function Page3AreaCovered({
       data-testid="page-3-area-covered"
       style={{ pageBreakBefore: "always", paddingTop: "8px" }}
     >
-      <header className="page-header" style={{ marginBottom: "8px" }}>
-        <h3
-          style={{
-            fontSize: "13px",
-            margin: 0,
-            color: "#0f766e",
-            borderBottom: "1px solid #d1d5db",
-            paddingBottom: "4px",
-          }}
-        >
-          Page 3 — Area Covered
-        </h3>
-      </header>
+      <ReportHeader
+        municipalityName={tenantName}
+        reportTitle="Area Covered"
+        dateRange={dateRange}
+      />
 
       {sorted.length === 0 ? (
         <div

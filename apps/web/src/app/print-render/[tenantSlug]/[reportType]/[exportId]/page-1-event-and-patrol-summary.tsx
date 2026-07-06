@@ -22,6 +22,7 @@ import type {
   PerAreaReportDateRange,
 } from "@/server/per-area-report/get-per-area-report-data";
 import { EventBreakdownChart } from "./components/event-breakdown-chart";
+import { ReportHeader } from "./components/report-header";
 
 interface Page1Props {
   area: PerAreaReportArea;
@@ -68,41 +69,11 @@ export function Page1EventAndPatrolSummary({
       data-testid="page-1-event-and-patrol-summary"
       style={{ paddingTop: "4px" }}
     >
-      <header
-        className="page-header"
-        style={{
-          marginBottom: "10px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-end",
-          borderBottom: "1px solid #d1d5db",
-          paddingBottom: "6px",
-        }}
-      >
-        <div>
-          <h3
-            style={{
-              fontSize: "13px",
-              margin: 0,
-              color: "#0f766e",
-            }}
-          >
-            Page 1 — Event Breakdown &amp; Patrol Summary
-          </h3>
-          <div
-            style={{
-              fontSize: "10px",
-              color: "#6b7280",
-              marginTop: "2px",
-            }}
-            data-testid="page-1-meta"
-          >
-            <strong>Area:</strong> {area.name}{" "}
-            <span style={{ color: "#9ca3af" }}>·</span>{" "}
-            <strong>Date Range:</strong> {dateRange.label}
-          </div>
-        </div>
-      </header>
+      <ReportHeader
+        municipalityName={area.name}
+        reportTitle="Event Breakdown & Patrol Summary"
+        dateRange={dateRange.label}
+      />
 
       <div
         className="page-1-charts-grid"

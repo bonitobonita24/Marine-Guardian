@@ -93,7 +93,13 @@ describe("Page1EventAndPatrolSummary", () => {
     );
     expect(html).toContain("Area A5");
     expect(html).toContain("May 2026");
-    expect(html).toMatch(/Page 1 .*Event Breakdown.*Patrol Summary/);
+    // Shared print-render header (2026-07-06 redesign) — the former
+    // "Page 1 — Event Breakdown & Patrol Summary" h3 banner is replaced by
+    // the shared 4-line header (big title / area name / report title /
+    // date range); the "Event Breakdown & Patrol Summary" text now lives in
+    // the header's report-title line.
+    expect(html).toContain("Marine Guardian Report");
+    expect(html).toMatch(/Event Breakdown.*Patrol Summary/);
   });
 
   it("mounts both chart variants with the correct row counts in the column headings", () => {

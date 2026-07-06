@@ -27,6 +27,7 @@ import type {
 } from "@/server/per-area-report/get-per-area-report-data";
 import type { HeatLatLng } from "@marine-guardian/shared/lib/heatmap-sample";
 import { PerAreaHeatmapMap } from "./components/per-area-heatmap-map";
+import { ReportHeader } from "./components/report-header";
 
 interface Page2HeatmapsProps {
   area: PerAreaReportArea;
@@ -156,19 +157,11 @@ export function Page2Heatmaps({
       data-testid="page-2-heatmaps"
       style={{ pageBreakBefore: "always", paddingTop: "8px" }}
     >
-      <header className="page-header" style={{ marginBottom: "8px" }}>
-        <h3
-          style={{
-            fontSize: "13px",
-            margin: 0,
-            color: "#0f766e",
-            borderBottom: "1px solid #d1d5db",
-            paddingBottom: "4px",
-          }}
-        >
-          Page 2 — Heatmaps — {area.name} — {dateRange.label}
-        </h3>
-      </header>
+      <ReportHeader
+        municipalityName={area.name}
+        reportTitle="Heatmaps"
+        dateRange={dateRange.label}
+      />
 
       <div
         className="map-container"

@@ -70,7 +70,11 @@ describe("Page2Heatmaps", () => {
         patrolTracks={[]}
       />,
     );
-    expect(html).toContain("Page 2 — Heatmaps");
+    // Shared print-render header (2026-07-06 redesign) replaces the former
+    // "Page 2 — Heatmaps — {area} — {dateRange}" h3 banner with the shared
+    // 4-line header (big title / area name / report title / date range).
+    expect(html).toContain("Marine Guardian Report");
+    expect(html).toContain("Heatmaps");
     expect(html).toContain("Apo Reef");
     expect(html).toContain("May 2026");
   });

@@ -22,6 +22,7 @@ import type {
 } from "@/server/coverage-report/get-coverage-report-data";
 import { Page2AreaBoundarySummary } from "./page-2-area-boundary-summary";
 import { Page3AreaCovered } from "./page-3-area-covered";
+import { ReportHeader, reportHeaderStyles } from "./components/report-header";
 
 interface CoverageReportProps {
   data: CoverageReportData;
@@ -142,12 +143,11 @@ export function CoverageReport({ data }: CoverageReportProps) {
              bleed in — leaving odd rows dark-on-dark. Explicit !important overrides ensure this
              print template is fully theme-independent. */
           body { font-family: ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif; color: #111 !important; background: #fff !important; margin: 0; padding: 16px 20px; font-size: 11px; line-height: 1.4; }
-          header.report-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f766e; padding-bottom: 10px; margin-bottom: 16px; }
-          header.report-header .brand { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #6b7280; }
-          header.report-header h1 { font-size: 22px; margin: 4px 0 2px; color: #0f766e; }
-          header.report-header h2 { font-size: 13px; margin: 0; font-weight: 500; color: #374151; }
-          header.report-header .meta { text-align: right; font-size: 10px; color: #6b7280; }
-          header.report-header .meta div { margin-bottom: 2px; }
+          /* Shared print-render header (2026-07-06 redesign) — see
+             components/report-header.tsx. Replaces the former bespoke
+             .report-header (tenant name + brand text + right-aligned meta). */
+          ${reportHeaderStyles}
+          .report-meta { text-align: center; font-size: 10px; color: #6b7280; margin: -4px 0 16px; }
           .summary-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
           .summary-card { border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 12px; background: #f9fafb; }
           .summary-card .label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: #6b7280; margin-bottom: 4px; }
@@ -165,26 +165,17 @@ export function CoverageReport({ data }: CoverageReportProps) {
         `}</style>
       </head>
       <body>
-        <header className="report-header">
-          <div>
-            <div className="brand">Marine Guardian Command Center</div>
-            <h1>{data.tenant.name}</h1>
-            <h2>Patrol Coverage Report — {data.period.label}</h2>
-          </div>
-          <div className="meta">
-            <div>
-              <strong>Period:</strong> {periodDisplay}
-            </div>
-            <div>
-              <strong>Generated:</strong>{" "}
-              {formatTenantLocal(data.generatedAt, offsetMinutes)} (
-              {data.tenant.timezone})
-            </div>
-            <div>
-              <strong>Paper:</strong> {data.paperSize}
-            </div>
-          </div>
-        </header>
+        <ReportHeader
+          municipalityName={data.tenant.name}
+          reportTitle="Patrol Coverage"
+          dateRange={periodDisplay}
+        />
+        <div className="report-meta">
+          <strong>Generated:</strong>{" "}
+          {formatTenantLocal(data.generatedAt, offsetMinutes)} (
+          {data.tenant.timezone}) <span style={{ color: "#9ca3af" }}>·</span>{" "}
+          <strong>Paper:</strong> {data.paperSize}
+        </div>
 
         <section className="summary-cards" aria-label="Period summary">
           <div className="summary-card" data-testid="card-foot">
@@ -308,6 +299,8 @@ export function CoverageReport({ data }: CoverageReportProps) {
         </section>
 
         <Page2AreaBoundarySummary
+          tenantName={data.tenant.name}
+          dateRange={periodDisplay}
           enabledAreas={data.enabledAreas}
           patrols={data.patrols}
           attributions={data.attributions}
@@ -316,6 +309,8 @@ export function CoverageReport({ data }: CoverageReportProps) {
         />
 
         <Page3AreaCovered
+          tenantName={data.tenant.name}
+          dateRange={periodDisplay}
           areaCoverage={data.areaCoverage}
           missingTracksCount={data.missingTracksCount}
         />

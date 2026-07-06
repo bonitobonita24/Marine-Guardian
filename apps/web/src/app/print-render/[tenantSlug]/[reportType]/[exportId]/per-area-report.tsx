@@ -28,6 +28,7 @@ import type { PerAreaReportData } from "@/server/per-area-report/get-per-area-re
 import { Page1EventAndPatrolSummary } from "./page-1-event-and-patrol-summary";
 import { Page2Heatmaps } from "./page-2-heatmaps";
 import { Page3FuelConsumption } from "./page-3-fuel-consumption";
+import { ReportHeader, reportHeaderStyles } from "./components/report-header";
 
 interface PerAreaReportProps {
   data: PerAreaReportData;
@@ -83,61 +84,44 @@ export function PerAreaReport({ data }: PerAreaReportProps) {
           @page { size: ${paperCss}; margin: 12mm; }
           * { box-sizing: border-box; }
           body { font-family: ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif; color: #111; margin: 0; padding: 16px 20px; font-size: 11px; line-height: 1.4; }
-          header.report-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f766e; padding-bottom: 10px; margin-bottom: 16px; }
-          header.report-header .brand { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #6b7280; }
-          header.report-header h1 { font-size: 22px; margin: 4px 0 2px; color: #0f766e; }
-          header.report-header h2 { font-size: 13px; margin: 0; font-weight: 500; color: #374151; }
-          header.report-header .meta { text-align: right; font-size: 10px; color: #6b7280; }
-          header.report-header .meta div { margin-bottom: 2px; }
+          /* Shared print-render header (2026-07-06 redesign) — see
+             components/report-header.tsx. Replaces the former bespoke
+             .report-header (tenant name + brand text + right-aligned meta). */
+          ${reportHeaderStyles}
+          .report-meta { text-align: center; font-size: 10px; color: #6b7280; margin: -4px 0 16px; }
+          .report-meta .default-range-badge {
+            margin-left: 4px; padding: 1px 4px; font-size: 8px; font-weight: 600;
+            color: #0f766e; background: #ecfeff; border: 1px solid #a5f3fc;
+            border-radius: 2px; text-transform: uppercase; letter-spacing: 0.04em;
+          }
         `}</style>
       </head>
       <body>
-        <header className="report-header">
-          <div>
-            <div className="brand">Marine Guardian Command Center</div>
-            <h1>{data.tenant.name}</h1>
-            <h2>
-              Per Area Report — {data.area.name} — {data.dateRange.label}
-            </h2>
-          </div>
-          <div className="meta">
-            <div>
-              <strong>Area:</strong> {data.area.name}{" "}
-              <span style={{ color: "#9ca3af" }}>·</span> {data.area.region}
-            </div>
-            <div>
-              <strong>Date Range:</strong> {data.dateRange.label}
-              {data.dateRange.isDefault && (
-                <span
-                  style={{
-                    marginLeft: "4px",
-                    padding: "1px 4px",
-                    fontSize: "8px",
-                    fontWeight: 600,
-                    color: "#0f766e",
-                    background: "#ecfeff",
-                    border: "1px solid #a5f3fc",
-                    borderRadius: "2px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.04em",
-                  }}
-                  data-testid="default-range-badge"
-                  title="Date range fell back to the current calendar month"
-                >
-                  default
-                </span>
-              )}
-            </div>
-            <div>
-              <strong>Generated:</strong>{" "}
-              {formatTenantLocal(data.generatedAt, offsetMinutes)} (
-              {data.tenant.timezone})
-            </div>
-            <div>
-              <strong>Paper:</strong> {data.paperSize}
-            </div>
-          </div>
-        </header>
+        <ReportHeader
+          municipalityName={data.area.name}
+          reportTitle="Area Coverage"
+          dateRange={data.dateRange.label}
+        />
+        <div className="report-meta">
+          <strong>Area:</strong> {data.area.name}{" "}
+          <span style={{ color: "#9ca3af" }}>·</span> {data.area.region}{" "}
+          <span style={{ color: "#9ca3af" }}>·</span>{" "}
+          <strong>Date Range:</strong> {data.dateRange.label}
+          {data.dateRange.isDefault && (
+            <span
+              className="default-range-badge"
+              data-testid="default-range-badge"
+              title="Date range fell back to the current calendar month"
+            >
+              default
+            </span>
+          )}{" "}
+          <span style={{ color: "#9ca3af" }}>·</span>{" "}
+          <strong>Generated:</strong>{" "}
+          {formatTenantLocal(data.generatedAt, offsetMinutes)} (
+          {data.tenant.timezone}) <span style={{ color: "#9ca3af" }}>·</span>{" "}
+          <strong>Paper:</strong> {data.paperSize}
+        </div>
 
         <Page1EventAndPatrolSummary
           area={data.area}
