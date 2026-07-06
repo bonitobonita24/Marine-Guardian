@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import {
   LayoutDashboard,
   Map,
+  FileDown,
   CalendarClock,
   Calendar,
   Ship,
@@ -19,6 +20,7 @@ import {
   Settings,
   LogOut,
   Fuel,
+  type LucideIcon,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
@@ -26,14 +28,30 @@ import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc/client";
 import { useNotificationStore } from "@/lib/realtime/notification-store";
 
+interface NavItem {
+  href: string;
+  icon: LucideIcon;
+  labelKey: string;
+  // Renders the item indented, visually nested as a submenu under the
+  // preceding sibling (e.g. "Exports" under "Interactive Report Map").
+  indent?: boolean;
+}
+
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
 // Nav items grouped per mockup (mpa-command-center-v4.jsx navGroups):
 // COMMAND | OPERATIONS | PATROLS | LOGISTICS | REPORTS | ADMIN
-const navGroups = [
+const navGroups: NavGroup[] = [
   {
     label: "COMMAND",
     items: [
       { href: "/dashboard", icon: LayoutDashboard, labelKey: "dashboard" },
       { href: "/map", icon: Map, labelKey: "map" },
+      // Rendered indented as a submenu under "Interactive Report Map".
+      { href: "/exports", icon: FileDown, labelKey: "exports", indent: true },
     ],
   },
   {
@@ -65,7 +83,7 @@ const navGroups = [
       { href: "/settings", icon: Settings, labelKey: "settings" },
     ],
   },
-] as const;
+];
 
 // viewer role (2026-07-05): read-only, scoped to Command Center (/dashboard) +
 // Interactive Report Map (/map) only. Every other page is hidden from nav here
@@ -133,6 +151,9 @@ export function Sidebar() {
                       href={item.href}
                       className={cn(
                         "flex items-center gap-2 rounded-sm mx-1 px-2 py-1 text-[11px] transition-colors",
+                        item.indent === true
+                          ? "ml-3 border-l pl-2 text-[10px]"
+                          : undefined,
                         isActive
                           ? "bg-primary/10 text-primary font-semibold"
                           : "text-muted-foreground hover:bg-muted hover:text-foreground"

@@ -15,6 +15,7 @@
   "nav": {
     "dashboard": "Command Center",
     "map": "Interactive Report Map",
+    "exports": "Exports",
     "events": "Events",
     "patrols": "Patrols",
     "patrolSchedule": "Patrol Schedule",

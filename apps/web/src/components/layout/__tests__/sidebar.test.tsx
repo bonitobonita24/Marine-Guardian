@@ -149,6 +149,7 @@ describe("Sidebar — viewer role nav filtering", () => {
   const ALL_NAV_LABEL_KEYS = [
     "dashboard",
     "map",
+    "exports",
     "events",
     "notifications",
     "patrols",
@@ -192,5 +193,39 @@ describe("Sidebar — viewer role nav filtering", () => {
     for (const key of ALL_NAV_LABEL_KEYS) {
       expect(getByText(key)).toBeTruthy();
     }
+  });
+});
+
+// Exports submenu item (2026-07-06) — rendered directly below "map" as a
+// visually-nested child of "Interactive Report Map", linking to /exports.
+describe("Sidebar — Exports submenu item", () => {
+  beforeEach(() => {
+    stubs.notificationsLength = 0;
+    stubs.useQueryOpts = undefined;
+    stubs.useQueryCalled = false;
+    stubs.invalidateUnreadCount.mockReset();
+    stubs.invalidateUnreadCount.mockResolvedValue(undefined);
+    stubs.sessionRoles = [];
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("renders an Exports link to /exports, indented as a submenu under map", () => {
+    const { getByText } = render(<Sidebar />);
+    const exportsLabel = getByText("exports");
+    const link = exportsLabel.closest("a");
+    expect(link).not.toBeNull();
+    expect(link?.getAttribute("href")).toBe("/exports");
+    // Indented sub-item styling distinguishes it from a peer nav item.
+    expect(link?.className).toMatch(/ml-3/);
+    expect(link?.className).toMatch(/border-l/);
+  });
+
+  it("does NOT show Exports for a viewer session (unchanged viewer scope)", () => {
+    stubs.sessionRoles = ["viewer"];
+    const { queryByText } = render(<Sidebar />);
+    expect(queryByText("exports")).toBeNull();
   });
 });
