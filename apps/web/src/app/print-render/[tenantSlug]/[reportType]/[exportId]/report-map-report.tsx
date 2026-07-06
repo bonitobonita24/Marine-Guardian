@@ -30,7 +30,9 @@
  *   2b. Monitoring list       — per-type event tables (landscape)
  *   3.  High Priority         — event-points map (orange)
  *   3b. High Priority list    — per-type event tables (landscape)
- *   4.  Patrol List           — patrol-tracks map + seaborne/foot time series
+ *   4.  Patrol List           — per-type (Seaborne/Foot) bar charts LEFT of the
+ *                                patrol-tracks map + seaborne/foot time series
+ *                                (all on one landscape page — 2026-07-06)
  *   4b. Patrol List — list    — full patrol table (portrait)
  *   5.  Events Over Time      — line chart + overview event-points map (blue)
  *   5b. Events Over Time list — per-type event tables (landscape)
@@ -528,6 +530,13 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
   const pageCss = layout === "portrait" ? "A4 portrait" : "A4 landscape";
   const isOnePer = layout === "landscape" || layout === "portrait";
   const mapHeightPx = layout === "portrait" ? "260px" : "370px";
+  // Patrol section (4) alone also carries a below-the-fold
+  // "Seaborne/Foot Patrols Over Time" row (.patrol-charts-row) that the other
+  // 4 main sections don't have, so it gets its own (shorter) content-row
+  // height budget — see the ".patrol-section-content" CSS override below —
+  // to keep the WHOLE section (heading + map/chart row + over-time row +
+  // footer) on one printed page (owner directive 2026-07-06).
+  const patrolMapHeightPx = layout === "portrait" ? "220px" : "300px";
 
   const period = fmtPeriod(data.filter.from, data.filter.to);
   const generatedAt = fmtDateTimeLocal(data.generatedAt);
@@ -676,6 +685,15 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
       ${layout === "landscape" ? "flex: 0 0 60%; min-width: 0;" : "width: 100%;"}
       height: ${mapHeightPx};
     }
+    /* Patrol section (4) override — shorter map/chart row (see
+       patrolMapHeightPx above) so the section's extra below-the-fold
+       "Patrols Over Time" row still fits on one printed page. Two classes on
+       the ancestor (.patrol-section-content) beats the single-class
+       .section-chart/.section-map height rule above on specificity. */
+    .patrol-section-content .section-chart,
+    .patrol-section-content .section-map {
+      height: ${patrolMapHeightPx};
+    }
     figure { margin: 0; padding: 0; width: 100%; height: 100%; display: block; }
     .page-footer {
       display: flex; justify-content: space-between; align-items: flex-start;
@@ -741,9 +759,12 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
       white-space: nowrap; border: 0;
     }
     p.empty-note { font-size: 10px; color: #6b7280; font-style: italic; }
-    .patrol-charts-row { display: flex; gap: 10px; margin-top: 8px; }
+    /* Tightened (owner directive 2026-07-06 — one-page fit): the over-time
+       row's own height now comes from PrintTimeSeriesChart's explicit
+       height={90} prop (see the Section 4 JSX below); margin-top trimmed
+       from 8px to 6px to shave a little more off the section's total. */
+    .patrol-charts-row { display: flex; gap: 10px; margin-top: 6px; }
     .patrol-chart-col { flex: 1 1 0; min-width: 0; }
-    .patrol-type-bar-chart-row { margin-top: 8px; }
   `;
 
   return (
@@ -911,8 +932,9 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
               {fmtDistKm(data.charts.patrolList.patrolTotals.totalKm)}
             </span>
           </h2>
-          <div className="section-content">
+          <div className="section-content patrol-section-content">
             <div className="section-chart">
+              <PatrolTypeBarChart totals={data.charts.patrolTypeTotals} />
               {data.charts.patrolList.breakdown.length === 0 ? (
                 <p className="empty-note">No patrols in this period.</p>
               ) : (
@@ -947,9 +969,6 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
               </figure>
             </div>
           </div>
-          <div className="patrol-type-bar-chart-row">
-            <PatrolTypeBarChart totals={data.charts.patrolTypeTotals} />
-          </div>
           <div
             className="patrol-charts-row"
             role="group"
@@ -961,6 +980,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
                 title="Seaborne Patrols Over Time"
                 color="#0891b2"
                 valueLabel="Patrols"
+                height={90}
               />
             </div>
             <div className="patrol-chart-col">
@@ -969,6 +989,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
                 title="Foot Patrols Over Time"
                 color="#0f766e"
                 valueLabel="Patrols"
+                height={90}
               />
             </div>
           </div>

@@ -1,11 +1,21 @@
 /**
  * "Patrols by Type" bar chart — Report Map PDF, Patrol List section.
  *
- * Shows, per patrol type (seaborne vs foot): total patrol count, total
- * hours, and total kilometers (owner request 2026-07-06). The three metrics
- * have very different scales (a count vs hours vs km), so the chart renders
- * three small grouped-bar clusters — one per metric ("Patrols", "Hours (h)",
- * "Kilometers (km)") — each scaled to its OWN max so both bars stay legible.
+ * Renders TWO separate per-type mini charts — "Seaborne" and "Foot" (owner
+ * request 2026-07-06) — each with three bars: total patrol count, total
+ * hours, and total kilometers. The three metrics have very different scales
+ * (a count vs hours vs km), so each bar is scaled to that METRIC's max
+ * across BOTH types (patrol bars share the patrol-max, hours bars share the
+ * hours-max, km bars share the km-max) — this keeps "Seaborne Patrols" and
+ * "Foot Patrols" visually comparable (same denominator) while still making
+ * the much-smaller hours/km bars legible, instead of dwarfing them under one
+ * shared axis with the patrol count.
+ *
+ * This chart lives in the report's LEFT `.section-chart` column, stacked
+ * beside the patrol-tracks map on the right (see report-map-report.tsx) —
+ * previously it sat below the map+chart row as a full-width strip; moved
+ * left per owner directive 2026-07-06 to fit the whole patrol section on one
+ * landscape page.
  *
  * Print-friendly: a plain server component (no "use client", no Recharts
  * island) that emits a self-contained inline SVG — same rationale as the
@@ -30,11 +40,18 @@ interface PatrolTypeBarChartProps {
 const SEABORNE_COLOR = "#0891b2"; // cyan-600 — matches "Seaborne Patrols Over Time"
 const FOOT_COLOR = "#0f766e"; // teal-700 — matches "Foot Patrols Over Time"
 
-interface MetricGroup {
+type PatrolTypeKey = "seaborne" | "foot";
+
+interface MetricStat {
   key: string;
   label: string;
   seaborne: number;
   foot: number;
+  /** Shared max across BOTH types for this metric — the per-metric scale
+   *  denominator so a "Seaborne" bar and a "Foot" bar (on separate mini
+   *  charts) remain comparable, and small hours/km values don't collapse to
+   *  zero height next to a much larger patrol count. */
+  max: number;
   format: (n: number) => string;
 }
 
@@ -46,8 +63,8 @@ function fmtDecimal(n: number): string {
   return n.toLocaleString("en-US", { maximumFractionDigits: 1 });
 }
 
-function buildMetricGroups(totals: PatrolTypeBarChartProps["totals"]): MetricGroup[] {
-  return [
+function buildMetrics(totals: PatrolTypeBarChartProps["totals"]): MetricStat[] {
+  const raw: Array<Omit<MetricStat, "max">> = [
     {
       key: "patrols",
       label: "Patrols",
@@ -70,59 +87,136 @@ function buildMetricGroups(totals: PatrolTypeBarChartProps["totals"]): MetricGro
       format: fmtDecimal,
     },
   ];
+  return raw.map((r) => ({ ...r, max: Math.max(r.seaborne, r.foot) }));
 }
 
 // SVG geometry (viewBox units — scales via width:100% on the root <svg>).
-const GROUP_WIDTH = 110;
-const BAR_WIDTH = 26;
-const BAR_GAP = 10;
-const CHART_HEIGHT = 74;
-const BASELINE_Y = 88;
-const SVG_HEIGHT = 116;
+// One column per metric within a single type's mini chart (3 columns: Patrols
+// / Hours / Km), sized to fit two of these side by side in the report's
+// narrower LEFT column.
+const BAR_WIDTH = 24;
+const GROUP_WIDTH = 42;
+const CHART_HEIGHT = 50;
+const BASELINE_Y = 58;
+const SVG_HEIGHT = 82;
 
 interface BarGeometry {
   x: number;
   y: number;
   width: number;
   height: number;
-  fill: string;
   value: number;
+  label: string;
   format: (n: number) => string;
 }
 
-function barsForGroup(group: MetricGroup, groupIndex: number): BarGeometry[] {
-  const groupX = groupIndex * GROUP_WIDTH;
-  const center = groupX + GROUP_WIDTH / 2;
-  const seaborneX = center - BAR_GAP / 2 - BAR_WIDTH;
-  const footX = center + BAR_GAP / 2;
-  const max = Math.max(group.seaborne, group.foot);
-
-  const heightFor = (value: number): number =>
-    max > 0 ? (value / max) * CHART_HEIGHT : 0;
-
-  const seaborneHeight = heightFor(group.seaborne);
-  const footHeight = heightFor(group.foot);
-
-  return [
-    {
-      x: seaborneX,
-      y: BASELINE_Y - seaborneHeight,
+function barsForType(metrics: MetricStat[], typeKey: PatrolTypeKey): BarGeometry[] {
+  return metrics.map((m, index) => {
+    const groupX = index * GROUP_WIDTH;
+    const x = groupX + (GROUP_WIDTH - BAR_WIDTH) / 2;
+    const value = m[typeKey];
+    const height = m.max > 0 ? (value / m.max) * CHART_HEIGHT : 0;
+    return {
+      x,
+      y: BASELINE_Y - height,
       width: BAR_WIDTH,
-      height: seaborneHeight,
-      fill: SEABORNE_COLOR,
-      value: group.seaborne,
-      format: group.format,
-    },
-    {
-      x: footX,
-      y: BASELINE_Y - footHeight,
-      width: BAR_WIDTH,
-      height: footHeight,
-      fill: FOOT_COLOR,
-      value: group.foot,
-      format: group.format,
-    },
-  ];
+      height,
+      value,
+      label: m.label,
+      format: m.format,
+    };
+  });
+}
+
+interface PatrolTypeMiniChartProps {
+  title: string;
+  color: string;
+  metrics: MetricStat[];
+  typeKey: PatrolTypeKey;
+}
+
+function PatrolTypeMiniChart({
+  title,
+  color,
+  metrics,
+  typeKey,
+}: PatrolTypeMiniChartProps) {
+  const bars = barsForType(metrics, typeKey);
+  const svgWidth = GROUP_WIDTH * metrics.length;
+
+  return (
+    <div
+      data-testid={`patrol-type-mini-chart-${typeKey}`}
+      style={{ flex: "1 1 0", minWidth: 0 }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "4px",
+          marginBottom: "2px",
+        }}
+      >
+        <span
+          style={{
+            display: "inline-block",
+            width: "7px",
+            height: "7px",
+            background: color,
+            borderRadius: "1px",
+          }}
+        />
+        <span style={{ fontSize: "8px", fontWeight: 600, color: "#374151" }}>
+          {title}
+        </span>
+      </div>
+      <svg
+        aria-hidden="true"
+        viewBox={`0 0 ${String(svgWidth)} ${String(SVG_HEIGHT)}`}
+        width="100%"
+        height="80px"
+        preserveAspectRatio="xMidYMid meet"
+      >
+        <line
+          x1={1}
+          x2={svgWidth - 1}
+          y1={BASELINE_Y}
+          y2={BASELINE_Y}
+          stroke="#e5e7eb"
+        />
+        {bars.map((bar) => (
+          <g key={bar.label}>
+            <rect
+              x={bar.x}
+              y={bar.y}
+              width={bar.width}
+              height={Math.max(bar.height, 0)}
+              fill={color}
+              rx={2}
+            />
+            <text
+              x={bar.x + bar.width / 2}
+              y={bar.y - 3}
+              textAnchor="middle"
+              fontSize="7"
+              fill="#111"
+            >
+              {bar.format(bar.value)}
+            </text>
+            <text
+              x={bar.x + bar.width / 2}
+              y={BASELINE_Y + 9}
+              textAnchor="middle"
+              fontSize="7"
+              fill="#6b7280"
+            >
+              {bar.label}
+            </text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
 }
 
 interface AltTableRow {
@@ -131,17 +225,17 @@ interface AltTableRow {
   foot: string;
 }
 
-function altRows(groups: MetricGroup[]): AltTableRow[] {
-  return groups.map((g) => ({
-    metric: g.label,
-    seaborne: g.format(g.seaborne),
-    foot: g.format(g.foot),
+function altRows(metrics: MetricStat[]): AltTableRow[] {
+  return metrics.map((m) => ({
+    metric: m.label,
+    seaborne: m.format(m.seaborne),
+    foot: m.format(m.foot),
   }));
 }
 
 export function PatrolTypeBarChart({ totals }: PatrolTypeBarChartProps) {
-  const groups = buildMetricGroups(totals);
-  const allZero = groups.every((g) => g.seaborne === 0 && g.foot === 0);
+  const metrics = buildMetrics(totals);
+  const allZero = metrics.every((m) => m.seaborne === 0 && m.foot === 0);
 
   if (allZero) {
     return (
@@ -160,8 +254,7 @@ export function PatrolTypeBarChart({ totals }: PatrolTypeBarChartProps) {
     );
   }
 
-  const svgWidth = GROUP_WIDTH * groups.length;
-  const rows = altRows(groups);
+  const rows = altRows(metrics);
 
   return (
     <figure
@@ -195,97 +288,25 @@ export function PatrolTypeBarChart({ totals }: PatrolTypeBarChartProps) {
           fontSize: "9px",
           fontWeight: 600,
           color: "#374151",
-          marginBottom: "2px",
+          marginBottom: "3px",
         }}
       >
         Patrols by Type
       </div>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "10px",
-          marginBottom: "4px",
-        }}
-      >
-        <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
-          <span
-            style={{
-              display: "inline-block",
-              width: "8px",
-              height: "8px",
-              background: SEABORNE_COLOR,
-              borderRadius: "1px",
-            }}
-          />
-          <span style={{ fontSize: "8px", color: "#374151" }}>Seaborne</span>
-        </span>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
-          <span
-            style={{
-              display: "inline-block",
-              width: "8px",
-              height: "8px",
-              background: FOOT_COLOR,
-              borderRadius: "1px",
-            }}
-          />
-          <span style={{ fontSize: "8px", color: "#374151" }}>Foot</span>
-        </span>
+      <div style={{ display: "flex", gap: "8px" }}>
+        <PatrolTypeMiniChart
+          title="Seaborne"
+          color={SEABORNE_COLOR}
+          metrics={metrics}
+          typeKey="seaborne"
+        />
+        <PatrolTypeMiniChart
+          title="Foot"
+          color={FOOT_COLOR}
+          metrics={metrics}
+          typeKey="foot"
+        />
       </div>
-      <svg
-        aria-hidden="true"
-        viewBox={`0 0 ${String(svgWidth)} ${String(SVG_HEIGHT)}`}
-        width="100%"
-        height="110px"
-        preserveAspectRatio="xMidYMid meet"
-      >
-        {groups.map((group, groupIndex) => {
-          const groupX = groupIndex * GROUP_WIDTH;
-          const bars = barsForGroup(group, groupIndex);
-          return (
-            <g key={group.key}>
-              <line
-                x1={groupX + 2}
-                x2={groupX + GROUP_WIDTH - 2}
-                y1={BASELINE_Y}
-                y2={BASELINE_Y}
-                stroke="#e5e7eb"
-              />
-              {bars.map((bar, barIndex) => (
-                <g key={`${group.key}-${String(barIndex)}`}>
-                  <rect
-                    x={bar.x}
-                    y={bar.y}
-                    width={bar.width}
-                    height={Math.max(bar.height, 0)}
-                    fill={bar.fill}
-                    rx={2}
-                  />
-                  <text
-                    x={bar.x + bar.width / 2}
-                    y={bar.y - 3}
-                    textAnchor="middle"
-                    fontSize="8"
-                    fill="#111"
-                  >
-                    {bar.format(bar.value)}
-                  </text>
-                </g>
-              ))}
-              <text
-                x={groupX + GROUP_WIDTH / 2}
-                y={BASELINE_Y + 12}
-                textAnchor="middle"
-                fontSize="8"
-                fill="#6b7280"
-              >
-                {group.label}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
     </figure>
   );
 }

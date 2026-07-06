@@ -4,6 +4,11 @@
 // Patrol List section) — a plain server component (no "use client", no
 // Recharts island), so it renders via renderToStaticMarkup like the other
 // print-render server components (see page-2-heatmaps.test.tsx).
+//
+// The chart renders TWO separate per-type mini charts ("Seaborne" / "Foot"),
+// each with 3 bars (Patrols / Hours (h) / Kilometers (km)) — owner directive
+// 2026-07-06 (see report-map-report.tsx patrol section + components file
+// header for the per-metric shared-max scaling rationale).
 
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -22,7 +27,7 @@ function totals(
 }
 
 describe("PatrolTypeBarChart", () => {
-  it("renders both patrol-type bars and the three metric labels", () => {
+  it("renders both per-type mini charts with all three metric bars", () => {
     const html = renderToStaticMarkup(
       <PatrolTypeBarChart
         totals={totals(
@@ -32,14 +37,32 @@ describe("PatrolTypeBarChart", () => {
       />,
     );
     expect(html).toContain('data-testid="patrol-type-bar-chart"');
+    expect(html).toContain('data-testid="patrol-type-mini-chart-seaborne"');
+    expect(html).toContain('data-testid="patrol-type-mini-chart-foot"');
     expect(html).toContain("Patrols by Type");
     expect(html).toContain("Patrols");
     expect(html).toContain("Hours (h)");
     expect(html).toContain("Kilometers (km)");
     expect(html).toContain("Seaborne");
     expect(html).toContain("Foot");
-    // Two <rect> bars per metric group (3 groups × 2 bars = 6).
+    // Two mini charts × 3 metric bars each = 6 <rect> total.
     expect((html.match(/<rect/g) ?? []).length).toBe(6);
+  });
+
+  it("scales each metric's bars to that metric's own max across both types", () => {
+    // Patrols max = 100 (seaborne), hours max = 2 (foot), km max = 50 (seaborne).
+    const html = renderToStaticMarkup(
+      <PatrolTypeBarChart
+        totals={totals(
+          { count: 100, hours: 1, km: 50 },
+          { count: 10, hours: 2, km: 5 },
+        )}
+      />,
+    );
+    // The foot hours bar (the metric's own max) should reach the full chart
+    // height (50 viewBox units) — i.e. its bar top sits at the baseline minus
+    // the full chart height (y="8", baseline 58 - 50 = 8).
+    expect(html).toContain('y="8"');
   });
 
   it("renders the sr-only alt table with per-metric seaborne/foot values", () => {
