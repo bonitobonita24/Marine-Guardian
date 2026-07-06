@@ -50,6 +50,78 @@ function unwrapGeojson(raw: unknown): GeoJSON.Feature | GeoJSON.Geometry {
 export const MUNICIPAL_WATERS_KM = 15;
 
 /**
+ * On-land containment check (exclusive) — a point inside a municipality's
+ * land polygon belongs to that municipality. Returns the FIRST match (Layer-1
+ * is exclusive, so overlapping boundaries resolve to list order).
+ *
+ * Shared by `assignMunicipalityToPoint` and `assignMunicipalityToPointOrNearest`
+ * so both containment stages can never diverge.
+ */
+function containingMunicipality(
+  tPoint: ReturnType<typeof turfPoint>,
+  municipalities: MunicipalityForAssignment[],
+): string | null {
+  for (const muni of municipalities) {
+    const geojson = unwrapGeojson(muni.boundaryGeojson);
+    if (
+      booleanPointInPolygon(
+        tPoint,
+        geojson as Parameters<typeof booleanPointInPolygon>[1],
+      )
+    ) {
+      return muni.id;
+    }
+  }
+  return null;
+}
+
+/**
+ * Find the municipality whose polygon is NEAREST to a point, with no distance
+ * cap. A point INSIDE a polygon has distance 0 to it (turf's
+ * `pointToPolygonDistance` on a containing polygon), so containment is
+ * naturally "nearest" — but callers that need the containment id explicitly
+ * should still prefer `assignMunicipalityToPoint`/`containingMunicipality`
+ * since this function does a full distance scan even when unnecessary.
+ *
+ * Used to approximate Philippine municipal-waters jurisdiction: an
+ * open-water patrol/event too far offshore for the ~15 km `MUNICIPAL_WATERS_KM`
+ * reach should still be attributed to SOME municipality (the closest coastal
+ * LGU) rather than left unassigned, so coverage totals reconcile with the
+ * raw patrol/event counts.
+ *
+ * @param point - { lat, lon } — WGS-84 decimal degrees
+ * @param municipalities - array loaded from DB (one per tenant)
+ * @returns nearest municipality id, or null only when the list is empty
+ */
+export function nearestMunicipality(
+  point: { lat: number; lon: number },
+  municipalities: MunicipalityForAssignment[],
+): string | null {
+  if (municipalities.length === 0) return null;
+
+  const tPoint = turfPoint([point.lon, point.lat]);
+
+  let nearestId: string | null = null;
+  let nearestKm = Infinity;
+  for (const muni of municipalities) {
+    const geojson = unwrapGeojson(muni.boundaryGeojson);
+    const km = Math.abs(
+      pointToPolygonDistance(
+        tPoint,
+        geojson as Parameters<typeof pointToPolygonDistance>[1],
+        { units: "kilometers" },
+      ),
+    );
+    if (km < nearestKm) {
+      nearestKm = km;
+      nearestId = muni.id;
+    }
+  }
+
+  return nearestId;
+}
+
+/**
  * Assign a geographic point to a municipality.
  *
  * Two-stage attribution:
@@ -76,17 +148,8 @@ export function assignMunicipalityToPoint(
   const tPoint = turfPoint([point.lon, point.lat]);
 
   // 1. On-land containment takes precedence.
-  for (const muni of municipalities) {
-    const geojson = unwrapGeojson(muni.boundaryGeojson);
-    if (
-      booleanPointInPolygon(
-        tPoint,
-        geojson as Parameters<typeof booleanPointInPolygon>[1],
-      )
-    ) {
-      return muni.id;
-    }
-  }
+  const contained = containingMunicipality(tPoint, municipalities);
+  if (contained != null) return contained;
 
   // 2. Municipal waters — nearest coastline within the seaward reach.
   let nearestId: string | null = null;
@@ -107,6 +170,36 @@ export function assignMunicipalityToPoint(
   }
 
   return nearestKm <= maxWaterDistanceKm ? nearestId : null;
+}
+
+/**
+ * Assign a geographic point to a municipality with NO distance cap.
+ *
+ * Two-stage attribution:
+ *   1. On-land containment (exclusive) — same as `assignMunicipalityToPoint`.
+ *   2. Otherwise, the NEAREST municipality regardless of distance (via
+ *      `nearestMunicipality`) — this is the "at-sea patrol/event always gets
+ *      attributed to a municipality" rule, approximating municipal-waters
+ *      jurisdiction beyond the conservative `MUNICIPAL_WATERS_KM` reach used
+ *      by `assignMunicipalityToPoint`.
+ *
+ * Returns null only when there's no municipality to assign to (empty list).
+ *
+ * @param point - { lat, lon } — WGS-84 decimal degrees
+ * @param municipalities - array loaded from DB (one per tenant)
+ * @returns municipality id, or null only when `municipalities` is empty
+ */
+export function assignMunicipalityToPointOrNearest(
+  point: { lat: number; lon: number },
+  municipalities: MunicipalityForAssignment[],
+): string | null {
+  if (municipalities.length === 0) return null;
+
+  const tPoint = turfPoint([point.lon, point.lat]);
+  const contained = containingMunicipality(tPoint, municipalities);
+  if (contained != null) return contained;
+
+  return nearestMunicipality(point, municipalities);
 }
 
 // ── Layer 2 — Protected zones (additive) ─────────────────────────────────────
@@ -210,10 +303,22 @@ function extractTrackCoordinates(trackGeojson: unknown): [number, number][] {
  * the one whose FIRST hit occurs earliest along the track wins (deterministic,
  * stable regardless of object iteration order).
  *
- * Falls back to `fallbackPoint`'s municipality (via `assignMunicipalityToPoint`)
+ * Falls back to the NEAREST municipality (via `nearestMunicipality`, uncapped)
  * when the track has zero parseable points, or when every track point falls
- * outside every municipality's reach (all points return null). If no
- * `fallbackPoint` is given in that case, returns null.
+ * outside every municipality's ~15 km municipal-waters reach (all points
+ * return null from `assignMunicipalityToPoint`) — i.e. an entirely-offshore
+ * track. The representative point used for the nearest lookup is
+ * `fallbackPoint` when given, else the track's first point, so a wholly
+ * open-water patrol still gets attributed to the nearest coastal
+ * municipality instead of `null`. Returns null only when there is no usable
+ * representative point (no `fallbackPoint` AND no parseable track points) or
+ * `municipalities` is empty.
+ *
+ * NOTE: this nearest fallback only fires when literally NO track point is
+ * contained in (or within municipal-waters reach of) any municipality — a
+ * track with even one in-reach point keeps the existing dominant-by-tally
+ * behavior unchanged (e.g. a patrol mostly inside municipality B still
+ * returns B).
  *
  * @param trackGeojson - raw GeoJSON from PatrolTrack.trackGeojson
  * @param municipalities - array loaded from DB (one per tenant)
@@ -240,7 +345,10 @@ export function assignMunicipalityToDominantTrack(
   });
 
   if (tallies.size === 0) {
-    return fallbackPoint ? assignMunicipalityToPoint(fallbackPoint, municipalities) : null;
+    const firstPoint = points[0];
+    const representativePoint =
+      fallbackPoint ?? (firstPoint ? { lat: firstPoint[1], lon: firstPoint[0] } : undefined);
+    return representativePoint ? nearestMunicipality(representativePoint, municipalities) : null;
   }
 
   let dominantId: string | null = null;

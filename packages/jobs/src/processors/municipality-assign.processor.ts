@@ -24,7 +24,7 @@ import { platformPrisma } from "@marine-guardian/db";
 import type { MunicipalityAssignJobPayload } from "../queues/types";
 import { validateTenantContext } from "../workers/base-worker";
 import {
-  assignMunicipalityToPoint,
+  assignMunicipalityToPointOrNearest,
   assignMunicipalityToDominantTrack,
   assignZonesToPoint,
   assignZonesToTrack,
@@ -71,7 +71,7 @@ export async function processMunicipalityAssign(
     }
 
     const point = { lat: event.locationLat, lon: event.locationLon };
-    const municipalityId = assignMunicipalityToPoint(point, municipalities);
+    const municipalityId = assignMunicipalityToPointOrNearest(point, municipalities);
     const zoneIds = assignZonesToPoint(point, zones);
 
     // Update event row (Layer 1)
@@ -116,11 +116,11 @@ export async function processMunicipalityAssign(
     ? { lat: patrol.startLocationLat as number, lon: patrol.startLocationLon as number }
     : undefined;
 
-  // Layer 1 — dominant track location (falls back to the start point when
-  // there's no usable track or the track yields no in-municipality points).
+  // Layer 1 — dominant track location (falls back to the nearest municipality
+  // when there's no usable track or the track yields no in-municipality points).
   const municipalityId = trackGeojson != null
     ? assignMunicipalityToDominantTrack(trackGeojson, municipalities, point)
-    : assignMunicipalityToPoint(point as { lat: number; lon: number }, municipalities);
+    : assignMunicipalityToPointOrNearest(point as { lat: number; lon: number }, municipalities);
 
   // Layer 2 — use track if materialised, fallback to single point
   const zoneIds = trackGeojson != null

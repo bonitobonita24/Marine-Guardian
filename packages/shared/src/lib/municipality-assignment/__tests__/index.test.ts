@@ -9,8 +9,10 @@
 import { describe, it, expect } from "vitest";
 import {
   assignMunicipalityToPoint,
+  assignMunicipalityToPointOrNearest,
   assignMunicipalityToDominantTrack,
   assignZonesToPoint,
+  nearestMunicipality,
 } from "../index.js";
 import type { MunicipalityForAssignment, ProtectedZoneForAssignment } from "../types.js";
 
@@ -316,7 +318,12 @@ describe("assignMunicipalityToDominantTrack", () => {
     expect(result).toBe("muni-calapan");
   });
 
-  it("returns null when every track point is outside all municipalities and no fallbackPoint is given", () => {
+  it("falls back to the NEAREST municipality (via the track's first point) when every track point is outside all municipalities and no fallbackPoint is given", () => {
+    // Deep open ocean, no fallbackPoint — the offshore-attribution rule means
+    // this must NOT be null: it falls back to the nearest municipality using
+    // the track's own first point as the representative point. Calapan's
+    // fixture (lon 121.10-121.30) is closer to (118.0, 14.0) than South's
+    // (lon 121.60-121.80).
     const track = {
       type: "LineString",
       coordinates: [
@@ -325,7 +332,7 @@ describe("assignMunicipalityToDominantTrack", () => {
       ],
     };
     const result = assignMunicipalityToDominantTrack(track, [calapanMuni, southMuni]);
-    expect(result).toBeNull();
+    expect(result).toBe("muni-calapan");
   });
 
   it("supports MultiLineString tracks by flattening all segments", () => {
@@ -354,5 +361,81 @@ describe("assignMunicipalityToDominantTrack", () => {
     };
     const result = assignMunicipalityToDominantTrack(track, [calapanMuni, southMuni]);
     expect(result).toBe("muni-calapan");
+  });
+});
+
+describe("nearestMunicipality", () => {
+  const southMuni: MunicipalityForAssignment = {
+    id: "muni-south",
+    slug: "south",
+    name: "South",
+    boundaryGeojson: {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: { shapeName: "South" },
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [121.1, 12.5],
+                [121.3, 12.5],
+                [121.3, 12.8],
+                [121.1, 12.8],
+                [121.1, 12.5],
+              ],
+            ],
+          },
+        },
+      ],
+    },
+  };
+
+  it("returns the id of the polygon clearly nearest to the point, with NO distance cap", () => {
+    // ~22 km west of Calapan's land edge — well beyond the 15 km municipal-waters
+    // reach used by assignMunicipalityToPoint, but nearestMunicipality has no cap.
+    const result = nearestMunicipality({ lat: 13.4, lon: 120.9 }, [calapanMuni]);
+    expect(result).toBe("muni-calapan");
+  });
+
+  it("returns the containing municipality (distance 0) when the point is inside a polygon", () => {
+    const result = nearestMunicipality({ lat: 13.3818, lon: 121.1948 }, [calapanMuni]);
+    expect(result).toBe("muni-calapan");
+  });
+
+  it("returns the NEAREST of multiple municipalities, not the first listed", () => {
+    // Same fixture/point pairing as the assignMunicipalityToPoint "nearest, not
+    // first listed" test — South is nearer than Calapan even though Calapan is
+    // listed first.
+    const result = nearestMunicipality({ lat: 12.9, lon: 121.2 }, [calapanMuni, southMuni]);
+    expect(result).toBe("muni-south");
+  });
+
+  it("returns null when the municipality list is empty", () => {
+    const result = nearestMunicipality({ lat: 13.3818, lon: 121.1948 }, []);
+    expect(result).toBeNull();
+  });
+});
+
+describe("assignMunicipalityToPointOrNearest", () => {
+  it("returns the containment id when the point is inside a municipality", () => {
+    const result = assignMunicipalityToPointOrNearest(
+      { lat: 13.3818, lon: 121.1948 },
+      [calapanMuni],
+    );
+    expect(result).toBe("muni-calapan");
+  });
+
+  it("returns the nearest municipality id, uncapped, for a point outside every municipality", () => {
+    // ~22 km offshore — beyond assignMunicipalityToPoint's 15 km reach (would be
+    // null there), but assignMunicipalityToPointOrNearest always attributes it.
+    const result = assignMunicipalityToPointOrNearest({ lat: 13.4, lon: 120.9 }, [calapanMuni]);
+    expect(result).toBe("muni-calapan");
+  });
+
+  it("returns null when the municipality list is empty", () => {
+    const result = assignMunicipalityToPointOrNearest({ lat: 13.3818, lon: 121.1948 }, []);
+    expect(result).toBeNull();
   });
 });
