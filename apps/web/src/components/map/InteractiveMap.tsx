@@ -517,9 +517,15 @@ export function InteractiveMap({
     [visibleEvents],
   );
 
-  const trackCoordinates: [number, number][] = (
-    patrolTracksQuery.data?.points ?? []
-  ).map((p) => [p.lon, p.lat]);
+  // Memoized so the reference is stable across re-renders (e.g. zoom updates
+  // the `zoom` state → re-render). Without this, the fit-to-track effect below
+  // (dep: [trackCoordinates]) re-ran on EVERY render and snapped the camera
+  // back to the track extent — making the map feel "zoom-locked" whenever a
+  // patrol was selected (owner bug 2026-07-06).
+  const trackCoordinates = useMemo<[number, number][]>(
+    () => (patrolTracksQuery.data?.points ?? []).map((p) => [p.lon, p.lat]),
+    [patrolTracksQuery.data],
+  );
 
   const mapRef = useRef<MapRef | null>(null);
   // The map instance is also mirrored into state: effects that must bind map
