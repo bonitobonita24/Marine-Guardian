@@ -102,9 +102,11 @@ async function main(): Promise<void> {
     ? Prisma.sql`AND s.tenant_id = ${tenantIdArg}`
     : Prisma.empty;
 
-  // For each subject whose lastPositionAt is null OR older than its latest
-  // real (non 0,0) observation fix, pick that observation's lat/lon/recordedAt
-  // as the candidate. DISTINCT ON picks the most-recent-per-subject row.
+  // For each subject that has NO map position (lastPositionLat/Lon null — the
+  // case that keeps a ranger off the map even when lastPositionAt carries a
+  // stale timestamp) OR whose lastPositionAt is null/older than its latest real
+  // (non 0,0) observation fix, pick that observation's lat/lon/recordedAt as the
+  // candidate. DISTINCT ON picks the most-recent-per-subject row.
   const candidates = await platformPrisma.$queryRaw<CandidatePosition[]>`
     SELECT DISTINCT ON (o.subject_id)
       o.subject_id,
@@ -117,7 +119,8 @@ async function main(): Promise<void> {
       AND  o.location_lat IS NOT NULL
       AND  o.location_lon IS NOT NULL
       AND  NOT (o.location_lat = 0 AND o.location_lon = 0)
-      AND  (s.last_position_at IS NULL OR s.last_position_at < o.recorded_at)
+      AND  (s.last_position_lat IS NULL OR s.last_position_lon IS NULL
+            OR s.last_position_at IS NULL OR s.last_position_at < o.recorded_at)
       ${tenantFilter}
     ORDER BY o.subject_id, o.recorded_at DESC
   `;
