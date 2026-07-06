@@ -10,6 +10,11 @@
  *
  * Compact mode (title provided): smaller margins/fonts, fixed 110 px height.
  * Full mode (no title): fills container with minHeight 180 px.
+ *
+ * The x-axis renders the server-provided adaptive `label` field verbatim
+ * (day/week/month bucket label — see time-series-bucketing.ts) instead of
+ * re-deriving a label from the raw `date` key, mirroring the /map
+ * events-over-time-chart.tsx pattern (2026-07-06).
  */
 
 import {
@@ -29,17 +34,6 @@ interface PrintTimeSeriesChartProps {
   color?: string;
   valueLabel?: string;
   height?: number | string;
-}
-
-/** `MMM d` tick label from a `yyyy-MM-dd` key (no timezone shift). */
-function shortDay(key: string): string {
-  const parts = key.split("-");
-  const y = Number(parts[0]);
-  const m = Number(parts[1]);
-  const d = Number(parts[2]);
-  if (Number.isNaN(y) || Number.isNaN(m) || Number.isNaN(d)) return key;
-  const local = new Date(y, m - 1, d);
-  return local.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 export function PrintTimeSeriesChart({
@@ -109,13 +103,12 @@ export function PrintTimeSeriesChart({
             stroke="#e5e7eb"
           />
           <XAxis
-            dataKey="date"
+            dataKey="label"
             tickLine={false}
             axisLine={false}
             tickMargin={compact ? 4 : 6}
             minTickGap={24}
             tick={{ fontSize: compact ? 8 : 9, fill: "#374151" }}
-            tickFormatter={shortDay}
           />
           <YAxis
             tickLine={false}
@@ -128,7 +121,6 @@ export function PrintTimeSeriesChart({
             cursor={{ stroke: "#e5e7eb" }}
             contentStyle={{ fontSize: compact ? "9px" : "10px" }}
             formatter={(value: number) => [String(value), valueLabel]}
-            labelFormatter={shortDay}
           />
           <Line
             dataKey="count"

@@ -176,6 +176,35 @@ export function buildEventsPatrolsSeries(
   return series;
 }
 
+/** Single-count variant of {@link EventsPatrolsSeriesPoint} — no `patrolCount`
+ *  column. Used where only one dimension is bucketed (report events-over-time
+ *  is events-only; the per-patrol-type charts bucket one type at a time). */
+export interface SingleCountSeriesPoint {
+  date: string;
+  label: string;
+  count: number;
+}
+
+/**
+ * Single-series convenience wrapper around {@link buildEventsPatrolsSeries}:
+ * buckets one set of dates (adaptive month/week/day, continuous, no
+ * truncation — see module doc) and drops the unused `patrolCount` column.
+ * Added for the Report Map PDF builder (2026-07-06) so it shares the exact
+ * same bucketing core as the /map "Events vs Patrols Over Time" chart without
+ * needing a second count dimension.
+ */
+export function buildSingleCountSeries(
+  dates: Date[],
+  from: Date,
+  to: Date,
+): SingleCountSeriesPoint[] {
+  return buildEventsPatrolsSeries(dates, [], from, to).map(({ date, label, count }) => ({
+    date,
+    label,
+    count,
+  }));
+}
+
 /** `"MMM d"` label for a `yyyy-MM-dd` day key (no timezone shift). Used by the
  * no-bounds fallback branch to keep the series shape uniform. */
 export function dayKeyToLabel(key: string): string {

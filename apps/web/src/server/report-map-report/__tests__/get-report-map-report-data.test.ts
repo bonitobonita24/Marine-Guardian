@@ -495,6 +495,134 @@ describe("getReportMapReportData", () => {
     expect(series[1]?.count).toBe(1);
     expect(series[2]?.date).toBe("2026-05-03");
     expect(series[2]?.count).toBe(0);
+    expect(series[1]?.label).toBe("May 2");
+  });
+
+  it("buckets a >183-day range monthly, without the old 400-day truncation, and total reflects the full event count", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValue(TENANT_ROW as never);
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValue({
+      ...EXPORT_ROW,
+      paramsJson: {
+        templateId: TEMPLATE_ID,
+        // ~552 days — the exact class of range the old `guard < 400` loop
+        // silently truncated.
+        from: "2025-01-01T00:00:00.000Z",
+        to: "2026-07-06T00:00:00.000Z",
+      },
+    } as never);
+    vi.mocked(prisma.reportTemplate.findFirst).mockResolvedValue(TEMPLATE_ROW as never);
+    vi.mocked(buildEventBreakdownWithCoords).mockResolvedValue(EMPTY_BREAKDOWN);
+    // 78 events spread across the range (mirrors the owner's Puerto Galera
+    // Jan2025–Jul2026 sample total).
+    const eventRows = Array.from({ length: 78 }, (_, i) => ({
+      id: `e${String(i)}`,
+      title: null,
+      locationLat: null,
+      locationLon: null,
+      // Spread across ~550 days so events land in many different months.
+      reportedAt: new Date(2025, 0, 1 + i * 7),
+    }));
+    vi.mocked(prisma.event.findMany).mockResolvedValue(eventRows as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([] as never);
+    vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
+
+    const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(result).not.toBeNull();
+    if (!result) return;
+
+    const { series, total } = result.charts.eventsOverTime;
+    // The bug: a `guard < 400` daily loop over a 552-day range stopped after
+    // 400 days and undercounted. Monthly bucketing over ~19 months yields far
+    // fewer than 400 points — proving the series is NOT truncated.
+    expect(series.length).toBeLessThan(25);
+    expect(series.length).toBeGreaterThan(15);
+    // Every bucket key is a month key (yyyy-MM), not a day key.
+    for (const point of series) {
+      expect(point.date).toMatch(/^\d{4}-\d{2}$/);
+    }
+    // Total must equal the full in-range event count, independent of bucketing.
+    expect(total).toBe(78);
+    expect(series.reduce((s, p) => s + p.count, 0)).toBe(78);
+  });
+
+  it("buckets a ~60-day range weekly", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValue(TENANT_ROW as never);
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValue({
+      ...EXPORT_ROW,
+      paramsJson: {
+        templateId: TEMPLATE_ID,
+        from: "2026-05-01T00:00:00.000Z",
+        to: "2026-06-30T00:00:00.000Z",
+      },
+    } as never);
+    vi.mocked(prisma.reportTemplate.findFirst).mockResolvedValue(TEMPLATE_ROW as never);
+    vi.mocked(buildEventBreakdownWithCoords).mockResolvedValue(EMPTY_BREAKDOWN);
+    vi.mocked(prisma.event.findMany).mockResolvedValue([
+      { id: "e1", title: null, locationLat: null, locationLon: null, reportedAt: new Date("2026-05-10") },
+      { id: "e2", title: null, locationLat: null, locationLon: null, reportedAt: new Date("2026-06-20") },
+    ] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([] as never);
+    vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
+
+    const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(result).not.toBeNull();
+    if (!result) return;
+    const { series, total } = result.charts.eventsOverTime;
+    for (const point of series) {
+      expect(point.date).toMatch(/^\d{4}-\d{2}-\d{2}$/); // week-start day key
+    }
+    expect(total).toBe(2);
+    expect(series.reduce((s, p) => s + p.count, 0)).toBe(2);
+  });
+
+  // ── Patrol-count-by-type over time series ─────────────────────────────────
+
+  it("buckets patrolCountByTypeOverTime monthly (not truncated) for a >183-day range", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValue(TENANT_ROW as never);
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValue({
+      ...EXPORT_ROW,
+      paramsJson: {
+        templateId: TEMPLATE_ID,
+        from: "2025-01-01T00:00:00.000Z",
+        to: "2026-07-06T00:00:00.000Z",
+      },
+    } as never);
+    vi.mocked(prisma.reportTemplate.findFirst).mockResolvedValue(TEMPLATE_ROW as never);
+    vi.mocked(buildEventBreakdownWithCoords).mockResolvedValue(EMPTY_BREAKDOWN);
+    vi.mocked(prisma.event.findMany).mockResolvedValue([] as never);
+    const patrolRows = Array.from({ length: 40 }, (_, i) => ({
+      id: `p${String(i)}`,
+      title: `P${String(i)}`,
+      serialNumber: `SN${String(i)}`,
+      patrolType: i % 2 === 0 ? "seaborne" : "foot",
+      boatName: null,
+      startTime: new Date(2025, 0, 1 + i * 13),
+      endTime: null,
+      totalDistanceKm: null,
+      computedDistanceKm: null,
+      totalHours: null,
+      computedDurationHours: null,
+      startLocationLat: null,
+      startLocationLon: null,
+      segments: [],
+    }));
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue(patrolRows as never);
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([] as never);
+    vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
+
+    const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(result).not.toBeNull();
+    if (!result) return;
+    const { seaborne, foot } = result.charts.patrolList.patrolCountByTypeOverTime;
+    for (const point of [...seaborne, ...foot]) {
+      expect(point.date).toMatch(/^\d{4}-\d{2}$/); // month key — adaptive, not daily
+    }
+    expect(seaborne.length).toBeLessThan(25);
+    expect(foot.length).toBeLessThan(25);
+    expect(seaborne.reduce((s, p) => s + p.count, 0)).toBe(20);
+    expect(foot.reduce((s, p) => s + p.count, 0)).toBe(20);
   });
 
   // ── municipalityBounds ─────────────────────────────────────────────────────

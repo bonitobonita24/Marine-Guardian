@@ -38,6 +38,10 @@ import {
   photoAssetIdsFrom,
 } from "@/server/trpc/routers/reportMap";
 import { pointsFromTrackGeojson } from "@/server/trpc/routers/map";
+import {
+  buildSingleCountSeries,
+  dayKeyToLabel,
+} from "@/server/trpc/routers/time-series-bucketing";
 import { BLUE_ALLIANCE_DEFAULT_LOGO_DATA_URI } from "@/server/report-map-report/assets/blue-alliance-default-logo";
 import { buildGlobalEventTypeColumns } from "@/server/report-map-report/event-type-grouping";
 
@@ -177,7 +181,11 @@ export interface PatrolListChartData {
 }
 
 export interface ReportMapTimeSeriesPoint {
+  /** Sortable bucket key: `yyyy-MM-dd` (day/week-start) or `yyyy-MM` (month). */
   date: string;
+  /** Adaptive display label per the shared bucketing rules (day/week/month —
+   *  see time-series-bucketing.ts), e.g. "Jun 3" or "Jan 2026". */
+  label: string;
   count: number;
 }
 
@@ -693,26 +701,43 @@ export async function getReportMapReportData(
     totalKm: patrolBreakdown.reduce((s, p) => s + (p.distanceKm ?? 0), 0),
   };
 
-  // Bucket patrols by startTime day and patrolType
-  const seaborneDayCounts: Record<string, number> = {};
-  const footDayCounts: Record<string, number> = {};
+  // Bucket patrols by startTime + patrolType. When both range bounds are
+  // present, reuse the SAME adaptive month/week/day bucketing (continuous,
+  // zero-filled, no truncation) that the /map "Events vs Patrols Over Time"
+  // chart uses, so a long report is never cut short. With no bounds, fall
+  // back to sparse day-keyed points (still labeled).
+  const seaborneDates: Date[] = [];
+  const footDates: Date[] = [];
   for (const p of patrolRows) {
     if (p.startTime === null) continue;
-    const k = dayKey(p.startTime);
     if (p.patrolType === "seaborne") {
-      seaborneDayCounts[k] = (seaborneDayCounts[k] ?? 0) + 1;
+      seaborneDates.push(p.startTime);
     } else {
-      footDayCounts[k] = (footDayCounts[k] ?? 0) + 1;
+      footDates.push(p.startTime);
     }
   }
-  const sortEntries = (counts: Record<string, number>): ReportMapTimeSeriesPoint[] =>
-    Object.entries(counts)
-      .map(([date, count]) => ({ date, count }))
+
+  const sparseSeries = (dates: Date[]): ReportMapTimeSeriesPoint[] => {
+    const counts: Record<string, number> = {};
+    for (const d of dates) {
+      const k = dayKey(d);
+      counts[k] = (counts[k] ?? 0) + 1;
+    }
+    return Object.entries(counts)
+      .map(([date, count]) => ({ date, label: dayKeyToLabel(date), count }))
       .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-  const patrolCountByTypeOverTime = {
-    seaborne: sortEntries(seaborneDayCounts),
-    foot: sortEntries(footDayCounts),
   };
+
+  const patrolCountByTypeOverTime =
+    params.from !== undefined && params.to !== undefined
+      ? {
+          seaborne: buildSingleCountSeries(seaborneDates, params.from, params.to),
+          foot: buildSingleCountSeries(footDates, params.from, params.to),
+        }
+      : {
+          seaborne: sparseSeries(seaborneDates),
+          foot: sparseSeries(footDates),
+        };
 
   const tracks: ReportMapTrackRow[] = [];
   for (const row of trackRows) {
@@ -773,36 +798,26 @@ export async function getReportMapReportData(
     });
   }
 
+  // Adaptive bucketing (month/week/day, continuous, no 400-day cap — see
+  // time-series-bucketing.ts) reusing the SAME core as the /map "Events vs
+  // Patrols Over Time" chart, so a >400-day report is never truncated.
   let series: ReportMapTimeSeriesPoint[];
   if (params.from !== undefined && params.to !== undefined) {
-    // Emit a continuous daily series (zero-fill gaps) so the line chart has no holes
-    series = [];
-    const cursor = new Date(
-      params.from.getFullYear(),
-      params.from.getMonth(),
-      params.from.getDate(),
-    );
-    const end = new Date(
-      params.to.getFullYear(),
-      params.to.getMonth(),
-      params.to.getDate(),
-    );
-    let guard = 0;
-    while (cursor.getTime() <= end.getTime() && guard < 400) {
-      const k = dayKey(cursor);
-      series.push({ date: k, count: dayCounts[k] ?? 0 });
-      cursor.setDate(cursor.getDate() + 1);
-      guard++;
-    }
+    const eventDates = allEventRows
+      .map((e) => e.reportedAt)
+      .filter((d): d is Date => d !== null);
+    series = buildSingleCountSeries(eventDates, params.from, params.to);
   } else {
     series = Object.entries(dayCounts)
-      .map(([date, count]) => ({ date, count }))
+      .map(([date, count]) => ({ date, label: dayKeyToLabel(date), count }))
       .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
   }
 
   const eventsOverTime: EventsOverTimeChartData = {
     key: "events_over_time",
     title: "Events Over Time",
+    // Full count over [from,to] — independent of the (possibly bucketed)
+    // series above, so it can never be truncated by the series' granularity.
     total: allEventRows.length,
     series,
     overviewPoints,
