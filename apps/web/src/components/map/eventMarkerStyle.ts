@@ -90,6 +90,14 @@ export function eventTypeValueKey(
   return `${typeId ?? ""}::${value ?? "(Unspecified)"}`;
 }
 
+/** True when an event's type display marks it as a Skylight automated
+ *  vessel-detection event (category `analyzer_event`, marker only in the
+ *  display). Mirrors the server-side map filter in map.ts and the ingest
+ *  classifier so the client render decision matches what the query returns. */
+export function isSkylightDisplay(display: string | null | undefined): boolean {
+  return display != null && /skylight/i.test(display);
+}
+
 export type EventFilterState = {
   /** L1 — category master toggles. */
   eventLayers: { lawEnforcement: boolean; monitoring: boolean };
@@ -97,10 +105,18 @@ export type EventFilterState = {
   disabledTypeIds: ReadonlySet<string>;
   /** L3 — opt-OUT set of `${typeId}::${value}` keys. */
   disabledTypeValues: ReadonlySet<string>;
+  /** SKY-1 — opt-IN for Skylight events (default off). When true, Skylight
+   *  events (which fall outside the law-enforcement/monitoring categories) are
+   *  rendered; every other surface keeps them excluded. */
+  showSkylight: boolean;
 };
 
 export type FilterableEvent = {
-  eventType?: { id?: string | null; category?: string | null } | null;
+  eventType?: {
+    id?: string | null;
+    category?: string | null;
+    display?: string | null;
+  } | null;
   eventTypeValue?: string | null;
 };
 
@@ -115,6 +131,10 @@ export function isEventVisible(
   // L3 — value opted out.
   if (filter.disabledTypeValues.has(eventTypeValueKey(typeId, event.eventTypeValue)))
     return false;
+  // SKY-1 — Skylight events sit outside the law/monitoring categories, so they
+  // would otherwise fall through to `return false`. Show them only when the
+  // Interactive Report Map's opt-in toggle is on.
+  if (isSkylightDisplay(event.eventType?.display)) return filter.showSkylight;
   // L1 — category master toggle.
   const category = event.eventType?.category;
   if (category === EVENT_CATEGORY.lawEnforcement)

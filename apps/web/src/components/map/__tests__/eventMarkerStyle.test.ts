@@ -93,6 +93,7 @@ describe("isEventVisible (L1 category → L2 type → L3 value)", () => {
     eventLayers: { lawEnforcement: true, monitoring: true },
     disabledTypeIds: new Set<string>(),
     disabledTypeValues: new Set<string>(),
+    showSkylight: false,
   };
   const lawEvent = (
     overrides: Partial<FilterableEvent> = {},
@@ -164,6 +165,48 @@ describe("isEventVisible (L1 category → L2 type → L3 value)", () => {
         { eventType: { id: "t-x", category: "analyzer_event" }, eventTypeValue: "x" },
         ALL_ON,
       ),
+    ).toBe(false);
+  });
+
+  it("SKY-1: hides a Skylight event when showSkylight is off (default)", () => {
+    const skylight: FilterableEvent = {
+      eventType: {
+        id: "t-sky",
+        category: "analyzer_event",
+        display: "Skylight Entry Alert",
+      },
+      eventTypeValue: "entry",
+    };
+    expect(isEventVisible(skylight, ALL_ON)).toBe(false);
+  });
+
+  it("SKY-1: shows a Skylight event when showSkylight is on", () => {
+    const skylight: FilterableEvent = {
+      eventType: {
+        id: "t-sky",
+        category: "analyzer_event",
+        display: "Skylight Fishing Alert",
+      },
+      eventTypeValue: "fishing",
+    };
+    expect(isEventVisible(skylight, { ...ALL_ON, showSkylight: true })).toBe(true);
+  });
+
+  it("SKY-1: showSkylight does not resurrect a type opted out at L2", () => {
+    const skylight: FilterableEvent = {
+      eventType: {
+        id: "t-sky",
+        category: "analyzer_event",
+        display: "Skylight Detection Alert",
+      },
+      eventTypeValue: "detection",
+    };
+    expect(
+      isEventVisible(skylight, {
+        ...ALL_ON,
+        showSkylight: true,
+        disabledTypeIds: new Set(["t-sky"]),
+      }),
     ).toBe(false);
   });
 });

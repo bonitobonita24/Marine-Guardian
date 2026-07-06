@@ -447,8 +447,8 @@ export function InteractiveMap({
   // The shared L1+L2+L3 marker/heatmap predicate state (category layers, the
   // opted-out type ids, and the opted-out `${typeId}::${value}` keys).
   const eventFilter: EventFilterState = useMemo(
-    () => ({ eventLayers, disabledTypeIds, disabledTypeValues }),
-    [eventLayers, disabledTypeIds, disabledTypeValues],
+    () => ({ eventLayers, disabledTypeIds, disabledTypeValues, showSkylight }),
+    [eventLayers, disabledTypeIds, disabledTypeValues, showSkylight],
   );
 
   // Visible markers: category bucket on AND L2 type on AND L3 value on. Events
