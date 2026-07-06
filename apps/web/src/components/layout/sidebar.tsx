@@ -94,16 +94,31 @@ const navGroups: NavGroup[] = [
 // even via a typed URL or bookmark).
 const VIEWER_ALLOWED_HREFS = new Set<string>(["/dashboard", "/map", "/exports"]);
 
+// administrator role (2026-07-06): full access to every menu EXCEPT user
+// management. Unlike viewer's allow-list above, this is a deny-list — the
+// only nav item hidden is "/users" (add/edit/deactivate accounts). Route
+// enforcement (so a typed/bookmarked /users URL is also blocked) lives in
+// middleware.ts.
+const ADMINISTRATOR_HIDDEN_HREFS = new Set<string>(["/users"]);
+
 function getVisibleNavGroups(roles: readonly string[]) {
-  if (!roles.includes("viewer")) {
-    return navGroups;
+  if (roles.includes("viewer")) {
+    return navGroups
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => VIEWER_ALLOWED_HREFS.has(item.href)),
+      }))
+      .filter((group) => group.items.length > 0);
   }
-  return navGroups
-    .map((group) => ({
-      ...group,
-      items: group.items.filter((item) => VIEWER_ALLOWED_HREFS.has(item.href)),
-    }))
-    .filter((group) => group.items.length > 0);
+  if (roles.includes("administrator")) {
+    return navGroups
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => !ADMINISTRATOR_HIDDEN_HREFS.has(item.href)),
+      }))
+      .filter((group) => group.items.length > 0);
+  }
+  return navGroups;
 }
 
 export function Sidebar() {

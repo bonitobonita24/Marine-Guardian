@@ -59,7 +59,7 @@ export function ErSyncCard() {
   const { data: session } = useSession();
   const isAdmin =
     session?.user.roles.some((r: string) =>
-      ["super_admin", "site_admin"].includes(r),
+      ["super_admin", "site_admin", "administrator"].includes(r),
     ) ?? false;
 
   const utils = trpc.useUtils();

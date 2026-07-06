@@ -190,6 +190,20 @@ describe("Sidebar — viewer role nav filtering", () => {
     },
   );
 
+  // administrator role (2026-07-06) — full access to every menu EXCEPT
+  // "users" (add/edit/deactivate accounts). Deny-list, unlike viewer's
+  // allow-list above.
+  it("renders every nav item except 'users' for an administrator session", () => {
+    stubs.sessionRoles = ["administrator"];
+    const { getByText, queryByText } = render(<Sidebar />);
+
+    expect(queryByText("users")).toBeNull();
+    for (const key of ALL_NAV_LABEL_KEYS) {
+      if (key === "users") continue;
+      expect(getByText(key)).toBeTruthy();
+    }
+  });
+
   it("renders the full nav when there is no session yet (unauthenticated render pass)", () => {
     stubs.sessionRoles = [];
     const { getByText } = render(<Sidebar />);

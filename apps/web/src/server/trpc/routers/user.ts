@@ -3,7 +3,7 @@ import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
-import { adminProcedure } from "../middleware/rbac";
+import { userManagementProcedure } from "../middleware/rbac";
 import { prisma, writeAuditLog } from "@marine-guardian/db";
 import type { PrismaClient } from "@marine-guardian/db";
 import { TRPCError } from "@trpc/server";
@@ -16,10 +16,15 @@ const userRoleSchema = z.enum([
   "field_coordinator",
   "operator",
   "viewer",
+  "administrator",
 ]);
 
 export const userRouter = router({
-  create: adminProcedure
+  // create/resetPassword/updateRole/deactivate/activate are gated to
+  // userManagementProcedure (super_admin + site_admin ONLY) — administrator
+  // is deliberately excluded here (2026-07-06): full app access, minus user
+  // management. Do NOT switch these back to adminProcedure.
+  create: userManagementProcedure
     .input(
       z.object({
         email: z.string().email().max(255),
@@ -65,7 +70,7 @@ export const userRouter = router({
       return { user, tempPassword };
     }),
 
-  resetPassword: adminProcedure
+  resetPassword: userManagementProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const tempPassword = crypto.randomBytes(16).toString("hex");
@@ -154,7 +159,7 @@ export const userRouter = router({
       });
     }),
 
-  updateRole: adminProcedure
+  updateRole: userManagementProcedure
     .input(
       z.object({
         id: z.string(),
@@ -164,6 +169,7 @@ export const userRouter = router({
           "field_coordinator",
           "operator",
           "viewer",
+          "administrator",
         ]),
       })
     )
@@ -197,7 +203,7 @@ export const userRouter = router({
       return { id: input.id };
     }),
 
-  deactivate: adminProcedure
+  deactivate: userManagementProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const existing = await prisma.user.findFirst({
@@ -229,7 +235,7 @@ export const userRouter = router({
       return { id: input.id };
     }),
 
-  activate: adminProcedure
+  activate: userManagementProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const existing = await prisma.user.findFirst({

@@ -6,7 +6,8 @@ type UserRole =
   | "site_admin"
   | "field_coordinator"
   | "operator"
-  | "viewer";
+  | "viewer"
+  | "administrator";
 
 const ROLE_LABELS: Record<UserRole, string> = {
   super_admin: "Super Admin",
@@ -14,6 +15,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   field_coordinator: "Field Coordinator",
   operator: "Operator",
   viewer: "Viewer",
+  administrator: "Administrator",
 };
 
 // Color mapping — reconciled against mockup (mpa-command-center-v4.jsx UserMgmt)
@@ -36,6 +38,11 @@ const ROLE_CLASS: Record<UserRole, string> = {
   // the other four roles (read-only marker, not a tier of the same ladder).
   viewer:
     "border-transparent bg-slate-500/15 text-slate-400 hover:bg-slate-500/20",
+  // administrator (2026-07-06) — full-access role distinct from site_admin's
+  // purple tier marker; teal reads as "high access, not a user-management
+  // tier" (it is deliberately excluded from user management).
+  administrator:
+    "border-transparent bg-teal-500/15 text-teal-400 hover:bg-teal-500/20",
 };
 
 interface RoleBadgeProps {

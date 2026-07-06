@@ -30,7 +30,9 @@ export function RebuildAreaBoundariesButton() {
 
   const roles = session?.user.roles ?? [];
   const canRebuild =
-    roles.includes("super_admin") || roles.includes("site_admin");
+    roles.includes("super_admin") ||
+    roles.includes("site_admin") ||
+    roles.includes("administrator");
 
   const rebuild = trpc.areaBoundary.rebuild.useMutation({
     onSuccess: (data) => {

@@ -221,7 +221,9 @@ function DashboardContent() {
 
   // Determine if the current user can acknowledge alerts (admin roles only).
   const userRoles: string[] = (session?.user as { roles?: string[] } | undefined)?.roles ?? [];
-  const canAck = userRoles.some((r) => r === "super_admin" || r === "site_admin");
+  const canAck = userRoles.some(
+    (r) => r === "super_admin" || r === "site_admin" || r === "administrator",
+  );
 
   // Ticking clock drives relative-time freshness ("Xm ago") without refetching.
   const [now, setNow] = useState<Date | null>(null);

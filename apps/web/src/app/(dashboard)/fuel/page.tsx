@@ -30,7 +30,9 @@ export default function FuelPage() {
   const roles = session?.user.roles ?? [];
 
   const isAdmin =
-    roles.includes("super_admin") || roles.includes("site_admin");
+    roles.includes("super_admin") ||
+    roles.includes("site_admin") ||
+    roles.includes("administrator");
   const isCoordinator = isAdmin || roles.includes("field_coordinator");
   const isOperator = isCoordinator || roles.includes("field_operator");
 

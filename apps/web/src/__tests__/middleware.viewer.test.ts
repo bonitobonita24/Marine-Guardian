@@ -102,3 +102,47 @@ describe("middleware — viewer role route gate", () => {
     expect(res.status).toBe(200);
   });
 });
+
+// administrator role (2026-07-06) route-gate tests. Full access to every
+// tenant page EXCEPT /users (user management) — a deny-list, unlike
+// viewer's allow-list above.
+describe("middleware — administrator role route gate", () => {
+  beforeEach(() => {
+    mockAuth.mockReset();
+  });
+
+  it("redirects an administrator requesting /users to /dashboard", async () => {
+    mockAuth.mockResolvedValue(makeSession(["administrator"]));
+    const res = await middleware(makeRequest("/users"));
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe("https://app.example.com/dashboard");
+  });
+
+  it("redirects an administrator requesting a nested /users sub-path to /dashboard", async () => {
+    mockAuth.mockResolvedValue(makeSession(["administrator"]));
+    const res = await middleware(makeRequest("/users/some-id"));
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe("https://app.example.com/dashboard");
+  });
+
+  it("allows an administrator requesting every other tenant page (e.g. /events, /settings, /alerts)", async () => {
+    mockAuth.mockResolvedValue(makeSession(["administrator"]));
+    for (const path of ["/dashboard", "/map", "/events", "/settings", "/alerts", "/patrols"]) {
+      const res = await middleware(makeRequest(path));
+      expect(res.status).toBe(200);
+    }
+  });
+
+  it("does NOT redirect an administrator requesting an /api route", async () => {
+    mockAuth.mockResolvedValue(makeSession(["administrator"]));
+    const res = await middleware(makeRequest("/api/stream/notifications"));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("does NOT redirect a non-administrator (site_admin) requesting /users", async () => {
+    mockAuth.mockResolvedValue(makeSession(["site_admin"]));
+    const res = await middleware(makeRequest("/users"));
+    expect(res.status).toBe(200);
+  });
+});

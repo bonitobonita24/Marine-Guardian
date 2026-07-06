@@ -14,6 +14,7 @@ const userRoleSchema = z.enum([
   "field_coordinator",
   "operator",
   "viewer",
+  "administrator",
 ]);
 
 const languageSchema = z.enum(["en", "id", "ms"]);

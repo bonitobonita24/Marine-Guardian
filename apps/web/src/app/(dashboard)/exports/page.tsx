@@ -46,7 +46,10 @@ export default function ExportsPage() {
     roles.includes("super_admin") ||
     roles.includes("site_admin") ||
     roles.includes("field_coordinator") ||
-    roles.includes("viewer");
+    roles.includes("viewer") ||
+    // administrator (2026-07-06): full app access except user management;
+    // coordinatorProcedure/reportGenerateProcedure both include it server-side.
+    roles.includes("administrator");
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [cursor, setCursor] = useState<string | undefined>(undefined);

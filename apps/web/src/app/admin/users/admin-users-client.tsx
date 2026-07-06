@@ -27,7 +27,13 @@ type UserRow = {
   id: string;
   email: string;
   fullName: string;
-  role: "super_admin" | "site_admin" | "field_coordinator" | "operator" | "viewer";
+  role:
+    | "super_admin"
+    | "site_admin"
+    | "field_coordinator"
+    | "operator"
+    | "viewer"
+    | "administrator";
   languagePreference: string;
   isActive: boolean;
   lastLoginAt: Date | null;
@@ -50,6 +56,8 @@ function roleBadgeVariant(role: UserRow["role"]): BadgeVariant {
       return "outline";
     case "viewer":
       return "secondary";
+    case "administrator":
+      return "default";
   }
 }
 

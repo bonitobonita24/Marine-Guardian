@@ -91,7 +91,8 @@ export function GenerateReportButton() {
   const canGenerate =
     roles.includes("super_admin") ||
     roles.includes("site_admin") ||
-    roles.includes("field_coordinator");
+    roles.includes("field_coordinator") ||
+    roles.includes("administrator");
 
   // 6.2d — area-list fetch is gated on dialog open to avoid burning a trpc
   // call on every Patrols page load. List is filtered to enabled areas

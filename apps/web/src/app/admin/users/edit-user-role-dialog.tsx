@@ -25,7 +25,8 @@ type UserRole =
   | "site_admin"
   | "field_coordinator"
   | "operator"
-  | "viewer";
+  | "viewer"
+  | "administrator";
 
 interface EditUserRoleDialogProps {
   user: {
@@ -114,6 +115,7 @@ export function EditUserRoleDialog({
                 <SelectContent>
                   <SelectItem value="super_admin">Super Admin</SelectItem>
                   <SelectItem value="site_admin">Site Admin</SelectItem>
+                  <SelectItem value="administrator">Administrator</SelectItem>
                   <SelectItem value="field_coordinator">Field Coordinator</SelectItem>
                   <SelectItem value="operator">Operator</SelectItem>
                   <SelectItem value="viewer">Viewer</SelectItem>

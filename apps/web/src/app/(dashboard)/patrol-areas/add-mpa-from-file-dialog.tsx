@@ -64,7 +64,10 @@ export function AddMpaFromFileDialog() {
   const [feedback, setFeedback] = useState<Feedback>(null);
 
   const roles = session?.user.roles ?? [];
-  const canCreate = roles.includes("super_admin") || roles.includes("site_admin");
+  const canCreate =
+    roles.includes("super_admin") ||
+    roles.includes("site_admin") ||
+    roles.includes("administrator");
 
   const municipalitiesQuery = trpc.municipality.list.useQuery(undefined, {
     enabled: open && canCreate,

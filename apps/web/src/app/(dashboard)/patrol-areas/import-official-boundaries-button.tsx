@@ -31,7 +31,9 @@ export function ImportOfficialBoundariesButton() {
 
   const roles = session?.user.roles ?? [];
   const canImport =
-    roles.includes("super_admin") || roles.includes("site_admin");
+    roles.includes("super_admin") ||
+    roles.includes("site_admin") ||
+    roles.includes("administrator");
 
   const importOfficial = trpc.areaBoundary.importOfficial.useMutation({
     onSuccess: (data) => {

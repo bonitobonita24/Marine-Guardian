@@ -27,7 +27,8 @@ type UserRole =
   | "site_admin"
   | "field_coordinator"
   | "operator"
-  | "viewer";
+  | "viewer"
+  | "administrator";
 
 export function CreateUserDialog() {
   const [open, setOpen] = useState(false);
@@ -144,6 +145,7 @@ export function CreateUserDialog() {
                 <SelectContent>
                   <SelectItem value="super_admin">Super Admin</SelectItem>
                   <SelectItem value="site_admin">Site Admin</SelectItem>
+                  <SelectItem value="administrator">Administrator</SelectItem>
                   <SelectItem value="field_coordinator">Field Coordinator</SelectItem>
                   <SelectItem value="operator">Operator</SelectItem>
                   <SelectItem value="viewer">Viewer</SelectItem>

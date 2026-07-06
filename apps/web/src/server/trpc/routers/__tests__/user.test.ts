@@ -145,6 +145,42 @@ describe("user.create", () => {
       })
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
+
+  // administrator role (2026-07-06) — full app access EXCEPT user
+  // management. user.create/resetPassword/updateRole/deactivate/activate
+  // are gated to userManagementProcedure (super_admin + site_admin ONLY),
+  // which administrator is deliberately never added to.
+  it("rejects an administrator session with FORBIDDEN", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    await expect(
+      caller.create({
+        email: "new@example.com",
+        fullName: "New User",
+        role: "operator",
+      })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("still allows a site_admin session to create a user (regression)", async () => {
+    vi.mocked(prisma.user.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.user.create).mockResolvedValue({
+      id: "user-new-2",
+      email: "new2@example.com",
+      fullName: "New User Two",
+      role: "operator",
+      isActive: true,
+      createdAt: new Date("2026-07-06T00:00:00Z"),
+    } as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    await expect(
+      caller.create({
+        email: "new2@example.com",
+        fullName: "New User Two",
+        role: "operator",
+      })
+    ).resolves.toMatchObject({ user: partial({ email: "new2@example.com" }) });
+  });
 });
 
 describe("user.resetPassword", () => {
@@ -225,6 +261,16 @@ describe("user.updateRole", () => {
         changesJson: { before: { role: "operator" }, after: { role: "field_coordinator" } },
       })
     );
+  });
+
+  // administrator (2026-07-06) — excluded from userManagementProcedure, so
+  // it can never change another user's role.
+  it("rejects an administrator session with FORBIDDEN", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    await expect(
+      caller.updateRole({ id: TARGET_ID, role: "field_coordinator" })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(vi.mocked(prisma.user.update)).not.toHaveBeenCalled();
   });
 });
 

@@ -30,6 +30,15 @@ enum UserRole {
   // rbac.ts, so it is rejected by every tRPC mutation gated by those. Nav +
   // route-level gating live in sidebar.tsx + middleware.ts.
   viewer
+  // Full-access role (2026-07-06): everything super_admin/site_admin can do
+  // app-wide — included in adminProcedure/coordinatorProcedure/
+  // operatorProcedure/reportGenerateProcedure in rbac.ts — EXCEPT
+  // adding/managing user accounts (user.create/resetPassword/updateRole/
+  // deactivate/activate), which stay gated to the separate
+  // userManagementProcedure (super_admin + site_admin ONLY; administrator is
+  // deliberately never added to it). Nav + route-level gating for /users
+  // live in sidebar.tsx + middleware.ts.
+  administrator
 }
 
 enum Language {
@@ -250,12 +259,12 @@ model Tenant {
   retentionPolicies         RetentionPolicy[]
 
   // municipality-coverage
-  municipalities      Municipality[]
-  protectedZones      ProtectedZone[]
-  patrolCoveredZones  PatrolCoveredZone[]
-  eventCoveredZones   EventCoveredZone[]
+  municipalities     Municipality[]
+  protectedZones     ProtectedZone[]
+  patrolCoveredZones PatrolCoveredZone[]
+  eventCoveredZones  EventCoveredZone[]
 
-  reportTemplates     ReportTemplate[]
+  reportTemplates ReportTemplate[]
 
   @@map("tenants")
 }
@@ -286,25 +295,25 @@ model TenantErConnection {
 }
 
 model User {
-  id                 String    @id @default(cuid())
-  tenantId           String?   @map("tenant_id")
-  email              String    @unique
-  passwordHash       String    @map("password_hash")
-  fullName           String    @map("full_name")
-  role               UserRole
-  languagePreference Language  @default(en) @map("language_preference")
+  id                          String    @id @default(cuid())
+  tenantId                    String?   @map("tenant_id")
+  email                       String    @unique
+  passwordHash                String    @map("password_hash")
+  fullName                    String    @map("full_name")
+  role                        UserRole
+  languagePreference          Language  @default(en) @map("language_preference")
   // Command Center map municipality preference (2026-07-04) — persists the
   // operator's last-selected CC map municipality filter so it restores across
   // refresh and re-login on any device. Nullable = "All municipalities" (no
   // filter). Soft reference to Municipality.id (no FK: keeps the migration
   // additive/minimal, mirrors other soft-reference id columns in this schema;
   // an invalid/stale id is treated as null by the client, never enforced here).
-  commandCenterMunicipalityId String? @map("command_center_municipality_id")
-  isActive           Boolean   @default(true) @map("is_active")
-  securityVersion    Int       @default(1) @map("security_version")
-  lastLoginAt        DateTime? @map("last_login_at")
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt @map("updated_at")
+  commandCenterMunicipalityId String?   @map("command_center_municipality_id")
+  isActive                    Boolean   @default(true) @map("is_active")
+  securityVersion             Int       @default(1) @map("security_version")
+  lastLoginAt                 DateTime? @map("last_login_at")
+  createdAt                   DateTime  @default(now()) @map("created_at")
+  updatedAt                   DateTime  @updatedAt @map("updated_at")
 
   tenant                   Tenant?                 @relation(fields: [tenantId], references: [id])
   notificationRecipients   NotificationRecipient[]
@@ -383,8 +392,8 @@ model Event {
   erOriginalSnapshot      Json?      @map("er_original_snapshot")
 
   // municipality-coverage — assigned asynchronously after sync
-  municipalityId         String?    @map("municipality_id")
-  municipalityAssignedAt DateTime?  @map("municipality_assigned_at")
+  municipalityId         String?   @map("municipality_id")
+  municipalityAssignedAt DateTime? @map("municipality_assigned_at")
 
   // event-patrol-link — derived from patrol.patrol_segments[].events[].id on
   // every patrol sync (see syncPatrols in er-sync.processor.ts). Nullable:
@@ -393,9 +402,9 @@ model Event {
   // an event-side back-reference from ER.
   patrolId String? @map("patrol_id")
 
-  syncedAt                DateTime   @map("synced_at")
-  createdAt               DateTime   @default(now()) @map("created_at")
-  updatedAt               DateTime   @updatedAt @map("updated_at")
+  syncedAt  DateTime @map("synced_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   tenant                Tenant               @relation(fields: [tenantId], references: [id])
   eventType             EventType?           @relation(fields: [eventTypeId], references: [id])
@@ -1085,7 +1094,7 @@ model RetentionPolicy {
 model Municipality {
   id              String   @id @default(cuid())
   tenantId        String   @map("tenant_id")
-  slug            String   // e.g. "calapan-city"
+  slug            String // e.g. "calapan-city"
   name            String
   province        String
   psgcCode        String?  @map("psgc_code")
@@ -1113,7 +1122,7 @@ model Municipality {
 model ProtectedZone {
   id                   String   @id @default(cuid())
   tenantId             String   @map("tenant_id")
-  slug                 String   // e.g. "apo-reef-natural-park"
+  slug                 String // e.g. "apo-reef-natural-park"
   name                 String
   // Sub-area category for user-uploaded zones: "mpa" (Marine Protected Area) or
   // "special_area" (a named sub-boundary under a municipality). Seeded MPAs and
@@ -1125,8 +1134,8 @@ model ProtectedZone {
   createdAt            DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")
 
-  tenant             Tenant        @relation(fields: [tenantId], references: [id])
-  parentMunicipality Municipality? @relation(fields: [parentMunicipalityId], references: [id])
+  tenant             Tenant              @relation(fields: [tenantId], references: [id])
+  parentMunicipality Municipality?       @relation(fields: [parentMunicipalityId], references: [id])
   patrolZones        PatrolCoveredZone[]
   eventZones         EventCoveredZone[]
 

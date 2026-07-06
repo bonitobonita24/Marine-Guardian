@@ -197,6 +197,30 @@ describe("alertRule.create — canonical condition schema", () => {
       })
     ).rejects.toThrow(TRPCError);
   });
+
+  // administrator (2026-07-06) — full app access EXCEPT user management.
+  // adminProcedure includes administrator, so app-admin mutations like
+  // alertRule.create must succeed for it (unlike user.create, which is
+  // gated to userManagementProcedure and rejects administrator).
+  it("allows an administrator session (full access except user management)", async () => {
+    const created = {
+      id: "ar-admin",
+      name: "Admin Rule",
+      tenantId: TENANT_ID,
+      createdBy: USER_ID,
+      conditionJson: {},
+    };
+    vi.mocked(prisma.alertRule.create).mockResolvedValue(created as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    const result = await caller.create({
+      name: "Admin Rule",
+      conditionJson: {},
+      notificationChannels: ["in_app"],
+    });
+
+    expect(result.id).toBe("ar-admin");
+  });
 });
 
 describe("alertRule.update", () => {

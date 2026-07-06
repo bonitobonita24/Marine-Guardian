@@ -44,6 +44,20 @@ function isViewerAllowedPath(pathname: string): boolean {
   );
 }
 
+// administrator role (2026-07-06) — full access to every tenant page EXCEPT
+// user management (/users — add/edit/deactivate accounts, role changes).
+// Unlike viewer's allow-list above, this is a deny-list: everything is
+// permitted except the prefixes below. sidebar.tsx already hides the /users
+// nav item for administrator; this is the route-level enforcement so an
+// administrator can never reach it via a typed URL, bookmark, or deep link.
+const ADMINISTRATOR_BLOCKED_PREFIXES = ["/users"];
+
+function isAdministratorBlockedPath(pathname: string): boolean {
+  return ADMINISTRATOR_BLOCKED_PREFIXES.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  );
+}
+
 export default async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -129,6 +143,20 @@ export default async function middleware(request: NextRequest) {
     !isAdminPath &&
     !pathname.startsWith("/api/") &&
     !isViewerAllowedPath(pathname)
+  ) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+
+  // administrator route gate — full access except /users (user management).
+  // API routes are exempt for the same reason as the viewer gate above:
+  // authorization there is enforced at the tRPC layer (userManagementProcedure
+  // already rejects administrator on every user-management mutation).
+  const isAdministrator = session.user.roles.includes("administrator");
+  if (
+    isAdministrator &&
+    !isAdminPath &&
+    !pathname.startsWith("/api/") &&
+    isAdministratorBlockedPath(pathname)
   ) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
