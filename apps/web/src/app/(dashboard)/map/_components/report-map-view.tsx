@@ -213,7 +213,7 @@ function ReportMapInner() {
           the whole column scrolls cleanly if the window is small). */}
       <div
         ref={mapWrapRef}
-        className="cc-gridbg relative min-h-[22rem] flex-1 overflow-hidden rounded-xl border border-[hsl(var(--panel-border))]"
+        className="cc-gridbg relative min-h-[18rem] flex-1 overflow-hidden rounded-xl border border-[hsl(var(--panel-border))]"
       >
         <InteractiveMap
           className="relative z-10 h-full w-full"
@@ -257,7 +257,7 @@ function ReportMapInner() {
           />
         </div>
       ) : (
-        <div className="grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4 xl:min-h-[11rem] xl:[&>*]:h-full">
           <BreakdownBars
             title="Law Enforcement and Apprehensions"
             titleIcon={ShieldAlert}
