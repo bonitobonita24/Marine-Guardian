@@ -96,6 +96,7 @@ export function PatrolListByRangeCard({
   isLoading,
   selectedPatrolId,
   onSelect,
+  totalCount,
 }: {
   patrols: RangePatrol[];
   isLoading: boolean;
@@ -103,7 +104,18 @@ export function PatrolListByRangeCard({
   /** Select a patrol → map isolates + flies to its track; the floating
    *  selected-patrol panel (upper-right of the map) shows its detail. */
   onSelect: (patrol: RangePatrol) => void;
+  /**
+   * Uncapped total patrol count for the active filter (reportMap.summary,
+   * `patrolWhere`-identical to the list query) — `patrolsInRange` is capped
+   * at 300 rows server-side, so the badge would otherwise max out at 300
+   * even when more patrols actually match. Undefined while the summary
+   * query is loading — falls back to `patrols.length` so the badge never
+   * flickers to a wrong number.
+   */
+  totalCount?: number | undefined;
 }) {
+  const trueTotal = totalCount ?? patrols.length;
+  const isTruncated = totalCount !== undefined && totalCount > patrols.length;
   return (
     <Card className="flex h-full min-w-0 flex-1 flex-col gap-2 border-border py-2">
       <CardHeader className="flex flex-row items-stretch justify-between gap-2 border-b px-3 py-1.5">
@@ -115,7 +127,7 @@ export function PatrolListByRangeCard({
         </div>
         <div className="w-px shrink-0 self-stretch bg-border" aria-hidden="true" />
         <span className="shrink-0 self-center text-sm font-bold tabular-nums">
-          {patrols.length.toLocaleString()}
+          {trueTotal.toLocaleString()}
         </span>
       </CardHeader>
 
@@ -127,39 +139,47 @@ export function PatrolListByRangeCard({
             No patrols in this range.
           </p>
         ) : (
-          <ul className="absolute inset-0 overflow-y-auto">
-            {patrols.map((p) => {
-              const isSel = p.id === selectedPatrolId;
-              const who = p.leaderName ?? p.boatName ?? "Unnamed patrol";
-              return (
-                <li
-                  key={p.id}
-                  className={`border-b border-border/40 ${isSel ? "bg-primary/10" : "hover:bg-muted/30"}`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onSelect(p);
-                    }}
-                    className="flex w-full min-w-0 items-center gap-1.5 px-2 py-1 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          <div className="absolute inset-0 flex flex-col">
+            {isTruncated ? (
+              <p className="shrink-0 px-3 pb-1 pt-1.5 text-[9px] text-muted-foreground">
+                Showing {patrols.length.toLocaleString()} of{" "}
+                {totalCount.toLocaleString()}
+              </p>
+            ) : null}
+            <ul className="min-h-0 flex-1 overflow-y-auto">
+              {patrols.map((p) => {
+                const isSel = p.id === selectedPatrolId;
+                const who = p.leaderName ?? p.boatName ?? "Unnamed patrol";
+                return (
+                  <li
+                    key={p.id}
+                    className={`border-b border-border/40 ${isSel ? "bg-primary/10" : "hover:bg-muted/30"}`}
                   >
-                    <PatrolTypeIcon
-                      type={p.patrolType}
-                      className="size-4 shrink-0 text-foreground/60"
-                    />
-                    <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground">
-                      {who}
-                    </span>
-                    <span className="shrink-0 text-[9px] tabular-nums text-muted-foreground">
-                      {formatPatrolDateTime(p.startTime)}
-                      {" → "}
-                      {formatPatrolDateTime(p.endTime)}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSelect(p);
+                      }}
+                      className="flex w-full min-w-0 items-center gap-1.5 px-2 py-1 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      <PatrolTypeIcon
+                        type={p.patrolType}
+                        className="size-4 shrink-0 text-foreground/60"
+                      />
+                      <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground">
+                        {who}
+                      </span>
+                      <span className="shrink-0 text-[9px] tabular-nums text-muted-foreground">
+                        {formatPatrolDateTime(p.startTime)}
+                        {" → "}
+                        {formatPatrolDateTime(p.endTime)}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         )}
       </CardContent>
     </Card>

@@ -35,9 +35,21 @@ import { GeneratePrintableButton } from "./generate-printable-button";
  * 2026-06-28 with the High Priority Events list per owner request.)
  */
 
-function rangeLabel(from: Date, to: Date): string {
+/**
+ * "MMM d – MMM d" for a same-year range (clean, no redundant year). When the
+ * range crosses a calendar year boundary, the bare month/day reads ambiguously
+ * (e.g. "Jan 1 – Jul 6" over 2025→2026), so both ends get the year appended:
+ * "MMM d, yyyy – MMM d, yyyy".
+ */
+export function rangeLabel(from: Date, to: Date): string {
+  const crossesYear = from.getFullYear() !== to.getFullYear();
   const fmt = (d: Date) =>
-    d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    d.toLocaleDateString(
+      undefined,
+      crossesYear
+        ? { month: "short", day: "numeric", year: "numeric" }
+        : { month: "short", day: "numeric" },
+    );
   return `${fmt(from)} – ${fmt(to)}`;
 }
 
@@ -89,6 +101,10 @@ function ReportMapInner() {
   const eventsOverTime = trpc.reportMap.eventsOverTime.useQuery(filter);
   const highPriority = trpc.reportMap.highPriorityEvents.useQuery(filter);
   const patrolsInRange = trpc.reportMap.patrolsInRange.useQuery(filter);
+  // Uncapped patrol total (patrolsInRange is capped at 300 rows server-side)
+  // — powers the "Patrols" card badge + the "Showing N of M" note so the
+  // header never lies about how many patrols actually matched the filter.
+  const summary = trpc.reportMap.summary.useQuery(filter);
   // Municipality Coverage chart — same report filter, mapped to the
   // {dateFrom,dateTo} shape this router expects. Scoped to the selected
   // municipality when one is picked (province-wide otherwise), matching every
@@ -271,6 +287,7 @@ function ReportMapInner() {
             isLoading={patrolsInRange.isLoading}
             selectedPatrolId={selectedPatrolId}
             onSelect={selectPatrol}
+            totalCount={summary.data?.totalPatrols}
           />
         </div>
       )}
