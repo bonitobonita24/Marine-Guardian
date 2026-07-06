@@ -61,12 +61,20 @@ export function PatrolTracksMap({
     (map: LeafletMap) => {
       if (municipalityBounds) {
         const { south, west, north, east } = municipalityBounds;
+        // animate:false (R11 fix) — see event-points-map.tsx's applyFraming
+        // for the full explanation: without it, Leaflet's fitBounds recenter
+        // runs as an ASYNC ~250ms CSS-transition pan whenever the offset
+        // fits the viewport, and MapRenderGate's render-ready gate never
+        // waits for it — so Puppeteer's page.pdf() can capture the map still
+        // at its pre-fit (MapContainer default) view. Forcing animate:false
+        // applies the recenter synchronously, matching MapRenderGate's own
+        // invalidateSize({animate:false}) call immediately before this.
         map.fitBounds(
           [
             [south, west],
             [north, east],
           ],
-          { padding: [8, 8], maxZoom: 15 },
+          { padding: [8, 8], maxZoom: 15, animate: false },
         );
         return;
       }
@@ -77,7 +85,7 @@ export function PatrolTracksMap({
         }
       }
       if (points.length < 2) return;
-      map.fitBounds(points, { padding: [16, 16] });
+      map.fitBounds(points, { padding: [16, 16], animate: false });
     },
     [renderableTracks, municipalityBounds],
   );

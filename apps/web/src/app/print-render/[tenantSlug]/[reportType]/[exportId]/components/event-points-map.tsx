@@ -49,18 +49,33 @@ export function EventPointsMap({
     (map: LeafletMap) => {
       if (municipalityBounds) {
         const { south, west, north, east } = municipalityBounds;
+        // animate:false (R11 fix): Leaflet's default fitBounds recenter uses
+        // an ANIMATED (CSS-transition, ~250ms) pan whenever the pan offset
+        // fits within the viewport — MapRenderGate's render-ready gate only
+        // waits for the TileLayer's "load" event, never for this pan
+        // animation's completion, so Puppeteer's page.pdf() can capture the
+        // page mid-transition (or before the transition has progressed at
+        // all), showing the map at its PRE-fit (MapContainer default)
+        // center/zoom even though fitBounds was called correctly. Forcing
+        // animate:false makes Leaflet apply the recentered view SYNCHRONOUSLY
+        // (same code path as MapRenderGate's own invalidateSize({animate:
+        // false}) call just before this), so there's no async transition for
+        // the render-ready gate to race against. Confirmed via a real
+        // Leaflet+jsdom repro: without animate:false, map.getCenter() stayed
+        // at the MapContainer default after fitBounds; with it, getCenter()
+        // immediately reflected the municipality bounds' centroid.
         map.fitBounds(
           [
             [south, west],
             [north, east],
           ],
-          { padding: [8, 8], maxZoom: 15 },
+          { padding: [8, 8], maxZoom: 15, animate: false },
         );
         return;
       }
       if (points.length < 2) return;
       const latLngs = points.map((p) => [p.lat, p.lon] as [number, number]);
-      map.fitBounds(latLngs, { padding: [16, 16] });
+      map.fitBounds(latLngs, { padding: [16, 16], animate: false });
     },
     [points, municipalityBounds],
   );
