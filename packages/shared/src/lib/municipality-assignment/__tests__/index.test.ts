@@ -12,6 +12,7 @@ import {
   assignMunicipalityToPointOrNearest,
   assignMunicipalityToDominantTrack,
   assignZonesToPoint,
+  isPointInAnyGeometry,
   nearestMunicipality,
 } from "../index.js";
 import type { MunicipalityForAssignment, ProtectedZoneForAssignment } from "../types.js";
@@ -437,5 +438,70 @@ describe("assignMunicipalityToPointOrNearest", () => {
   it("returns null when the municipality list is empty", () => {
     const result = assignMunicipalityToPointOrNearest({ lat: 13.3818, lon: 121.1948 }, []);
     expect(result).toBeNull();
+  });
+});
+
+// ── isPointInAnyGeometry (report-map cross-municipality-leak fix, 2026-07-06) ─
+
+describe("isPointInAnyGeometry", () => {
+  // Local fixture (this file scopes "South" per-describe-block, not at module
+  // level) — a second polygon disjoint from calapanMuni, bounded lat 12.5–12.8
+  // / lon 121.1–121.3.
+  const southGeojson = {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        properties: { shapeName: "South" },
+        geometry: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [121.1, 12.5],
+              [121.3, 12.5],
+              [121.3, 12.8],
+              [121.1, 12.8],
+              [121.1, 12.5],
+            ],
+          ],
+        },
+      },
+    ],
+  };
+
+  it("returns true when the point is inside the (only) supplied geometry", () => {
+    expect(
+      isPointInAnyGeometry({ lat: 13.3818, lon: 121.1948 }, [calapanMuni.boundaryGeojson]),
+    ).toBe(true);
+  });
+
+  it("returns false when the point is outside every supplied geometry — no nearest fallback", () => {
+    // ~22 km offshore — assignMunicipalityToPointOrNearest would still attribute
+    // this to Calapan (nearest-fallback), but isPointInAnyGeometry is a STRICT
+    // containment test with no fallback: this is the exact behavior the
+    // cross-municipality-leak fix depends on.
+    expect(isPointInAnyGeometry({ lat: 13.4, lon: 120.9 }, [calapanMuni.boundaryGeojson])).toBe(
+      false,
+    );
+  });
+
+  it("returns true when the point is inside the SECOND of multiple geometries (boundary ∪ water)", () => {
+    expect(
+      isPointInAnyGeometry({ lat: 12.65, lon: 121.2 }, [calapanMuni.boundaryGeojson, southGeojson]),
+    ).toBe(true);
+  });
+
+  it("ignores null/undefined entries mixed with a valid geometry", () => {
+    expect(
+      isPointInAnyGeometry({ lat: 13.3818, lon: 121.1948 }, [
+        null,
+        calapanMuni.boundaryGeojson,
+        undefined,
+      ]),
+    ).toBe(true);
+  });
+
+  it("returns false for an empty geometries array", () => {
+    expect(isPointInAnyGeometry({ lat: 13.3818, lon: 121.1948 }, [])).toBe(false);
   });
 });

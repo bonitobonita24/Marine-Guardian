@@ -44,6 +44,7 @@ import {
 } from "@/server/trpc/routers/time-series-bucketing";
 import { BLUE_ALLIANCE_DEFAULT_LOGO_DATA_URI } from "@/server/report-map-report/assets/blue-alliance-default-logo";
 import { buildGlobalEventTypeColumns } from "@/server/report-map-report/event-type-grouping";
+import { isPointInAnyGeometry } from "@marine-guardian/shared/lib/municipality-assignment";
 import type { HeatLatLng } from "@marine-guardian/shared/lib/heatmap-sample";
 
 // ─── Shared point shape ──────────────────────────────────────────────────────
@@ -154,6 +155,45 @@ export function buildPatrolHeatPoints(
     for (const pt of t.path) bucket.push([pt.lat, pt.lon, 1]);
   }
   return { seaborne, foot };
+}
+
+/**
+ * Clip patrol track path points to a single municipality's own geometry
+ * (boundary ∪ water polygon) — fixes a cross-municipality leak (2026-07-06):
+ * patrol→municipality attribution (`assignMunicipalityToDominantTrack`,
+ * municipality-assignment package) is by DOMINANT track share, so a patrol
+ * included in a single-municipality report's filter can still have
+ * individual GPS points that physically sit in a NEIGHBORING municipality —
+ * those stray points then rendered on the map/heatmap for the wrong town.
+ *
+ * Drops any path point that falls outside every geometry in `geometries`,
+ * then drops the whole track if fewer than 2 points remain (mirrors the
+ * `pts.length < 2` skip already applied when tracks are first built — a
+ * single leftover point can't draw a polyline). Feeds BOTH the track
+ * polyline map (Patrols page) and, via the same clipped `tracks` array,
+ * `buildPatrolHeatPoints` (Patrol Tracks Heatmap page) — one clip step,
+ * both consumers covered.
+ *
+ * No-op (returns `tracks` unchanged) when `geometries` is null — the
+ * regional / all-municipality report path (`municipalityId` undefined, or a
+ * municipality with no recorded geometry) keeps the existing
+ * fit-to-data-points behavior with no clipping.
+ *
+ * Exported as a pure helper for unit testing (extracted from the loader
+ * body, same convention as `buildPatrolHeatPoints`/`buildPatrolTypeTotals`).
+ */
+export function clipTracksToMunicipalityGeometry(
+  tracks: ReportMapTrackRow[],
+  geometries: unknown[] | null,
+): ReportMapTrackRow[] {
+  if (geometries === null) return tracks;
+  const clipped: ReportMapTrackRow[] = [];
+  for (const t of tracks) {
+    const path = t.path.filter((pt) => isPointInAnyGeometry(pt, geometries));
+    if (path.length < 2) continue;
+    clipped.push({ ...t, path });
+  }
+  return clipped;
 }
 
 export interface PatrolTotals {
@@ -785,17 +825,28 @@ export async function getReportMapReportData(
           foot: sparseSeries(footDates),
         };
 
-  const tracks: ReportMapTrackRow[] = [];
+  const rawTracks: ReportMapTrackRow[] = [];
   for (const row of trackRows) {
     const pts = pointsFromTrackGeojson(row.trackGeojson);
     if (pts.length < 2) continue;
-    tracks.push({
+    rawTracks.push({
       patrolId: row.patrol.id,
       label: row.patrol.title ?? row.patrol.serialNumber ?? row.patrol.id,
       patrolType: row.patrol.patrolType,
       path: pts.map(({ lat, lon }) => ({ lat, lon })),
     });
   }
+
+  // Single-municipality report with geometry on record: clip stray
+  // out-of-municipality track points (dominant-track attribution is by
+  // majority share, not full containment — see
+  // clipTracksToMunicipalityGeometry doc). Regional reports / a
+  // municipality with no geometry keep every point (geometries === null).
+  const municipalityGeometries: unknown[] | null =
+    municipalityGeometry
+      ? [municipalityGeometry.boundaryGeojson, municipalityGeometry.waterGeojson]
+      : null;
+  const tracks = clipTracksToMunicipalityGeometry(rawTracks, municipalityGeometries);
 
   const patrolList: PatrolListChartData = {
     key: "patrol_list",

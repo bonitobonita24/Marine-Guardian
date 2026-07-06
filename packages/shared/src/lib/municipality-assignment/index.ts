@@ -369,4 +369,42 @@ export function assignMunicipalityToDominantTrack(
   return dominantId;
 }
 
+// ── Layer 3 — Strict geometry containment (no attribution fallback) ─────────
+
+/**
+ * Test whether a point falls within ANY of the given geometries — a strict
+ * containment check with NO nearest-municipality fallback, unlike
+ * `assignMunicipalityToPoint` (attribution) or `nearestMunicipality`. Used to
+ * CLIP a single-municipality report's rendered patrol tracks/heatmap points
+ * to just that municipality's own territory (boundary polygon ∪ water
+ * polygon), so a point that got attributed to the municipality (correctly or
+ * not) but physically sits outside its geometry never leaks onto the map.
+ *
+ * `null`/`undefined` entries in `geometries` are ignored (callers typically
+ * pass `[boundaryGeojson, waterGeojson]`, where either can be absent).
+ *
+ * @param point - { lat, lon } — WGS-84 decimal degrees
+ * @param geometries - one or more GeoJSON values (Polygon/MultiPolygon, bare
+ *   or FeatureCollection-wrapped, as stored in the Municipality Json columns)
+ * @returns true if the point is inside at least one geometry
+ */
+export function isPointInAnyGeometry(
+  point: { lat: number; lon: number },
+  geometries: unknown[],
+): boolean {
+  const tPoint = turfPoint([point.lon, point.lat]);
+  for (const geometry of geometries) {
+    if (geometry == null) continue;
+    if (
+      booleanPointInPolygon(
+        tPoint,
+        unwrapGeojson(geometry) as Parameters<typeof booleanPointInPolygon>[1],
+      )
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export type { MunicipalityForAssignment, ProtectedZoneForAssignment };

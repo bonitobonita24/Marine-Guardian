@@ -37,6 +37,7 @@ import { pointsFromTrackGeojson } from "@/server/trpc/routers/map";
 import {
   buildPatrolHeatPoints,
   buildPatrolTypeTotals,
+  clipTracksToMunicipalityGeometry,
   getReportMapReportData,
   parseReportMapParams,
   unionGeometryBounds,
@@ -1042,5 +1043,148 @@ describe("buildPatrolHeatPoints", () => {
 
   it("returns empty buckets for an empty track list", () => {
     expect(buildPatrolHeatPoints([])).toEqual({ seaborne: [], foot: [] });
+  });
+});
+
+// ─── clipTracksToMunicipalityGeometry (cross-municipality leak fix, 2026-07-06) ─
+//
+// A simple square polygon standing in for a municipality's boundary/water
+// geometry — PG (Puerto Galera): lat 13.0–13.6, lon 120.85–121.2. Points west
+// of lon 120.85 stand in for the real-world Abra de Ilog leak this fix
+// targets (a patrol attributed to PG by dominant-track share, but with GPS
+// points that physically sit in the neighboring municipality).
+const PG_GEOJSON = {
+  type: "Polygon",
+  coordinates: [
+    [
+      [120.85, 13.0],
+      [121.2, 13.0],
+      [121.2, 13.6],
+      [120.85, 13.6],
+      [120.85, 13.0],
+    ],
+  ],
+};
+
+describe("clipTracksToMunicipalityGeometry", () => {
+  it("passes tracks through unchanged when geometries is null (regional / no-geometry report)", () => {
+    const tracks = [
+      makeTrackRow({
+        patrolId: "p1",
+        path: [
+          { lat: 13.2, lon: 120.7 }, // outside PG_GEOJSON — must survive when geometries is null
+          { lat: 13.2, lon: 121.0 },
+        ],
+      }),
+    ];
+    expect(clipTracksToMunicipalityGeometry(tracks, null)).toEqual(tracks);
+  });
+
+  it("drops points outside the municipality geometry, keeping the rest of the track", () => {
+    const tracks = [
+      makeTrackRow({
+        patrolId: "p1",
+        path: [
+          { lat: 13.2, lon: 120.7 }, // outside — west of the PG boundary (Abra de Ilog side)
+          { lat: 13.2, lon: 121.0 }, // inside
+          { lat: 13.3, lon: 121.05 }, // inside
+        ],
+      }),
+    ];
+    const result = clipTracksToMunicipalityGeometry(tracks, [PG_GEOJSON]);
+    expect(result).toEqual([
+      {
+        patrolId: "p1",
+        label: "p1",
+        patrolType: "seaborne",
+        path: [
+          { lat: 13.2, lon: 121.0 },
+          { lat: 13.3, lon: 121.05 },
+        ],
+      },
+    ]);
+  });
+
+  it("drops a track entirely when clipping leaves fewer than 2 points (mirrors the ADI mis-attributed-patrol case)", () => {
+    // Every point of this track sits outside PG_GEOJSON — the exact shape of
+    // the "ADI foot patrol" bug: a whole track physically in a neighboring
+    // municipality, attributed to this one.
+    const tracks = [
+      makeTrackRow({
+        patrolId: "adi-1",
+        patrolType: "foot",
+        path: [
+          { lat: 13.48, lon: 120.83 },
+          { lat: 13.48, lon: 120.70 },
+        ],
+      }),
+      makeTrackRow({
+        patrolId: "pg-1",
+        patrolType: "seaborne",
+        path: [
+          { lat: 13.2, lon: 121.0 },
+          { lat: 13.3, lon: 121.05 },
+        ],
+      }),
+    ];
+    const result = clipTracksToMunicipalityGeometry(tracks, [PG_GEOJSON]);
+    expect(result).toEqual([
+      {
+        patrolId: "pg-1",
+        label: "pg-1",
+        patrolType: "seaborne",
+        path: [
+          { lat: 13.2, lon: 121.0 },
+          { lat: 13.3, lon: 121.05 },
+        ],
+      },
+    ]);
+  });
+
+  it("checks multiple geometries (boundary ∪ water) — a point inside EITHER is kept", () => {
+    const waterGeojson = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [121.2, 13.0],
+          [121.4, 13.0],
+          [121.4, 13.6],
+          [121.2, 13.6],
+          [121.2, 13.0],
+        ],
+      ],
+    };
+    const tracks = [
+      makeTrackRow({
+        patrolId: "p1",
+        path: [
+          { lat: 13.2, lon: 121.0 }, // inside boundary only
+          { lat: 13.2, lon: 121.3 }, // inside water only
+        ],
+      }),
+    ];
+    const result = clipTracksToMunicipalityGeometry(tracks, [PG_GEOJSON, waterGeojson]);
+    expect(result[0]?.path).toEqual([
+      { lat: 13.2, lon: 121.0 },
+      { lat: 13.2, lon: 121.3 },
+    ]);
+  });
+
+  it("returns an empty array when every track is fully outside the geometry", () => {
+    const tracks = [
+      makeTrackRow({
+        patrolId: "p1",
+        path: [
+          { lat: 13.2, lon: 120.7 },
+          { lat: 13.3, lon: 120.6 },
+        ],
+      }),
+    ];
+    expect(clipTracksToMunicipalityGeometry(tracks, [PG_GEOJSON])).toEqual([]);
+  });
+
+  it("returns an empty array for an empty track list, regardless of geometries", () => {
+    expect(clipTracksToMunicipalityGeometry([], [PG_GEOJSON])).toEqual([]);
+    expect(clipTracksToMunicipalityGeometry([], null)).toEqual([]);
   });
 });
