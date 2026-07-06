@@ -34,7 +34,7 @@ export default function FuelPage() {
     roles.includes("site_admin") ||
     roles.includes("administrator");
   const isCoordinator = isAdmin || roles.includes("field_coordinator");
-  const isOperator = isCoordinator || roles.includes("field_operator");
+  const isOperator = isCoordinator || roles.includes("operator");
 
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState<FuelEntryRow | null>(null);
