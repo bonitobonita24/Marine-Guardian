@@ -20,6 +20,7 @@ import { trpc } from "@/lib/trpc/client";
 import { AccompanyingRangersInput } from "./accompanying-rangers-input";
 import { EventTimeline } from "./event-timeline";
 import { RevisionTimeline } from "@/components/revisions/revision-timeline";
+import { SingleEventMap } from "@/components/map/SingleEventMap";
 
 type EventDetailModalProps = {
   eventId: string | null;
@@ -210,7 +211,7 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
         if (!next) onClose();
       }}
     >
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {eventQuery.data?.title ?? "Event Detail"}
@@ -248,6 +249,20 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
 
             {/* ── Edit tab ──────────────────────────────────────────────── */}
             <TabsContent value="edit" className="space-y-5 pt-4">
+              {/* Split view: detail fields on the left, an interactive
+                  single-marker map on the right (md+). Stacks (map below
+                  details) on small screens. Only rendered as two columns
+                  when the event actually has coordinates — otherwise the
+                  details render full-width, unchanged. */}
+              <div
+                className={
+                  eventQuery.data.locationLat !== null &&
+                  eventQuery.data.locationLon !== null
+                    ? "grid gap-5 md:grid-cols-2"
+                    : undefined
+                }
+              >
+              <div className="space-y-5">
               {/* Photos first: when an event has imagery, surface it above the
                   fill form so the operator sees it immediately (all event types). */}
               {eventQuery.data.assets.length > 0 && (
@@ -464,11 +479,25 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
                   <span className="font-medium">Location:</span>{" "}
                   {eventQuery.data.locationLat?.toFixed(5) ?? "—"}° N,{" "}
                   {eventQuery.data.locationLon?.toFixed(5) ?? "—"}° E
-                  <span className="ml-2 italic">
-                    (mini-map: deferred to Phase 7)
-                  </span>
                 </div>
               )}
+              </div>
+
+              {/* Right column: interactive single-marker map. Only rendered
+                  when the event has both coordinates — no broken/empty map
+                  for coord-less events (details stay full-width above). */}
+              {eventQuery.data.locationLat !== null &&
+                eventQuery.data.locationLon !== null && (
+                  <SingleEventMap
+                    lat={eventQuery.data.locationLat}
+                    lon={eventQuery.data.locationLon}
+                    {...(eventQuery.data.title !== null
+                      ? { label: eventQuery.data.title }
+                      : {})}
+                    className="min-h-[280px]"
+                  />
+                )}
+              </div>
 
               <AccompanyingRangersInput
                 eventId={eventQuery.data.id}

@@ -69,6 +69,16 @@ vi.mock("../accompanying-rangers-input", () => ({
   AccompanyingRangersInput: () => null,
 }));
 
+// SingleEventMap renders a real maplibre-gl map, which needs a WebGL canvas
+// jsdom doesn't provide. Stub it so this suite only asserts that the modal
+// wires it up (coords in → rendered), not the maplibre internals — those are
+// covered by SingleEventMap's own render test.
+vi.mock("@/components/map/SingleEventMap", () => ({
+  SingleEventMap: ({ lat, lon }: { lat: number; lon: number }) => (
+    <div data-testid="single-event-map-stub">{`${String(lat)},${String(lon)}`}</div>
+  ),
+}));
+
 import { EventDetailModal } from "../event-detail-modal";
 
 const baseEvent = {
@@ -217,6 +227,24 @@ describe("EventDetailModal", () => {
     );
     expect(getByText(/14.59950/)).toBeTruthy();
     expect(getByText(/120.98420/)).toBeTruthy();
+  });
+
+  it("renders the single-event map when coordinates are available", () => {
+    stubs.getByIdData = baseEvent;
+    const { getByTestId } = render(
+      <EventDetailModal eventId="ev-1" onClose={() => {}} />,
+    );
+    expect(getByTestId("single-event-map-stub").textContent).toBe(
+      "14.5995,120.9842",
+    );
+  });
+
+  it("omits the map when the event has no coordinates", () => {
+    stubs.getByIdData = { ...baseEvent, locationLat: null, locationLon: null };
+    const { queryByTestId } = render(
+      <EventDetailModal eventId="ev-1" onClose={() => {}} />,
+    );
+    expect(queryByTestId("single-event-map-stub")).toBeNull();
   });
 
   it("populates all 5 operator-fill fields from event columns", () => {
