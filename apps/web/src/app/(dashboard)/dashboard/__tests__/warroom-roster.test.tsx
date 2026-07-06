@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import {
   RangerRoster,
   type RosterRanger,
@@ -85,6 +85,32 @@ describe("RangerRoster", () => {
       />,
     );
     expect(screen.getByText(/no rangers on record/i)).toBeTruthy();
+  });
+
+  it("does not render the hide-idle toggle when no handler is supplied", () => {
+    render(
+      <RangerRoster rangers={rangers} summary={summary} isLoading={false} />,
+    );
+    expect(screen.queryByText(/hide idle on map/i)).toBeNull();
+  });
+
+  it("renders the hide-idle-on-map toggle (CC-1) and reports changes", () => {
+    const onHideIdleRangersChange = vi.fn();
+    render(
+      <RangerRoster
+        rangers={rangers}
+        summary={summary}
+        isLoading={false}
+        hideIdleRangers={false}
+        onHideIdleRangersChange={onHideIdleRangersChange}
+      />,
+    );
+    const toggle = screen.getByRole("switch", { name: /hide idle on map/i });
+    expect((toggle as HTMLInputElement).getAttribute("aria-checked")).toBe(
+      "false",
+    );
+    fireEvent.click(toggle);
+    expect(onHideIdleRangersChange).toHaveBeenCalledWith(true);
   });
 });
 

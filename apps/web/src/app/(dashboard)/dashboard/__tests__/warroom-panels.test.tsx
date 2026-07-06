@@ -148,6 +148,36 @@ describe("ActivePatrols", () => {
     render(<ActivePatrols patrols={[]} isLoading={false} now={NOW} />);
     expect(screen.getByText(/no active patrols/i)).toBeTruthy();
   });
+
+  it("calls onSelectPatrol when a row is clicked (CC-2 map focus wiring)", () => {
+    const onSelectPatrol = vi.fn();
+    render(
+      <ActivePatrols
+        patrols={patrols}
+        isLoading={false}
+        now={NOW}
+        onSelectPatrol={onSelectPatrol}
+      />,
+    );
+    screen.getByText("Pottoli Tobin 2").closest('[role="button"]')?.dispatchEvent(
+      new MouseEvent("click", { bubbles: true }),
+    );
+    expect(onSelectPatrol).toHaveBeenCalledWith(patrols[0]);
+  });
+
+  it("marks the row matching selectedPatrolId as selected (CC-2 map focus highlight)", () => {
+    render(
+      <ActivePatrols
+        patrols={patrols}
+        isLoading={false}
+        now={NOW}
+        onSelectPatrol={() => {}}
+        selectedPatrolId="p1"
+      />,
+    );
+    const row = screen.getByText("Pottoli Tobin 2").closest('[role="button"]');
+    expect(row?.getAttribute("aria-selected")).toBe("true");
+  });
 });
 
 describe("LastIncidentCard", () => {

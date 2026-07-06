@@ -375,10 +375,16 @@ describe("dashboard.rangerRoster — per-ranger status derivation", () => {
     expect(byId.r2?.lastSeenAt).toEqual(new Date("2026-06-04T08:00:00Z"));
     expect(byId.r3?.status).toBe("idle");
     expect(byId.r3?.lastSeenAt).toBeNull();
+    // 2026-07-06 fix: summary.active is a "currently on duty" rollup, so it
+    // includes on_patrol rangers too (r1) in addition to range-active (r2) —
+    // per-row status labels stay distinct (on_patrol vs active vs idle), only
+    // the header count widens. Before the fix this was `active: 1` (r2 only),
+    // which read as the confusing "1 on patrol · 0 active" the owner reported
+    // even though r1 plainly IS on duty.
     expect(result.summary).toEqual({
       total: 3,
       onPatrol: 1,
-      active: 1,
+      active: 2,
       idle: 1,
     });
   });
@@ -390,5 +396,55 @@ describe("dashboard.rangerRoster — per-ranger status derivation", () => {
     };
     expect(call.where.tenantId).toBe(TENANT_ID);
     expect(call.where.isActive).toBe(true);
+  });
+
+  it("counts on_patrol rangers within the 'active' (on-duty) summary rollup even with no range-active patrols", async () => {
+    // Regression for the 2026-07-06 owner report: a ranger on a currently
+    // OPEN patrol (no other in-range patrol) must still count toward
+    // summary.active, not just summary.onPatrol.
+    mockPrisma.knownRanger.findMany.mockResolvedValue([
+      { id: "r1", name: "Solo Ranger" },
+    ]);
+    mockPrisma.patrol.findMany
+      .mockResolvedValueOnce([{ id: "p-open" }]) // openPatrols
+      .mockResolvedValueOnce([]); // rangePatrols — none match the range window
+    mockPrisma.accompanyingRanger.findMany.mockResolvedValue([
+      { knownRangerId: "r1", entityId: "p-open" },
+    ]);
+
+    const result = await createCaller(makeCtx()).rangerRoster();
+
+    expect(result.rangers[0]?.status).toBe("on_patrol");
+    expect(result.summary).toEqual({ total: 1, onPatrol: 1, active: 1, idle: 0 });
+  });
+});
+
+// ── kpis.activePatrols — track-independence lock (2026-07-06 owner report:
+// "Active Patrols: 0" with a real open patrol, no PatrolTrack because the ER
+// track-fetch token was expired) ──
+describe("dashboard.kpis.activePatrols — counts open patrols without requiring a PatrolTrack", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockPrisma.event.count.mockResolvedValue(0);
+    mockPrisma.accompanyingRanger.findMany.mockResolvedValue([]);
+    mockPrisma.patrol.findMany.mockResolvedValue([]);
+  });
+
+  it("counts an open, non-deleted patrol even when it has zero PatrolTrack rows", async () => {
+    // The kpis procedure never touches the PatrolTrack table for
+    // activePatrols — patrol.count's WHERE clause is state/isDeleted only.
+    mockPrisma.patrol.count.mockResolvedValue(1);
+
+    const result = await createCaller(makeCtx()).kpis();
+
+    expect(result.activePatrols).toBe(1);
+    const call = mockPrisma.patrol.count.mock.calls.find(
+      (c) => (c[0] as { where: { state?: unknown } }).where.state === "open",
+    )?.[0] as { where: Record<string, unknown> } | undefined;
+    expect(call?.where).toEqual({
+      tenantId: TENANT_ID,
+      state: "open",
+      isDeleted: false,
+    });
   });
 });

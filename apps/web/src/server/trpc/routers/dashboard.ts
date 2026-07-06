@@ -41,6 +41,18 @@ export const dashboardRouter = router({
     // rangersOnDuty are live-status metrics (currently open patrols) and
     // eventsThisMonth/eventsLastMonth are an explicit month-over-month
     // comparison — both intentionally range-independent.
+    //
+    // 2026-07-06 (owner-reported "Active Patrols: 0" with an open patrol on
+    // record): `activePatrols` below is a bare `patrol.count({state:"open"})`
+    // — it does NOT join PatrolTrack / require a materialized GPS track, so a
+    // patrol whose track can't be fetched (e.g. an expired EarthRanger track
+    // token) still counts here as long as its own `state` is "open". Locked by
+    // a regression test (dashboard.test.ts — "activePatrols counts an open
+    // patrol even with zero PatrolTrack rows"). If this tile still reads 0
+    // against a genuinely open, non-deleted patrol, the discrepancy is in the
+    // DATA (tenantId scoping / the patrol's actual `state` value at sync time),
+    // not this query — verify with `SELECT id, tenant_id, state, is_deleted
+    // FROM patrols WHERE serial_number = '<N>'` before assuming a code bug.
     const eventRange = buildRange(input);
 
     const [
@@ -476,7 +488,20 @@ export const dashboardRouter = router({
         summary: {
           total: rangers.length,
           onPatrol: rangers.filter((r) => r.status === "on_patrol").length,
-          active: rangers.filter((r) => r.status === "active").length,
+          // "active" in the summary line means "currently on duty" — a ranger
+          // linked to a live OPEN patrol (status "on_patrol") is by definition
+          // on duty too, even when that patrol has no materialized PatrolTrack
+          // yet (e.g. the ER track-fetch token expired — patrol.state is still
+          // "open" and recent, which is all this summary requires). Before this
+          // fix "active" only counted the mutually-exclusive "active" status,
+          // so a war room with 1 on_patrol + 0 range-active rangers rendered
+          // the confusing "1 on patrol · 0 active" (owner-reported 2026-07-06)
+          // even though that ranger plainly IS active. Per-row status labels
+          // ("On patrol" / "Active" / "Idle") are unchanged — this only widens
+          // what the header ROLLUP counts as "active".
+          active: rangers.filter(
+            (r) => r.status === "on_patrol" || r.status === "active",
+          ).length,
           idle: rangers.filter((r) => r.status === "idle").length,
         },
       };

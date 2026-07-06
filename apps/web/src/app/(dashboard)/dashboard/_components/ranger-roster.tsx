@@ -1,4 +1,6 @@
 import { Users } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { relativeShort } from "./lib";
 
 /**
@@ -71,18 +73,27 @@ export function RangerRoster({
   summary,
   isLoading,
   now,
+  hideIdleRangers,
+  onHideIdleRangersChange,
 }: {
   rangers: RosterRanger[];
   summary: RosterSummary;
   isLoading: boolean;
   now?: Date | undefined;
+  /** Command Center map toggle (2026-07-06) — when true, idle rangers'
+   *  position markers are hidden from the live map. Default (undefined /
+   *  false) shows every ranger's marker, including idle ones. Rendered here
+   *  (not on the map controls) since idle/on-patrol is a roster concept. */
+  hideIdleRangers?: boolean;
+  onHideIdleRangersChange?: (next: boolean) => void;
 }) {
+  const showToggle = onHideIdleRangersChange !== undefined;
   return (
     <section
       aria-labelledby="warroom-roster-heading"
       className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card"
     >
-      <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-3 py-2">
         <Users className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         <h2
           id="warroom-roster-heading"
@@ -94,6 +105,22 @@ export function RangerRoster({
           {summary.onPatrol} on patrol · {summary.active} active · {summary.idle}{" "}
           idle
         </span>
+        {showToggle && (
+          <div className="flex shrink-0 items-center gap-1.5 border-l border-border pl-2">
+            <Label
+              htmlFor="cc-hide-idle-rangers"
+              className="text-[10px] font-medium text-muted-foreground"
+            >
+              Hide idle on map
+            </Label>
+            <Switch
+              id="cc-hide-idle-rangers"
+              checked={hideIdleRangers ?? false}
+              onCheckedChange={onHideIdleRangersChange}
+              className="scale-75"
+            />
+          </div>
+        )}
       </div>
 
       {/* Native max-height scroll region (not shadcn ScrollArea, whose inner

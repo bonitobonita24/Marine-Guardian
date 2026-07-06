@@ -140,6 +140,39 @@ function DashboardContent() {
   const [selectedPatrol, setSelectedPatrol] = useState<ActivePatrol | null>(
     null,
   );
+
+  // Recent Patrols row → focus the CC map on that patrol's track (2026-07-06),
+  // mirroring the Interactive Report Map's controlled-selection pattern
+  // (report-map-view.tsx selectPatrol/selectPatrolById). Kept separate from
+  // `selectedPatrol` (which drives the read-only detail modal) so a click both
+  // opens the modal AND frames the map — closing the modal leaves the map
+  // framed on that patrol until the operator picks another row or clicks the
+  // empty basemap (onBackgroundClick below).
+  const [selectedMapPatrolId, setSelectedMapPatrolId] = useState<string | null>(
+    null,
+  );
+  const handleSelectPatrol = useCallback((p: ActivePatrol) => {
+    setSelectedPatrol(p);
+    setSelectedMapPatrolId(p.id);
+  }, []);
+  const selectMapPatrolById = useCallback(
+    (patrolId: string) => {
+      const p = patrols.data?.find((x) => x.id === patrolId);
+      setSelectedMapPatrolId(patrolId);
+      if (p !== undefined) setSelectedPatrol(p);
+    },
+    [patrols.data],
+  );
+  const clearMapPatrolSelection = useCallback(() => {
+    setSelectedMapPatrolId(null);
+  }, []);
+
+  // Command Center "hide idle rangers" map toggle (2026-07-06) — default OFF
+  // (idle rangers SHOWN, owner-approved default). Idle ranger NAMES are
+  // derived from dashboard.rangerRoster (already fetched below for the
+  // roster panel) and matched against InteractiveMap's subject markers by
+  // name (Subject and KnownRanger share no client-visible FK).
+  const [hideIdleRangers, setHideIdleRangers] = useState(false);
   // Click→detail for fired-alert rows: opens a read-only AlertDetailModal.
   const [selectedAlert, setSelectedAlert] = useState<AlertItem | null>(null);
 
@@ -289,6 +322,14 @@ function DashboardContent() {
 
   const incident: LastIncident = lastIncident.data ?? null;
 
+  // Idle-ranger names (CC-1) — derived from the roster query already fetched
+  // for the Ranger Roster panel below; no extra tRPC call.
+  const idleRangerNames = new Set(
+    (roster.data?.rangers ?? [])
+      .filter((r) => r.status === "idle")
+      .map((r) => r.name),
+  );
+
   return (
     <div className="command-center flex h-full min-h-0 flex-col gap-3 overflow-y-auto">
       <h1 className="sr-only">Command Center — War Room</h1>
@@ -342,6 +383,22 @@ function DashboardContent() {
             {...(mapMunicipalityId !== null
               ? { municipalityId: mapMunicipalityId }
               : {})}
+            /* CC-1 — idle-ranger marker filter (roster-driven, default OFF). */
+            idleSubjectNames={idleRangerNames}
+            hideIdleSubjects={hideIdleRangers}
+            /* CC-2 — Recent Patrols row click focuses + isolates that
+               patrol's track (only while a row-driven selection is active —
+               omitted entirely when none is selected so the map's own
+               internal PatrolSelector drill-down keeps working, mirroring
+               report-map-view.tsx). */
+            {...(selectedMapPatrolId !== null
+              ? { selectedPatrolId: selectedMapPatrolId }
+              : {})}
+            onPatrolTrackClick={selectMapPatrolById}
+            onBackgroundClick={clearMapPatrolSelection}
+            /* CC-3 — 48h event markers open the shared EventDetailModal
+               (same modal + state the Live Event Feed / Last Incident use). */
+            onEventClick={setSelectedEventId}
           />
         </div>
 
@@ -369,7 +426,8 @@ function DashboardContent() {
             patrols={activePatrols}
             isLoading={patrols.isLoading}
             now={nowValue}
-            onSelectPatrol={setSelectedPatrol}
+            onSelectPatrol={handleSelectPatrol}
+            selectedPatrolId={selectedMapPatrolId}
           />
         </div>
       </div>
@@ -412,6 +470,8 @@ function DashboardContent() {
           }
           isLoading={roster.isLoading}
           now={nowValue}
+          hideIdleRangers={hideIdleRangers}
+          onHideIdleRangersChange={setHideIdleRangers}
         />
       </div>
 

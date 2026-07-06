@@ -7,6 +7,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ShieldCheck } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { elapsedHm, formatKm, patrolTypeMeta } from "./lib";
 
 /**
@@ -36,11 +37,16 @@ export function ActivePatrols({
   isLoading,
   now,
   onSelectPatrol,
+  selectedPatrolId,
 }: {
   patrols: ActivePatrol[];
   isLoading: boolean;
   now?: Date | undefined;
   onSelectPatrol?: (patrol: ActivePatrol) => void;
+  /** The patrol currently focused on the Command Center map (2026-07-06) —
+   *  when set, that row gets a highlight style so the operator can see which
+   *  Recent Patrols entry the map is framed on. */
+  selectedPatrolId?: string | null;
 }) {
   return (
     <section
@@ -90,6 +96,7 @@ export function ActivePatrols({
                 const TypeIcon = t.icon;
                 const km = p.computedDistanceKm ?? p.totalDistanceKm;
                 const clickable = onSelectPatrol !== undefined;
+                const selected = selectedPatrolId != null && selectedPatrolId === p.id;
                 return (
                   <TableRow
                     key={p.id}
@@ -100,6 +107,7 @@ export function ActivePatrols({
                           "aria-label": `View patrol detail: ${t.label} patrol${
                             p.areaName !== null ? ` at ${p.areaName}` : ""
                           }${p.leaderName !== null ? ` led by ${p.leaderName}` : ""}`,
+                          "aria-selected": selected,
                           onClick: () => {
                             onSelectPatrol(p);
                           },
@@ -109,8 +117,10 @@ export function ActivePatrols({
                               onSelectPatrol(p);
                             }
                           },
-                          className:
+                          className: cn(
                             "cursor-pointer hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                            selected && "bg-[hsl(var(--info)/0.12)] hover:bg-[hsl(var(--info)/0.16)]",
+                          ),
                         }
                       : {})}
                   >
