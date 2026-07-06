@@ -85,7 +85,10 @@ import {
   PatrolHeatmapMap,
   PatrolTracksMap,
 } from "./components/map-islands-client";
-import { PatrolTypeBarChart } from "./components/patrol-type-bar-chart";
+import {
+  PatrolTotalsFigure,
+  PatrolTypeBarChart,
+} from "./components/patrol-type-bar-chart";
 import { PrintMultiSeriesChart } from "./components/print-multi-series-chart";
 import { PrintTimeSeriesChart } from "./components/print-time-series-chart";
 
@@ -604,6 +607,25 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
        landscape chart+map's cramped height budget. Verified empirically
        against a real rendered PDF (see docs/CHANGELOG_AI.md /
        DECISIONS_LOG.md "Report Map full-list portrait pages"). */
+    /* Shadcn chart-token palette (R9, 2026-07-06) — mirrors the live dashboard's
+       --chart-1..5 custom properties (globals.css base :root L28-32, tactical
+       .command-center override L120-121 for chart-1/chart-2 — the values the
+       WAR ROOM dashboard's shadcn charts actually render, per
+       MunicipalityCoverageChart / BreakdownBars / EventsOverTimeChart). Plain
+       CSS custom properties resolve fine in the print document tree even
+       though it has NO Tailwind layers — var()/custom-property support is a
+       native CSS feature, not a Tailwind one. Every restyled Recharts chart
+       below references hsl(var(--chart-N)) so the printed report matches the
+       on-screen shadcn charts exactly. chart-1/chart-2 use the bolder
+       tactical override (blue/green); chart-3..5 have no override, so the
+       base values are used verbatim. */
+    :root {
+      --chart-1: 221 83% 48%;
+      --chart-2: 150 62% 36%;
+      --chart-3: 30 80% 55%;
+      --chart-4: 280 65% 60%;
+      --chart-5: 340 75% 55%;
+    }
     @page { size: ${pageCss}; margin: 12mm; }
     @page main-page { size: ${pageCss}; margin: 12mm; }
     @page list-page { size: A4 portrait; margin: 12mm; }
@@ -906,20 +928,19 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
           data-testid="section-patrol-list"
         >
           <PageHeader {...headerProps} />
-          <h2 className="section-heading">
-            Patrols
-            <span className="total-badge">
-              {data.charts.patrolList.total.toLocaleString()}
-            </span>
-            <span className="total-badge">
-              {fmtHours(data.charts.patrolList.patrolTotals.totalHours)}
-            </span>
-            <span className="total-badge">
-              {fmtDistKm(data.charts.patrolList.patrolTotals.totalKm)}
-            </span>
-          </h2>
+          <h2 className="section-heading">Patrols</h2>
           <div className="section-content patrol-section-content">
             <div className="section-chart">
+              {/* R8 (2026-07-06): the former inline `.total-badge` pills
+                  ("12", "34.6 h", "210.2 km") in the section heading above
+                  are replaced by this labeled stat block — same visual
+                  family as the Seaborne/Foot figures below it, each metric
+                  now paired with a small proportional bar. */}
+              <PatrolTotalsFigure
+                total={data.charts.patrolList.total}
+                totalHours={data.charts.patrolList.patrolTotals.totalHours}
+                totalKm={data.charts.patrolList.patrolTotals.totalKm}
+              />
               <PatrolTypeBarChart totals={data.charts.patrolTypeTotals} />
               {data.charts.patrolList.breakdown.length === 0 ? (
                 <p className="empty-note">No patrols in this period.</p>
@@ -1132,7 +1153,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
             <div className="section-chart">
               <PrintTimeSeriesChart
                 series={data.charts.eventsOverTime.series}
-                color="#0891b2"
+                color="hsl(var(--chart-1))"
                 valueLabel="Events"
               />
             </div>

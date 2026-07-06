@@ -9,16 +9,22 @@
  * The data loader already does this sort; we re-sort defensively here so the
  * chart is independent of upstream contract drift.
  *
- * Two variants: `lawEnforcement` (amber/red palette — enforcement framing)
- * and `monitoring` (teal/cyan palette — observation framing). The variant
- * also drives the empty-state copy. The actual bar color is uniform within a
- * chart; per-bar variation lands later if a tenant requests violation-type
- * categorisation (out of scope for 6.2a).
+ * Two variants: `lawEnforcement` (chart-1 — matches the WAR ROOM dashboard's
+ * "events" bar colour, MunicipalityCoverageChart/BreakdownBars) and
+ * `monitoring` (chart-2 — matches the dashboard's "patrols"/monitoring
+ * colour). The variant also drives the empty-state copy. The actual bar
+ * color is uniform within a chart; per-bar variation lands later if a tenant
+ * requests violation-type categorisation (out of scope for 6.2a).
  *
  * Uses Recharts directly (no shadcn ChartConfig wrapper) — same rationale as
  * AreaCoveredChart: the print-render document does NOT include Tailwind's
  * CSS layers in this sub-tree, so a self-contained inline-style chart avoids
- * token resolution failures during the standalone print HTML render.
+ * token resolution failures during the standalone print HTML render. Colors
+ * reference the `--chart-1`/`--chart-2` custom properties injected into the
+ * document's <style> block (report-map-report.tsx) — plain CSS custom
+ * properties resolve fine without Tailwind (R9, 2026-07-06), so the printed
+ * bar colour matches the live dashboard's shadcn charts exactly instead of
+ * the previous hardcoded red/cyan palette.
  */
 
 import {
@@ -53,8 +59,8 @@ interface ChartRow {
   fill: string;
 }
 
-const BAR_LAW_ENFORCEMENT = "#dc2626"; // red-600 — enforcement
-const BAR_MONITORING = "#0891b2"; // cyan-600 — observation
+const BAR_LAW_ENFORCEMENT = "hsl(var(--chart-1))"; // matches dashboard "events" colour
+const BAR_MONITORING = "hsl(var(--chart-2))"; // matches dashboard "monitoring/patrols" colour
 
 function colorForVariant(variant: EventBreakdownVariant): string {
   return variant === "lawEnforcement"
@@ -201,11 +207,13 @@ export function EventBreakdownChart({
           layout="vertical"
           margin={{ top: 4, right: 12, bottom: 4, left: 4 }}
         >
-          <CartesianGrid strokeDasharray="2 2" stroke="#e5e7eb" />
+          <CartesianGrid horizontal={false} strokeDasharray="4" stroke="#e5e7eb" />
           <XAxis
             type="number"
             allowDecimals={false}
-            tick={{ fontSize: 9, fill: "#374151" }}
+            tickLine={false}
+            axisLine={false}
+            tick={{ fontSize: 9, fill: "#6b7280" }}
             label={{
               value: "Event Count",
               position: "insideBottom",
@@ -218,11 +226,17 @@ export function EventBreakdownChart({
             dataKey="name"
             width={150}
             tickLine={false}
+            axisLine={false}
             tick={<BreakdownYAxisTick variant={variant} />}
           />
           <Tooltip
             cursor={{ fill: "#f3f4f6" }}
-            contentStyle={{ fontSize: "10px" }}
+            contentStyle={{
+              fontSize: "10px",
+              border: "1px solid #e5e7eb",
+              borderRadius: "6px",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+            }}
             formatter={(value: number) => [String(value), "Events"]}
           />
           <Bar dataKey="count" radius={[0, 3, 3, 0]} isAnimationActive={false}>

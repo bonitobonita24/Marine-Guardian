@@ -13,7 +13,12 @@
  * print-render document does NOT include Tailwind's CSS layers in this
  * sub-tree — keeping the chart self-contained via inline styles +
  * Recharts primitives avoids token resolution failures during the
- * standalone print HTML render.
+ * standalone print HTML render. Restyled (R9, 2026-07-06) to match the live
+ * dashboard's shadcn chart look: muted gridlines, `--chart-4` accent (via
+ * the `--chart-N` custom properties injected into the print document's
+ * <style> block — report-map-report.tsx), rounded bar corners, shadcn-style
+ * tooltip. The "Outside enabled boundaries" bar stays neutral gray — it is
+ * deliberately NOT a category colour.
  */
 
 import {
@@ -41,8 +46,8 @@ interface ChartRow {
   fill: string;
 }
 
-const BAR_BOUNDARY = "#06b6d4"; // cyan-500
-const BAR_OUTSIDE = "#9ca3af"; // gray-400
+const BAR_BOUNDARY = "hsl(var(--chart-4))"; // shadcn chart-token accent — Page 2
+const BAR_OUTSIDE = "#9ca3af"; // gray-400 — deliberately neutral, not a category colour
 
 function buildChartRows(
   rows: AreaPatrolCount[],
@@ -103,21 +108,30 @@ export function PatrolAreaBarChart({
           layout="vertical"
           margin={{ top: 4, right: 12, bottom: 4, left: 4 }}
         >
-          <CartesianGrid strokeDasharray="2 2" stroke="#e5e7eb" />
+          <CartesianGrid horizontal={false} strokeDasharray="4" stroke="#e5e7eb" />
           <XAxis
             type="number"
             allowDecimals={false}
-            tick={{ fontSize: 9, fill: "#374151" }}
+            tickLine={false}
+            axisLine={false}
+            tick={{ fontSize: 9, fill: "#6b7280" }}
           />
           <YAxis
             type="category"
             dataKey="name"
             width={120}
-            tick={{ fontSize: 9, fill: "#374151" }}
+            tickLine={false}
+            axisLine={false}
+            tick={{ fontSize: 9, fill: "#6b7280" }}
           />
           <Tooltip
             cursor={{ fill: "#f3f4f6" }}
-            contentStyle={{ fontSize: "10px" }}
+            contentStyle={{
+              fontSize: "10px",
+              border: "1px solid #e5e7eb",
+              borderRadius: "6px",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+            }}
           />
           <Bar dataKey="count" radius={[0, 3, 3, 0]} isAnimationActive={false}>
             {data.map((row, idx) => (

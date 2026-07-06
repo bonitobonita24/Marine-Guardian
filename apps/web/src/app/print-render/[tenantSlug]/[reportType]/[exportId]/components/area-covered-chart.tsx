@@ -18,7 +18,10 @@
  * the Page 2 PatrolAreaBarChart: the print-render document does NOT include
  * Tailwind's CSS layers in this sub-tree, so a self-contained inline-style
  * chart avoids token resolution failures during the standalone print HTML
- * render.
+ * render. Restyled (R9, 2026-07-06) to match the live dashboard's shadcn
+ * chart look: muted gridlines, `--chart-3` accent (via the `--chart-N`
+ * custom properties injected into the print document's <style> block —
+ * report-map-report.tsx), rounded bar corners, shadcn-style tooltip.
  */
 
 import {
@@ -45,7 +48,7 @@ interface ChartRow {
   fill: string;
 }
 
-const BAR_COVERED = "#0d9488"; // teal-600 — Page 3 accent (Page 2 uses cyan-500)
+const BAR_COVERED = "hsl(var(--chart-3))"; // shadcn chart-token accent — Page 3
 
 function buildChartRows(
   rows: BoundaryCoverage[],
@@ -99,11 +102,13 @@ export function AreaCoveredChart({
           layout="vertical"
           margin={{ top: 4, right: 12, bottom: 4, left: 4 }}
         >
-          <CartesianGrid strokeDasharray="2 2" stroke="#e5e7eb" />
+          <CartesianGrid horizontal={false} strokeDasharray="4" stroke="#e5e7eb" />
           <XAxis
             type="number"
             tickFormatter={(v: number) => v.toFixed(1)}
-            tick={{ fontSize: 9, fill: "#374151" }}
+            tickLine={false}
+            axisLine={false}
+            tick={{ fontSize: 9, fill: "#6b7280" }}
             label={{
               value: "Coverage KM",
               position: "insideBottom",
@@ -115,11 +120,18 @@ export function AreaCoveredChart({
             type="category"
             dataKey="name"
             width={120}
-            tick={{ fontSize: 9, fill: "#374151" }}
+            tickLine={false}
+            axisLine={false}
+            tick={{ fontSize: 9, fill: "#6b7280" }}
           />
           <Tooltip
             cursor={{ fill: "#f3f4f6" }}
-            contentStyle={{ fontSize: "10px" }}
+            contentStyle={{
+              fontSize: "10px",
+              border: "1px solid #e5e7eb",
+              borderRadius: "6px",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+            }}
             formatter={(value: number) => [`${value.toFixed(2)} km`, "Coverage"]}
           />
           <Bar

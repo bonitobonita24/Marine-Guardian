@@ -54,7 +54,7 @@ export function EventPointsMap({
             [south, west],
             [north, east],
           ],
-          { padding: [16, 16], maxZoom: 13 },
+          { padding: [8, 8], maxZoom: 15 },
         );
         return;
       }

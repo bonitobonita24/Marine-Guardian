@@ -14,7 +14,10 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { PatrolTypeBarChart } from "../components/patrol-type-bar-chart";
+import {
+  PatrolTotalsFigure,
+  PatrolTypeBarChart,
+} from "../components/patrol-type-bar-chart";
 import type { PatrolTypeTotal } from "@/server/report-map-report/get-report-map-report-data";
 
 function totals(
@@ -88,5 +91,58 @@ describe("PatrolTypeBarChart", () => {
     const html = renderToStaticMarkup(<PatrolTypeBarChart totals={totals({}, {})} />);
     expect(html).toContain('data-testid="patrol-type-bar-chart-empty"');
     expect(html).toContain("No patrol type data for this period.");
+  });
+
+  // R8 (2026-07-06): each metric row carries a small inline bar (a
+  // decorative, aria-hidden proportional fill) beside the stat text.
+  it("renders a decorative inline bar beside each per-type metric row", () => {
+    const html = renderToStaticMarkup(
+      <PatrolTypeBarChart
+        totals={totals(
+          { count: 12, hours: 34.6, km: 210.2 },
+          { count: 5, hours: 8.1, km: 12.4 },
+        )}
+      />,
+    );
+    // The exact metric text is still present verbatim (unbroken substring).
+    expect(html).toContain("Number of patrols = 12");
+    expect(html).toContain("Number of patrols = 5");
+    // Bars are decorative and hidden from assistive tech.
+    const ariaHiddenBarCount = html.split('aria-hidden="true"').length - 1;
+    // 6 metric-row bars (3 metrics × 2 types) — the Totals block is not
+    // rendered by PatrolTypeBarChart itself, so its bars aren't counted here.
+    expect(ariaHiddenBarCount).toBeGreaterThanOrEqual(6);
+  });
+});
+
+describe("PatrolTotalsFigure", () => {
+  it("renders the exact 'Total' stat-line strings with the same label/unit convention as the per-type figures", () => {
+    const html = renderToStaticMarkup(
+      <PatrolTotalsFigure total={17} totalHours={42.7} totalKm={222.6} />,
+    );
+    expect(html).toContain('data-testid="patrol-totals-figure"');
+    expect(html).toContain(">Total<");
+    expect(html).toContain("Number of patrols = 17");
+    expect(html).toContain("Number of hours = 42.7 Hrs");
+    expect(html).toContain("Number of Kilometers = 222.6 Kms");
+  });
+
+  it("renders one decorative inline bar per metric row, scaled against the max of the three totals", () => {
+    const html = renderToStaticMarkup(
+      <PatrolTotalsFigure total={10} totalHours={5} totalKm={20} />,
+    );
+    const ariaHiddenBarCount = html.split('aria-hidden="true"').length - 1;
+    expect(ariaHiddenBarCount).toBe(3);
+    // The km row (20, the max of 10/5/20) should render a 100%-width fill.
+    expect(html).toMatch(/width:\s*100\.0%/);
+  });
+
+  it("renders a visible (non-zero-width) bar even when a metric is 0, as long as another metric is non-zero", () => {
+    const html = renderToStaticMarkup(
+      <PatrolTotalsFigure total={0} totalHours={0} totalKm={0} />,
+    );
+    expect(html).toContain("Number of patrols = 0");
+    expect(html).toContain("Number of hours = 0 Hrs");
+    expect(html).toContain("Number of Kilometers = 0 Kms");
   });
 });

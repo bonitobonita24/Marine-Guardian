@@ -656,10 +656,15 @@ export async function getReportMapReportData(
       : Promise.resolve(null),
   ] as const);
 
+  // Water-centered framing (R10): prefer the municipal WATER polygon alone
+  // (a ~15km municipal-water boundary, land subtracted) over the union with
+  // the land boundary — the water-only bound crops the inland territory so
+  // the print map centers on the coastline + municipal water instead of a
+  // loose, land-inclusive frame. Falls back to the land boundary when a
+  // municipality has no waterGeojson recorded.
   const municipalityBounds: ReportMapBounds | null = municipalityGeometry
     ? unionGeometryBounds(
-        municipalityGeometry.boundaryGeojson,
-        municipalityGeometry.waterGeojson,
+        municipalityGeometry.waterGeojson ?? municipalityGeometry.boundaryGeojson,
       )
     : null;
 

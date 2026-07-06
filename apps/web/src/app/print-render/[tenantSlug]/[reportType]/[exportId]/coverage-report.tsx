@@ -121,6 +121,18 @@ export function CoverageReport({ data }: CoverageReportProps) {
           {data.tenant.name} — Patrol Coverage — {data.period.label}
         </title>
         <style>{`
+          /* Shadcn chart-token palette (R9, 2026-07-06) — same injection as
+             report-map-report.tsx: AreaCoveredChart / PatrolAreaBarChart
+             reference hsl(var(--chart-3))/hsl(var(--chart-4)) so this sibling
+             report's bar colours match the shadcn dashboard palette too.
+             Plain CSS custom properties resolve without Tailwind layers. */
+          :root {
+            --chart-1: 221 83% 48%;
+            --chart-2: 150 62% 36%;
+            --chart-3: 30 80% 55%;
+            --chart-4: 280 65% 60%;
+            --chart-5: 340 75% 55%;
+          }
           @page { size: ${paperCss}; margin: 12mm; }
           * { box-sizing: border-box; }
           /* P1-D fix: force light background + dark text regardless of app dark-mode globals.css.

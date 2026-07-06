@@ -229,18 +229,23 @@ export function PrintMultiSeriesChart({
               axisLine={false}
               tickMargin={compact ? 4 : 6}
               minTickGap={24}
-              tick={{ fontSize: compact ? 8 : 9, fill: "#374151" }}
+              tick={{ fontSize: compact ? 8 : 9, fill: "#6b7280" }}
             />
             <YAxis
               tickLine={false}
               axisLine={false}
               width={compact ? 24 : 28}
               allowDecimals={false}
-              tick={{ fontSize: compact ? 8 : 9, fill: "#374151" }}
+              tick={{ fontSize: compact ? 8 : 9, fill: "#6b7280" }}
             />
             <Tooltip
               cursor={{ stroke: "#e5e7eb" }}
-              contentStyle={{ fontSize: compact ? "9px" : "10px" }}
+              contentStyle={{
+                fontSize: compact ? "9px" : "10px",
+                border: "1px solid #e5e7eb",
+                borderRadius: "6px",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+              }}
             />
             {series.map((s, index) => (
               <Line

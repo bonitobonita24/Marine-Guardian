@@ -679,7 +679,7 @@ describe("getReportMapReportData", () => {
     });
   });
 
-  it("computes municipalityBounds from boundaryGeojson + waterGeojson when municipalityId resolves", async () => {
+  it("computes municipalityBounds from waterGeojson ONLY (water-centered framing, R10) when both boundaryGeojson + waterGeojson resolve", async () => {
     vi.mocked(prisma.tenant.findUnique).mockResolvedValue(TENANT_ROW as never);
     vi.mocked(prisma.reportExport.findUnique).mockResolvedValue({
       ...EXPORT_ROW,
@@ -724,13 +724,54 @@ describe("getReportMapReportData", () => {
     const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
     expect(result).not.toBeNull();
     if (!result) return;
-    // Union of boundary (13.0–13.2 lat, 121.0–121.2 lon) and water
-    // (12.8–13.0 lat, 121.0–121.4 lon).
+    // R10: water-only framing — the land boundary (13.0–13.2 lat, 121.0–121.2
+    // lon) is IGNORED when waterGeojson is present; only the water bound
+    // (12.8–13.0 lat, 121.0–121.4 lon) is used, cropping the inland territory
+    // so the print map centers on the coastline + municipal water.
     expect(result.municipalityBounds).toEqual({
       south: 12.8,
       west: 121.0,
-      north: 13.2,
+      north: 13.0,
       east: 121.4,
+    });
+  });
+
+  it("falls back to boundaryGeojson when the municipality has no waterGeojson", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValue(TENANT_ROW as never);
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValue({
+      ...EXPORT_ROW,
+      paramsJson: { ...EXPORT_ROW.paramsJson, municipalityId: "muni_a" },
+    } as never);
+    vi.mocked(prisma.reportTemplate.findFirst).mockResolvedValue(TEMPLATE_ROW as never);
+    vi.mocked(buildEventBreakdownWithCoords).mockResolvedValue(EMPTY_BREAKDOWN);
+    vi.mocked(prisma.event.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.municipality.findUnique).mockResolvedValue({
+      boundaryGeojson: {
+        type: "Polygon",
+        coordinates: [
+          [
+            [121.0, 13.0],
+            [121.2, 13.0],
+            [121.2, 13.2],
+            [121.0, 13.2],
+            [121.0, 13.0],
+          ],
+        ],
+      },
+      waterGeojson: null,
+    } as never);
+    vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
+
+    const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(result).not.toBeNull();
+    if (!result) return;
+    expect(result.municipalityBounds).toEqual({
+      south: 13.0,
+      west: 121.0,
+      north: 13.2,
+      east: 121.2,
     });
   });
 });

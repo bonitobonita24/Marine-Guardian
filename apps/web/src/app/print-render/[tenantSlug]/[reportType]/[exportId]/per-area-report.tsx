@@ -67,6 +67,19 @@ export function PerAreaReport({ data }: PerAreaReportProps) {
           {data.dateRange.label}
         </title>
         <style>{`
+          /* Shadcn chart-token palette (R9, 2026-07-06) — same injection as
+             report-map-report.tsx / coverage-report.tsx: EventBreakdownChart
+             (Page 1) references hsl(var(--chart-1))/hsl(var(--chart-2)) so
+             this report's bar colours match the shadcn dashboard palette
+             too. Plain CSS custom properties resolve without Tailwind
+             layers. */
+          :root {
+            --chart-1: 221 83% 48%;
+            --chart-2: 150 62% 36%;
+            --chart-3: 30 80% 55%;
+            --chart-4: 280 65% 60%;
+            --chart-5: 340 75% 55%;
+          }
           @page { size: ${paperCss}; margin: 12mm; }
           * { box-sizing: border-box; }
           body { font-family: ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif; color: #111; margin: 0; padding: 16px 20px; font-size: 11px; line-height: 1.4; }
