@@ -175,6 +175,41 @@ async function syncEventTypes(
   return types.length;
 }
 
+// A subject's ER-reported last_position/last_position_date come and go per
+// sync (ER does not always echo a position on every list call). Building the
+// update payload conditionally — omitting the three position fields entirely
+// when ER provides no position on THIS sync — means Prisma leaves the
+// existing column values untouched instead of overwriting a real, previously
+// known position back to null. When ER DOES provide a position, it always
+// wins (fresh position replaces whatever was there). Exported as a pure
+// function so it's testable without touching Prisma/ER.
+export function buildSubjectUpdatePayload(s: {
+  name: string;
+  subject_type?: string | null;
+  subject_subtype?: string | null;
+  last_position?: { latitude: number; longitude: number } | null;
+  last_position_date?: string | null;
+  additional?: Record<string, unknown> | unknown[] | null;
+}): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    name: s.name,
+    subjectType: s.subject_type ?? null,
+    subjectSubtype: s.subject_subtype ?? null,
+    additionalJson: toJsonOrNull(s.additional),
+  };
+
+  if (s.last_position != null) {
+    payload.lastPositionLat = s.last_position.latitude;
+    payload.lastPositionLon = s.last_position.longitude;
+  }
+
+  if (s.last_position_date != null) {
+    payload.lastPositionAt = new Date(s.last_position_date);
+  }
+
+  return payload;
+}
+
 async function syncSubjects(
   client: EarthRangerClient,
   tenantId: string,
@@ -202,15 +237,7 @@ async function syncSubjects(
         syncedAt: now,
       },
       update: {
-        name: s.name,
-        subjectType: s.subject_type ?? null,
-        subjectSubtype: s.subject_subtype ?? null,
-        lastPositionLat: s.last_position?.latitude ?? null,
-        lastPositionLon: s.last_position?.longitude ?? null,
-        lastPositionAt: s.last_position_date != null
-          ? new Date(s.last_position_date)
-          : null,
-        additionalJson: toJsonOrNull(s.additional as Record<string, unknown> | null | undefined),
+        ...buildSubjectUpdatePayload(s),
         syncedAt: now,
       },
     });

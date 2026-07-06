@@ -74,7 +74,7 @@ vi.mock("../lib/earthranger-client", () => {
 });
 
 import { platformPrisma } from "@marine-guardian/db";
-import { processErSync } from "../processors/er-sync.processor";
+import { processErSync, buildSubjectUpdatePayload } from "../processors/er-sync.processor";
 import { enqueueAlert } from "../queues/alerts.queue";
 import { enqueueAreaRederive } from "../queues/area-rederive.queue";
 import { enqueuePatrolTrackMaterialize } from "../queues/patrol-track-materialize.queue";
@@ -169,6 +169,80 @@ describe("processErSync", () => {
         where: { tenantId_erSubjectId: { tenantId: "tenant-1", erSubjectId: "s-1" } },
       }),
     );
+  });
+
+  // Fix A (2026-07-06): a recurring subjects sync where ER returns NO
+  // last_position must NOT null out an existing subject's real position —
+  // that was silencing every ranger marker on the Command Center map (Hide
+  // idle on map had nothing to hide because lastPositionLat/Lon/At were
+  // always null after the next sync tick).
+  describe("buildSubjectUpdatePayload", () => {
+    it("omits lastPositionLat/Lon/At when ER returns no last_position (preserves existing position)", () => {
+      const payload = buildSubjectUpdatePayload({
+        name: "Ranger Alpha",
+        subject_type: "person",
+        subject_subtype: "ranger",
+        last_position: null,
+        last_position_date: null,
+        additional: {},
+      });
+
+      expect(payload).not.toHaveProperty("lastPositionLat");
+      expect(payload).not.toHaveProperty("lastPositionLon");
+      expect(payload).not.toHaveProperty("lastPositionAt");
+      expect(payload).toMatchObject({
+        name: "Ranger Alpha",
+        subjectType: "person",
+        subjectSubtype: "ranger",
+      });
+    });
+
+    it("sets lastPositionLat/Lon/At when ER provides a real last_position", () => {
+      const payload = buildSubjectUpdatePayload({
+        name: "Ranger Alpha",
+        subject_type: "person",
+        subject_subtype: "ranger",
+        last_position: { latitude: -6.5, longitude: 106.8 },
+        last_position_date: "2026-07-01T00:00:00Z",
+        additional: {},
+      });
+
+      expect(payload).toMatchObject({
+        lastPositionLat: -6.5,
+        lastPositionLon: 106.8,
+        lastPositionAt: new Date("2026-07-01T00:00:00Z"),
+      });
+    });
+
+    it("omits only lastPositionAt when last_position_date is absent but last_position is present", () => {
+      const payload = buildSubjectUpdatePayload({
+        name: "Ranger Alpha",
+        last_position: { latitude: -6.5, longitude: 106.8 },
+        last_position_date: null,
+        additional: {},
+      });
+
+      expect(payload).toMatchObject({
+        lastPositionLat: -6.5,
+        lastPositionLon: 106.8,
+      });
+      expect(payload).not.toHaveProperty("lastPositionAt");
+    });
+  });
+
+  it("syncs subjects: update payload omits position fields when ER returns no last_position (existing position preserved)", async () => {
+    mockErClient.getSubjects.mockResolvedValueOnce([
+      { id: "s-1", name: "Ranger Alpha", subject_type: "person", subject_subtype: "ranger", last_position: null, last_position_date: null, additional: {}, subject_group: null },
+    ]);
+    mockPrisma.subject.upsert.mockResolvedValue({});
+
+    await processErSync(makeJob({ syncType: "subjects" }));
+
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const upsertCall = mockPrisma.subject.upsert.mock.calls[0]![0] as { update: Record<string, unknown> };
+    expect(upsertCall.update).not.toHaveProperty("lastPositionLat");
+    expect(upsertCall.update).not.toHaveProperty("lastPositionLon");
+    expect(upsertCall.update).not.toHaveProperty("lastPositionAt");
   });
 
   it("syncs events: creates new event when none exists", async () => {
