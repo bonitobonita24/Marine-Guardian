@@ -72,9 +72,9 @@ export function SelectedPatrolMapPanel({
       aria-label="Selected patrol details"
       className="gap-0 border-primary/40 bg-background/95 py-0 shadow-md backdrop-blur focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
     >
-      <CardHeader className="flex flex-row items-center gap-1.5 space-y-0 border-b px-3 py-2">
-        <MapPin className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
-        <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-foreground">
+      <CardHeader className="flex flex-row items-start gap-1.5 space-y-0 border-b px-3 py-2">
+        <MapPin className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden="true" />
+        <span className="min-w-0 flex-1 break-words text-[11px] font-semibold leading-snug text-foreground">
           {patrol.title ?? "Untitled patrol"}
         </span>
         <button
