@@ -130,6 +130,27 @@ async function handleRender(req, res) {
       ],
     });
     const page = await browser.newPage();
+    // Match the browser VIEWPORT to the printed page's CSS-pixel size BEFORE
+    // navigating. Without this, Puppeteer uses its 800x600 default, so Leaflet
+    // measures each map container at ~60% of 800px and only loads tiles for
+    // that narrow width — then page.pdf() reflows the content to the (wider)
+    // landscape @page size, leaving the uncovered right edge as the flat map
+    // background ("weird shade on the right"). Sizing the viewport to the print
+    // page makes Leaflet measure + tile the full width up front. Paper CSS-px =
+    // mm / 25.4 * 96, rounded; orientation follows the `landscape` flag.
+    const PAPER_MM = {
+      A4: [210, 297],
+      Letter: [215.9, 279.4],
+      Legal: [215.9, 355.6],
+    };
+    const [shortMm, longMm] = PAPER_MM[paperSize] ?? PAPER_MM.A4;
+    const mmToPx = (mm) => Math.round((mm / 25.4) * 96);
+    const isLandscape = Boolean(landscape);
+    await page.setViewport({
+      width: mmToPx(isLandscape ? longMm : shortMm),
+      height: mmToPx(isLandscape ? shortMm : longMm),
+      deviceScaleFactor: 2,
+    });
     await page.setExtraHTTPHeaders({
       "X-PDF-Renderer-Token": SERVICE_TOKEN,
     });
