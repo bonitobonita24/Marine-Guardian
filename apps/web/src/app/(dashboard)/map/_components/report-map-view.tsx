@@ -17,6 +17,10 @@ import {
   type RangePatrol,
 } from "./patrol-list-by-range-card";
 import { SelectedPatrolMapPanel } from "./selected-patrol-map-panel";
+import {
+  EventTypeEventsPanel,
+  type EventTypeEventsPanelEvent,
+} from "./event-type-events-panel";
 import { EventsOverTimeChart } from "@/components/reporting/events-over-time-chart";
 import { MunicipalityCoverageChart } from "@/app/(dashboard)/dashboard/_components/municipality-coverage-chart";
 import {
@@ -97,7 +101,11 @@ function ReportMapInner() {
     ...(protectedZoneId !== null ? { protectedZoneId } : {}),
   };
 
-  const breakdown = trpc.reportMap.eventBreakdown.useQuery(filter);
+  // eventBreakdownWithCoords (not the lean eventBreakdown) — the Report Map
+  // needs each row's per-event detail (id/location/etc.) so a clicked bar can
+  // open the EventTypeEventsPanel drill-down list (2026-07-06). Per-type
+  // counts are identical between the two procedures (see reportMap.ts).
+  const breakdown = trpc.reportMap.eventBreakdownWithCoords.useQuery(filter);
   const eventsOverTime = trpc.reportMap.eventsOverTime.useQuery(filter);
   const highPriority = trpc.reportMap.highPriorityEvents.useQuery(filter);
   const patrolsInRange = trpc.reportMap.patrolsInRange.useQuery(filter);
@@ -159,6 +167,68 @@ function ReportMapInner() {
     },
     [patrols, selectPatrol],
   );
+
+  // Clicked breakdown bar (Law Enforcement / Monitoring) → floating event list
+  // on the map's upper-right (2026-07-06). Mutually exclusive with the
+  // selected-patrol panel (same topRightSlot) — selecting one clears the
+  // other. Re-clicking the same bar toggles it off.
+  type EventTypeGroup = {
+    variant: "law_enforcement" | "monitoring";
+    display: string;
+    events: EventTypeEventsPanelEvent[];
+  };
+  const [selectedEventTypeGroup, setSelectedEventTypeGroup] =
+    useState<EventTypeGroup | null>(null);
+  const selectEventType = useCallback(
+    (variant: EventTypeGroup["variant"], display: string, events: EventTypeEventsPanelEvent[]) => {
+      setSelectedPatrolId(null);
+      setSelectedEventTypeGroup((prev) =>
+        prev !== null && prev.variant === variant && prev.display === display
+          ? null
+          : { variant, display, events },
+      );
+    },
+    [],
+  );
+  const deselectEventType = useCallback(() => {
+    setSelectedEventTypeGroup(null);
+  }, []);
+  // Selecting a patrol (list row OR map track click) clears any open
+  // event-type list — the two floating panels share one slot.
+  const selectPatrolClearingEventType = useCallback(
+    (p: RangePatrol) => {
+      setSelectedEventTypeGroup(null);
+      selectPatrol(p);
+    },
+    [selectPatrol],
+  );
+  const selectPatrolByIdClearingEventType = useCallback(
+    (patrolId: string) => {
+      setSelectedEventTypeGroup(null);
+      selectPatrolById(patrolId);
+    },
+    [selectPatrolById],
+  );
+  // Clicking the empty basemap clears BOTH floating panels.
+  const deselectAll = useCallback(() => {
+    deselectPatrol();
+    deselectEventType();
+  }, [deselectPatrol, deselectEventType]);
+  // A filter change can refetch the breakdown WITHOUT the currently-selected
+  // event type (e.g. a municipality change that removes that type's only
+  // events) — clear the stale selection the same way the patrol-selection
+  // effect above does, so a drill-down list can't linger against data that no
+  // longer contains it. While the query is in-flight, the selection is kept.
+  useEffect(() => {
+    if (selectedEventTypeGroup === null || breakdown.data === undefined) return;
+    const rows =
+      selectedEventTypeGroup.variant === "law_enforcement"
+        ? breakdown.data.lawEnforcement
+        : breakdown.data.monitoring;
+    if (!rows.some((r) => r.type === selectedEventTypeGroup.display)) {
+      setSelectedEventTypeGroup(null);
+    }
+  }, [breakdown.data, selectedEventTypeGroup]);
 
   // Municipality NAME for the empty-state message — derived from the same
   // dropdown options the filter bar renders (cached query, no extra fetch).
@@ -230,10 +300,18 @@ function ReportMapInner() {
           onEventClick={setSelectedEventId}
           focusLocation={focusLocation}
           selectedPatrolId={selectedPatrolId}
-          onPatrolTrackClick={selectPatrolById}
-          onBackgroundClick={deselectPatrol}
+          onPatrolTrackClick={selectPatrolByIdClearingEventType}
+          onBackgroundClick={deselectAll}
           topRightSlot={
-            selectedPatrol !== null ? (
+            selectedEventTypeGroup !== null ? (
+              <EventTypeEventsPanel
+                display={selectedEventTypeGroup.display}
+                events={selectedEventTypeGroup.events}
+                onLocate={locateOnMap}
+                onSelectEvent={setSelectedEventId}
+                onClose={deselectEventType}
+              />
+            ) : selectedPatrol !== null ? (
               <SelectedPatrolMapPanel
                 patrol={selectedPatrol}
                 onClose={deselectPatrol}
@@ -263,6 +341,19 @@ function ReportMapInner() {
             titleIcon={ShieldAlert}
             variant="law_enforcement"
             data={breakdown.data?.lawEnforcement ?? []}
+            onSelectType={(type) => {
+              const row = breakdown.data?.lawEnforcement.find(
+                (r) => r.type === type,
+              );
+              if (row !== undefined) {
+                selectEventType("law_enforcement", type, row.events);
+              }
+            }}
+            selectedType={
+              selectedEventTypeGroup?.variant === "law_enforcement"
+                ? selectedEventTypeGroup.display
+                : undefined
+            }
             compact
           />
           <BreakdownBars
@@ -270,6 +361,19 @@ function ReportMapInner() {
             titleIcon={Binoculars}
             variant="monitoring"
             data={breakdown.data?.monitoring ?? []}
+            onSelectType={(type) => {
+              const row = breakdown.data?.monitoring.find(
+                (r) => r.type === type,
+              );
+              if (row !== undefined) {
+                selectEventType("monitoring", type, row.events);
+              }
+            }}
+            selectedType={
+              selectedEventTypeGroup?.variant === "monitoring"
+                ? selectedEventTypeGroup.display
+                : undefined
+            }
             compact
           />
           <HighPriorityEventsCard
@@ -286,7 +390,7 @@ function ReportMapInner() {
             patrols={patrolsInRange.data ?? []}
             isLoading={patrolsInRange.isLoading}
             selectedPatrolId={selectedPatrolId}
-            onSelect={selectPatrol}
+            onSelect={selectPatrolClearingEventType}
             totalCount={summary.data?.totalPatrols}
           />
         </div>

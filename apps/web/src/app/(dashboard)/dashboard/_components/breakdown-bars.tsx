@@ -10,8 +10,15 @@
  *
  * Preserved: title, data (BreakdownDatum[]), variant, onSelectType drill-down,
  * compact mode, canonical event-type order, per-type icons, barClass (legacy).
+ *
+ * `selectedType` (Interactive Report Map, 2026-07-06): optional active-bar
+ * highlight — when it matches a row's `type`, that bar renders with a
+ * category-tinted ring so the floating drill-down list (opened via
+ * onSelectType) reads as "attached" to the bar that opened it. Purely
+ * additive; callers that don't pass it (War Room) see no change.
  */
 
+import type { CSSProperties } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -64,6 +71,7 @@ export function BreakdownBars({
   data,
   variant,
   onSelectType,
+  selectedType,
   compact = false,
   // legacy prop accepted but unused — color is driven by `variant`
   barClass: _barClass,
@@ -76,10 +84,14 @@ export function BreakdownBars({
   /** Half-height chart for dense surfaces (Interactive Report Map). */
   compact?: boolean;
   /**
-   * War Room drill-down (T5b): called with the clicked event-type label
-   * (eventType.display) so the parent can open the breakdown drill-down modal.
+   * War Room drill-down (T5b) / Interactive Report Map (2026-07-06): called
+   * with the clicked event-type label (eventType.display) so the parent can
+   * open its own drill-down surface (modal on War Room, floating event list
+   * on the Report Map).
    */
   onSelectType?: (type: string) => void;
+  /** Row whose `type` should render highlighted (active-bar state). */
+  selectedType?: string | undefined;
   /** Kept for backward compatibility with callers that haven't migrated yet. */
   barClass?: string;
 }) {
@@ -183,11 +195,13 @@ export function BreakdownBars({
               // Min sliver so any non-zero count still reads as a bar.
               const pct = Math.max((d.count / maxCount) * 100, 3);
               const interactive = onSelectType !== undefined;
+              const isSelected = interactive && d.type === selectedType;
               const barCls = cn(
                 "relative min-w-0 flex-1 overflow-hidden rounded bg-muted/30",
                 compact ? "h-5" : "h-6",
                 interactive &&
                   "cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                isSelected && "ring-2 ring-offset-1 ring-offset-background",
               );
               // Fill (category colour) anchored left + the icon & name overlaid
               // at the left so the name reads whether or not it fits inside the
@@ -216,7 +230,13 @@ export function BreakdownBars({
                         onSelectType(d.type);
                       }}
                       aria-label={`View ${d.count.toLocaleString()} ${d.type} ${title} events`}
+                      aria-pressed={isSelected}
                       className={barCls}
+                      style={
+                        isSelected
+                          ? ({ "--tw-ring-color": colorVar } as CSSProperties)
+                          : undefined
+                      }
                     >
                       {barInner}
                     </button>

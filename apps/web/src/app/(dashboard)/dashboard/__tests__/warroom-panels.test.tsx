@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup, within } from "@testing-library/react";
+import { render, screen, cleanup, within, fireEvent } from "@testing-library/react";
 import { AlertsPanel, type AlertItem } from "../_components/alerts-panel";
 import { EventFeed, type FeedEvent } from "../_components/event-feed";
 import { ActivePatrols, type ActivePatrol } from "../_components/active-patrols";
@@ -280,5 +280,55 @@ describe("BreakdownBars — labelled bar list", () => {
         />,
       ),
     ).not.toThrow();
+  });
+
+  // Interactive Report Map (2026-07-06): bars become clickable buttons ONLY
+  // when the caller opts in via onSelectType — the dashboard/War Room usage
+  // (no onSelectType/selectedType passed) must render unchanged.
+  it("without onSelectType, bars are NOT buttons (dashboard regression guard)", () => {
+    render(
+      <BreakdownBars title="Law Enforcement" data={data} variant="law_enforcement" />,
+    );
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+  });
+
+  it("with onSelectType, each bar renders as a focusable button and clicking it calls onSelectType with the row's type", () => {
+    const onSelectType = vi.fn();
+    render(
+      <BreakdownBars
+        title="Law Enforcement"
+        data={data}
+        variant="law_enforcement"
+        onSelectType={onSelectType}
+      />,
+    );
+    // Native <button type="button"> elements — Enter/Space activate them via
+    // the browser's built-in button semantics (jsdom does not simulate the
+    // keydown→click conversion a real browser performs, so we assert the
+    // interactive contract structurally: it IS a real <button>) and clicking
+    // is the behavior under direct test.
+    const buttons = screen.getAllByRole("button");
+    expect(buttons).toHaveLength(data.length);
+    fireEvent.click(screen.getByRole("button", { name: /Blast Fishing/i }));
+    expect(onSelectType).toHaveBeenCalledWith("Blast Fishing");
+    fireEvent.click(screen.getByRole("button", { name: /Poaching/i }));
+    expect(onSelectType).toHaveBeenCalledWith("Poaching");
+    expect(onSelectType).toHaveBeenCalledTimes(2);
+  });
+
+  it("selectedType highlights the matching bar as pressed", () => {
+    render(
+      <BreakdownBars
+        title="Law Enforcement"
+        data={data}
+        variant="law_enforcement"
+        onSelectType={() => {}}
+        selectedType="Illegal Nets"
+      />,
+    );
+    const selectedButton = screen.getByRole("button", { name: /Illegal Nets/i });
+    expect(selectedButton.getAttribute("aria-pressed")).toBe("true");
+    const otherButton = screen.getByRole("button", { name: /Blast Fishing/i });
+    expect(otherButton.getAttribute("aria-pressed")).toBe("false");
   });
 });
