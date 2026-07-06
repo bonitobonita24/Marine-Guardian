@@ -17,23 +17,14 @@
  */
 
 import "leaflet/dist/leaflet.css";
-import { useEffect, useRef } from "react";
-import { CircleMarker, MapContainer, TileLayer, useMap } from "react-leaflet";
+import { useCallback, useRef } from "react";
+import type { Map as LeafletMap, TileLayer as LeafletTileLayer } from "leaflet";
+import { CircleMarker, MapContainer, TileLayer } from "react-leaflet";
 import type {
   ReportMapBounds,
   ReportMapEventPoint,
 } from "@/server/report-map-report/get-report-map-report-data";
-
-declare global {
-  interface Window {
-    __renderReady?: boolean;
-    /** Multi-map coordination counter. Set by the RSC host before render; each
-     *  MapReadySignal decrements it. __renderReady is flipped only when the
-     *  counter reaches 0. Single-map documents leave this undefined — the
-     *  direct-flip fallback preserves backward compatibility. */
-    __renderPending?: number;
-  }
-}
+import { MapRenderGate } from "./map-render-gate";
 
 interface EventPointsMapProps {
   points: ReportMapEventPoint[];
@@ -44,89 +35,36 @@ interface EventPointsMapProps {
   municipalityBounds?: ReportMapBounds | null;
 }
 
-function MapReadySignal({ hasAnyOverlay }: { hasAnyOverlay: boolean }) {
-  const map = useMap();
-  const flippedRef = useRef(false);
-
-  useEffect(() => {
-    if (flippedRef.current) return;
-
-    function flip() {
-      if (flippedRef.current) return;
-      flippedRef.current = true;
-      if (typeof window.__renderPending === "number") {
-        window.__renderPending -= 1;
-        if (window.__renderPending <= 0) window.__renderReady = true;
-      } else {
-        window.__renderReady = true;
-      }
-    }
-
-    function paintFlush() {
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(flip);
-      });
-    }
-
-    // Safety net: 8s hard timeout (matches Puppeteer waitForFunction timeout).
-    const timeoutId = window.setTimeout(paintFlush, 8000);
-
-    if (!hasAnyOverlay) {
-      paintFlush();
-    } else {
-      map.whenReady(() => {
-        map.once("load", paintFlush);
-      });
-    }
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [map, hasAnyOverlay]);
-
-  return null;
-}
-
-function AutoFitBounds({
-  points,
-  municipalityBounds,
-}: {
-  points: ReportMapEventPoint[];
-  municipalityBounds?: ReportMapBounds | null;
-}) {
-  const map = useMap();
-  useEffect(() => {
-    // Print/SSR mounts the container before it reaches its final laid-out
-    // width; Leaflet measures too-narrow and only loads tiles for that width.
-    // Re-measure the FULL container before framing, else the uncovered right
-    // band shows through as the MapContainer background.
-    map.invalidateSize({ animate: false });
-    // A specific municipality is in scope — always frame it, even when there
-    // are 0/1 located event points (the case that used to fall through to
-    // the fixed whole-region fallback).
-    if (municipalityBounds) {
-      const { south, west, north, east } = municipalityBounds;
-      map.fitBounds(
-        [
-          [south, west],
-          [north, east],
-        ],
-        { padding: [16, 16], maxZoom: 13 },
-      );
-      return;
-    }
-    if (points.length < 2) return;
-    const latLngs = points.map((p) => [p.lat, p.lon] as [number, number]);
-    map.fitBounds(latLngs, { padding: [16, 16] });
-  }, [map, points, municipalityBounds]);
-  return null;
-}
-
 export function EventPointsMap({
   points,
   markerColor = "#2563eb",
   municipalityBounds = null,
 }: EventPointsMapProps) {
+  const tileLayerRef = useRef<LeafletTileLayer>(null);
+
+  // A specific municipality is in scope — always frame it, even when there
+  // are 0/1 located event points (the case that used to fall through to the
+  // fixed whole-region fallback). Runs AFTER MapRenderGate's invalidateSize.
+  const applyFraming = useCallback(
+    (map: LeafletMap) => {
+      if (municipalityBounds) {
+        const { south, west, north, east } = municipalityBounds;
+        map.fitBounds(
+          [
+            [south, west],
+            [north, east],
+          ],
+          { padding: [16, 16], maxZoom: 13 },
+        );
+        return;
+      }
+      if (points.length < 2) return;
+      const latLngs = points.map((p) => [p.lat, p.lon] as [number, number]);
+      map.fitBounds(latLngs, { padding: [16, 16] });
+    },
+    [points, municipalityBounds],
+  );
+
   return (
     <div
       style={{ position: "relative", width: "100%", height: "100%" }}
@@ -141,6 +79,7 @@ export function EventPointsMap({
         data-testid="event-points-map"
       >
         <TileLayer
+          ref={tileLayerRef}
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
@@ -157,8 +96,11 @@ export function EventPointsMap({
             }}
           />
         ))}
-        <AutoFitBounds points={points} municipalityBounds={municipalityBounds} />
-        <MapReadySignal hasAnyOverlay={points.length > 0} />
+        <MapRenderGate
+          hasAnyOverlay={points.length > 0}
+          applyFraming={applyFraming}
+          tileLayerRef={tileLayerRef}
+        />
       </MapContainer>
       {points.length === 0 && (
         <div

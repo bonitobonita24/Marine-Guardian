@@ -17,24 +17,14 @@
  */
 
 import "leaflet/dist/leaflet.css";
-import { useEffect, useMemo, useRef } from "react";
-import {
-  MapContainer,
-  Polygon,
-  Polyline,
-  TileLayer,
-  useMap,
-} from "react-leaflet";
+import { useCallback, useMemo, useRef } from "react";
+import type { Map as LeafletMap, TileLayer as LeafletTileLayer } from "leaflet";
+import { MapContainer, Polygon, Polyline, TileLayer } from "react-leaflet";
 import type {
   CoverageReportArea,
   CoverageReportPatrolRow,
 } from "@/server/coverage-report/get-coverage-report-data";
-
-declare global {
-  interface Window {
-    __renderReady?: boolean;
-  }
-}
+import { MapRenderGate } from "./map-render-gate";
 
 interface AreaCoverageMapProps {
   areas: CoverageReportArea[];
@@ -79,93 +69,13 @@ function trackToLatLngs(
   return coords.map(([lon, lat]) => [lat, lon] as [number, number]);
 }
 
-interface MapReadySignalProps {
-  hasAnyOverlay: boolean;
-}
-
-/**
- * Listens for Leaflet's 'load' event AND ensures both the basemap pane
- * and overlay panes finish painting before flipping window.__renderReady.
- * The pdf-renderer Puppeteer service waits on this flag after its
- * networkidle0 wait.
- */
-function MapReadySignal({ hasAnyOverlay }: MapReadySignalProps) {
-  const map = useMap();
-  const flippedRef = useRef(false);
-
-  useEffect(() => {
-    if (flippedRef.current) return;
-
-    function flip() {
-      if (flippedRef.current) return;
-      flippedRef.current = true;
-      window.__renderReady = true;
-    }
-
-    // Two animation frames lets polygon/polyline paths flush to the
-    // overlay pane before Puppeteer's page.pdf() screenshots.
-    function paintFlush() {
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(flip);
-      });
-    }
-
-    // Safety net: 8s hard timeout (matches Puppeteer waitForFunction timeout).
-    // Tile load is the dominant variable; if egress to tile.openstreetmap.org
-    // is slow, we still surface SOMETHING rather than block forever.
-    const timeoutId = window.setTimeout(paintFlush, 8000);
-
-    if (!hasAnyOverlay) {
-      // No overlays to wait for — flip after the initial paint flush.
-      paintFlush();
-    } else {
-      // 'load' fires when the basemap finishes its initial tile pass.
-      map.whenReady(() => {
-        map.once("load", paintFlush);
-      });
-    }
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [map, hasAnyOverlay]);
-
-  return null;
-}
-
-interface AutoFitBoundsProps {
-  areas: CoverageReportArea[];
-  tracks: Array<Array<[number, number]>>;
-}
-
-function AutoFitBounds({ areas, tracks }: AutoFitBoundsProps) {
-  const map = useMap();
-  useEffect(() => {
-    // Print/SSR mounts the container before it reaches its final laid-out
-    // width; Leaflet measures too-narrow and only loads tiles for that width.
-    // Re-measure the FULL container before framing, else the uncovered right
-    // band shows through as the MapContainer background.
-    map.invalidateSize({ animate: false });
-    const points: Array<[number, number]> = [];
-    for (const a of areas) {
-      const ring = polygonToLatLngs(a.geometryGeojson);
-      if (ring !== null) points.push(...ring);
-    }
-    for (const t of tracks) {
-      points.push(...t);
-    }
-    if (points.length < 2) return;
-    map.fitBounds(points, { padding: [16, 16] });
-  }, [map, areas, tracks]);
-  return null;
-}
-
 export function AreaCoverageMap({
   areas,
   patrols,
   initialCenter,
   initialZoom,
 }: AreaCoverageMapProps) {
+  const tileLayerRef = useRef<LeafletTileLayer>(null);
   const polygons = useMemo(
     () =>
       areas
@@ -192,6 +102,22 @@ export function AreaCoverageMap({
   const zoom = initialZoom ?? 9;
   const hasAnyOverlay = polygons.length > 0 || tracks.length > 0;
 
+  const applyFraming = useCallback(
+    (map: LeafletMap) => {
+      const points: Array<[number, number]> = [];
+      for (const a of areas) {
+        const ring = polygonToLatLngs(a.geometryGeojson);
+        if (ring !== null) points.push(...ring);
+      }
+      for (const t of tracks) {
+        points.push(...t);
+      }
+      if (points.length < 2) return;
+      map.fitBounds(points, { padding: [16, 16] });
+    },
+    [areas, tracks],
+  );
+
   return (
     <MapContainer
       center={center}
@@ -203,6 +129,7 @@ export function AreaCoverageMap({
       data-testid="area-coverage-map"
     >
       <TileLayer
+        ref={tileLayerRef}
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
@@ -226,8 +153,11 @@ export function AreaCoverageMap({
           pathOptions={{ color: TRACK_STROKE, weight: 1.5, opacity: 0.85 }}
         />
       ))}
-      <AutoFitBounds areas={areas} tracks={tracks} />
-      <MapReadySignal hasAnyOverlay={hasAnyOverlay} />
+      <MapRenderGate
+        hasAnyOverlay={hasAnyOverlay}
+        applyFraming={applyFraming}
+        tileLayerRef={tileLayerRef}
+      />
     </MapContainer>
   );
 }

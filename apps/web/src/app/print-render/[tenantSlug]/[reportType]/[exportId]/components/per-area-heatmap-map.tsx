@@ -19,16 +19,12 @@
  */
 
 import "leaflet/dist/leaflet.css";
-import { useEffect, useMemo, useRef } from "react";
-import { MapContainer, TileLayer, useMap } from "react-leaflet";
+import { useCallback, useMemo, useRef } from "react";
+import type { Map as LeafletMap, TileLayer as LeafletTileLayer } from "leaflet";
+import { MapContainer, TileLayer } from "react-leaflet";
 import type { HeatLatLng } from "@marine-guardian/shared/lib/heatmap-sample";
 import { HeatLayer } from "./heat-layer";
-
-declare global {
-  interface Window {
-    __renderReady?: boolean;
-  }
-}
+import { MapRenderGate } from "./map-render-gate";
 
 interface PerAreaHeatmapMapProps {
   eventPoints: HeatLatLng[];
@@ -38,80 +34,13 @@ interface PerAreaHeatmapMapProps {
   initialZoom?: number;
 }
 
-interface MapReadySignalProps {
-  hasAnyOverlay: boolean;
-}
-
-/**
- * Mirrors the MapReadySignal contract from AreaCoverageMap. Two animation
- * frames give the heat-layer canvas time to flush before Puppeteer
- * screenshots. Safety net: 8s hard timeout (matches Puppeteer's
- * waitForFunction timeout in the pdf-renderer service).
- */
-function MapReadySignal({ hasAnyOverlay }: MapReadySignalProps) {
-  const map = useMap();
-  const flippedRef = useRef(false);
-
-  useEffect(() => {
-    if (flippedRef.current) return;
-
-    function flip() {
-      if (flippedRef.current) return;
-      flippedRef.current = true;
-      window.__renderReady = true;
-    }
-
-    function paintFlush() {
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(flip);
-      });
-    }
-
-    const timeoutId = window.setTimeout(paintFlush, 8000);
-
-    if (!hasAnyOverlay) {
-      paintFlush();
-    } else {
-      map.whenReady(() => {
-        map.once("load", paintFlush);
-      });
-    }
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [map, hasAnyOverlay]);
-
-  return null;
-}
-
-interface AutoFitBoundsProps {
-  points: HeatLatLng[];
-}
-
-function AutoFitBounds({ points }: AutoFitBoundsProps) {
-  const map = useMap();
-  useEffect(() => {
-    // Print/SSR mounts the container before it reaches its final laid-out
-    // width; Leaflet measures too-narrow and only loads tiles for that width.
-    // Re-measure the FULL container before framing, else the uncovered right
-    // band shows through as the MapContainer background.
-    map.invalidateSize({ animate: false });
-    if (points.length < 2) return;
-    const latLngs = points.map(
-      ([lat, lon]) => [lat, lon] as [number, number],
-    );
-    map.fitBounds(latLngs, { padding: [16, 16] });
-  }, [map, points]);
-  return null;
-}
-
 export function PerAreaHeatmapMap({
   eventPoints,
   trackPoints,
   initialCenter,
   initialZoom,
 }: PerAreaHeatmapMapProps) {
+  const tileLayerRef = useRef<LeafletTileLayer>(null);
   const allPoints = useMemo(
     () => [...eventPoints, ...trackPoints],
     [eventPoints, trackPoints],
@@ -122,6 +51,17 @@ export function PerAreaHeatmapMap({
     : [13.0, 121.0]; // Default: Mindoro centerpoint — overridden by AutoFitBounds when data exists.
   const zoom = initialZoom ?? 9;
   const hasAnyOverlay = eventPoints.length > 0 || trackPoints.length > 0;
+
+  const applyFraming = useCallback(
+    (map: LeafletMap) => {
+      if (allPoints.length < 2) return;
+      const latLngs = allPoints.map(
+        ([lat, lon]) => [lat, lon] as [number, number],
+      );
+      map.fitBounds(latLngs, { padding: [16, 16] });
+    },
+    [allPoints],
+  );
 
   return (
     <MapContainer
@@ -134,13 +74,17 @@ export function PerAreaHeatmapMap({
       data-testid="per-area-heatmap-map"
     >
       <TileLayer
+        ref={tileLayerRef}
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       <HeatLayer variant="tracks" points={trackPoints} />
       <HeatLayer variant="events" points={eventPoints} />
-      <AutoFitBounds points={allPoints} />
-      <MapReadySignal hasAnyOverlay={hasAnyOverlay} />
+      <MapRenderGate
+        hasAnyOverlay={hasAnyOverlay}
+        applyFraming={applyFraming}
+        tileLayerRef={tileLayerRef}
+      />
     </MapContainer>
   );
 }

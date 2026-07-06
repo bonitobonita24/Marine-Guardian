@@ -16,20 +16,14 @@
  */
 
 import "leaflet/dist/leaflet.css";
-import { useEffect, useRef } from "react";
-import { MapContainer, Polyline, TileLayer, useMap } from "react-leaflet";
+import { useCallback, useRef } from "react";
+import type { Map as LeafletMap, TileLayer as LeafletTileLayer } from "leaflet";
+import { MapContainer, Polyline, TileLayer } from "react-leaflet";
 import type {
   ReportMapBounds,
   ReportMapTrackRow,
 } from "@/server/report-map-report/get-report-map-report-data";
-
-declare global {
-  interface Window {
-    __renderReady?: boolean;
-    /** Multi-map coordination counter — see event-points-map.tsx for protocol. */
-    __renderPending?: number;
-  }
-}
+import { MapRenderGate } from "./map-render-gate";
 
 interface PatrolTracksMapProps {
   tracks: ReportMapTrackRow[];
@@ -39,94 +33,41 @@ interface PatrolTracksMapProps {
   municipalityBounds?: ReportMapBounds | null;
 }
 
-function MapReadySignal({ hasAnyOverlay }: { hasAnyOverlay: boolean }) {
-  const map = useMap();
-  const flippedRef = useRef(false);
-
-  useEffect(() => {
-    if (flippedRef.current) return;
-
-    function flip() {
-      if (flippedRef.current) return;
-      flippedRef.current = true;
-      if (typeof window.__renderPending === "number") {
-        window.__renderPending -= 1;
-        if (window.__renderPending <= 0) window.__renderReady = true;
-      } else {
-        window.__renderReady = true;
-      }
-    }
-
-    function paintFlush() {
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(flip);
-      });
-    }
-
-    const timeoutId = window.setTimeout(paintFlush, 8000);
-
-    if (!hasAnyOverlay) {
-      paintFlush();
-    } else {
-      map.whenReady(() => {
-        map.once("load", paintFlush);
-      });
-    }
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [map, hasAnyOverlay]);
-
-  return null;
-}
-
-function AutoFitBounds({
-  tracks,
-  municipalityBounds,
-}: {
-  tracks: ReportMapTrackRow[];
-  municipalityBounds?: ReportMapBounds | null;
-}) {
-  const map = useMap();
-  useEffect(() => {
-    // Print/SSR mounts the container before it reaches its final laid-out
-    // width; Leaflet measures too-narrow and only loads tiles for that width.
-    // Re-measure the FULL container before framing, else the uncovered right
-    // band shows through as the MapContainer background.
-    map.invalidateSize({ animate: false });
-    // A specific municipality is in scope — always frame it, even when there
-    // are 0/1 renderable tracks (the case that used to fall through to the
-    // fixed whole-region fallback).
-    if (municipalityBounds) {
-      const { south, west, north, east } = municipalityBounds;
-      map.fitBounds(
-        [
-          [south, west],
-          [north, east],
-        ],
-        { padding: [16, 16], maxZoom: 13 },
-      );
-      return;
-    }
-    const points: Array<[number, number]> = [];
-    for (const t of tracks) {
-      for (const pt of t.path) {
-        points.push([pt.lat, pt.lon]);
-      }
-    }
-    if (points.length < 2) return;
-    map.fitBounds(points, { padding: [16, 16] });
-  }, [map, tracks, municipalityBounds]);
-  return null;
-}
-
 export function PatrolTracksMap({
   tracks,
   municipalityBounds = null,
 }: PatrolTracksMapProps) {
   const renderableTracks = tracks.filter((t) => t.path.length > 1);
   const hasTracks = renderableTracks.length > 0;
+  const tileLayerRef = useRef<LeafletTileLayer>(null);
+
+  // A specific municipality is in scope — always frame it, even when there
+  // are 0/1 renderable tracks (the case that used to fall through to the
+  // fixed whole-region fallback). Runs AFTER MapRenderGate's invalidateSize.
+  const applyFraming = useCallback(
+    (map: LeafletMap) => {
+      if (municipalityBounds) {
+        const { south, west, north, east } = municipalityBounds;
+        map.fitBounds(
+          [
+            [south, west],
+            [north, east],
+          ],
+          { padding: [16, 16], maxZoom: 13 },
+        );
+        return;
+      }
+      const points: Array<[number, number]> = [];
+      for (const t of renderableTracks) {
+        for (const pt of t.path) {
+          points.push([pt.lat, pt.lon]);
+        }
+      }
+      if (points.length < 2) return;
+      map.fitBounds(points, { padding: [16, 16] });
+    },
+    [renderableTracks, municipalityBounds],
+  );
 
   return (
     <div
@@ -142,6 +83,7 @@ export function PatrolTracksMap({
         data-testid="patrol-tracks-map"
       >
         <TileLayer
+          ref={tileLayerRef}
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
@@ -154,11 +96,11 @@ export function PatrolTracksMap({
             pathOptions={{ color: "#1f2937", weight: 2, opacity: 0.85 }}
           />
         ))}
-        <AutoFitBounds
-          tracks={renderableTracks}
-          municipalityBounds={municipalityBounds}
+        <MapRenderGate
+          hasAnyOverlay={hasTracks}
+          applyFraming={applyFraming}
+          tileLayerRef={tileLayerRef}
         />
-        <MapReadySignal hasAnyOverlay={hasTracks} />
       </MapContainer>
       {!hasTracks && (
         <div
