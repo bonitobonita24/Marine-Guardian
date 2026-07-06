@@ -231,20 +231,30 @@ async function listViaSearch(
   }
   // The fuzzy match itself — concatenation of every scalar text column plus
   // the two JSON blobs cast to text. The GIN trigram index created in the
-  // migration accelerates this ILIKE.
+  // migration accelerates this ILIKE. The joined event type's display name
+  // (et.display, e.g. "Skylight Entry Alert") is deliberately kept OUT of the
+  // indexed concat (it lives on a joined relation, not the events table) and
+  // OR'd in as a separate predicate instead, so the events-only concat above
+  // stays byte-identical to what the GIN trigram index was built against —
+  // preserving the planner's BitmapOr branch for the common case — while
+  // still closing the gap where a search term matches ONLY the event type
+  // name and nothing else on the event.
   conditions.push(Prisma.sql`(
-    coalesce(e.title, '') || ' ' ||
-    coalesce(e.reported_by_name, '') || ' ' ||
-    coalesce(e.offender_name, '') || ' ' ||
-    coalesce(e.vessel_name, '') || ' ' ||
-    coalesce(e.vessel_registration, '') || ' ' ||
-    coalesce(e.address, '') || ' ' ||
-    coalesce(e.action_taken, '') || ' ' ||
-    coalesce(e.area_name, '') || ' ' ||
-    coalesce(e.serial_number, '') || ' ' ||
-    coalesce(e.event_details_json::text, '') || ' ' ||
-    coalesce(e.notes_json::text, '')
-  ) ILIKE ${`%${searchTerm}%`}`);
+    (
+      coalesce(e.title, '') || ' ' ||
+      coalesce(e.reported_by_name, '') || ' ' ||
+      coalesce(e.offender_name, '') || ' ' ||
+      coalesce(e.vessel_name, '') || ' ' ||
+      coalesce(e.vessel_registration, '') || ' ' ||
+      coalesce(e.address, '') || ' ' ||
+      coalesce(e.action_taken, '') || ' ' ||
+      coalesce(e.area_name, '') || ' ' ||
+      coalesce(e.serial_number, '') || ' ' ||
+      coalesce(e.event_details_json::text, '') || ' ' ||
+      coalesce(e.notes_json::text, '')
+    ) ILIKE ${`%${searchTerm}%`}
+    OR coalesce(et.display, '') ILIKE ${`%${searchTerm}%`}
+  )`);
 
   // Keyset cursor — look up the cursor row's createdAt so we can continue the
   // same createdAt DESC ordering the non-search path uses.

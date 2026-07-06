@@ -1762,6 +1762,30 @@ describe("event.list — fuzzy full-content search (search param, T4)", () => {
     expect(result.items).toHaveLength(50);
     expect(result.nextCursor).toBe("ev-50");
   });
+
+  // ER-content gap fix: the joined event type's display name (et.display) is
+  // now searchable, closing the gap where a term matches ONLY the event
+  // type name (e.g. "Skylight Entry Alert") and nowhere else on the event.
+  it("ORs et.display into the fuzzy predicate, matching a term found only in the event type name", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+    const caller = createCaller(makeCtx());
+
+    await caller.list({ limit: 50, search: "Skylight Entry Alert" });
+
+    const fragment = vi.mocked(prisma.$queryRaw).mock.calls[0]?.[0] as {
+      text: string;
+      values: unknown[];
+    };
+    // The events-only concat is preserved byte-identical (still present,
+    // still ILIKE'd against the same term) — et.display is OR'd in alongside
+    // it, not folded into the indexed concat.
+    expect(fragment.text).toContain("event_details_json");
+    expect(fragment.text).toContain("et.display");
+    expect(fragment.text).toContain("OR");
+    // Bound exactly once more per search term (concat ILIKE + et.display ILIKE).
+    const matches = fragment.values.filter((v) => v === "%Skylight Entry Alert%");
+    expect(matches).toHaveLength(2);
+  });
 });
 
 // ── event.bulkUpdateState — bulk "Mark resolved" action (T3) ────────────────
