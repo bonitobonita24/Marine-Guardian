@@ -51,6 +51,18 @@ const PATROL_SOURCE = args["patrols-source"] || "cache";
 const PATROL_PAGE_SIZE = Number(args["patrol-page-size"] || 100);
 // Gentle throttle between live patrol pages to avoid hitting ER API limits.
 const PATROL_PAGE_DELAY = Number(args["patrol-page-delay-ms"] || 1500);
+// Optional incremental backfill: only pull events updated on/after this ISO
+// date (e.g. --updated-since=2026-06-25). Newest-first paging stops once it
+// walks past the cutoff, so a gap fill doesn't re-page the full 36k feed.
+const UPDATED_SINCE = args["updated-since"] || process.env.ER_UPDATED_SINCE || null;
+
+// Skylight automated vessel-detection events flood ER (~33k of ~36.9k) and are
+// excluded from MG — mirror er-sync.processor.isSkylightDisplay EXACTLY: skip
+// any event whose event-type DISPLAY contains "skylight" (case-insensitive).
+const displayByValue = new Map(); // event_type value -> eventType display
+function isSkylightDisplay(display) {
+  return display != null && /skylight/i.test(display);
+}
 
 const prisma = new PrismaClient();
 const now = () => new Date();
@@ -142,6 +154,7 @@ async function ingestEventTypes() {
         create: { tenantId: TENANT_ID, erEventtypeId: String(erId), value: et.value, display: et.display || et.value, category: cat, defaultPriority: Number(et.default_priority) || 0, iconId: et.icon_id || null, schemaJson: et.schema || undefined, syncedAt: now() },
       });
       eventTypeIdByValue.set(et.value, row.id);
+      displayByValue.set(et.value, et.display || et.value);
       stats.eventTypes++;
     }
   }
@@ -164,12 +177,26 @@ async function ensureEventType(value, display) {
 // ---- EVENTS (live, newest first) ----
 async function ingestEvents() {
   let url = `/activity/events/?page_size=${PAGE_SIZE}&sort_by=-updated_at`;
+  if (UPDATED_SINCE) url += `&updated_since=${encodeURIComponent(UPDATED_SINCE)}`;
+  const cutoff = UPDATED_SINCE ? new Date(UPDATED_SINCE) : null;
   let page = 0;
-  while (url && page < EVENTS_PAGES) {
+  let reachedCutoff = false;
+  while (url && page < EVENTS_PAGES && !reachedCutoff) {
     const env = await erGet(url);
     const results = env.results || [];
     if (!results.length) break;
     for (const ev of results) {
+      // Stop once newest-first paging walks past the incremental cutoff.
+      if (cutoff) {
+        const u = new Date(ev.updated_at || ev.time);
+        if (!isNaN(u) && u < cutoff) { reachedCutoff = true; break; }
+      }
+      // Skip Skylight — never insert an Event for a Skylight-display type
+      // (matches er-sync.processor so a backfill can't re-introduce them).
+      if (ev.event_type != null && isSkylightDisplay(displayByValue.get(ev.event_type))) {
+        stats.skippedSkylight = (stats.skippedSkylight || 0) + 1;
+        continue;
+      }
       const etId = await ensureEventType(ev.event_type, ev.title);
       const loc = ev.location || {};
       const data = {
