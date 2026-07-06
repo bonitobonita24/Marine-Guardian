@@ -243,6 +243,9 @@ function fmtLatLon(v: number | null): string {
 interface EventTypeTablesProps {
   events: ReportMapEventDetail[];
   captionPrefix: string;
+  /** Per-type GLOBAL (all-time) column set — owner Option A, see
+   *  `groupEventsByType`'s `typeColumns` parameter. */
+  eventTypeColumns: Record<string, string[]>;
 }
 
 /**
@@ -371,12 +374,16 @@ function EventTypeTable({
   );
 }
 
-function EventTypeTables({ events, captionPrefix }: EventTypeTablesProps) {
+function EventTypeTables({
+  events,
+  captionPrefix,
+  eventTypeColumns,
+}: EventTypeTablesProps) {
   if (events.length === 0)
     return <p className="empty-note">No event details available.</p>;
   return (
     <>
-      {groupEventsByType(events).map((g) => {
+      {groupEventsByType(events, eventTypeColumns).map((g) => {
         const split = splitEventColumns(g);
         const hasSecondPage = split.page2.length > 0;
         return (
@@ -821,6 +828,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
           <EventTypeTables
             events={data.charts.lawEnforcement.breakdown.flatMap((r) => r.events)}
             captionPrefix="Law enforcement full event list"
+            eventTypeColumns={data.eventTypeColumns}
           />
           <PageFooter {...footerBase} pageNum={2} />
         </section>
@@ -882,6 +890,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
           <EventTypeTables
             events={data.charts.monitoring.breakdown.flatMap((r) => r.events)}
             captionPrefix="Monitoring full event list"
+            eventTypeColumns={data.eventTypeColumns}
           />
           <PageFooter {...footerBase} pageNum={4} />
         </section>
@@ -942,6 +951,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
           <EventTypeTables
             events={data.charts.highPriority.events}
             captionPrefix="High priority full event list"
+            eventTypeColumns={data.eventTypeColumns}
           />
           <PageFooter {...footerBase} pageNum={6} />
         </section>
@@ -1098,6 +1108,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
           <EventTypeTables
             events={data.charts.eventsOverTime.events}
             captionPrefix="Events over time — full event list"
+            eventTypeColumns={data.eventTypeColumns}
           />
           <PageFooter {...footerBase} pageNum={10} />
         </section>

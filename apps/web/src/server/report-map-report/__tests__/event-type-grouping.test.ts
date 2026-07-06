@@ -6,6 +6,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildEventColumns,
+  buildGlobalEventTypeColumns,
   detailCell,
   formatDetailValue,
   groupEventsByType,
@@ -106,6 +107,114 @@ describe("groupEventsByType", () => {
     ]);
     expect(groups.find((g) => g.type === "T")?.hasAnyPhoto).toBe(true);
     expect(groups.find((g) => g.type === "U")?.hasAnyPhoto).toBe(false);
+  });
+});
+
+describe("groupEventsByType — typeColumns override (owner Option A, global column consistency)", () => {
+  it("overrides a sparse group's detailKeys with the provided full list, verbatim and ordered", () => {
+    const typeColumns = {
+      "Fishing in a Prohibited Area (MPA)": [
+        "vessel_name",
+        "gear_type",
+        "crew_count",
+        "action_taken",
+      ],
+    };
+    const groups = groupEventsByType(
+      [
+        makeEvent({
+          id: "1",
+          typeDisplay: "Fishing in a Prohibited Area (MPA)",
+          eventDetailsJson: null, // sparse: this report's only event has no details
+        }),
+      ],
+      typeColumns,
+    );
+    const g = groups.find((x) => x.type === "Fishing in a Prohibited Area (MPA)");
+    expect(g?.detailKeys).toEqual([
+      "vessel_name",
+      "gear_type",
+      "crew_count",
+      "action_taken",
+    ]);
+  });
+
+  it("missing-key cells still resolve to the em-dash placeholder via detailCell", () => {
+    const typeColumns = { T: ["vessel_name", "gear_type"] };
+    const groups = groupEventsByType(
+      [makeEvent({ id: "1", typeDisplay: "T", eventDetailsJson: null })],
+      typeColumns,
+    );
+    const g = groups[0];
+    expect(g).toBeDefined();
+    if (g === undefined) throw new Error("unreachable");
+    const event = g.events[0];
+    expect(event).toBeDefined();
+    if (event === undefined) throw new Error("unreachable");
+    expect(detailCell(event, "vessel_name")).toBe("—");
+    expect(detailCell(event, "gear_type")).toBe("—");
+  });
+
+  it("falls back to current subset-derived behavior when typeColumns has no entry for a type", () => {
+    const groups = groupEventsByType(
+      [
+        makeEvent({
+          id: "1",
+          typeDisplay: "Untracked Type",
+          eventDetailsJson: { species: "Dugong" },
+        }),
+      ],
+      { "Some Other Type": ["a", "b"] },
+    );
+    expect(groups.find((g) => g.type === "Untracked Type")?.detailKeys).toEqual([
+      "species",
+    ]);
+  });
+
+  it("with no typeColumns arg at all, behaves exactly as before (existing subset union)", () => {
+    const groups = groupEventsByType([
+      makeEvent({
+        id: "1",
+        typeDisplay: "Compressor Fishing",
+        eventDetailsJson: { boat_name: "MB Rosa", crew_count: 4 },
+      }),
+    ]);
+    expect(groups[0]?.detailKeys).toEqual(["boat_name", "crew_count"]);
+  });
+});
+
+describe("buildGlobalEventTypeColumns", () => {
+  it("unions eventDetailsJson keys per typeDisplay in first-seen order, across ALL sources", () => {
+    const cols = buildGlobalEventTypeColumns([
+      { typeDisplay: "A", eventDetailsJson: { k1: "x", k2: "y" } },
+      { typeDisplay: "A", eventDetailsJson: { k2: "z", k3: "w" } },
+      { typeDisplay: "B", eventDetailsJson: { only: "field" } },
+      { typeDisplay: "A", eventDetailsJson: null }, // sparse source — contributes nothing, drops nothing
+    ]);
+    expect(cols.A).toEqual(["k1", "k2", "k3"]);
+    expect(cols.B).toEqual(["only"]);
+  });
+
+  it("applies isHumanReadableColumn filtering using the GLOBAL sampled values", () => {
+    const cols = buildGlobalEventTypeColumns([
+      {
+        typeDisplay: "Illegal Fishing",
+        eventDetailsJson: {
+          vessel_name: "MB Rosa",
+          updates: {
+            text: "",
+            time: "2026-06-15T00:00:00Z",
+            type: "add_eventdetails",
+            user: { id: "u1" },
+          },
+        },
+      },
+    ]);
+    expect(cols["Illegal Fishing"]).toEqual(["vessel_name"]);
+  });
+
+  it("returns an empty object for an empty input", () => {
+    expect(buildGlobalEventTypeColumns([])).toEqual({});
   });
 });
 

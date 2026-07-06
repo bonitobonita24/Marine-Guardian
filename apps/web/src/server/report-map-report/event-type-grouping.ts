@@ -78,12 +78,28 @@ export function isHumanReadableColumn(key: string, values: unknown[]): boolean {
 /**
  * Group events by their type display name. Groups are ordered by descending
  * event count (busiest type first), ties broken alphabetically; events keep
- * their input order within each group. Detail columns whose values are
- * predominantly machine/JSON audit data (not human input) are excluded from
- * `detailKeys` — see `isHumanReadableColumn`.
+ * their input order within each group.
+ *
+ * `typeColumns`, when provided (owner Option A, 2026-07-06 — full column-set
+ * consistency across reports), is a per-type GLOBAL (all-time, tenant-wide)
+ * ordered detail-key list computed by the caller (see
+ * `buildGlobalEventTypeColumns` + `get-report-map-report-data.ts`). When a
+ * group's `type` has an entry, that entry is used VERBATIM as `detailKeys` —
+ * it is already ordered and `isHumanReadableColumn`-filtered server-side, so
+ * it is NOT re-filtered or intersected with this call's (possibly sparse)
+ * event subset. This guarantees every report renders the SAME standard
+ * column set for a given event type, regardless of how many of that type's
+ * fields happen to be populated in the filtered subset — missing values
+ * still resolve to "—" via `detailCell`.
+ *
+ * When `typeColumns` is omitted, or has no entry for a group's type, that
+ * group falls back to the ORIGINAL behavior: the union of detail keys
+ * present in this call's own event subset, filtered by
+ * `isHumanReadableColumn` using this subset's own sampled values.
  */
 export function groupEventsByType(
   events: ReportMapEventDetail[],
+  typeColumns?: Record<string, string[]>,
 ): EventTypeGroup[] {
   interface WorkingGroup extends EventTypeGroup {
     detailValues: Map<string, unknown[]>;
@@ -117,15 +133,85 @@ export function groupEventsByType(
     }
   }
   return Array.from(groups.values())
-    .map((g) => ({
-      type: g.type,
-      events: g.events,
-      hasAnyPhoto: g.hasAnyPhoto,
-      detailKeys: g.detailKeys.filter((k) =>
-        isHumanReadableColumn(k, g.detailValues.get(k) ?? []),
-      ),
-    }))
+    .map((g) => {
+      const globalColumns = typeColumns?.[g.type];
+      return {
+        type: g.type,
+        events: g.events,
+        hasAnyPhoto: g.hasAnyPhoto,
+        detailKeys:
+          globalColumns !== undefined
+            ? globalColumns
+            : g.detailKeys.filter((k) =>
+                isHumanReadableColumn(k, g.detailValues.get(k) ?? []),
+              ),
+      };
+    })
     .sort((a, b) => b.events.length - a.events.length || a.type.localeCompare(b.type));
+}
+
+// ─── Global (all-time, tenant-wide) per-event-type column set ────────────────
+//
+// Owner Option A (2026-07-06): every printable report table for a given
+// event type must render the SAME standard column set, regardless of how
+// sparsely that report's filtered event subset happens to be filled in.
+// EventType.schemaJson is empty for every ER type, so the column source is
+// instead the GLOBAL union of eventDetailsJson keys across ALL of the
+// tenant's events of that type (all-time) — a rich, representative sample.
+// This helper is pure/Prisma-free (takes a plain array of sources) so it is
+// unit-testable independent of the data loader's query.
+
+export interface EventTypeColumnSource {
+  typeDisplay: string;
+  eventDetailsJson: unknown;
+}
+
+/**
+ * Build the per-type-display ordered (first-seen), `isHumanReadableColumn`-
+ * filtered union of detail keys from an arbitrary list of
+ * `{typeDisplay, eventDetailsJson}` records. Intended input: ALL of a
+ * tenant's events (all-time) whose event type appears somewhere in a report,
+ * not just the events in that report's filtered subset — see
+ * `get-report-map-report-data.ts`.
+ */
+export function buildGlobalEventTypeColumns(
+  sources: EventTypeColumnSource[],
+): Record<string, string[]> {
+  const keysByType = new Map<string, string[]>();
+  const valuesByType = new Map<string, Map<string, unknown[]>>();
+
+  for (const s of sources) {
+    const details = detailRecord(s.eventDetailsJson);
+    if (details === null) continue;
+
+    let keys = keysByType.get(s.typeDisplay);
+    if (keys === undefined) {
+      keys = [];
+      keysByType.set(s.typeDisplay, keys);
+    }
+    let values = valuesByType.get(s.typeDisplay);
+    if (values === undefined) {
+      values = new Map();
+      valuesByType.set(s.typeDisplay, values);
+    }
+
+    for (const key of Object.keys(details)) {
+      if (!keys.includes(key)) keys.push(key);
+      let vs = values.get(key);
+      if (vs === undefined) {
+        vs = [];
+        values.set(key, vs);
+      }
+      vs.push(details[key]);
+    }
+  }
+
+  const out: Record<string, string[]> = {};
+  for (const [type, keys] of keysByType) {
+    const values = valuesByType.get(type) ?? new Map<string, unknown[]>();
+    out[type] = keys.filter((k) => isHumanReadableColumn(k, values.get(k) ?? []));
+  }
+  return out;
 }
 
 /**

@@ -39,6 +39,7 @@ import {
 } from "@/server/trpc/routers/reportMap";
 import { pointsFromTrackGeojson } from "@/server/trpc/routers/map";
 import { BLUE_ALLIANCE_DEFAULT_LOGO_DATA_URI } from "@/server/report-map-report/assets/blue-alliance-default-logo";
+import { buildGlobalEventTypeColumns } from "@/server/report-map-report/event-type-grouping";
 
 // ─── Shared point shape ──────────────────────────────────────────────────────
 
@@ -198,6 +199,15 @@ export interface ReportMapReportData {
    *  regional report, or when the municipality has no geometry — the print
    *  maps then keep the existing fit-to-data-points behavior. */
   municipalityBounds: ReportMapBounds | null;
+  /**
+   * Per-event-type-display GLOBAL (all-time, tenant-wide) ordered detail-key
+   * list — owner Option A (2026-07-06): every printable report's per-type
+   * event table renders this SAME standard column set, regardless of how
+   * sparsely the report's own filtered event subset is populated. Keyed by
+   * EventType.display; only covers the types actually appearing somewhere in
+   * this report. See `groupEventsByType`'s `typeColumns` parameter.
+   */
+  eventTypeColumns: Record<string, string[]>;
   charts: {
     lawEnforcement: LawEnforcementChartData;
     monitoring: MonitoringChartData;
@@ -761,6 +771,44 @@ export async function getReportMapReportData(
     events: overviewEvents,
   };
 
+  // ─── Global (all-time) per-event-type column set (owner Option A) ─────────
+  // The report's own filtered event subset can be too sparse to reveal a
+  // type's full standard field set (root cause of the inconsistent-columns
+  // complaint). Instead of deriving detailKeys from just this report's
+  // events, run ONE additional lean query for ALL of the tenant's events
+  // (all-time, unfiltered by date/municipality/zone) whose event type is one
+  // of the types that actually appear somewhere in THIS report — bounded to
+  // that set so we never fetch unrelated event types.
+  const eventTypeDisplays = new Set<string>();
+  for (const row of breakdown.lawEnforcement) {
+    for (const e of row.events) eventTypeDisplays.add(e.typeDisplay);
+  }
+  for (const row of breakdown.monitoring) {
+    for (const e of row.events) eventTypeDisplays.add(e.typeDisplay);
+  }
+  for (const e of breakdown.highPriority.events) eventTypeDisplays.add(e.typeDisplay);
+  for (const e of overviewEvents) eventTypeDisplays.add(e.typeDisplay);
+
+  let eventTypeColumns: Record<string, string[]> = {};
+  if (eventTypeDisplays.size > 0) {
+    const globalDetailRows = await prisma.event.findMany({
+      where: {
+        tenantId: tenant.id,
+        eventType: { display: { in: Array.from(eventTypeDisplays) } },
+      },
+      select: {
+        eventDetailsJson: true,
+        eventType: { select: { display: true } },
+      },
+    });
+    eventTypeColumns = buildGlobalEventTypeColumns(
+      globalDetailRows.map((r) => ({
+        typeDisplay: r.eventType?.display ?? "Unknown",
+        eventDetailsJson: r.eventDetailsJson,
+      })),
+    );
+  }
+
   return {
     tenant: {
       id: tenant.id,
@@ -772,6 +820,7 @@ export async function getReportMapReportData(
     generatedAt: new Date(),
     template,
     municipalityBounds,
+    eventTypeColumns,
     charts: {
       lawEnforcement,
       monitoring,
