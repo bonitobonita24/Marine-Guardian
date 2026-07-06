@@ -1,10 +1,60 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { TRPCError } from "@trpc/server";
 
+// Minimal stand-in for Prisma's Sql/sql/join/empty/raw tagged-template
+// helpers (from sql-template-tag). `@prisma/client` is not a direct
+// dependency of the `web` package (only `@marine-guardian/db` depends on it),
+// so it can't be `vi.importActual`'d here — this fake preserves just enough
+// shape (`.text` / `.values`, nested-fragment flattening) for the
+// event.list `search` ($queryRaw) path's tests to assert on the composed
+// SQL text and bound parameters. Wrapped in vi.hoisted() so it's safely
+// accessible from inside the (hoisted) vi.mock factory below.
+const { fakeSql, fakeJoin, fakeEmpty, fakeRaw } = vi.hoisted(() => {
+  class FakeSql {
+    text: string;
+    values: unknown[];
+    constructor(text: string, values: unknown[]) {
+      this.text = text;
+      this.values = values;
+    }
+    get sql(): string { return this.text; }
+  }
+  function fakeSqlImpl(strings: TemplateStringsArray, ...exprs: unknown[]): FakeSql {
+    let text = strings[0] ?? "";
+    const values: unknown[] = [];
+    exprs.forEach((expr, i) => {
+      if (expr instanceof FakeSql) {
+        text += expr.text;
+        values.push(...expr.values);
+      } else {
+        values.push(expr);
+        text += "?";
+      }
+      text += strings[i + 1] ?? "";
+    });
+    return new FakeSql(text, values);
+  }
+  function fakeJoinImpl(parts: FakeSql[], separator = ","): FakeSql {
+    return new FakeSql(parts.map((p) => p.text).join(separator), parts.flatMap((p) => p.values));
+  }
+  const fakeEmptyImpl = new FakeSql("", []);
+  function fakeRawImpl(s: string): FakeSql { return new FakeSql(s, []); }
+  return { fakeSql: fakeSqlImpl, fakeJoin: fakeJoinImpl, fakeEmpty: fakeEmptyImpl, fakeRaw: fakeRawImpl };
+});
+
 vi.mock("@marine-guardian/db", () => ({
-  // Expose Prisma namespace with the JsonNull sentinel so route handlers can use it.
-  Prisma: { JsonNull: "DbNull" },
+  // Expose Prisma namespace with the JsonNull sentinel so route handlers can
+  // use it, PLUS the fake sql/join/empty/raw helpers above so the
+  // listViaSearch $queryRaw path can build its Prisma.Sql-shaped fragments.
+  Prisma: {
+    JsonNull: "DbNull",
+    sql: fakeSql,
+    join: fakeJoin,
+    empty: fakeEmpty,
+    raw: fakeRaw,
+  },
   prisma: {
+    $queryRaw: vi.fn(),
     event: {
       findMany: vi.fn(),
       findFirst: vi.fn(),
@@ -1255,7 +1305,7 @@ describe("event.list — server-side filters (M3)", () => {
   // Operations List (defense-in-depth alongside the ER-sync ingestion block;
   // same marker as dashboard.ts:179 / reportMap.ts:59 — eventType.display
   // contains "skylight", case-insensitive).
-  it("always excludes Skylight-display events via NOT eventType.display filter", async () => {
+  it("excludes Skylight-display events via NOT eventType.display filter by default (includeSkylight omitted)", async () => {
     const caller = createCaller(makeCtx());
     await caller.list({ limit: 50 });
 
@@ -1266,6 +1316,27 @@ describe("event.list — server-side filters (M3)", () => {
         }),
       })
     );
+  });
+
+  it("excludes Skylight-display events when includeSkylight is explicitly false", async () => {
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50, includeSkylight: false });
+
+    expect(vi.mocked(prisma.event.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          NOT: { eventType: { display: { contains: "skylight", mode: "insensitive" } } },
+        }),
+      })
+    );
+  });
+
+  it("opts back in to Skylight events when includeSkylight is true (SKY-1 toggle)", async () => {
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50, includeSkylight: true });
+
+    const call = vi.mocked(prisma.event.findMany).mock.calls.at(-1)?.[0];
+    expect(call?.where).not.toHaveProperty("NOT");
   });
 
   it("keeps the Skylight exclusion alongside other filters (state + category)", async () => {
@@ -1514,5 +1585,269 @@ describe("event.getById — Telegram asset include (Stage 4)", () => {
       sizeBytes: true,
     });
     expect(assetsInclude.select).not.toHaveProperty("telegramFileId");
+  });
+});
+
+// ── event.list — pg_trgm fuzzy full-content search (T4) ────────────────────
+
+function makeAdminCtx(roles: string[] = ["site_admin"], tenantId: string | null = TENANT_ID) {
+  return {
+    session: {
+      user: {
+        id: USER_ID,
+        tenantId: tenantId as string,
+        roles: roles as ["site_admin"],
+        email: "admin@example.com",
+        name: "Admin User",
+      },
+      expires: "9999-01-01",
+    },
+    ip: "127.0.0.1",
+    impersonationTenantId: null,
+  };
+}
+
+describe("event.list — fuzzy full-content search (search param, T4)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("routes to $queryRaw when `search` is supplied, scoped to the tenant", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.list({ limit: 50, search: "poacher" });
+
+    expect(result).toEqual({ items: [], nextCursor: undefined });
+    expect(vi.mocked(prisma.$queryRaw)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(prisma.event.findMany)).not.toHaveBeenCalled();
+
+    const fragment = vi.mocked(prisma.$queryRaw).mock.calls[0]?.[0] as {
+      text: string;
+      values: unknown[];
+    };
+    expect(fragment.values).toContain(TENANT_ID);
+    expect(fragment.values).toContain("%poacher%");
+    expect(fragment.text).toContain("event_details_json");
+    expect(fragment.text).toContain("notes_json");
+    expect(fragment.text).toContain("ILIKE");
+  });
+
+  it("does NOT use the raw path when search is empty/whitespace", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50, search: "   " });
+
+    expect(vi.mocked(prisma.$queryRaw)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.event.findMany)).toHaveBeenCalledTimes(1);
+  });
+
+  it("matches against reportedByName, vesselRegistration, or eventDetailsJson content regardless of area", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+    const caller = createCaller(makeCtx());
+
+    for (const term of ["Juan Dela Cruz", "MWB-1234", "illegal-fishing-net"]) {
+      vi.mocked(prisma.$queryRaw).mockClear();
+      await caller.list({ limit: 50, search: term });
+      const fragment = vi.mocked(prisma.$queryRaw).mock.calls[0]?.[0] as {
+        text: string;
+        values: unknown[];
+      };
+      expect(fragment.values).toContain(`%${term}%`);
+      // The single ILIKE predicate covers all scalar columns + both JSON blobs —
+      // assert the reported_by_name / vessel_registration / event_details_json
+      // columns are all present in that same predicate for every search.
+      expect(fragment.text).toContain("reported_by_name");
+      expect(fragment.text).toContain("vessel_registration");
+      expect(fragment.text).toContain("event_details_json");
+    }
+  });
+
+  it("excludes Skylight events by default in the search path (includeSkylight omitted)", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50, search: "anything" });
+
+    const fragment = vi.mocked(prisma.$queryRaw).mock.calls[0]?.[0] as { text: string };
+    expect(fragment.text.toLowerCase()).toContain("skylight");
+  });
+
+  it("opts back in to Skylight events in the search path when includeSkylight is true", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50, search: "anything", includeSkylight: true });
+
+    const fragment = vi.mocked(prisma.$queryRaw).mock.calls[0]?.[0] as { text: string };
+    expect(fragment.text.toLowerCase()).not.toContain("skylight");
+  });
+
+  it("composes state + category + date-range + linkedToActivePatrol filters alongside search", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+    const caller = createCaller(makeCtx());
+    await caller.list({
+      limit: 50,
+      search: "term",
+      state: "active",
+      category: "Law Enforcement",
+      dateFrom: "2026-06-01",
+      dateTo: "2026-06-30",
+      linkedToActivePatrol: true,
+    });
+
+    const fragment = vi.mocked(prisma.$queryRaw).mock.calls[0]?.[0] as {
+      text: string;
+      values: unknown[];
+    };
+    expect(fragment.text).toContain('::"EventState"');
+    expect(fragment.values).toContain("active");
+    expect(fragment.values).toContain("Law Enforcement");
+    expect(fragment.text).toContain("JOIN patrols p");
+    expect(fragment.text).toContain("p.state = 'open'");
+  });
+
+  it("emits a keyset cursor predicate when a cursor is supplied", async () => {
+    vi.mocked(prisma.event.findFirst).mockResolvedValue({
+      createdAt: new Date("2026-06-15T00:00:00.000Z"),
+    } as never);
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50, search: "term", cursor: "ev-cursor-1" });
+
+    expect(vi.mocked(prisma.event.findFirst)).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "ev-cursor-1", tenantId: TENANT_ID } })
+    );
+    const fragment = vi.mocked(prisma.$queryRaw).mock.calls[0]?.[0] as {
+      text: string;
+      values: unknown[];
+    };
+    expect(fragment.text).toContain("e.created_at, e.id");
+    expect(fragment.values).toContain("ev-cursor-1");
+  });
+
+  it("pops the (limit+1)th row and returns its id as nextCursor", async () => {
+    const rows = Array.from({ length: 51 }, (_, i) => ({
+      id: `ev-${String(i)}`,
+      tenantId: TENANT_ID,
+      erEventId: `er-${String(i)}`,
+      eventTypeId: null,
+      serialNumber: null,
+      title: `Event ${String(i)}`,
+      priority: 0,
+      state: "new_event",
+      locationLat: null,
+      locationLon: null,
+      reportedByName: null,
+      reportedAt: null,
+      eventDetailsJson: null,
+      notesJson: null,
+      areaName: null,
+      offenderName: null,
+      vesselName: null,
+      vesselRegistration: null,
+      address: null,
+      actionTaken: null,
+      patrolId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      eventType_display: null,
+      eventType_category: null,
+    }));
+    vi.mocked(prisma.$queryRaw).mockResolvedValue(rows);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.list({ limit: 50, search: "term" });
+
+    expect(result.items).toHaveLength(50);
+    expect(result.nextCursor).toBe("ev-50");
+  });
+});
+
+// ── event.bulkUpdateState — bulk "Mark resolved" action (T3) ────────────────
+
+describe("event.bulkUpdateState", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("bulk-updates the given ids to the requested state, tenant-scoped", async () => {
+    vi.mocked(prisma.event.updateMany).mockResolvedValue({ count: 3 });
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.bulkUpdateState({
+      ids: ["ev-1", "ev-2", "ev-3"],
+      state: "resolved",
+    });
+
+    expect(result).toEqual({ count: 3 });
+    expect(vi.mocked(prisma.event.updateMany)).toHaveBeenCalledWith({
+      where: { id: { in: ["ev-1", "ev-2", "ev-3"] }, tenantId: TENANT_ID },
+      data: { state: "resolved" },
+    });
+    expect(vi.mocked(writeAuditLog)).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: "BULK_UPDATE_EVENT_STATE", tenantId: TENANT_ID })
+    );
+  });
+
+  it("scopes the update to the tenant — never touches another tenant's events", async () => {
+    vi.mocked(prisma.event.updateMany).mockResolvedValue({ count: 0 });
+
+    const caller = createCaller(makeCtx("other-tenant"));
+    await caller.bulkUpdateState({ ids: ["ev-1"], state: "resolved" });
+
+    const call = vi.mocked(prisma.event.updateMany).mock.calls[0];
+    expect(call?.[0]?.where?.tenantId).toBe("other-tenant");
+  });
+
+  it("rejects an empty ids array at the schema boundary", async () => {
+    const caller = createCaller(makeCtx());
+
+    await expect(
+      caller.bulkUpdateState({ ids: [], state: "resolved" })
+    ).rejects.toThrow();
+  });
+});
+
+// ── event.resolveAllEvents — one-time "resolve all" action (T3) ─────────────
+
+describe("event.resolveAllEvents", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("resolves every non-resolved event for the tenant when called by an admin role", async () => {
+    vi.mocked(prisma.event.updateMany).mockResolvedValue({ count: 5 });
+
+    const caller = createCaller(makeAdminCtx(["site_admin"]));
+    const result = await caller.resolveAllEvents();
+
+    expect(result).toEqual({ count: 5 });
+    expect(vi.mocked(prisma.event.updateMany)).toHaveBeenCalledWith({
+      where: { tenantId: TENANT_ID, state: { not: "resolved" } },
+      data: { state: "resolved" },
+    });
+    expect(vi.mocked(writeAuditLog)).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: "RESOLVE_ALL_EVENTS", tenantId: TENANT_ID })
+    );
+  });
+
+  it("rejects a non-admin role with FORBIDDEN", async () => {
+    const caller = createCaller(makeCtx()); // default role: "ranger" — not admin-gated
+
+    await expect(caller.resolveAllEvents()).rejects.toThrow(TRPCError);
+    expect(vi.mocked(prisma.event.updateMany)).not.toHaveBeenCalled();
+  });
+
+  it("scopes the resolve-all to the calling admin's own tenant", async () => {
+    vi.mocked(prisma.event.updateMany).mockResolvedValue({ count: 2 });
+
+    const caller = createCaller(makeAdminCtx(["super_admin"], "other-tenant"));
+    await caller.resolveAllEvents();
+
+    const call = vi.mocked(prisma.event.updateMany).mock.calls[0];
+    expect(call?.[0]?.where?.tenantId).toBe("other-tenant");
   });
 });

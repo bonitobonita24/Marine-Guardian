@@ -23,6 +23,17 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -124,17 +135,19 @@ function currentYearMonth(): string {
 // ── EventsListFilters — the filter bar ────────────────────────────────────
 
 type Filters = {
-  state:         EventState | "";
-  category:      string;
-  areaName:      string;
-  monthFilter:   string; // "YYYY-MM" or ""
+  state:           EventState | "";
+  category:        string;
+  search:          string;
+  monthFilter:     string; // "YYYY-MM" or ""
+  includeSkylight: boolean;
 };
 
 const DEFAULT_FILTERS: Filters = {
-  state:       "",
-  category:    "",
-  areaName:    "",
-  monthFilter: "",
+  state:           "",
+  category:        "",
+  search:          "",
+  monthFilter:     "",
+  includeSkylight: false,
 };
 
 // ── Exported filter shape (used by EventsPage to wire export URLs) ──────────
@@ -173,8 +186,8 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
 
   // ── Filter state
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
-  const [areaInput, setAreaInput]   = useState("");
-  const areaDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [searchInput, setSearchInput] = useState("");
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Cursor + accumulated pages
   const [cursor, setCursor] = useState<string | undefined>(undefined);
@@ -182,6 +195,10 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
 
   // ── Modal — seed from deep-link query param when present
   const [selectedEventId, setSelectedEventId] = useState<string | null>(initialEventId ?? null);
+
+  // ── Bulk selection + bulk-action bar
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [resolveAllConfirmOpen, setResolveAllConfirmOpen] = useState(false);
 
   // ── Inline state mutation (per-row)
   const updateStateMutation = trpc.event.updateState.useMutation({
@@ -193,13 +210,38 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
     },
   });
 
+  // ── Bulk state mutation (selection bar)
+  const bulkUpdateStateMutation = trpc.event.bulkUpdateState.useMutation({
+    onSuccess: () => {
+      setSelectedIds(new Set());
+      setAccumulated([]);
+      setCursor(undefined);
+      void utils.event.list.invalidate();
+      void utils.event.stats.invalidate();
+    },
+  });
+
+  // ── "Resolve all" one-time action
+  const resolveAllMutation = trpc.event.resolveAllEvents.useMutation({
+    onSuccess: () => {
+      setResolveAllConfirmOpen(false);
+      setSelectedIds(new Set());
+      setAccumulated([]);
+      setCursor(undefined);
+      void utils.event.list.invalidate();
+      void utils.event.stats.invalidate();
+    },
+  });
+
   // Notify parent whenever active filters change so it can sync export URLs
   useEffect(() => {
     if (onFiltersChange === undefined) return;
     const exportFilters: EventsListExportFilters = {
       ...(filters.state    !== "" ? { state:    filters.state    } : {}),
       ...(filters.category !== "" ? { category: filters.category } : {}),
-      ...(filters.areaName !== "" ? { areaName: filters.areaName } : {}),
+      // Note: /api/exports/events still only understands the legacy `areaName`
+      // filter — the fuzzy `search` box is a list-only enhancement (T4) and is
+      // intentionally not forwarded to the export URL.
       ...(filters.monthFilter !== ""
         ? {
             dateFrom: monthStart(filters.monthFilter + "-01"),
@@ -216,10 +258,11 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
     cursor,
     ...(filters.state    !== "" ? { state:    filters.state    } : {}),
     ...(filters.category !== "" ? { category: filters.category } : {}),
-    ...(filters.areaName !== "" ? { areaName: filters.areaName } : {}),
+    ...(filters.search   !== "" ? { search:   filters.search   } : {}),
     ...(filters.monthFilter !== ""
       ? { dateFrom: monthStart(filters.monthFilter + "-01"), dateTo: monthEnd(filters.monthFilter + "-01") }
       : {}),
+    includeSkylight: filters.includeSkylight,
   };
 
   const listQuery = trpc.event.list.useQuery(queryInput);
@@ -228,6 +271,7 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
   useEffect(() => {
     setAccumulated([]);
     setCursor(undefined);
+    setSelectedIds(new Set());
   }, [filters]);
 
   // Accumulate pages
@@ -270,12 +314,12 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
     setFilters((prev) => ({ ...prev, [key]: value }));
   }, []);
 
-  const handleAreaInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSearchInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
-    setAreaInput(val);
-    if (areaDebounceRef.current !== null) clearTimeout(areaDebounceRef.current);
-    areaDebounceRef.current = setTimeout(() => {
-      setFilter("areaName", val.trim());
+    setSearchInput(val);
+    if (searchDebounceRef.current !== null) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      setFilter("search", val.trim());
     }, 400);
   }, [setFilter]);
 
@@ -286,8 +330,26 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
     [updateStateMutation],
   );
 
+  const toggleSelected = useCallback((eventId: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(eventId); else next.delete(eventId);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAllLoaded = useCallback((checked: boolean) => {
+    setSelectedIds(checked ? new Set(accumulated.map((e) => e.id)) : new Set());
+  }, [accumulated]);
+
+  const handleBulkResolve = useCallback(() => {
+    if (selectedIds.size === 0) return;
+    bulkUpdateStateMutation.mutate({ ids: [...selectedIds], state: "resolved" });
+  }, [selectedIds, bulkUpdateStateMutation]);
+
   const isInitialLoading = listQuery.isLoading && accumulated.length === 0;
   const isEmpty          = !listQuery.isLoading && accumulated.length === 0;
+  const allLoadedSelected = accumulated.length > 0 && selectedIds.size === accumulated.length;
 
   return (
     <div className="space-y-4">
@@ -321,15 +383,15 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
           ))}
         </select>
 
-        {/* Area / municipality filter */}
+        {/* Fuzzy full-content search — replaces the old area/municipality box (T4) */}
         <input
-          data-testid="area-filter"
+          data-testid="search-filter"
           type="text"
-          placeholder="Filter by area / municipality"
-          aria-label="Filter by area or municipality"
-          value={areaInput}
-          onChange={handleAreaInputChange}
-          className="h-9 w-52 rounded-md border border-input bg-background px-3 text-sm"
+          placeholder="Search all event details…"
+          aria-label="Search all event details"
+          value={searchInput}
+          onChange={handleSearchInputChange}
+          className="h-9 w-64 rounded-md border border-input bg-background px-3 text-sm"
         />
 
         {/* Monthly-accomplishment filter — resolved events by month */}
@@ -343,20 +405,104 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
           className="h-9 rounded-md border border-input bg-background px-3 text-sm"
         />
 
+        {/* Skylight / Marine Entry toggle — default OFF (mirrors map.ts SKY-1) */}
+        <div className="flex items-center gap-2 pl-1">
+          <Switch
+            id="include-skylight"
+            data-testid="include-skylight-toggle"
+            checked={filters.includeSkylight}
+            onCheckedChange={(checked) => { setFilter("includeSkylight", checked); }}
+            aria-label="Show Skylight / Marine Entry events"
+          />
+          <Label htmlFor="include-skylight" className="text-sm font-normal text-muted-foreground">
+            Show Skylight / Marine Entry events
+          </Label>
+        </div>
+
         {/* Clear filters */}
-        {(filters.state !== "" || filters.category !== "" || filters.areaName !== "" || filters.monthFilter !== "") && (
+        {(filters.state !== "" || filters.category !== "" || filters.search !== "" || filters.monthFilter !== "" || filters.includeSkylight) && (
           <Button
             variant="ghost"
             size="sm"
             onClick={() => {
               setFilters(DEFAULT_FILTERS);
-              setAreaInput("");
+              setSearchInput("");
             }}
           >
             Clear filters
           </Button>
         )}
       </div>
+
+      {/* ── Bulk-action bar ─────────────────────────────────────────────── */}
+      {accumulated.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+          <Checkbox
+            id="select-all-loaded"
+            data-testid="select-all-checkbox"
+            checked={allLoadedSelected}
+            onCheckedChange={(checked) => { toggleSelectAllLoaded(checked === true); }}
+            aria-label="Select all loaded events"
+          />
+          <Label htmlFor="select-all-loaded" className="cursor-pointer font-normal">
+            {selectedIds.size > 0 ? `${String(selectedIds.size)} selected` : "Select all loaded"}
+          </Label>
+
+          {selectedIds.size > 0 && (
+            <Button
+              size="sm"
+              variant="secondary"
+              data-testid="bulk-resolve-button"
+              disabled={bulkUpdateStateMutation.isPending}
+              onClick={handleBulkResolve}
+            >
+              {bulkUpdateStateMutation.isPending ? "Resolving…" : "Mark resolved"}
+            </Button>
+          )}
+
+          <div className="ml-auto">
+            <Button
+              size="sm"
+              variant="outline"
+              data-testid="resolve-all-button"
+              onClick={() => { setResolveAllConfirmOpen(true); }}
+            >
+              Resolve all
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Resolve-all confirm dialog ──────────────────────────────────── */}
+      <Dialog open={resolveAllConfirmOpen} onOpenChange={setResolveAllConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Resolve ALL events?</DialogTitle>
+            <DialogDescription>
+              This marks every event in this tenant that is not already Resolved as
+              Resolved. This action is repeatable but cannot be undone in bulk — you
+              would need to change events back individually. Are you sure?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => { setResolveAllConfirmOpen(false); }}
+              disabled={resolveAllMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              data-testid="resolve-all-confirm-button"
+              onClick={() => { resolveAllMutation.mutate(); }}
+              disabled={resolveAllMutation.isPending}
+            >
+              {resolveAllMutation.isPending ? "Resolving…" : "Resolve all events"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── List body ───────────────────────────────────────────────────── */}
       {isInitialLoading ? (
@@ -390,6 +536,8 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
                   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
                   updateStateMutation.variables?.id === event.id
                 }
+                isSelected={selectedIds.has(event.id)}
+                onToggleSelected={toggleSelected}
               />
             ))}
           </ol>
@@ -436,9 +584,18 @@ type EventRowProps = {
   onOpenDetail:         (id: string) => void;
   onStateChange:        (id: string, state: EventState) => void;
   isStateChangePending: boolean;
+  isSelected:           boolean;
+  onToggleSelected:     (id: string, checked: boolean) => void;
 };
 
-function EventRow({ event, onOpenDetail, onStateChange, isStateChangePending }: EventRowProps) {
+function EventRow({
+  event,
+  onOpenDetail,
+  onStateChange,
+  isStateChangePending,
+  isSelected,
+  onToggleSelected,
+}: EventRowProps) {
   const state: EventState = event.state;
 
   return (
@@ -447,6 +604,16 @@ function EventRow({ event, onOpenDetail, onStateChange, isStateChangePending }: 
       data-testid={`event-row-${event.id}`}
       className="group flex items-start gap-3 px-4 py-3 hover:bg-muted/40 transition-colors"
     >
+      {/* Bulk-select checkbox */}
+      <div className="mt-1 shrink-0" onClick={(e) => { e.stopPropagation(); }}>
+        <Checkbox
+          data-testid={`select-event-${event.id}`}
+          checked={isSelected}
+          onCheckedChange={(checked) => { onToggleSelected(event.id, checked === true); }}
+          aria-label={`Select ${event.title ?? "this event"} for bulk action`}
+        />
+      </div>
+
       {/* Type icon / category indicator */}
       <span
         aria-hidden="true"

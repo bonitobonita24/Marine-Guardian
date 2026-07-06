@@ -2,6 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
+import { adminProcedure } from "../middleware/rbac";
 import { prisma, decrypt, writeAuditLog } from "@marine-guardian/db";
 import { Prisma } from "@marine-guardian/db";
 import type { PrismaClient } from "@marine-guardian/db";
@@ -87,9 +88,20 @@ async function pushUpdateToErIfConfigured(
  *
  * M3 additions (q-ops-01 Operations List):
  *   category  — event type category ("Law Enforcement" | "Monitoring, Patrolling & Surveillance")
- *   areaName  — municipality / area (string exact match, case-insensitive)
+ *   areaName  — municipality / area (string exact match, case-insensitive). Kept for
+ *               backward compatibility with /api/exports/events, which still builds
+ *               its own explicit `areaName` where-clause. The Events list UI now uses
+ *               `search` instead (see below) — both filters may be supplied together.
  *   dateFrom  — ISO date string; filters reportedAt >= dateFrom (monthly-accomplishment gate)
  *   dateTo    — ISO date string; filters reportedAt <= dateTo
+ *
+ * Events-page fuzzy search (pg_trgm) + Skylight toggle + bulk-resolve harvest:
+ *   search          — free-text fuzzy match across scalar text columns AND the
+ *                      eventDetailsJson/notesJson blobs (pg_trgm-accelerated ILIKE).
+ *                      When set, `list` switches to a raw-SQL query path.
+ *   includeSkylight — opt-in toggle (default false) mirroring map.ts's SKY-1 pattern.
+ *                      When false (default), Skylight automated vessel-detection
+ *                      events stay excluded from the Operations List, same as before.
  */
 export const eventListFilters = z.object({
   state: z.enum(["new_event", "active", "resolved"]).optional(),
@@ -110,7 +122,219 @@ export const eventListFilters = z.object({
   // events tied to a currently-open (non-deleted) patrol. Events with no
   // linked patrol (patrolId null) are intentionally excluded when this is true.
   linkedToActivePatrol: z.boolean().optional(),
+  // Fuzzy full-content search (pg_trgm) — replaces the old "area / municipality"
+  // box in the Events list UI. Matches across all scalar text columns plus the
+  // JSON blobs (event_details_json, notes_json), case-insensitively.
+  search: z.string().max(500).optional(),
+  // Skylight/"Marine Entry" opt-in toggle — mirrors map.ts's includeSkylight
+  // (SKY-1). Default false preserves the existing unconditional exclusion.
+  includeSkylight: z.boolean().default(false),
 });
+
+/**
+ * Raw-row shape returned by the listViaSearch $queryRaw below. Column aliases
+ * are chosen to match the camelCase Prisma.Event scalar field names 1:1, plus
+ * a flattened `eventType_display` / `eventType_category` pair (re-nested into
+ * `{ eventType: { display, category } }` below) so the response shape is
+ * IDENTICAL to the `prisma.event.findMany({ include: { eventType: ... } })`
+ * path above — the row-render + detail-modal code depends on that shape.
+ */
+interface RawEventRow {
+  id: string;
+  tenantId: string;
+  erEventId: string;
+  eventTypeId: string | null;
+  serialNumber: string | null;
+  title: string | null;
+  priority: number;
+  state: "new_event" | "active" | "resolved";
+  locationLat: number | null;
+  locationLon: number | null;
+  reportedByName: string | null;
+  reportedAt: Date | null;
+  eventDetailsJson: Prisma.JsonValue;
+  notesJson: Prisma.JsonValue;
+  areaName: string | null;
+  offenderName: string | null;
+  vesselName: string | null;
+  vesselRegistration: string | null;
+  address: string | null;
+  actionTaken: string | null;
+  patrolId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  eventType_display: string | null;
+  eventType_category: string | null;
+}
+
+type ListInput = z.infer<typeof eventListFilters> & {
+  cursor?: string | undefined;
+  limit: number;
+};
+
+/**
+ * pg_trgm fuzzy full-content search path for `event.list`.
+ *
+ * Re-implements the exact same tenant scoping, filter set, ordering, and
+ * cursor pagination as the Prisma-fluent path above, but as a hand-written
+ * $queryRaw — Prisma's fluent API cannot express an ILIKE across a
+ * concatenation of scalar text columns AND the eventDetailsJson/notesJson
+ * blobs (cast to text). The `search` value is ALWAYS passed as a bound
+ * parameter via Prisma.sql template interpolation (never string-concatenated
+ * into the query), so this is not vulnerable to SQL injection.
+ *
+ * Pagination note: the Prisma path above uses `cursor: { id }` with
+ * `orderBy: { createdAt: "desc" }`, which Prisma resolves internally by
+ * locating the cursor row's position in that order. Raw SQL has no such
+ * primitive, so this re-implements it as standard keyset pagination:
+ * `(created_at, id) < (cursorCreatedAt, cursorId)` ordered by
+ * `created_at DESC, id DESC` — semantically equivalent (and more stable
+ * under createdAt ties) to the original.
+ */
+async function listViaSearch(
+  tenantId: string,
+  input: ListInput,
+  searchTerm: string,
+  dateFromParsed: Date | undefined,
+  dateToParsed: Date | undefined,
+) {
+  const conditions: Prisma.Sql[] = [Prisma.sql`e.tenant_id = ${tenantId}`];
+
+  if (input.state !== undefined) {
+    conditions.push(Prisma.sql`e.state = ${input.state}::"EventState"`);
+  }
+  if (input.priority !== undefined) {
+    conditions.push(Prisma.sql`e.priority = ${input.priority}`);
+  }
+  if (input.category !== undefined) {
+    conditions.push(Prisma.sql`et.category ILIKE ${input.category}`);
+  }
+  if (input.typeDisplay !== undefined) {
+    conditions.push(Prisma.sql`et.display ILIKE ${input.typeDisplay}`);
+  }
+  if (input.areaName !== undefined) {
+    conditions.push(Prisma.sql`e.area_name ILIKE ${`%${input.areaName}%`}`);
+  }
+  if (dateFromParsed !== undefined) {
+    conditions.push(Prisma.sql`e.reported_at >= ${dateFromParsed}`);
+  }
+  if (dateToParsed !== undefined) {
+    conditions.push(Prisma.sql`e.reported_at <= ${dateToParsed}`);
+  }
+  if (input.linkedToActivePatrol === true) {
+    conditions.push(Prisma.sql`p.state = 'open' AND p.is_deleted = false`);
+  }
+  if (!input.includeSkylight) {
+    conditions.push(
+      Prisma.sql`(et.display IS NULL OR et.display NOT ILIKE '%skylight%')`,
+    );
+  }
+  // The fuzzy match itself — concatenation of every scalar text column plus
+  // the two JSON blobs cast to text. The GIN trigram index created in the
+  // migration accelerates this ILIKE.
+  conditions.push(Prisma.sql`(
+    coalesce(e.title, '') || ' ' ||
+    coalesce(e.reported_by_name, '') || ' ' ||
+    coalesce(e.offender_name, '') || ' ' ||
+    coalesce(e.vessel_name, '') || ' ' ||
+    coalesce(e.vessel_registration, '') || ' ' ||
+    coalesce(e.address, '') || ' ' ||
+    coalesce(e.action_taken, '') || ' ' ||
+    coalesce(e.area_name, '') || ' ' ||
+    coalesce(e.serial_number, '') || ' ' ||
+    coalesce(e.event_details_json::text, '') || ' ' ||
+    coalesce(e.notes_json::text, '')
+  ) ILIKE ${`%${searchTerm}%`}`);
+
+  // Keyset cursor — look up the cursor row's createdAt so we can continue the
+  // same createdAt DESC ordering the non-search path uses.
+  if (input.cursor !== undefined) {
+    const cursorRow = await prisma.event.findFirst({
+      where: { id: input.cursor, tenantId },
+      select: { createdAt: true },
+    });
+    if (cursorRow) {
+      conditions.push(
+        Prisma.sql`(e.created_at, e.id) < (${cursorRow.createdAt}, ${input.cursor})`,
+      );
+    }
+  }
+
+  const whereSql = Prisma.join(conditions, " AND ");
+
+  const rows = await prisma.$queryRaw<RawEventRow[]>(Prisma.sql`
+    SELECT
+      e.id                        AS "id",
+      e.tenant_id                 AS "tenantId",
+      e.er_event_id               AS "erEventId",
+      e.event_type_id             AS "eventTypeId",
+      e.serial_number             AS "serialNumber",
+      e.title                     AS "title",
+      e.priority                  AS "priority",
+      e.state                     AS "state",
+      e.location_lat              AS "locationLat",
+      e.location_lon              AS "locationLon",
+      e.reported_by_name          AS "reportedByName",
+      e.reported_at               AS "reportedAt",
+      e.event_details_json        AS "eventDetailsJson",
+      e.notes_json                AS "notesJson",
+      e.area_name                 AS "areaName",
+      e.offender_name             AS "offenderName",
+      e.vessel_name               AS "vesselName",
+      e.vessel_registration       AS "vesselRegistration",
+      e.address                   AS "address",
+      e.action_taken              AS "actionTaken",
+      e.patrol_id                 AS "patrolId",
+      e.created_at                AS "createdAt",
+      e.updated_at                AS "updatedAt",
+      et.display                  AS "eventType_display",
+      et.category                 AS "eventType_category"
+    FROM events e
+    LEFT JOIN event_types et ON et.id = e.event_type_id
+    ${input.linkedToActivePatrol === true ? Prisma.sql`JOIN patrols p ON p.id = e.patrol_id` : Prisma.empty}
+    WHERE ${whereSql}
+    ORDER BY e.created_at DESC, e.id DESC
+    LIMIT ${input.limit + 1}
+  `);
+
+  let nextCursor: string | undefined;
+  if (rows.length > input.limit) {
+    const next = rows.pop();
+    nextCursor = next?.id;
+  }
+
+  const items = rows.map((r) => ({
+    id: r.id,
+    tenantId: r.tenantId,
+    erEventId: r.erEventId,
+    eventTypeId: r.eventTypeId,
+    serialNumber: r.serialNumber,
+    title: r.title,
+    priority: r.priority,
+    state: r.state,
+    locationLat: r.locationLat,
+    locationLon: r.locationLon,
+    reportedByName: r.reportedByName,
+    reportedAt: r.reportedAt,
+    eventDetailsJson: r.eventDetailsJson,
+    notesJson: r.notesJson,
+    areaName: r.areaName,
+    offenderName: r.offenderName,
+    vesselName: r.vesselName,
+    vesselRegistration: r.vesselRegistration,
+    address: r.address,
+    actionTaken: r.actionTaken,
+    patrolId: r.patrolId,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+    eventType:
+      r.eventType_display !== null || r.eventType_category !== null
+        ? { display: r.eventType_display, category: r.eventType_category }
+        : null,
+  }));
+
+  return { items, nextCursor };
+}
 
 export const eventRouter = router({
   list: tenantProcedure
@@ -123,6 +347,17 @@ export const eventRouter = router({
     .query(async ({ ctx, input }) => {
       const dateFromParsed = input.dateFrom !== undefined ? new Date(input.dateFrom) : undefined;
       const dateToParsed   = input.dateTo   !== undefined ? new Date(input.dateTo)   : undefined;
+
+      // pg_trgm fuzzy full-content search — Prisma's fluent API can't express
+      // an ILIKE across a JSON-cast-to-text + scalar-column concatenation, so
+      // when `search` is supplied we drop to a hand-written $queryRaw that
+      // re-implements the SAME tenant scoping, filters, ordering, and
+      // keyset/cursor pagination as the path below (see listViaSearch).
+      const trimmedSearch = input.search?.trim();
+      if (trimmedSearch !== undefined && trimmedSearch !== "") {
+        return listViaSearch(ctx.tenantId, input, trimmedSearch, dateFromParsed, dateToParsed);
+      }
+
       const items = await prisma.event.findMany({
         where: {
           tenantId: ctx.tenantId,
@@ -162,11 +397,14 @@ export const eventRouter = router({
             ? { patrol: { is: { state: "open", isDeleted: false } } }
             : {}),
           // Exclude Skylight automated vessel-detection events from the
-          // Operations List — defense-in-depth alongside the ER-sync
-          // ingestion block (er-sync.processor.ts). Same marker as
+          // Operations List by default — defense-in-depth alongside the
+          // ER-sync ingestion block (er-sync.processor.ts). Same marker as
           // dashboard.ts:179 / reportMap.ts:59: the joined eventType.display
-          // contains "skylight" (case-insensitive).
-          NOT: { eventType: { display: { contains: "skylight", mode: "insensitive" } } },
+          // contains "skylight" (case-insensitive). SKY-1: opt back in via
+          // `includeSkylight` (mirrors map.ts).
+          ...(!input.includeSkylight
+            ? { NOT: { eventType: { display: { contains: "skylight", mode: "insensitive" } } } }
+            : {}),
         },
         take: input.limit + 1,
         ...(input.cursor !== undefined ? { cursor: { id: input.cursor } } : {}),
@@ -218,6 +456,72 @@ export const eventRouter = router({
         data: { state: input.state },
       });
     }),
+
+  /**
+   * Bulk state-change mutation backing the Events list "N selected · Mark
+   * resolved" bulk-action bar. Tenant-scoped exactly like updateState — the
+   * `where` clause always includes `tenantId: ctx.tenantId`, so a request
+   * containing another tenant's event ids simply updates zero rows for those
+   * ids (Prisma's updateMany never throws for a non-matching id, it just
+   * excludes it from `count`).
+   */
+  bulkUpdateState: tenantProcedure
+    .input(
+      z.object({
+        ids: z.string().array().min(1).max(500),
+        state: z.enum(["new_event", "active", "resolved"]),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const result = await prisma.event.updateMany({
+        where: { id: { in: input.ids }, tenantId: ctx.tenantId },
+        data: { state: input.state },
+      });
+
+      await writeAuditLog(prisma as unknown as PrismaClient, {
+        tenantId: ctx.tenantId,
+        userId: ctx.userId,
+        action: "BULK_UPDATE_EVENT_STATE",
+        entityType: "Event",
+        entityId: input.ids.join(","),
+        changesJson: { ids: input.ids, state: input.state, count: result.count },
+        ipAddress: ctx.ip,
+        severity: "info",
+      });
+
+      return result;
+    }),
+
+  /**
+   * One-time "resolve all existing events" action. Admin-gated (super_admin |
+   * site_admin) and tenant-scoped — implemented as a repeatable, audited
+   * mutation (not a one-off data migration) so it can be run again safely if
+   * new events accumulate before the owner re-triggers it.
+   */
+  resolveAllEvents: adminProcedure.mutation(async ({ ctx }) => {
+    const tenantId = ctx.tenantId;
+    if (!tenantId) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "No tenant context." });
+    }
+
+    const result = await prisma.event.updateMany({
+      where: { tenantId, state: { not: "resolved" } },
+      data: { state: "resolved" },
+    });
+
+    await writeAuditLog(prisma as unknown as PrismaClient, {
+      tenantId,
+      userId: ctx.userId,
+      action: "RESOLVE_ALL_EVENTS",
+      entityType: "Event",
+      entityId: "*",
+      changesJson: { count: result.count },
+      ipAddress: ctx.ip,
+      severity: "info",
+    });
+
+    return result;
+  }),
 
   update: tenantProcedure
     .input(
