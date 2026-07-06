@@ -76,6 +76,7 @@ import { RowHeightSync } from "./components/row-height-sync";
 // Leaflet islands are loaded dynamically (ssr:false) via the client wrapper to
 // prevent window-is-not-defined during Next.js server-side bundle evaluation.
 import { EventPointsMap, PatrolTracksMap } from "./components/map-islands-client";
+import { PatrolTypeBarChart } from "./components/patrol-type-bar-chart";
 import { PrintTimeSeriesChart } from "./components/print-time-series-chart";
 
 // ─── Layout resolution ────────────────────────────────────────────────────────
@@ -144,7 +145,6 @@ interface HeaderProps {
   municipalLogoDataUri: string | null;
   reportTitle: string;
   partnerLogoDataUri: string | null;
-  tenantName: string;
   period: string;
 }
 
@@ -152,7 +152,6 @@ function PageHeader({
   municipalLogoDataUri,
   reportTitle,
   partnerLogoDataUri,
-  tenantName,
   period,
 }: HeaderProps) {
   return (
@@ -171,9 +170,7 @@ function PageHeader({
         </div>
         <div className="header-center">
           <h1 className="report-title">{reportTitle}</h1>
-          <p className="report-subtitle">
-            {tenantName} &middot; {period}
-          </p>
+          <p className="report-subtitle">{period}</p>
         </div>
         <div className="header-logo-slot">
           {partnerLogoDataUri !== null ? (
@@ -539,7 +536,6 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
     municipalLogoDataUri: data.template.municipalLogoDataUri,
     reportTitle: data.template.reportTitle,
     partnerLogoDataUri: data.template.partnerLogoDataUri,
-    tenantName: data.tenant.name,
     period,
   };
 
@@ -747,6 +743,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
     p.empty-note { font-size: 10px; color: #6b7280; font-style: italic; }
     .patrol-charts-row { display: flex; gap: 10px; margin-top: 8px; }
     .patrol-chart-col { flex: 1 1 0; min-width: 0; }
+    .patrol-type-bar-chart-row { margin-top: 8px; }
   `;
 
   return (
@@ -949,6 +946,9 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
                 />
               </figure>
             </div>
+          </div>
+          <div className="patrol-type-bar-chart-row">
+            <PatrolTypeBarChart totals={data.charts.patrolTypeTotals} />
           </div>
           <div
             className="patrol-charts-row"

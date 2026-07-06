@@ -35,10 +35,12 @@ import { getImageBytes } from "@marine-guardian/storage";
 import { buildEventBreakdownWithCoords } from "@/server/trpc/routers/reportMap";
 import { pointsFromTrackGeojson } from "@/server/trpc/routers/map";
 import {
+  buildPatrolTypeTotals,
   getReportMapReportData,
   parseReportMapParams,
   unionGeometryBounds,
 } from "../get-report-map-report-data";
+import type { ReportMapPatrolRow } from "../get-report-map-report-data";
 import { BLUE_ALLIANCE_DEFAULT_LOGO_DATA_URI } from "../assets/blue-alliance-default-logo";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -721,6 +723,71 @@ describe("unionGeometryBounds", () => {
       west: 121.0,
       north: 13.5,
       east: 121.5,
+    });
+  });
+});
+
+// ─── buildPatrolTypeTotals ─────────────────────────────────────────────────────
+
+function makePatrolRow(
+  overrides: Partial<ReportMapPatrolRow> & { patrolId: string },
+): ReportMapPatrolRow {
+  return {
+    label: overrides.patrolId,
+    serialNumber: null,
+    patrolType: "seaborne",
+    boatName: null,
+    startTime: null,
+    endTime: null,
+    distanceKm: null,
+    hours: null,
+    leaderName: null,
+    leaderNames: [],
+    startLocationLat: null,
+    startLocationLon: null,
+    ...overrides,
+  };
+}
+
+describe("buildPatrolTypeTotals", () => {
+  it("sums count/hours/km per patrol type", () => {
+    const rows = [
+      makePatrolRow({ patrolId: "p1", patrolType: "seaborne", hours: 2, distanceKm: 10 }),
+      makePatrolRow({ patrolId: "p2", patrolType: "seaborne", hours: 3, distanceKm: 5 }),
+      makePatrolRow({ patrolId: "p3", patrolType: "foot", hours: 1, distanceKm: 2 }),
+    ];
+    expect(buildPatrolTypeTotals(rows)).toEqual({
+      seaborne: { count: 2, hours: 5, km: 15 },
+      foot: { count: 1, hours: 1, km: 2 },
+    });
+  });
+
+  it("treats null hours/distanceKm as 0", () => {
+    const rows = [
+      makePatrolRow({ patrolId: "p1", patrolType: "seaborne", hours: null, distanceKm: null }),
+      makePatrolRow({ patrolId: "p2", patrolType: "foot", hours: null, distanceKm: null }),
+    ];
+    expect(buildPatrolTypeTotals(rows)).toEqual({
+      seaborne: { count: 1, hours: 0, km: 0 },
+      foot: { count: 1, hours: 0, km: 0 },
+    });
+  });
+
+  it("ignores patrols whose type is neither seaborne nor foot", () => {
+    const rows = [
+      makePatrolRow({ patrolId: "p1", patrolType: "seaborne", hours: 1, distanceKm: 1 }),
+      makePatrolRow({ patrolId: "p2", patrolType: "vehicle", hours: 99, distanceKm: 99 }),
+    ];
+    expect(buildPatrolTypeTotals(rows)).toEqual({
+      seaborne: { count: 1, hours: 1, km: 1 },
+      foot: { count: 0, hours: 0, km: 0 },
+    });
+  });
+
+  it("returns zeroed totals for an empty breakdown", () => {
+    expect(buildPatrolTypeTotals([])).toEqual({
+      seaborne: { count: 0, hours: 0, km: 0 },
+      foot: { count: 0, hours: 0, km: 0 },
     });
   });
 });

@@ -130,6 +130,39 @@ export interface PatrolTotals {
   totalKm: number;
 }
 
+/** Per-patrol-type aggregate (owner request 2026-07-06): total patrol count,
+ *  total hours, and total kilometers for one patrol type ("seaborne"/"foot"),
+ *  feeding the "Patrols by Type" bar chart. */
+export interface PatrolTypeTotal {
+  count: number;
+  hours: number;
+  km: number;
+}
+
+/**
+ * Aggregate `patrolBreakdown` rows into per-type totals (seaborne vs foot):
+ * total patrol count, total hours, total kilometers. Null `hours`/`distanceKm`
+ * are treated as 0. Patrols whose `patrolType` is neither "seaborne" nor
+ * "foot" are ignored — this chart only covers the two known patrol types.
+ * Exported as a pure helper for unit testing (extracted from the loader body).
+ */
+export function buildPatrolTypeTotals(
+  patrolBreakdown: ReportMapPatrolRow[],
+): { seaborne: PatrolTypeTotal; foot: PatrolTypeTotal } {
+  const totals = {
+    seaborne: { count: 0, hours: 0, km: 0 },
+    foot: { count: 0, hours: 0, km: 0 },
+  };
+  for (const p of patrolBreakdown) {
+    if (p.patrolType !== "seaborne" && p.patrolType !== "foot") continue;
+    const bucket = totals[p.patrolType];
+    bucket.count += 1;
+    bucket.hours += p.hours ?? 0;
+    bucket.km += p.distanceKm ?? 0;
+  }
+  return totals;
+}
+
 export interface PatrolListChartData {
   key: "patrol_list";
   title: string;
@@ -214,6 +247,9 @@ export interface ReportMapReportData {
     highPriority: HighPriorityChartData;
     patrolList: PatrolListChartData;
     eventsOverTime: EventsOverTimeChartData;
+    /** Per-patrol-type totals (seaborne/foot) — feeds the "Patrols by Type"
+     *  bar chart in the Patrol List section. */
+    patrolTypeTotals: { seaborne: PatrolTypeTotal; foot: PatrolTypeTotal };
   };
 }
 
@@ -699,6 +735,8 @@ export async function getReportMapReportData(
     patrolCountByTypeOverTime,
   };
 
+  const patrolTypeTotals = buildPatrolTypeTotals(patrolBreakdown);
+
   // ─── Events Over Time chart ───────────────────────────────────────────────
   const overviewPoints: ReportMapEventPoint[] = [];
   const overviewEvents: ReportMapEventDetail[] = [];
@@ -827,6 +865,7 @@ export async function getReportMapReportData(
       highPriority,
       patrolList,
       eventsOverTime,
+      patrolTypeTotals,
     },
   };
 }
