@@ -90,9 +90,14 @@ function stateBadgeVariant(state: string): "outline" | "secondary" | "default" {
 
 // ── Category display label ─────────────────────────────────────────────────
 
+// value MUST be the real EarthRanger event_types.category slug — the server
+// filters `et.category ILIKE/equals ${input.category}` directly (event.ts list
+// + listViaSearch), and the dashboard/map bucket by these same slugs. Using the
+// friendly display name here made EVERY category selection return 0 rows
+// (owner bug 2026-07-07: "filters not working"). Labels stay human-readable.
 const CATEGORY_OPTIONS = [
-  { value: "Law Enforcement",                      label: "Law Enforcement" },
-  { value: "Monitoring, Patrolling & Surveillance", label: "Monitoring & Patrolling" },
+  { value: "law-enforcement-and-apprehensions",      label: "Law Enforcement" },
+  { value: "monitoring_patrolling_and_surveillance", label: "Monitoring & Patrolling" },
 ];
 
 // eventTypeLabel is imported from "@/lib/event-label" (shared with
