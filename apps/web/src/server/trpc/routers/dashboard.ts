@@ -386,7 +386,7 @@ export const dashboardRouter = router({
         await Promise.all([
           prisma.knownRanger.findMany({
             where: { tenantId: ctx.tenantId, isActive: true },
-            select: { id: true, name: true },
+            select: { id: true, name: true, erSubjectId: true },
             orderBy: { name: "asc" },
           }),
           prisma.patrol.findMany({
@@ -421,6 +421,53 @@ export const dashboardRouter = router({
         rangePatrols.map((p) => [p.id, { startTime: p.startTime, endTime: p.endTime }]),
       );
 
+      // Segment leaders of the currently-open patrols (patrol_segments —
+      // leaderName/leaderErId). This is the real "who leads this patrol" data;
+      // AccompanyingRanger rows are frequently absent for open patrols even
+      // when a segment leader is on record, so this closes that gap.
+      const openPatrolSegmentLeaders =
+        openIds.size === 0
+          ? []
+          : await prisma.patrolSegment.findMany({
+              where: {
+                patrolId: { in: Array.from(openIds) },
+                OR: [{ leaderName: { not: null } }, { leaderErId: { not: null } }],
+              },
+              select: { leaderName: true, leaderErId: true },
+            });
+
+      // KnownRanger ids who lead an open patrol, matched preferentially by
+      // erSubjectId === leaderErId (stable identifier), falling back to a
+      // trimmed case-insensitive name match when either erSubjectId is absent.
+      const knownRangerByErId = new Map(
+        knownRangers
+          .filter((r) => r.erSubjectId != null)
+          .map((r) => [r.erSubjectId as string, r.id]),
+      );
+      const knownRangerIdsByNormalizedName = new Map<string, string[]>();
+      for (const r of knownRangers) {
+        const key = r.name.trim().toLowerCase();
+        const list = knownRangerIdsByNormalizedName.get(key) ?? [];
+        list.push(r.id);
+        knownRangerIdsByNormalizedName.set(key, list);
+      }
+
+      const leadsOpenPatrol = new Set<string>();
+      for (const segment of openPatrolSegmentLeaders) {
+        let matchedId: string | undefined;
+        if (segment.leaderErId != null) {
+          matchedId = knownRangerByErId.get(segment.leaderErId);
+        }
+        if (matchedId == null && segment.leaderName != null) {
+          const key = segment.leaderName.trim().toLowerCase();
+          for (const id of knownRangerIdsByNormalizedName.get(key) ?? []) {
+            leadsOpenPatrol.add(id);
+          }
+          continue;
+        }
+        if (matchedId != null) leadsOpenPatrol.add(matchedId);
+      }
+
       // ranger id → patrol ids they are linked to (via AccompanyingRanger).
       const patrolsByRanger = new Map<string, string[]>();
       for (const a of accompanying) {
@@ -438,7 +485,8 @@ export const dashboardRouter = router({
 
       const rangers = knownRangers.map((r) => {
         const patrolIds = patrolsByRanger.get(r.id) ?? [];
-        const onPatrol = patrolIds.some((id) => openIds.has(id));
+        const onPatrol =
+          patrolIds.some((id) => openIds.has(id)) || leadsOpenPatrol.has(r.id);
         let patrolsInRange = 0;
         let patrolHoursInRange = 0;
         let lastSeenAt: Date | null = null;

@@ -25,6 +25,9 @@ vi.mock("@marine-guardian/db", () => ({
     knownRanger: {
       findMany: vi.fn(),
     },
+    patrolSegment: {
+      findMany: vi.fn(),
+    },
     alertHistory: {
       count: vi.fn(),
     },
@@ -68,6 +71,7 @@ const mockPrisma = prisma as unknown as {
   };
   accompanyingRanger: { findMany: ReturnType<typeof vi.fn> };
   knownRanger: { findMany: ReturnType<typeof vi.fn> };
+  patrolSegment: { findMany: ReturnType<typeof vi.fn> };
   alertHistory: { count: ReturnType<typeof vi.fn> };
 };
 
@@ -347,6 +351,7 @@ describe("dashboard.rangerRoster — per-ranger status derivation", () => {
     mockPrisma.knownRanger.findMany.mockResolvedValue([]);
     mockPrisma.patrol.findMany.mockResolvedValue([]);
     mockPrisma.accompanyingRanger.findMany.mockResolvedValue([]);
+    mockPrisma.patrolSegment.findMany.mockResolvedValue([]);
   });
 
   it("classifies rangers as on_patrol / active / idle with a summary", async () => {
@@ -416,6 +421,88 @@ describe("dashboard.rangerRoster — per-ranger status derivation", () => {
 
     expect(result.rangers[0]?.status).toBe("on_patrol");
     expect(result.summary).toEqual({ total: 1, onPatrol: 1, active: 1, idle: 0 });
+  });
+
+  // CC-5 fix (2026-07-06): all 17 open patrols have ZERO AccompanyingRanger
+  // rows, but 2 of them have a patrol_segments leader that matches a
+  // KnownRanger. Those rangers must count as on_patrol even with no
+  // AccompanyingRanger link.
+  it("counts a ranger as on_patrol when they lead an open patrol's segment, matched by erSubjectId, with no AccompanyingRanger row", async () => {
+    mockPrisma.knownRanger.findMany.mockResolvedValue([
+      { id: "r1", name: "Alpha", erSubjectId: "er-alpha" },
+    ]);
+    mockPrisma.patrol.findMany
+      .mockResolvedValueOnce([{ id: "p-open" }]) // openPatrols
+      .mockResolvedValueOnce([]); // rangePatrols
+    mockPrisma.accompanyingRanger.findMany.mockResolvedValue([]); // none
+    mockPrisma.patrolSegment.findMany.mockResolvedValue([
+      { leaderName: "Someone Else", leaderErId: "er-alpha" },
+    ]);
+
+    const result = await createCaller(makeCtx()).rangerRoster();
+
+    expect(result.rangers[0]?.status).toBe("on_patrol");
+    expect(result.summary).toEqual({ total: 1, onPatrol: 1, active: 1, idle: 0 });
+  });
+
+  it("falls back to a trimmed, case-insensitive name match when leaderErId is absent or unmatched", async () => {
+    mockPrisma.knownRanger.findMany.mockResolvedValue([
+      { id: "r1", name: "Bravo Ranger", erSubjectId: null },
+    ]);
+    mockPrisma.patrol.findMany
+      .mockResolvedValueOnce([{ id: "p-open" }])
+      .mockResolvedValueOnce([]);
+    mockPrisma.accompanyingRanger.findMany.mockResolvedValue([]);
+    mockPrisma.patrolSegment.findMany.mockResolvedValue([
+      { leaderName: "  bravo ranger  ", leaderErId: null },
+    ]);
+
+    const result = await createCaller(makeCtx()).rangerRoster();
+
+    expect(result.rangers[0]?.status).toBe("on_patrol");
+  });
+
+  it("does not mark a ranger on_patrol when no AccompanyingRanger link and no matching segment leader", async () => {
+    mockPrisma.knownRanger.findMany.mockResolvedValue([
+      { id: "r1", name: "Charlie", erSubjectId: "er-charlie" },
+    ]);
+    mockPrisma.patrol.findMany
+      .mockResolvedValueOnce([{ id: "p-open" }])
+      .mockResolvedValueOnce([]);
+    mockPrisma.accompanyingRanger.findMany.mockResolvedValue([]);
+    mockPrisma.patrolSegment.findMany.mockResolvedValue([
+      { leaderName: "Nobody Matching", leaderErId: "er-other" },
+    ]);
+
+    const result = await createCaller(makeCtx()).rangerRoster();
+
+    expect(result.rangers[0]?.status).toBe("idle");
+  });
+
+  it("scopes the patrolSegment query to the open patrol ids", async () => {
+    mockPrisma.knownRanger.findMany.mockResolvedValue([]);
+    mockPrisma.patrol.findMany
+      .mockResolvedValueOnce([{ id: "p-open-1" }, { id: "p-open-2" }])
+      .mockResolvedValueOnce([]);
+    mockPrisma.accompanyingRanger.findMany.mockResolvedValue([]);
+    mockPrisma.patrolSegment.findMany.mockResolvedValue([]);
+
+    await createCaller(makeCtx()).rangerRoster();
+
+    const call = mockPrisma.patrolSegment.findMany.mock.calls[0]?.[0] as {
+      where: { patrolId?: { in?: string[] } };
+    };
+    expect(call.where.patrolId?.in?.sort()).toEqual(["p-open-1", "p-open-2"]);
+  });
+
+  it("skips the patrolSegment query entirely when there are no open patrols", async () => {
+    mockPrisma.knownRanger.findMany.mockResolvedValue([]);
+    mockPrisma.patrol.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    mockPrisma.accompanyingRanger.findMany.mockResolvedValue([]);
+
+    await createCaller(makeCtx()).rangerRoster();
+
+    expect(mockPrisma.patrolSegment.findMany).not.toHaveBeenCalled();
   });
 });
 
