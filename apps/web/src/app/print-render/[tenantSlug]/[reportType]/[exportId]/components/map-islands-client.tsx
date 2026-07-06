@@ -21,6 +21,7 @@ import type {
   ReportMapEventPoint,
   ReportMapTrackRow,
 } from "@/server/report-map-report/get-report-map-report-data";
+import type { HeatLatLng } from "@marine-guardian/shared/lib/heatmap-sample";
 
 const EventPointsMapDynamic = dynamic(
   () =>
@@ -36,6 +37,17 @@ const PatrolTracksMapDynamic = dynamic(
   { ssr: false },
 );
 
+// Patrol Tracks Heatmap island (R5, 2026-07-06) — same ssr:false rationale
+// as the other two islands above (leaflet/react-leaflet touch `window` at
+// module init).
+const PatrolHeatmapMapDynamic = dynamic(
+  () =>
+    import("./patrol-heatmap-map").then((mod) => ({
+      default: mod.PatrolHeatmapMap,
+    })),
+  { ssr: false },
+);
+
 interface EventPointsMapProps {
   points: ReportMapEventPoint[];
   markerColor?: string;
@@ -47,10 +59,20 @@ interface PatrolTracksMapProps {
   municipalityBounds?: ReportMapBounds | null;
 }
 
+interface PatrolHeatmapMapProps {
+  seaborne: HeatLatLng[];
+  foot: HeatLatLng[];
+  municipalityBounds?: ReportMapBounds | null;
+}
+
 export function EventPointsMap(props: EventPointsMapProps) {
   return <EventPointsMapDynamic {...props} />;
 }
 
 export function PatrolTracksMap(props: PatrolTracksMapProps) {
   return <PatrolTracksMapDynamic {...props} />;
+}
+
+export function PatrolHeatmapMap(props: PatrolHeatmapMapProps) {
+  return <PatrolHeatmapMapDynamic {...props} />;
 }

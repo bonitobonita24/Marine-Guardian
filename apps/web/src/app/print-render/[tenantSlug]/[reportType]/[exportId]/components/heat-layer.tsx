@@ -5,13 +5,21 @@
  *
  * Adds a heat layer to the surrounding MapContainer on mount and removes it
  * on unmount (and on prop change, to avoid stacked duplicate layers across
- * re-renders). Two variants: `events` (red gradient) and `tracks` (blue
- * gradient), matching the Per Area Report Page 2 legend.
+ * re-renders). Variants: `events` (red gradient) and `tracks` (blue
+ * gradient), matching the Per Area Report Page 2 legend; `patrol-seaborne`
+ * (cyan) and `patrol-foot` (teal) — added for the Report Map "Patrol Tracks
+ * Heatmap" page (R5, 2026-07-06) — give the two patrol types visually
+ * distinct density colors on the same map (colors mirror the SEABORNE_COLOR
+ * /FOOT_COLOR convention in patrol-type-bar-chart.tsx: #0891b2 / #0f766e).
  *
  * Decision lock: leaflet.heat is the framework heatmap renderer per
  * DECISIONS_LOG.md "Heatmap Renderer Choice (Phase 8 Batch 6 Sub-batch 6.2b)".
  * Track points are pre-densified server-side via packages/shared/lib/heatmap-sample;
  * event points pass through raw (Event rows already carry point geometry).
+ * The two new patrol-* variants intentionally skip re-densification (see
+ * get-report-map-report-data.ts buildPatrolHeatPoints) — they consume the
+ * SAME already-extracted track path points the patrol-tracks polyline map
+ * uses, at weight 1 per point.
  */
 
 import { useEffect } from "react";
@@ -20,7 +28,7 @@ import "leaflet.heat";
 import { useMap } from "react-leaflet";
 import type { HeatLatLng } from "@marine-guardian/shared/lib/heatmap-sample";
 
-export type HeatLayerVariant = "events" | "tracks";
+export type HeatLayerVariant = "events" | "tracks" | "patrol-seaborne" | "patrol-foot";
 
 interface HeatLayerProps {
   points: HeatLatLng[];
@@ -52,6 +60,34 @@ const VARIANT_OPTIONS: Record<HeatLayerVariant, L.HeatMapOptions> = {
       0.6: "#60a5fa",
       0.8: "#3b82f6",
       1.0: "#1d4ed8",
+    },
+  },
+  // Patrol Tracks Heatmap — seaborne — cyan gradient (cyan-200 → cyan-700),
+  // distinct from both the red "events" and blue "tracks" variants above.
+  "patrol-seaborne": {
+    radius: 14,
+    blur: 20,
+    maxZoom: 14,
+    gradient: {
+      0.2: "#a5f3fc",
+      0.4: "#67e8f9",
+      0.6: "#22d3ee",
+      0.8: "#06b6d4",
+      1.0: "#0891b2",
+    },
+  },
+  // Patrol Tracks Heatmap — foot — teal gradient (teal-200 → teal-700),
+  // visually distinct from the seaborne cyan gradient above.
+  "patrol-foot": {
+    radius: 14,
+    blur: 20,
+    maxZoom: 14,
+    gradient: {
+      0.2: "#99f6e4",
+      0.4: "#5eead4",
+      0.6: "#2dd4bf",
+      0.8: "#14b8a6",
+      1.0: "#0f766e",
     },
   },
 };

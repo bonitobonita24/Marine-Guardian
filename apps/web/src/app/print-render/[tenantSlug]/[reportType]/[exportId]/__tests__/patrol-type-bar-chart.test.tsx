@@ -1,14 +1,15 @@
 // patrol-type-bar-chart.test.tsx
 //
-// RSC-style render test for the "Patrols by Type" bar chart (Report Map PDF,
+// RSC-style render test for the "Patrols by Type" figures (Report Map PDF,
 // Patrol List section) — a plain server component (no "use client", no
 // Recharts island), so it renders via renderToStaticMarkup like the other
 // print-render server components (see page-2-heatmaps.test.tsx).
 //
-// The chart renders TWO separate per-type mini charts ("Seaborne" / "Foot"),
-// each with 3 bars (Patrols / Hours (h) / Kilometers (km)) — owner directive
-// 2026-07-06 (see report-map-report.tsx patrol section + components file
-// header for the per-metric shared-max scaling rationale).
+// R2/R3 (owner directive 2026-07-06): the chart now renders TWO separate
+// per-type figure blocks ("Seaborne" ABOVE "Foot") as a clean labeled stat
+// list instead of tiny scaled SVG bars — each with the three exact metric
+// lines "Number of patrols = {n}", "Number of hours = {n} Hrs", and
+// "Number of Kilometers = {n} Kms".
 
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -27,7 +28,7 @@ function totals(
 }
 
 describe("PatrolTypeBarChart", () => {
-  it("renders both per-type mini charts with all three metric bars", () => {
+  it("renders both per-type figure blocks with the exact metric label strings", () => {
     const html = renderToStaticMarkup(
       <PatrolTypeBarChart
         totals={totals(
@@ -40,32 +41,33 @@ describe("PatrolTypeBarChart", () => {
     expect(html).toContain('data-testid="patrol-type-mini-chart-seaborne"');
     expect(html).toContain('data-testid="patrol-type-mini-chart-foot"');
     expect(html).toContain("Patrols by Type");
-    expect(html).toContain("Patrols");
-    expect(html).toContain("Hours (h)");
-    expect(html).toContain("Kilometers (km)");
     expect(html).toContain("Seaborne");
     expect(html).toContain("Foot");
-    // Two mini charts × 3 metric bars each = 6 <rect> total.
-    expect((html.match(/<rect/g) ?? []).length).toBe(6);
+    // Exact required label/unit strings (R3) — Seaborne figures.
+    expect(html).toContain("Number of patrols = 12");
+    expect(html).toContain("Number of hours = 34.6 Hrs");
+    expect(html).toContain("Number of Kilometers = 210.2 Kms");
+    // Exact required label/unit strings (R3) — Foot figures.
+    expect(html).toContain("Number of patrols = 5");
+    expect(html).toContain("Number of hours = 8.1 Hrs");
+    expect(html).toContain("Number of Kilometers = 12.4 Kms");
   });
 
-  it("scales each metric's bars to that metric's own max across both types", () => {
-    // Patrols max = 100 (seaborne), hours max = 2 (foot), km max = 50 (seaborne).
+  it("stacks Seaborne ABOVE Foot in a vertical column (R2)", () => {
     const html = renderToStaticMarkup(
       <PatrolTypeBarChart
-        totals={totals(
-          { count: 100, hours: 1, km: 50 },
-          { count: 10, hours: 2, km: 5 },
-        )}
+        totals={totals({ count: 1, hours: 1, km: 1 }, { count: 2, hours: 2, km: 2 })}
       />,
     );
-    // The foot hours bar (the metric's own max) should reach the full chart
-    // height (50 viewBox units) — i.e. its bar top sits at the baseline minus
-    // the full chart height (y="8", baseline 58 - 50 = 8).
-    expect(html).toContain('y="8"');
+    expect(html).toMatch(/flex-direction:\s*column/);
+    // Seaborne's testid must appear before Foot's in document order.
+    const seaborneIdx = html.indexOf('data-testid="patrol-type-mini-chart-seaborne"');
+    const footIdx = html.indexOf('data-testid="patrol-type-mini-chart-foot"');
+    expect(seaborneIdx).toBeGreaterThan(-1);
+    expect(footIdx).toBeGreaterThan(seaborneIdx);
   });
 
-  it("renders the sr-only alt table with per-metric seaborne/foot values", () => {
+  it("renders the sr-only alt table with per-metric seaborne/foot values (kept in sync with the new labels)", () => {
     const html = renderToStaticMarkup(
       <PatrolTypeBarChart
         totals={totals({ count: 3, hours: 4, km: 5 }, { count: 1, hours: 2, km: 3 })}
@@ -73,8 +75,13 @@ describe("PatrolTypeBarChart", () => {
     );
     expect(html).toContain("sr-only");
     expect(html).toContain("<caption>Patrols by Type</caption>");
+    expect(html).toContain("<td>Number of patrols</td>");
+    expect(html).toContain("<td>Number of hours</td>");
+    expect(html).toContain("<td>Number of Kilometers</td>");
     expect(html).toContain("<td>3</td>");
     expect(html).toContain("<td>1</td>");
+    expect(html).toContain("<td>4 Hrs</td>");
+    expect(html).toContain("<td>5 Kms</td>");
   });
 
   it("renders an empty state when every metric is zero", () => {

@@ -44,6 +44,7 @@ import {
 } from "@/server/trpc/routers/time-series-bucketing";
 import { BLUE_ALLIANCE_DEFAULT_LOGO_DATA_URI } from "@/server/report-map-report/assets/blue-alliance-default-logo";
 import { buildGlobalEventTypeColumns } from "@/server/report-map-report/event-type-grouping";
+import type { HeatLatLng } from "@marine-guardian/shared/lib/heatmap-sample";
 
 // ─── Shared point shape ──────────────────────────────────────────────────────
 
@@ -125,7 +126,34 @@ export interface ReportMapPatrolRow {
 export interface ReportMapTrackRow {
   patrolId: string;
   label: string;
+  /** "seaborne" | "foot" (or any other ER-supplied value) — feeds the
+   *  per-type colored polyline (R1) and the Patrol Tracks Heatmap page's
+   *  seaborne/foot point split (R5, 2026-07-06). */
+  patrolType: string;
   path: { lat: number; lon: number }[];
+}
+
+/**
+ * Splits patrol track path points into seaborne vs foot HeatLatLng tuples
+ * (weight 1, no re-densification — `path` already comes from the same
+ * tested `pointsFromTrackGeojson` pipeline the patrol-tracks polyline map
+ * consumes) for the Patrol Tracks Heatmap page (R5, 2026-07-06). Tracks
+ * whose `patrolType` is neither "seaborne" nor "foot" are ignored — this
+ * heatmap only covers the two known patrol types (mirrors
+ * buildPatrolTypeTotals' same convention). Exported as a pure helper for
+ * unit testing.
+ */
+export function buildPatrolHeatPoints(
+  tracks: ReportMapTrackRow[],
+): { seaborne: HeatLatLng[]; foot: HeatLatLng[] } {
+  const seaborne: HeatLatLng[] = [];
+  const foot: HeatLatLng[] = [];
+  for (const t of tracks) {
+    if (t.patrolType !== "seaborne" && t.patrolType !== "foot") continue;
+    const bucket = t.patrolType === "seaborne" ? seaborne : foot;
+    for (const pt of t.path) bucket.push([pt.lat, pt.lon, 1]);
+  }
+  return { seaborne, foot };
 }
 
 export interface PatrolTotals {
@@ -177,6 +205,12 @@ export interface PatrolListChartData {
   patrolCountByTypeOverTime: {
     seaborne: ReportMapTimeSeriesPoint[];
     foot: ReportMapTimeSeriesPoint[];
+  };
+  /** Per-type (seaborne/foot) HeatLatLng point sets feeding the Patrol
+   *  Tracks Heatmap page (R5, 2026-07-06) — see buildPatrolHeatPoints. */
+  patrolHeatPoints: {
+    seaborne: HeatLatLng[];
+    foot: HeatLatLng[];
   };
 }
 
@@ -600,7 +634,14 @@ export async function getReportMapReportData(
         orderBy: { until: "desc" },
         select: {
           trackGeojson: true,
-          patrol: { select: { id: true, title: true, serialNumber: true } },
+          patrol: {
+            select: {
+              id: true,
+              title: true,
+              serialNumber: true,
+              patrolType: true,
+            },
+          },
         },
       }),
     ]),
@@ -746,6 +787,7 @@ export async function getReportMapReportData(
     tracks.push({
       patrolId: row.patrol.id,
       label: row.patrol.title ?? row.patrol.serialNumber ?? row.patrol.id,
+      patrolType: row.patrol.patrolType,
       path: pts.map(({ lat, lon }) => ({ lat, lon })),
     });
   }
@@ -758,6 +800,7 @@ export async function getReportMapReportData(
     tracks,
     patrolTotals,
     patrolCountByTypeOverTime,
+    patrolHeatPoints: buildPatrolHeatPoints(tracks),
   };
 
   const patrolTypeTotals = buildPatrolTypeTotals(patrolBreakdown);

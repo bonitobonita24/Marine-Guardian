@@ -35,12 +35,16 @@ import { getImageBytes } from "@marine-guardian/storage";
 import { buildEventBreakdownWithCoords } from "@/server/trpc/routers/reportMap";
 import { pointsFromTrackGeojson } from "@/server/trpc/routers/map";
 import {
+  buildPatrolHeatPoints,
   buildPatrolTypeTotals,
   getReportMapReportData,
   parseReportMapParams,
   unionGeometryBounds,
 } from "../get-report-map-report-data";
-import type { ReportMapPatrolRow } from "../get-report-map-report-data";
+import type {
+  ReportMapPatrolRow,
+  ReportMapTrackRow,
+} from "../get-report-map-report-data";
 import { BLUE_ALLIANCE_DEFAULT_LOGO_DATA_URI } from "../assets/blue-alliance-default-logo";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -334,7 +338,10 @@ describe("getReportMapReportData", () => {
       },
     ] as never);
     vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([
-      { trackGeojson: { type: "LineString" }, patrol: { id: "p1", title: "P1", serialNumber: "SN1" } },
+      {
+        trackGeojson: { type: "LineString" },
+        patrol: { id: "p1", title: "P1", serialNumber: "SN1", patrolType: "seaborne" },
+      },
     ] as never);
     vi.mocked(pointsFromTrackGeojson).mockReturnValue([
       { lat: 12.5, lon: 121.5 },
@@ -353,6 +360,15 @@ describe("getReportMapReportData", () => {
     expect(patrol?.leaderName).toBe("Juan");
     expect(result.charts.patrolList.tracks).toHaveLength(1);
     expect(result.charts.patrolList.tracks[0]?.path).toHaveLength(2);
+    // R1: patrolType is carried onto the track row (feeds the colored
+    // polyline + the Patrol Tracks Heatmap seaborne/foot split).
+    expect(result.charts.patrolList.tracks[0]?.patrolType).toBe("seaborne");
+    // R5: patrolHeatPoints buckets this seaborne track's path points.
+    expect(result.charts.patrolList.patrolHeatPoints.seaborne).toEqual([
+      [12.5, 121.5, 1],
+      [12.6, 121.6, 1],
+    ]);
+    expect(result.charts.patrolList.patrolHeatPoints.foot).toEqual([]);
   });
 
   it("skips patrol tracks with fewer than 2 points", async () => {
@@ -363,7 +379,10 @@ describe("getReportMapReportData", () => {
     vi.mocked(prisma.event.findMany).mockResolvedValue([] as never);
     vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
     vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([
-      { trackGeojson: null, patrol: { id: "p2", title: null, serialNumber: "SN2" } },
+      {
+        trackGeojson: null,
+        patrol: { id: "p2", title: null, serialNumber: "SN2", patrolType: "foot" },
+      },
     ] as never);
     vi.mocked(pointsFromTrackGeojson).mockReturnValue([] as never);
     vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
@@ -917,5 +936,70 @@ describe("buildPatrolTypeTotals", () => {
       seaborne: { count: 0, hours: 0, km: 0 },
       foot: { count: 0, hours: 0, km: 0 },
     });
+  });
+});
+
+// ─── buildPatrolHeatPoints (R5, 2026-07-06) ────────────────────────────────
+
+function makeTrackRow(
+  overrides: Partial<ReportMapTrackRow> & { patrolId: string },
+): ReportMapTrackRow {
+  return {
+    label: overrides.patrolId,
+    patrolType: "seaborne",
+    path: [],
+    ...overrides,
+  };
+}
+
+describe("buildPatrolHeatPoints", () => {
+  it("buckets track path points into seaborne/foot HeatLatLng tuples with weight 1", () => {
+    const tracks = [
+      makeTrackRow({
+        patrolId: "p1",
+        patrolType: "seaborne",
+        path: [
+          { lat: 12.5, lon: 121.5 },
+          { lat: 12.6, lon: 121.6 },
+        ],
+      }),
+      makeTrackRow({
+        patrolId: "p2",
+        patrolType: "foot",
+        path: [{ lat: 13.0, lon: 122.0 }],
+      }),
+    ];
+    expect(buildPatrolHeatPoints(tracks)).toEqual({
+      seaborne: [
+        [12.5, 121.5, 1],
+        [12.6, 121.6, 1],
+      ],
+      foot: [[13.0, 122.0, 1]],
+    });
+  });
+
+  it("concatenates points across multiple tracks of the same type", () => {
+    const tracks = [
+      makeTrackRow({ patrolId: "p1", patrolType: "seaborne", path: [{ lat: 1, lon: 1 }] }),
+      makeTrackRow({ patrolId: "p2", patrolType: "seaborne", path: [{ lat: 2, lon: 2 }] }),
+    ];
+    expect(buildPatrolHeatPoints(tracks)).toEqual({
+      seaborne: [
+        [1, 1, 1],
+        [2, 2, 1],
+      ],
+      foot: [],
+    });
+  });
+
+  it("ignores tracks whose patrolType is neither seaborne nor foot", () => {
+    const tracks = [
+      makeTrackRow({ patrolId: "p1", patrolType: "vehicle", path: [{ lat: 1, lon: 1 }] }),
+    ];
+    expect(buildPatrolHeatPoints(tracks)).toEqual({ seaborne: [], foot: [] });
+  });
+
+  it("returns empty buckets for an empty track list", () => {
+    expect(buildPatrolHeatPoints([])).toEqual({ seaborne: [], foot: [] });
   });
 });

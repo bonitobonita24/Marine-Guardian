@@ -1,17 +1,17 @@
 /**
- * Report Map PDF render — template-driven, 5 chart+map sections, each
- * immediately followed by a dedicated full-list portrait page (10 pages
- * total).
+ * Report Map PDF render — template-driven, 4 chart+map sections + 1 map-only
+ * heatmap section, each of the 4 chart+map sections followed by a dedicated
+ * full-list portrait page (9 pages total — 2026-07-06 R1-R6 revision).
  *
  * Pure RSC: server-renders a fully self-contained HTML document. Puppeteer
  * waits for window.__renderReady (set by the last map island to mount).
  *
- * Layout options (driven by template.layout) govern the 5 MAIN (chart+map)
- * pages only — the 5 full-list pages are ALWAYS A4 portrait, independent of
+ * Layout options (driven by template.layout) govern the MAIN (chart+map)
+ * pages only — the full-list pages are ALWAYS A4 portrait, independent of
  * this setting (see the "@page list-page" CSS rule):
  *   landscape-one-per-page (default) — ONE chart+map per A4 landscape page
  *   portrait-one-per-page            — ONE chart+map per A4 portrait page
- *   continuous                        — all 5 main sections in one flowing
+ *   continuous                        — all main sections in one flowing
  *                                        document (full-list pages still each
  *                                        force their own page break)
  *
@@ -19,23 +19,24 @@
  *   Header — one centred cluster: municipal logo · reportTitle · partner
  *            logo, flanking the title and grouped/centred together (not
  *            pinned to the far page margins)
- *   Footer — footerNotes · generated-at · page N of 10
+ *   Footer — footerNotes · generated-at · page N of 9
  * All values come from the resolved template payload — nothing hardcoded.
  *
- * Five main sections (one per chart) + five full-list sections (uncapped,
- * ALL fields, ALL rows):
+ * Page order (2026-07-06 revision — R6 removed the High Priority pages, R5
+ * added the Patrol Tracks Heatmap page):
  *   1.  Law Enforcement       — EventBreakdownChart + event-points map (red)
- *   1b. Law Enforcement list  — per-type event tables (landscape)
  *   2.  Monitoring            — EventBreakdownChart + event-points map (cyan)
- *   2b. Monitoring list       — per-type event tables (landscape)
- *   3.  High Priority         — event-points map (orange)
- *   3b. High Priority list    — per-type event tables (landscape)
- *   4.  Patrol List           — per-type (Seaborne/Foot) bar charts LEFT of the
- *                                patrol-tracks map + seaborne/foot time series
- *                                (all on one landscape page — 2026-07-06)
- *   4b. Patrol List — list    — full patrol table (portrait)
+ *   3.  Patrol List           — per-type (Seaborne/Foot) figures LEFT of the
+ *                                patrol-tracks map (colored by type, R1) +
+ *                                seaborne/foot time series (2026-07-06)
+ *   4.  Patrol Tracks Heatmap — NEW (R5): seaborne (cyan) / foot (teal) heat
+ *                                layers over the same track points, map-only
+ *                                page immediately after Patrol List
  *   5.  Events Over Time      — line chart + overview event-points map (blue)
- *   5b. Events Over Time list — per-type event tables (landscape)
+ *   6.  Law Enforcement list  — per-type event tables (landscape)
+ *   7.  Monitoring list       — per-type event tables (landscape)
+ *   8.  Patrol List — list    — full patrol table (portrait)
+ *   9.  Events Over Time list — per-type event tables (landscape)
  *
  * EVENT full-list pages (owner directive 2026-07-03) render one SEPARATE table
  * per EventType — each type's columns are the union of ER field keys present
@@ -49,15 +50,17 @@
  * Mixed orientation: every main "report-section" is pinned to the named
  * "@page main-page" (the template's configured size); the patrol full-list
  * "report-section-list" stays pinned to "@page list-page" (A4 portrait) while
- * the four EVENT full-list sections add the "event-list" class, pinning them
- * to "@page event-list-page" (A4 landscape).
+ * the three remaining EVENT full-list sections add the "event-list" class,
+ * pinning them to "@page event-list-page" (A4 landscape).
  * Chromium's Puppeteer `page.pdf({ preferCSSPageSize: true })` gives these
  * @page rules priority over the page.pdf() `landscape`/`format` JS options
  * (see the CSS block below + docs/DECISIONS_LOG.md "Report Map full-list
  * portrait pages" for the empirical verification).
  *
- * No full-list page contains a map — the __renderPending=5 map-island
- * counter (4 EventPointsMap + 1 PatrolTracksMap) is unaffected.
+ * No full-list page contains a map. The __renderPending=5 map-island counter
+ * = 3 EventPointsMap (Law Enforcement, Monitoring, Events Over Time — High
+ * Priority's map was removed by R6) + 1 PatrolTracksMap + 1 PatrolHeatmapMap
+ * (added by R5) — net unchanged from the pre-2026-07-06 count of 5.
  *
  * WCAG 2.2 AA:
  *   - Heading order per section (h1 report title, h2 section title)
@@ -77,7 +80,11 @@ import { EventBreakdownChart } from "./components/event-breakdown-chart";
 import { RowHeightSync } from "./components/row-height-sync";
 // Leaflet islands are loaded dynamically (ssr:false) via the client wrapper to
 // prevent window-is-not-defined during Next.js server-side bundle evaluation.
-import { EventPointsMap, PatrolTracksMap } from "./components/map-islands-client";
+import {
+  EventPointsMap,
+  PatrolHeatmapMap,
+  PatrolTracksMap,
+} from "./components/map-islands-client";
 import { PatrolTypeBarChart } from "./components/patrol-type-bar-chart";
 import { PrintTimeSeriesChart } from "./components/print-time-series-chart";
 
@@ -521,22 +528,29 @@ interface ReportMapReportProps {
   data: ReportMapReportData;
 }
 
-// 5 main chart+map sections + 5 dedicated full-list pages (one per section) —
-// see the ".report-section-list" CSS rule + FullEventTable/FullPatrolTable.
-const TOTAL_PAGES = 10;
+// 4 main chart+map sections + 1 map-only heatmap section + 4 dedicated
+// full-list pages (one per chart+map section) — see the
+// ".report-section-list" CSS rule + FullEventTable/FullPatrolTable. Revised
+// 2026-07-06: R6 removed the 2 High Priority pages, R5 added the Patrol
+// Tracks Heatmap page (10 - 2 + 1 = 9).
+const TOTAL_PAGES = 9;
 
 export function ReportMapReport({ data }: ReportMapReportProps) {
   const layout = resolveLayout(data.template.layout);
   const pageCss = layout === "portrait" ? "A4 portrait" : "A4 landscape";
   const isOnePer = layout === "landscape" || layout === "portrait";
   const mapHeightPx = layout === "portrait" ? "260px" : "370px";
-  // Patrol section (4) alone also carries a below-the-fold
-  // "Seaborne/Foot Patrols Over Time" row (.patrol-charts-row) that the other
-  // 4 main sections don't have, so it gets its own (shorter) content-row
-  // height budget — see the ".patrol-section-content" CSS override below —
-  // to keep the WHOLE section (heading + map/chart row + over-time row +
-  // footer) on one printed page (owner directive 2026-07-06).
-  const patrolMapHeightPx = layout === "portrait" ? "220px" : "300px";
+  // Patrol section (3) alone also carries a below-the-fold
+  // "Seaborne/Foot Patrols Over Time" row (.patrol-charts-row) that the
+  // other main sections don't have. Previously this row's map/chart height
+  // was capped SHORTER than the event maps (220/300) to force the whole
+  // section onto one printed page. Owner directive 2026-07-06 (R4): raise
+  // the patrol map to the SAME height as the event maps (260/370) for
+  // visual consistency — the section may now overflow onto a second
+  // physical page (the .patrol-charts-row simply reflows there; nothing
+  // clips, since neither the section nor the row has a fixed/overflow:
+  // hidden height) — correctness over one-page fit, per the owner.
+  const patrolMapHeightPx = mapHeightPx;
 
   const period = fmtPeriod(data.filter.from, data.filter.to);
   const generatedAt = fmtDateTimeLocal(data.generatedAt);
@@ -761,7 +775,8 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
     p.empty-note { font-size: 10px; color: #6b7280; font-style: italic; }
     /* Tightened (owner directive 2026-07-06 — one-page fit): the over-time
        row's own height now comes from PrintTimeSeriesChart's explicit
-       height={90} prop (see the Section 4 JSX below); margin-top trimmed
+       height={90} prop (see the Section 3 "Patrol List" JSX below);
+       margin-top trimmed
        from 8px to 6px to shave a little more off the section's total. */
     .patrol-charts-row { display: flex; gap: 10px; margin-top: 6px; }
     .patrol-chart-col { flex: 1 1 0; min-width: 0; }
@@ -776,8 +791,14 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
         </title>
         <style>{css}</style>
         {/* Initialise the multi-map render-ready counter before any island
-            mounts. 5 = one EventPointsMap per chart section (×4) + one
-            PatrolTracksMap. Each MapReadySignal decrements the counter;
+            mounts. 5 = 3 EventPointsMap (Law Enforcement, Monitoring, Events
+            Over Time) + 1 PatrolTracksMap + 1 PatrolHeatmapMap. Recomputed
+            2026-07-06 (R5/R6): removing the High Priority section's
+            EventPointsMap (-1) and adding the new Patrol Tracks Heatmap
+            section's PatrolHeatmapMap (+1) nets to the SAME total of 5 map
+            islands actually rendered below — verified by counting every
+            <EventPointsMap>/<PatrolTracksMap>/<PatrolHeatmapMap> JSX usage
+            in this file. Each MapReadySignal decrements the counter;
             window.__renderReady is only set once all five reach zero.
             Backward-compat: single-map documents never set __renderPending
             so their MapReadySignal falls through to the direct-flip path. */}
@@ -873,48 +894,12 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
           <PageFooter {...footerBase} pageNum={2} />
         </section>
 
-        {/* ── Section 3: High Priority ──────────────────────────────────── */}
-        <section
-          className="report-section"
-          data-testid="section-high-priority"
-        >
-          <PageHeader {...headerProps} />
-          <h2 className="section-heading">
-            High Priority Events
-            <span className="total-badge">
-              {data.charts.highPriority.total.toLocaleString()}
-            </span>
-          </h2>
-          <div className="section-content">
-            <div className="section-chart">
-              {data.charts.highPriority.total === 0 ? (
-                <p className="empty-note">
-                  No high priority events in this period.
-                </p>
-              ) : (
-                <p className="section-list-hint">Full event list in the Full Lists section.</p>
-              )}
-            </div>
-            <div className="section-map">
-              <figure aria-label="High priority event locations">
-                <figcaption className="sr-only">
-                  <MapAltTable
-                    caption="High priority event locations"
-                    points={data.charts.highPriority.points}
-                  />
-                </figcaption>
-                <EventPointsMap
-                  points={data.charts.highPriority.points}
-                  markerColor="#ea580c"
-                  municipalityBounds={data.municipalityBounds}
-                />
-              </figure>
-            </div>
-          </div>
-          <PageFooter {...footerBase} pageNum={3} />
-        </section>
-
-        {/* ── Section 4: Patrol List ────────────────────────────────────── */}
+        {/* ── Section 3: Patrol List ───────────────────────────────────────
+            (R6, 2026-07-06: the former High Priority section that used to
+            sit here was removed — see the removed .removeHighPriority note
+            in the Master file history; High Priority's underlying chart
+            data is intentionally left intact in get-report-map-report-data.ts,
+            only its two rendered pages were removed.) */}
         <section
           className="report-section"
           data-testid="section-patrol-list"
@@ -942,13 +927,14 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
               )}
             </div>
             <div className="section-map">
-              <figure aria-label="Patrol tracks">
+              <figure aria-label="Patrol tracks" style={{ position: "relative" }}>
                 <figcaption className="sr-only">
                   <table>
                     <caption>Patrol tracks</caption>
                     <thead>
                       <tr>
                         <th scope="col">Patrol</th>
+                        <th scope="col">Type</th>
                         <th scope="col">Track Points</th>
                       </tr>
                     </thead>
@@ -956,6 +942,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
                       {data.charts.patrolList.tracks.slice(0, 30).map((t) => (
                         <tr key={t.patrolId}>
                           <td>{t.label}</td>
+                          <td>{fmtPatrolType(t.patrolType)}</td>
                           <td>{t.path.length}</td>
                         </tr>
                       ))}
@@ -966,6 +953,54 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
                   tracks={data.charts.patrolList.tracks}
                   municipalityBounds={data.municipalityBounds}
                 />
+                {/* Visible seaborne/foot color legend (R1, 2026-07-06) — the
+                    polyline colors above are otherwise unexplained on the
+                    printed page. aria-hidden: the sr-only table above
+                    already carries the per-track type as accessible text. */}
+                <div
+                  className="patrol-map-legend"
+                  aria-hidden="true"
+                  data-testid="patrol-map-legend"
+                  style={{
+                    position: "absolute",
+                    bottom: "4px",
+                    left: "4px",
+                    zIndex: 1000,
+                    display: "flex",
+                    gap: "8px",
+                    background: "rgba(255,255,255,0.9)",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: "3px",
+                    padding: "3px 6px",
+                    fontSize: "8px",
+                    color: "#111",
+                  }}
+                >
+                  <span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+                    <span
+                      style={{
+                        display: "inline-block",
+                        width: "8px",
+                        height: "8px",
+                        background: "#0891b2",
+                        borderRadius: "1px",
+                      }}
+                    />
+                    Seaborne
+                  </span>
+                  <span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+                    <span
+                      style={{
+                        display: "inline-block",
+                        width: "8px",
+                        height: "8px",
+                        background: "#0f766e",
+                        borderRadius: "1px",
+                      }}
+                    />
+                    Foot
+                  </span>
+                </div>
               </figure>
             </div>
           </div>
@@ -992,6 +1027,86 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
                 height={90}
               />
             </div>
+          </div>
+          <PageFooter {...footerBase} pageNum={3} />
+        </section>
+
+        {/* ── Section 4: Patrol Tracks Heatmap ─────────────────────────────
+            NEW (R5, 2026-07-06) — map-only page immediately after Patrol
+            List. Two heat layers (seaborne cyan / foot teal) over the SAME
+            track path points the Patrol List polyline map uses (no
+            re-densification — see buildPatrolHeatPoints). */}
+        <section
+          className="report-section"
+          data-testid="section-patrol-heatmap"
+        >
+          <PageHeader {...headerProps} />
+          <h2 className="section-heading">Patrol Tracks Heatmap</h2>
+          <div
+            className="patrol-heatmap-legend"
+            data-testid="patrol-heatmap-legend"
+            style={{
+              display: "flex",
+              gap: "14px",
+              marginBottom: "6px",
+              fontSize: "9px",
+              color: "#374151",
+            }}
+          >
+            <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              <span
+                style={{
+                  display: "inline-block",
+                  width: "9px",
+                  height: "9px",
+                  background: "#0891b2",
+                  borderRadius: "2px",
+                }}
+              />
+              Seaborne
+            </span>
+            <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              <span
+                style={{
+                  display: "inline-block",
+                  width: "9px",
+                  height: "9px",
+                  background: "#0f766e",
+                  borderRadius: "2px",
+                }}
+              />
+              Foot
+            </span>
+          </div>
+          <div className="section-map" style={{ width: "100%" }}>
+            <figure aria-label="Patrol tracks heatmap — seaborne vs foot density">
+              <figcaption className="sr-only">
+                <table>
+                  <caption>Patrol tracks heatmap point counts by type</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Type</th>
+                      <th scope="col">Heat Points</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Seaborne</td>
+                      <td>{data.charts.patrolList.patrolHeatPoints.seaborne.length}</td>
+                    </tr>
+                    <tr>
+                      <td>Foot</td>
+                      <td>{data.charts.patrolList.patrolHeatPoints.foot.length}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </figcaption>
+              <PatrolHeatmapMap
+                seaborne={data.charts.patrolList.patrolHeatPoints.seaborne}
+                foot={data.charts.patrolList.patrolHeatPoints.foot}
+                municipalityBounds={data.municipalityBounds}
+              />
+            </figure>
           </div>
           <PageFooter {...footerBase} pageNum={4} />
         </section>
@@ -1075,26 +1190,6 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
           <PageFooter {...footerBase} pageNum={7} />
         </section>
 
-        {/* ── Section 3b: High Priority — per-type tables (landscape) ─────── */}
-        <section
-          className="report-section-list event-list"
-          data-testid="section-high-priority-list"
-        >
-          <PageHeader {...headerProps} />
-          <h2 className="section-heading">
-            High Priority Events — Full List
-            <span className="total-badge">
-              {data.charts.highPriority.total.toLocaleString()}
-            </span>
-          </h2>
-          <EventTypeTables
-            events={data.charts.highPriority.events}
-            captionPrefix="High priority full event list"
-            eventTypeColumns={data.eventTypeColumns}
-          />
-          <PageFooter {...footerBase} pageNum={8} />
-        </section>
-
         {/* ── Section 4b: Patrol List — full list (portrait) ──────────────── */}
         <section
           className="report-section-list"
@@ -1111,7 +1206,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
             patrols={data.charts.patrolList.breakdown}
             caption="Full patrol list"
           />
-          <PageFooter {...footerBase} pageNum={9} />
+          <PageFooter {...footerBase} pageNum={8} />
         </section>
 
         {/* ── Section 5b: Events Over Time — per-type tables (landscape) ──── */}
@@ -1131,7 +1226,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
             captionPrefix="Events over time — full event list"
             eventTypeColumns={data.eventTypeColumns}
           />
-          <PageFooter {...footerBase} pageNum={10} />
+          <PageFooter {...footerBase} pageNum={9} />
         </section>
 
         {/* Puppeteer networkidle0 anchor. */}

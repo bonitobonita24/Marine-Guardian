@@ -1,34 +1,33 @@
 /**
- * "Patrols by Type" bar chart — Report Map PDF, Patrol List section.
+ * "Patrols by Type" figures — Report Map PDF, Patrol List section.
  *
- * Renders TWO separate per-type mini charts — "Seaborne" and "Foot" (owner
- * request 2026-07-06) — each with three bars: total patrol count, total
- * hours, and total kilometers. The three metrics have very different scales
- * (a count vs hours vs km), so each bar is scaled to that METRIC's max
- * across BOTH types (patrol bars share the patrol-max, hours bars share the
- * hours-max, km bars share the km-max) — this keeps "Seaborne Patrols" and
- * "Foot Patrols" visually comparable (same denominator) while still making
- * the much-smaller hours/km bars legible, instead of dwarfing them under one
- * shared axis with the patrol count.
+ * Renders TWO separate per-type figure blocks — "Seaborne" and "Foot" — each
+ * showing its three metrics as a clean, legible LABELED LIST (owner
+ * directive 2026-07-06, R2/R3): tiny scaled bars were hard to read at print
+ * size, so each type's count/hours/km are now presented as plain stat lines
+ * instead:
+ *   "Number of patrols = {count}"
+ *   "Number of hours = {hours} Hrs"
+ *   "Number of Kilometers = {km} Kms"
+ * Seaborne renders ABOVE Foot (R2, `flexDirection: "column"`, Seaborne
+ * first) — previously the two mini charts sat side-by-side.
  *
  * This chart lives in the report's LEFT `.section-chart` column, stacked
- * beside the patrol-tracks map on the right (see report-map-report.tsx) —
- * previously it sat below the map+chart row as a full-width strip; moved
- * left per owner directive 2026-07-06 to fit the whole patrol section on one
- * landscape page.
+ * beside the patrol-tracks map on the right (see report-map-report.tsx).
  *
  * Print-friendly: a plain server component (no "use client", no Recharts
- * island) that emits a self-contained inline SVG — same rationale as the
- * other print-render charts (this sub-tree has no Tailwind CSS layers), but
- * here taken one step further: no client hydration/interactivity at all, so
+ * island) — same rationale as the other print-render charts (this sub-tree
+ * has no Tailwind CSS layers): no client hydration/interactivity at all, so
  * this section never depends on a chart library mounting before Puppeteer's
  * page.pdf() fires. Colors mirror the existing Seaborne (#0891b2) / Foot
  * (#0f766e) palette used by the "Seaborne/Foot Patrols Over Time" charts in
- * this same section (see PrintTimeSeriesChart usages in report-map-report.tsx).
+ * this same section (see PrintTimeSeriesChart usages in report-map-report.tsx)
+ * and the patrol-tracks-map polyline colors (R1).
  *
- * WCAG 2.2 AA: the SVG is decorative (aria-hidden); a <figcaption
- * class="sr-only"> table (caption + scope attrs), mirroring MapAltTable /
- * the other report charts' sr-only alt tables, carries the full data as text.
+ * WCAG 2.2 AA: a <figcaption class="sr-only"> table (caption + scope attrs),
+ * mirroring MapAltTable / the other report charts' sr-only alt tables,
+ * carries the full data as text — kept in sync with the new label/unit
+ * strings below.
  */
 
 import type { PatrolTypeTotal } from "@/server/report-map-report/get-report-map-report-data";
@@ -37,21 +36,20 @@ interface PatrolTypeBarChartProps {
   totals: { seaborne: PatrolTypeTotal; foot: PatrolTypeTotal };
 }
 
-const SEABORNE_COLOR = "#0891b2"; // cyan-600 — matches "Seaborne Patrols Over Time"
-const FOOT_COLOR = "#0f766e"; // teal-700 — matches "Foot Patrols Over Time"
+const SEABORNE_COLOR = "#0891b2"; // cyan-600 — matches "Seaborne Patrols Over Time" + patrol-tracks-map
+const FOOT_COLOR = "#0f766e"; // teal-700 — matches "Foot Patrols Over Time" + patrol-tracks-map
 
 type PatrolTypeKey = "seaborne" | "foot";
 
-interface MetricStat {
+interface MetricRow {
   key: string;
+  /** Exact label text preceding " = {value}{unit}" — see the three required
+   *  strings in the file header comment. */
   label: string;
+  /** Suffix appended after the formatted value (e.g. " Hrs", " Kms"). */
+  unit: string;
   seaborne: number;
   foot: number;
-  /** Shared max across BOTH types for this metric — the per-metric scale
-   *  denominator so a "Seaborne" bar and a "Foot" bar (on separate mini
-   *  charts) remain comparable, and small hours/km values don't collapse to
-   *  zero height next to a much larger patrol count. */
-  max: number;
   format: (n: number) => string;
 }
 
@@ -63,98 +61,66 @@ function fmtDecimal(n: number): string {
   return n.toLocaleString("en-US", { maximumFractionDigits: 1 });
 }
 
-function buildMetrics(totals: PatrolTypeBarChartProps["totals"]): MetricStat[] {
-  const raw: Array<Omit<MetricStat, "max">> = [
+function buildMetrics(totals: PatrolTypeBarChartProps["totals"]): MetricRow[] {
+  return [
     {
       key: "patrols",
-      label: "Patrols",
+      label: "Number of patrols",
+      unit: "",
       seaborne: totals.seaborne.count,
       foot: totals.foot.count,
       format: fmtCount,
     },
     {
       key: "hours",
-      label: "Hours (h)",
+      label: "Number of hours",
+      unit: " Hrs",
       seaborne: totals.seaborne.hours,
       foot: totals.foot.hours,
       format: fmtDecimal,
     },
     {
       key: "km",
-      label: "Kilometers (km)",
+      label: "Number of Kilometers",
+      unit: " Kms",
       seaborne: totals.seaborne.km,
       foot: totals.foot.km,
       format: fmtDecimal,
     },
   ];
-  return raw.map((r) => ({ ...r, max: Math.max(r.seaborne, r.foot) }));
 }
 
-// SVG geometry (viewBox units — scales via width:100% on the root <svg>).
-// One column per metric within a single type's mini chart (3 columns: Patrols
-// / Hours / Km), sized to fit two of these side by side in the report's
-// narrower LEFT column.
-const BAR_WIDTH = 24;
-const GROUP_WIDTH = 42;
-const CHART_HEIGHT = 50;
-const BASELINE_Y = 58;
-const SVG_HEIGHT = 82;
-
-interface BarGeometry {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  value: number;
-  label: string;
-  format: (n: number) => string;
+function metricLine(m: MetricRow, typeKey: PatrolTypeKey): string {
+  return `${m.label} = ${m.format(m[typeKey])}${m.unit}`;
 }
 
-function barsForType(metrics: MetricStat[], typeKey: PatrolTypeKey): BarGeometry[] {
-  return metrics.map((m, index) => {
-    const groupX = index * GROUP_WIDTH;
-    const x = groupX + (GROUP_WIDTH - BAR_WIDTH) / 2;
-    const value = m[typeKey];
-    const height = m.max > 0 ? (value / m.max) * CHART_HEIGHT : 0;
-    return {
-      x,
-      y: BASELINE_Y - height,
-      width: BAR_WIDTH,
-      height,
-      value,
-      label: m.label,
-      format: m.format,
-    };
-  });
-}
-
-interface PatrolTypeMiniChartProps {
+interface PatrolTypeFigureListProps {
   title: string;
   color: string;
-  metrics: MetricStat[];
+  metrics: MetricRow[];
   typeKey: PatrolTypeKey;
 }
 
-function PatrolTypeMiniChart({
+function PatrolTypeFigureList({
   title,
   color,
   metrics,
   typeKey,
-}: PatrolTypeMiniChartProps) {
-  const bars = barsForType(metrics, typeKey);
-  const svgWidth = GROUP_WIDTH * metrics.length;
-
+}: PatrolTypeFigureListProps) {
   return (
     <div
       data-testid={`patrol-type-mini-chart-${typeKey}`}
-      style={{ flex: "1 1 0", minWidth: 0 }}
+      style={{
+        borderLeft: `3px solid ${color}`,
+        paddingLeft: "8px",
+      }}
     >
       <div
         style={{
           display: "flex",
           alignItems: "center",
           gap: "4px",
-          marginBottom: "2px",
+          marginBottom: "3px",
         }}
       >
         <span
@@ -166,55 +132,26 @@ function PatrolTypeMiniChart({
             borderRadius: "1px",
           }}
         />
-        <span style={{ fontSize: "8px", fontWeight: 600, color: "#374151" }}>
+        <span style={{ fontSize: "9px", fontWeight: 600, color: "#374151" }}>
           {title}
         </span>
       </div>
-      <svg
-        aria-hidden="true"
-        viewBox={`0 0 ${String(svgWidth)} ${String(SVG_HEIGHT)}`}
-        width="100%"
-        height="80px"
-        preserveAspectRatio="xMidYMid meet"
+      <ul
+        style={{
+          listStyle: "none",
+          margin: 0,
+          padding: 0,
+          display: "flex",
+          flexDirection: "column",
+          gap: "2px",
+        }}
       >
-        <line
-          x1={1}
-          x2={svgWidth - 1}
-          y1={BASELINE_Y}
-          y2={BASELINE_Y}
-          stroke="#e5e7eb"
-        />
-        {bars.map((bar) => (
-          <g key={bar.label}>
-            <rect
-              x={bar.x}
-              y={bar.y}
-              width={bar.width}
-              height={Math.max(bar.height, 0)}
-              fill={color}
-              rx={2}
-            />
-            <text
-              x={bar.x + bar.width / 2}
-              y={bar.y - 3}
-              textAnchor="middle"
-              fontSize="7"
-              fill="#111"
-            >
-              {bar.format(bar.value)}
-            </text>
-            <text
-              x={bar.x + bar.width / 2}
-              y={BASELINE_Y + 9}
-              textAnchor="middle"
-              fontSize="7"
-              fill="#6b7280"
-            >
-              {bar.label}
-            </text>
-          </g>
+        {metrics.map((m) => (
+          <li key={m.key} style={{ fontSize: "9px", color: "#111" }}>
+            {metricLine(m, typeKey)}
+          </li>
         ))}
-      </svg>
+      </ul>
     </div>
   );
 }
@@ -225,11 +162,11 @@ interface AltTableRow {
   foot: string;
 }
 
-function altRows(metrics: MetricStat[]): AltTableRow[] {
+function altRows(metrics: MetricRow[]): AltTableRow[] {
   return metrics.map((m) => ({
     metric: m.label,
-    seaborne: m.format(m.seaborne),
-    foot: m.format(m.foot),
+    seaborne: `${m.format(m.seaborne)}${m.unit}`,
+    foot: `${m.format(m.foot)}${m.unit}`,
   }));
 }
 
@@ -293,14 +230,15 @@ export function PatrolTypeBarChart({ totals }: PatrolTypeBarChartProps) {
       >
         Patrols by Type
       </div>
-      <div style={{ display: "flex", gap: "8px" }}>
-        <PatrolTypeMiniChart
+      {/* Seaborne ABOVE Foot (R2) — vertical stack, Seaborne first. */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+        <PatrolTypeFigureList
           title="Seaborne"
           color={SEABORNE_COLOR}
           metrics={metrics}
           typeKey="seaborne"
         />
-        <PatrolTypeMiniChart
+        <PatrolTypeFigureList
           title="Foot"
           color={FOOT_COLOR}
           metrics={metrics}

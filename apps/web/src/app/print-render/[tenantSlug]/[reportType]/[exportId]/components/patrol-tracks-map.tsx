@@ -4,7 +4,13 @@
  * Patrol Tracks Map — Leaflet client island for Report Map PDF patrol section.
  *
  * Renders OpenStreetMap tiles + a Polyline for every patrol track that has at
- * least two points. Auto-fits bounds over all track paths.
+ * least two points. Auto-fits bounds over all track paths. Each polyline is
+ * colored by ReportMapTrackRow.patrolType (R1, 2026-07-06) — seaborne
+ * (#0891b2 cyan) / foot (#0f766e teal), matching the SEABORNE_COLOR/
+ * FOOT_COLOR convention in patrol-type-bar-chart.tsx — instead of the
+ * previous single hardcoded dark-gray color, so a track's mode is
+ * distinguishable at a glance. An unrecognised patrolType falls back to the
+ * original dark gray (#1f2937).
  *
  * Sets `window.__renderReady = true` once Leaflet finishes painting — or
  * immediately when there are no tracks with two or more points, so Puppeteer
@@ -24,6 +30,13 @@ import type {
   ReportMapTrackRow,
 } from "@/server/report-map-report/get-report-map-report-data";
 import { MapRenderGate } from "./map-render-gate";
+
+/** Mirrors SEABORNE_COLOR/FOOT_COLOR in patrol-type-bar-chart.tsx. */
+function trackColor(patrolType: string): string {
+  if (patrolType === "seaborne") return "#0891b2";
+  if (patrolType === "foot") return "#0f766e";
+  return "#1f2937";
+}
 
 interface PatrolTracksMapProps {
   tracks: ReportMapTrackRow[];
@@ -93,7 +106,11 @@ export function PatrolTracksMap({
             positions={track.path.map(
               (pt) => [pt.lat, pt.lon] as [number, number],
             )}
-            pathOptions={{ color: "#1f2937", weight: 2, opacity: 0.85 }}
+            pathOptions={{
+              color: trackColor(track.patrolType),
+              weight: 2,
+              opacity: 0.85,
+            }}
           />
         ))}
         <MapRenderGate
