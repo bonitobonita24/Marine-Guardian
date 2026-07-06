@@ -2,6 +2,31 @@
 
 > Un-gated work continues regardless; these items are re-surfaced each session until resolved.
 
+## 2026-07-07 — Ranger roster sync bug (FIXED) + related decisions
+
+**Context (owner report, 2026-07-07):** Command Center roster showed "Apo Reef LGU" ON PATROL, but
+the live ER server's active patrol #5251 is tracked by **Benedicto Cabiguen Sr.** Root-caused to two
+EarthRanger patrol-sync defects: (A) the live sync never wrote `patrol_segments` leaders → the real
+active patrol's tracker never matched; (B) finished patrols were never closed in our DB (ER #5235
+"Apo Reef LGU" was `done` since Jul 4 but stuck `open` here). **DATA reconciled against live ER +
+verified** (roster now = Benedicto + Eufenie, matching ER's 2 active). **Durable code fix + reusable
+reconciliation script shipped** (LOCAL, HARD HOLD). Un-gated — no owner decision required for the fix.
+
+**Deferred / owner items:**
+- [ ] **"Only super_admin" for Users + Settings (ACCESS, not just nav).** Batch-14 kept `site_admin`
+  able to manage users + tenant settings (`siteAdminProcedure` = super_admin + site_admin), and the
+  nav now hides those items from everyone except those two roles. Owner earlier said "only SuperAdmin"
+  — deferred because REMOVING `site_admin`'s access would lock the natural settings-owner role out of
+  Settings/User-management. Confirm: tighten to **super_admin-ONLY** (drop site_admin), or keep both?
+- [ ] **ER tracks-401 durability (external, both staging + prod).** `DAS_WEB_TOKEN` 401s on
+  `/subject/{id}/tracks` → recurring sync harvests events/patrols/subjects but NOT new GPS tracks.
+  Needs an ER-side grant (das_web account track/observation permission) OR a dedicated long-lived
+  track token wired into the sync. Requires ER admin action — cannot self-resolve.
+- Hardening note (non-blocking, [HOW]): nav now hides /users + /settings from field_coordinator/
+  operator, but `middleware.ts` only route-blocks viewer + administrator, so those two roles could
+  still TYPE the URL (tRPC already denies all data/mutations, so no leak). Optional: extend the
+  middleware deny-list for parity with the administrator route gate.
+
 ## 2026-06-25 — Goal Item 2: EarthRanger data completeness + images  🔴 GATED (needs ER token)
 
 **Asked:** Verify the local DB holds ALL EarthRanger data (patrols AND events, **including images**) from at least 2024-01-01 → now; backfill gaps.
