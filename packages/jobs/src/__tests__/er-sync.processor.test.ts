@@ -92,6 +92,7 @@ const mockPrisma = platformPrisma as unknown as {
   eventRevision: { findMany: ReturnType<typeof vi.fn> };
   patrol: { findUnique: ReturnType<typeof vi.fn>; upsert: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
   patrolRevision: { findMany: ReturnType<typeof vi.fn> };
+  patrolSegment: { upsert: ReturnType<typeof vi.fn> };
   observation: { upsert: ReturnType<typeof vi.fn> };
   syncLog: { create: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
   user: { findFirst: ReturnType<typeof vi.fn> };
@@ -128,6 +129,7 @@ describe("processErSync", () => {
     mockPrisma.syncLog.update.mockResolvedValue({ id: "sl-1" });
     mockPrisma.user.findFirst.mockResolvedValue(null);
     mockPrisma.knownRanger.findFirst.mockResolvedValue(null);
+    mockPrisma.patrolSegment.upsert.mockResolvedValue({});
     // Default event-type catalog (kept for tests that still stub eventType
     // lookups elsewhere in the processor; syncEvents itself no longer reads
     // this table as of SKY-1 — Skylight is no longer filtered at ingest).
@@ -461,6 +463,106 @@ describe("processErSync", () => {
       where: { id: "patrol-1" },
       data: { syncNeeded: true },
     });
+  });
+
+  // Roster mis-attribution bug fix (2026-07-07) — Defect A: the live sync
+  // never wrote patrol_segments, so the segment leader (used by the Command
+  // Center roster to compute on_patrol) was never materialized outside the
+  // one-off ingest-earthranger.mjs backfill.
+  it("upserts a patrolSegment row with the segment leader when the patrol has a segment", async () => {
+    mockErClient.getPatrols.mockResolvedValueOnce([
+      {
+        id: "p-seg",
+        title: "Segment patrol",
+        patrol_type: "seaborne",
+        state: "open",
+        patrol_segments: [
+          {
+            id: "seg-1",
+            time_range: { start_time: "2026-07-01T06:00:00Z" },
+            leader: { id: "er-subject-abc", name: "Benedicto Cabiguen Sr." },
+          },
+        ],
+      },
+    ]);
+    mockPrisma.patrol.upsert.mockResolvedValue({ id: "patrol-seg" });
+
+    await processErSync(makeJob({ syncType: "patrols" }));
+
+    expect(mockPrisma.patrolSegment.upsert).toHaveBeenCalledTimes(1);
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const segUpsertCall = mockPrisma.patrolSegment.upsert.mock.calls[0]![0] as {
+      where: { patrolId_erSegmentId: { patrolId: string; erSegmentId: string } };
+      create: Record<string, unknown>;
+    };
+    expect(segUpsertCall.where.patrolId_erSegmentId).toEqual({
+      patrolId: "patrol-seg",
+      erSegmentId: "seg-1",
+    });
+    expect(segUpsertCall.create).toMatchObject({
+      patrolId: "patrol-seg",
+      erSegmentId: "seg-1",
+      leaderErId: "er-subject-abc",
+      leaderName: "Benedicto Cabiguen Sr.",
+    });
+    expect(segUpsertCall.create.actualStart).toEqual(new Date("2026-07-01T06:00:00Z"));
+    expect(segUpsertCall.create.actualEnd).toBeNull();
+  });
+
+  // Defect B: a patrol whose segment has ended must map to state=done even
+  // when ER's own p.state still reads "open" (the incremental
+  // `?updated_since=` sync window can miss the transition — e.g. ER #5235
+  // "Apo Reef LGU" stayed `open` in our DB after finishing in ER).
+  it("maps patrolState to done when the segment has ended, even if p.state is still open", async () => {
+    mockErClient.getPatrols.mockResolvedValueOnce([
+      {
+        id: "p-stale-open",
+        title: "Apo Reef LGU",
+        patrol_type: "seaborne",
+        state: "open",
+        patrol_segments: [
+          {
+            id: "seg-done",
+            time_range: { start_time: "2026-07-04T06:00:00Z", end_time: "2026-07-04T12:00:00Z" },
+            leader: { id: "er-subject-xyz", name: "Some Ranger" },
+          },
+        ],
+      },
+    ]);
+    mockPrisma.patrol.upsert.mockResolvedValue({ id: "patrol-stale-open" });
+
+    await processErSync(makeJob({ syncType: "patrols" }));
+
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const upsertCall = mockPrisma.patrol.upsert.mock.calls[0]![0] as { create: Record<string, unknown> };
+    expect(upsertCall.create.state).toBe("done");
+  });
+
+  // A genuinely active patrol (no segment has ended yet, ER still reports
+  // "open") must stay open — the done-derivation must not over-trigger.
+  it("keeps patrolState open when no segment has ended and p.state is open", async () => {
+    mockErClient.getPatrols.mockResolvedValueOnce([
+      {
+        id: "p-active",
+        title: "Active patrol",
+        patrol_type: "seaborne",
+        state: "open",
+        patrol_segments: [
+          {
+            id: "seg-active",
+            time_range: { start_time: "2026-07-07T06:00:00Z" },
+            leader: { id: "er-subject-123", name: "Active Ranger" },
+          },
+        ],
+      },
+    ]);
+    mockPrisma.patrol.upsert.mockResolvedValue({ id: "patrol-active" });
+
+    await processErSync(makeJob({ syncType: "patrols" }));
+
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const upsertCall = mockPrisma.patrol.upsert.mock.calls[0]![0] as { create: Record<string, unknown> };
+    expect(upsertCall.create.state).toBe("open");
   });
 
   it("syncs observations", async () => {

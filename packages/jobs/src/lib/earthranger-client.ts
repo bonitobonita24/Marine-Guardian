@@ -35,7 +35,7 @@ interface ErEvent {
   photos?: unknown[];
 }
 
-interface ErPatrol {
+export interface ErPatrol {
   id: string;
   serial_number?: number | string;
   title?: string;
@@ -46,7 +46,7 @@ interface ErPatrol {
   patrol_segments?: ErPatrolSegment[];
 }
 
-interface ErPatrolSegment {
+export interface ErPatrolSegment {
   id: string;
   scheduled_start?: string | null;
   scheduled_end?: string | null;
@@ -198,6 +198,14 @@ export class EarthRangerClient {
   async getPatrols(since?: string): Promise<ErPatrol[]> {
     const qs = since !== undefined ? `?updated_since=${encodeURIComponent(since)}` : "";
     return this.request<ErPatrol[]>(`/activity/patrols${qs}`);
+  }
+
+  // Reconciliation support (scripts/reconcile-patrol-state-and-segments.ts) —
+  // fetch a single patrol by ER id so a stale `open` row whose `updated_at`
+  // transition fell outside an incremental `?updated_since=` window can still
+  // be re-checked directly, without re-pulling the entire patrol collection.
+  async getPatrolById(erPatrolId: string): Promise<ErPatrol> {
+    return this.request<ErPatrol>(`/activity/patrols/${encodeURIComponent(erPatrolId)}/`);
   }
 
   async getObservations(since?: string): Promise<ErObservation[]> {

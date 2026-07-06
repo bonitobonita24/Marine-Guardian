@@ -414,17 +414,33 @@ async function syncPatrols(
       patrolTypeRaw.includes("water")
         ? PatrolType.seaborne
         : PatrolType.foot;
-    const patrolState: PatrolState =
-      p.state === "done"
-        ? PatrolState.done
-        : p.state === "cancelled"
-          ? PatrolState.cancelled
-          : PatrolState.open;
 
     const isTestPatrol = /test|qa|demo/i.test(p.title ?? "");
     const segments = p.patrol_segments ?? [];
     const firstSeg = segments[0];
     const lastSeg = segments[segments.length - 1];
+
+    // Defect B fix (2026-07-07 roster mis-attribution root cause) — ER's
+    // `p.state` is driven by an incremental `?updated_since=` sync window
+    // (see getPatrols/syncPatrols call site). If a patrol finishes in ER but
+    // its `updated_at` bump falls outside a given sync's window (data mirror
+    // gap, missed sync run, etc.), our row can be left `state=open` forever
+    // even though ER has moved on — the segment leader then wrongly shows as
+    // ON PATROL in the Command Center roster (dashboard.ts rangerRoster).
+    // Belt-and-suspenders: also derive "done" from the segments themselves —
+    // mirrors how ER's own UI decides Active vs Done (first segment's
+    // time_range.end_time) but is safer for multi-segment patrols: treat the
+    // patrol as done only when it HAS segments and EVERY segment has ended,
+    // not just the first, so a still-active later segment doesn't get
+    // closed early.
+    const allSegmentsEnded =
+      segments.length > 0 && segments.every((s) => s.time_range?.end_time != null);
+    const patrolState: PatrolState =
+      p.state === "cancelled"
+        ? PatrolState.cancelled
+        : p.state === "done" || allSegmentsEnded
+          ? PatrolState.done
+          : PatrolState.open;
     // GeoJSON Point coordinates = [lon, lat]
     const startLon = firstSeg?.start_location?.coordinates?.[0] ?? null;
     const startLat = firstSeg?.start_location?.coordinates?.[1] ?? null;
@@ -487,6 +503,51 @@ async function syncPatrols(
       },
       select: { id: true },
     });
+
+    // Defect A fix (2026-07-07 roster mis-attribution root cause) — the live
+    // sync previously upserted the patrol row + snapshot + derived coords +
+    // event links but NEVER wrote patrol_segments. The Command Center roster
+    // (dashboard.ts rangerRoster) determines who is ON PATROL by matching
+    // patrol_segments.leaderErId to KnownRanger.erSubjectId, so without this,
+    // the segment leader was only ever materialized by the one-off
+    // scripts/ingest-earthranger.mjs backfill — never by the recurring sync.
+    // Keyed on the @@unique([patrolId, erSegmentId]) constraint (schema.prisma
+    // PatrolSegment) so this is idempotent across repeated syncs. Segments are
+    // not user-editable, so no PatrolRevision-style edit-protection is needed
+    // here (unlike the patrol's own live fields above). Out of scope: deleting
+    // patrol_segments rows for segments that later disappear from ER — ER
+    // segments are effectively append-only in practice, and reconciling
+    // deletions would require a full segment-list diff per patrol on every
+    // sync; revisit if ER is ever observed removing a segment.
+    for (const seg of segments) {
+      const segStart = seg.time_range?.start_time;
+      const segEnd = seg.time_range?.end_time;
+      await platformPrisma.patrolSegment.upsert({
+        where: {
+          patrolId_erSegmentId: { patrolId: patrol.id, erSegmentId: seg.id },
+        },
+        create: {
+          patrolId: patrol.id,
+          erSegmentId: seg.id,
+          scheduledStart: seg.scheduled_start != null ? new Date(seg.scheduled_start) : null,
+          scheduledEnd: seg.scheduled_end != null ? new Date(seg.scheduled_end) : null,
+          actualStart: segStart != null ? new Date(segStart) : null,
+          actualEnd: segEnd != null ? new Date(segEnd) : null,
+          leaderName: seg.leader?.name ?? null,
+          leaderErId: seg.leader?.id ?? null,
+          syncedAt: now,
+        },
+        update: {
+          scheduledStart: seg.scheduled_start != null ? new Date(seg.scheduled_start) : null,
+          scheduledEnd: seg.scheduled_end != null ? new Date(seg.scheduled_end) : null,
+          actualStart: segStart != null ? new Date(segStart) : null,
+          actualEnd: segEnd != null ? new Date(segEnd) : null,
+          leaderName: seg.leader?.name ?? null,
+          leaderErId: seg.leader?.id ?? null,
+          syncedAt: now,
+        },
+      });
+    }
 
     // event-patrol-link — derive Event.patrolId from the patrol side (ER's
     // event→patrol back-reference is unreliable; patrol.patrol_segments[].events[]
