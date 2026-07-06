@@ -29,8 +29,20 @@ import type { Map as LeafletMap, TileLayer as LeafletTileLayer } from "leaflet";
 import { MapContainer, TileLayer } from "react-leaflet";
 import type { HeatLatLng } from "@marine-guardian/shared/lib/heatmap-sample";
 import type { ReportMapBounds } from "@/server/report-map-report/get-report-map-report-data";
+import { boundsToView } from "./bounds-view";
 import { HeatLayer } from "./heat-layer";
 import { MapRenderGate } from "./map-render-gate";
+
+// Approximate rendered pixel size of the full-width `.section-map` box this
+// heatmap renders in (report-map-report.tsx's landscape layout). Exact
+// values aren't critical — boundsToView only needs to be close enough that
+// the initial view is already framed on the municipality before
+// applyFraming's post-mount fitBounds refinement runs.
+const HEATMAP_WIDTH_PX = 1010;
+const HEATMAP_HEIGHT_PX = 360;
+
+const DEFAULT_CENTER: [number, number] = [13.0, 121.0];
+const DEFAULT_ZOOM = 9;
 
 interface PatrolHeatmapMapProps {
   seaborne: HeatLatLng[];
@@ -80,11 +92,21 @@ export function PatrolHeatmapMap({
     [allPoints, municipalityBounds],
   );
 
+  // Compute the initial view from municipalityBounds DIRECTLY — independent
+  // of the live container size, which is unreliable at effect time in this
+  // multi-page Puppeteer print document (see bounds-view.ts's file header
+  // for the full root-cause explanation of why post-mount fitBounds alone
+  // was not sufficient). Falls back to the whole-region default when no
+  // municipality is in scope.
+  const initialView = municipalityBounds
+    ? boundsToView(municipalityBounds, HEATMAP_WIDTH_PX, HEATMAP_HEIGHT_PX)
+    : { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM };
+
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
       <MapContainer
-        center={[13.0, 121.0]}
-        zoom={9}
+        center={initialView.center}
+        zoom={initialView.zoom}
         scrollWheelZoom={false}
         zoomControl={false}
         attributionControl={true}
