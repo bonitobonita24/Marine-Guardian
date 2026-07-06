@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { isImageAsset } from "@marine-guardian/shared/lib/asset-mime";
 import { trpc } from "@/lib/trpc/client";
+import { eventPrimaryLabel } from "@/lib/event-label";
 import { AccompanyingRangersInput } from "./accompanying-rangers-input";
 import { EventTimeline } from "./event-timeline";
 import { RevisionTimeline } from "@/components/revisions/revision-timeline";
@@ -214,7 +215,7 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {eventQuery.data?.title ?? "Event Detail"}
+            {eventQuery.data ? eventPrimaryLabel(eventQuery.data) : "Event Detail"}
             {eventQuery.data?.serialNumber !== null &&
               eventQuery.data?.serialNumber !== undefined && (
                 <span className="ml-2 font-mono text-sm text-muted-foreground">

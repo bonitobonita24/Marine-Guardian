@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/select";
 import { EventDetailModal } from "@/components/events/event-detail-modal";
 import { trpc } from "@/lib/trpc/client";
+import { eventPrimaryLabel, eventTypeLabel } from "@/lib/event-label";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@/server/trpc/routers";
 
@@ -94,26 +95,8 @@ const CATEGORY_OPTIONS = [
   { value: "Monitoring, Patrolling & Surveillance", label: "Monitoring & Patrolling" },
 ];
 
-/** Humanize a raw snake_case/kebab code into Title Case. */
-function humanizeCode(code: string): string {
-  return code
-    .replace(/[_-]+/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-    .trim();
-}
-
-/**
- * Readable label for an event type. EarthRanger stores `display` as the raw
- * code (e.g. "poacher_in_mpa") for custom types that have no friendly name —
- * humanize those so the list never shows a raw code. Returns null when there
- * is no usable label so callers can choose their own fallback.
- */
-function eventTypeLabel(display: string | null | undefined): string | null {
-  if (display === null || display === undefined || display === "") return null;
-  return /^[a-z0-9]+([_-][a-z0-9]+)+$/i.test(display)
-    ? humanizeCode(display)
-    : display;
-}
+// eventTypeLabel is imported from "@/lib/event-label" (shared with
+// event-detail-modal.tsx so both surfaces stay in sync — see eventPrimaryLabel).
 
 // ── Month helpers (monthly-accomplishment filter) ──────────────────────────
 
@@ -610,7 +593,7 @@ function EventRow({
           data-testid={`select-event-${event.id}`}
           checked={isSelected}
           onCheckedChange={(checked) => { onToggleSelected(event.id, checked === true); }}
-          aria-label={`Select ${event.title ?? "this event"} for bulk action`}
+          aria-label={`Select ${eventPrimaryLabel(event)} for bulk action`}
         />
       </div>
 
@@ -631,7 +614,7 @@ function EventRow({
       <button
         type="button"
         className="flex min-w-0 flex-1 flex-col items-start gap-1 text-left"
-        aria-label={`Open details for ${event.title ?? "Untitled event"}${event.serialNumber !== null ? ` #${event.serialNumber}` : ""}`}
+        aria-label={`Open details for ${eventPrimaryLabel(event)}${event.serialNumber !== null ? ` #${event.serialNumber}` : ""}`}
         onClick={() => { onOpenDetail(event.id); }}
       >
         {/* Title row */}
@@ -642,7 +625,7 @@ function EventRow({
             </span>
           )}
           <span className="truncate text-sm font-medium">
-            {event.title ?? eventTypeLabel(event.eventType?.display) ?? "Untitled"}
+            {eventPrimaryLabel(event)}
           </span>
         </div>
 
@@ -703,7 +686,7 @@ function EventRow({
         >
           <SelectTrigger
             className="h-7 w-28 text-xs"
-            aria-label={`Change state for ${event.title ?? "this event"}`}
+            aria-label={`Change state for ${eventPrimaryLabel(event)}`}
             data-testid={`state-select-${event.id}`}
           >
             <SelectValue />
