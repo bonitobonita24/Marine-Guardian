@@ -9,6 +9,7 @@
 import { describe, it, expect } from "vitest";
 import {
   assignMunicipalityToPoint,
+  assignMunicipalityToDominantTrack,
   assignZonesToPoint,
 } from "../index.js";
 import type { MunicipalityForAssignment, ProtectedZoneForAssignment } from "../types.js";
@@ -224,5 +225,134 @@ describe("assignZonesToPoint", () => {
     expect(result).toContain("zone-apo-reef");
     expect(result).toContain("zone-other");
     expect(result).toHaveLength(2);
+  });
+});
+
+describe("assignMunicipalityToDominantTrack", () => {
+  // A second, non-overlapping municipality far enough from Calapan City that
+  // its "municipal waters" reach doesn't bleed into Calapan's — used to prove
+  // dominant-track wins over a simple start-point assignment.
+  const southMuni: MunicipalityForAssignment = {
+    id: "muni-south",
+    slug: "south",
+    name: "South",
+    boundaryGeojson: {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: { shapeName: "South" },
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [121.60, 13.25],
+                [121.80, 13.25],
+                [121.80, 13.55],
+                [121.60, 13.55],
+                [121.60, 13.25],
+              ],
+            ],
+          },
+        },
+      ],
+    },
+  };
+
+  it("returns the DOMINANT municipality even when the start/first point is in a different one", () => {
+    // First point inside Calapan City, remaining 3 points inside South.
+    const track = {
+      type: "LineString",
+      coordinates: [
+        [121.1948, 13.3818], // Calapan City (start)
+        [121.70, 13.35], // South
+        [121.71, 13.36], // South
+        [121.72, 13.37], // South
+      ],
+    };
+    const result = assignMunicipalityToDominantTrack(track, [calapanMuni, southMuni]);
+    expect(result).toBe("muni-south");
+  });
+
+  it("falls back to the fallbackPoint's municipality when the track is empty", () => {
+    const emptyTrack = { type: "LineString", coordinates: [] };
+    const result = assignMunicipalityToDominantTrack(
+      emptyTrack,
+      [calapanMuni, southMuni],
+      { lat: 13.3818, lon: 121.1948 },
+    );
+    expect(result).toBe("muni-calapan");
+  });
+
+  it("falls back to the fallbackPoint's municipality when trackGeojson is null", () => {
+    const result = assignMunicipalityToDominantTrack(
+      null,
+      [calapanMuni, southMuni],
+      { lat: 13.3818, lon: 121.1948 },
+    );
+    expect(result).toBe("muni-calapan");
+  });
+
+  it("returns null when the track is empty and no fallbackPoint is given", () => {
+    const emptyTrack = { type: "LineString", coordinates: [] };
+    const result = assignMunicipalityToDominantTrack(emptyTrack, [calapanMuni, southMuni]);
+    expect(result).toBeNull();
+  });
+
+  it("falls back to the fallbackPoint's municipality when every track point is outside all municipalities", () => {
+    // Deep open ocean, far from both Calapan City and South.
+    const track = {
+      type: "LineString",
+      coordinates: [
+        [118.0, 14.0],
+        [118.1, 14.1],
+      ],
+    };
+    const result = assignMunicipalityToDominantTrack(
+      track,
+      [calapanMuni, southMuni],
+      { lat: 13.3818, lon: 121.1948 },
+    );
+    expect(result).toBe("muni-calapan");
+  });
+
+  it("returns null when every track point is outside all municipalities and no fallbackPoint is given", () => {
+    const track = {
+      type: "LineString",
+      coordinates: [
+        [118.0, 14.0],
+        [118.1, 14.1],
+      ],
+    };
+    const result = assignMunicipalityToDominantTrack(track, [calapanMuni, southMuni]);
+    expect(result).toBeNull();
+  });
+
+  it("supports MultiLineString tracks by flattening all segments", () => {
+    const track = {
+      type: "MultiLineString",
+      coordinates: [
+        [[121.1948, 13.3818]], // Calapan (1 point)
+        [
+          [121.70, 13.35],
+          [121.71, 13.36],
+        ], // South (2 points)
+      ],
+    };
+    const result = assignMunicipalityToDominantTrack(track, [calapanMuni, southMuni]);
+    expect(result).toBe("muni-south");
+  });
+
+  it("tie-break: when tallies are equal, the municipality whose first hit occurs earliest along the track wins", () => {
+    // 1 hit each — Calapan's point comes first in the track order.
+    const track = {
+      type: "LineString",
+      coordinates: [
+        [121.1948, 13.3818], // Calapan (first)
+        [121.70, 13.35], // South
+      ],
+    };
+    const result = assignMunicipalityToDominantTrack(track, [calapanMuni, southMuni]);
+    expect(result).toBe("muni-calapan");
   });
 });

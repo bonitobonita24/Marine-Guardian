@@ -165,4 +165,100 @@ export function assignZonesToTrack(
     .map((z) => z.id);
 }
 
+// ── Layer 1b — Municipality by dominant track ────────────────────────────────
+
+/**
+ * Extract every [lon, lat] coordinate pair out of a track GeoJSON value.
+ *
+ * Handles LineString, MultiLineString, and (defensively) Point/MultiPoint —
+ * whatever shape PatrolTrack.trackGeojson stores today or in the future.
+ * Malformed/unrecognised geometry yields an empty array rather than throwing.
+ */
+function extractTrackCoordinates(trackGeojson: unknown): [number, number][] {
+  if (trackGeojson == null) return [];
+  const geometry = unwrapGeojson(trackGeojson) as {
+    type?: string;
+    coordinates?: unknown;
+  };
+  const type = geometry.type;
+  const coords = geometry.coordinates;
+  if (type === "LineString" && Array.isArray(coords)) {
+    return coords as [number, number][];
+  }
+  if (type === "MultiLineString" && Array.isArray(coords)) {
+    return (coords as [number, number][][]).flat();
+  }
+  if (type === "Point" && Array.isArray(coords)) {
+    return [coords as [number, number]];
+  }
+  if (type === "MultiPoint" && Array.isArray(coords)) {
+    return coords as [number, number][];
+  }
+  return [];
+}
+
+/**
+ * Assign a patrol track to the municipality where the DOMINANT share of the
+ * track's GPS points fall — not just the start point.
+ *
+ * For each point on the track, finds the containing/nearest municipality via
+ * `assignMunicipalityToPoint` and tallies hits per municipality id. Returns
+ * the id with the most hits (one municipality per patrol — single-assignment,
+ * NOT many-to-many).
+ *
+ * Tie-break rule: when two or more municipalities have the same top tally,
+ * the one whose FIRST hit occurs earliest along the track wins (deterministic,
+ * stable regardless of object iteration order).
+ *
+ * Falls back to `fallbackPoint`'s municipality (via `assignMunicipalityToPoint`)
+ * when the track has zero parseable points, or when every track point falls
+ * outside every municipality's reach (all points return null). If no
+ * `fallbackPoint` is given in that case, returns null.
+ *
+ * @param trackGeojson - raw GeoJSON from PatrolTrack.trackGeojson
+ * @param municipalities - array loaded from DB (one per tenant)
+ * @param fallbackPoint - optional { lat, lon } used when the track yields no assignment
+ * @returns municipality id, or null
+ */
+export function assignMunicipalityToDominantTrack(
+  trackGeojson: unknown,
+  municipalities: MunicipalityForAssignment[],
+  fallbackPoint?: { lat: number; lon: number },
+): string | null {
+  const points = extractTrackCoordinates(trackGeojson);
+
+  const tallies = new Map<string, number>();
+  const firstHitIndex = new Map<string, number>();
+
+  points.forEach(([lon, lat], index) => {
+    const municipalityId = assignMunicipalityToPoint({ lat, lon }, municipalities);
+    if (municipalityId == null) return;
+    tallies.set(municipalityId, (tallies.get(municipalityId) ?? 0) + 1);
+    if (!firstHitIndex.has(municipalityId)) {
+      firstHitIndex.set(municipalityId, index);
+    }
+  });
+
+  if (tallies.size === 0) {
+    return fallbackPoint ? assignMunicipalityToPoint(fallbackPoint, municipalities) : null;
+  }
+
+  let dominantId: string | null = null;
+  let dominantCount = -1;
+  let dominantFirstHit = Infinity;
+  for (const [municipalityId, count] of tallies) {
+    const firstHit = firstHitIndex.get(municipalityId) ?? Infinity;
+    if (
+      count > dominantCount ||
+      (count === dominantCount && firstHit < dominantFirstHit)
+    ) {
+      dominantId = municipalityId;
+      dominantCount = count;
+      dominantFirstHit = firstHit;
+    }
+  }
+
+  return dominantId;
+}
+
 export type { MunicipalityForAssignment, ProtectedZoneForAssignment };

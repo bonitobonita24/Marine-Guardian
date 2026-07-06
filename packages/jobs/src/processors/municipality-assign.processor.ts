@@ -25,6 +25,7 @@ import type { MunicipalityAssignJobPayload } from "../queues/types";
 import { validateTenantContext } from "../workers/base-worker";
 import {
   assignMunicipalityToPoint,
+  assignMunicipalityToDominantTrack,
   assignZonesToPoint,
   assignZonesToTrack,
 } from "@marine-guardian/shared/lib/municipality-assignment";
@@ -104,18 +105,27 @@ export async function processMunicipalityAssign(
     },
   });
 
-  if (patrol.startLocationLat == null || patrol.startLocationLon == null) {
+  const trackGeojson = patrol.track?.trackGeojson ?? null;
+  const hasStartLocation = patrol.startLocationLat != null && patrol.startLocationLon != null;
+
+  if (!hasStartLocation && trackGeojson == null) {
     return { entity, id, municipalityId: null, zoneIds: [], skipped: true, skipReason: "no_start_location" };
   }
 
-  const point = { lat: patrol.startLocationLat, lon: patrol.startLocationLon };
-  const municipalityId = assignMunicipalityToPoint(point, municipalities);
+  const point = hasStartLocation
+    ? { lat: patrol.startLocationLat as number, lon: patrol.startLocationLon as number }
+    : undefined;
+
+  // Layer 1 — dominant track location (falls back to the start point when
+  // there's no usable track or the track yields no in-municipality points).
+  const municipalityId = trackGeojson != null
+    ? assignMunicipalityToDominantTrack(trackGeojson, municipalities, point)
+    : assignMunicipalityToPoint(point as { lat: number; lon: number }, municipalities);
 
   // Layer 2 — use track if materialised, fallback to single point
-  const trackGeojson = patrol.track?.trackGeojson ?? null;
   const zoneIds = trackGeojson != null
     ? assignZonesToTrack(trackGeojson, zones)
-    : assignZonesToPoint(point, zones);
+    : assignZonesToPoint(point as { lat: number; lon: number }, zones);
 
   // Update patrol row (Layer 1)
   await platformPrisma.patrol.update({
