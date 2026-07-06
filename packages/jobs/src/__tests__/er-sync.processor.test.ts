@@ -15,7 +15,7 @@ vi.mock("@marine-guardian/db", () => ({
   platformPrisma: {
     tenant: { findUnique: vi.fn() },
     tenantErConnection: { findUnique: vi.fn() },
-    eventType: { upsert: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
+    eventType: { upsert: vi.fn(), findMany: vi.fn().mockResolvedValue([]), findFirst: vi.fn().mockResolvedValue(null) },
     subject: { upsert: vi.fn() },
     subjectGroup: { upsert: vi.fn() },
     event: {
@@ -82,7 +82,7 @@ import { enqueuePatrolTrackMaterialize } from "../queues/patrol-track-materializ
 const mockPrisma = platformPrisma as unknown as {
   tenant: { findUnique: ReturnType<typeof vi.fn> };
   tenantErConnection: { findUnique: ReturnType<typeof vi.fn> };
-  eventType: { upsert: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> };
+  eventType: { upsert: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn>; findFirst: ReturnType<typeof vi.fn> };
   subject: { upsert: ReturnType<typeof vi.fn> };
   event: {
     findUnique: ReturnType<typeof vi.fn>;
@@ -688,6 +688,158 @@ describe("processErSync", () => {
         }),
       }),
     );
+  });
+
+  // T2 (2026-07-06) — root-cause fix: syncEvents() previously never resolved
+  // eventTypeId at all. entry_alert_rep (Skylight AOI entry-alerts) must now
+  // link to the catalog's "Skylight Entry Alert" EventType row and default
+  // to state=resolved on FIRST INSERT only.
+  describe("T2: event-type resolution + Skylight default-resolved", () => {
+    const skylightEventTypeRow = {
+      id: "et-skylight-entry-alert",
+      display: "Skylight Entry Alert",
+      category: "analyzer_event",
+    };
+    const poachingEventTypeRow = {
+      id: "et-poaching",
+      display: "Poaching Report",
+      category: "security",
+    };
+
+    it("resolves entry_alert_rep to the Skylight Entry Alert catalog type and sets state=resolved on insert", async () => {
+      mockPrisma.eventType.findFirst.mockResolvedValueOnce(skylightEventTypeRow);
+      mockErClient.getEvents.mockResolvedValueOnce([
+        {
+          id: "ev-sky-entry-1",
+          serial_number: 9101,
+          title: "Marine Entry",
+          priority: 50,
+          state: "active",
+          location: null,
+          reported_by: null,
+          time: "2026-07-01T08:00:00Z",
+          end_time: null,
+          event_type: "entry_alert_rep",
+          event_details: {},
+          notes: [],
+        },
+      ]);
+      mockPrisma.event.findUnique.mockResolvedValue(null);
+      mockPrisma.event.create.mockResolvedValue({ id: "evt-sky-entry-1", priority: 50 });
+
+      await processErSync(makeJob({ syncType: "events" }));
+
+      expect(mockPrisma.eventType.findFirst).toHaveBeenCalledWith({
+        where: { tenantId: "tenant-1", value: "entry_alert_rep" },
+        select: { id: true, display: true, category: true },
+      });
+      expect(mockPrisma.event.create).toHaveBeenCalledWith(
+        expect.objectContaining<Record<string, unknown>>({
+          data: expect.objectContaining<Record<string, unknown>>({
+            eventTypeId: "et-skylight-entry-alert",
+            state: "resolved",
+          }),
+        }),
+      );
+    });
+
+    it("does NOT force state=resolved for a normal (non-Skylight) event type on insert", async () => {
+      mockPrisma.eventType.findFirst.mockResolvedValueOnce(poachingEventTypeRow);
+      mockErClient.getEvents.mockResolvedValueOnce([
+        {
+          id: "ev-poach-1",
+          serial_number: 9102,
+          title: "Illegal fishing spotted",
+          priority: 200,
+          state: "active",
+          location: null,
+          reported_by: null,
+          time: "2026-07-01T08:00:00Z",
+          end_time: null,
+          event_type: "poaching",
+          event_details: {},
+          notes: [],
+        },
+      ]);
+      mockPrisma.event.findUnique.mockResolvedValue(null);
+      mockPrisma.event.create.mockResolvedValue({ id: "evt-poach-1", priority: 200 });
+
+      await processErSync(makeJob({ syncType: "events" }));
+
+      const createCall = mockPrisma.event.create.mock.calls[0]?.[0] as {
+        data: Record<string, unknown>;
+      };
+      expect(createCall.data.eventTypeId).toBe("et-poaching");
+      expect(createCall.data).not.toHaveProperty("state");
+    });
+
+    it("leaves eventTypeId null when the ER event_type has no catalog match", async () => {
+      mockPrisma.eventType.findFirst.mockResolvedValueOnce(null);
+      mockErClient.getEvents.mockResolvedValueOnce([
+        {
+          id: "ev-unknown-type",
+          serial_number: 9103,
+          title: "Unknown type",
+          priority: 0,
+          state: "active",
+          location: null,
+          reported_by: null,
+          time: "2026-07-01T08:00:00Z",
+          end_time: null,
+          event_type: "some_new_type_not_yet_synced",
+          event_details: {},
+          notes: [],
+        },
+      ]);
+      mockPrisma.event.findUnique.mockResolvedValue(null);
+      mockPrisma.event.create.mockResolvedValue({ id: "evt-unknown-type", priority: 0 });
+
+      await processErSync(makeJob({ syncType: "events" }));
+
+      const createCall = mockPrisma.event.create.mock.calls[0]?.[0] as {
+        data: Record<string, unknown>;
+      };
+      expect(createCall.data.eventTypeId).toBeNull();
+      expect(createCall.data).not.toHaveProperty("state");
+    });
+
+    it("a manually re-opened Skylight event is NOT re-resolved on the next recurring sync (update branch never touches state)", async () => {
+      mockPrisma.eventType.findFirst.mockResolvedValueOnce(skylightEventTypeRow);
+      mockErClient.getEvents.mockResolvedValueOnce([
+        {
+          id: "ev-sky-entry-reopened",
+          serial_number: 9104,
+          title: "Marine Entry",
+          priority: 50,
+          state: "active",
+          location: null,
+          reported_by: null,
+          time: "2026-07-01T08:00:00Z",
+          end_time: null,
+          event_type: "entry_alert_rep",
+          event_details: {},
+          notes: [],
+        },
+      ]);
+      // Existing event: a ranger manually re-opened it (state=active in MG,
+      // independent of ER's own `state`). The update path must not include
+      // `state` at all, so the manual re-open survives this sync.
+      mockPrisma.event.findUnique.mockResolvedValue({
+        id: "evt-sky-entry-reopened",
+        erOriginalSnapshot: { event_type: "entry_alert_rep" },
+      });
+      mockPrisma.event.update.mockResolvedValue({});
+
+      await processErSync(makeJob({ syncType: "events" }));
+
+      expect(mockPrisma.event.create).not.toHaveBeenCalled();
+      const updateCall = mockPrisma.event.update.mock.calls[0]?.[0] as {
+        data: Record<string, unknown>;
+      };
+      expect(updateCall.data).not.toHaveProperty("state");
+      // eventTypeId is still (re-)resolved on update, same as any other live field.
+      expect(updateCall.data.eventTypeId).toBe("et-skylight-entry-alert");
+    });
   });
 
   it("records failed status on SyncLog when API errors", async () => {

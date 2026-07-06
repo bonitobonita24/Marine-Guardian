@@ -2,13 +2,14 @@ import type { Job } from "bullmq";
 import type { ErSyncJobPayload } from "../queues/types";
 import { validateTenantContext } from "../workers/base-worker";
 import { platformPrisma, decrypt } from "@marine-guardian/db";
-import { Prisma, PatrolType, PatrolState } from "@prisma/client";
+import { Prisma, PatrolType, PatrolState, EventState } from "@prisma/client";
 import { EarthRangerClient } from "../lib/earthranger-client";
 import { enqueueAlert } from "../queues/alerts.queue";
 import { enqueueAreaRederive } from "../queues/area-rederive.queue";
 import { enqueuePatrolTrackMaterialize } from "../queues/patrol-track-materialize.queue";
 import { enqueueMunicipalityAssign } from "../queues/municipality-assign.queue";
 import { resolveReportedBy } from "../lib/resolve-reported-by";
+import { resolveEventType } from "../lib/resolve-event-type";
 
 /**
  * q-ops conflict / edit-protection merge rule (M2).
@@ -253,6 +254,12 @@ async function syncSubjects(
 // municipality coverage (those exclusions are unchanged); the /map Interactive
 // Report Map surfaces them only when the user opts in via the "Show Skylight
 // events" toggle (apps/web map.ts `includeSkylight` input).
+//
+// T2 (2026-07-06): every event's `event_type` is now resolved to its
+// EventType catalog row via resolveEventType() (see resolve-event-type.ts).
+// Skylight/analyzer_event types (e.g. `entry_alert_rep` → "Skylight Entry
+// Alert") additionally default to `state: resolved` on FIRST INSERT only —
+// see the create branch below.
 async function syncEvents(
   client: EarthRangerClient,
   tenantId: string,
@@ -263,7 +270,12 @@ async function syncEvents(
 
   for (const e of events) {
     const resolved = await resolveReportedBy(platformPrisma, tenantId, e.reported_by);
+    // T2 (2026-07-06): resolve ER `event_type` (e.g. "entry_alert_rep") to the
+    // tenant's EventType catalog row. Previously eventTypeId was never set at
+    // all here — see resolve-event-type.ts for the full root-cause writeup.
+    const resolvedType = await resolveEventType(platformPrisma, tenantId, e.event_type);
     const liveFields = {
+      eventTypeId: resolvedType.eventTypeId,
       serialNumber: e.serial_number != null ? String(e.serial_number) : null,
       title: e.title ?? null,
       priority: e.priority ?? 0,
@@ -296,6 +308,12 @@ async function syncEvents(
           erEventId: e.id,
           erOriginalSnapshot: snapshotJson,
           ...liveFields,
+          // T2: Skylight/analyzer-derived events (e.g. entry_alert_rep AOI
+          // visits) default to Resolved on FIRST INSERT only — they require
+          // no ranger action. Guarded to the create branch so a manually
+          // re-opened event is NEVER re-resolved by a later recurring sync
+          // (the update branch below never touches `state`).
+          ...(resolvedType.isSkylight ? { state: EventState.resolved } : {}),
         },
         select: { id: true, priority: true },
       });
