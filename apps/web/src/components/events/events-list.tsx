@@ -103,21 +103,17 @@ const CATEGORY_OPTIONS = [
 // eventTypeLabel is imported from "@/lib/event-label" (shared with
 // event-detail-modal.tsx so both surfaces stay in sync — see eventPrimaryLabel).
 
-// ── Month helpers (monthly-accomplishment filter) ──────────────────────────
+// ── Date-range helpers (From/To filter) ────────────────────────────────────
 
-function monthStart(iso: string): string {
-  const d = new Date(iso);
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString();
-}
-function monthEnd(iso: string): string {
-  const d = new Date(iso);
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999).toISOString();
-}
-
-// Current month in YYYY-MM format
-function currentYearMonth(): string {
-  const now = new Date();
-  return `${String(now.getFullYear())}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+/**
+ * Expands a "YYYY-MM-DD" `dateTo` value to the END of that day (inclusive),
+ * so a range like To=2026-06-30 still includes events reported later that
+ * same day. The server does `reportedAt <= dateTo`, so a bare date string
+ * (which parses as that day's midnight) would incorrectly EXCLUDE the rest
+ * of the day — this is a correctness requirement, not cosmetic.
+ */
+function endOfDayIso(dateStr: string): string {
+  return `${dateStr}T23:59:59.999`;
 }
 
 // ── EventsListFilters — the filter bar ────────────────────────────────────
@@ -126,7 +122,8 @@ type Filters = {
   state:           EventState | "";
   category:        string;
   search:          string;
-  monthFilter:     string; // "YYYY-MM" or ""
+  dateFrom:        string; // "YYYY-MM-DD" or ""
+  dateTo:          string; // "YYYY-MM-DD" or ""
   includeSkylight: boolean;
 };
 
@@ -134,7 +131,8 @@ const DEFAULT_FILTERS: Filters = {
   state:           "",
   category:        "",
   search:          "",
-  monthFilter:     "",
+  dateFrom:        "",
+  dateTo:          "",
   includeSkylight: false,
 };
 
@@ -230,12 +228,8 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
       // Note: /api/exports/events still only understands the legacy `areaName`
       // filter — the fuzzy `search` box is a list-only enhancement (T4) and is
       // intentionally not forwarded to the export URL.
-      ...(filters.monthFilter !== ""
-        ? {
-            dateFrom: monthStart(filters.monthFilter + "-01"),
-            dateTo:   monthEnd(filters.monthFilter + "-01"),
-          }
-        : {}),
+      ...(filters.dateFrom !== "" ? { dateFrom: filters.dateFrom } : {}),
+      ...(filters.dateTo   !== "" ? { dateTo: endOfDayIso(filters.dateTo) } : {}),
     };
     onFiltersChange(exportFilters);
   }, [filters, onFiltersChange]);
@@ -247,9 +241,8 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
     ...(filters.state    !== "" ? { state:    filters.state    } : {}),
     ...(filters.category !== "" ? { category: filters.category } : {}),
     ...(filters.search   !== "" ? { search:   filters.search   } : {}),
-    ...(filters.monthFilter !== ""
-      ? { dateFrom: monthStart(filters.monthFilter + "-01"), dateTo: monthEnd(filters.monthFilter + "-01") }
-      : {}),
+    ...(filters.dateFrom !== "" ? { dateFrom: filters.dateFrom } : {}),
+    ...(filters.dateTo   !== "" ? { dateTo: endOfDayIso(filters.dateTo) } : {}),
     includeSkylight: filters.includeSkylight,
   };
 
@@ -382,16 +375,37 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
           className="h-9 w-64 rounded-md border border-input bg-background px-3 text-sm"
         />
 
-        {/* Monthly-accomplishment filter — resolved events by month */}
-        <input
-          data-testid="month-filter"
-          type="month"
-          aria-label="Filter resolved events by month"
-          value={filters.monthFilter}
-          max={currentYearMonth()}
-          onChange={(e) => { setFilter("monthFilter", e.target.value); }}
-          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-        />
+        {/* From/To date-range filter */}
+        <div className="flex items-center gap-1">
+          <Label htmlFor="date-from-filter" className="text-sm font-normal text-muted-foreground">
+            From
+          </Label>
+          <input
+            id="date-from-filter"
+            data-testid="date-from-filter"
+            type="date"
+            aria-label="Filter events from date"
+            value={filters.dateFrom}
+            max={filters.dateTo !== "" ? filters.dateTo : undefined}
+            onChange={(e) => { setFilter("dateFrom", e.target.value); }}
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+          />
+        </div>
+        <div className="flex items-center gap-1">
+          <Label htmlFor="date-to-filter" className="text-sm font-normal text-muted-foreground">
+            To
+          </Label>
+          <input
+            id="date-to-filter"
+            data-testid="date-to-filter"
+            type="date"
+            aria-label="Filter events to date"
+            value={filters.dateTo}
+            min={filters.dateFrom !== "" ? filters.dateFrom : undefined}
+            onChange={(e) => { setFilter("dateTo", e.target.value); }}
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+          />
+        </div>
 
         {/* Skylight / Marine Entry toggle — default OFF (mirrors map.ts SKY-1) */}
         <div className="flex items-center gap-2 pl-1">
@@ -408,7 +422,7 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
         </div>
 
         {/* Clear filters */}
-        {(filters.state !== "" || filters.category !== "" || filters.search !== "" || filters.monthFilter !== "" || filters.includeSkylight) && (
+        {(filters.state !== "" || filters.category !== "" || filters.search !== "" || filters.dateFrom !== "" || filters.dateTo !== "" || filters.includeSkylight) && (
           <Button
             variant="ghost"
             size="sm"
