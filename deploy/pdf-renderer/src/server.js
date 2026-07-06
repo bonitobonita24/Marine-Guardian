@@ -149,7 +149,13 @@ async function handleRender(req, res) {
     await page.setViewport({
       width: mmToPx(isLandscape ? longMm : shortMm),
       height: mmToPx(isLandscape ? shortMm : longMm),
-      deviceScaleFactor: 2,
+      // deviceScaleFactor 1 (was briefly 2): the right-edge-shade fix is the
+      // VIEWPORT WIDTH (so Leaflet tiles the full print width) — NOT the render
+      // resolution. 2x doubled the raster work + PDF size and made large reports
+      // (hundreds of markers/tracks x 5 maps x many table pages) render far
+      // slower (owner 2026-07-06 "takes longer now"). 1x restores the original
+      // render speed/size while keeping the full-width tiling fix.
+      deviceScaleFactor: 1,
     });
     await page.setExtraHTTPHeaders({
       "X-PDF-Renderer-Token": SERVICE_TOKEN,
