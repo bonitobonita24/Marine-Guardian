@@ -25,6 +25,7 @@ import { prisma } from "@marine-guardian/db";
 import { isInlineSafeImageAsset } from "@marine-guardian/shared/lib/asset-mime";
 import { SERIOUS_EVENT_PATTERNS } from "@/components/map/eventMarkerStyle";
 import { pointsFromTrackGeojson } from "./map";
+import { buildEventsPatrolsSeries, dayKeyToLabel } from "./time-series-bucketing";
 
 const LAW_CATEGORY = "law-enforcement-and-apprehensions";
 const MONITORING_CATEGORY = "monitoring_patrolling_and_surveillance";
@@ -573,6 +574,27 @@ export const reportMapRouter = router({
         }),
       ]);
 
+      // When both bounds are present, emit a continuous series bucketed
+      // adaptively by the requested span (day/week/month — see
+      // time-series-bucketing.ts) so the line chart has no gaps and a long
+      // range doesn't render hundreds of noisy daily points.
+      if (input.from && input.to) {
+        const eventDates = events
+          .map((e) => e.reportedAt)
+          .filter((d): d is Date => d !== null);
+        const patrolDates = patrols
+          .map((p) => p.startTime)
+          .filter((d): d is Date => d !== null);
+        return buildEventsPatrolsSeries(
+          eventDates,
+          patrolDates,
+          input.from,
+          input.to,
+        );
+      }
+
+      // No bounds — return only the days that have events or patrols,
+      // ascending, still daily (sparse keys), with a uniform `label` field.
       const counts: Record<string, number> = {};
       for (const e of events) {
         if (e.reportedAt === null) continue;
@@ -587,37 +609,6 @@ export const reportMapRouter = router({
         patrolCounts[key] = (patrolCounts[key] ?? 0) + 1;
       }
 
-      // When both bounds are present, emit a continuous daily series (filling
-      // zero days) so the line chart has no gaps. Otherwise return only the days
-      // that have events or patrols, ascending.
-      if (input.from && input.to) {
-        const series: { date: string; count: number; patrolCount: number }[] =
-          [];
-        const cursor = new Date(
-          input.from.getFullYear(),
-          input.from.getMonth(),
-          input.from.getDate(),
-        );
-        const end = new Date(
-          input.to.getFullYear(),
-          input.to.getMonth(),
-          input.to.getDate(),
-        );
-        // Bound the fill to a sane horizon to avoid runaway loops on a huge range.
-        let guard = 0;
-        while (cursor.getTime() <= end.getTime() && guard < 400) {
-          const key = dayKey(cursor);
-          series.push({
-            date: key,
-            count: counts[key] ?? 0,
-            patrolCount: patrolCounts[key] ?? 0,
-          });
-          cursor.setDate(cursor.getDate() + 1);
-          guard += 1;
-        }
-        return series;
-      }
-
       const allKeys = new Set([
         ...Object.keys(counts),
         ...Object.keys(patrolCounts),
@@ -625,6 +616,7 @@ export const reportMapRouter = router({
       return Array.from(allKeys)
         .map((date) => ({
           date,
+          label: dayKeyToLabel(date),
           count: counts[date] ?? 0,
           patrolCount: patrolCounts[date] ?? 0,
         }))

@@ -22,9 +22,9 @@ afterEach(() => {
 
 describe("EventsOverTimeChart", () => {
   const data = [
-    { date: "2026-06-01", count: 2, patrolCount: 1 },
-    { date: "2026-06-02", count: 0, patrolCount: 3 },
-    { date: "2026-06-03", count: 5, patrolCount: 0 },
+    { date: "2026-06-01", label: "Jun 1", count: 2, patrolCount: 1 },
+    { date: "2026-06-02", label: "Jun 2", count: 0, patrolCount: 3 },
+    { date: "2026-06-03", label: "Jun 3", count: 5, patrolCount: 0 },
   ];
 
   it("renders the Recharts container when data is present", () => {

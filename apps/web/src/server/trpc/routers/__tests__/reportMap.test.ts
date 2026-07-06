@@ -162,9 +162,9 @@ describe("reportMap.eventsOverTime", () => {
     });
 
     expect(result).toEqual([
-      { date: "2026-06-01", count: 2, patrolCount: 1 },
-      { date: "2026-06-02", count: 0, patrolCount: 2 },
-      { date: "2026-06-03", count: 1, patrolCount: 0 },
+      { date: "2026-06-01", label: "Jun 1", count: 2, patrolCount: 1 },
+      { date: "2026-06-02", label: "Jun 2", count: 0, patrolCount: 2 },
+      { date: "2026-06-03", label: "Jun 3", count: 1, patrolCount: 0 },
     ]);
 
     const patrolWhereArg = vi.mocked(prisma.patrol.findMany).mock.calls[0]?.[0]?.where;
@@ -194,9 +194,9 @@ describe("reportMap.eventsOverTime", () => {
     const result = await caller.eventsOverTime({});
 
     expect(result).toEqual([
-      { date: "2026-06-01", count: 1, patrolCount: 0 },
-      { date: "2026-06-02", count: 0, patrolCount: 1 },
-      { date: "2026-06-03", count: 1, patrolCount: 0 },
+      { date: "2026-06-01", label: "Jun 1", count: 1, patrolCount: 0 },
+      { date: "2026-06-02", label: "Jun 2", count: 0, patrolCount: 1 },
+      { date: "2026-06-03", label: "Jun 3", count: 1, patrolCount: 0 },
     ]);
   });
 
@@ -211,6 +211,27 @@ describe("reportMap.eventsOverTime", () => {
     expect(where).toMatchObject({ tenantId: "other-tenant" });
     const patrolWhereArg = vi.mocked(prisma.patrol.findMany).mock.calls[0]?.[0]?.where;
     expect(patrolWhereArg).toMatchObject({ tenantId: "other-tenant" });
+  });
+
+  it("buckets monthly (not 400+ daily points) for a >6-month range, never truncating", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([
+      { reportedAt: new Date("2026-01-15T08:00:00") },
+      { reportedAt: new Date("2026-03-03T10:00:00") },
+    ] as any);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([
+      { startTime: new Date("2026-06-01T06:00:00") },
+    ] as any);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.eventsOverTime({
+      from: new Date("2026-01-01T00:00:00"),
+      to: new Date("2026-07-06T00:00:00"),
+    });
+
+    expect(result).toHaveLength(7); // Jan..Jul, one point per month
+    expect(result[0]).toMatchObject({ date: "2026-01", label: "Jan 2026" });
+    expect(result.reduce((s, d) => s + d.count, 0)).toBe(2);
+    expect(result.reduce((s, d) => s + d.patrolCount, 0)).toBe(1);
   });
 });
 

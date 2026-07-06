@@ -4,10 +4,14 @@
  * Events-over-time line chart — Interactive Report Map (2026-06-27).
  *
  * Pure presentational LineChart (shadcn ChartContainer + Recharts) showing the
- * daily event count across the active report window. Data comes from
- * reportMap.eventsOverTime (already a continuous {date,count} series when a
- * range is set). Matches the BreakdownBars / MunicipalityCoverageChart Pro card
- * pattern: Card shell + ChartTooltip + CartesianGrid + CSS chart-token colours.
+ * event/patrol counts across the active report window, bucketed adaptively by
+ * the requested span (day/week/month — see
+ * server/trpc/routers/time-series-bucketing.ts). Data comes from
+ * reportMap.eventsOverTime (already a continuous {date,label,count,patrolCount}
+ * series when a range is set) — the server pre-formats `label` per bucket, so
+ * the chart just renders it verbatim. Matches the BreakdownBars /
+ * MunicipalityCoverageChart Pro card pattern: Card shell + ChartTooltip +
+ * CartesianGrid + CSS chart-token colours.
  */
 
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
@@ -20,10 +24,12 @@ import {
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
 export interface EventsOverTimeDatum {
-  /** `yyyy-MM-dd` day key. */
+  /** Sortable bucket key: `yyyy-MM-dd` (day/week-start) or `yyyy-MM` (month). */
   date: string;
+  /** Pre-formatted display label for this bucket (e.g. "Jun 3", "Jan 2026"). */
+  label: string;
   count: number;
-  /** Daily patrol count (same continuous zero-filled series as `count`). */
+  /** Patrol count for the same bucket (continuous zero-filled series as `count`). */
   patrolCount: number;
 }
 
@@ -39,17 +45,6 @@ const CHART_CONFIG = {
 } satisfies ChartConfig;
 
 const HEADING_ID = "events-over-time-heading";
-
-/** Short `MMM d` tick label from a `yyyy-MM-dd` key (no timezone shift). */
-function shortDay(key: string): string {
-  const parts = key.split("-");
-  const y = Number(parts[0]);
-  const m = Number(parts[1]);
-  const d = Number(parts[2]);
-  if (Number.isNaN(y) || Number.isNaN(m) || Number.isNaN(d)) return key;
-  const local = new Date(y, m - 1, d);
-  return local.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
 
 export function EventsOverTimeChart({
   data,
@@ -108,13 +103,12 @@ export function EventsOverTimeChart({
                   stroke="hsl(var(--border))"
                 />
                 <XAxis
-                  dataKey="date"
+                  dataKey="label"
                   tickLine={false}
                   axisLine={false}
                   tickMargin={6}
                   minTickGap={24}
                   tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
-                  tickFormatter={shortDay}
                 />
                 <YAxis
                   tickLine={false}
@@ -123,10 +117,7 @@ export function EventsOverTimeChart({
                   allowDecimals={false}
                   tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
                 />
-                <ChartTooltip
-                  cursor={false}
-                  content={<ChartTooltipContent labelFormatter={shortDay} />}
-                />
+                <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
                 <Line
                   dataKey="count"
                   type="monotone"
