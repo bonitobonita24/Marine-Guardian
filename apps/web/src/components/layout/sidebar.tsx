@@ -20,6 +20,7 @@ import {
   Settings,
   LogOut,
   Fuel,
+  CircleUserRound,
   type LucideIcon,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
@@ -83,23 +84,41 @@ const navGroups: NavGroup[] = [
       { href: "/settings", icon: Settings, labelKey: "settings" },
     ],
   },
+  // ACCOUNT (2026-07-06): self-service Profile — own password + own email.
+  // Visible to EVERY authenticated role (including viewer + administrator,
+  // both of which lose other menus above) — see the allow-list / deny-list
+  // handling below, neither of which hides "/profile".
+  {
+    label: "ACCOUNT",
+    items: [
+      { href: "/profile", icon: CircleUserRound, labelKey: "profile" },
+    ],
+  },
 ];
 
 // viewer role (2026-07-05, extended 2026-07-06): read-only, scoped to
 // Command Center (/dashboard) + Interactive Report Map (/map) + Exports
 // (/exports — viewer can now generate a printable report from /map and
-// must be able to reach /exports to retrieve it, reportGenerateProcedure).
-// Every other page is hidden from nav here AND blocked at the route level in
-// middleware.ts (defense in depth — a viewer can never reach a hidden page
-// even via a typed URL or bookmark).
-const VIEWER_ALLOWED_HREFS = new Set<string>(["/dashboard", "/map", "/exports"]);
+// must be able to reach /exports to retrieve it, reportGenerateProcedure)
+// + Profile (/profile — every role, including viewer, can manage its own
+// password/email). Every other page is hidden from nav here AND blocked at
+// the route level in middleware.ts (defense in depth — a viewer can never
+// reach a hidden page even via a typed URL or bookmark).
+const VIEWER_ALLOWED_HREFS = new Set<string>([
+  "/dashboard",
+  "/map",
+  "/exports",
+  "/profile",
+]);
 
-// administrator role (2026-07-06): full access to every menu EXCEPT user
-// management. Unlike viewer's allow-list above, this is a deny-list — the
-// only nav item hidden is "/users" (add/edit/deactivate accounts). Route
-// enforcement (so a typed/bookmarked /users URL is also blocked) lives in
+// administrator role (2026-07-06, narrowed 2026-07-06): full access to every
+// menu EXCEPT Users AND Settings (only super_admin/site_admin manage user
+// accounts or tenant configuration). Unlike viewer's allow-list above, this
+// is a deny-list — "/profile" is intentionally never added here so
+// administrator keeps its own self-service Profile page. Route enforcement
+// (so a typed/bookmarked /users or /settings URL is also blocked) lives in
 // middleware.ts.
-const ADMINISTRATOR_HIDDEN_HREFS = new Set<string>(["/users"]);
+const ADMINISTRATOR_HIDDEN_HREFS = new Set<string>(["/users", "/settings"]);
 
 function getVisibleNavGroups(roles: readonly string[]) {
   if (roles.includes("viewer")) {

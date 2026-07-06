@@ -2,7 +2,7 @@
  * ReportTemplate router — CRUD + setDefault for printable report templates.
  *
  * Security invariants:
- *   L3 — all mutations gated to adminProcedure (super_admin | site_admin)
+ *   L3 — all mutations gated to siteAdminProcedure (super_admin | site_admin)
  *   L5 — every mutation audited via writeAuditLog
  *   L6 — tenant-scoped: all queries carry ctx.tenantId guard
  *
@@ -16,7 +16,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
-import { adminProcedure } from "../middleware/rbac";
+import { siteAdminProcedure } from "../middleware/rbac";
 import { prisma, writeAuditLog } from "@marine-guardian/db";
 import type { PrismaClient } from "@marine-guardian/db";
 import {
@@ -123,7 +123,7 @@ export const reportTemplateRouter = router({
    * router calls uploadImage and persists the returned key; otherwise the
    * key fields from the input are used as-is.
    */
-  create: adminProcedure
+  create: siteAdminProcedure
     .input(createInputWithLogos)
     .mutation(async ({ ctx, input }) => {
       const { tenantId, userId } = ctx;
@@ -196,7 +196,7 @@ export const reportTemplateRouter = router({
    * Update an existing template. Admin-only. Audited.
    * Tenant isolation: rejects IDs that belong to a different tenant.
    */
-  update: adminProcedure
+  update: siteAdminProcedure
     .input(updateInputWithLogos)
     .mutation(async ({ ctx, input }) => {
       const { tenantId, userId } = ctx;
@@ -267,7 +267,7 @@ export const reportTemplateRouter = router({
    * Delete a template. Admin-only. Audited.
    * Tenant isolation: silently rejects cross-tenant deletes via NOT_FOUND.
    */
-  delete: adminProcedure
+  delete: siteAdminProcedure
     .input(deleteReportTemplateInputSchema)
     .mutation(async ({ ctx, input }) => {
       const { tenantId, userId } = ctx;
@@ -310,7 +310,7 @@ export const reportTemplateRouter = router({
    * Runs in a transaction: unsets all sibling defaults, sets this one.
    * Admin-only. Audited.
    */
-  setDefault: adminProcedure
+  setDefault: siteAdminProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const { tenantId, userId } = ctx;

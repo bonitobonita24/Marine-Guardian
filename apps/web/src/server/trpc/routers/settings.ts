@@ -2,7 +2,7 @@
  * Tenant Settings router — EarthRanger connection management + sync controls.
  *
  * Security invariants:
- *   L3  — all writes gated to adminProcedure (super_admin | site_admin)
+ *   L3  — all writes gated to siteAdminProcedure (super_admin | site_admin)
  *   L5  — writes audited via writeAuditLog
  *   L6  — tenant-scoped: every query/mutation carries ctx.tenantId guard
  *   Credential safety — apiToken is encrypted at rest with AES-256-GCM using
@@ -18,7 +18,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
-import { adminProcedure } from "../middleware/rbac";
+import { siteAdminProcedure } from "../middleware/rbac";
 import { prisma, encrypt, decrypt, writeAuditLog } from "@marine-guardian/db";
 import type { PrismaClient } from "@marine-guardian/db";
 import {
@@ -106,7 +106,7 @@ export const settingsRouter = router({
    * preserved unchanged (so admins can update the URL without re-entering the
    * token).
    */
-  upsertErConnection: adminProcedure
+  upsertErConnection: siteAdminProcedure
     .input(
       z.object({
         baseUrl: z.string().url({ message: "Must be a valid URL" }).max(500),
@@ -185,7 +185,7 @@ export const settingsRouter = router({
    * instance and updates status + lastValidatedAt in-place.
    * Admin-only. Audited.
    */
-  testErConnection: adminProcedure.mutation(async ({ ctx }) => {
+  testErConnection: siteAdminProcedure.mutation(async ({ ctx }) => {
     const tenantId = ctx.tenantId;
     if (!tenantId) {
       throw new TRPCError({ code: "FORBIDDEN", message: "No tenant context." });
@@ -247,7 +247,7 @@ export const settingsRouter = router({
    * the last successful SyncLog entry (q-ops-06). The recurring path is
    * unaffected — this is a one-shot trigger independent of the schedule.
    */
-  syncNow: adminProcedure.mutation(async ({ ctx }) => {
+  syncNow: siteAdminProcedure.mutation(async ({ ctx }) => {
     const tenantId = ctx.tenantId;
     if (!tenantId) {
       throw new TRPCError({ code: "FORBIDDEN", message: "No tenant context." });
@@ -317,7 +317,7 @@ export const settingsRouter = router({
    * mutation is exposed now so M1 can be tested end-to-end via tRPC client
    * or admin scripts without waiting for the UI.
    */
-  updateErSyncConfig: adminProcedure
+  updateErSyncConfig: siteAdminProcedure
     .input(
       z.object({
         recurringEnabled: z.boolean(),

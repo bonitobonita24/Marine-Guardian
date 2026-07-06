@@ -402,6 +402,103 @@ describe("user.activate", () => {
   });
 });
 
+// user.list / user.getById lockdown (2026-07-06): the full user directory
+// (email, role, lastLoginAt, timestamps) is now super_admin + site_admin
+// ONLY. administrator/field_coordinator/operator/viewer must all get
+// FORBIDDEN — they previously could read it via tenantProcedure.
+describe("user.list", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("allows super_admin", async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([]);
+    const caller = createCaller(makeCtx(TENANT_ID, ["super_admin"]));
+    await expect(caller.list({})).resolves.toEqual({ items: [], nextCursor: undefined });
+  });
+
+  it("allows site_admin", async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([]);
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    await expect(caller.list({})).resolves.toEqual({ items: [], nextCursor: undefined });
+  });
+
+  it("rejects administrator with FORBIDDEN", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    await expect(caller.list({})).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("rejects field_coordinator with FORBIDDEN", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["field_coordinator"]));
+    await expect(caller.list({})).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("rejects operator with FORBIDDEN", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["operator"]));
+    await expect(caller.list({})).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("rejects viewer with FORBIDDEN", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["viewer"]));
+    await expect(caller.list({})).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+describe("user.getById", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("allows site_admin", async () => {
+    vi.mocked(prisma.user.findFirst).mockResolvedValue({ id: "u-1" } as never);
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    await expect(caller.getById({ id: "u-1" })).resolves.toMatchObject({ id: "u-1" });
+  });
+
+  it("rejects administrator with FORBIDDEN", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    await expect(caller.getById({ id: "u-1" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("rejects viewer with FORBIDDEN", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["viewer"]));
+    await expect(caller.getById({ id: "u-1" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+// user.listActiveNames (2026-07-06) — minimal-exposure id+fullName picker,
+// open to every tenant member (used by the patrol-schedule assignment
+// dropdown, which is reachable by administrator/field_coordinator/operator).
+describe("user.listActiveNames", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns id+fullName for active tenant users only, ordered by name", async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([
+      { id: "u-1", fullName: "Alice" },
+      { id: "u-2", fullName: "Bob" },
+    ] as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["field_coordinator"]));
+    const result = await caller.listActiveNames();
+
+    expect(result).toEqual({
+      items: [
+        { id: "u-1", fullName: "Alice" },
+        { id: "u-2", fullName: "Bob" },
+      ],
+    });
+    expect(vi.mocked(prisma.user.findMany)).toHaveBeenCalledWith({
+      where: { tenantId: TENANT_ID, isActive: true },
+      orderBy: { fullName: "asc" },
+      select: { id: true, fullName: true },
+    });
+  });
+
+  it("allows every non-viewer, non-admin role (operator, administrator, field_coordinator)", async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([]);
+    for (const role of ["operator", "administrator", "field_coordinator", "viewer", "site_admin", "super_admin"]) {
+      const caller = createCaller(makeCtx(TENANT_ID, [role]));
+      await expect(caller.listActiveNames()).resolves.toEqual({ items: [] });
+    }
+  });
+});
+
 describe("user.getCommandCenterMunicipality", () => {
   beforeEach(() => vi.clearAllMocks());
 

@@ -59,13 +59,20 @@ export const reportGenerateProcedure = requireRole(
   "administrator",
 );
 
-// userManagementProcedure (2026-07-06): the ONLY gate for adding/editing/
-// deactivating user accounts and changing user roles (user.create,
-// user.resetPassword, user.updateRole, user.deactivate, user.activate).
-// Deliberately super_admin + site_admin ONLY — administrator is EXCLUDED
-// here by design (that is the entire point of the administrator role: full
-// app access, minus user management). Do NOT add administrator to this
-// procedure; do NOT reuse adminProcedure for user-management mutations
-// going forward, or administrator silently regains the access it is meant
-// to be denied.
-export const userManagementProcedure = requireRole("super_admin", "site_admin");
+// siteAdminProcedure (2026-07-06): super_admin + site_admin ONLY — the gate
+// for BOTH (a) user-management mutations/reads (user.create, resetPassword,
+// updateRole, deactivate, activate, list, getById) and (b) the Settings /
+// tenant-config surface (ER connection + sync, report templates, breach
+// register). administrator is deliberately EXCLUDED here by design — the
+// owner narrowed administrator to "full app access minus Users AND
+// Settings." Do NOT add administrator to this procedure; do NOT reuse
+// adminProcedure for user-management or settings/tenant-config mutations
+// going forward, or administrator silently regains access it is meant to
+// be denied. Nav + route enforcement for /users and /settings lives in
+// sidebar.tsx + middleware.ts (defense in depth).
+export const siteAdminProcedure = requireRole("super_admin", "site_admin");
+
+// userManagementProcedure — historical name, kept as an alias so existing
+// call sites (user.ts) don't need a mechanical rename. Refers to the exact
+// same super_admin+site_admin gate as siteAdminProcedure above.
+export const userManagementProcedure = siteAdminProcedure;

@@ -73,11 +73,13 @@ vi.mock("@/lib/trpc/client", () => ({
         }),
       },
     },
+    // user.listActiveNames (2026-07-06) — minimal id+fullName picker source;
+    // the dialog switched off user.list (now super_admin/site_admin only).
     user: {
-      list: {
+      listActiveNames: {
         useQuery: () => ({
           data: {
-            items: [{ id: "user-1", fullName: "Ranger Rico", isActive: true }],
+            items: [{ id: "user-1", fullName: "Ranger Rico" }],
           },
         }),
       },

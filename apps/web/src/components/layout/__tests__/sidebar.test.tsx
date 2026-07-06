@@ -161,9 +161,10 @@ describe("Sidebar — viewer role nav filtering", () => {
     "sync",
     "users",
     "settings",
+    "profile",
   ];
 
-  it("renders exactly the 3 Command items for a viewer session (dashboard, map, exports)", () => {
+  it("renders exactly the 4 self-service items for a viewer session (dashboard, map, exports, profile)", () => {
     stubs.sessionRoles = ["viewer"];
     const { getByText, queryByText } = render(<Sidebar />);
 
@@ -172,9 +173,12 @@ describe("Sidebar — viewer role nav filtering", () => {
     // exports (2026-07-06): viewer can now generate + retrieve printable
     // reports, so /exports joins the viewer-allowed nav set.
     expect(getByText("exports")).toBeTruthy();
+    // profile (2026-07-06): every role, including viewer, can reach its own
+    // self-service Profile page (own password/email).
+    expect(getByText("profile")).toBeTruthy();
 
     for (const key of ALL_NAV_LABEL_KEYS) {
-      if (key === "dashboard" || key === "map" || key === "exports") continue;
+      if (["dashboard", "map", "exports", "profile"].includes(key)) continue;
       expect(queryByText(key)).toBeNull();
     }
   });
@@ -190,16 +194,20 @@ describe("Sidebar — viewer role nav filtering", () => {
     },
   );
 
-  // administrator role (2026-07-06) — full access to every menu EXCEPT
-  // "users" (add/edit/deactivate accounts). Deny-list, unlike viewer's
-  // allow-list above.
-  it("renders every nav item except 'users' for an administrator session", () => {
+  // administrator role (2026-07-06, narrowed 2026-07-06) — full access to
+  // every menu EXCEPT "users" (add/edit/deactivate accounts) AND "settings"
+  // (tenant configuration — now super_admin/site_admin only). Deny-list,
+  // unlike viewer's allow-list above. "profile" stays visible — it is never
+  // added to the deny-list so administrator keeps its own self-service page.
+  it("renders every nav item except 'users' and 'settings' for an administrator session", () => {
     stubs.sessionRoles = ["administrator"];
     const { getByText, queryByText } = render(<Sidebar />);
 
     expect(queryByText("users")).toBeNull();
+    expect(queryByText("settings")).toBeNull();
+    expect(getByText("profile")).toBeTruthy();
     for (const key of ALL_NAV_LABEL_KEYS) {
-      if (key === "users") continue;
+      if (key === "users" || key === "settings") continue;
       expect(getByText(key)).toBeTruthy();
     }
   });

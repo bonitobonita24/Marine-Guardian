@@ -176,9 +176,13 @@ export function AssignmentDialog({
     [areasQuery.data],
   );
 
-  const usersQuery = trpc.user.list.useQuery({ limit: 200 });
+  // listActiveNames (2026-07-06) — id+fullName-only picker source. user.list
+  // is now super_admin/site_admin only (full directory incl. email/role), so
+  // this coordinator-facing assignment dropdown reads the minimal-exposure
+  // endpoint instead; it already filters to isActive users server-side.
+  const usersQuery = trpc.user.listActiveNames.useQuery();
   const rangerOptions = useMemo(
-    () => (usersQuery.data?.items ?? []).filter((u) => u.isActive),
+    () => usersQuery.data?.items ?? [],
     [usersQuery.data],
   );
 

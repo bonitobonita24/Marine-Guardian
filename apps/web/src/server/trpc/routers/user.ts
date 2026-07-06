@@ -3,7 +3,7 @@ import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
-import { userManagementProcedure } from "../middleware/rbac";
+import { userManagementProcedure, siteAdminProcedure } from "../middleware/rbac";
 import { prisma, writeAuditLog } from "@marine-guardian/db";
 import type { PrismaClient } from "@marine-guardian/db";
 import { TRPCError } from "@trpc/server";
@@ -20,10 +20,12 @@ const userRoleSchema = z.enum([
 ]);
 
 export const userRouter = router({
-  // create/resetPassword/updateRole/deactivate/activate are gated to
-  // userManagementProcedure (super_admin + site_admin ONLY) — administrator
-  // is deliberately excluded here (2026-07-06): full app access, minus user
-  // management. Do NOT switch these back to adminProcedure.
+  // create/resetPassword/updateRole/deactivate/activate/list/getById are all
+  // gated to userManagementProcedure / siteAdminProcedure (super_admin +
+  // site_admin ONLY, same alias — see rbac.ts) — administrator is
+  // deliberately excluded here (2026-07-06): full app access, minus user
+  // management AND the user directory read. Do NOT switch these back to
+  // adminProcedure or tenantProcedure.
   create: userManagementProcedure
     .input(
       z.object({
@@ -94,7 +96,13 @@ export const userRouter = router({
       return { tempPassword };
     }),
 
-  list: tenantProcedure
+  // list / getById (locked down 2026-07-06): the full user directory — email,
+  // role, lastLoginAt, timestamps — is now super_admin + site_admin ONLY.
+  // administrator/field_coordinator/operator/viewer get FORBIDDEN. Any
+  // non-admin surface that only needs an id+name picker (e.g. the patrol
+  // schedule assignment dropdown) uses listActiveNames below instead, which
+  // exposes no email/role/audit data and stays open to every tenant member.
+  list: siteAdminProcedure
     .input(
       z.object({
         cursor: z.string().optional(),
@@ -140,7 +148,7 @@ export const userRouter = router({
       return { items, nextCursor };
     }),
 
-  getById: tenantProcedure
+  getById: siteAdminProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
       return prisma.user.findFirst({
@@ -158,6 +166,21 @@ export const userRouter = router({
         },
       });
     }),
+
+  // listActiveNames (2026-07-06) — minimal-exposure alternative to `list`
+  // for non-admin id+name pickers (e.g. the patrol-schedule assignment
+  // dropdown, which only ever reads .id and .fullName). Open to every tenant
+  // member (tenantProcedure) since it exposes no email/role/lastLoginAt.
+  // Do NOT add fields here beyond id/fullName without re-checking whether
+  // that data should stay behind siteAdminProcedure instead.
+  listActiveNames: tenantProcedure.query(async ({ ctx }) => {
+    const items = await prisma.user.findMany({
+      where: { tenantId: ctx.tenantId, isActive: true },
+      orderBy: { fullName: "asc" },
+      select: { id: true, fullName: true },
+    });
+    return { items };
+  }),
 
   updateRole: userManagementProcedure
     .input(

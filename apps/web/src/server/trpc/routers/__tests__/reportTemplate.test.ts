@@ -168,6 +168,20 @@ describe("reportTemplate.create", () => {
     ).rejects.toThrow(TRPCError);
   });
 
+  // administrator (narrowed 2026-07-06): Settings mutations moved from
+  // adminProcedure to siteAdminProcedure (super_admin + site_admin ONLY).
+  it("rejects administrator with FORBIDDEN (Settings excluded 2026-07-06)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    await expect(
+      caller.create({
+        name: "New Template",
+        layout: "portrait-one-per-page",
+        reportTitle: "Test",
+        isDefault: false,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
   it("creates a template and writes an audit log entry", async () => {
     vi.mocked(prisma.reportTemplate.create).mockResolvedValue(STUB_TEMPLATE);
 
@@ -248,6 +262,11 @@ describe("reportTemplate.update", () => {
     await expect(caller.update({ id: "tmpl-1", name: "Updated" })).rejects.toThrow(TRPCError);
   });
 
+  it("rejects administrator with FORBIDDEN (Settings excluded 2026-07-06)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    await expect(caller.update({ id: "tmpl-1", name: "Updated" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
   it("throws NOT_FOUND when template belongs to a different tenant (cross-tenant denied)", async () => {
     vi.mocked(prisma.reportTemplate.findFirst).mockResolvedValue(null);
     const caller = createCaller(makeCtx(OTHER_TENANT_ID));
@@ -284,6 +303,11 @@ describe("reportTemplate.delete", () => {
   it("rejects a non-admin with FORBIDDEN", async () => {
     const caller = createCaller(makeCtx(TENANT_ID, ["operator"]));
     await expect(caller.delete({ id: "tmpl-1" })).rejects.toThrow(TRPCError);
+  });
+
+  it("rejects administrator with FORBIDDEN (Settings excluded 2026-07-06)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    await expect(caller.delete({ id: "tmpl-1" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("throws NOT_FOUND when template belongs to a different tenant (cross-tenant denied)", async () => {
@@ -323,6 +347,11 @@ describe("reportTemplate.setDefault", () => {
   it("rejects a non-admin with FORBIDDEN", async () => {
     const caller = createCaller(makeCtx(TENANT_ID, ["operator"]));
     await expect(caller.setDefault({ id: "tmpl-1" })).rejects.toThrow(TRPCError);
+  });
+
+  it("rejects administrator with FORBIDDEN (Settings excluded 2026-07-06)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    await expect(caller.setDefault({ id: "tmpl-1" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("throws NOT_FOUND when template belongs to a different tenant (cross-tenant denied)", async () => {

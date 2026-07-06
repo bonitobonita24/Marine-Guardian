@@ -80,6 +80,14 @@ describe("middleware — viewer role route gate", () => {
     expect(resNested.status).toBe(200);
   });
 
+  // 2026-07-06: every role, including viewer, gets a self-service Profile
+  // page (own password/email) — /profile joins the viewer-allowed route set.
+  it("allows a viewer requesting /profile", async () => {
+    mockAuth.mockResolvedValue(makeSession(["viewer"]));
+    const res = await middleware(makeRequest("/profile"));
+    expect(res.status).toBe(200);
+  });
+
   it("does NOT redirect a viewer requesting an /api route (e.g. the notification SSE stream)", async () => {
     // API authorization is enforced at the route / tRPC layer (viewer is
     // read-only there); the page-navigation gate must never redirect /api/*,
@@ -103,9 +111,10 @@ describe("middleware — viewer role route gate", () => {
   });
 });
 
-// administrator role (2026-07-06) route-gate tests. Full access to every
-// tenant page EXCEPT /users (user management) — a deny-list, unlike
-// viewer's allow-list above.
+// administrator role (2026-07-06, narrowed 2026-07-06) route-gate tests.
+// Full access to every tenant page EXCEPT /users (user management) AND
+// /settings (tenant configuration — super_admin/site_admin only) — a
+// deny-list, unlike viewer's allow-list above.
 describe("middleware — administrator role route gate", () => {
   beforeEach(() => {
     mockAuth.mockReset();
@@ -125,9 +134,26 @@ describe("middleware — administrator role route gate", () => {
     expect(res.headers.get("location")).toBe("https://app.example.com/dashboard");
   });
 
-  it("allows an administrator requesting every other tenant page (e.g. /events, /settings, /alerts)", async () => {
+  // Settings (2026-07-06): removed from administrator alongside Users.
+  it("redirects an administrator requesting /settings to /dashboard", async () => {
     mockAuth.mockResolvedValue(makeSession(["administrator"]));
-    for (const path of ["/dashboard", "/map", "/events", "/settings", "/alerts", "/patrols"]) {
+    const res = await middleware(makeRequest("/settings"));
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe("https://app.example.com/dashboard");
+  });
+
+  it("redirects an administrator requesting nested /settings sub-paths (report-templates, breach) to /dashboard", async () => {
+    mockAuth.mockResolvedValue(makeSession(["administrator"]));
+    for (const path of ["/settings/report-templates", "/settings/breach"]) {
+      const res = await middleware(makeRequest(path));
+      expect(res.status).toBe(307);
+      expect(res.headers.get("location")).toBe("https://app.example.com/dashboard");
+    }
+  });
+
+  it("allows an administrator requesting every other tenant page (e.g. /events, /alerts, /profile)", async () => {
+    mockAuth.mockResolvedValue(makeSession(["administrator"]));
+    for (const path of ["/dashboard", "/map", "/events", "/profile", "/alerts", "/patrols"]) {
       const res = await middleware(makeRequest(path));
       expect(res.status).toBe(200);
     }
@@ -140,9 +166,11 @@ describe("middleware — administrator role route gate", () => {
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("does NOT redirect a non-administrator (site_admin) requesting /users", async () => {
+  it("does NOT redirect a non-administrator (site_admin) requesting /users or /settings", async () => {
     mockAuth.mockResolvedValue(makeSession(["site_admin"]));
-    const res = await middleware(makeRequest("/users"));
-    expect(res.status).toBe(200);
+    const resUsers = await middleware(makeRequest("/users"));
+    expect(resUsers.status).toBe(200);
+    const resSettings = await middleware(makeRequest("/settings"));
+    expect(resSettings.status).toBe(200);
   });
 });

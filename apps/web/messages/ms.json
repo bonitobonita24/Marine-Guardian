@@ -27,7 +27,8 @@
     "notifications": "Pemberitahuan",
     "sync": "Status Penyegerakan",
     "users": "Pengguna",
-    "settings": "Tetapan"
+    "settings": "Tetapan",
+    "profile": "Profil"
   },
   "auth": {
     "signIn": "Log Masuk",

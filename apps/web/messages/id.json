@@ -27,7 +27,8 @@
     "notifications": "Notifikasi",
     "sync": "Status Sinkronisasi",
     "users": "Pengguna",
-    "settings": "Pengaturan"
+    "settings": "Pengaturan",
+    "profile": "Profil"
   },
   "auth": {
     "signIn": "Masuk",

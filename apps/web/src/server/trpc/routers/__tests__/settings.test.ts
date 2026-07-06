@@ -220,6 +220,17 @@ describe("settings.upsertErConnection", () => {
     ).rejects.toThrow(TRPCError);
   });
 
+  // administrator (narrowed 2026-07-06): full app access EXCEPT Users AND
+  // Settings — Settings mutations moved from adminProcedure to
+  // siteAdminProcedure (super_admin + site_admin ONLY), so administrator
+  // must now be rejected here too (it previously passed via adminProcedure).
+  it("throws FORBIDDEN for administrator (Settings excluded 2026-07-06)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    await expect(
+      caller.upsertErConnection({ baseUrl: "https://er.example.com", apiToken: "tok" })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
   it("throws FORBIDDEN when tenantId is absent", async () => {
     const caller = createCaller(makeCtx(null));
     await expect(
@@ -283,6 +294,11 @@ describe("settings.testErConnection", () => {
   it("throws FORBIDDEN for non-admin roles", async () => {
     const caller = createCaller(makeCtx(TENANT_ID, ["operator"]));
     await expect(caller.testErConnection()).rejects.toThrow(TRPCError);
+  });
+
+  it("throws FORBIDDEN for administrator (Settings excluded 2026-07-06)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    await expect(caller.testErConnection()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("writes an audit log entry on test", async () => {

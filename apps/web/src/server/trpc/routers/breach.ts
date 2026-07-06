@@ -3,12 +3,12 @@ import { z } from "zod";
 import { prisma, writeAuditLog } from "@marine-guardian/db";
 import type { PrismaClient } from "@marine-guardian/db";
 import { router } from "../trpc";
-import { adminProcedure } from "../middleware/rbac";
+import { siteAdminProcedure } from "../middleware/rbac";
 
 /**
  * Breach-notification router — NPC Circular 16-03 (PH Data Privacy Act RA 10173).
  *
- * Admin-only (super_admin | site_admin via adminProcedure, L3). Tenant-scoped
+ * Admin-only (super_admin | site_admin via siteAdminProcedure, L3). Tenant-scoped
  * via ctx.tenantId (L6). Every mutation audited via writeAuditLog (L5).
  *
  * Lifecycle: DETECTED → ASSESSED → NOTIFIED (NPC + subjects) → REPORTED → CLOSED.
@@ -80,7 +80,7 @@ export const breachRouter = router({
    * breach.record — Record a newly detected personal-data breach.
    * Computes writtenReportDueAt = detectedAt + 72h + 5 business days.
    */
-  record: adminProcedure
+  record: siteAdminProcedure
     .input(
       z.object({
         severity: z.enum(["low", "medium", "high"]),
@@ -132,7 +132,7 @@ export const breachRouter = router({
    * breach.markNpcNotified — record NPC notification within the 72h window.
    * Transitions status to NOTIFIED.
    */
-  markNpcNotified: adminProcedure
+  markNpcNotified: siteAdminProcedure
     .input(z.object({ breachId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const { userId, tenantId } = ctx;
@@ -164,7 +164,7 @@ export const breachRouter = router({
   /**
    * breach.markSubjectsNotified — record that affected data subjects were notified.
    */
-  markSubjectsNotified: adminProcedure
+  markSubjectsNotified: siteAdminProcedure
     .input(z.object({ breachId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const { userId, tenantId } = ctx;
@@ -197,7 +197,7 @@ export const breachRouter = router({
    * breach.submitReport — record submission of the full written report to NPC.
    * Transitions status to REPORTED.
    */
-  submitReport: adminProcedure
+  submitReport: siteAdminProcedure
     .input(z.object({ breachId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const { userId, tenantId } = ctx;
@@ -229,7 +229,7 @@ export const breachRouter = router({
   /**
    * breach.list — admin breach register for the tenant, newest first.
    */
-  list: adminProcedure.query(async ({ ctx }) => {
+  list: siteAdminProcedure.query(async ({ ctx }) => {
     const { tenantId } = ctx;
     if (!tenantId) {
       throw new TRPCError({ code: "FORBIDDEN", message: "No tenant context." });

@@ -27,7 +27,8 @@
     "notifications": "Notifications",
     "sync": "Sync Status",
     "users": "Users",
-    "settings": "Settings"
+    "settings": "Settings",
+    "profile": "Profile"
   },
   "auth": {
     "signIn": "Sign In",

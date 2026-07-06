@@ -29,8 +29,10 @@ import { municipalityCoverageRouter } from "./municipalityCoverage";
 import { municipalityRouter } from "./municipality";
 import { reportMapRouter } from "./reportMap";
 import { reportTemplateRouter } from "./reportTemplate";
+import { accountRouter } from "./account";
 
 export const appRouter = router({
+  account: accountRouter,
   settings: settingsRouter,
   platform: platformRouter,
   platformUser: platformUserRouter,

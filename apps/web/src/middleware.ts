@@ -32,11 +32,12 @@ const RENDERER_ASSET_PREFIX = "/api/assets/";
 // scoped to Command Center (/dashboard) + Interactive Report Map (/map) +
 // Exports (/exports — a viewer can generate a printable report from /map
 // via reportGenerateProcedure and must be able to reach /exports to
-// retrieve it). sidebar.tsx already hides every other nav item for a
+// retrieve it) + Profile (/profile — self-service password/email, open to
+// every role). sidebar.tsx already hides every other nav item for a
 // viewer; this is the route-level enforcement so a viewer can never reach
 // a hidden page via a typed URL, bookmark, or deep link — the nav hide
 // alone is cosmetic without this.
-const VIEWER_ALLOWED_PREFIXES = ["/dashboard", "/map", "/exports"];
+const VIEWER_ALLOWED_PREFIXES = ["/dashboard", "/map", "/exports", "/profile"];
 
 function isViewerAllowedPath(pathname: string): boolean {
   return VIEWER_ALLOWED_PREFIXES.some(
@@ -44,13 +45,16 @@ function isViewerAllowedPath(pathname: string): boolean {
   );
 }
 
-// administrator role (2026-07-06) — full access to every tenant page EXCEPT
-// user management (/users — add/edit/deactivate accounts, role changes).
-// Unlike viewer's allow-list above, this is a deny-list: everything is
-// permitted except the prefixes below. sidebar.tsx already hides the /users
-// nav item for administrator; this is the route-level enforcement so an
-// administrator can never reach it via a typed URL, bookmark, or deep link.
-const ADMINISTRATOR_BLOCKED_PREFIXES = ["/users"];
+// administrator role (2026-07-06, narrowed 2026-07-06) — full access to
+// every tenant page EXCEPT user management (/users — add/edit/deactivate
+// accounts, role changes) AND tenant Settings (/settings — ER connection,
+// report templates, breach register; super_admin/site_admin only). Unlike
+// viewer's allow-list above, this is a deny-list: everything is permitted
+// except the prefixes below. sidebar.tsx already hides the /users and
+// /settings nav items for administrator (but keeps /profile visible); this
+// is the route-level enforcement so an administrator can never reach a
+// blocked page via a typed URL, bookmark, or deep link.
+const ADMINISTRATOR_BLOCKED_PREFIXES = ["/users", "/settings"];
 
 function isAdministratorBlockedPath(pathname: string): boolean {
   return ADMINISTRATOR_BLOCKED_PREFIXES.some(
@@ -147,10 +151,11 @@ export default async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
-  // administrator route gate — full access except /users (user management).
-  // API routes are exempt for the same reason as the viewer gate above:
-  // authorization there is enforced at the tRPC layer (userManagementProcedure
-  // already rejects administrator on every user-management mutation).
+  // administrator route gate — full access except /users (user management)
+  // and /settings (tenant configuration). API routes are exempt for the same
+  // reason as the viewer gate above: authorization there is enforced at the
+  // tRPC layer (siteAdminProcedure already rejects administrator on every
+  // user-management AND settings/tenant-config mutation).
   const isAdministrator = session.user.roles.includes("administrator");
   if (
     isAdministrator &&

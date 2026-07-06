@@ -89,6 +89,21 @@ describe("breach.record", () => {
     ).rejects.toThrow(TRPCError);
   });
 
+  // administrator (narrowed 2026-07-06): Settings/breach-register mutations
+  // moved from adminProcedure to siteAdminProcedure (super_admin +
+  // site_admin ONLY).
+  it("rejects administrator with FORBIDDEN (Settings excluded 2026-07-06)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    await expect(
+      caller.record({
+        severity: "low",
+        detectedAt: new Date(),
+        affectedUserCount: 0,
+        description: "x",
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
   it("records a breach, computes writtenReportDueAt (72h + 5 business days), audits", async () => {
     vi.mocked(prisma.breachNotificationRecord.create).mockResolvedValue(stubBreach as never);
     const caller = createCaller(makeCtx());
@@ -187,5 +202,10 @@ describe("breach.list", () => {
   it("rejects a non-admin caller", async () => {
     const caller = createCaller(makeCtx(TENANT_ID, ["field_coordinator"]));
     await expect(caller.list()).rejects.toThrow(TRPCError);
+  });
+
+  it("rejects administrator with FORBIDDEN (Settings excluded 2026-07-06)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    await expect(caller.list()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

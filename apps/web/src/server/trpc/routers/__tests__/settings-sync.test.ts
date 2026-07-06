@@ -205,6 +205,12 @@ describe("settings.syncNow", () => {
     await expect(caller.syncNow()).rejects.toThrow(TRPCError);
   });
 
+  it("rejects administrator (Settings excluded 2026-07-06)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+
+    await expect(caller.syncNow()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
   it("writes an audit log entry on success", async () => {
     vi.mocked(prisma.tenantErConnection.findUnique).mockResolvedValue(
       mockConnVerified,
@@ -354,6 +360,14 @@ describe("settings.updateErSyncConfig", () => {
     await expect(
       caller.updateErSyncConfig({ recurringEnabled: true }),
     ).rejects.toThrow(TRPCError);
+  });
+
+  it("rejects administrator (Settings excluded 2026-07-06)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+
+    await expect(
+      caller.updateErSyncConfig({ recurringEnabled: true }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("writes an audit log entry on success", async () => {
