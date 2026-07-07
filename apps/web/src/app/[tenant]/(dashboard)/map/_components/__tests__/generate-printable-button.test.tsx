@@ -21,6 +21,11 @@ const { stubs } = vi.hoisted(() => {
   return { stubs: s };
 });
 
+// Path-based tenancy: the /exports link reads the tenant slug via useParams.
+vi.mock("next/navigation", () => ({
+  useParams: () => ({ tenant: "demo-site" }),
+}));
+
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
     data: {

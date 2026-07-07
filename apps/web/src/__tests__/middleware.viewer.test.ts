@@ -27,13 +27,15 @@ function makeSession(roles: string[], tenantId = "tenant-1") {
     user: {
       id: "user-1",
       tenantId,
+      tenantSlug: "demo-site",
       roles,
     },
   };
 }
 
 function makeRequest(pathname: string): NextRequest {
-  return new NextRequest(new URL(pathname, "https://app.example.com"));
+  const p = pathname.startsWith("/api") ? pathname : `/demo-site${pathname}`;
+  return new NextRequest(new URL(p, "https://app.example.com"));
 }
 
 describe("middleware — viewer role route gate", () => {
@@ -45,14 +47,14 @@ describe("middleware — viewer role route gate", () => {
     mockAuth.mockResolvedValue(makeSession(["viewer"]));
     const res = await middleware(makeRequest("/events"));
     expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toBe("https://app.example.com/dashboard");
+    expect(res.headers.get("location")).toBe("https://app.example.com/demo-site/dashboard");
   });
 
   it("redirects a viewer requesting /users to /dashboard", async () => {
     mockAuth.mockResolvedValue(makeSession(["viewer"]));
     const res = await middleware(makeRequest("/users"));
     expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toBe("https://app.example.com/dashboard");
+    expect(res.headers.get("location")).toBe("https://app.example.com/demo-site/dashboard");
   });
 
   it("allows a viewer requesting /dashboard", async () => {
@@ -111,7 +113,7 @@ describe("middleware — viewer role route gate", () => {
     mockAuth.mockResolvedValue(makeSession(["field_coordinator"]));
     const res = await middleware(makeRequest("/users"));
     expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toBe("https://app.example.com/dashboard");
+    expect(res.headers.get("location")).toBe("https://app.example.com/demo-site/dashboard");
   });
 });
 
@@ -128,14 +130,14 @@ describe("middleware — administrator role route gate", () => {
     mockAuth.mockResolvedValue(makeSession(["administrator"]));
     const res = await middleware(makeRequest("/users"));
     expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toBe("https://app.example.com/dashboard");
+    expect(res.headers.get("location")).toBe("https://app.example.com/demo-site/dashboard");
   });
 
   it("redirects an administrator requesting a nested /users sub-path to /dashboard", async () => {
     mockAuth.mockResolvedValue(makeSession(["administrator"]));
     const res = await middleware(makeRequest("/users/some-id"));
     expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toBe("https://app.example.com/dashboard");
+    expect(res.headers.get("location")).toBe("https://app.example.com/demo-site/dashboard");
   });
 
   // Settings (2026-07-06): removed from administrator alongside Users.
@@ -143,7 +145,7 @@ describe("middleware — administrator role route gate", () => {
     mockAuth.mockResolvedValue(makeSession(["administrator"]));
     const res = await middleware(makeRequest("/settings"));
     expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toBe("https://app.example.com/dashboard");
+    expect(res.headers.get("location")).toBe("https://app.example.com/demo-site/dashboard");
   });
 
   it("redirects an administrator requesting nested /settings sub-paths (report-templates, breach) to /dashboard", async () => {
@@ -151,7 +153,7 @@ describe("middleware — administrator role route gate", () => {
     for (const path of ["/settings/report-templates", "/settings/breach"]) {
       const res = await middleware(makeRequest(path));
       expect(res.status).toBe(307);
-      expect(res.headers.get("location")).toBe("https://app.example.com/dashboard");
+      expect(res.headers.get("location")).toBe("https://app.example.com/demo-site/dashboard");
     }
   });
 
@@ -176,10 +178,10 @@ describe("middleware — administrator role route gate", () => {
     mockAuth.mockResolvedValue(makeSession(["site_admin"]));
     const resUsers = await middleware(makeRequest("/users"));
     expect(resUsers.status).toBe(307);
-    expect(resUsers.headers.get("location")).toBe("https://app.example.com/dashboard");
+    expect(resUsers.headers.get("location")).toBe("https://app.example.com/demo-site/dashboard");
     const resSettings = await middleware(makeRequest("/settings"));
     expect(resSettings.status).toBe(307);
-    expect(resSettings.headers.get("location")).toBe("https://app.example.com/dashboard");
+    expect(resSettings.headers.get("location")).toBe("https://app.example.com/demo-site/dashboard");
   });
 
   // super_admin (tenant-scoped, non-platform) is the ONLY role allowed onto

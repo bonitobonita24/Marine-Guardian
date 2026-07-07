@@ -64,7 +64,8 @@ vi.mock("@/lib/trpc/client", () => ({
 }));
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/dashboard",
+  usePathname: () => "/demo-site/dashboard",
+  useParams: () => ({ tenant: "demo-site" }),
 }));
 
 vi.mock("next-intl", () => ({
@@ -267,7 +268,7 @@ describe("Sidebar — Exports submenu item", () => {
     const exportsLabel = getByText("exports");
     const link = exportsLabel.closest("a");
     expect(link).not.toBeNull();
-    expect(link?.getAttribute("href")).toBe("/exports");
+    expect(link?.getAttribute("href")).toBe("/demo-site/exports");
     // Indented sub-item styling distinguishes it from a peer nav item.
     expect(link?.className).toMatch(/ml-3/);
     expect(link?.className).toMatch(/border-l/);

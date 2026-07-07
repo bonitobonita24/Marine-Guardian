@@ -22,7 +22,7 @@ const { stubs } = vi.hoisted(() => {
     listData: TenantRow[] | undefined;
     listIsLoading: boolean;
     enterMutate: ReturnType<typeof vi.fn>;
-    enterOnSuccess: (() => void) | undefined;
+    enterOnSuccess: ((data: { tenantSlug: string }) => void) | undefined;
   } = {
     listData: undefined,
     listIsLoading: false,
@@ -63,7 +63,7 @@ vi.mock("@/lib/trpc/client", () => ({
     },
     platformImpersonation: {
       enter: {
-        useMutation: (opts?: { onSuccess?: () => void }) => {
+        useMutation: (opts?: { onSuccess?: (data: { tenantSlug: string }) => void }) => {
           stubs.enterOnSuccess = opts?.onSuccess;
           return { mutate: stubs.enterMutate, isPending: false };
         },
@@ -245,8 +245,8 @@ describe("AdminTenantsClient", () => {
     expect(stubs.enterMutate).toHaveBeenCalledWith({ tenantId: "t-1" });
 
     // Simulate onSuccess callback
-    stubs.enterOnSuccess?.();
-    expect(pushMock).toHaveBeenCalledWith("/dashboard");
+    stubs.enterOnSuccess?.({ tenantSlug: "coral-bay" });
+    expect(pushMock).toHaveBeenCalledWith("/coral-bay/dashboard");
   });
 
   it("renders ER URL column with tenant.earthrangerUrl", () => {

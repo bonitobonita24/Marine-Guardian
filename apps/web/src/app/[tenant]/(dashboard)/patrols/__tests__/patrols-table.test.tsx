@@ -12,6 +12,7 @@ let sessionRoles: string[] = [];
 
 vi.mock("next/navigation", () => ({
   useRouter: (): unknown => ({ push: vi.fn() }),
+  useParams: () => ({ tenant: "demo-site" }),
 }));
 
 vi.mock("next-auth/react", () => ({

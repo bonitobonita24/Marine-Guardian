@@ -36,6 +36,11 @@ const { stubs } = vi.hoisted(() => {
   return { stubs: s };
 });
 
+// Path-based tenancy: the /exports link reads the tenant slug via useParams.
+vi.mock("next/navigation", () => ({
+  useParams: () => ({ tenant: "demo-site" }),
+}));
+
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
     data: {
@@ -196,7 +201,7 @@ describe("GenerateReportButton (5.3d + 6.2d)", () => {
     fireEvent.click(getByTestId("generate-report-confirm"));
 
     const link = getByTestId("generate-report-go-to-exports");
-    expect(link.getAttribute("href")).toBe("/exports");
+    expect(link.getAttribute("href")).toBe("/demo-site/exports");
   });
 
   // 6.2d — Per Area Report paramsJson wiring.
