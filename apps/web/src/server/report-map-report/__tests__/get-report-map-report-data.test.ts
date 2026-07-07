@@ -37,8 +37,11 @@ import { pointsFromTrackGeojson } from "@/server/trpc/routers/map";
 import {
   buildPatrolHeatPoints,
   buildPatrolTypeTotals,
+  capHeatLayerPoints,
   clipTracksToMunicipalityGeometry,
+  decimateHeatPointsByStride,
   getReportMapReportData,
+  MAX_HEAT_POINTS_PER_LAYER,
   parseReportMapParams,
   unionGeometryBounds,
 } from "../get-report-map-report-data";
@@ -1053,6 +1056,154 @@ describe("buildPatrolHeatPoints", () => {
 
   it("returns empty buckets for an empty track list", () => {
     expect(buildPatrolHeatPoints([])).toEqual({ seaborne: [], foot: [] });
+  });
+
+  // ─── Heat-point downsampling (perf/report-heatpoint-downsample) ───────────
+  // A 1-year report's tracks feed tens of thousands of GPS vertices into each
+  // of the TWO leaflet.heat layers. buildPatrolHeatPoints now caps each layer
+  // to MAX_HEAT_POINTS_PER_LAYER via a uniform per-track stride, preserving
+  // every track's endpoints so spatial coverage is never visually truncated.
+
+  it("caps a large synthetic input (300 tracks × 500 vertices) at ~the per-layer cap", () => {
+    const tracks: ReportMapTrackRow[] = [];
+    for (let t = 0; t < 300; t += 1) {
+      const path = [];
+      for (let i = 0; i < 500; i += 1) {
+        // spread points across a plausible Mindoro lat/lon box
+        path.push({ lat: 13 + t * 0.001 + i * 0.0001, lon: 121 + t * 0.001 + i * 0.0001 });
+      }
+      tracks.push(makeTrackRow({ patrolId: `p${String(t)}`, patrolType: "seaborne", path }));
+    }
+    const { seaborne, foot } = buildPatrolHeatPoints(tracks);
+    // 150k raw points collapse to a bounded set: at most the cap plus one
+    // appended endpoint per track (300 tracks).
+    expect(seaborne.length).toBeLessThanOrEqual(MAX_HEAT_POINTS_PER_LAYER + 300);
+    // ...and dramatically fewer than the 150k raw vertices.
+    expect(seaborne.length).toBeLessThan(150_000 / 10);
+    expect(foot).toEqual([]);
+    // every tuple is a valid HeatLatLng with weight 1
+    for (const pt of seaborne) {
+      expect(pt).toHaveLength(3);
+      expect(pt[2]).toBe(1);
+    }
+  });
+
+  it("preserves each track's first and last vertex when downsampling", () => {
+    // Two dense tracks, well over the cap in aggregate. Their endpoints must
+    // survive so coverage isn't truncated.
+    const bigPath = (base: number) =>
+      Array.from({ length: 5000 }, (_, i) => ({ lat: base + i * 0.0001, lon: base + i * 0.0001 }));
+    const tracks: ReportMapTrackRow[] = [
+      makeTrackRow({ patrolId: "a", patrolType: "seaborne", path: bigPath(13) }),
+      makeTrackRow({ patrolId: "b", patrolType: "seaborne", path: bigPath(14) }),
+    ];
+    const { seaborne } = buildPatrolHeatPoints(tracks);
+    // Track A endpoints
+    expect(seaborne).toContainEqual([13, 13, 1]);
+    expect(seaborne).toContainEqual([13 + 4999 * 0.0001, 13 + 4999 * 0.0001, 1]);
+    // Track B endpoints
+    expect(seaborne).toContainEqual([14, 14, 1]);
+    expect(seaborne).toContainEqual([14 + 4999 * 0.0001, 14 + 4999 * 0.0001, 1]);
+    expect(seaborne.length).toBeLessThanOrEqual(MAX_HEAT_POINTS_PER_LAYER + 2);
+  });
+
+  it("passes a below-cap input through unchanged (order preserved)", () => {
+    const tracks = [
+      makeTrackRow({
+        patrolId: "p1",
+        patrolType: "seaborne",
+        path: [
+          { lat: 12.5, lon: 121.5 },
+          { lat: 12.6, lon: 121.6 },
+          { lat: 12.7, lon: 121.7 },
+        ],
+      }),
+    ];
+    expect(buildPatrolHeatPoints(tracks).seaborne).toEqual([
+      [12.5, 121.5, 1],
+      [12.6, 121.6, 1],
+      [12.7, 121.7, 1],
+    ]);
+  });
+});
+
+// ─── decimateHeatPointsByStride ────────────────────────────────────────────
+describe("decimateHeatPointsByStride", () => {
+  const pts = (n: number): [number, number, number][] =>
+    Array.from({ length: n }, (_, i) => [i, i, 1]);
+
+  it("returns the input unchanged for stride <= 1", () => {
+    const p = pts(10);
+    expect(decimateHeatPointsByStride(p, 1)).toBe(p);
+    expect(decimateHeatPointsByStride(p, 0)).toBe(p);
+  });
+
+  it("returns the input unchanged for <= 2 points regardless of stride", () => {
+    const p = pts(2);
+    expect(decimateHeatPointsByStride(p, 5)).toBe(p);
+  });
+
+  it("keeps every Nth point and always appends the last", () => {
+    const p = pts(10); // indices 0..9
+    const out = decimateHeatPointsByStride(p, 3);
+    // indices 0,3,6,9 — 9 is both the strided endpoint and the last
+    expect(out).toEqual([
+      [0, 0, 1],
+      [3, 3, 1],
+      [6, 6, 1],
+      [9, 9, 1],
+    ]);
+  });
+
+  it("appends the last vertex when the stride would otherwise skip it", () => {
+    const p = pts(10); // indices 0..9
+    const out = decimateHeatPointsByStride(p, 4);
+    // strided: 0,4,8 ; last (9) not on the stride grid → appended
+    expect(out).toEqual([
+      [0, 0, 1],
+      [4, 4, 1],
+      [8, 8, 1],
+      [9, 9, 1],
+    ]);
+    expect(out[0]).toEqual([0, 0, 1]);
+    expect(out[out.length - 1]).toEqual([9, 9, 1]);
+  });
+});
+
+// ─── capHeatLayerPoints ────────────────────────────────────────────────────
+describe("capHeatLayerPoints", () => {
+  it("flattens a below-cap bucket unchanged", () => {
+    const perTrack: [number, number, number][][] = [
+      [
+        [1, 1, 1],
+        [2, 2, 1],
+      ],
+      [[3, 3, 1]],
+    ];
+    expect(capHeatLayerPoints(perTrack, 100)).toEqual([
+      [1, 1, 1],
+      [2, 2, 1],
+      [3, 3, 1],
+    ]);
+  });
+
+  it("caps an over-budget bucket while preserving per-track endpoints", () => {
+    const track = (base: number): [number, number, number][] =>
+      Array.from({ length: 1000 }, (_, i) => [base + i, base + i, 1]);
+    const perTrack = [track(0), track(10_000)];
+    const out = capHeatLayerPoints(perTrack, 200);
+    expect(out.length).toBeLessThanOrEqual(200 + perTrack.length);
+    expect(out.length).toBeLessThan(2000);
+    // endpoints of both tracks survive
+    expect(out).toContainEqual([0, 0, 1]);
+    expect(out).toContainEqual([999, 999, 1]);
+    expect(out).toContainEqual([10_000, 10_000, 1]);
+    expect(out).toContainEqual([10_999, 10_999, 1]);
+  });
+
+  it("handles empty input", () => {
+    expect(capHeatLayerPoints([], 100)).toEqual([]);
+    expect(capHeatLayerPoints([[]], 100)).toEqual([]);
   });
 });
 

@@ -135,6 +135,74 @@ export interface ReportMapTrackRow {
 }
 
 /**
+ * Soft cap on the number of heat points fed to ONE leaflet.heat layer on the
+ * Patrol-Tracks-Heatmap page. That page renders TWO layers (seaborne + foot),
+ * so the on-canvas worst case is ~2× this value.
+ *
+ * WHY A CAP / VISUAL-EQUIVALENCE RATIONALE: a leaflet.heat layer paints a
+ * radial-gradient blob per input point and normalizes intensity across the
+ * whole set. Once a track corridor is covered by a few thousand overlapping
+ * blobs the gradient is fully saturated — every additional GPS vertex costs
+ * canvas paint time (and RSC transfer bytes) without changing a single pixel.
+ * A 1-year, up-to-300-track report otherwise pushes TENS OF THOUSANDS of
+ * vertices per layer (the track query is `take: 300`, and a long-range track
+ * carries hundreds–thousands of vertices). Down-sampling to a bounded set via
+ * a uniform per-track stride (endpoints preserved — see
+ * `capHeatLayerPoints`) yields a visually-equivalent heatmap at a fraction of
+ * the point count. 6000 is a defensible, generous target: comfortably dense
+ * for smooth coverage, ~an order of magnitude below the unbounded worst case.
+ *
+ * This is the SINGLE tuning knob for heat-layer density. It intentionally
+ * does NOT touch the patrol-track POLYLINES or the municipality clip — those
+ * keep full fidelity because each track's post-clip `path.length` is a
+ * rendered value (the "Track Points" accessibility column in
+ * report-map-report.tsx). Only the heat-layer feed is decimated.
+ */
+export const MAX_HEAT_POINTS_PER_LAYER = 6000;
+
+/**
+ * Decimate a single track's heat-point list to at most one point per `stride`
+ * vertices, ALWAYS preserving the first and last vertex so the track's
+ * spatial extent is never visually truncated. `stride <= 1` (or a track of
+ * ≤ 2 points) returns the input array unchanged (referentially, so callers
+ * can rely on pass-through). Pure + exported for unit testing.
+ */
+export function decimateHeatPointsByStride(
+  points: HeatLatLng[],
+  stride: number,
+): HeatLatLng[] {
+  if (stride <= 1 || points.length <= 2) return points;
+  const out: HeatLatLng[] = [];
+  for (let i = 0; i < points.length; i += stride) {
+    const pt = points[i];
+    if (pt !== undefined) out.push(pt);
+  }
+  const last = points[points.length - 1];
+  if (last !== undefined && out[out.length - 1] !== last) out.push(last);
+  return out;
+}
+
+/**
+ * Cap a bucket of per-track heat-point lists to ~`maxPoints` total, applying
+ * a UNIFORM per-track stride (every track thinned proportionally, endpoints
+ * preserved) and returning the flattened point set. A bucket already at or
+ * below `maxPoints` passes through unchanged (just flattened), so small
+ * reports are byte-for-byte identical to the pre-downsampling behavior. The
+ * result can exceed `maxPoints` by at most one appended endpoint per track.
+ * Pure + exported for unit testing.
+ */
+export function capHeatLayerPoints(
+  perTrack: HeatLatLng[][],
+  maxPoints: number,
+): HeatLatLng[] {
+  let total = 0;
+  for (const p of perTrack) total += p.length;
+  if (total <= maxPoints) return perTrack.flat();
+  const stride = Math.ceil(total / maxPoints);
+  return perTrack.flatMap((p) => decimateHeatPointsByStride(p, stride));
+}
+
+/**
  * Splits patrol track path points into seaborne vs foot HeatLatLng tuples
  * (weight 1, no re-densification — `path` already comes from the same
  * tested `pointsFromTrackGeojson` pipeline the patrol-tracks polyline map
@@ -143,18 +211,26 @@ export interface ReportMapTrackRow {
  * heatmap only covers the two known patrol types (mirrors
  * buildPatrolTypeTotals' same convention). Exported as a pure helper for
  * unit testing.
+ *
+ * PERF (perf/report-heatpoint-downsample): each layer's point set is capped
+ * at MAX_HEAT_POINTS_PER_LAYER via `capHeatLayerPoints` — a 1-year report
+ * would otherwise feed tens of thousands of GPS vertices into each of the two
+ * leaflet.heat layers. Below-cap reports pass through unchanged.
  */
 export function buildPatrolHeatPoints(
   tracks: ReportMapTrackRow[],
 ): { seaborne: HeatLatLng[]; foot: HeatLatLng[] } {
-  const seaborne: HeatLatLng[] = [];
-  const foot: HeatLatLng[] = [];
+  const seabornePerTrack: HeatLatLng[][] = [];
+  const footPerTrack: HeatLatLng[][] = [];
   for (const t of tracks) {
     if (t.patrolType !== "seaborne" && t.patrolType !== "foot") continue;
-    const bucket = t.patrolType === "seaborne" ? seaborne : foot;
-    for (const pt of t.path) bucket.push([pt.lat, pt.lon, 1]);
+    const bucket = t.patrolType === "seaborne" ? seabornePerTrack : footPerTrack;
+    bucket.push(t.path.map((pt): HeatLatLng => [pt.lat, pt.lon, 1]));
   }
-  return { seaborne, foot };
+  return {
+    seaborne: capHeatLayerPoints(seabornePerTrack, MAX_HEAT_POINTS_PER_LAYER),
+    foot: capHeatLayerPoints(footPerTrack, MAX_HEAT_POINTS_PER_LAYER),
+  };
 }
 
 /**
