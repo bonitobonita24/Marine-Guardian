@@ -162,15 +162,17 @@ export async function processPdfRender(
 ): Promise<RenderResult> {
   validateTenantContext(job.data);
 
-  const baseUrl = process.env.WEB_APP_INTERNAL_URL;
-  if (baseUrl === undefined || baseUrl === "") {
-    throw new Error(
-      "WEB_APP_INTERNAL_URL is not configured — pdf-render processor cannot construct printUrl",
-    );
-  }
-
   const { exportId, tenantId } = job.data;
 
+  // Load the ReportExport row FIRST — before the WEB_APP_INTERNAL_URL guard
+  // and before any render/upload work — so that ANY failure past this point
+  // (a missing WEB_APP_INTERNAL_URL, an unresolvable tenant, or a
+  // render/storage error) is caught below and flips this row to `failed`
+  // instead of leaving it stuck at `queued` forever. Previously the
+  // WEB_APP_INTERNAL_URL guard threw here BEFORE the row was ever touched
+  // (and outside the try/catch), so a worker container missing that env var
+  // left /exports spinning on a permanently `queued` row (owner report
+  // 2026-07-06 — prod worker lacked WEB_APP_INTERNAL_URL).
   const row = await prisma.reportExport.findFirstOrThrow({
     where: { id: exportId, tenantId },
     select: {
@@ -182,24 +184,31 @@ export async function processPdfRender(
     },
   });
 
-  const tenant = await prisma.tenant.findUniqueOrThrow({
-    where: { id: row.tenantId },
-    select: { id: true, slug: true, telegramChannelId: true },
-  });
-
-  await prisma.reportExport.update({
-    where: { id: row.id },
-    // Clear any prior completion time / error when (re-)entering rendering — a
-    // row that is actively rendering is NOT done, so it must never carry a
-    // stale completedAt (which surfaced a "Completed" timestamp on a still-
-    // rendering row; owner report 2026-07-05) or a leftover errorMessage.
-    data: { status: "rendering", completedAt: null, errorMessage: null },
-  });
-
-  const printUrl = `${baseUrl}/print-render/${tenant.slug}/${row.reportType}/${row.id}`;
-  const landscape = LANDSCAPE_REPORT_TYPES.has(row.reportType);
-
   try {
+    const baseUrl = process.env.WEB_APP_INTERNAL_URL;
+    if (baseUrl === undefined || baseUrl === "") {
+      throw new Error(
+        "WEB_APP_INTERNAL_URL is not configured — pdf-render processor cannot construct printUrl",
+      );
+    }
+
+    const tenant = await prisma.tenant.findUniqueOrThrow({
+      where: { id: row.tenantId },
+      select: { id: true, slug: true, telegramChannelId: true },
+    });
+
+    await prisma.reportExport.update({
+      where: { id: row.id },
+      // Clear any prior completion time / error when (re-)entering rendering — a
+      // row that is actively rendering is NOT done, so it must never carry a
+      // stale completedAt (which surfaced a "Completed" timestamp on a still-
+      // rendering row; owner report 2026-07-05) or a leftover errorMessage.
+      data: { status: "rendering", completedAt: null, errorMessage: null },
+    });
+
+    const printUrl = `${baseUrl}/print-render/${tenant.slug}/${row.reportType}/${row.id}`;
+    const landscape = LANDSCAPE_REPORT_TYPES.has(row.reportType);
+
     const pdfBuffer = await renderPdfViaService({
       printUrl,
       paperSize: row.paperSize,
@@ -266,8 +275,13 @@ export async function processPdfRender(
     const errorMessage = err instanceof Error ? err.message : String(err);
 
     if (isLastAttempt(job)) {
-      await prisma.reportExport.update({
-        where: { id: row.id },
+      // Only move a still-pending row (queued/rendering) → failed; never
+      // clobber a terminal `ready` (defense-in-depth against a concurrent
+      // success/retry racing this catch). The status filter in updateMany
+      // makes the guard atomic — a row that already reached `ready`/`failed`
+      // is left untouched.
+      await prisma.reportExport.updateMany({
+        where: { id: row.id, status: { in: ["queued", "rendering"] } },
         data: {
           status: "failed",
           errorMessage,
