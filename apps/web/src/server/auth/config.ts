@@ -11,6 +11,10 @@ const loginSchema = z.object({
   // Sent as the string "true"/"false" by the login form (URLSearchParams body);
   // absent entirely defaults to "not remembered".
   rememberMe: z.enum(["true", "false"]).optional(),
+  // Path-based multi-tenancy: the per-tenant login (/[tenant]/login) submits the
+  // URL slug so authorize() can bind the login to that tenant. The platform /login
+  // (super_admin) submits NO tenantSlug. Empty string is treated as "not submitted".
+  tenantSlug: z.string().optional(),
 });
 
 // "Remember me" session durations — see docs/AI: Auth.js v5 has no native
@@ -29,6 +33,10 @@ export const authConfig: NextAuthConfig = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
         rememberMe: { label: "Remember me", type: "text" },
+        // Path-based tenancy: submitted by the per-tenant login (/[tenant]/login);
+        // absent on the platform /login. Declared so @auth/core forwards it to
+        // authorize() (undeclared credential fields are stripped by the wrapper).
+        tenantSlug: { label: "Tenant", type: "text" },
       },
       async authorize(credentials) {
         try {
@@ -51,11 +59,37 @@ export const authConfig: NextAuthConfig = {
           console.log("[authorize] bcrypt compare:", valid);
           if (!valid) return null;
 
+          // Path-based tenancy binding (SECURITY, defense-in-depth layer 0):
+          // the per-tenant login submits the URL slug. Bind the credential to
+          // it so a valid password for tenant A cannot mint a session at
+          // /tenant-b/login. Empty string == "not submitted" (platform /login).
+          const userSlug = user.tenant?.slug ?? "";
+          const submittedSlug =
+            parsed.data.tenantSlug !== undefined && parsed.data.tenantSlug !== ""
+              ? parsed.data.tenantSlug
+              : null;
+          if (submittedSlug !== null) {
+            // Tenant login: super_admins (tenantId === null) may NOT sign in
+            // here, and the user's own tenant slug must match the URL slug.
+            if (user.tenantId === null || userSlug !== submittedSlug) {
+              console.log("[authorize] tenant-login slug mismatch/forbidden");
+              return null;
+            }
+          } else {
+            // Platform login (/login, no tenantSlug): only super_admins /
+            // platform users with a null tenant may sign in here.
+            if (user.tenantId !== null) {
+              console.log("[authorize] platform-login rejected for tenant user");
+              return null;
+            }
+          }
+
           const result = {
             id: user.id,
             email: user.email,
             name: user.fullName,
             tenantId: user.tenantId,
+            tenantSlug: userSlug,
             roles: [user.role],
             securityVersion: user.securityVersion,
             rememberMe: parsed.data.rememberMe === "true",
@@ -79,6 +113,7 @@ export const authConfig: NextAuthConfig = {
         if (user !== undefined) {
           token.userId = user.id;
           token.tenantId = user.tenantId ?? undefined;
+          token.tenantSlug = user.tenantSlug ?? "";
           token.roles = user.roles;
           token.securityVersion = user.securityVersion;
           token.rememberMe = user.rememberMe ?? false;
@@ -115,6 +150,7 @@ export const authConfig: NextAuthConfig = {
             ...session.user,
             id: token.userId ?? "",
             tenantId: token.tenantId ?? "",
+            tenantSlug: token.tenantSlug ?? "",
             roles: token.roles ?? [],
           },
         };

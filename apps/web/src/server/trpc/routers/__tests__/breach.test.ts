@@ -48,6 +48,7 @@ function makeCtx(tenantId: string | null = TENANT_ID, roles: string[] = ["super_
       user: {
         id: USER_ID,
         tenantId: tenantId as string,
+        tenantSlug: "",
         roles,
         email: "admin@example.com",
         name: "Admin",

@@ -58,7 +58,7 @@ function makeCtx(
 ) {
   return {
     session: {
-      user: { id: USER_ID, tenantId: tenantId as string, roles, email: "admin@example.com", name: "Admin User" },
+      user: { id: USER_ID, tenantId: tenantId as string, tenantSlug: "", roles, email: "admin@example.com", name: "Admin User" },
       expires: "9999-01-01",
     },
     ip: "127.0.0.1",
