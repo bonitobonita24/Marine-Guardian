@@ -10,7 +10,7 @@ import {
   useReportFilter,
 } from "@/components/reporting/report-filter-context";
 import { ReportFilterBar } from "@/components/reporting/report-filter-bar";
-import { BreakdownBars } from "@/app/(dashboard)/dashboard/_components/breakdown-bars";
+import { BreakdownBars } from "@/app/[tenant]/(dashboard)/dashboard/_components/breakdown-bars";
 import { HighPriorityEventsCard } from "./high-priority-events-card";
 import {
   PatrolListByRangeCard,
@@ -22,7 +22,7 @@ import {
   type EventTypeEventsPanelEvent,
 } from "./event-type-events-panel";
 import { EventsOverTimeChart } from "@/components/reporting/events-over-time-chart";
-import { MunicipalityCoverageChart } from "@/app/(dashboard)/dashboard/_components/municipality-coverage-chart";
+import { MunicipalityCoverageChart } from "@/app/[tenant]/(dashboard)/dashboard/_components/municipality-coverage-chart";
 import {
   ReportMapEmptyState,
   shouldShowReportMapEmptyState,
