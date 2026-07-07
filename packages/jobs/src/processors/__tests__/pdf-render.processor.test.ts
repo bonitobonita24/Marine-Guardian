@@ -33,6 +33,7 @@ vi.mock("../../workers/base-worker", () => ({
 
 const mockReportExportFindFirstOrThrow = vi.fn();
 const mockReportExportUpdate = vi.fn();
+const mockReportExportUpdateMany = vi.fn();
 const mockTenantFindUniqueOrThrow = vi.fn();
 
 vi.mock("@marine-guardian/db", () => ({
@@ -41,6 +42,8 @@ vi.mock("@marine-guardian/db", () => ({
       findFirstOrThrow: (...args: unknown[]): unknown =>
         mockReportExportFindFirstOrThrow(...args),
       update: (...args: unknown[]): unknown => mockReportExportUpdate(...args),
+      updateMany: (...args: unknown[]): unknown =>
+        mockReportExportUpdateMany(...args),
     },
     tenant: {
       findUniqueOrThrow: (...args: unknown[]): unknown =>
@@ -121,6 +124,7 @@ describe("processPdfRender", () => {
       telegramChannelId: "-1003816125998",
     });
     mockReportExportUpdate.mockResolvedValue({});
+    mockReportExportUpdateMany.mockResolvedValue({ count: 1 });
     mockRenderPdfViaService.mockResolvedValue(fakePdfBuffer);
     mockUploadDocumentToTelegram.mockResolvedValue({
       messageId: 42,
@@ -339,12 +343,16 @@ describe("processPdfRender", () => {
       processPdfRender(makeJob({}, { attemptsMade: 2, attempts: 3 })),
     ).rejects.toThrow("status 500");
 
-    expect(mockReportExportUpdate).toHaveBeenCalledTimes(2);
-    const failedUpdate = mockReportExportUpdate.mock.calls[1]?.[0] as {
-      where: { id: string };
+    // queued→rendering via update; rendering→failed via the guarded
+    // updateMany (only touches a still-pending row).
+    expect(mockReportExportUpdate).toHaveBeenCalledTimes(1);
+    expect(mockReportExportUpdateMany).toHaveBeenCalledTimes(1);
+    const failedUpdate = mockReportExportUpdateMany.mock.calls[0]?.[0] as {
+      where: { id: string; status: { in: string[] } };
       data: { status: string; errorMessage: string; completedAt: Date };
     };
     expect(failedUpdate.where.id).toBe("export-1");
+    expect(failedUpdate.where.status.in).toEqual(["queued", "rendering"]);
     expect(failedUpdate.data.status).toBe("failed");
     expect(failedUpdate.data.errorMessage).toContain("status 500");
     expect(failedUpdate.data.completedAt).toBeInstanceOf(Date);
@@ -356,6 +364,36 @@ describe("processPdfRender", () => {
       "WEB_APP_INTERNAL_URL",
     );
     expect(mockRenderPdfViaService).not.toHaveBeenCalled();
+  });
+
+  it("marks the row FAILED (never leaves it stuck at queued) when WEB_APP_INTERNAL_URL is missing on the last attempt", async () => {
+    // Regression for the prod incident (owner report 2026-07-06): the worker
+    // container lacked WEB_APP_INTERNAL_URL, the guard threw BEFORE the row was
+    // ever touched (and outside the try/catch), so the report_exports row was
+    // left `queued` forever and /exports spun indefinitely. The row must now be
+    // flipped to `failed` with the error persisted so the UI shows a failure.
+    delete process.env.WEB_APP_INTERNAL_URL;
+
+    await expect(
+      processPdfRender(makeJob({}, { attemptsMade: 2, attempts: 3 })),
+    ).rejects.toThrow("WEB_APP_INTERNAL_URL");
+
+    // Renderer never runs; row loaded first so the failure can be persisted.
+    expect(mockRenderPdfViaService).not.toHaveBeenCalled();
+    expect(mockReportExportFindFirstOrThrow).toHaveBeenCalledTimes(1);
+
+    // The failure is written via the guarded updateMany (queued/rendering only)
+    // — the row ends up `failed`, NOT left `queued`.
+    expect(mockReportExportUpdateMany).toHaveBeenCalledTimes(1);
+    const failedUpdate = mockReportExportUpdateMany.mock.calls[0]?.[0] as {
+      where: { id: string; status: { in: string[] } };
+      data: { status: string; errorMessage: string; completedAt: Date };
+    };
+    expect(failedUpdate.where.id).toBe("export-1");
+    expect(failedUpdate.where.status.in).toEqual(["queued", "rendering"]);
+    expect(failedUpdate.data.status).toBe("failed");
+    expect(failedUpdate.data.errorMessage).toContain("WEB_APP_INTERNAL_URL");
+    expect(failedUpdate.data.completedAt).toBeInstanceOf(Date);
   });
 
   it("propagates exceptions from validateTenantContext (rejects empty tenantId)", async () => {
@@ -405,8 +443,9 @@ describe("processPdfRender", () => {
         processPdfRender(makeJob({}, { attemptsMade: 2, attempts: 3 })),
       ).rejects.toThrow("Telegram not configured for tenant");
 
-      expect(mockReportExportUpdate).toHaveBeenCalledTimes(2);
-      const failedUpdate = mockReportExportUpdate.mock.calls[1]?.[0] as {
+      expect(mockReportExportUpdate).toHaveBeenCalledTimes(1);
+      expect(mockReportExportUpdateMany).toHaveBeenCalledTimes(1);
+      const failedUpdate = mockReportExportUpdateMany.mock.calls[0]?.[0] as {
         data: { status: string; errorMessage: string };
       };
       expect(failedUpdate.data.status).toBe("failed");
@@ -429,7 +468,7 @@ describe("processPdfRender", () => {
       ).rejects.toThrow("exceeds Telegram's 20 MB getFile limit");
 
       expect(mockUploadDocumentToTelegram).not.toHaveBeenCalled();
-      const failedUpdate = mockReportExportUpdate.mock.calls[1]?.[0] as {
+      const failedUpdate = mockReportExportUpdateMany.mock.calls[0]?.[0] as {
         data: { status: string; errorMessage: string };
       };
       expect(failedUpdate.data.status).toBe("failed");
