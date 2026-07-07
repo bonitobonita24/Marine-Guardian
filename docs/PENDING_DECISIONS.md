@@ -18,10 +18,17 @@ reconciliation script shipped** (LOCAL, HARD HOLD). Un-gated — no owner decisi
   nav now hides those items from everyone except those two roles. Owner earlier said "only SuperAdmin"
   — deferred because REMOVING `site_admin`'s access would lock the natural settings-owner role out of
   Settings/User-management. Confirm: tighten to **super_admin-ONLY** (drop site_admin), or keep both?
-- [ ] **ER tracks-401 durability (external, both staging + prod).** `DAS_WEB_TOKEN` 401s on
-  `/subject/{id}/tracks` → recurring sync harvests events/patrols/subjects but NOT new GPS tracks.
-  Needs an ER-side grant (das_web account track/observation permission) OR a dedicated long-lived
-  track token wired into the sync. Requires ER admin action — cannot self-resolve.
+- **ER tracks — RESOLVED 2026-07-07.** The current long-lived `DAS_WEB_TOKEN` is JerlanL (superuser)
+  and DOES read `/subject/{id}/tracks` (200 — verified, fetched patrol 5251's 42 GPS points). Wired
+  into dev+staging+prod `tenant_er_connections` (recurring on) → continuous harvest incl GPS tracks now
+  works on all envs. (The earlier "tracks 401" was an older/different stored token.)
+- [ ] **Per-env DEDICATED long-lived DAS token (owner directive 2026-07-07).** Owner wants staging +
+  prod to each have their OWN long-lived token (not the shared JerlanL superuser one). Password-grant
+  tokens expire in 48h, so a truly long-lived token must be created in EarthRanger admin (Django/DAS) —
+  can't self-mint. Owner chose "use current shared token everywhere for now" (interim). TO DO when
+  BA/ER-admin provisions per-env least-privilege service tokens: wire each into its env (encrypt w/ env
+  key via set-er-connection.ts) + store in Server-Setups (SOPS+age). Also consider adding token-refresh
+  logic to the sync worker so short-lived tokens could auto-renew.
 - Hardening note (non-blocking, [HOW]): nav now hides /users + /settings from field_coordinator/
   operator, but `middleware.ts` only route-blocks viewer + administrator, so those two roles could
   still TYPE the URL (tRPC already denies all data/mutations, so no leak). Optional: extend the
