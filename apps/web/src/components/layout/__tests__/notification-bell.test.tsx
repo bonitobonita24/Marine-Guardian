@@ -13,6 +13,11 @@ vi.mock("@/lib/realtime/notification-store", () => ({
   ): T => selector({ unreadCount: stubs.unreadCount, notifications: [] }),
 }));
 
+// Path-based tenancy: NotificationBell reads the tenant slug via useParams.
+vi.mock("next/navigation", () => ({
+  useParams: () => ({ tenant: "demo-site" }),
+}));
+
 // Import AFTER mocks are registered.
 import { NotificationBell } from "../notification-bell";
 
@@ -55,6 +60,6 @@ describe("NotificationBell", () => {
     stubs.unreadCount = 0;
     const { getByRole } = render(<NotificationBell />);
     const link = getByRole("link");
-    expect(link.getAttribute("href")).toBe("/notifications");
+    expect(link.getAttribute("href")).toBe("/demo-site/notifications");
   });
 });

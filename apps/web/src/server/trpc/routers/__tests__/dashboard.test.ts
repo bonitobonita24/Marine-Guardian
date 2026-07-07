@@ -48,6 +48,7 @@ function makeCtx() {
       user: {
         id: "user-1",
         tenantId: TENANT_ID,
+        tenantSlug: "",
         roles: ["ranger" as const],
         email: "ranger@mg.test",
         name: "Ranger",

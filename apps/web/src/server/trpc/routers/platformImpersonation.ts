@@ -6,6 +6,7 @@ import { protectedProcedure } from "../trpc";
 import { platformPrisma, writeAuditLog } from "@marine-guardian/db";
 import {
   IMPERSONATION_COOKIE_NAME,
+  IMPERSONATION_SLUG_COOKIE_NAME,
 } from "@/lib/auth/impersonation";
 
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24; // 24h
@@ -47,6 +48,10 @@ export const platformImpersonationRouter = router({
 
       const jar = await cookies();
       jar.set(IMPERSONATION_COOKIE_NAME, tenant.id, buildCookieOptions());
+      // Path-based tenancy: sibling slug cookie so the edge middleware + the
+      // /[tenant]/layout.tsx gate can confine the impersonating super_admin to
+      // this tenant's URL. Row scoping still keys off the id cookie above.
+      jar.set(IMPERSONATION_SLUG_COOKIE_NAME, tenant.slug, buildCookieOptions());
 
       await writeAuditLog(platformPrisma, {
         tenantId: null,
@@ -86,6 +91,7 @@ export const platformImpersonationRouter = router({
     });
 
     jar.delete(IMPERSONATION_COOKIE_NAME);
+    jar.delete(IMPERSONATION_SLUG_COOKIE_NAME);
 
     await writeAuditLog(platformPrisma, {
       tenantId: null,

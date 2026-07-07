@@ -22,6 +22,7 @@ export const edgeAuthConfig: NextAuthConfig = {
           ...session.user,
           id: token.userId ?? "",
           tenantId: token.tenantId ?? "",
+          tenantSlug: token.tenantSlug ?? "",
           roles: token.roles ?? [],
         },
       };

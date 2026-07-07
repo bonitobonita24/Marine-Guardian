@@ -64,8 +64,10 @@ export function AdminTenantsClient({ email, roles }: Props) {
   const [deactivateTenant, setDeactivateTenant] = useState<TenantRow | null>(null);
 
   const enter = trpc.platformImpersonation.enter.useMutation({
-    onSuccess: () => {
-      router.push("/dashboard");
+    onSuccess: (data) => {
+      // Path-based tenancy: land on the impersonated tenant's dashboard. The
+      // mutation returns the tenant slug (and the enter cookie set slug too).
+      router.push(`/${data.tenantSlug}/dashboard`);
     },
   });
 

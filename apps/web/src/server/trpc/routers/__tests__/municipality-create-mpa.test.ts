@@ -57,6 +57,7 @@ function makeCtx(roles: string[] = ["site_admin"]) {
       user: {
         id: "user-123",
         tenantId: TENANT_ID,
+        tenantSlug: "",
         roles: roles as any,
         email: "admin@example.com",
         name: "Admin",

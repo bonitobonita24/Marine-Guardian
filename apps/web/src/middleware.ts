@@ -3,6 +3,7 @@ import { edgeAuthConfig } from "@/server/auth/auth.config";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { verifyServiceToken } from "@/server/lib/service-token-guard";
+import { IMPERSONATION_SLUG_COOKIE_NAME } from "@/lib/auth/impersonation";
 
 // Edge-compatible auth instance — no bcrypt, no prisma, no node:crypto
 const { auth } = NextAuth(edgeAuthConfig);
@@ -14,29 +15,71 @@ const { auth } = NextAuth(edgeAuthConfig);
 // config in src/lib/i18n/request.ts (hardcoded "en"). Reintroduce the i18n
 // middleware only when routes are restructured under app/[locale]/.
 
-const publicPaths = ["/login", "/api/auth", "/api/health", "/api/trpc"];
+// Path-based multi-tenancy (feat/tenant-path-routing) — every tenant page lives
+// at /[slug]/…; the platform super_admin console stays at top-level /admin, and
+// the platform login stays at top-level /login. SECURITY (defense-in-depth L1,
+// edge): this gate can only see the JWT + cookies + path (no Prisma), so the
+// slug check compares the requested URL slug against the tenantSlug CLAIM carried
+// in the JWT (session.user.tenantSlug, added in server/auth). Row-level data
+// scoping in tRPC still derives ONLY from the JWT/impersonation-id-cookie, never
+// the URL — this gate just stops a user from reaching another tenant's pages.
 
-// Phase 8 Batch 5 Sub-batch 5.3a — Puppeteer-only render target.
-// /print-render/* bypasses the user session auth gate; access is gated by
-// the X-PDF-Renderer-Token header (constant-time compared against env).
-// Used only by the marine-guardian-pdf-renderer Docker service over the
-// internal Docker network. Direct browser access without the header → 401.
-// Path deviates from v2 PRODUCT.md L724 (/_print/*) because Next.js App
-// Router treats underscore-prefixed folders as private (excluded from
-// routing). See DECISIONS_LOG.md "PDF Renderer Internal Route Path".
+// Segments that are NOT tenant slugs.
+const RESERVED_SEGMENTS = new Set(["", "admin", "api", "login", "privacy", "print-render"]);
+
+// Top-level path segments the tenant-slug resolver must never treat as a [tenant]
+// slug. Superset of RESERVED_SEGMENTS plus Next internals; used by the early
+// static-asset / reserved-path passthrough guard.
+const RESERVED_FIRST_SEGMENTS = new Set([
+  "admin",
+  "api",
+  "login",
+  "privacy",
+  "print-render",
+  "_next",
+]);
+
+function firstSegment(pathname: string): string {
+  return pathname.split("/").filter(Boolean)[0] ?? "";
+}
+
+// A first segment that looks like a filename (contains a ".") is a root static
+// asset — favicon.ico, icon.svg, apple-icon*.png, robots.txt, sitemap.xml,
+// manifest.webmanifest, etc. Tenant slugs never contain a dot.
+function isStaticAssetSegment(seg: string): boolean {
+  return seg.includes(".");
+}
+
+// True when the first path segment must NOT be resolved as a tenant slug: it is a
+// reserved top-level path, a Next internal, or a root static file.
+function isReservedOrAsset(seg: string): boolean {
+  return RESERVED_FIRST_SEGMENTS.has(seg) || isStaticAssetSegment(seg);
+}
+
+// The path with its leading tenant slug removed, for reuse of the existing
+// prefix allow-lists (e.g. "/demo-site/settings/breach" -> "/settings/breach").
+function stripSlug(pathname: string): string {
+  const rest = pathname.split("/").filter(Boolean).slice(1).join("/");
+  return `/${rest}`;
+}
+
+// Puppeteer-only render target (Phase 8 Batch 5.3a). /print-render/* bypasses
+// the user session auth gate; access is gated by the X-PDF-Renderer-Token header
+// (constant-time compared against env). Preserved EXACTLY.
 const PRINT_RENDER_PREFIX = "/print-render/";
 // Asset proxy prefix — renderer-token access for print-render <img> thumbnails.
 const RENDERER_ASSET_PREFIX = "/api/assets/";
 
-// viewer role (2026-07-05, extended 2026-07-06) — strictly read-only,
-// scoped to Command Center (/dashboard) + Interactive Report Map (/map) +
-// Exports (/exports — a viewer can generate a printable report from /map
-// via reportGenerateProcedure and must be able to reach /exports to
-// retrieve it) + Profile (/profile — self-service password/email, open to
-// every role). sidebar.tsx already hides every other nav item for a
-// viewer; this is the route-level enforcement so a viewer can never reach
-// a hidden page via a typed URL, bookmark, or deep link — the nav hide
-// alone is cosmetic without this.
+// Public paths (no session required). "/login" = platform/super_admin login;
+// "/privacy" = the standalone privacy notice; api auth/health/trpc handshakes.
+const publicPaths = ["/login", "/privacy", "/api/auth", "/api/health", "/api/trpc"];
+// Per-tenant login: /[slug]/login (and trailing slash). Public — a tenant user
+// must reach their own login while unauthenticated.
+const TENANT_LOGIN_RE = /^\/[^/]+\/login\/?$/;
+
+// viewer role — strictly read-only, scoped to Command Center (/dashboard) +
+// Interactive Report Map (/map) + Exports (/exports) + Profile (/profile).
+// Checked against the slug-stripped path (see stripSlug).
 const VIEWER_ALLOWED_PREFIXES = ["/dashboard", "/map", "/exports", "/profile"];
 
 function isViewerAllowedPath(pathname: string): boolean {
@@ -45,16 +88,8 @@ function isViewerAllowedPath(pathname: string): boolean {
   );
 }
 
-// super_admin-only prefixes (2026-07-07) — user management (/users —
-// add/edit/deactivate accounts, role changes) AND tenant Settings (/settings —
-// ER connection, report templates, breach register) are now super_admin ONLY.
-// site_admin was removed here per owner 2026-07-07 (previously super_admin +
-// site_admin). Deny-by-default: EVERY role except super_admin (site_admin,
-// administrator, field_coordinator, operator; viewer is already blocked by its
-// allow-list above) is redirected away from these prefixes. sidebar.tsx hides
-// the /users + /settings nav items for every non-super_admin role (but keeps
-// /profile visible); this is the route-level enforcement so a non-super_admin
-// can never reach a blocked page via a typed URL, bookmark, or deep link.
+// super_admin-only prefixes — /users (user management) + /settings (tenant
+// configuration). Checked against the slug-stripped path.
 const SUPER_ADMIN_ONLY_PREFIXES = ["/users", "/settings"];
 
 function isSuperAdminOnlyPath(pathname: string): boolean {
@@ -66,6 +101,19 @@ function isSuperAdminOnlyPath(pathname: string): boolean {
 export default async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // --- Static assets & Next internals never resolve as a [tenant] slug -----
+  // A root static file (favicon.ico, icon.svg, apple-icon*.png, robots.txt,
+  // sitemap.xml, manifest.webmanifest, …) or a Next internal (_next/*) flows
+  // straight through. Without this guard the tenant-slug resolver rewrites e.g.
+  // /icon.svg -> /icon.svg/login (unauth) or /icon.svg -> /<tenant>/dashboard
+  // (authed), emitting bogus 307s + console errors. `config.matcher` also
+  // excludes these, but this guard is the authoritative, unit-tested defense.
+  const firstSeg = firstSegment(pathname);
+  if (firstSeg === "_next" || isStaticAssetSegment(firstSeg)) {
+    return NextResponse.next();
+  }
+
+  // --- Passthroughs (unchanged) -------------------------------------------
   if (pathname.startsWith(PRINT_RENDER_PREFIX)) {
     const expected = process.env.PDF_RENDERER_SERVICE_TOKEN;
     const presented = request.headers.get("x-pdf-renderer-token");
@@ -75,13 +123,6 @@ export default async function middleware(request: NextRequest) {
     return new NextResponse(null, { status: 401 });
   }
 
-  // Event-report thumbnails (2026-07-03): the print-render event tables embed
-  // <img src="/api/assets/{id}">. Puppeteer's page.setExtraHTTPHeaders sends
-  // the same X-PDF-Renderer-Token on every subresource fetch, so a presented
-  // token routes the asset proxy through the renderer trust boundary (the
-  // token already grants the full report HTML, a superset of these photos).
-  // No token → the normal session gate below, exactly as before. An INVALID
-  // presented token is rejected outright — it never falls back to session.
   if (pathname.startsWith(RENDERER_ASSET_PREFIX)) {
     const presented = request.headers.get("x-pdf-renderer-token");
     if (presented !== null) {
@@ -92,89 +133,104 @@ export default async function middleware(request: NextRequest) {
     }
   }
 
-  if (publicPaths.some((p) => pathname.startsWith(p))) {
+  // --- Public paths --------------------------------------------------------
+  if (
+    publicPaths.some((p) => pathname.startsWith(p)) ||
+    TENANT_LOGIN_RE.test(pathname)
+  ) {
     return NextResponse.next();
   }
 
   const session = await auth();
+  const seg = firstSegment(pathname);
+  const isAdminPath = pathname === "/admin" || pathname.startsWith("/admin/");
+  const isRoot = pathname === "/";
+  const isApiPath = seg === "api";
 
+  // --- Unauthenticated -----------------------------------------------------
   if (!session?.user) {
-    const loginUrl = new URL("/login", request.url);
+    // Reserved (admin/api/root/...) or a static-asset/_next segment → platform
+    // login. Only a real tenant slug → that tenant's own login, preserving the
+    // deep-link as callbackUrl.
+    if (RESERVED_SEGMENTS.has(seg) || isReservedOrAsset(seg)) {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("callbackUrl", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+    const loginUrl = new URL(`/${seg}/login`, request.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  // Bug #6 — Platform-admin (super_admin without tenant context) is redirected
-  // to the /admin landing because every tenant-scoped tRPC procedure throws
-  // FORBIDDEN with tenantId === "". The empty-string marshalling happens in
-  // the session callback at auth.config.ts:24 (null → ""). Non-platform users
-  // accessing /admin/* are bounced to /dashboard.
-  const isPlatformAdmin =
-    session.user.tenantId === "" &&
-    session.user.roles.includes("super_admin");
-  const isAdminPath = pathname === "/admin" || pathname.startsWith("/admin/");
+  // --- Authenticated -------------------------------------------------------
+  const roles = session.user.roles;
+  const tenantSlug = session.user.tenantSlug; // "" for platform super_admin
+  const isSuperAdmin = roles.includes("super_admin");
+  const isPlatformUser = isSuperAdmin && tenantSlug === "";
+  const impersonationSlug =
+    request.cookies.get(IMPERSONATION_SLUG_COOKIE_NAME)?.value ?? null;
 
-  const impersonationCookie = request.cookies.get("mg-impersonate-tenant")?.value ?? null;
-  // keep in sync with IMPERSONATION_COOKIE_NAME in src/lib/auth/impersonation.ts
-  const isImpersonating = isPlatformAdmin && impersonationCookie !== null;
-
-  // Impersonation bypass — super_admin viewing a tenant retains access to both
-  // /admin/* (to swap or exit) and tenant routes (the impersonated tenant app).
-  // The impersonation cookie is set/cleared exclusively through
-  // trpc.platformImpersonation.{enter,exit}, which validates super_admin + audit.
-  if (isImpersonating) {
+  // Other API routes (assets w/o token, stream, exports) — authorization is
+  // enforced at the route/tRPC layer, not here. Allow through once authed.
+  if (isApiPath) {
     return NextResponse.next();
   }
 
-  if (isPlatformAdmin && !isAdminPath) {
+  // /admin/* — platform super_admin only.
+  if (isAdminPath) {
+    if (isPlatformUser) {
+      return NextResponse.next();
+    }
+    if (tenantSlug !== "") {
+      return NextResponse.redirect(new URL(`/${tenantSlug}/dashboard`, request.url));
+    }
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  // Root "/" — hand off to the app/page.tsx session dispatcher.
+  if (isRoot) {
+    return NextResponse.next();
+  }
+
+  // Tenant path /[slug]/… — `seg` is the REQUESTED tenant.
+  if (isPlatformUser) {
+    // Platform super_admin may only enter a tenant app while impersonating, and
+    // only the tenant they entered (impersonation-slug cookie). Row scoping is
+    // still driven by the impersonation-id cookie in tRPC.
+    if (impersonationSlug !== null && impersonationSlug === seg) {
+      return NextResponse.next();
+    }
     return NextResponse.redirect(new URL("/admin", request.url));
   }
-  if (!isPlatformAdmin && isAdminPath) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+
+  // Ordinary tenant-scoped user: the requested slug MUST equal their own tenant
+  // (the cross-tenant-URL-access denial — a user editing the URL to another
+  // tenant is bounced back to their own dashboard).
+  if (seg !== tenantSlug) {
+    return NextResponse.redirect(new URL(`/${tenantSlug}/dashboard`, request.url));
   }
 
-  // viewer route gate — a viewer requesting any tenant PAGE outside
-  // Command Center / Interactive Report Map is redirected to /dashboard.
-  // Runs after the admin-path checks above so it never fires for an
-  // impersonating/platform-admin request (those already returned above).
-  // API routes ("/api/*", e.g. the notification SSE stream used on the
-  // dashboard) are exempt — their authorization is enforced at the route /
-  // tRPC layer (viewer is read-only there), NOT by this page-navigation gate;
-  // redirecting them would break the dashboard's live stream (HTML served to
-  // an EventSource → MIME error + reconnect loop).
-  const isViewer = session.user.roles.includes("viewer");
-  if (
-    isViewer &&
-    !isAdminPath &&
-    !pathname.startsWith("/api/") &&
-    !isViewerAllowedPath(pathname)
-  ) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+  // Slug matches — run the viewer + super_admin-only page gates against the
+  // slug-stripped path (defense in depth; nav-hide alone is cosmetic).
+  const rest = stripSlug(pathname);
+  const isViewer = roles.includes("viewer");
+  if (isViewer && !isViewerAllowedPath(rest)) {
+    return NextResponse.redirect(new URL(`/${tenantSlug}/dashboard`, request.url));
   }
-
-  // super_admin-only route gate (2026-07-07) — /users (user management) and
-  // /settings (tenant configuration) are super_admin ONLY. EVERY other role
-  // (site_admin, administrator, field_coordinator, operator; viewer already
-  // handled by its allow-list gate above) is redirected to /dashboard —
-  // deny-by-default: only super_admin passes. Platform-admin and impersonating
-  // super_admin already returned above, so this gate only ever sees ordinary
-  // tenant-scoped sessions. API routes are exempt for the same reason as the
-  // viewer gate above: authorization there is enforced at the tRPC layer
-  // (superAdminProcedure already rejects every non-super_admin on user-management
-  // AND settings/tenant-config procedures).
-  const isSuperAdmin = session.user.roles.includes("super_admin");
-  if (
-    !isSuperAdmin &&
-    !isAdminPath &&
-    !pathname.startsWith("/api/") &&
-    isSuperAdminOnlyPath(pathname)
-  ) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+  if (!isSuperAdmin && isSuperAdminOnlyPath(rest)) {
+    return NextResponse.redirect(new URL(`/${tenantSlug}/dashboard`, request.url));
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/((?!_next|favicon.ico|icons|images|api/health|api/auth|api/trpc).*)"],
+  // Skip Next internals, root static files, and the handshake API routes. The
+  // trailing `[\\w-]+\\.[\\w]+` clause excludes ANY root file with an extension
+  // (icon.svg, apple-icon.png, robots.txt, sitemap.xml, manifest.webmanifest,
+  // …) so they never reach the tenant-slug resolver. The in-handler guard
+  // (isStaticAssetSegment) is the authoritative, unit-tested backstop.
+  matcher: [
+    "/((?!_next/static|_next/image|_next|favicon.ico|icon.svg|apple-icon|icons|images|robots.txt|sitemap.xml|manifest.webmanifest|api/health|api/auth|api/trpc|[\\w-]+\\.[\\w]+).*)",
+  ],
 };

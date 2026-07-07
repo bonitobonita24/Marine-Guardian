@@ -42,7 +42,7 @@ const USER_ID = "cuser123abcdefghijklmno12";
 function makeCtx(tenantId: string | null = TENANT_ID) {
   return {
     session: {
-      user: { id: USER_ID, tenantId: tenantId as string, roles: ["operator" as const], email: "test@example.com", name: "Test User" },
+      user: { id: USER_ID, tenantId: tenantId as string, tenantSlug: "", roles: ["operator" as const], email: "test@example.com", name: "Test User" },
       expires: "9999-01-01",
     },
     ip: "127.0.0.1",

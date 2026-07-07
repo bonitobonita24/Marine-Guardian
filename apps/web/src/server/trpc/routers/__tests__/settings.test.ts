@@ -71,6 +71,7 @@ function makeCtx(
       user: {
         id: USER_ID,
         tenantId: tenantId as string,
+        tenantSlug: "",
         roles,
         email: "admin@example.com",
         name: "Admin User",

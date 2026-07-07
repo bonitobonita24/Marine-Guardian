@@ -28,6 +28,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc/client";
 import { useNotificationStore } from "@/lib/realtime/notification-store";
+import { useTenantSlug } from "@/lib/routing/use-tenant-slug";
+import { tenantHref } from "@/lib/routing/tenant-href";
 
 interface NavItem {
   href: string;
@@ -147,8 +149,16 @@ function getVisibleNavGroups(roles: readonly string[]) {
   return navGroups;
 }
 
+// The active-state + allow-list checks compare against BARE routes ("/map"),
+// but usePathname() now returns "/[tenant]/map". Strip the leading tenant slug.
+function stripTenant(pathname: string): string {
+  return `/${pathname.split("/").filter(Boolean).slice(1).join("/")}`;
+}
+
 export function Sidebar() {
   const pathname = usePathname();
+  const tenant = useTenantSlug();
+  const basePath = stripTenant(pathname);
   const t = useTranslations("nav");
   const tAuth = useTranslations("auth");
   const utils = trpc.useUtils();
@@ -185,14 +195,14 @@ export function Sidebar() {
             <ul>
               {group.items.map((item) => {
                 const isActive =
-                  pathname === item.href ||
-                  pathname.startsWith(`${item.href}/`);
+                  basePath === item.href ||
+                  basePath.startsWith(`${item.href}/`);
                 const showUnread =
                   item.href === "/notifications" && unread > 0;
                 return (
                   <li key={item.href}>
                     <Link
-                      href={item.href}
+                      href={tenantHref(tenant, item.href)}
                       className={cn(
                         "flex items-center gap-2 rounded-sm mx-1 px-2 py-1 text-[11px] transition-colors",
                         item.indent === true
@@ -226,7 +236,7 @@ export function Sidebar() {
           variant="ghost"
           size="sm"
           className="h-7 w-full justify-start gap-2 px-2 text-[11px] text-muted-foreground"
-          onClick={() => void signOut({ callbackUrl: "/login" })}
+          onClick={() => void signOut({ callbackUrl: tenantHref(tenant, "/login") })}
         >
           <LogOut className="h-3 w-3" />
           {tAuth("signOut")}
