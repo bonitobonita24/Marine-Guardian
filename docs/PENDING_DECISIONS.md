@@ -13,11 +13,19 @@ verified** (roster now = Benedicto + Eufenie, matching ER's 2 active). **Durable
 reconciliation script shipped** (LOCAL, HARD HOLD). Un-gated — no owner decision required for the fix.
 
 **Deferred / owner items:**
-- [ ] **"Only super_admin" for Users + Settings (ACCESS, not just nav).** Batch-14 kept `site_admin`
-  able to manage users + tenant settings (`siteAdminProcedure` = super_admin + site_admin), and the
-  nav now hides those items from everyone except those two roles. Owner earlier said "only SuperAdmin"
-  — deferred because REMOVING `site_admin`'s access would lock the natural settings-owner role out of
-  Settings/User-management. Confirm: tighten to **super_admin-ONLY** (drop site_admin), or keep both?
+- [x] **"Only super_admin" for Users + Settings (ACCESS, not just nav) — RESOLVED 2026-07-07: owner
+  chose super_admin-ONLY.** `siteAdminProcedure` (super_admin + site_admin) was renamed to
+  `superAdminProcedure` = `requireRole("super_admin")` and now gates ALL Users + Settings surfaces
+  (user create/list/getById/resetPassword/updateRole/deactivate/activate, settings ER
+  connection/sync/config, report templates, breach register). Nav (sidebar `SUPER_ADMIN_ONLY_HREFS`)
+  and route middleware (`SUPER_ADMIN_ONLY_PREFIXES`, deny-by-default) both enforce super_admin-only for
+  /users + /settings. site_admin/administrator/coordinator/operator/viewer are all denied.
+  ⚠ OPERATIONAL NOTE: each tenant must have a **super_admin** account to administer Users/Settings —
+  `webmaster@marine-guardian.local` (super_admin) exists on dev/staging/prod, so this is covered; the
+  per-tenant `site_admin` operators (e.g. admin@mail.com) can no longer manage users/settings by design.
+  Live-verified on dev: site_admin nav lost /users+/settings and both routes redirect to /dashboard;
+  super_admin retention covered by 147 unit tests across rbac/sidebar/middleware. site_admin retains
+  all OTHER admin abilities (adminProcedure etc.) unchanged.
 - **ER tracks — RESOLVED 2026-07-07.** The current long-lived `DAS_WEB_TOKEN` is JerlanL (superuser)
   and DOES read `/subject/{id}/tracks` (200 — verified, fetched patrol 5251's 42 GPS points). Wired
   into dev+staging+prod `tenant_er_connections` (recurring on) → continuous harvest incl GPS tracks now

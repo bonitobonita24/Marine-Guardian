@@ -45,19 +45,20 @@ function isViewerAllowedPath(pathname: string): boolean {
   );
 }
 
-// administrator role (2026-07-06, narrowed 2026-07-06) — full access to
-// every tenant page EXCEPT user management (/users — add/edit/deactivate
-// accounts, role changes) AND tenant Settings (/settings — ER connection,
-// report templates, breach register; super_admin/site_admin only). Unlike
-// viewer's allow-list above, this is a deny-list: everything is permitted
-// except the prefixes below. sidebar.tsx already hides the /users and
-// /settings nav items for administrator (but keeps /profile visible); this
-// is the route-level enforcement so an administrator can never reach a
-// blocked page via a typed URL, bookmark, or deep link.
-const ADMINISTRATOR_BLOCKED_PREFIXES = ["/users", "/settings"];
+// super_admin-only prefixes (2026-07-07) — user management (/users —
+// add/edit/deactivate accounts, role changes) AND tenant Settings (/settings —
+// ER connection, report templates, breach register) are now super_admin ONLY.
+// site_admin was removed here per owner 2026-07-07 (previously super_admin +
+// site_admin). Deny-by-default: EVERY role except super_admin (site_admin,
+// administrator, field_coordinator, operator; viewer is already blocked by its
+// allow-list above) is redirected away from these prefixes. sidebar.tsx hides
+// the /users + /settings nav items for every non-super_admin role (but keeps
+// /profile visible); this is the route-level enforcement so a non-super_admin
+// can never reach a blocked page via a typed URL, bookmark, or deep link.
+const SUPER_ADMIN_ONLY_PREFIXES = ["/users", "/settings"];
 
-function isAdministratorBlockedPath(pathname: string): boolean {
-  return ADMINISTRATOR_BLOCKED_PREFIXES.some(
+function isSuperAdminOnlyPath(pathname: string): boolean {
+  return SUPER_ADMIN_ONLY_PREFIXES.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
 }
@@ -151,17 +152,22 @@ export default async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
-  // administrator route gate — full access except /users (user management)
-  // and /settings (tenant configuration). API routes are exempt for the same
-  // reason as the viewer gate above: authorization there is enforced at the
-  // tRPC layer (siteAdminProcedure already rejects administrator on every
-  // user-management AND settings/tenant-config mutation).
-  const isAdministrator = session.user.roles.includes("administrator");
+  // super_admin-only route gate (2026-07-07) — /users (user management) and
+  // /settings (tenant configuration) are super_admin ONLY. EVERY other role
+  // (site_admin, administrator, field_coordinator, operator; viewer already
+  // handled by its allow-list gate above) is redirected to /dashboard —
+  // deny-by-default: only super_admin passes. Platform-admin and impersonating
+  // super_admin already returned above, so this gate only ever sees ordinary
+  // tenant-scoped sessions. API routes are exempt for the same reason as the
+  // viewer gate above: authorization there is enforced at the tRPC layer
+  // (superAdminProcedure already rejects every non-super_admin on user-management
+  // AND settings/tenant-config procedures).
+  const isSuperAdmin = session.user.roles.includes("super_admin");
   if (
-    isAdministrator &&
+    !isSuperAdmin &&
     !isAdminPath &&
     !pathname.startsWith("/api/") &&
-    isAdministratorBlockedPath(pathname)
+    isSuperAdminOnlyPath(pathname)
   ) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }

@@ -183,22 +183,23 @@ describe("Sidebar — viewer role nav filtering", () => {
     }
   });
 
-  it.each(["super_admin", "site_admin"])(
-    "renders the full nav (incl. users + settings) for %s",
-    (role) => {
-      stubs.sessionRoles = [role];
-      const { getByText } = render(<Sidebar />);
-      for (const key of ALL_NAV_LABEL_KEYS) {
-        expect(getByText(key)).toBeTruthy();
-      }
-    },
-  );
+  // super_admin (2026-07-07): the ONLY role that sees Users + Settings. Those
+  // two surfaces were tightened to super_admin only — site_admin no longer
+  // renders them (see the hidden-group test below).
+  it("renders the full nav (incl. users + settings) for super_admin", () => {
+    stubs.sessionRoles = ["super_admin"];
+    const { getByText } = render(<Sidebar />);
+    for (const key of ALL_NAV_LABEL_KEYS) {
+      expect(getByText(key)).toBeTruthy();
+    }
+  });
 
-  // field_coordinator + operator (2026-07-07): Users + Settings are
-  // super_admin/site_admin only (siteAdminProcedure) — they used to render the
-  // full nav and hit FORBIDDEN on those pages. Hide the two nav items so no
-  // role sees a menu it cannot use; every other item stays visible.
-  it.each(["field_coordinator", "operator"])(
+  // site_admin + field_coordinator + operator (2026-07-07): Users + Settings
+  // are super_admin ONLY (superAdminProcedure) — site_admin was removed from
+  // that gate this date and now hits FORBIDDEN on those pages like the others.
+  // Hide the two nav items so no role sees a menu it cannot use; every other
+  // item stays visible.
+  it.each(["site_admin", "field_coordinator", "operator"])(
     "renders every nav item except 'users' and 'settings' for %s",
     (role) => {
       stubs.sessionRoles = [role];

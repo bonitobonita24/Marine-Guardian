@@ -112,15 +112,17 @@ const VIEWER_ALLOWED_HREFS = new Set<string>([
 ]);
 
 // Users (user management) + Settings (tenant configuration) are visible ONLY
-// to super_admin/site_admin — the exact roles `siteAdminProcedure` allows and
-// middleware.ts enforces at the route level. Every other authenticated role
-// (administrator, field_coordinator, operator) hits FORBIDDEN there, so the
-// nav items are hidden to match — no role should see a menu it cannot use.
-// "/profile" is deliberately NOT in this set, so every role keeps its own
-// self-service Profile page. viewer is handled by its own allow-list above.
-// Route enforcement (typed/bookmarked /users or /settings URL) lives in
-// middleware.ts (administrator) + the tRPC layer (all non-site-admin roles).
-const SITE_ADMIN_ONLY_HREFS = new Set<string>(["/users", "/settings"]);
+// to super_admin — the exact role `superAdminProcedure` allows and
+// middleware.ts enforces at the route level. site_admin was removed here per
+// owner 2026-07-07 (Users + Settings tightened to super_admin only). Every
+// other authenticated role (site_admin, administrator, field_coordinator,
+// operator) hits FORBIDDEN there, so the nav items are hidden to match — no
+// role should see a menu it cannot use. "/profile" is deliberately NOT in this
+// set, so every role keeps its own self-service Profile page. viewer is
+// handled by its own allow-list above. Route enforcement (typed/bookmarked
+// /users or /settings URL) lives in middleware.ts + the tRPC layer (every
+// non-super_admin role).
+const SUPER_ADMIN_ONLY_HREFS = new Set<string>(["/users", "/settings"]);
 
 function getVisibleNavGroups(roles: readonly string[]) {
   if (roles.includes("viewer")) {
@@ -131,14 +133,13 @@ function getVisibleNavGroups(roles: readonly string[]) {
       }))
       .filter((group) => group.items.length > 0);
   }
-  const isSiteAdmin =
-    roles.includes("super_admin") || roles.includes("site_admin");
-  if (!isSiteAdmin) {
+  const isSuperAdmin = roles.includes("super_admin");
+  if (!isSuperAdmin) {
     return navGroups
       .map((group) => ({
         ...group,
         items: group.items.filter(
-          (item) => !SITE_ADMIN_ONLY_HREFS.has(item.href),
+          (item) => !SUPER_ADMIN_ONLY_HREFS.has(item.href),
         ),
       }))
       .filter((group) => group.items.length > 0);

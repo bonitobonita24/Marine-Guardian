@@ -2,7 +2,8 @@
  * ReportTemplate router — CRUD + setDefault for printable report templates.
  *
  * Security invariants:
- *   L3 — all mutations gated to siteAdminProcedure (super_admin | site_admin)
+ *   L3 — all mutations gated to superAdminProcedure (super_admin ONLY;
+ *        site_admin removed 2026-07-07 — Settings tightened to super_admin)
  *   L5 — every mutation audited via writeAuditLog
  *   L6 — tenant-scoped: all queries carry ctx.tenantId guard
  *
@@ -16,7 +17,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
-import { siteAdminProcedure } from "../middleware/rbac";
+import { superAdminProcedure } from "../middleware/rbac";
 import { prisma, writeAuditLog } from "@marine-guardian/db";
 import type { PrismaClient } from "@marine-guardian/db";
 import {
@@ -123,7 +124,7 @@ export const reportTemplateRouter = router({
    * router calls uploadImage and persists the returned key; otherwise the
    * key fields from the input are used as-is.
    */
-  create: siteAdminProcedure
+  create: superAdminProcedure
     .input(createInputWithLogos)
     .mutation(async ({ ctx, input }) => {
       const { tenantId, userId } = ctx;
@@ -196,7 +197,7 @@ export const reportTemplateRouter = router({
    * Update an existing template. Admin-only. Audited.
    * Tenant isolation: rejects IDs that belong to a different tenant.
    */
-  update: siteAdminProcedure
+  update: superAdminProcedure
     .input(updateInputWithLogos)
     .mutation(async ({ ctx, input }) => {
       const { tenantId, userId } = ctx;
@@ -267,7 +268,7 @@ export const reportTemplateRouter = router({
    * Delete a template. Admin-only. Audited.
    * Tenant isolation: silently rejects cross-tenant deletes via NOT_FOUND.
    */
-  delete: siteAdminProcedure
+  delete: superAdminProcedure
     .input(deleteReportTemplateInputSchema)
     .mutation(async ({ ctx, input }) => {
       const { tenantId, userId } = ctx;
@@ -310,7 +311,7 @@ export const reportTemplateRouter = router({
    * Runs in a transaction: unsets all sibling defaults, sets this one.
    * Admin-only. Audited.
    */
-  setDefault: siteAdminProcedure
+  setDefault: superAdminProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const { tenantId, userId } = ctx;

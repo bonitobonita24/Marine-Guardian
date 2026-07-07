@@ -60,7 +60,7 @@ const USER_ID = "admin-1";
 
 function makeCtx(
   tenantId: string | null = TENANT_ID,
-  roles: string[] = ["site_admin"],
+  roles: string[] = ["super_admin"],
   userId: string = USER_ID,
 ) {
   return {
@@ -168,10 +168,24 @@ describe("reportTemplate.create", () => {
     ).rejects.toThrow(TRPCError);
   });
 
-  // administrator (narrowed 2026-07-06): Settings mutations moved from
-  // adminProcedure to siteAdminProcedure (super_admin + site_admin ONLY).
+  // administrator: Settings mutations are gated to superAdminProcedure
+  // (super_admin ONLY) — administrator is rejected.
   it("rejects administrator with FORBIDDEN (Settings excluded 2026-07-06)", async () => {
     const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    await expect(
+      caller.create({
+        name: "New Template",
+        layout: "portrait-one-per-page",
+        reportTitle: "Test",
+        isDefault: false,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  // site_admin (tightened 2026-07-07): Settings is now super_admin ONLY —
+  // site_admin was removed from superAdminProcedure.
+  it("rejects site_admin with FORBIDDEN (Settings tightened to super_admin 2026-07-07)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
     await expect(
       caller.create({
         name: "New Template",

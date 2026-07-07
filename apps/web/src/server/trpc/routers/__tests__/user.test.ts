@@ -146,10 +146,10 @@ describe("user.create", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  // administrator role (2026-07-06) — full app access EXCEPT user
-  // management. user.create/resetPassword/updateRole/deactivate/activate
-  // are gated to userManagementProcedure (super_admin + site_admin ONLY),
-  // which administrator is deliberately never added to.
+  // administrator role — full app access EXCEPT user management.
+  // user.create/resetPassword/updateRole/deactivate/activate are gated to
+  // userManagementProcedure (super_admin ONLY), which administrator is
+  // deliberately never added to.
   it("rejects an administrator session with FORBIDDEN", async () => {
     const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
     await expect(
@@ -161,7 +161,21 @@ describe("user.create", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  it("still allows a site_admin session to create a user (regression)", async () => {
+  // site_admin (tightened 2026-07-07) — user management is now super_admin
+  // ONLY. site_admin was removed from userManagementProcedure, so it must now
+  // be rejected here (it previously could create users).
+  it("rejects a site_admin session with FORBIDDEN (Users tightened to super_admin 2026-07-07)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    await expect(
+      caller.create({
+        email: "new2@example.com",
+        fullName: "New User Two",
+        role: "operator",
+      })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("still allows a super_admin session to create a user (regression)", async () => {
     vi.mocked(prisma.user.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.user.create).mockResolvedValue({
       id: "user-new-2",
@@ -172,7 +186,7 @@ describe("user.create", () => {
       createdAt: new Date("2026-07-06T00:00:00Z"),
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["super_admin"]));
     await expect(
       caller.create({
         email: "new2@example.com",
@@ -402,10 +416,11 @@ describe("user.activate", () => {
   });
 });
 
-// user.list / user.getById lockdown (2026-07-06): the full user directory
-// (email, role, lastLoginAt, timestamps) is now super_admin + site_admin
-// ONLY. administrator/field_coordinator/operator/viewer must all get
-// FORBIDDEN — they previously could read it via tenantProcedure.
+// user.list / user.getById lockdown (2026-07-06, tightened 2026-07-07): the
+// full user directory (email, role, lastLoginAt, timestamps) is now
+// super_admin ONLY. site_admin/administrator/field_coordinator/operator/viewer
+// must all get FORBIDDEN — site_admin lost access when Users was tightened to
+// super_admin on 2026-07-07.
 describe("user.list", () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -415,10 +430,9 @@ describe("user.list", () => {
     await expect(caller.list({})).resolves.toEqual({ items: [], nextCursor: undefined });
   });
 
-  it("allows site_admin", async () => {
-    vi.mocked(prisma.user.findMany).mockResolvedValue([]);
+  it("rejects site_admin with FORBIDDEN (Users tightened to super_admin 2026-07-07)", async () => {
     const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
-    await expect(caller.list({})).resolves.toEqual({ items: [], nextCursor: undefined });
+    await expect(caller.list({})).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("rejects administrator with FORBIDDEN", async () => {
@@ -445,10 +459,15 @@ describe("user.list", () => {
 describe("user.getById", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("allows site_admin", async () => {
+  it("allows super_admin", async () => {
     vi.mocked(prisma.user.findFirst).mockResolvedValue({ id: "u-1" } as never);
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["super_admin"]));
     await expect(caller.getById({ id: "u-1" })).resolves.toMatchObject({ id: "u-1" });
+  });
+
+  it("rejects site_admin with FORBIDDEN (Users tightened to super_admin 2026-07-07)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    await expect(caller.getById({ id: "u-1" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("rejects administrator with FORBIDDEN", async () => {

@@ -104,10 +104,14 @@ describe("middleware — viewer role route gate", () => {
     expect(res.status).toBe(200);
   });
 
-  it("does NOT redirect a non-viewer (field_coordinator) requesting /users", async () => {
+  // 2026-07-07: /users is now super_admin ONLY, so a field_coordinator (like
+  // every non-super_admin role) is redirected to /dashboard by the
+  // super_admin-only gate — it is no longer merely "not the viewer gate's job".
+  it("redirects a non-viewer (field_coordinator) requesting /users to /dashboard", async () => {
     mockAuth.mockResolvedValue(makeSession(["field_coordinator"]));
     const res = await middleware(makeRequest("/users"));
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe("https://app.example.com/dashboard");
   });
 });
 
@@ -166,8 +170,22 @@ describe("middleware — administrator role route gate", () => {
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("does NOT redirect a non-administrator (site_admin) requesting /users or /settings", async () => {
+  // 2026-07-07: /users + /settings tightened to super_admin ONLY — site_admin
+  // is now redirected away, exactly like administrator (it previously passed).
+  it("redirects a site_admin requesting /users or /settings to /dashboard", async () => {
     mockAuth.mockResolvedValue(makeSession(["site_admin"]));
+    const resUsers = await middleware(makeRequest("/users"));
+    expect(resUsers.status).toBe(307);
+    expect(resUsers.headers.get("location")).toBe("https://app.example.com/dashboard");
+    const resSettings = await middleware(makeRequest("/settings"));
+    expect(resSettings.status).toBe(307);
+    expect(resSettings.headers.get("location")).toBe("https://app.example.com/dashboard");
+  });
+
+  // super_admin (tenant-scoped, non-platform) is the ONLY role allowed onto
+  // /users + /settings — the gate must let it through.
+  it("does NOT redirect a super_admin requesting /users or /settings", async () => {
+    mockAuth.mockResolvedValue(makeSession(["super_admin"]));
     const resUsers = await middleware(makeRequest("/users"));
     expect(resUsers.status).toBe(200);
     const resSettings = await middleware(makeRequest("/settings"));

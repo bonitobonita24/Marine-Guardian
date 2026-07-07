@@ -59,20 +59,23 @@ export const reportGenerateProcedure = requireRole(
   "administrator",
 );
 
-// siteAdminProcedure (2026-07-06): super_admin + site_admin ONLY — the gate
-// for BOTH (a) user-management mutations/reads (user.create, resetPassword,
+// superAdminProcedure (2026-07-07): super_admin ONLY — the gate for BOTH
+// (a) user-management mutations/reads (user.create, resetPassword,
 // updateRole, deactivate, activate, list, getById) and (b) the Settings /
 // tenant-config surface (ER connection + sync, report templates, breach
-// register). administrator is deliberately EXCLUDED here by design — the
-// owner narrowed administrator to "full app access minus Users AND
-// Settings." Do NOT add administrator to this procedure; do NOT reuse
-// adminProcedure for user-management or settings/tenant-config mutations
-// going forward, or administrator silently regains access it is meant to
-// be denied. Nav + route enforcement for /users and /settings lives in
-// sidebar.tsx + middleware.ts (defense in depth).
-export const siteAdminProcedure = requireRole("super_admin", "site_admin");
+// register). site_admin was REMOVED here per owner 2026-07-07 (Users +
+// Settings tightened to super_admin only); administrator remains excluded
+// too. site_admin keeps every OTHER admin capability — it is still listed in
+// adminProcedure/coordinatorProcedure/operatorProcedure/reportGenerateProcedure
+// above; ONLY the Users + Settings surface is now super_admin-exclusive. Do
+// NOT add site_admin or administrator to this procedure; do NOT reuse
+// adminProcedure for user-management or settings/tenant-config mutations, or
+// those roles silently regain access they are meant to be denied. Nav + route
+// enforcement for /users and /settings lives in sidebar.tsx + middleware.ts
+// (defense in depth).
+export const superAdminProcedure = requireRole("super_admin");
 
 // userManagementProcedure — historical name, kept as an alias so existing
 // call sites (user.ts) don't need a mechanical rename. Refers to the exact
-// same super_admin+site_admin gate as siteAdminProcedure above.
-export const userManagementProcedure = siteAdminProcedure;
+// same super_admin-only gate as superAdminProcedure above.
+export const userManagementProcedure = superAdminProcedure;
