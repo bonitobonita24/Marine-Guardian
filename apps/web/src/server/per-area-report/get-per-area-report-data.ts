@@ -242,7 +242,14 @@ interface ParsedPerAreaParams {
   endDate?: Date;
 }
 
-const LAW_ENFORCEMENT_NEEDLE = "law enforcement";
+// EventType.category holds the EarthRanger category SLUG (e.g.
+// "law-enforcement-and-apprehensions" / "monitoring_patrolling_and_surveillance"
+// — written by er-sync.processor as t.category.value), NOT a human label. The
+// old law-enforcement needle "law enforcement" (spaced) never matched the
+// hyphenated slug, so the per-area LE breakdown + LE heatmap were ALWAYS empty
+// (monitoring happened to work because "monitoring" is a substring of its slug).
+// These match the canonical slugs used by dashboard.ts / reportMap.ts.
+const LAW_ENFORCEMENT_NEEDLE = "law-enforcement-and-apprehensions";
 const MONITORING_NEEDLE = "monitoring";
 
 export function parsePerAreaParams(paramsJson: unknown): ParsedPerAreaParams {
@@ -757,6 +764,11 @@ export async function getPerAreaReportData(
       areaBoundaryId: area.id,
       // Phase 7 soft-delete: deleted patrols excluded from per-area report totals
       isDeleted: false,
+      // Test/demo patrols excluded from funder-facing totals — matches the
+      // canonical reportMap / municipalityCoverage / dashboard filters so the
+      // per-area patrol counts, distance, hours and fuel L/km ratio agree with
+      // the rest of the app (previously test patrols inflated all of these).
+      isTestPatrol: false,
       startTime: { gte: dateRange.start, lt: dateRange.end },
     },
     select: {

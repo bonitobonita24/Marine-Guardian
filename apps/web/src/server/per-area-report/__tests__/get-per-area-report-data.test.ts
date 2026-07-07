@@ -212,6 +212,14 @@ describe("getPerAreaReportData", () => {
     // findUnique on areaBoundary must NOT be called in fallback path
     expect(prisma.areaBoundary.findUnique).not.toHaveBeenCalled();
     expect(prisma.areaBoundary.findFirst).toHaveBeenCalledTimes(1);
+    // Patrol query excludes deleted AND test patrols so per-area counts,
+    // distance, hours and fuel L/km match the canonical reportMap figures
+    // (test patrols previously inflated all of these).
+    const patrolArg = vi.mocked(prisma.patrol.findMany).mock.calls[0]?.[0] as
+      | { where?: { isDeleted?: boolean; isTestPatrol?: boolean } }
+      | undefined;
+    expect(patrolArg?.where?.isDeleted).toBe(false);
+    expect(patrolArg?.where?.isTestPatrol).toBe(false);
   });
 
   it("returns null when fallback area lookup returns no enabled boundaries", async () => {
@@ -283,7 +291,7 @@ describe("getPerAreaReportData", () => {
           id: "et_illegal_fishing",
           value: "illegal_fishing",
           display: "Illegal Fishing",
-          category: "Law Enforcement",
+          category: "law-enforcement-and-apprehensions",
         },
       },
       {
@@ -292,7 +300,7 @@ describe("getPerAreaReportData", () => {
           id: "et_illegal_fishing",
           value: "illegal_fishing",
           display: "Illegal Fishing",
-          category: "Law Enforcement",
+          category: "law-enforcement-and-apprehensions",
         },
       },
       {
@@ -301,7 +309,7 @@ describe("getPerAreaReportData", () => {
           id: "et_destructive",
           value: "destructive_practices",
           display: "Destructive Practices",
-          category: "law enforcement / blast fishing",
+          category: "law-enforcement-and-apprehensions",
         },
       },
       // Equal-count tie — should sort by display ASC
@@ -311,7 +319,7 @@ describe("getPerAreaReportData", () => {
           id: "et_apprehension",
           value: "apprehension",
           display: "Apprehension",
-          category: "Law Enforcement",
+          category: "law-enforcement-and-apprehensions",
         },
       },
       {
@@ -320,7 +328,7 @@ describe("getPerAreaReportData", () => {
           id: "et_apprehension",
           value: "apprehension",
           display: "Apprehension",
-          category: "Law Enforcement",
+          category: "law-enforcement-and-apprehensions",
         },
       },
       // Monitoring event — should appear in monitoring breakdown only
@@ -596,7 +604,7 @@ describe("getPerAreaReportData", () => {
           id: "et_illegal_fishing",
           value: "illegal_fishing",
           display: "Illegal Fishing",
-          category: "Law Enforcement",
+          category: "law-enforcement-and-apprehensions",
         },
       },
       {
@@ -607,7 +615,7 @@ describe("getPerAreaReportData", () => {
           id: "et_apprehension",
           value: "apprehension",
           display: "Apprehension",
-          category: "Law Enforcement / Marine",
+          category: "law-enforcement-and-apprehensions",
         },
       },
       // Monitoring event — must NOT appear in lawEnforcementEventLocations
@@ -659,7 +667,7 @@ describe("getPerAreaReportData", () => {
           id: "et_a",
           value: "a",
           display: "A",
-          category: "Law Enforcement",
+          category: "law-enforcement-and-apprehensions",
         },
       },
       // null lon — skipped
@@ -671,7 +679,7 @@ describe("getPerAreaReportData", () => {
           id: "et_b",
           value: "b",
           display: "B",
-          category: "Law Enforcement",
+          category: "law-enforcement-and-apprehensions",
         },
       },
       // NaN lat — skipped (Number.isFinite(NaN) === false)
@@ -683,7 +691,7 @@ describe("getPerAreaReportData", () => {
           id: "et_c",
           value: "c",
           display: "C",
-          category: "Law Enforcement",
+          category: "law-enforcement-and-apprehensions",
         },
       },
       // Both finite — kept
@@ -695,7 +703,7 @@ describe("getPerAreaReportData", () => {
           id: "et_d",
           value: "d",
           display: "D",
-          category: "Law Enforcement",
+          category: "law-enforcement-and-apprehensions",
         },
       },
     ] as never);

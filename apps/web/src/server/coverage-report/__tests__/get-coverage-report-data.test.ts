@@ -271,6 +271,7 @@ describe("getCoverageReportData", () => {
           where?: {
             tenantId?: string;
             isDeleted?: boolean;
+            isTestPatrol?: boolean;
             startTime?: { gte?: Date; lt?: Date };
           };
         }
@@ -278,8 +279,40 @@ describe("getCoverageReportData", () => {
     expect(arg?.where?.tenantId).toBe(TENANT_ID);
     // Phase 7 soft-delete: deleted patrols excluded from funder report totals
     expect(arg?.where?.isDeleted).toBe(false);
+    // excludeTestPatrols defaults true → test patrols filtered out of the query
+    // (previously the flag was echoed but never applied — funder totals counted
+    // test patrols). Matches canonical reportMap / municipalityCoverage.
+    expect(arg?.where?.isTestPatrol).toBe(false);
     expect(arg?.where?.startTime?.gte).toBeInstanceOf(Date);
     expect(arg?.where?.startTime?.lt).toBeInstanceOf(Date);
+  });
+
+  it("does NOT filter isTestPatrol when excludeTestPatrols is explicitly false", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValueOnce(
+      TENANT_ROW as never,
+    );
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValueOnce({
+      tenantId: TENANT_ID,
+      reportType: "coverage",
+      paramsJson: {
+        category: "monthly",
+        year: 2026,
+        month: 5,
+        excludeTestPatrols: false,
+      },
+      paperSize: "A4",
+      createdAt: new Date("2026-05-21T08:00:00.000Z"),
+    } as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.areaBoundary.findMany).mockResolvedValueOnce([] as never);
+
+    const r = await getCoverageReportData(TENANT_SLUG, EXPORT_ID);
+    expect(r?.excludeTestPatrols).toBe(false);
+    const arg = vi.mocked(prisma.patrol.findMany).mock.calls[0]?.[0] as
+      | { where?: { isTestPatrol?: boolean } }
+      | undefined;
+    // Flag off → no test-patrol filter (test patrols intentionally included).
+    expect(arg?.where?.isTestPatrol).toBeUndefined();
   });
 
   it("prefers computedDistanceKm over totalDistanceKm when both present", async () => {

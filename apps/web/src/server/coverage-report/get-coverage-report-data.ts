@@ -21,9 +21,10 @@
  * UTC+8 offset (DEFAULT_TENANT_OFFSET_MINUTES). A proper IANA offset
  * resolver is future work (see lib/coverage-period/types.ts JSDoc).
  *
- * Test patrol exclusion (spec L214): no isTest column exists on Patrol in
- * the current schema. Filter is a no-op in 6.1a; lands when the schema
- * column is added.
+ * Test patrol exclusion (spec L214): Patrol.isTestPatrol exists in the schema.
+ * The patrol query filters isTestPatrol=false when the report's
+ * excludeTestPatrols flag is set (default true), matching the canonical
+ * reportMap / municipalityCoverage / dashboard behavior.
  */
 
 import { prisma } from "@marine-guardian/db";
@@ -302,11 +303,18 @@ export async function getCoverageReportData(
     offsetMinutes,
   );
 
+  // Honor the report's excludeTestPatrols flag (default true) in the actual
+  // query — previously the flag was echoed into the payload but the query
+  // filtered on isDeleted only, so test/demo patrols were counted in the
+  // funder report's patrol list, per-area counts, distance, hours and coverage
+  // % even though the report advertised "test patrols excluded".
+  const excludeTestPatrols = params.excludeTestPatrols ?? true;
   const patrolsRaw = await prisma.patrol.findMany({
     where: {
       tenantId: tenant.id,
       // Phase 7 soft-delete: deleted patrols excluded from funder report totals
       isDeleted: false,
+      ...(excludeTestPatrols ? { isTestPatrol: false } : {}),
       startTime: { gte: period.start, lt: period.end },
     },
     orderBy: { startTime: "asc" },
@@ -471,7 +479,7 @@ export async function getCoverageReportData(
     },
     period,
     paperSize: reportExport.paperSize,
-    excludeTestPatrols: params.excludeTestPatrols ?? true,
+    excludeTestPatrols,
     generatedAt: new Date(),
     patrols,
     enabledAreas,
