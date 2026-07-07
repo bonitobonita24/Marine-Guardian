@@ -12,10 +12,23 @@ import { ImpersonationBanner } from "@/components/impersonation-banner";
 
 export default async function DashboardLayout({
   children,
+  params,
 }: {
   children: React.ReactNode;
+  params: Promise<{ tenant: string }>;
 }) {
+  const { tenant } = await params;
   const session = await auth();
+
+  // Server-side auth gate (SECURITY, defense-in-depth layer 2) for every authed
+  // tenant page. This layout wraps ONLY the (dashboard) route group — NOT the
+  // sibling /[tenant]/login page — so redirecting an unauthenticated request to
+  // the tenant login here cannot re-enter itself (no ERR_TOO_MANY_REDIRECTS).
+  // Mirrors the edge middleware (L1); enforcement never depends on middleware
+  // alone (e.g. if a matcher exclusion let a request through, this still holds).
+  if (session?.user === undefined) {
+    redirect(`/${tenant}/login`);
+  }
 
   // Bug #6 — super_admins have no home tenant: the session callback normalizes a
   // null DB tenantId to "" (see auth/config.ts). Rendering a tenant-scoped
@@ -26,8 +39,8 @@ export default async function DashboardLayout({
   // `mg-impersonate-tenant` cookie (Item 4) legitimately browses that tenant's
   // dashboard while session.tenantId stays "" — do NOT redirect them. Detection
   // mirrors requireRouteAuth() in server/lib/route-auth.ts.
+  // (session is guaranteed non-null here — the unauth gate above redirects.)
   if (
-    session !== null &&
     session.user.roles.includes("super_admin") &&
     session.user.tenantId === ""
   ) {

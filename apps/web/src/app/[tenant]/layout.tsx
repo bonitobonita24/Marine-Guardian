@@ -7,7 +7,9 @@ import {
 } from "@/lib/auth/impersonation";
 
 // Path-based multi-tenancy — server-side slug-validation gate (SECURITY,
-// defense-in-depth layer 2). Every /[tenant]/* page renders inside this layout.
+// defense-in-depth layer 2). Every /[tenant]/* page renders inside this layout —
+// INCLUDING the per-tenant login page (/[tenant]/login) and the (dashboard)
+// authed pages, which are sibling children of this layout.
 //
 // The URL [tenant] segment is the *requested* tenant. Data scoping in tRPC is
 // derived from the authenticated user's JWT (never the URL), but this gate stops
@@ -16,7 +18,18 @@ import {
 // requested slug. This catches any request that slips past the edge middleware
 // (e.g. a matcher exclusion), so enforcement never depends on middleware alone.
 //
-//   - Unauthenticated → the per-tenant login for the requested slug.
+// IMPORTANT: this layout MUST NOT redirect a session-less request to the tenant
+// login. Because it also wraps /[tenant]/login, doing so re-enters this same
+// layout for the login page and infinite-loops (ERR_TOO_MANY_REDIRECTS). The
+// unauth→login gate for the AUTHED pages lives in (dashboard)/layout.tsx, which
+// wraps only the (dashboard) route group and NOT the sibling login page. So here
+// an unauthenticated request simply passes through, letting the login page (or,
+// for a deep-linked authed page, (dashboard)/layout) do the right thing. The
+// edge middleware (defense-in-depth L1) already redirects unauth deep-links to
+// the tenant login with a callbackUrl.
+//
+//   - Unauthenticated → pass through (login page renders; authed pages are
+//     gated by (dashboard)/layout.tsx).
 //   - Normal tenant user → session.user.tenantSlug must equal params.tenant.
 //   - super_admin impersonating a tenant → the mg-impersonate-slug cookie must
 //     equal params.tenant (the impersonated tenant).
@@ -32,7 +45,10 @@ export default async function TenantLayout({
   const session = await auth();
 
   if (session?.user === undefined) {
-    redirect(`/${tenant}/login`);
+    // Session-less: do NOT redirect here (would loop the login page, which is a
+    // child of this layout). The child login page renders; authed pages are
+    // protected one level down in (dashboard)/layout.tsx.
+    return <>{children}</>;
   }
 
   const isSuperAdmin = session.user.roles.includes("super_admin");

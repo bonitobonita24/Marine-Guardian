@@ -44,9 +44,14 @@ beforeEach(() => {
 });
 
 describe("[tenant]/layout — slug validation gate", () => {
-  it("redirects an unauthenticated request to the tenant login", async () => {
+  it("does NOT redirect an unauthenticated request — it passes through so the child /[tenant]/login page can render (no redirect loop)", async () => {
+    // Regression: this layout wraps BOTH /[tenant]/login and (dashboard)/*.
+    // Redirecting a session-less request to /[tenant]/login here re-enters this
+    // same layout for the login page and infinite-loops (ERR_TOO_MANY_REDIRECTS).
+    // The unauth→login gate lives in (dashboard)/layout.tsx instead.
     mockAuth.mockResolvedValue(null);
-    await expect(run("demo-site")).rejects.toThrow("REDIRECT:/demo-site/login");
+    await expect(run("demo-site")).resolves.toBeDefined();
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 
   it("SECURITY: redirects a normal user off a MISMATCHED tenant to their own dashboard", async () => {

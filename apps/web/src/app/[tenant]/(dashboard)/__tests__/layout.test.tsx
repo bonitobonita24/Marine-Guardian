@@ -17,7 +17,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const { mockAuth, mockRedirect, mockCookieGet } = vi.hoisted(() => ({
   mockAuth: vi.fn(),
-  mockRedirect: vi.fn(),
+  // redirect() never returns in Next; model it as a throw so control stops
+  // (exactly as it does at runtime) and the target is capturable.
+  mockRedirect: vi.fn((to: string) => {
+    throw new Error(`REDIRECT:${to}`);
+  }),
   mockCookieGet: vi.fn(),
 }));
 
@@ -54,8 +58,8 @@ function makeSession(overrides: { tenantId?: string; roles?: string[] }) {
 
 // Invoke the async server component; we never render the returned element so the
 // client child components (Sidebar/Header/etc.) are not executed.
-async function renderLayout() {
-  return DashboardLayout({ children: null });
+async function renderLayout(tenant = "demo-site") {
+  return DashboardLayout({ children: null, params: Promise.resolve({ tenant }) });
 }
 
 beforeEach(() => {
@@ -63,11 +67,35 @@ beforeEach(() => {
   mockCookieGet.mockReturnValue(undefined); // default: no impersonation cookie
 });
 
+describe("(dashboard) layout — server auth gate (defense-in-depth L2)", () => {
+  // This gate MOVED here from [tenant]/layout.tsx to break the login redirect
+  // loop: (dashboard)/layout wraps only the authed pages, NOT the sibling
+  // /[tenant]/login page, so redirecting an unauthenticated request to the
+  // tenant login cannot re-enter itself.
+  it("redirects an unauthenticated request to the tenant login (server gate holds even if middleware is bypassed)", async () => {
+    mockAuth.mockResolvedValue(null);
+
+    await expect(renderLayout("demo-site")).rejects.toThrow(
+      "REDIRECT:/demo-site/login",
+    );
+  });
+
+  it("does NOT redirect an authenticated tenant user (renders the dashboard shell)", async () => {
+    mockAuth.mockResolvedValue(
+      makeSession({ tenantId: VALID_TENANT_ID, roles: ["ranger"] }),
+    );
+
+    await renderLayout("demo-site");
+
+    expect(mockRedirect).not.toHaveBeenCalled();
+  });
+});
+
 describe("(dashboard) layout — Bug #6 super_admin null-tenant redirect", () => {
   it("redirects a super_admin with empty tenantId and no impersonation cookie to /admin", async () => {
     mockAuth.mockResolvedValue(makeSession({ tenantId: "", roles: ["super_admin"] }));
 
-    await renderLayout();
+    await expect(renderLayout()).rejects.toThrow("REDIRECT:/admin");
 
     expect(mockRedirect).toHaveBeenCalledTimes(1);
     expect(mockRedirect).toHaveBeenCalledWith("/admin");
