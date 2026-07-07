@@ -31,6 +31,10 @@ services:
       # STORAGE_ENDPOINT in .env.prod is localhost:9000 (host-side mc tools).
       # Containers reach the per-stack MinIO via the Docker network alias instead.
       STORAGE_ENDPOINT: ${INTERNAL_STORAGE_ENDPOINT}
+      # WEB_APP_INTERNAL_URL: worker builds the print-render callback URL from this. Non-secret +
+      # deterministic per stack → baked in so a fresh env can't omit it (root cause of the
+      # 2026-07-07 exports incident: reports stuck 'queued'). TELEGRAM_* stay secret in .env.<env>.
+      WEB_APP_INTERNAL_URL: http://${COMPOSE_PROJECT_NAME}_app:3000
     networks: [app_network, proxy]
     restart: unless-stopped
     depends_on:
@@ -67,6 +71,10 @@ services:
       REDIS_PORT: "6379"
       # pdf-render worker reaches MinIO via the Docker network alias (see app).
       STORAGE_ENDPOINT: ${INTERNAL_STORAGE_ENDPOINT}
+      # WEB_APP_INTERNAL_URL: worker builds the print-render callback URL from this. Non-secret +
+      # deterministic per stack → baked in so a fresh env can't omit it (root cause of the
+      # 2026-07-07 exports incident: reports stuck 'queued'). TELEGRAM_* stay secret in .env.<env>.
+      WEB_APP_INTERNAL_URL: http://${COMPOSE_PROJECT_NAME}_app:3000
     command: ["node", "worker/start-workers.mjs"]
     networks: [app_network]
     restart: unless-stopped

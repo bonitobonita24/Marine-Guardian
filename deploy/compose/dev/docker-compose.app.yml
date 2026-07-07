@@ -21,6 +21,10 @@ services:
       REDIS_HOST: ${COMPOSE_PROJECT_NAME}_valkey
       REDIS_PORT: "6379"
       STORAGE_ENDPOINT: ${INTERNAL_STORAGE_ENDPOINT}
+      # WEB_APP_INTERNAL_URL: worker builds the print-render callback URL from this. Non-secret +
+      # deterministic per stack → baked in so a fresh env can't omit it (root cause of the
+      # 2026-07-07 exports incident: reports stuck 'queued'). TELEGRAM_* stay secret in .env.<env>.
+      WEB_APP_INTERNAL_URL: http://${COMPOSE_PROJECT_NAME}_app:3000
     ports:
       - "${APP_PORT}:3000"
     networks: [app_network]
@@ -45,6 +49,10 @@ services:
       REDIS_HOST: ${COMPOSE_PROJECT_NAME}_valkey
       REDIS_PORT: "6379"
       STORAGE_ENDPOINT: ${INTERNAL_STORAGE_ENDPOINT}
+      # WEB_APP_INTERNAL_URL: worker builds the print-render callback URL from this. Non-secret +
+      # deterministic per stack → baked in so a fresh env can't omit it (root cause of the
+      # 2026-07-07 exports incident: reports stuck 'queued'). TELEGRAM_* stay secret in .env.<env>.
+      WEB_APP_INTERNAL_URL: http://${COMPOSE_PROJECT_NAME}_app:3000
     command: ["node", "worker/start-workers.mjs"]
     networks: [app_network]
     restart: unless-stopped
