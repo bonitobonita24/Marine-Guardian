@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Zap, BellRing, Shield, Users, BarChart3 } from "lucide-react";
 import { InteractiveMap } from "@/components/map/InteractiveMap";
 import { trpc } from "@/lib/trpc/client";
@@ -20,6 +20,7 @@ import { LiveTile } from "./_components/live-tile";
 import { BreakdownBars } from "./_components/breakdown-bars";
 import { ProtectedZoneCard } from "./_components/protected-zone-card";
 import { RangerRoster } from "./_components/ranger-roster";
+import type { RosterRanger } from "./_components/ranger-roster";
 import { MapMunicipalitySelect } from "./_components/map-municipality-select";
 import {
   DashboardRangeProvider,
@@ -90,6 +91,11 @@ function DashboardContent() {
   // — both range-aware, read-only aggregations that re-query in lock-step.
   const trends = trpc.dashboard.kpiTrends.useQuery(range);
   const roster = trpc.dashboard.rangerRoster.useQuery(range);
+  // Subject positions for the live map — the SAME query InteractiveMap runs
+  // internally, so React Query dedupes it (no extra network round-trip). Used
+  // by Q2 (2026-07-07) to resolve a clicked roster ranger to a map coordinate
+  // (matched by name — Subject and KnownRanger share no client-visible FK).
+  const subjects = trpc.map.subjects.list.useQuery();
 
   // Track which alert ID is currently being acknowledged (optimistic spinner).
   const [ackingId, setAckingId] = useState<string | null>(null);
@@ -167,6 +173,48 @@ function DashboardContent() {
   const clearMapPatrolSelection = useCallback(() => {
     setSelectedMapPatrolId(null);
   }, []);
+
+  // Q2 (2026-07-07) — click a Ranger Roster row to fly the live map to that
+  // ranger's last-known position. Reuses InteractiveMap's `focusLocation`
+  // flyTo prop (the same one the Report Map's "locate" button uses). The `key`
+  // bumps on every click so re-clicking the same ranger re-triggers the flyTo.
+  const [rangerFocus, setRangerFocus] = useState<{
+    lon: number;
+    lat: number;
+    key: number;
+  } | null>(null);
+  const rangerFocusKey = useRef(0);
+  // name (normalized) → last position, built from the map subjects list.
+  const rangerPositionByName = useMemo(() => {
+    const m = new Map<string, { lat: number; lon: number }>();
+    for (const s of subjects.data ?? []) {
+      if (s.lastPositionLat === null || s.lastPositionLon === null) continue;
+      m.set(s.name.trim().toLowerCase(), {
+        lat: s.lastPositionLat,
+        lon: s.lastPositionLon,
+      });
+    }
+    return m;
+  }, [subjects.data]);
+  // Which roster rangers actually resolve to a position (drives which rows the
+  // roster renders as clickable buttons).
+  const locatableRangerNames = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of roster.data?.rangers ?? []) {
+      const key = r.name.trim().toLowerCase();
+      if (rangerPositionByName.has(key)) s.add(key);
+    }
+    return s;
+  }, [roster.data, rangerPositionByName]);
+  const handleSelectRanger = useCallback(
+    (ranger: RosterRanger) => {
+      const pos = rangerPositionByName.get(ranger.name.trim().toLowerCase());
+      if (pos === undefined) return;
+      rangerFocusKey.current += 1;
+      setRangerFocus({ lon: pos.lon, lat: pos.lat, key: rangerFocusKey.current });
+    },
+    [rangerPositionByName],
+  );
 
   // Command Center "hide idle rangers" map toggle (2026-07-06) — default OFF
   // (idle rangers SHOWN, owner-approved default). Idle ranger NAMES are
@@ -402,6 +450,9 @@ function DashboardContent() {
               : {})}
             onPatrolTrackClick={selectMapPatrolById}
             onBackgroundClick={clearMapPatrolSelection}
+            /* Q2 — Ranger Roster row click flies the map to that ranger's
+               last-known position (matched by name → subject coordinate). */
+            focusLocation={rangerFocus}
             /* CC-3 — 48h event markers open the shared EventDetailModal
                (same modal + state the Live Event Feed / Last Incident use). */
             onEventClick={setSelectedEventId}
@@ -478,6 +529,8 @@ function DashboardContent() {
           now={nowValue}
           hideIdleRangers={hideIdleRangers}
           onHideIdleRangersChange={setHideIdleRangers}
+          onSelectRanger={handleSelectRanger}
+          locatableRangerNames={locatableRangerNames}
         />
       </div>
 

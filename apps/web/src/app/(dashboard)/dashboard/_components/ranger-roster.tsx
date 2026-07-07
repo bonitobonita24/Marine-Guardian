@@ -1,4 +1,4 @@
-import { Users } from "lucide-react";
+import { Users, MapPin } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { relativeShort } from "./lib";
@@ -75,6 +75,8 @@ export function RangerRoster({
   now,
   hideIdleRangers,
   onHideIdleRangersChange,
+  onSelectRanger,
+  locatableRangerNames,
 }: {
   rangers: RosterRanger[];
   summary: RosterSummary;
@@ -86,6 +88,17 @@ export function RangerRoster({
    *  (not on the map controls) since idle/on-patrol is a roster concept. */
   hideIdleRangers?: boolean;
   onHideIdleRangersChange?: (next: boolean) => void;
+  /** Q2 (2026-07-07) — click a roster row to focus the live map on that
+   *  ranger's last-known position. Supplied by the Command Center page, which
+   *  matches the ranger to a map subject by name and flies the map there. Only
+   *  rangers whose name resolves to a subject with a position (see
+   *  `locatableRangerNames`) are rendered as interactive buttons; the rest stay
+   *  static. Omitted → the roster is a plain read-only list (existing behavior). */
+  onSelectRanger?: (ranger: RosterRanger) => void;
+  /** Normalized (trim+lowercase) names of rangers whose position is known on
+   *  the map, so only those rows are made clickable. Omitted → treated as
+   *  empty (no row is clickable even if onSelectRanger is supplied). */
+  locatableRangerNames?: Set<string>;
 }) {
   const showToggle = onHideIdleRangersChange !== undefined;
   return (
@@ -144,11 +157,16 @@ export function RangerRoster({
           <ul className="divide-y divide-border">
             {[...rangers].sort(compareRangers).map((r) => {
               const meta = STATUS_META[r.status];
-              return (
-                <li
-                  key={r.id}
-                  className="flex items-center gap-2 px-3 py-1.5"
-                >
+              const isLocatable =
+                onSelectRanger !== undefined &&
+                (locatableRangerNames?.has(r.name.trim().toLowerCase()) ??
+                  false);
+              // Shared row body — identical layout whether the row is a static
+              // <li> or an interactive <button>, so making it clickable doesn't
+              // shift anything visually. `MapPin` only appears on locatable rows
+              // and reveals on hover/focus to signal the click-to-locate affordance.
+              const body = (
+                <>
                   <span
                     className={`h-2 w-2 shrink-0 rounded-full ${meta.dot}`}
                     aria-hidden="true"
@@ -156,6 +174,12 @@ export function RangerRoster({
                   <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground">
                     {r.name}
                   </span>
+                  {isLocatable ? (
+                    <MapPin
+                      className="h-3 w-3 shrink-0 text-[hsl(var(--info))] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                      aria-hidden="true"
+                    />
+                  ) : null}
                   {r.patrolHoursInRange > 0 ? (
                     <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
                       {r.patrolHoursInRange.toFixed(1)}h
@@ -169,6 +193,28 @@ export function RangerRoster({
                   <span className="w-10 shrink-0 text-right text-[10px] tabular-nums text-muted-foreground">
                     {relativeShort(r.lastSeenAt, now)}
                   </span>
+                </>
+              );
+              return (
+                <li key={r.id}>
+                  {isLocatable ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // `isLocatable` guarantees onSelectRanger is defined
+                        // (TS aliased-condition narrowing), so no optional chain.
+                        onSelectRanger(r);
+                      }}
+                      aria-label={`Show ${r.name} on the map`}
+                      className="group flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[hsl(var(--info))]"
+                    >
+                      {body}
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2 px-3 py-1.5">
+                      {body}
+                    </div>
+                  )}
                 </li>
               );
             })}

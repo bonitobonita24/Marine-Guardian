@@ -112,6 +112,81 @@ describe("RangerRoster", () => {
     fireEvent.click(toggle);
     expect(onHideIdleRangersChange).toHaveBeenCalledWith(true);
   });
+
+  // ── Q2 (2026-07-07) click-to-locate ──────────────────────────────────────
+
+  it("makes ONLY locatable rangers clickable buttons and fires onSelectRanger with the ranger", () => {
+    const onSelectRanger = vi.fn();
+    render(
+      <RangerRoster
+        rangers={rangers}
+        summary={summary}
+        isLoading={false}
+        onSelectRanger={onSelectRanger}
+        // Alpha + Bravo have a map position; Charlie does not.
+        locatableRangerNames={new Set(["alpha ranger", "bravo ranger"])}
+      />,
+    );
+    // Two locatable rangers → two accessible "Show … on the map" buttons.
+    const alphaBtn = screen.getByRole("button", {
+      name: /show alpha ranger on the map/i,
+    });
+    expect(alphaBtn).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: /show bravo ranger on the map/i }),
+    ).toBeTruthy();
+    // Charlie is NOT locatable → no button for it.
+    expect(
+      screen.queryByRole("button", { name: /show charlie ranger on the map/i }),
+    ).toBeNull();
+
+    fireEvent.click(alphaBtn);
+    expect(onSelectRanger).toHaveBeenCalledTimes(1);
+    const clicked = onSelectRanger.mock.calls[0]?.[0] as
+      | RosterRanger
+      | undefined;
+    expect(clicked?.name).toBe("Alpha Ranger");
+  });
+
+  it("renders no locate buttons when onSelectRanger is omitted (read-only list)", () => {
+    render(
+      <RangerRoster
+        rangers={rangers}
+        summary={summary}
+        isLoading={false}
+        locatableRangerNames={new Set(["alpha ranger"])}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: /on the map/i }),
+    ).toBeNull();
+  });
+
+  it("matches ranger→position names case/whitespace-insensitively", () => {
+    const onSelectRanger = vi.fn();
+    render(
+      <RangerRoster
+        rangers={[
+          {
+            id: "r1",
+            name: "  Alpha Ranger  ",
+            status: "on_patrol",
+            lastSeenAt: new Date(),
+            patrolsInRange: 1,
+            patrolHoursInRange: 2,
+          },
+        ]}
+        summary={{ total: 1, onPatrol: 1, active: 0, idle: 0 }}
+        isLoading={false}
+        onSelectRanger={onSelectRanger}
+        locatableRangerNames={new Set(["alpha ranger"])}
+      />,
+    );
+    // Padded/mixed-case display name still resolves to the normalized key.
+    expect(
+      screen.getByRole("button", { name: /show .*alpha ranger.* on the map/i }),
+    ).toBeTruthy();
+  });
 });
 
 // ── Sparkline ─────────────────────────────────────────────────────────────────
