@@ -7,18 +7,22 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { mockAuth, mockRedirect, cookieStore } = vi.hoisted(() => ({
+const { mockAuth, mockRedirect, mockNotFound, cookieStore } = vi.hoisted(() => ({
   mockAuth: vi.fn(),
   // redirect() never returns in Next; model it as a throw so control stops and
   // the target is capturable.
   mockRedirect: vi.fn((to: string) => {
     throw new Error(`REDIRECT:${to}`);
   }),
+  // notFound() also never returns; model it as a distinct throw.
+  mockNotFound: vi.fn(() => {
+    throw new Error("NOT_FOUND");
+  }),
   cookieStore: { get: vi.fn() },
 }));
 
 vi.mock("@/server/auth", () => ({ auth: mockAuth }));
-vi.mock("next/navigation", () => ({ redirect: mockRedirect }));
+vi.mock("next/navigation", () => ({ redirect: mockRedirect, notFound: mockNotFound }));
 vi.mock("next/headers", () => ({ cookies: () => Promise.resolve(cookieStore) }));
 
 import TenantLayout from "../layout";
@@ -39,8 +43,25 @@ function platformAdmin() {
 beforeEach(() => {
   mockAuth.mockReset();
   mockRedirect.mockClear();
+  mockNotFound.mockClear();
   cookieStore.get.mockReset();
   cookieStore.get.mockReturnValue(undefined);
+});
+
+describe("[tenant]/layout — static-asset segment guard", () => {
+  it("returns 404 (notFound) for a root static-asset segment, NOT a tenant redirect", async () => {
+    // Regression: /favicon.ico, /robots.txt etc. fall through to this catch-all
+    // [tenant] route; they must 404, never 307 into /<file>/dashboard.
+    mockAuth.mockResolvedValue(null);
+    await expect(run("favicon.ico")).rejects.toThrow("NOT_FOUND");
+    expect(mockNotFound).toHaveBeenCalled();
+    expect(mockRedirect).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 for robots.txt without invoking auth", async () => {
+    await expect(run("robots.txt")).rejects.toThrow("NOT_FOUND");
+    expect(mockAuth).not.toHaveBeenCalled();
+  });
 });
 
 describe("[tenant]/layout — slug validation gate", () => {

@@ -1,6 +1,6 @@
 import { auth } from "@/server/auth";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import {
   IMPERSONATION_SLUG_COOKIE_NAME,
   parseImpersonationSlugFromHeader,
@@ -42,6 +42,19 @@ export default async function TenantLayout({
   params: Promise<{ tenant: string }>;
 }) {
   const { tenant } = await params;
+
+  // Root static-asset requests with no more-specific route (favicon.ico,
+  // robots.txt, apple-icon.png, sitemap.xml, …) fall through to this catch-all
+  // [tenant] segment. A real tenant slug NEVER contains a dot, so treating such a
+  // request as a tenant would 307 it into /<file>/dashboard (via page.tsx).
+  // Reject as 404 — the correct "no such resource" answer, and the L2 mirror of
+  // the edge middleware's static-asset guard (a request that skips middleware via
+  // a matcher exclusion still lands here). Real assets like /icon.svg resolve to
+  // their own more-specific route and never enter this layout.
+  if (tenant.includes(".")) {
+    notFound();
+  }
+
   const session = await auth();
 
   if (session?.user === undefined) {

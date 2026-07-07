@@ -27,8 +27,33 @@ const { auth } = NextAuth(edgeAuthConfig);
 // Segments that are NOT tenant slugs.
 const RESERVED_SEGMENTS = new Set(["", "admin", "api", "login", "privacy", "print-render"]);
 
+// Top-level path segments the tenant-slug resolver must never treat as a [tenant]
+// slug. Superset of RESERVED_SEGMENTS plus Next internals; used by the early
+// static-asset / reserved-path passthrough guard.
+const RESERVED_FIRST_SEGMENTS = new Set([
+  "admin",
+  "api",
+  "login",
+  "privacy",
+  "print-render",
+  "_next",
+]);
+
 function firstSegment(pathname: string): string {
   return pathname.split("/").filter(Boolean)[0] ?? "";
+}
+
+// A first segment that looks like a filename (contains a ".") is a root static
+// asset — favicon.ico, icon.svg, apple-icon*.png, robots.txt, sitemap.xml,
+// manifest.webmanifest, etc. Tenant slugs never contain a dot.
+function isStaticAssetSegment(seg: string): boolean {
+  return seg.includes(".");
+}
+
+// True when the first path segment must NOT be resolved as a tenant slug: it is a
+// reserved top-level path, a Next internal, or a root static file.
+function isReservedOrAsset(seg: string): boolean {
+  return RESERVED_FIRST_SEGMENTS.has(seg) || isStaticAssetSegment(seg);
 }
 
 // The path with its leading tenant slug removed, for reuse of the existing
@@ -76,6 +101,18 @@ function isSuperAdminOnlyPath(pathname: string): boolean {
 export default async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // --- Static assets & Next internals never resolve as a [tenant] slug -----
+  // A root static file (favicon.ico, icon.svg, apple-icon*.png, robots.txt,
+  // sitemap.xml, manifest.webmanifest, …) or a Next internal (_next/*) flows
+  // straight through. Without this guard the tenant-slug resolver rewrites e.g.
+  // /icon.svg -> /icon.svg/login (unauth) or /icon.svg -> /<tenant>/dashboard
+  // (authed), emitting bogus 307s + console errors. `config.matcher` also
+  // excludes these, but this guard is the authoritative, unit-tested defense.
+  const firstSeg = firstSegment(pathname);
+  if (firstSeg === "_next" || isStaticAssetSegment(firstSeg)) {
+    return NextResponse.next();
+  }
+
   // --- Passthroughs (unchanged) -------------------------------------------
   if (pathname.startsWith(PRINT_RENDER_PREFIX)) {
     const expected = process.env.PDF_RENDERER_SERVICE_TOKEN;
@@ -112,9 +149,10 @@ export default async function middleware(request: NextRequest) {
 
   // --- Unauthenticated -----------------------------------------------------
   if (!session?.user) {
-    // Reserved (admin/api/root/...) → platform login. A real tenant slug →
-    // that tenant's own login, preserving the deep-link as callbackUrl.
-    if (RESERVED_SEGMENTS.has(seg)) {
+    // Reserved (admin/api/root/...) or a static-asset/_next segment → platform
+    // login. Only a real tenant slug → that tenant's own login, preserving the
+    // deep-link as callbackUrl.
+    if (RESERVED_SEGMENTS.has(seg) || isReservedOrAsset(seg)) {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("callbackUrl", pathname);
       return NextResponse.redirect(loginUrl);
@@ -187,5 +225,12 @@ export default async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next|favicon.ico|icons|images|api/health|api/auth|api/trpc).*)"],
+  // Skip Next internals, root static files, and the handshake API routes. The
+  // trailing `[\\w-]+\\.[\\w]+` clause excludes ANY root file with an extension
+  // (icon.svg, apple-icon.png, robots.txt, sitemap.xml, manifest.webmanifest,
+  // …) so they never reach the tenant-slug resolver. The in-handler guard
+  // (isStaticAssetSegment) is the authoritative, unit-tested backstop.
+  matcher: [
+    "/((?!_next/static|_next/image|_next|favicon.ico|icon.svg|apple-icon|icons|images|robots.txt|sitemap.xml|manifest.webmanifest|api/health|api/auth|api/trpc|[\\w-]+\\.[\\w]+).*)",
+  ],
 };

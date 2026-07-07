@@ -59,6 +59,42 @@ beforeEach(() => {
   mockAuth.mockReset();
 });
 
+describe("middleware — static assets & reserved first-segments (not tenant slugs)", () => {
+  // Regression: a root static file must NOT be treated as a [tenant] slug and
+  // rewritten into /<file>/login or /<file>/dashboard. These pass straight
+  // through regardless of auth state (the guard runs before auth()).
+  it("passes /icon.svg through (not redirected to a tenant path)", async () => {
+    mockAuth.mockResolvedValue(null);
+    const res = await middleware(makeReq("/icon.svg"));
+    expect(locationOf(res)).toBeNull();
+  });
+
+  it("passes /favicon.ico through (not redirected to a tenant path)", async () => {
+    mockAuth.mockResolvedValue(null);
+    const res = await middleware(makeReq("/favicon.ico"));
+    expect(locationOf(res)).toBeNull();
+  });
+
+  it("passes /robots.txt through (not redirected to a tenant path)", async () => {
+    mockAuth.mockResolvedValue(null);
+    const res = await middleware(makeReq("/robots.txt"));
+    expect(locationOf(res)).toBeNull();
+  });
+
+  it("passes a static asset through even for an authenticated tenant user", async () => {
+    mockAuth.mockResolvedValue(tenantUser("demo-site"));
+    const res = await middleware(makeReq("/apple-icon.png"));
+    expect(locationOf(res)).toBeNull();
+  });
+
+  it("still applies tenant logic to a genuine slug that shares no asset traits", async () => {
+    // guard must NOT swallow real tenant paths: cross-tenant denial preserved.
+    mockAuth.mockResolvedValue(tenantUser("demo-site"));
+    const res = await middleware(makeReq("/other-tenant/map"));
+    expect(locationOf(res)).toContain("/demo-site/dashboard");
+  });
+});
+
 describe("middleware — unauthenticated", () => {
   it("redirects a tenant deep-link to that tenant's login with callbackUrl", async () => {
     mockAuth.mockResolvedValue(null);
