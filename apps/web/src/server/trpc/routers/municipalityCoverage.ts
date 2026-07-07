@@ -7,9 +7,10 @@
  *   protectedZoneCoverage — patrol + event counts for all ProtectedZone rows
  *     (30-day window by default; accepts an optional date range).
  *
- * Both procedures are time-based activity aggregations (patrol startTime /
- * event reportedAt / zone-coverage assignedAt), so both honour the War Room
- * date range (2026-06-25, T4b). The range input mirrors dashboard.ts's
+ * Both procedures are time-based activity aggregations windowed by OCCURRENCE
+ * time (patrol startTime / event reportedAt — for zone coverage too, via the
+ * patrol/event relation, NOT the join row's assignedAt), so both honour the War
+ * Room date range (2026-06-25, T4b). The range input mirrors dashboard.ts's
  * { dateFrom, dateTo } shape and is fully backward-compatible: when omitted,
  * each procedure behaves exactly as it did before (existing callers + the
  * Coverage Report's own { since, until } usage are unaffected). For
@@ -131,13 +132,24 @@ export const municipalityCoverageRouter = router({
         .optional(),
     )
     .query(async ({ ctx, input }) => {
-      // Zone coverage counts patrol/event→zone assignments over time, so it is
-      // a time-based aggregation and honours the War Room range. Default window
-      // (range omitted) is unchanged: last 30 days, no upper bound.
+      // Zone coverage counts the patrols/events that OCCURRED inside the window
+      // and fall within each zone. It MUST window by occurrence time
+      // (patrol.startTime / event.reportedAt) — NOT by the join row's
+      // assignedAt. assignedAt is the attribution-compute time, and the
+      // zone-attribution re-derive job stamps it in BULK (every historical row
+      // gets today's assignedAt on a re-run), so filtering on it floods every
+      // recent window with the entire history (Q1 bug 2026-07-07: Apo Reef read
+      // "182 patrols / 32 events" for a 48h window when the true 48h activity
+      // was ~5 patrols / 0 events). Default window (range omitted) is unchanged:
+      // last 30 days, no upper bound.
+      //
+      // Semantics now mirror the sibling municipalityCoverage procedure:
+      // deleted/test patrols and Skylight automated-detection events are
+      // excluded so the zone counts match the KPI tiles + coverage chart.
       const since = input?.dateFrom ?? new Date(Date.now() - THIRTY_DAYS_MS);
-      // assignedAt filter: always lower-bounded; upper-bounded only when dateTo
-      // is supplied (preserves the original open-ended default behaviour).
-      const assignedAtFilter =
+      // Occurrence-time filter: always lower-bounded; upper-bounded only when
+      // dateTo is supplied (preserves the original open-ended default).
+      const occurredAtFilter =
         input?.dateTo != null
           ? { gte: since, lte: input.dateTo }
           : { gte: since };
@@ -156,7 +168,11 @@ export const municipalityCoverageRouter = router({
           by: ["protectedZoneId"],
           where: {
             tenantId: ctx.tenantId,
-            assignedAt: assignedAtFilter,
+            patrol: {
+              startTime: occurredAtFilter,
+              isDeleted: false,
+              isTestPatrol: false,
+            },
           },
           _count: { id: true },
         }),
@@ -164,7 +180,15 @@ export const municipalityCoverageRouter = router({
           by: ["protectedZoneId"],
           where: {
             tenantId: ctx.tenantId,
-            assignedAt: assignedAtFilter,
+            event: {
+              reportedAt: occurredAtFilter,
+              // Same Skylight exclusion as municipalityCoverage / dashboard.
+              NOT: {
+                eventType: {
+                  display: { contains: "skylight", mode: "insensitive" },
+                },
+              },
+            },
           },
           _count: { id: true },
         }),
