@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc/client";
+import { useTenantSlug } from "@/lib/routing/use-tenant-slug";
+import { tenantHref } from "@/lib/routing/tenant-href";
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -28,6 +30,7 @@ const MIN_PASSWORD_LENGTH = 8;
  * left half-valid).
  */
 export function ChangePasswordCard() {
+  const tenant = useTenantSlug();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -37,7 +40,7 @@ export function ChangePasswordCard() {
   const changePassword = trpc.account.changeOwnPassword.useMutation({
     onSuccess: () => {
       setSigningOut(true);
-      void signOut({ callbackUrl: "/login?passwordChanged=1" });
+      void signOut({ callbackUrl: tenantHref(tenant, "/login?passwordChanged=1") });
     },
     onError: (err) => {
       setError(err.message);

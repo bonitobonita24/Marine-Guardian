@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/table";
 import { trpc } from "@/lib/trpc/client";
 import { buildExportUrl } from "@/lib/exports";
+import { useTenantSlug } from "@/lib/routing/use-tenant-slug";
+import { tenantHref } from "@/lib/routing/tenant-href";
 
 const PAGE_SIZE = 50;
 
@@ -30,6 +32,7 @@ function priorityVariant(priority: number): "destructive" | "default" | "seconda
 }
 
 export default function AlertHistoryPage() {
+  const tenant = useTenantSlug();
   const [cursors, setCursors] = useState<(string | undefined)[]>([undefined]);
   const [pageIndex, setPageIndex] = useState(0);
 
@@ -78,7 +81,7 @@ export default function AlertHistoryPage() {
             </a>
           </Button>
           <Button variant="outline" asChild>
-            <Link href="/alerts">Back to Alert Rules</Link>
+            <Link href={tenantHref(tenant, "/alerts")}>Back to Alert Rules</Link>
           </Button>
         </div>
       </div>
@@ -120,7 +123,7 @@ export default function AlertHistoryPage() {
                     <TableCell>
                       {row.event ? (
                         <Link
-                          href={`/events?eventId=${row.event.id}`}
+                          href={tenantHref(tenant, `/events?eventId=${row.event.id}`)}
                           className="text-primary hover:underline"
                         >
                           {row.event.title ?? row.event.serialNumber ?? row.event.id}

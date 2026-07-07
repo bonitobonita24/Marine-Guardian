@@ -37,6 +37,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc/client";
+import { useTenantSlug } from "@/lib/routing/use-tenant-slug";
+import { tenantHref } from "@/lib/routing/tenant-href";
 import {
   PLATFORM_ADMIN_EMPTY_TENANT_MESSAGE,
   useIsPlatformAdminWithoutTenant,
@@ -68,6 +70,7 @@ const PAPER_SIZE_OPTIONS: { value: PaperSize; label: string }[] = [
 ];
 
 export function GenerateReportButton() {
+  const tenant = useTenantSlug();
   const { data: session } = useSession();
   const isPlatformAdminWithoutTenant = useIsPlatformAdminWithoutTenant();
   const [open, setOpen] = useState(false);
@@ -271,7 +274,7 @@ export function GenerateReportButton() {
           <p className="text-sm text-emerald-600 dark:text-emerald-400">
             Export queued (id: {feedback.exportId}).{" "}
             <Link
-              href="/exports"
+              href={tenantHref(tenant, "/exports")}
               className="underline underline-offset-4"
               data-testid="generate-report-go-to-exports"
             >

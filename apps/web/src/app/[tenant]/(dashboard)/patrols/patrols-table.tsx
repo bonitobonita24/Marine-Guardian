@@ -24,6 +24,8 @@ import {
 import { trpc } from "@/lib/trpc/client";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@/server/trpc/routers";
+import { useTenantSlug } from "@/lib/routing/use-tenant-slug";
+import { tenantHref } from "@/lib/routing/tenant-href";
 type PatrolListItem = inferRouterOutputs<AppRouter>["patrol"]["list"]["items"][number];
 
 type StateFilter = "all" | "open" | "done" | "cancelled";
@@ -31,6 +33,7 @@ type TypeFilter = "all" | "foot" | "seaborne";
 
 export function PatrolsTable() {
   const router = useRouter();
+  const tenant = useTenantSlug();
   const { data: session } = useSession();
   const roles = session?.user.roles ?? [];
   // Phase 7 soft-delete — delete/restore actions + the "Show deleted" toggle
@@ -191,7 +194,7 @@ export function PatrolsTable() {
                     key={p.id}
                     data-testid={`patrol-row-${p.id}`}
                     className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => { router.push(`/patrols/${p.id}`); }}
+                    onClick={() => { router.push(tenantHref(tenant, `/patrols/${p.id}`)); }}
                   >
                     <TableCell>
                       <div className="flex items-center gap-2">

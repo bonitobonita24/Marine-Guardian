@@ -25,6 +25,8 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { trpc } from "@/lib/trpc/client";
 import { buildExportUrl } from "@/lib/exports";
+import { useTenantSlug } from "@/lib/routing/use-tenant-slug";
+import { tenantHref } from "@/lib/routing/tenant-href";
 
 type ChannelValue = "in_app" | "email";
 
@@ -77,6 +79,7 @@ function channelBadges(channels: string[]) {
 }
 
 export default function AlertsPage() {
+  const tenant = useTenantSlug();
   const rulesQuery = trpc.alertRule.list.useQuery({ limit: 100 });
   const utils = trpc.useUtils();
 
@@ -234,7 +237,7 @@ export default function AlertsPage() {
             </a>
           </Button>
           <Button variant="outline" asChild>
-            <Link href="/alerts/history">View History</Link>
+            <Link href={tenantHref(tenant, "/alerts/history")}>View History</Link>
           </Button>
           <Dialog
             open={dialogOpen}

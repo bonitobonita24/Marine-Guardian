@@ -34,8 +34,11 @@ import {
 import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc/client";
 import { useReportFilter } from "@/components/reporting/report-filter-context";
+import { useTenantSlug } from "@/lib/routing/use-tenant-slug";
+import { tenantHref } from "@/lib/routing/tenant-href";
 
 export function GeneratePrintableButton() {
+  const tenant = useTenantSlug();
   const { from, to, municipalityId, protectedZoneId } = useReportFilter();
   const [open, setOpen] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
@@ -179,7 +182,7 @@ export function GeneratePrintableButton() {
           <p className="text-sm text-emerald-600 dark:text-emerald-400">
             Export queued (id: {feedback.exportId}).{" "}
             <Link
-              href="/exports"
+              href={tenantHref(tenant, "/exports")}
               className="underline underline-offset-4"
               data-testid="generate-printable-go-to-exports"
             >

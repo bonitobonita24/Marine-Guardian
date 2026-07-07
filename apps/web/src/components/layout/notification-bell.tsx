@@ -4,15 +4,18 @@ import Link from "next/link";
 import { BellRing } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNotificationStore } from "@/lib/realtime/notification-store";
+import { useTenantSlug } from "@/lib/routing/use-tenant-slug";
+import { tenantHref } from "@/lib/routing/tenant-href";
 
 export function NotificationBell() {
   const unreadCount = useNotificationStore((s) => s.unreadCount);
   const display = unreadCount > 9 ? "9+" : String(unreadCount);
+  const tenant = useTenantSlug();
 
   return (
     <Button asChild variant="ghost" size="icon" className="relative">
       <Link
-        href="/notifications"
+        href={tenantHref(tenant, "/notifications")}
         aria-label={`${String(unreadCount)} unread notifications`}
       >
         <BellRing aria-hidden="true" />
