@@ -78,8 +78,9 @@ function DashboardContent() {
   // (2026-06-27): pass the active FROM/TO window so it re-queries in lock-step.
   const alerts = trpc.alertHistory.list.useQuery({ limit: 10, ...range });
   const patrols = trpc.dashboard.activePatrols.useQuery(range);
-  // protected-zone coverage is a time-based activity aggregation (zone-coverage
-  // assignedAt), so it honours the War Room range (T4b). Its procedure accepts
+  // protected-zone coverage is a time-based activity aggregation windowed by
+  // occurrence time (patrol.startTime / event.reportedAt), so it honours the War
+  // Room range (T4b). Its procedure accepts
   // the same { dateFrom, dateTo } shape as dashboard.* (backward-compatible:
   // omitting it keeps the original 30-day default), so it re-queries in
   // lock-step too.
