@@ -44,7 +44,10 @@ vi.mock("../../../auth", () => ({
 import { platformPrisma, writeAuditLog } from "@marine-guardian/db";
 import { createCallerFactory } from "../../trpc";
 import { platformImpersonationRouter } from "../platformImpersonation";
-import { IMPERSONATION_COOKIE_NAME } from "../../../../lib/auth/impersonation";
+import {
+  IMPERSONATION_COOKIE_NAME,
+  IMPERSONATION_SLUG_COOKIE_NAME,
+} from "../../../../lib/auth/impersonation";
 
 // Typed partial matcher — avoids unsafe-assignment on objectContaining.
 function partial<T>(obj: T): T {
@@ -164,6 +167,25 @@ describe("platformImpersonation.enter", () => {
     );
   });
 
+  it("path-based tenancy — also sets the sibling mg-impersonate-slug cookie to the tenant slug", async () => {
+    vi.mocked(platformPrisma.tenant.findUnique).mockResolvedValue({
+      id: TENANT_ID,
+      slug: "demo-site",
+      name: "Demo Site",
+      isActive: true,
+    } as never);
+    vi.mocked(writeAuditLog).mockResolvedValue(undefined as never);
+
+    const caller = createCaller(makeCtx());
+    await caller.enter({ tenantId: TENANT_ID });
+
+    expect(cookieStore.set).toHaveBeenCalledWith(
+      IMPERSONATION_SLUG_COOKIE_NAME,
+      "demo-site",
+      partial({ httpOnly: true, sameSite: "lax", path: "/", maxAge: 86400 }),
+    );
+  });
+
   it("enter audit includes targetTenantSlug + targetTenantName in changesJson", async () => {
     vi.mocked(platformPrisma.tenant.findUnique).mockResolvedValue({
       id: TENANT_ID,
@@ -225,6 +247,8 @@ describe("platformImpersonation.exit", () => {
 
     expect(result).toEqual({ wasImpersonating: true });
     expect(cookieStore.delete).toHaveBeenCalledWith(IMPERSONATION_COOKIE_NAME);
+    // path-based tenancy: the sibling slug cookie is cleared too
+    expect(cookieStore.delete).toHaveBeenCalledWith(IMPERSONATION_SLUG_COOKIE_NAME);
     expect(vi.mocked(writeAuditLog)).toHaveBeenCalledWith(
       platformPrisma,
       partial({
