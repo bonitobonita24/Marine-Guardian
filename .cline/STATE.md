@@ -3,6 +3,34 @@
 # ════════════════════════════════════════════════════════════════════════════
 # ════════════════════════════════════════════════════════════════════════════
 # ════════════════════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════════════════
+# ✅ 2026-07-09 (FULL AUTO, owner asleep) — FULL-SCALE NUMBER VERIFICATION DONE + 1 bug fixed & UI-verified.
+#   TASK (from prior handoff): test-simulation of report/map/chart numbers vs DB ground truth (tenant ph =
+#   cmoruubw…, 3206 events / 4940 patrols; other tenants empty). Method: 3 parallel Sonnet agents each read a
+#   surface's aggregation code + reproduced every aggregate in SQL vs dev DB; PM Playwright-spot-checked the live
+#   UI + cross-checked anchors via `docker exec marine-guardian_dev_postgres psql`.
+#   RESULT:
+#   • Report Map (reportMap.ts+map.ts): ✅ NO BUGS. UI == DB exactly (wide: LE 439 / Monitoring 1998 / total 2469 /
+#     highPri 364 / patrols 4786=4940−154null-start / terrain All 2469·Land 1231·Water 1127). Single-day 2026-07-08
+#     = Mon 4 / LE 0 == DB → end-of-day INCLUSIVE, no boundary bug. Skylight excluded consistently.
+#   • PDF reports (per-area + coverage builders): ✅ NO CODE BUGS. Coverage June reproduced exactly (315=146foot/169sea).
+#     Per-area near-empty = upstream data-attribution gap (0/4940 patrols + 157/3206 events carry area_boundary_id) → deferred.
+#   • Command Center (dashboard.ts): breakdown sums 439/1998 ✓, kpiTrends buckets sum ✓, eventsThisMonth 434 ✓,
+#     roster onPatrol 11 ✓. Events page 3206 == DB ✓. → ONE real bug + 2 [WHAT] caveats.
+#   🔴 BUG FIXED (branch **fix/rangers-on-duty-kpi @ 02665cd**, off feat/ph-tenant-slug, LOCAL only NOT pushed):
+#     rangersOnDuty KPI read 0 while roster showed 11 (KPI only counted AccompanyingRanger-on-open-patrol, but
+#     open patrols have 0 such rows). FIX = shared helper getOpenPatrolSegmentLeaderKnownRangerIds; KPI now unions
+#     accompanying + segment-leader (keyed k:/u:), roster reuses same helper (can't drift). TDD RED→GREEN; FULL GATE
+#     GREEN (product-sync·typecheck7/7·turbo lint6/6·web build·vitest 1662). DEV APP REBUILT + UI-VERIFIED: dashboard
+#     "Rangers on Duty" = 11 (== roster), 0 console errors.
+#   ⏸ DEFERRED [WHAT] (owner, in docs/PENDING_DECISIONS.md 2026-07-09): (A) "Active Events" tile filters state='active'
+#     never synced → always 0 (maybe intend new_event=23); (B) "Unacked last 24h" tile shows War Room 7d count (label≠window);
+#     (C) area/distance attribution backfill so per-area reports show real numbers. Also still-open: roll /ph to
+#     staging/demo/prod (owner-gated); push fix/rangers-on-duty-kpi (owner-gated).
+#   Report artifact: test-artifacts/number-verification-plan.md. CHANGELOG_AI 2026-07-09 has full detail.
+#   NEXT SESSION un-gated option (optional depth): actually GENERATE a coverage + per-area PDF via /ph/exports UI and
+#     confirm rendered numbers (only code+DB verified so far, not the PDF render). Otherwise only deferred [WHAT] remain → pace.
+# ════════════════════════════════════════════════════════════════════════════
 # 🆕 2026-07-08 pm — TENANT RENAME demo-site → "ph" (Philippines). Owner: make PH tenant official as slug /ph
 #   (holds Philippine MPAs); Banggai + Pecca = future regional tenants (NOT built). DECISIONS (owner): name
 #   "Philippines" · scope DEV ONLY this session (staging/demo/prod GATED) · KEEP mg-demo separate (untouched).

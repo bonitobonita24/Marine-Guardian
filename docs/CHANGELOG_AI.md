@@ -3,6 +3,24 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-07-09 — Full-scale number verification (report/map/charts) + rangersOnDuty KPI fix — DEV ONLY
+
+- Agent:               CLAUDE_CODE (Opus 4.8 PM) + 3 parallel Sonnet verification agents + 1 Sonnet fix worker
+- Branches:            verification artifacts on feat/ph-tenant-slug (LOCAL only); the code fix isolated on **fix/rangers-on-duty-kpi @ 02665cd** (LOCAL only — NOT pushed, owner-gated).
+- Why:                 Owner FULL-AUTO directive — full-scale test simulation of report generation + map/chart numbers, cross-checking every figure vs DB ground truth (tenant ph) to confirm correctness.
+- Method:              3 parallel agents each read a surface's aggregation code + reproduced every aggregate in SQL against dev DB for tenant ph, then PM spot-checked the live UI via Playwright and cross-checked anchor numbers vs `docker exec psql`.
+- RESULT — surfaces audited:
+  - **Report Map** (reportMap.ts + map.ts): ✅ NO bugs. All counts reconcile — LE 439, Monitoring 1998, totalEvents 2469 (3206−737 skylight), high-priority 364, terrain All 2469/Land 1231/Water 1127 (null-terrain in All only), MPA Apo Reef 33 ev/206 pat. UI wide-range render == DB exactly; single-day 2026-07-08 = Monitoring 4/LE 0 == DB (end-of-day inclusive, no boundary bug); skylight excluded consistently in live markers.
+  - **PDF reports** (per-area-report + coverage-report builders): ✅ NO code bugs. Correct date fields/half-open ranges/scoping; coverage June-2026 reproduced exactly (315 patrols = 146 foot/169 seaborne). Per-area near-empty is an upstream data-attribution gap (deferred — see PENDING_DECISIONS).
+  - **Command Center** (dashboard.ts): eventBreakdown bars sum 439/1998 ✓, kpiTrends buckets sum to window totals ✓, eventsThisMonth 434 ✓, roster onPatrol 11 ✓ — plus ONE real bug (fixed below) and two product-intent caveats (deferred).
+  - Cross-consistency anchor: events page 3206 total (23 new+0 active+3183 resolved) == DB ph total 3206 ✓.
+- FIX (branch fix/rangers-on-duty-kpi @ 02665cd):
+  - Files:               apps/web/src/server/trpc/routers/dashboard.ts + __tests__/dashboard.test.ts
+  - Bug:                `kpis.rangersOnDuty` read 0 while `rangerRoster` showed 11 on the same dashboard. KPI derived on-duty rangers ONLY from AccompanyingRanger rows on open patrols, but open patrols have zero such rows (all on completed patrols) → structurally always 0.
+  - Fix:                Extracted shared helper `getOpenPatrolSegmentLeaderKnownRangerIds`; `rangersOnDuty` now unions AccompanyingRanger-on-open-patrol with open-patrol segment-leader rangers (keyed k:/u: to avoid double-count); roster calls the same helper so the two tiles can't drift again.
+  - Testing:            TDD RED→GREEN. Gate GREEN — check-product-sync · typecheck 7/7 · turbo lint 6/6 · `pnpm --filter web build` · full web vitest 1662 pass. **UI-verified end-to-end**: dev app rebuilt → dashboard "Rangers on Duty" = 11 (matches roster), 0 console errors.
+- Deferred to owner ([WHAT], in PENDING_DECISIONS 2026-07-09): (A) "Active Events" tile filters state='active' never synced → permanently 0 (maybe intend new_event=23); (B) "Unacknowledged last 24h" tile shows the War Room's 7-day count (label≠window); (C) area/distance attribution backfill so per-area reports show real numbers.
+
 ## 2026-07-08 — Tenant rename: demo-site → "ph" (Philippines) — DEV ONLY (branch feat/ph-tenant-slug)
 
 - Agent:               CLAUDE_CODE (Opus 4.8)

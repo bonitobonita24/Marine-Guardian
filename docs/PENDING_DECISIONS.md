@@ -179,3 +179,30 @@ Owner may hold/cancel Premium to save cost.
 - **Decision needed (next session):** [ ] After measuring latency, approve building R0→R2 (R2 client module
   → flag-gated route read-through → live verify + Visual QA). R2 creds already exist
   (`Server-Setups/Powerbyte-Hostinger/secrets/cloudflare-r2.enc.yaml`). Deploy HARD HOLD respected.
+
+---
+
+## 2026-07-09 — Number-verification session: 2 dashboard tiles hinge on product intent ([WHAT])
+Full-scale test simulation of report/map/chart numbers vs DB ground truth (tenant ph) found the aggregation
+logic overwhelmingly SOUND. Report Map (reportMap.ts) and PDF reports (per-area + coverage) = **zero logic bugs**;
+all counts reconcile exactly (LE 439, Monitoring 1998, high-priority 364, terrain All 2469/Land 1231/Water 1127,
+coverage June 315 patrols=146 foot/169 seaborne, events page 3206==DB). One real code bug (rangersOnDuty KPI 0 vs
+roster 11) is being fixed by the fleet on branch fix/rangers-on-duty-kpi (technical [HOW], not deferred). The
+following two are genuine product [WHAT] calls — the number is "correct" for the current filter but the filter/label
+may not match intent:
+- [ ] **"Active Events" tile (dashboard) is permanently 0.** It filters `EventState = 'active'`, but ER never syncs
+  that state to this tenant — only `new_event` (23) and `resolved` (3183) exist. If the tile is meant to show
+  open/unresolved incidents, `new_event` (23) is the population an operator expects. **Decide:** keep `state='active'`
+  (tile stays 0 until ER sends active) OR switch to `new_event`/unresolved. dashboard.ts:65-72.
+- [ ] **"Unacknowledged alerts — last 24h" tile shows a 7-day count.** The War Room feeds the tile its global
+  [now-7d, now] range, so the number is ~7d (~2211) while the label/comment says "last 24h" (~735). **Decide:** give
+  the tile an explicit 24h window OR relabel it to match the War Room range. dashboard.ts:257-275.
+
+## 2026-07-09 — Per-area reports render near-empty in ph: area/distance attribution backfill ([WHAT], data not code)
+Per-area PDF reports are near-empty for ph NOT because of a report bug (logic verified sound) but because the
+underlying attribution data is sparse: only **157/3206 events** and **0/4940 patrols** carry `area_boundary_id`
+(the real 439 LE + 1996 monitoring events all have NULL), and `computed_distance_km` is materialized on only
+**1283/4940 patrols** (rest fall through to also-null total_distance_km, so coverage distances read blank).
+- [ ] **Decide/authorize:** run the area-derivation backfill (populate `area_boundary_id` on events+patrols via the
+  existing enqueueAreaRederive pipeline) and the patrol distance/track materialization backfill (recomputeDistance/
+  materializePatrolTrack), so per-area + coverage reports show real numbers. Heavy background jobs; owner-gated.
