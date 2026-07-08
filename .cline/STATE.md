@@ -13,12 +13,20 @@
 #     overlay redraw + audit); water-containment assignment stage (land→water→15km); MunicipalityBoundarySnapshot
 #     table+migration (applied dev); uploader dialog "Municipal land/water boundary" mode. FULL GATE GREEN + Visual QA
 #     0 console errors. See CHANGELOG_AI 2026-07-08.
-#   PHASE 2 slice 1 DONE (branch feat/boundaries-manager, off Phase 1, NOT pushed): per-row "More" dropdown on
-#     official municipal rows → Replace geometry (Phase 1 mutation) + History/rollback (NEW listBoundarySnapshots +
-#     revertBoundaryGeometry — completes D4). MPA rows excluded. Gate green + Visual QA 0 errors. CHANGELOG 2026-07-08.
-#   ⬜ NEXT: Phase 2 remaining slices (per-row mini-map · kind taxonomy +hotspot/custom · create-new-muni w/ Province ·
-#     fold MPA create into unified surface) → Phase 3 (Land/Water terrain filter) → Phase 4 (Province rollup + municipal
-#     child include/exclude). Branches: feat/municipal-land-water-upload (P1) + feat/boundaries-manager (P2s1), both LOCAL.
+#   PHASE 2 slices 1-3 DONE (branch feat/boundaries-manager @ fb29978, off Phase 1, NOT pushed):
+#     s1 (f21b47f) per-row "More" dropdown on official municipal rows → Replace geometry + History/rollback (NEW
+#        listBoundarySnapshots + revertBoundaryGeometry — completes D4). MPA rows excluded.
+#     s2 (7f4dc50) boundary kinds widened mpa|special_area → +hotspot|custom (create dialog + createBoundaryFromUpload).
+#     s3 (89dcf6f) per-row geometry thumbnail (inline SVG, no Leaflet) in the table Geometry column.
+#     All gate-green + Visual QA 0 console errors. CHANGELOG 2026-07-08.
+#   ⬜ NEXT (Phase 2 remaining, then 3-4): child-boundary WATER geometry D5 (needs ProtectedZone.waterGeojson + coverage
+#     work — the meatiest remaining) · create-NEW-municipality-from-upload w/ Province picker · fold MPA create into one
+#     unified surface → Phase 3 (Land/Water terrain filter, spatial ≠ Patrol.patrolType) → Phase 4 (Province rollup +
+#     municipal child include/exclude in reports/PDF). Branches: feat/municipal-land-water-upload (P1) +
+#     feat/boundaries-manager (P1+P2s1-3), both LOCAL/unpushed. Plan: docs/plans/generic-boundaries-and-hierarchy-plan.md.
+#   🔴 TEST FLAKE: create-area-boundary-dialog.test.tsx + patrol-schedule assignment-dialog.test.tsx have 5s-timeout
+#     tests that FLAKE under full-suite CPU contention (fail in `pnpm test`, pass clean isolated). Not regressions —
+#     re-run isolated to confirm before treating as a break.
 #   ⚠ DEV-DB SIDE EFFECTS THIS SESSION (local dev only): (1) admin@mail.com password reset to "admin" for Visual QA
 #     (was overridden by 2026-07-07 universal-admin rollout — owner says real cred saved in AIEF; my reset diverges,
 #     restore from vault if needed). (2) Pre-existing migration drift resolved metadata-only (migrate resolve --applied
