@@ -3,6 +3,18 @@
 # ════════════════════════════════════════════════════════════════════════════
 # ════════════════════════════════════════════════════════════════════════════
 # ════════════════════════════════════════════════════════════════════════════
+# 🆕 2026-07-08 pm — TENANT RENAME demo-site → "ph" (Philippines). Owner: make PH tenant official as slug /ph
+#   (holds Philippine MPAs); Banggai + Pecca = future regional tenants (NOT built). DECISIONS (owner): name
+#   "Philippines" · scope DEV ONLY this session (staging/demo/prod GATED) · KEEP mg-demo separate (untouched).
+#   DONE on branch feat/ph-tenant-slug @ 2cc666f (off main, NOT pushed): seed.ts tenant upsert slug/name →
+#   ph/Philippines; dev DB renamed IN PLACE (UPDATE tenants … WHERE slug='demo-site'; tenant.id cmoruubw… preserved
+#   so all events/patrols stay attached). NOT an auto Prisma migration (would clobber the separate mg-demo stack) —
+#   other envs get a controlled UPDATE on owner approval. FULLY TESTED: gate GREEN (sync·typecheck·turbo lint·vitest
+#   250+1660·web build) + dev Visual QA @45204 /ph/login→dashboard→map(terrain All→Water changes results)→patrols(50)
+#   →Boundaries(34 MPAs)→events(3206); ALL nav /ph/* (zero /demo-site); 0 console errors. ⏸ AWAITING owner word to
+#   roll to staging/demo/prod (per-env: run the same UPDATE tenants … + redeploy). Follow-up: old /demo-site/* still
+#   renders login shell for any slug (login then fails, tenant gone) → could 404/redirect unknown slugs.
+# ════════════════════════════════════════════════════════════════════════════
 # 💾 SESSION SAVE 2026-07-08. PHASE: Phase 7 — Generic-Boundaries plan, Phase 1 DONE (branch-only, NOT pushed).
 #   BRANCH: feat/municipal-land-water-upload (off main @ d80d2ab). Committed LOCALLY; awaiting owner "push it".
 #   PLAN: docs/plans/generic-boundaries-and-hierarchy-plan.md (APPROVED — reframes municipal upload into a generic
