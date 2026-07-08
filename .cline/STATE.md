@@ -44,7 +44,16 @@
 #        All → Law 1 / Mon 44 / HighPri 13 / Patrols 45.  Land → Law 0 / Mon 27 / HighPri 1 / Patrols 19.
 #        Water → Law 1 / Mon 13 / HighPri 10 / Patrols 10. Land≠Water≠All; ~4 null-terrain events + null-terrain
 #        patrols correctly excluded from both (consistent w/ empirical backfill). Screenshot in session scratchpad.
-#     3. ⏸ AWAITING OWNER "push to staging" (deploy HARD HOLD). On the word: FF main → push → CI/Komodo; then apply migration
+#   ✅✅ PHASE 3 FULLY SHIPPED TO STAGING (owner said "push it" 2026-07-08 pm): FF main→push (main @ f01af4a) →
+#     CI + Docker Build&Publish BOTH green → Komodo auto-deployed terrain image sha256:da2e593a16fc (built 13:51,
+#     running digest == staging-latest, CONFIRMED live). Migration 20260708230000 applied to staging DB (only
+#     unapplied one; pptx drift already resolved from D5 push). Terrain BACKFILL applied + verified on staging:
+#     events land 1233 / water 1847 / null 127 (matches dev); patrols land 1776 / water 2734 / null 429.
+#     🔴 TUNNEL GOTCHA: `ssh -f -N -L` local port-forward gets SIGURG-reaped (exit 144) flakily under the sandbox,
+#     esp. for long runs → the committed --force backfill died mid-events (P1017) every time. WINNING PATH = plain
+#     `ssh "docker exec psql"` (rock-solid): export data JSONL → classify LOCALLY (thin tracks every 15th coord for
+#     ~15× speed, shape-preserving) → apply batched updateMany SQL via `docker exec -i psql`. No local tunnel needed.
+#   — historical (superseded by the ✅✅ line above): was AWAITING OWNER push; on the word: FF main → push → migration
 #        20260708230000 to staging DB via tunnel (prisma migrate deploy) + run the terrain backfill on staging.
 #        NOTE staging/dev share the 20260706120000_add_report_export_pptx drift — `migrate resolve --applied` it first.
 #     Script-run note: scripts need @prisma/client symlinks at root (root has none): mkdir -p node_modules/@prisma;
