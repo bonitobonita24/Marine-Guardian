@@ -34,19 +34,19 @@
 #     (1) classifyTrackTerrain took {lat,lon}[] not raw geojson; (2) local extractor dup; (3) extractTrackCoordinates
 #     didn't handle the REAL trackGeojson = FeatureCollection-of-LineStrings (unwrapGeojson returned features[0] Feature,
 #     code read .type/.coordinates off it not .geometry) → fixed to iterate FC features.
-#   🔴🔴 FRESH SESSION — DO FIRST before anything else on feat/terrain-filter:
-#     1. Re-run the terrain backfill on dev + CONFIRM with-track patrols now classify (NOT all null):
-#        create temp symlinks (root has NO @prisma/client — scripts can't resolve it):
-#          mkdir -p node_modules/@prisma; ln -s ../../packages/db/node_modules/@prisma/client node_modules/@prisma/client;
-#          ln -s ../packages/db/node_modules/.prisma node_modules/.prisma
-#          set -a; source .env.dev; set +a; npx tsx scripts/backfill-municipality-assignment.ts --force
-#          then rm the symlinks. Verify: select case when track present then 'with-track' else 'no-track' end, terrain,
-#          count(*) from patrols... — with-track must show land/water, NOT ~all null. (Before fix2 all 4066 were null.)
-#        If STILL mostly null → extractTrackCoordinates FC handling still wrong; debug before proceeding.
-#     2. Full gate (check-product-sync·typecheck·turbo lint·vitest·web build·audit) on the branch.
-#     3. Rebuild dev app + Visual-QA the Terrain filter on the report map (/demo-site/map): All/Land/Water changes results.
-#     4. Only then: this branch is ready to push to staging (needs migration 20260708230000 applied to staging via tunnel
-#        + a terrain backfill on staging). Owner deploy discipline: push only on explicit word.
+#   ✅ EMPIRICAL VERIFY PASSED (2026-07-08, before reboot): re-ran dev backfill after fix2 → with-track patrols NOW
+#     classify: land 1404 / water 2413 / null 249 (was all-4066-null pre-fix2). no-track: 384/309/180. events:
+#     land 1231 / water 1830 / null 127. Split sane (marine = more water). Terrain classification CONFIRMED WORKING.
+#   🔴 FRESH SESSION — finish Phase 3 (routine; the risky empirical part is DONE):
+#     1. Full gate (check-product-sync·typecheck·turbo lint·vitest·web build·audit) on feat/terrain-filter.
+#        (Code worker-verified: 221 shared tests + typechecks + eslint green; commit 0cd4cd8.)
+#     2. Rebuild dev app + Visual-QA the Terrain filter on the report map (/demo-site/map): All/Land/Water changes results.
+#     3. Then branch is push-ready. On owner's "push to staging": FF main → push → CI/Komodo; then apply migration
+#        20260708230000 to staging DB via tunnel (prisma migrate deploy) + run the terrain backfill on staging.
+#        NOTE staging/dev share the 20260706120000_add_report_export_pptx drift — `migrate resolve --applied` it first.
+#     Script-run note: scripts need @prisma/client symlinks at root (root has none): mkdir -p node_modules/@prisma;
+#       ln -s ../../packages/db/node_modules/@prisma/client node_modules/@prisma/client; ln -s
+#       ../packages/db/node_modules/.prisma node_modules/.prisma; (rm after).
 #   ⬜ REMAINING after P3: Phase 2 create-NEW-municipality-from-upload w/ Province; fold MPA create into unified surface;
 #     Phase 4 (Province rollup + municipal child include/exclude in reports/PDF).
 #   BRANCHES: main @ 7785a30 (=staging, P1+P2+D5) · feat/terrain-filter (P3, unpushed, needs empirical verify).
