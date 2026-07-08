@@ -3,6 +3,14 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-07-08 — Boundaries: Hotspot/Custom kinds + per-row geometry thumbnails (Generic-Boundaries plan, Phase 2 slices 2 & 3)
+
+- Agent:               CLAUDE_CODE (Opus 4.8) PM + 2 Sonnet spec-executors
+- Branch:              feat/boundaries-manager (LOCAL only — NOT pushed) · commits 7f4dc50 (s2), 89dcf6f (s3)
+- Slice 2 (7f4dc50):  widened uploaded-boundary category `mpa|special_area` → `+hotspot|custom` in `createBoundaryFromUpload` (municipality.ts) + the create dialog — admins can now create/categorize Hotspot & Custom monitoring boundaries (land geometry; appear in Boundaries list + zone filter like MPAs). Category is a UI-label String; no schema/coverage change.
+- Slice 3 (89dcf6f):  NEW `boundary-geometry-thumbnail.tsx` — lightweight inline-SVG thumbnail of each boundary's actual polygon in the table Geometry column (no Leaflet per row; pure/SSR-safe/memoized; bbox-fit 48x32 viewBox, theme tokens, placeholder fallback). Wired into `area-boundary-table.tsx` beside the type label.
+- Verification:        both gate-green (product-sync · typecheck · turbo lint · web build; area-boundary-table 18/18); the 6 full-suite failures were 5s-timeout contention flake (both files pass isolated). Combined dev Visual QA: 4 kinds in Category select + thumbnails render on all rows, 0 console errors.
+
 ## 2026-07-08 — Boundaries Manager: per-row Replace geometry + History/rollback (Generic-Boundaries plan, Phase 2 slice 1)
 
 - Agent:               CLAUDE_CODE (Opus 4.8) PM + 2 Sonnet spec-executors
