@@ -1151,6 +1151,10 @@ model ProtectedZone {
   // zone) — this drives only the label shown in the UI.
   category             String   @default("mpa") @map("category")
   boundaryGeojson      Json     @map("boundary_geojson")
+  // Terrain classifier for the single boundaryGeojson geometry above: "land" or
+  // "water". Existing zones default to "land". Replaces the short-lived
+  // water_geojson dual-geometry column (20260708210000).
+  terrain              String   @default("land") @map("terrain")
   parentMunicipalityId String?  @map("parent_municipality_id")
   createdAt            DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")

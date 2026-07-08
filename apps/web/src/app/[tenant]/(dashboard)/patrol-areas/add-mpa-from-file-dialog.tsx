@@ -72,6 +72,7 @@ export function AddMpaFromFileDialog() {
   const [mode, setMode] = useState<Mode>("protected_area");
   const [name, setName] = useState("");
   const [category, setCategory] = useState<Category>("mpa");
+  const [terrain, setTerrain] = useState<BoundaryKind>("land");
   const [parentMunicipalityId, setParentMunicipalityId] = useState<string>("");
   const [replaceMunicipalityId, setReplaceMunicipalityId] = useState<string>("");
   const [boundaryKind, setBoundaryKind] = useState<BoundaryKind>("land");
@@ -130,6 +131,7 @@ export function AddMpaFromFileDialog() {
     setMode("protected_area");
     setName("");
     setCategory("mpa");
+    setTerrain("land");
     setParentMunicipalityId("");
     setReplaceMunicipalityId("");
     setBoundaryKind("land");
@@ -190,7 +192,13 @@ export function AddMpaFromFileDialog() {
     if (mode === "protected_area") {
       if (geojson == null || name.trim().length < 2 || parentMunicipalityId === "") return;
       setFeedback(null);
-      createBoundary.mutate({ name: name.trim(), geojson, category, parentMunicipalityId });
+      createBoundary.mutate({
+        name: name.trim(),
+        geojson,
+        category,
+        parentMunicipalityId,
+        terrain,
+      });
     } else {
       if (geojson == null || replaceMunicipalityId === "") return;
       setFeedback(null);
@@ -315,6 +323,24 @@ export function AddMpaFromFileDialog() {
                   <SelectItem value="special_area">Special area</SelectItem>
                   <SelectItem value="hotspot">Hotspot</SelectItem>
                   <SelectItem value="custom">Custom boundary</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="mpa-terrain">Terrain</Label>
+              <Select
+                value={terrain}
+                onValueChange={(v) => {
+                  setTerrain(v as BoundaryKind);
+                }}
+              >
+                <SelectTrigger id="mpa-terrain" data-testid="mpa-terrain-select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="land">Land</SelectItem>
+                  <SelectItem value="water">Water</SelectItem>
                 </SelectContent>
               </Select>
             </div>

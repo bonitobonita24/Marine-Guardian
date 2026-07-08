@@ -111,7 +111,8 @@ Each phase: `feat/<slug>` branch → implement (Opus plans, Sonnet executes per 
 >
 > **Remaining Phase 2 (later slices, deferred):**
 - [x] Per-row **geometry thumbnail** in the table — **DONE 2026-07-08** (lightweight inline SVG per row via `boundary-geometry-thumbnail.tsx`, not Leaflet; renders each boundary's actual polygon shape next to the type label). Gate green + Visual QA verified.
-- [~] `kind` taxonomy expansion — **land kinds DONE 2026-07-08** (`mpa|special_area` → `+hotspot|custom` in `createBoundaryFromUpload` + the create dialog; land geometry, appears in Boundaries list + zone filter like MPAs). Still pending: create-NEW-municipality-from-upload with **Province** picker (Phase 1 scoped out), and child-boundary **water** geometry (D5 — needs `ProtectedZone.waterGeojson` + coverage work).
+- [~] `kind` taxonomy expansion — **land kinds DONE 2026-07-08** (`mpa|special_area` → `+hotspot|custom` in `createBoundaryFromUpload` + the create dialog; land geometry, appears in Boundaries list + zone filter like MPAs). Still pending: create-NEW-municipality-from-upload with **Province** picker (Phase 1 scoped out).
+- [x] **D5 — child-boundary land/water — DONE 2026-07-08** (design refined from two-column to classifier): added `ProtectedZone.terrain` (`land|water`, default land) — a *single* geometry tagged land/water, NOT a separate water column (an uploaded MPA/hotspot is one area, either land or water). `createBoundaryFromUpload` gains a `terrain` input; the create dialog gains a Land/Water select. **Zero coverage/import change** (terrain is metadata feeding the Phase 3 filter). Migrations `..210000` (added then) + `..220000` (dropped water_geojson, added terrain). Gate green + Visual QA 0 errors.
 - [ ] Relabel remaining in-dialog "Municipality" selector labels → "Boundary" where the unified terminology applies.
 - [ ] Fold the MPA/special-area create path fully into one unified create surface (free name + kind + land/water + parent).
 

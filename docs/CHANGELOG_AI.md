@@ -3,6 +3,18 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-07-08 — Boundaries: child-boundary land/water terrain classifier (Generic-Boundaries plan, D5)
+
+- Agent:               CLAUDE_CODE (Opus 4.8) PM + 3 Sonnet spec-executors
+- Branch:              feat/boundaries-manager (LOCAL only — NOT pushed)
+- Why:                 Let admins create water-based monitoring boundaries (MPA/hotspot/custom on water), not just land — the data foundation for the Phase 3 Land/Water terrain filter.
+- Design note:         Refined from the plan's two-column idea to a **single-geometry + `terrain` classifier**. A child boundary is one uploaded area tagged land or water (unlike a municipality, which genuinely has separate land + water polygons). This keeps coverage logic UNCHANGED (lower risk). The short-lived `ProtectedZone.waterGeojson` column (migration ..210000) was dropped and replaced by `terrain` (..220000) before any use.
+- Changes:
+  - `packages/db/prisma/schema.prisma` — `ProtectedZone.terrain String @default("land")` (was briefly `waterGeojson`, dropped). Migrations `20260708210000_protected_zone_water_geojson` + `20260708220000_protected_zone_terrain` (applied to dev).
+  - `apps/web/src/server/trpc/routers/municipality.ts` — `createBoundaryFromUpload` input `terrain: z.enum(["land","water"]).default("land")`; set on `protectedZone.create`.
+  - `apps/web/src/app/[tenant]/(dashboard)/patrol-areas/add-mpa-from-file-dialog.tsx` — Terrain (Land/Water) select in protected-area mode.
+- Verification:        gate green (product-sync · typecheck 7/7 · turbo lint 6/6 · web build · audit 1-moderate); create-mpa 4/4 isolated. Dev Visual QA: Terrain select renders, 0 console errors.
+
 ## 2026-07-08 — Boundaries: Hotspot/Custom kinds + per-row geometry thumbnails (Generic-Boundaries plan, Phase 2 slices 2 & 3)
 
 - Agent:               CLAUDE_CODE (Opus 4.8) PM + 2 Sonnet spec-executors

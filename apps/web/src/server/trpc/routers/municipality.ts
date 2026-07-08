@@ -96,6 +96,7 @@ export const municipalityRouter = router({
           geojson: z.unknown(),
           category: z.enum(["mpa", "special_area", "hotspot", "custom"]),
           parentMunicipalityId: z.string().cuid(),
+          terrain: z.enum(["land", "water"]).default("land"),
         })
         .strict(),
     )
@@ -154,6 +155,7 @@ export const municipalityRouter = router({
           slug,
           name: input.name,
           category: input.category,
+          terrain: input.terrain,
           boundaryGeojson: toFeatureCollection(normalized.geometry, {
             name: input.name,
             category: input.category,
