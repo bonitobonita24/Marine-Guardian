@@ -94,7 +94,7 @@ export const municipalityRouter = router({
         .object({
           name: z.string().trim().min(2).max(120),
           geojson: z.unknown(),
-          category: z.enum(["mpa", "special_area"]),
+          category: z.enum(["mpa", "special_area", "hotspot", "custom"]),
           parentMunicipalityId: z.string().cuid(),
         })
         .strict(),

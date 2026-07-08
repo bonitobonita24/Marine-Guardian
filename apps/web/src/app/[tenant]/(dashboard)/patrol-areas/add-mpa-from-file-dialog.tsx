@@ -36,13 +36,15 @@ import {
   KmlParseError,
 } from "./lib/parse-kml-file";
 
-type Category = "mpa" | "special_area";
+type Category = "mpa" | "special_area" | "hotspot" | "custom";
 type Mode = "protected_area" | "municipal_boundary";
 type BoundaryKind = "land" | "water";
 
 const CATEGORY_LABELS: Record<Category, string> = {
   mpa: "Marine Protected Area (MPA)",
   special_area: "Special area",
+  hotspot: "Hotspot",
+  custom: "Custom boundary",
 };
 
 const BOUNDARY_KIND_LABELS: Record<BoundaryKind, string> = {
@@ -311,6 +313,8 @@ export function AddMpaFromFileDialog() {
                 <SelectContent>
                   <SelectItem value="mpa">Marine Protected Area (MPA)</SelectItem>
                   <SelectItem value="special_area">Special area</SelectItem>
+                  <SelectItem value="hotspot">Hotspot</SelectItem>
+                  <SelectItem value="custom">Custom boundary</SelectItem>
                 </SelectContent>
               </Select>
             </div>

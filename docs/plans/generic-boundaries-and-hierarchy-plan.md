@@ -111,7 +111,7 @@ Each phase: `feat/<slug>` branch → implement (Opus plans, Sonnet executes per 
 >
 > **Remaining Phase 2 (later slices, deferred):**
 - [ ] Per-row **mini-map preview** in the table (a Preview modal already exists; inline thumbnail is net-new).
-- [ ] `kind` taxonomy expansion (mpa|special_area → +hotspot|custom) + create-NEW-municipality-from-upload with **Province** picker (Phase 1 scoped these out).
+- [~] `kind` taxonomy expansion — **land kinds DONE 2026-07-08** (`mpa|special_area` → `+hotspot|custom` in `createBoundaryFromUpload` + the create dialog; land geometry, appears in Boundaries list + zone filter like MPAs). Still pending: create-NEW-municipality-from-upload with **Province** picker (Phase 1 scoped out), and child-boundary **water** geometry (D5 — needs `ProtectedZone.waterGeojson` + coverage work).
 - [ ] Relabel remaining in-dialog "Municipality" selector labels → "Boundary" where the unified terminology applies.
 - [ ] Fold the MPA/special-area create path fully into one unified create surface (free name + kind + land/water + parent).
 
