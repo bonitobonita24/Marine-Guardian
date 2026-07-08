@@ -12,7 +12,30 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { trpc } from "@/lib/trpc/client";
+import { ReplaceMunicipalGeometryDialog } from "./replace-municipal-geometry-dialog";
+import { BoundaryHistoryDialog } from "./boundary-history-dialog";
+
+type BoundaryKind = "land" | "water";
+
+// Official municipal land/water boundary rows carry an arcgisReferenceId of
+// the form "official:{municipalitySlug}:{land|water}" (see
+// import-official-boundaries.ts). Only these rows get the Replace
+// geometry / History actions — MPAs, special areas, and custom boundaries
+// don't have a municipality-scoped geometry to replace or version.
+const OFFICIAL_MUNICIPAL_REF = /^official:(.+):(land|water)$/;
+
+interface MunicipalTarget {
+  municipalityId: string;
+  municipalityName: string;
+  kind: BoundaryKind;
+}
 
 export interface AreaBoundaryRow {
   id: string;
@@ -65,6 +88,49 @@ export function AreaBoundaryTable({
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [cursor, setCursor] = useState<string | undefined>(undefined);
   const [accumulated, setAccumulated] = useState<AreaBoundaryRow[]>([]);
+
+  const utils = trpc.useUtils();
+  const municipalitiesQuery = trpc.municipality.list.useQuery(undefined, {
+    enabled: isAdmin,
+  });
+  const municipalityBySlug = useMemo(() => {
+    const map = new Map<
+      string,
+      { id: string; name: string; province: string; slug: string }
+    >();
+    for (const m of municipalitiesQuery.data ?? []) {
+      map.set(m.slug, m);
+    }
+    return map;
+  }, [municipalitiesQuery.data]);
+
+  const [replaceTarget, setReplaceTarget] = useState<MunicipalTarget | null>(
+    null,
+  );
+  const [historyTarget, setHistoryTarget] = useState<MunicipalTarget | null>(
+    null,
+  );
+
+  function getMunicipalTarget(row: AreaBoundaryRow): MunicipalTarget | null {
+    if (row.source !== "official" || row.arcgisReferenceId === null) {
+      return null;
+    }
+    const match = OFFICIAL_MUNICIPAL_REF.exec(row.arcgisReferenceId);
+    if (match === null) return null;
+    const [, slug, kind] = match;
+    const municipality = municipalityBySlug.get(slug ?? "");
+    if (municipality === undefined) return null;
+    return {
+      municipalityId: municipality.id,
+      municipalityName: municipality.name,
+      kind: kind as BoundaryKind,
+    };
+  }
+
+  function handleBoundaryMutated() {
+    void utils.areaBoundary.list.invalidate();
+    void utils.municipality.list.invalidate();
+  }
 
   // Debounce region text input (300ms — matches users page pattern)
   useEffect(() => {
@@ -202,7 +268,9 @@ export function AreaBoundaryTable({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((b) => (
+                {rows.map((b) => {
+                  const municipalTarget = isAdmin ? getMunicipalTarget(b) : null;
+                  return (
                   <TableRow key={b.id}>
                     <TableCell className="font-medium">{b.name}</TableCell>
                     <TableCell className="text-muted-foreground">
@@ -270,11 +338,43 @@ export function AreaBoundaryTable({
                           >
                             Delete
                           </Button>
+                          {municipalTarget !== null && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  data-testid="row-action-more"
+                                  variant="outline"
+                                  size="sm"
+                                >
+                                  More
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  data-testid="row-action-replace-geometry"
+                                  onClick={() => {
+                                    setReplaceTarget(municipalTarget);
+                                  }}
+                                >
+                                  Replace geometry
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  data-testid="row-action-history"
+                                  onClick={() => {
+                                    setHistoryTarget(municipalTarget);
+                                  }}
+                                >
+                                  History
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
                         </div>
                       </TableCell>
                     )}
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
@@ -292,6 +392,32 @@ export function AreaBoundaryTable({
             </div>
           )}
         </>
+      )}
+
+      {replaceTarget !== null && (
+        <ReplaceMunicipalGeometryDialog
+          open
+          onOpenChange={(o) => {
+            if (!o) setReplaceTarget(null);
+          }}
+          municipalityId={replaceTarget.municipalityId}
+          municipalityName={replaceTarget.municipalityName}
+          kind={replaceTarget.kind}
+          onReplaced={handleBoundaryMutated}
+        />
+      )}
+
+      {historyTarget !== null && (
+        <BoundaryHistoryDialog
+          open
+          onOpenChange={(o) => {
+            if (!o) setHistoryTarget(null);
+          }}
+          municipalityId={historyTarget.municipalityId}
+          municipalityName={historyTarget.municipalityName}
+          kind={historyTarget.kind}
+          onReverted={handleBoundaryMutated}
+        />
       )}
     </div>
   );

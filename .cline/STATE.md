@@ -13,8 +13,12 @@
 #     overlay redraw + audit); water-containment assignment stage (land→water→15km); MunicipalityBoundarySnapshot
 #     table+migration (applied dev); uploader dialog "Municipal land/water boundary" mode. FULL GATE GREEN + Visual QA
 #     0 console errors. See CHANGELOG_AI 2026-07-08.
-#   ⬜ NEXT: Phase 2 (generic Boundaries Full-Manager UI + fold MPA uploader in + relabel Municipality→Boundaries) →
-#     Phase 3 (Land/Water terrain filter) → Phase 4 (Province rollup + municipal child include/exclude). All branch-only.
+#   PHASE 2 slice 1 DONE (branch feat/boundaries-manager, off Phase 1, NOT pushed): per-row "More" dropdown on
+#     official municipal rows → Replace geometry (Phase 1 mutation) + History/rollback (NEW listBoundarySnapshots +
+#     revertBoundaryGeometry — completes D4). MPA rows excluded. Gate green + Visual QA 0 errors. CHANGELOG 2026-07-08.
+#   ⬜ NEXT: Phase 2 remaining slices (per-row mini-map · kind taxonomy +hotspot/custom · create-new-muni w/ Province ·
+#     fold MPA create into unified surface) → Phase 3 (Land/Water terrain filter) → Phase 4 (Province rollup + municipal
+#     child include/exclude). Branches: feat/municipal-land-water-upload (P1) + feat/boundaries-manager (P2s1), both LOCAL.
 #   ⚠ DEV-DB SIDE EFFECTS THIS SESSION (local dev only): (1) admin@mail.com password reset to "admin" for Visual QA
 #     (was overridden by 2026-07-07 universal-admin rollout — owner says real cred saved in AIEF; my reset diverges,
 #     restore from vault if needed). (2) Pre-existing migration drift resolved metadata-only (migrate resolve --applied

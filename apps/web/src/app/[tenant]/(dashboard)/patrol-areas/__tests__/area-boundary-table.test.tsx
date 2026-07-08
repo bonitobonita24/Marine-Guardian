@@ -51,6 +51,19 @@ vi.mock("@/lib/trpc/client", () => ({
         },
       },
     },
+    // Boundaries-manager (Phase 2): the table resolves official municipal rows to a
+    // municipality via municipality.list, and invalidates via useUtils. No municipalities
+    // here → no rows are eligible for the new per-row Replace/History dropdown, so the
+    // existing assertions (Preview/Edit/Delete only) stay valid.
+    municipality: {
+      list: {
+        useQuery: () => ({ data: [], isLoading: false }),
+      },
+    },
+    useUtils: () => ({
+      areaBoundary: { list: { invalidate: () => Promise.resolve() } },
+      municipality: { list: { invalidate: () => Promise.resolve() } },
+    }),
   },
 }));
 

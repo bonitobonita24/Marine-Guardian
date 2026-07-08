@@ -14,7 +14,7 @@ import { TRPCError } from "@trpc/server";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
 import { adminProcedure } from "../middleware/rbac";
-import { prisma } from "@marine-guardian/db";
+import { prisma, Prisma } from "@marine-guardian/db";
 import { MUNICIPALITIES } from "@/data/coverage/coverage-areas";
 import { assignZonesToPoint } from "@marine-guardian/shared/lib/municipality-assignment";
 import { importOfficialBoundaries } from "@/server/boundaries/import-official-boundaries";
@@ -362,6 +362,184 @@ export const municipalityRouter = router({
       return {
         municipalityName: municipality.name,
         kind: input.kind,
+        enqueuedJobs: fanOut.enqueued,
+      };
+    }),
+
+  // List the most recent boundary-geometry snapshots for a municipality, so
+  // an admin can pick one to revert to. Does not return the geojson blob —
+  // callers fetch that only when actually reverting.
+  listBoundarySnapshots: adminProcedure
+    .input(
+      z
+        .object({
+          municipalityId: z.string().cuid(),
+          kind: z.enum(["land", "water"]).optional(),
+        })
+        .strict(),
+    )
+    .query(async ({ ctx, input }) => {
+      const { tenantId } = ctx;
+
+      const municipality = await prisma.municipality.findFirst({
+        where: { id: input.municipalityId, tenantId },
+        select: { id: true },
+      });
+      if (!municipality) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Boundary not found." });
+      }
+
+      const snapshots = await prisma.municipalityBoundarySnapshot.findMany({
+        where: {
+          tenantId,
+          municipalityId: input.municipalityId,
+          ...(input.kind ? { kind: input.kind } : {}),
+        },
+        select: {
+          id: true,
+          kind: true,
+          label: true,
+          createdAt: true,
+          replacedByUserId: true,
+          previousGeojson: true,
+        },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      });
+
+      const userIds = [
+        ...new Set(
+          snapshots
+            .map((s) => s.replacedByUserId)
+            .filter((id): id is string => id !== null),
+        ),
+      ];
+      const users = userIds.length
+        ? await prisma.user.findMany({
+            where: { id: { in: userIds } },
+            select: { id: true, fullName: true },
+          })
+        : [];
+      const userNameById = new Map(users.map((u) => [u.id, u.fullName]));
+
+      return snapshots.map((s) => ({
+        id: s.id,
+        kind: s.kind,
+        label: s.label,
+        createdAt: s.createdAt,
+        replacedByName:
+          s.replacedByUserId !== null
+            ? (userNameById.get(s.replacedByUserId) ?? null)
+            : null,
+        hasGeometry: s.previousGeojson !== null,
+      }));
+    }),
+
+  // Revert a municipality's land/water geometry to a chosen snapshot's
+  // previousGeojson. Snapshots the CURRENT geometry first (so the revert
+  // itself is reversible), then swaps in the prior geometry, then
+  // regenerates the official overlay + re-derives areas — same pipeline as
+  // replaceBoundaryGeometry.
+  revertBoundaryGeometry: adminProcedure
+    .input(
+      z
+        .object({
+          snapshotId: z.string().cuid(),
+        })
+        .strict(),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { tenantId, userId } = ctx;
+
+      const snapshot = await prisma.municipalityBoundarySnapshot.findFirst({
+        where: { id: input.snapshotId, tenantId },
+      });
+      if (!snapshot) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Snapshot not found." });
+      }
+
+      const municipality = await prisma.municipality.findFirst({
+        where: { id: snapshot.municipalityId, tenantId },
+        select: { id: true, name: true, slug: true, boundaryGeojson: true, waterGeojson: true },
+      });
+      if (!municipality) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Boundary not found." });
+      }
+
+      const kind = snapshot.kind as "land" | "water";
+
+      if (kind === "land" && snapshot.previousGeojson === null) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "No prior land geometry to revert to.",
+        });
+      }
+
+      await prisma.$transaction(async (tx) => {
+        // 1. Snapshot the CURRENT geometry before overwriting it, so this
+        // revert is itself reversible.
+        const currentGeojson =
+          kind === "land" ? municipality.boundaryGeojson : municipality.waterGeojson;
+
+        await tx.municipalityBoundarySnapshot.create({
+          data: {
+            tenantId,
+            municipalityId: municipality.id,
+            kind,
+            ...(currentGeojson !== null
+              ? { previousGeojson: currentGeojson as object }
+              : {}),
+            replacedByUserId: userId,
+            label: `pre-revert ${new Date().toISOString()}`,
+          },
+        });
+
+        // 2. Restore the snapshot's prior geometry. A Json? column is set to
+        // NULL via Prisma.JsonNull (a plain JS `null` is ambiguous with
+        // "field not provided" for Json fields).
+        await tx.municipality.update({
+          where: { id: municipality.id },
+          data:
+            kind === "land"
+              ? { boundaryGeojson: snapshot.previousGeojson as object }
+              : {
+                  waterGeojson:
+                    snapshot.previousGeojson === null
+                      ? Prisma.JsonNull
+                      : (snapshot.previousGeojson as object),
+                },
+        });
+      });
+
+      // 3. Regenerate the official AreaBoundary overlay so the restored
+      // shape renders on both maps.
+      await importOfficialBoundaries(prisma, tenantId, userId);
+
+      // 4. Fan out area re-derivation — the municipality geometry universe
+      // changed, so previously derived areaBoundaryId assignments may now be
+      // stale. Reuses the same helper as replaceBoundaryGeometry.
+      const fanOut = await fanOutAreaRederive(tenantId, userId);
+
+      // 5. Audit.
+      await prisma.auditLog.create({
+        data: {
+          action: "MUNICIPALITY_BOUNDARY_REVERT",
+          userId,
+          tenantId,
+          entityType: "Municipality",
+          entityId: municipality.id,
+          changesJson: {
+            municipalityId: municipality.id,
+            municipalitySlug: municipality.slug,
+            kind,
+            snapshotId: snapshot.id,
+          },
+        },
+      });
+
+      return {
+        municipalityName: municipality.name,
+        kind,
         enqueuedJobs: fanOut.enqueued,
       };
     }),

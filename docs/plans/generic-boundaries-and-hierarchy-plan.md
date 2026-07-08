@@ -104,9 +104,16 @@ Each phase: `feat/<slug>` branch → implement (Opus plans, Sonnet executes per 
 - **Gate:** check-product-sync ✓ · typecheck 7/7 ✓ · turbo lint 6/6 ✓ · vitest (web 1660 + shared 207) ✓ · web build ✓ · audit (1 moderate only) ✓. **Visual QA:** 0 console errors; new mode renders + submit-gating + warning verified on dev.
 
 ### Phase 2 — Generic "Boundaries" management surface (Full Manager)
-- [ ] Add `kind` label to the boundary concept; relabel "Municipality" → "Boundaries" in the selector + admin menu (label-level; keep FK name internally per D1).
-- [ ] Admin **Boundaries Manager**: list all boundaries (municipalities + MPAs/hotspots/custom), each with land/water status + mini-map preview, per-boundary **Upload/Replace (land|water)**, **Restore** (D4), and re-derivation progress.
-- [ ] Fold the shipped MPA/special-area uploader into this unified surface (two layers, one UI). Free **name** + **kind** + optional **land/water** geometry + parent (municipality→province, child→municipality).
+> **Slice 1 ✅ DONE 2026-07-08** (branch `feat/boundaries-manager`, off Phase 1; gated + Visual-QA green, NOT pushed). The Boundaries page already unified municipal land/water + MPAs (via the `AreaBoundary` derived overlay; title already "Boundaries"), so this slice added the missing *management affordances*:
+> - [x] Per-row **"More" dropdown** on official municipal land/water rows (MPA rows excluded via `^official:(.+):(land|water)$` ref match + `municipality.list` slug lookup): **Replace geometry** (prefilled municipality+kind → Phase 1 `replaceBoundaryGeometry`) and **History** (snapshot list + rollback).
+> - [x] Backend rollback: `municipality.listBoundarySnapshots` + `municipality.revertBoundaryGeometry` (reverts to a chosen snapshot's geometry; itself reversible; `Prisma.JsonNull` for the water-null case; re-derive + overlay + audit `MUNICIPALITY_BOUNDARY_REVERT`). Completes the D4 rollback promise (was write-only before).
+> - Gate green (typecheck · turbo lint · vitest 1660 · web build · audit) — fixed an area-boundary-table test whose trpc mock lacked `useUtils`/`municipality.list`. Visual QA 0 console errors.
+>
+> **Remaining Phase 2 (later slices, deferred):**
+- [ ] Per-row **mini-map preview** in the table (a Preview modal already exists; inline thumbnail is net-new).
+- [ ] `kind` taxonomy expansion (mpa|special_area → +hotspot|custom) + create-NEW-municipality-from-upload with **Province** picker (Phase 1 scoped these out).
+- [ ] Relabel remaining in-dialog "Municipality" selector labels → "Boundary" where the unified terminology applies.
+- [ ] Fold the MPA/special-area create path fully into one unified create surface (free name + kind + land/water + parent).
 
 ### Phase 3 — Terrain (Land / Water) filter
 - [ ] Derive land/water classification for events (point) + patrols (dominant track) from boundary geometry; store/compute + backfill.

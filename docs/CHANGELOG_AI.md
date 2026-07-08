@@ -3,6 +3,21 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-07-08 — Boundaries Manager: per-row Replace geometry + History/rollback (Generic-Boundaries plan, Phase 2 slice 1)
+
+- Agent:               CLAUDE_CODE (Opus 4.8) PM + 2 Sonnet spec-executors
+- Branch:              feat/boundaries-manager (off feat/municipal-land-water-upload; LOCAL only — NOT pushed)
+- Why:                 Phase 1 built municipal geometry replace + snapshotting, but replace was only reachable via the global KML dialog and snapshots were write-only (no rollback). This slice surfaces both per-row on the Boundaries page.
+
+### Changes
+- `apps/web/src/server/trpc/routers/municipality.ts` — NEW `listBoundarySnapshots` (adminProcedure query; returns id/kind/label/createdAt/replacedByName/hasGeometry, no geojson blob) + `revertBoundaryGeometry` (adminProcedure mutation; snapshots current geometry first → writes chosen snapshot's previousGeojson back → importOfficialBoundaries → fanOutAreaRederive → audit `MUNICIPALITY_BOUNDARY_REVERT`; `Prisma.JsonNull` handling for water-null; land-null rejected BAD_REQUEST).
+- `apps/web/src/app/[tenant]/(dashboard)/patrol-areas/replace-municipal-geometry-dialog.tsx` — NEW focused dialog: prefilled municipality+kind, kml/kmz parse+preview, destructive warning → `replaceBoundaryGeometry`.
+- `apps/web/src/app/[tenant]/(dashboard)/patrol-areas/boundary-history-dialog.tsx` — NEW: lists snapshots, per-row "Revert to this" (inline confirm) → `revertBoundaryGeometry`; loading/empty states; land-revert-to-empty disabled.
+- `apps/web/src/app/[tenant]/(dashboard)/patrol-areas/area-boundary-table.tsx` — per-row "More" dropdown (Replace geometry / History) shown only for official municipal land/water rows (`^official:(.+):(land|water)$` + `municipality.list` slug match; MPA rows excluded); `trpc.useUtils()` invalidation of areaBoundary.list + municipality.list. Preview/Edit/Delete unchanged.
+- `…/__tests__/area-boundary-table.test.tsx` — extended trpc mock with `municipality.list` + `useUtils` (the new hooks); municipality.list returns [] so no rows are eligible → existing assertions unchanged.
+- Errors encountered:  all 18 area-boundary-table tests failed (`trpc.useUtils is not a function`) — mock was missing the new hooks; fixed. Then full suite 1660/1660.
+- Verification:        full gate green (check-product-sync · typecheck 7/7 · turbo lint 6/6 · vitest 1660 · web build · audit 1-moderate); dev Visual QA 0 console errors (More→Replace/History render on municipal rows, MPA excluded, History empty-state correct).
+
 ## 2026-07-08 — Municipal land/water KML/KMZ upload + water-containment assignment (Generic-Boundaries plan, Phase 1)
 
 - Agent:               CLAUDE_CODE (Opus 4.8) PM + 4 Sonnet spec-executors
