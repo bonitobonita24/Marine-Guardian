@@ -3,6 +3,17 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-07-08 — Tenant rename: demo-site → "ph" (Philippines) — DEV ONLY (branch feat/ph-tenant-slug)
+
+- Agent:               CLAUDE_CODE (Opus 4.8)
+- Branch:              feat/ph-tenant-slug (off main; LOCAL only — NOT pushed). Owner-approved scope: DEV ONLY this session; staging/demo/prod gated.
+- Why:                 Owner directive — make the Philippine tenant official as slug `/ph` (holds the Philippine MPAs: Apo Reef + municipal MPAs). Future regional tenants Banggai + Pecca get their own slugs later. Path-based tenancy means the slug is data resolved dynamically, so this is a surgical rename.
+- Changes:
+  - `packages/db/prisma/seed.ts` — tenant upsert `slug` "demo-site" → "ph", `name` "Demo Site" → "Philippines" (where + create). Admin login accounts (admin@mail.com dev, admin@demo-site.local) left unchanged — just login strings, renaming adds churn/orphans.
+  - DEV DB (data op, not a migration): `UPDATE tenants SET slug='ph', name='Philippines' WHERE slug='demo-site'` — renamed in place, `tenant.id` (cmoruubw…) preserved so all events/patrols/boundaries stay attached. NOT made an auto-running Prisma migration on purpose: a blanket migration would clobber the separate mg-demo client stack (owner: keep mg-demo separate). Other envs get a controlled UPDATE when the owner approves.
+- Testing (fully tested per owner):  Gate GREEN — check-product-sync · typecheck 7/7 · turbo lint 6/6 · vitest jobs 250 + web 1660 · `pnpm --filter web build`. Visual QA on dev @45204: /ph/login → /ph/dashboard (login admin@mail.com), /ph/map (data + terrain All→Water filter changes results), /ph/patrols (50), /ph/patrol-areas Boundaries (34 MPAs), /ph/events (3206). ALL nav links /ph/* (zero /demo-site). 0 console errors.
+- Follow-up (noted):  old /demo-site/* still renders the per-tenant login shell for any slug (login then fails — tenant gone); could add a 404/redirect for unknown slugs. mg-demo untouched. admin@demo-site.local email now inconsistent with the ph name (functional; optional cleanup).
+
 ## 2026-07-08 — Land/Water terrain filter (Generic-Boundaries plan, Phase 3) — CODE COMMITTED, empirical verify PENDING
 
 - Agent:               CLAUDE_CODE (Opus 4.8) PM + 4 Sonnet spec-executors + 2 bugfix passes

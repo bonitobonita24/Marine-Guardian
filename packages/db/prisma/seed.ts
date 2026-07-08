@@ -23,16 +23,20 @@ async function main() {
   const webmasterHash = await bcrypt.hash(webmasterPassword, BCRYPT_ROUNDS);
   const demoSiteAdminHash = await bcrypt.hash(demoSiteAdminPassword, BCRYPT_ROUNDS);
 
+  // Official Philippines tenant — slug "ph" (holds the Philippine MPAs: Apo Reef
+  // + municipal MPAs). Future regional tenants (Banggai, Pecca) get their own
+  // slugs. Renamed from the former "demo-site" tenant (2026-07-08); existing
+  // environments have their tenant row renamed in place (tenant.id preserved).
   const tenant = await prisma.tenant.upsert({
-    where: { slug: "demo-site" },
+    where: { slug: "ph" },
     // Set currency on update too so existing dev DBs whose tenant row kept the
     // schema default ("IDR") get corrected to PHP on re-seed. Without this the
     // currency snapshot taken at fuel-entry create time (fuelEntry router,
     // spec §196) diverges from the hardcoded "PHP" on seeded fuel rows.
     update: { currency: "PHP" },
     create: {
-      name: "Demo Site",
-      slug: "demo-site",
+      name: "Philippines",
+      slug: "ph",
       isActive: true,
       timezone: "Asia/Manila",
       syncFrequencySeconds: 300,
