@@ -38,6 +38,11 @@ const reportFilterInput = z
     // Optional MPA-scope filter (2026-06-29): narrow every aggregation to
     // events/patrols that fall inside a given protected zone.
     protectedZoneId: z.string().optional(),
+    // Optional spatial terrain filter (2026-07-08): narrow every aggregation
+    // to events/patrols classified as "land" or "water" (Event.terrain /
+    // Patrol.terrain). Distinct from Patrol.patrolType (self-reported
+    // foot/seaborne) — this is a geometry-derived classifier.
+    terrain: z.enum(["land", "water"]).optional(),
   })
   .strict();
 
@@ -54,6 +59,7 @@ function eventWhere(tenantId: string, input: ReportFilterInput) {
     reportedAt?: { gte?: Date; lte?: Date };
     municipalityId?: string;
     coveredZones?: { some: { protectedZoneId: string } };
+    terrain?: string;
   } = {
     tenantId,
     NOT: {
@@ -72,6 +78,9 @@ function eventWhere(tenantId: string, input: ReportFilterInput) {
   if (input.protectedZoneId !== undefined) {
     where.coveredZones = { some: { protectedZoneId: input.protectedZoneId } };
   }
+  if (input.terrain !== undefined) {
+    where.terrain = input.terrain;
+  }
   return where;
 }
 
@@ -84,6 +93,7 @@ function patrolWhere(tenantId: string, input: ReportFilterInput) {
     startTime?: { gte?: Date; lte?: Date };
     municipalityId?: string;
     coveredZones?: { some: { protectedZoneId: string } };
+    terrain?: string;
   } = { tenantId, isDeleted: false, isTestPatrol: false };
   const startTime: { gte?: Date; lte?: Date } = {};
   if (input.from) startTime.gte = input.from;
@@ -96,6 +106,9 @@ function patrolWhere(tenantId: string, input: ReportFilterInput) {
   }
   if (input.protectedZoneId !== undefined) {
     where.coveredZones = { some: { protectedZoneId: input.protectedZoneId } };
+  }
+  if (input.terrain !== undefined) {
+    where.terrain = input.terrain;
   }
   return where;
 }

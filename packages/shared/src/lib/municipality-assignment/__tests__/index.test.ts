@@ -12,6 +12,8 @@ import {
   assignMunicipalityToPointOrNearest,
   assignMunicipalityToDominantTrack,
   assignZonesToPoint,
+  classifyPointTerrain,
+  classifyTrackTerrain,
   isPointInAnyGeometry,
   nearestMunicipality,
 } from "../index.js";
@@ -607,5 +609,227 @@ describe("isPointInAnyGeometry", () => {
 
   it("returns false for an empty geometries array", () => {
     expect(isPointInAnyGeometry({ lat: 13.3818, lon: 121.1948 }, [])).toBe(false);
+  });
+});
+
+describe("classifyPointTerrain", () => {
+  const calapanWithWater: MunicipalityForAssignment = {
+    ...calapanMuni,
+    waterGeojson: {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: { shapeName: "Calapan Water" },
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [120.50, 13.25],
+                [120.90, 13.25],
+                [120.90, 13.55],
+                [120.50, 13.55],
+                [120.50, 13.25],
+              ],
+            ],
+          },
+        },
+      ],
+    },
+  };
+
+  it("returns 'land' for a point inside a municipality's land polygon", () => {
+    const result = classifyPointTerrain({ lat: 13.3818, lon: 121.1948 }, [calapanMuni]);
+    expect(result).toBe("land");
+  });
+
+  it("returns 'water' for a point outside land but inside an uploaded waterGeojson polygon", () => {
+    // ~44 km offshore of Calapan's land edge — outside the 15 km reach, but
+    // inside the uploaded water polygon.
+    const result = classifyPointTerrain({ lat: 13.4, lon: 120.7 }, [calapanWithWater]);
+    expect(result).toBe("water");
+  });
+
+  it("returns 'water' for a point offshore within the 15 km municipal-waters buffer of land", () => {
+    // ~11 km offshore of Calapan's land edge — inside the 15 km buffer, no
+    // uploaded water polygon covers it (plain calapanMuni, no waterGeojson).
+    const result = classifyPointTerrain({ lat: 13.4, lon: 121.05 }, [calapanMuni]);
+    expect(result).toBe("water");
+  });
+
+  it("returns null for a point far from every municipality (open ocean)", () => {
+    const result = classifyPointTerrain({ lat: 14.0, lon: 118.0 }, [calapanMuni]);
+    expect(result).toBeNull();
+  });
+
+  it("returns null when municipality list is empty", () => {
+    const result = classifyPointTerrain({ lat: 13.3818, lon: 121.1948 }, []);
+    expect(result).toBeNull();
+  });
+});
+
+describe("classifyTrackTerrain", () => {
+  // Builds a raw GeoJSON LineString from { lat, lon } points — the same
+  // [lon, lat] coordinate order `PatrolTrack.trackGeojson` stores and that
+  // the shared `extractTrackCoordinates` internal helper expects.
+  const lineStringFrom = (points: Array<{ lat: number; lon: number }>) => ({
+    type: "LineString",
+    coordinates: points.map((p) => [p.lon, p.lat]),
+  });
+
+  it("returns 'land' for a track whose majority of points are on land", () => {
+    const track = lineStringFrom([
+      { lat: 13.3818, lon: 121.1948 }, // land
+      { lat: 13.39, lon: 121.20 }, // land
+      { lat: 13.40, lon: 121.21 }, // land
+      { lat: 14.0, lon: 118.0 }, // unclassifiable (ignored)
+    ]);
+    const result = classifyTrackTerrain(track, [calapanMuni]);
+    expect(result).toBe("land");
+  });
+
+  it("returns 'water' for a track whose majority of points are offshore", () => {
+    const track = lineStringFrom([
+      { lat: 13.3818, lon: 121.1948 }, // land
+      { lat: 13.4, lon: 121.05 }, // water (within 15km buffer, no land polygon match)
+      { lat: 13.4, lon: 121.06 }, // water
+      { lat: 13.4, lon: 121.07 }, // water
+    ]);
+    const result = classifyTrackTerrain(track, [calapanMuni]);
+    expect(result).toBe("water");
+  });
+
+  it("breaks a land/water tie in favor of 'water'", () => {
+    const track = lineStringFrom([
+      { lat: 13.3818, lon: 121.1948 }, // land
+      { lat: 13.4, lon: 121.05 }, // water
+    ]);
+    const result = classifyTrackTerrain(track, [calapanMuni]);
+    expect(result).toBe("water");
+  });
+
+  it("returns null when no track point classifies (all unclassifiable, empty track, or unparseable geojson)", () => {
+    expect(classifyTrackTerrain(lineStringFrom([]), [calapanMuni])).toBeNull();
+    expect(
+      classifyTrackTerrain(
+        lineStringFrom([
+          { lat: 14.0, lon: 118.0 },
+          { lat: 14.1, lon: 118.1 },
+        ]),
+        [calapanMuni],
+      ),
+    ).toBeNull();
+    expect(classifyTrackTerrain(null, [calapanMuni])).toBeNull();
+    expect(classifyTrackTerrain({ type: "Unsupported" }, [calapanMuni])).toBeNull();
+  });
+});
+
+describe("extractTrackCoordinates — FeatureCollection track format (real PatrolTrack.trackGeojson shape)", () => {
+  // PatrolTrack.trackGeojson is stored as a FeatureCollection of one or more
+  // LineString Features — NOT a bare LineString. These tests prove the
+  // internal `extractTrackCoordinates` helper (shared by both
+  // `classifyTrackTerrain` and `assignMunicipalityToDominantTrack`) handles
+  // this real shape, including multiple features in one FeatureCollection.
+
+  const featureCollectionFromLineStrings = (
+    lineStrings: Array<Array<[number, number]>>,
+  ) => ({
+    type: "FeatureCollection",
+    features: lineStrings.map((coordinates) => ({
+      type: "Feature",
+      properties: {},
+      geometry: { type: "LineString", coordinates },
+    })),
+  });
+
+  // Second municipality (mirrors the one used in the
+  // `assignMunicipalityToDominantTrack` describe block above) — far enough
+  // from Calapan City that the two never overlap.
+  const southMuni: MunicipalityForAssignment = {
+    id: "muni-south",
+    slug: "south",
+    name: "South",
+    boundaryGeojson: {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: { shapeName: "South" },
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [121.60, 13.25],
+                [121.80, 13.25],
+                [121.80, 13.55],
+                [121.60, 13.55],
+                [121.60, 13.25],
+              ],
+            ],
+          },
+        },
+      ],
+    },
+  };
+
+  it("classifyTrackTerrain: FeatureCollection with a single LineString feature on land returns 'land'", () => {
+    const track = featureCollectionFromLineStrings([
+      [
+        [121.1948, 13.3818], // land
+        [121.20, 13.39], // land
+        [121.21, 13.40], // land
+      ],
+    ]);
+    expect(classifyTrackTerrain(track, [calapanMuni])).toBe("land");
+  });
+
+  it("classifyTrackTerrain: FeatureCollection with a single LineString feature offshore returns 'water'", () => {
+    const track = featureCollectionFromLineStrings([
+      [
+        [121.05, 13.4], // water (within 15km buffer, no land polygon match)
+        [121.06, 13.4], // water
+        [121.07, 13.4], // water
+      ],
+    ]);
+    expect(classifyTrackTerrain(track, [calapanMuni])).toBe("water");
+  });
+
+  it("classifyTrackTerrain: coordinates from ALL features in a multi-feature FeatureCollection are considered", () => {
+    // Feature 1 = 1 land point, Feature 2 = 2 water points → majority water.
+    // If only the first feature were read (the pre-fix behaviour), the
+    // result would incorrectly ignore feature 2 entirely.
+    const track = featureCollectionFromLineStrings([
+      [[121.1948, 13.3818]], // land
+      [
+        [121.05, 13.4], // water
+        [121.06, 13.4], // water
+      ],
+    ]);
+    expect(classifyTrackTerrain(track, [calapanMuni])).toBe("water");
+  });
+
+  it("assignMunicipalityToDominantTrack: FeatureCollection format returns the dominant municipality across all features", () => {
+    // Feature 1 = 1 point in Calapan, Feature 2 = 2 points in South.
+    const track = featureCollectionFromLineStrings([
+      [[121.1948, 13.3818]], // Calapan
+      [
+        [121.70, 13.35], // South
+        [121.71, 13.36], // South
+      ],
+    ]);
+    const result = assignMunicipalityToDominantTrack(track, [calapanMuni, southMuni]);
+    expect(result).toBe("muni-south");
+  });
+
+  it("returns null/empty for an empty, no-features, or malformed FeatureCollection", () => {
+    expect(classifyTrackTerrain({ type: "FeatureCollection", features: [] }, [calapanMuni])).toBeNull();
+    expect(
+      assignMunicipalityToDominantTrack(
+        { type: "FeatureCollection", features: [] },
+        [calapanMuni, southMuni],
+      ),
+    ).toBeNull();
+    expect(classifyTrackTerrain({ type: "FeatureCollection" }, [calapanMuni])).toBeNull();
+    expect(classifyTrackTerrain({ type: "FeatureCollection", features: [null] }, [calapanMuni])).toBeNull();
   });
 });

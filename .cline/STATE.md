@@ -22,14 +22,40 @@
 #   D5 DONE (eb27e0c): child-boundary land/water via ProtectedZone.terrain classifier (single geometry tagged land|water,
 #     NOT a 2nd water column — coverage/import UNCHANGED). createBoundaryFromUpload terrain input + dialog Terrain select.
 #     Migrations ..210000 (water_geojson, superseded) + ..220000 (drop it, add terrain). Gate green + QA 0 errors.
-#   ⬜ NEXT: Phase 3 — Land/Water terrain FILTER (the meaty one: derive per-event/patrol terrain spatially — likely as a
-#     byproduct of assignMunicipalityToPoint's land-hit vs water-hit stage — store Event.terrain/Patrol.terrain + backfill
-#     ~40k records + filter UI on report map/command center; spatial ≠ self-reported Patrol.patrolType). BEST DONE FRESH
-#     (correctness-sensitive, big-context). Also remaining Phase 2: create-NEW-municipality-from-upload w/ Province picker;
-#     fold MPA create into unified surface. Then Phase 4 (Province rollup + municipal child include/exclude in reports/PDF).
-#   BRANCHES (all LOCAL/unpushed, gate-green, Visual-QA'd): feat/municipal-land-water-upload (P1 @ 816a3ac) +
-#     feat/boundaries-manager (P1+P2s1-3+D5 @ eb27e0c). Plan: docs/plans/generic-boundaries-and-hierarchy-plan.md.
-#   CREDS this session: universal 3-tier rolled to MG dev/staging/prod, all verified; demo untouched.
+#   ✅ PUSHED TO STAGING (owner-approved 2026-07-08): main FF-merged to 7785a30 (P1+P2s1-3+D5) → CI green → Komodo
+#     auto-deployed image 6a37b8d3 → staging LIVE + verified (super_admin webmaster@powerbyteitsolutions.com login →
+#     /admin console renders). Staging DB migrations applied via tunnel+prisma migrate deploy (had to `migrate resolve
+#     --applied 20260706120000_add_report_export_pptx` to clear pre-existing drift first — SAME drift exists on dev).
+#   ⚠ PHASE 3 (Land/Water terrain filter) — CODE COMMITTED on branch feat/terrain-filter (off main 7785a30), NOT pushed,
+#     but EMPIRICAL DATA VERIFICATION INCOMPLETE (rebooted at 841k tokens). P3 = Event.terrain/Patrol.terrain columns
+#     (migration 20260708230000) + classifyPointTerrain/classifyTrackTerrain (in-land→land, else water/offshore; reuses
+#     assignment helpers) + processor/backfill set terrain + reportMap filter `terrain` + report-filter-bar Terrain
+#     select (All/Land/Water). 221 shared tests pass. Terrain had 3 BUGS found by EMPIRICAL backfill checks (not tests):
+#     (1) classifyTrackTerrain took {lat,lon}[] not raw geojson; (2) local extractor dup; (3) extractTrackCoordinates
+#     didn't handle the REAL trackGeojson = FeatureCollection-of-LineStrings (unwrapGeojson returned features[0] Feature,
+#     code read .type/.coordinates off it not .geometry) → fixed to iterate FC features.
+#   🔴🔴 FRESH SESSION — DO FIRST before anything else on feat/terrain-filter:
+#     1. Re-run the terrain backfill on dev + CONFIRM with-track patrols now classify (NOT all null):
+#        create temp symlinks (root has NO @prisma/client — scripts can't resolve it):
+#          mkdir -p node_modules/@prisma; ln -s ../../packages/db/node_modules/@prisma/client node_modules/@prisma/client;
+#          ln -s ../packages/db/node_modules/.prisma node_modules/.prisma
+#          set -a; source .env.dev; set +a; npx tsx scripts/backfill-municipality-assignment.ts --force
+#          then rm the symlinks. Verify: select case when track present then 'with-track' else 'no-track' end, terrain,
+#          count(*) from patrols... — with-track must show land/water, NOT ~all null. (Before fix2 all 4066 were null.)
+#        If STILL mostly null → extractTrackCoordinates FC handling still wrong; debug before proceeding.
+#     2. Full gate (check-product-sync·typecheck·turbo lint·vitest·web build·audit) on the branch.
+#     3. Rebuild dev app + Visual-QA the Terrain filter on the report map (/demo-site/map): All/Land/Water changes results.
+#     4. Only then: this branch is ready to push to staging (needs migration 20260708230000 applied to staging via tunnel
+#        + a terrain backfill on staging). Owner deploy discipline: push only on explicit word.
+#   ⬜ REMAINING after P3: Phase 2 create-NEW-municipality-from-upload w/ Province; fold MPA create into unified surface;
+#     Phase 4 (Province rollup + municipal child include/exclude in reports/PDF).
+#   BRANCHES: main @ 7785a30 (=staging, P1+P2+D5) · feat/terrain-filter (P3, unpushed, needs empirical verify).
+#     Plan: docs/plans/generic-boundaries-and-hierarchy-plan.md. CHANGELOG_AI 2026-07-08 has full detail.
+#   CREDS this session: universal 3-tier rolled to MG dev(webmaster@localhost.com)/staging+prod
+#     (webmaster@powerbyteitsolutions.com), all verified; demo untouched (admin@demo.com).
+#   🔴 GOTCHAS this session: git-guard blocks commit MSGS containing "restore"/"clean" (reword) [[feedback-gitguard...]];
+#     dev login per-tenant /[tenant]/login not root [[feedback-dev-login-per-tenant-url]]; web tests 5s-timeout flake
+#     under load (re-run isolated); @prisma/client not root-resolvable for scripts (symlink hack above).
 #   🔴 TEST FLAKE: create-area-boundary-dialog.test.tsx + patrol-schedule assignment-dialog.test.tsx have 5s-timeout
 #     tests that FLAKE under full-suite CPU contention (fail in `pnpm test`, pass clean isolated). Not regressions —
 #     re-run isolated to confirm before treating as a break.

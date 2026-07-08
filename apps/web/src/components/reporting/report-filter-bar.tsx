@@ -32,6 +32,7 @@ import { useReportFilter } from "./report-filter-context";
 
 const ALL_MUNICIPALITIES = "all";
 const ALL_ZONES = "all";
+const ALL_TERRAIN = "all";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -66,9 +67,11 @@ export function ReportFilterBar({
     to,
     municipalityId,
     protectedZoneId,
+    terrain,
     setRange,
     setMunicipalityId,
     setProtectedZoneId,
+    setTerrain,
   } = useReportFilter();
   const stacked = layout === "stacked";
 
@@ -156,6 +159,10 @@ export function ReportFilterBar({
 
   const handleProtectedZoneChange = (value: string) => {
     setProtectedZoneId(value === ALL_ZONES ? null : value);
+  };
+
+  const handleTerrainChange = (value: string) => {
+    setTerrain(value === ALL_TERRAIN ? null : (value as "land" | "water"));
   };
 
   const fieldClass = cn(
@@ -312,6 +319,34 @@ export function ReportFilterBar({
           </Select>
         </div>
       )}
+
+      {/* Spatial Terrain filter (2026-07-08) — narrows events/patrols to a
+          geometry-derived Land or Water classification (Event.terrain /
+          Patrol.terrain). Distinct from the self-reported foot/seaborne
+          Patrol.patrolType — deliberately labeled "Terrain" to avoid
+          confusion with that field. */}
+      <div className={fieldClass}>
+        <Label
+          htmlFor="report-terrain"
+          className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+        >
+          Terrain
+        </Label>
+        <Select value={terrain ?? ALL_TERRAIN} onValueChange={handleTerrainChange}>
+          <SelectTrigger
+            id="report-terrain"
+            data-testid="report-terrain"
+            className={cn(stacked ? "h-7 w-full text-[11px]" : "h-8 w-[8rem] text-xs")}
+          >
+            <SelectValue placeholder="All terrain" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_TERRAIN}>All</SelectItem>
+            <SelectItem value="land">Land</SelectItem>
+            <SelectItem value="water">Water</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
     </div>
   );
 }

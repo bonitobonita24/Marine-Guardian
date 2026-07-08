@@ -306,20 +306,15 @@ export function assignZonesToTrack(
 // ── Layer 1b — Municipality by dominant track ────────────────────────────────
 
 /**
- * Extract every [lon, lat] coordinate pair out of a track GeoJSON value.
- *
- * Handles LineString, MultiLineString, and (defensively) Point/MultiPoint —
- * whatever shape PatrolTrack.trackGeojson stores today or in the future.
- * Malformed/unrecognised geometry yields an empty array rather than throwing.
+ * Extract [lon, lat] coordinate pairs out of a single GeoJSON geometry
+ * object (LineString, MultiLineString, Point, MultiPoint). Malformed or
+ * unrecognised geometry yields an empty array rather than throwing.
  */
-function extractTrackCoordinates(trackGeojson: unknown): [number, number][] {
-  if (trackGeojson == null) return [];
-  const geometry = unwrapGeojson(trackGeojson) as {
-    type?: string;
-    coordinates?: unknown;
-  };
-  const type = geometry.type;
-  const coords = geometry.coordinates;
+function coordsFromGeometry(geometry: unknown): [number, number][] {
+  const g = geometry as { type?: string; coordinates?: unknown } | null | undefined;
+  if (g == null) return [];
+  const type = g.type;
+  const coords = g.coordinates;
   if (type === "LineString" && Array.isArray(coords)) {
     return coords as [number, number][];
   }
@@ -333,6 +328,50 @@ function extractTrackCoordinates(trackGeojson: unknown): [number, number][] {
     return coords as [number, number][];
   }
   return [];
+}
+
+/**
+ * Extract every [lon, lat] coordinate pair out of a track GeoJSON value.
+ *
+ * `PatrolTrack.trackGeojson` is stored as a **FeatureCollection of one or
+ * more LineString (or MultiLineString/Point/MultiPoint) Features** — the
+ * actual shape written by the materialization job. This handles that shape
+ * by iterating EVERY feature (not just the first) and reading each one's
+ * `.geometry`. It also defensively handles a bare Feature or a bare
+ * geometry (no FeatureCollection/Feature wrapper at all), so any track
+ * shape past, present, or future is covered by one code path.
+ *
+ * Malformed/unrecognised/empty input yields an empty array rather than
+ * throwing — callers (BullMQ processors) own error handling.
+ */
+function extractTrackCoordinates(trackGeojson: unknown): [number, number][] {
+  if (trackGeojson == null) return [];
+
+  const g = trackGeojson as {
+    type?: string;
+    features?: unknown[];
+    geometry?: unknown;
+  };
+
+  // FeatureCollection — iterate ALL features, not just the first.
+  if (g.type === "FeatureCollection" && Array.isArray(g.features)) {
+    return g.features.flatMap((feature) => {
+      const f = feature as { type?: string; geometry?: unknown } | null | undefined;
+      if (f == null) return [];
+      // Each array element is normally a Feature ({ geometry: {...} }), but
+      // defensively accept a bare geometry inside `features` too.
+      const geometry = f.type === "Feature" ? f.geometry : f;
+      return coordsFromGeometry(geometry);
+    });
+  }
+
+  // Single Feature — unwrap to its geometry.
+  if (g.type === "Feature") {
+    return coordsFromGeometry(g.geometry);
+  }
+
+  // Bare geometry (LineString / MultiLineString / Point / MultiPoint).
+  return coordsFromGeometry(g);
 }
 
 /**
@@ -450,6 +489,110 @@ export function isPointInAnyGeometry(
     }
   }
   return false;
+}
+
+// ── Layer 4 — Terrain classification (LAND vs WATER) ─────────────────────────
+
+/**
+ * Classify a single geographic point as "land" or "water".
+ *
+ * Reuses the same three-stage geometry checks `assignMunicipalityToPoint`
+ * relies on, but does not attribute to any particular municipality — it only
+ * answers the LAND/WATER question:
+ *
+ *   1. On-land containment — inside ANY municipality's land polygon
+ *      (`boundaryGeojson`) → "land".
+ *   2. Uploaded water-jurisdiction containment — otherwise, inside ANY
+ *      municipality's uploaded `waterGeojson` → "water".
+ *   3. Generic municipal-waters buffer — otherwise, within
+ *      `maxWaterDistanceKm` (default `MUNICIPAL_WATERS_KM`) of the nearest
+ *      land polygon → "water" (offshore-near-land approximation).
+ *
+ * Returns null when the point is farther than `maxWaterDistanceKm` from every
+ * municipality's land polygon and not inside any uploaded water polygon
+ * (open/national waters, or bad coordinates) — same "unknown" semantics as
+ * `assignMunicipalityToPoint` returning null.
+ *
+ * @param point - { lat, lon } — WGS-84 decimal degrees
+ * @param municipalities - array loaded from DB (one per tenant)
+ * @param maxWaterDistanceKm - seaward reach; defaults to MUNICIPAL_WATERS_KM
+ * @returns "land", "water", or null
+ */
+export function classifyPointTerrain(
+  point: { lat: number; lon: number },
+  municipalities: MunicipalityForAssignment[],
+  maxWaterDistanceKm: number = MUNICIPAL_WATERS_KM,
+): "land" | "water" | null {
+  const tPoint = turfPoint([point.lon, point.lat]);
+
+  // 1. On-land containment.
+  const contained = containingMunicipality(tPoint, municipalities);
+  if (contained != null) return "land";
+
+  // 2. Uploaded water-jurisdiction polygon (when present).
+  const waterContained = containingWaterMunicipality(tPoint, municipalities);
+  if (waterContained != null) return "water";
+
+  // 3. Generic municipal-waters buffer — nearest land polygon within reach.
+  let nearestKm = Infinity;
+  for (const muni of municipalities) {
+    const geojson = unwrapGeojson(muni.boundaryGeojson);
+    const km = Math.abs(
+      pointToPolygonDistance(
+        tPoint,
+        geojson as Parameters<typeof pointToPolygonDistance>[1],
+        { units: "kilometers" },
+      ),
+    );
+    if (km < nearestKm) nearestKm = km;
+  }
+
+  return nearestKm <= maxWaterDistanceKm ? "water" : null;
+}
+
+/**
+ * Classify a patrol track (raw GeoJSON — LineString / MultiLineString /
+ * Point / MultiPoint, bare or FeatureCollection-wrapped) as "land" or
+ * "water" by MAJORITY vote across its GPS points.
+ *
+ * Extracts the track's coordinate points using the SAME internal extractor
+ * (`extractTrackCoordinates`) that `assignMunicipalityToDominantTrack` uses —
+ * single source of truth for turning `PatrolTrack.trackGeojson` into points,
+ * so this function accepts exactly the same raw shape callers already pass
+ * to `assignMunicipalityToDominantTrack` / `assignZonesToTrack`.
+ *
+ * Each extracted point is classified via `classifyPointTerrain`; points that
+ * return null (too far from any municipality to classify) are ignored in the
+ * tally. The terrain with the most hits wins. A tie between "land" and
+ * "water" resolves to "water" (marine-operations bias — matches the
+ * dominant-track municipality logic's preference for offshore attribution).
+ *
+ * Returns null when no track point classifies at all (empty/unparseable
+ * track, or every point too far from every municipality).
+ *
+ * @param trackGeojson - raw GeoJSON from PatrolTrack.trackGeojson
+ * @param municipalities - array loaded from DB (one per tenant)
+ * @param maxWaterDistanceKm - seaward reach; defaults to MUNICIPAL_WATERS_KM
+ * @returns "land", "water", or null
+ */
+export function classifyTrackTerrain(
+  trackGeojson: unknown,
+  municipalities: MunicipalityForAssignment[],
+  maxWaterDistanceKm: number = MUNICIPAL_WATERS_KM,
+): "land" | "water" | null {
+  const points = extractTrackCoordinates(trackGeojson);
+
+  let landCount = 0;
+  let waterCount = 0;
+
+  for (const [lon, lat] of points) {
+    const terrain = classifyPointTerrain({ lat, lon }, municipalities, maxWaterDistanceKm);
+    if (terrain === "land") landCount++;
+    else if (terrain === "water") waterCount++;
+  }
+
+  if (landCount === 0 && waterCount === 0) return null;
+  return landCount > waterCount ? "land" : "water";
 }
 
 export type { MunicipalityForAssignment, ProtectedZoneForAssignment };

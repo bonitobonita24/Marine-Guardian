@@ -28,6 +28,8 @@ import {
   assignMunicipalityToDominantTrack,
   assignZonesToPoint,
   assignZonesToTrack,
+  classifyPointTerrain,
+  classifyTrackTerrain,
 } from "@marine-guardian/shared/lib/municipality-assignment";
 
 export interface MunicipalityAssignResult {
@@ -73,11 +75,12 @@ export async function processMunicipalityAssign(
     const point = { lat: event.locationLat, lon: event.locationLon };
     const municipalityId = assignMunicipalityToPointOrNearest(point, municipalities);
     const zoneIds = assignZonesToPoint(point, zones);
+    const terrain = classifyPointTerrain(point, municipalities);
 
     // Update event row (Layer 1)
     await platformPrisma.event.update({
       where: { id },
-      data: { municipalityId, municipalityAssignedAt: now },
+      data: { municipalityId, municipalityAssignedAt: now, terrain },
     });
 
     // Upsert junction rows (Layer 2) — idempotent
@@ -127,10 +130,16 @@ export async function processMunicipalityAssign(
     ? assignZonesToTrack(trackGeojson, zones)
     : assignZonesToPoint(point as { lat: number; lon: number }, zones);
 
+  // Terrain — majority vote across track points when materialised, else the
+  // single start-location point.
+  const terrain = trackGeojson != null
+    ? classifyTrackTerrain(trackGeojson, municipalities)
+    : classifyPointTerrain(point as { lat: number; lon: number }, municipalities);
+
   // Update patrol row (Layer 1)
   await platformPrisma.patrol.update({
     where: { id },
-    data: { municipalityId, municipalityAssignedAt: now },
+    data: { municipalityId, municipalityAssignedAt: now, terrain },
   });
 
   // Upsert junction rows (Layer 2) — idempotent

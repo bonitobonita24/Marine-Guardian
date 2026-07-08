@@ -75,7 +75,7 @@ function rangeLabelWithYear(from: Date, to: Date): string {
 }
 
 function ReportMapInner() {
-  const { from, to, municipalityId, protectedZoneId } = useReportFilter();
+  const { from, to, municipalityId, protectedZoneId, terrain } = useReportFilter();
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
   // "Locate on map" from the High Priority Events list: fly the map to the
@@ -99,6 +99,7 @@ function ReportMapInner() {
     to,
     ...(municipalityId !== null ? { municipalityId } : {}),
     ...(protectedZoneId !== null ? { protectedZoneId } : {}),
+    ...(terrain !== null ? { terrain } : {}),
   };
 
   // eventBreakdownWithCoords (not the lean eventBreakdown) — the Report Map

@@ -22,6 +22,8 @@ import {
   assignMunicipalityToPoint,
   assignZonesToPoint,
   assignZonesToTrack,
+  classifyPointTerrain,
+  classifyTrackTerrain,
 } from "../packages/shared/src/lib/municipality-assignment/index.js";
 
 const prisma = new PrismaClient();
@@ -76,10 +78,11 @@ async function main() {
       const point = { lat: event.locationLat, lon: event.locationLon };
       const municipalityId = assignMunicipalityToPoint(point, municipalities);
       const zoneIds = assignZonesToPoint(point, zones);
+      const terrain = classifyPointTerrain(point, municipalities);
 
       await prisma.event.update({
         where: { id: event.id },
-        data: { municipalityId, municipalityAssignedAt: now },
+        data: { municipalityId, municipalityAssignedAt: now, terrain },
       });
 
       for (const protectedZoneId of zoneIds) {
@@ -125,9 +128,13 @@ async function main() {
         ? assignZonesToTrack(patrol.track.trackGeojson, zones)
         : assignZonesToPoint(point, zones);
 
+      const terrain = patrol.track?.trackGeojson
+        ? classifyTrackTerrain(patrol.track.trackGeojson, municipalities)
+        : classifyPointTerrain(point, municipalities);
+
       await prisma.patrol.update({
         where: { id: patrol.id },
-        data: { municipalityId, municipalityAssignedAt: now },
+        data: { municipalityId, municipalityAssignedAt: now, terrain },
       });
 
       for (const protectedZoneId of zoneIds) {

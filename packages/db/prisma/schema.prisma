@@ -396,6 +396,9 @@ model Event {
   municipalityId         String?   @map("municipality_id")
   municipalityAssignedAt DateTime? @map("municipality_assigned_at")
 
+  // terrain-filter — spatial classifier derived from geometry; nullable until backfilled.
+  terrain String? @map("terrain")
+
   // event-patrol-link — derived from patrol.patrol_segments[].events[].id on
   // every patrol sync (see syncPatrols in er-sync.processor.ts). Nullable:
   // an event may not (yet) belong to any patrol, or the linking patrol sync
@@ -430,6 +433,7 @@ model Event {
   @@index([tenantId, reportedByUserId])
   @@index([tenantId, reportedByKnownRangerId])
   @@index([tenantId, patrolId])
+  @@index([tenantId, terrain])
   @@map("events")
 }
 
@@ -524,6 +528,9 @@ model Patrol {
   municipalityId         String?   @map("municipality_id")
   municipalityAssignedAt DateTime? @map("municipality_assigned_at")
 
+  // terrain-filter — spatial classifier derived from geometry; nullable until backfilled.
+  terrain String? @map("terrain")
+
   syncedAt  DateTime @map("synced_at")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -549,6 +556,7 @@ model Patrol {
   @@index([tenantId, syncNeeded, lastSyncedAt])
   @@index([tenantId, isDeleted])
   @@index([tenantId, isTestPatrol])
+  @@index([tenantId, terrain])
   @@map("patrols")
 }
 

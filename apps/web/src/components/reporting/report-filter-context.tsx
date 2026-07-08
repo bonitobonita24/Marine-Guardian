@@ -41,12 +41,20 @@ export type ReportFilter = {
   municipalityId: string | null;
   /** Active MPA (protected-zone) scope filter; null = all zones. */
   protectedZoneId: string | null;
+  /**
+   * Active spatial terrain filter; null = all terrain. Geometry-derived
+   * classifier (Event.terrain / Patrol.terrain) — DISTINCT from the
+   * self-reported Patrol.patrolType (foot/seaborne).
+   */
+  terrain: "land" | "water" | null;
   /** Replace the active date range. */
   setRange: (next: { from: Date; to: Date }) => void;
   /** Set (or clear, with null) the active municipality. */
   setMunicipalityId: (next: string | null) => void;
   /** Set (or clear, with null) the active MPA scope. */
   setProtectedZoneId: (next: string | null) => void;
+  /** Set (or clear, with null) the active terrain filter. */
+  setTerrain: (next: "land" | "water" | null) => void;
   /** Reset to the default last-7-days window ending now + all municipalities. */
   resetRange: () => void;
 };
@@ -61,6 +69,7 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
   const [protectedZoneId, setProtectedZoneIdState] = useState<string | null>(
     null,
   );
+  const [terrain, setTerrainState] = useState<"land" | "water" | null>(null);
 
   const setRange = useCallback((next: { from: Date; to: Date }) => {
     setFrom(next.from);
@@ -75,12 +84,17 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
     setProtectedZoneIdState(next);
   }, []);
 
+  const setTerrain = useCallback((next: "land" | "water" | null) => {
+    setTerrainState(next);
+  }, []);
+
   const resetRange = useCallback(() => {
     const now = new Date();
     setFrom(sevenDaysAgo(now));
     setTo(now);
     setMunicipalityIdState(null);
     setProtectedZoneIdState(null);
+    setTerrainState(null);
   }, []);
 
   const value = useMemo<ReportFilter>(
@@ -89,9 +103,11 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
       to,
       municipalityId,
       protectedZoneId,
+      terrain,
       setRange,
       setMunicipalityId,
       setProtectedZoneId,
+      setTerrain,
       resetRange,
     }),
     [
@@ -99,9 +115,11 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
       to,
       municipalityId,
       protectedZoneId,
+      terrain,
       setRange,
       setMunicipalityId,
       setProtectedZoneId,
+      setTerrain,
       resetRange,
     ],
   );

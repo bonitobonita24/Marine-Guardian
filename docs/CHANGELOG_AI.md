@@ -3,6 +3,19 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-07-08 — Land/Water terrain filter (Generic-Boundaries plan, Phase 3) — CODE COMMITTED, empirical verify PENDING
+
+- Agent:               CLAUDE_CODE (Opus 4.8) PM + 4 Sonnet spec-executors + 2 bugfix passes
+- Branch:              feat/terrain-filter (off main 7785a30; LOCAL only — NOT pushed). ⚠ Committed at a reboot (841k tokens) with the empirical backfill verification INCOMPLETE — see STATE.md "FRESH SESSION DO FIRST".
+- What:                Spatial Land/Water classification of events/patrols + a report-map filter (distinct from self-reported Patrol.patrolType foot/seaborne).
+- Changes:
+  - `packages/db` — `Event.terrain` + `Patrol.terrain` (String?, "land"|"water") + indexes; migration `20260708230000_event_patrol_terrain` (applied to dev).
+  - `packages/shared/.../municipality-assignment/index.ts` — `classifyPointTerrain` (in a land polygon → "land"; in a water polygon → "water"; offshore within 15km → "water"; else null) + `classifyTrackTerrain(rawTrackGeojson,...)` (majority over track points, tie→water). Reuses assignment helpers. **Fixed `extractTrackCoordinates` to handle the real `trackGeojson` = FeatureCollection-of-LineStrings** (it previously read `.type`/`.coordinates` off the unwrapped Feature instead of `.geometry`, yielding zero points → null for every track). 221 tests.
+  - `packages/jobs/.../municipality-assign.processor.ts` + `scripts/backfill-municipality-assignment.ts` — set `terrain` alongside municipalityId (point for events, track for patrols).
+  - `apps/web` — `reportMap` router filter gains `terrain` (applied in `eventWhere`/`patrolWhere` → all procedures); `report-filter-bar` gains a Terrain All/Land/Water select; threaded via `report-filter-context` + `report-map-view`. (Command Center out of scope — separate date-only context.)
+- Verification status:  Code: 221 shared tests + typechecks + eslint green; earlier full gate green on unchanged parts. DATA: dev backfill showed events classify well (96%) but **track-patrol classification (the FeatureCollection fix) not yet empirically confirmed** — the fresh session MUST re-run the backfill + confirm with-track patrols classify, then gate + Visual QA before any push.
+- Lesson:              Empirical backfill checks (not unit tests) caught all 3 terrain bugs — unit tests used synthetic {lat,lon}[] fixtures and missed the real FeatureCollection track format. Always verify geometry/coverage features against real data.
+
 ## 2026-07-08 — Boundaries: child-boundary land/water terrain classifier (Generic-Boundaries plan, D5)
 
 - Agent:               CLAUDE_CODE (Opus 4.8) PM + 3 Sonnet spec-executors
