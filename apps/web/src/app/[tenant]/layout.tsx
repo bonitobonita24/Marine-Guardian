@@ -1,3 +1,4 @@
+import { prisma } from "@marine-guardian/db";
 import { auth } from "@/server/auth";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
@@ -58,9 +59,24 @@ export default async function TenantLayout({
   const session = await auth();
 
   if (session?.user === undefined) {
-    // Session-less: do NOT redirect here (would loop the login page, which is a
-    // child of this layout). The child login page renders; authed pages are
-    // protected one level down in (dashboard)/layout.tsx.
+    // Unknown-tenant guard (session-less only). The [tenant] catch-all matches
+    // ANY first path segment, so a stale / renamed / typo slug (e.g. a bookmark
+    // to a tenant that was renamed, like the old /demo-site after it became /ph)
+    // would otherwise render a dead login shell that only fails later at auth.
+    // 404 when the slug belongs to no tenant — the correct "no such resource".
+    // Scoped to the session-less branch: an AUTHENTICATED user on a bogus slug is
+    // already redirected to their own dashboard by the tenant-match gate below,
+    // so normal in-app navigation pays no extra query.
+    const known = await prisma.tenant.findUnique({
+      where: { slug: tenant },
+      select: { id: true },
+    });
+    if (known === null) {
+      notFound();
+    }
+    // Session-less on a REAL tenant: do NOT redirect here (would loop the login
+    // page, which is a child of this layout). The child login page renders;
+    // authed pages are protected one level down in (dashboard)/layout.tsx.
     return <>{children}</>;
   }
 

@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { mockAuth, mockRedirect, mockNotFound, cookieStore } = vi.hoisted(() => ({
+const { mockAuth, mockRedirect, mockNotFound, mockFindUnique, cookieStore } = vi.hoisted(() => ({
   mockAuth: vi.fn(),
   // redirect() never returns in Next; model it as a throw so control stops and
   // the target is capturable.
@@ -18,12 +18,17 @@ const { mockAuth, mockRedirect, mockNotFound, cookieStore } = vi.hoisted(() => (
   mockNotFound: vi.fn(() => {
     throw new Error("NOT_FOUND");
   }),
+  // Unknown-tenant guard looks the slug up; default: the tenant exists.
+  mockFindUnique: vi.fn(),
   cookieStore: { get: vi.fn() },
 }));
 
 vi.mock("@/server/auth", () => ({ auth: mockAuth }));
 vi.mock("next/navigation", () => ({ redirect: mockRedirect, notFound: mockNotFound }));
 vi.mock("next/headers", () => ({ cookies: () => Promise.resolve(cookieStore) }));
+vi.mock("@marine-guardian/db", () => ({
+  prisma: { tenant: { findUnique: mockFindUnique } },
+}));
 
 import TenantLayout from "../layout";
 
@@ -44,6 +49,9 @@ beforeEach(() => {
   mockAuth.mockReset();
   mockRedirect.mockClear();
   mockNotFound.mockClear();
+  mockFindUnique.mockReset();
+  // Default: the requested tenant exists (so session-less pass-through cases run).
+  mockFindUnique.mockResolvedValue({ id: "t" });
   cookieStore.get.mockReset();
   cookieStore.get.mockReturnValue(undefined);
 });
@@ -72,6 +80,16 @@ describe("[tenant]/layout — slug validation gate", () => {
     // The unauth→login gate lives in (dashboard)/layout.tsx instead.
     mockAuth.mockResolvedValue(null);
     await expect(run("demo-site")).resolves.toBeDefined();
+    expect(mockRedirect).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 for a session-less request to an UNKNOWN tenant slug (stale/renamed URL)", async () => {
+    // Regression: after a tenant is renamed (demo-site -> ph) or on a typo, the
+    // catch-all [tenant] must not render a dead login shell — it 404s.
+    mockAuth.mockResolvedValue(null);
+    mockFindUnique.mockResolvedValue(null);
+    await expect(run("demo-site")).rejects.toThrow("NOT_FOUND");
+    expect(mockNotFound).toHaveBeenCalled();
     expect(mockRedirect).not.toHaveBeenCalled();
   });
 
