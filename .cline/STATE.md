@@ -11,9 +11,21 @@
 #   so all events/patrols stay attached). NOT an auto Prisma migration (would clobber the separate mg-demo stack) —
 #   other envs get a controlled UPDATE on owner approval. FULLY TESTED: gate GREEN (sync·typecheck·turbo lint·vitest
 #   250+1660·web build) + dev Visual QA @45204 /ph/login→dashboard→map(terrain All→Water changes results)→patrols(50)
-#   →Boundaries(34 MPAs)→events(3206); ALL nav /ph/* (zero /demo-site); 0 console errors. ⏸ AWAITING owner word to
-#   roll to staging/demo/prod (per-env: run the same UPDATE tenants … + redeploy). Follow-up: old /demo-site/* still
-#   renders login shell for any slug (login then fails, tenant gone) → could 404/redirect unknown slugs.
+#   →Boundaries(34 MPAs)→events(3206); ALL nav /ph/* (zero /demo-site); 0 console errors.
+#   ✅ + UNKNOWN-SLUG 404 GUARD (@ 1f93e0e, same branch feat/ph-tenant-slug): [tenant]/layout.tsx now 404s a
+#     session-less request to a slug that belongs to no tenant (stale/renamed/typo) instead of a dead login shell —
+#     scoped to session-less branch (authed users on a bogus slug already redirect to own dash), +1 test. Gate GREEN
+#     (web tests 1660→1661). Rebuilt dev app + verified LIVE: /ph/login 200 · /demo-site/login 404 · /bogus/login 404
+#     · /ph/dashboard 307. So branch feat/ph-tenant-slug @ 1f93e0e = ph rename + 404 guard, DEV-ONLY, unpushed.
+#   ⏸ DEFERRED [WHAT] (owner-gated): roll /ph to staging/demo/prod (per-env UPDATE tenants SET slug='ph'… + redeploy;
+#     mg-demo stays separate); push feat/ph-tenant-slug (gated).
+#   🔴🔴 FULL AUTO (owner asleep 2026-07-09) — NEXT SESSION PRIMARY TASK (full detail: .sessions/slot-1/next-session):
+#     FULL-SCALE TEST SIMULATION on REPORT GENERATION + MAP CHARTS — verify ALL numbers correct. Playwright-drive
+#     /ph/* (login admin@mail.com/admin @ /ph/login) + cross-check every number vs DB ground-truth via
+#     `docker exec marine-guardian_dev_postgres psql`. Cover: report map counts (categories/patrols/highpri/terrain/
+#     muni/MPA filters reconcile), command center KPIs+charts, per-area+coverage PDF report numbers, chart aggregations,
+#     cross-consistency (map total == events page, chart sums == KPI totals, terrain buckets reconcile). Wrong number →
+#     systematic-debugging → fix on NEW branch (gate+QA) → continue. Reboot between milestones; defer/pace [WHAT].
 # ════════════════════════════════════════════════════════════════════════════
 # 💾 SESSION SAVE 2026-07-08. PHASE: Phase 7 — Generic-Boundaries plan, Phase 1 DONE (branch-only, NOT pushed).
 #   BRANCH: feat/municipal-land-water-upload (off main @ d80d2ab). Committed LOCALLY; awaiting owner "push it".
