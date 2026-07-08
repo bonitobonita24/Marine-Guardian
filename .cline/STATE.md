@@ -37,11 +37,14 @@
 #   ✅ EMPIRICAL VERIFY PASSED (2026-07-08, before reboot): re-ran dev backfill after fix2 → with-track patrols NOW
 #     classify: land 1404 / water 2413 / null 249 (was all-4066-null pre-fix2). no-track: 384/309/180. events:
 #     land 1231 / water 1830 / null 127. Split sane (marine = more water). Terrain classification CONFIRMED WORKING.
-#   🔴 FRESH SESSION — finish Phase 3 (routine; the risky empirical part is DONE):
-#     1. Full gate (check-product-sync·typecheck·turbo lint·vitest·web build·audit) on feat/terrain-filter.
-#        (Code worker-verified: 221 shared tests + typechecks + eslint green; commit 0cd4cd8.)
-#     2. Rebuild dev app + Visual-QA the Terrain filter on the report map (/demo-site/map): All/Land/Water changes results.
-#     3. Then branch is push-ready. On owner's "push to staging": FF main → push → CI/Komodo; then apply migration
+#   ✅ PHASE 3 FRESH-SESSION VERIFY DONE (2026-07-08 pm) — branch feat/terrain-filter @ 518f3a5 is PUSH-READY:
+#     1. FULL GATE GREEN on feat/terrain-filter: check-product-sync ✅ · typecheck 7/7 ✅ · turbo lint 6/6 ✅ ·
+#        vitest jobs 250 + web 1660 ✅ · web build compiled ✅ · pnpm audit --audit-level=high exit 0 ✅ (1 low/mod).
+#     2. DEV APP REBUILT (no bind-mount) + VISUAL QA PASS on /demo-site/map, 0 console errors. Terrain select works:
+#        All → Law 1 / Mon 44 / HighPri 13 / Patrols 45.  Land → Law 0 / Mon 27 / HighPri 1 / Patrols 19.
+#        Water → Law 1 / Mon 13 / HighPri 10 / Patrols 10. Land≠Water≠All; ~4 null-terrain events + null-terrain
+#        patrols correctly excluded from both (consistent w/ empirical backfill). Screenshot in session scratchpad.
+#     3. ⏸ AWAITING OWNER "push to staging" (deploy HARD HOLD). On the word: FF main → push → CI/Komodo; then apply migration
 #        20260708230000 to staging DB via tunnel (prisma migrate deploy) + run the terrain backfill on staging.
 #        NOTE staging/dev share the 20260706120000_add_report_export_pptx drift — `migrate resolve --applied` it first.
 #     Script-run note: scripts need @prisma/client symlinks at root (root has none): mkdir -p node_modules/@prisma;
