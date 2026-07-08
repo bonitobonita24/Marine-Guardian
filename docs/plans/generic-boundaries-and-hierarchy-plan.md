@@ -110,7 +110,7 @@ Each phase: `feat/<slug>` branch → implement (Opus plans, Sonnet executes per 
 > - Gate green (typecheck · turbo lint · vitest 1660 · web build · audit) — fixed an area-boundary-table test whose trpc mock lacked `useUtils`/`municipality.list`. Visual QA 0 console errors.
 >
 > **Remaining Phase 2 (later slices, deferred):**
-- [ ] Per-row **mini-map preview** in the table (a Preview modal already exists; inline thumbnail is net-new).
+- [x] Per-row **geometry thumbnail** in the table — **DONE 2026-07-08** (lightweight inline SVG per row via `boundary-geometry-thumbnail.tsx`, not Leaflet; renders each boundary's actual polygon shape next to the type label). Gate green + Visual QA verified.
 - [~] `kind` taxonomy expansion — **land kinds DONE 2026-07-08** (`mpa|special_area` → `+hotspot|custom` in `createBoundaryFromUpload` + the create dialog; land geometry, appears in Boundaries list + zone filter like MPAs). Still pending: create-NEW-municipality-from-upload with **Province** picker (Phase 1 scoped out), and child-boundary **water** geometry (D5 — needs `ProtectedZone.waterGeojson` + coverage work).
 - [ ] Relabel remaining in-dialog "Municipality" selector labels → "Boundary" where the unified terminology applies.
 - [ ] Fold the MPA/special-area create path fully into one unified create surface (free name + kind + land/water + parent).

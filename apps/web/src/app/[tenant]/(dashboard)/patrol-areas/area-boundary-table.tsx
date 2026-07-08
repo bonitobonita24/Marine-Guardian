@@ -21,6 +21,7 @@ import {
 import { trpc } from "@/lib/trpc/client";
 import { ReplaceMunicipalGeometryDialog } from "./replace-municipal-geometry-dialog";
 import { BoundaryHistoryDialog } from "./boundary-history-dialog";
+import { BoundaryGeometryThumbnail } from "./boundary-geometry-thumbnail";
 
 type BoundaryKind = "land" | "water";
 
@@ -286,7 +287,13 @@ export function AreaBoundaryTable({
                       </Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {b.geometryType}
+                      <div className="flex items-center gap-2">
+                        <BoundaryGeometryThumbnail
+                          geojson={b.geometryGeojson}
+                          geometryType={b.geometryType}
+                        />
+                        <span>{b.geometryType}</span>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Badge variant={b.isEnabled ? "default" : "outline"}>
