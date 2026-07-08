@@ -76,6 +76,36 @@ function containingMunicipality(
 }
 
 /**
+ * Uploaded-water-polygon containment check (exclusive) — a point inside a
+ * municipality's uploaded `waterGeojson` (drawn municipal-waters jurisdiction,
+ * e.g. from a KML/KMZ upload) belongs to that municipality. Municipalities
+ * with no `waterGeojson` (null/undefined) are skipped. Returns the FIRST
+ * match, same exclusivity semantics as `containingMunicipality`.
+ *
+ * Runs AFTER land containment and BEFORE the generic nearest/15km-buffer
+ * fallback, so an explicit uploaded water boundary always wins over the
+ * generic approximation.
+ */
+function containingWaterMunicipality(
+  tPoint: ReturnType<typeof turfPoint>,
+  municipalities: MunicipalityForAssignment[],
+): string | null {
+  for (const muni of municipalities) {
+    if (muni.waterGeojson == null) continue;
+    const geojson = unwrapGeojson(muni.waterGeojson);
+    if (
+      booleanPointInPolygon(
+        tPoint,
+        geojson as Parameters<typeof booleanPointInPolygon>[1],
+      )
+    ) {
+      return muni.id;
+    }
+  }
+  return null;
+}
+
+/**
  * Find the municipality whose polygon is NEAREST to a point, with no distance
  * cap. A point INSIDE a polygon has distance 0 to it (turf's
  * `pointToPolygonDistance` on a containing polygon), so containment is
@@ -124,10 +154,14 @@ export function nearestMunicipality(
 /**
  * Assign a geographic point to a municipality.
  *
- * Two-stage attribution:
+ * Three-stage attribution:
  *   1. On-land containment (exclusive) — a point inside a municipality's land
  *      polygon belongs to that municipality.
- *   2. Municipal waters — otherwise attribute the point to the NEAREST
+ *   2. Uploaded water-jurisdiction containment (exclusive) — otherwise, a
+ *      point inside a municipality's uploaded `waterGeojson` (e.g. drawn from
+ *      a KML/KMZ upload) belongs to that municipality. Municipalities without
+ *      an uploaded water polygon are skipped at this stage.
+ *   3. Municipal waters — otherwise attribute the point to the NEAREST
  *      municipality whose boundary is within `maxWaterDistanceKm` (default
  *      MUNICIPAL_WATERS_KM). Gives the equidistant sea partition used in
  *      practice and captures marine events sitting just offshore of land.
@@ -151,7 +185,12 @@ export function assignMunicipalityToPoint(
   const contained = containingMunicipality(tPoint, municipalities);
   if (contained != null) return contained;
 
-  // 2. Municipal waters — nearest coastline within the seaward reach.
+  // 2. Uploaded water-jurisdiction polygon (when present) — an explicit LGU
+  //    boundary always wins over the generic 15 km-buffer approximation.
+  const waterContained = containingWaterMunicipality(tPoint, municipalities);
+  if (waterContained != null) return waterContained;
+
+  // 3. Municipal waters — nearest coastline within the seaward reach.
   let nearestId: string | null = null;
   let nearestKm = Infinity;
   for (const muni of municipalities) {
@@ -175,9 +214,12 @@ export function assignMunicipalityToPoint(
 /**
  * Assign a geographic point to a municipality with NO distance cap.
  *
- * Two-stage attribution:
+ * Three-stage attribution:
  *   1. On-land containment (exclusive) — same as `assignMunicipalityToPoint`.
- *   2. Otherwise, the NEAREST municipality regardless of distance (via
+ *   2. Uploaded water-jurisdiction containment (exclusive) — same as
+ *      `assignMunicipalityToPoint`; an explicit LGU-drawn water boundary
+ *      wins before falling back to nearest.
+ *   3. Otherwise, the NEAREST municipality regardless of distance (via
  *      `nearestMunicipality`) — this is the "at-sea patrol/event always gets
  *      attributed to a municipality" rule, approximating municipal-waters
  *      jurisdiction beyond the conservative `MUNICIPAL_WATERS_KM` reach used
@@ -198,6 +240,9 @@ export function assignMunicipalityToPointOrNearest(
   const tPoint = turfPoint([point.lon, point.lat]);
   const contained = containingMunicipality(tPoint, municipalities);
   if (contained != null) return contained;
+
+  const waterContained = containingWaterMunicipality(tPoint, municipalities);
+  if (waterContained != null) return waterContained;
 
   return nearestMunicipality(point, municipalities);
 }

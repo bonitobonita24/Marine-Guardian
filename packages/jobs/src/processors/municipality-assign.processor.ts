@@ -52,7 +52,7 @@ export async function processMunicipalityAssign(
   const [municipalities, zones] = await Promise.all([
     platformPrisma.municipality.findMany({
       where: { tenantId },
-      select: { id: true, slug: true, name: true, boundaryGeojson: true },
+      select: { id: true, slug: true, name: true, boundaryGeojson: true, waterGeojson: true },
     }),
     platformPrisma.protectedZone.findMany({
       where: { tenantId },

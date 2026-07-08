@@ -24,6 +24,7 @@ import {
   slugifyMpaName,
   MpaGeometryError,
 } from "@/server/boundaries/mpa-geojson";
+import { fanOutAreaRederive } from "./areaBoundary";
 
 // Canonical display order = owner's province-grouped list (coverage-areas.ts).
 // Map each municipality slug → its registry index; anything not in the registry
@@ -245,6 +246,123 @@ export const municipalityRouter = router({
         category: input.category,
         eventCount: eventRows.length,
         patrolCount: patrolRows.length,
+      };
+    }),
+
+  /**
+   * Replace a municipality's land or water boundary geometry with a new
+   * user-uploaded polygon. The prior geometry is snapshotted first
+   * (MunicipalityBoundarySnapshot) so it can be recovered/audited later.
+   * After the swap: regenerate the official AreaBoundary overlay (land/water
+   * shows the new shape on both maps) and fan out area re-derivation for
+   * every Event/Patrol/FuelEntry in the tenant (the municipality universe
+   * changed, so previously-derived assignments may now be stale) — reusing
+   * the exact fanOutAreaRederive helper from areaBoundary.rebuild.
+   *
+   * Admin-only (super_admin / site_admin). Tenant-scoped.
+   */
+  replaceBoundaryGeometry: adminProcedure
+    .input(
+      z
+        .object({
+          municipalityId: z.string().cuid(),
+          kind: z.enum(["land", "water"]),
+          geojson: z.unknown(),
+        })
+        .strict(),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { tenantId, userId } = ctx;
+
+      // 1. Validate + normalize the uploaded geometry (throws MpaGeometryError → BAD_REQUEST).
+      let normalized;
+      try {
+        normalized = normalizeMpaGeometry(input.geojson);
+      } catch (err) {
+        if (err instanceof MpaGeometryError) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+        }
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "The uploaded file could not be read as a map boundary.",
+        });
+      }
+
+      // 2. Verify the target municipality belongs to this tenant. Do not
+      // reveal existence to callers scoped to a different tenant.
+      const municipality = await prisma.municipality.findFirst({
+        where: { id: input.municipalityId, tenantId },
+        select: { id: true, name: true, slug: true, boundaryGeojson: true, waterGeojson: true },
+      });
+      if (!municipality) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Boundary not found." });
+      }
+
+      const newGeojson = toFeatureCollection(normalized.geometry, {
+        boundaryType:
+          input.kind === "land" ? "municipality-land" : "municipality-water-uploaded",
+        uploadedAt: new Date().toISOString(),
+        uploadedByUserId: userId,
+      }) as object;
+
+      // 3. Snapshot the prior geometry, then swap in the new one — atomically.
+      await prisma.$transaction(async (tx) => {
+        const previousGeojson =
+          input.kind === "land" ? municipality.boundaryGeojson : municipality.waterGeojson;
+
+        await tx.municipalityBoundarySnapshot.create({
+          data: {
+            tenantId,
+            municipalityId: municipality.id,
+            kind: input.kind,
+            ...(previousGeojson !== null
+              ? { previousGeojson: previousGeojson as object }
+              : {}),
+            replacedByUserId: userId,
+            label: `pre-replace ${new Date().toISOString()}`,
+          },
+        });
+
+        await tx.municipality.update({
+          where: { id: municipality.id },
+          data:
+            input.kind === "land"
+              ? { boundaryGeojson: newGeojson }
+              : { waterGeojson: newGeojson },
+        });
+      });
+
+      // 4. Regenerate the official AreaBoundary overlay so the new shape
+      // renders on both maps.
+      await importOfficialBoundaries(prisma, tenantId, userId);
+
+      // 5. Fan out area re-derivation for every Event/Patrol/FuelEntry in the
+      // tenant — the municipality geometry universe changed, so previously
+      // derived areaBoundaryId assignments may now be stale. Reuses the same
+      // helper as areaBoundary.rebuild.
+      const fanOut = await fanOutAreaRederive(tenantId, userId);
+
+      // 6. Audit.
+      await prisma.auditLog.create({
+        data: {
+          action: "MUNICIPALITY_BOUNDARY_REPLACE",
+          userId,
+          tenantId,
+          entityType: "Municipality",
+          entityId: municipality.id,
+          changesJson: {
+            municipalityId: municipality.id,
+            municipalitySlug: municipality.slug,
+            kind: input.kind,
+            vertexCount: normalized.vertexCount,
+          },
+        },
+      });
+
+      return {
+        municipalityName: municipality.name,
+        kind: input.kind,
+        enqueuedJobs: fanOut.enqueued,
       };
     }),
 });

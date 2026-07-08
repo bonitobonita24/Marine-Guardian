@@ -21,7 +21,7 @@ import { importOfficialBoundaries } from "../../boundaries/import-official-bound
 // security.md requires explicit tenant scoping on every fan-out query.
 // userId is the triggering admin (passed through from ctx.userId) — required
 // by BaseJobPayload + validateTenantContext, surfaced in AuditLog at 5.1e.
-async function fanOutAreaRederive(
+export async function fanOutAreaRederive(
   tenantId: string,
   userId: string,
 ): Promise<{ enqueued: number }> {

@@ -153,6 +153,79 @@ describe("assignMunicipalityToPoint", () => {
     expect(result).toBeNull();
   });
 
+  it("attributes a point inside an uploaded waterGeojson polygon to that municipality, even outside the land polygon and outside the generic 15 km buffer", () => {
+    // Water polygon far offshore (west of Calapan's land edge, lon 121.10),
+    // well beyond the 15 km municipal-waters buffer used by the fallback stage.
+    const calapanWithWater: MunicipalityForAssignment = {
+      ...calapanMuni,
+      waterGeojson: {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            properties: { shapeName: "Calapan Water" },
+            geometry: {
+              type: "Polygon",
+              coordinates: [
+                [
+                  [120.50, 13.25],
+                  [120.90, 13.25],
+                  [120.90, 13.55],
+                  [120.50, 13.55],
+                  [120.50, 13.25],
+                ],
+              ],
+            },
+          },
+        ],
+      },
+    };
+    // ~44 km offshore of Calapan's land edge — outside the 15 km reach, but
+    // inside the uploaded water polygon above.
+    const result = assignMunicipalityToPoint({ lat: 13.4, lon: 120.7 }, [calapanWithWater]);
+    expect(result).toBe("muni-calapan");
+  });
+
+  it("falls back to the 15 km-buffer nearest stage when the point is outside the uploaded waterGeojson polygon", () => {
+    const calapanWithWater: MunicipalityForAssignment = {
+      ...calapanMuni,
+      waterGeojson: {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            properties: { shapeName: "Calapan Water" },
+            geometry: {
+              type: "Polygon",
+              coordinates: [
+                [
+                  [120.50, 13.25],
+                  [120.90, 13.25],
+                  [120.90, 13.55],
+                  [120.50, 13.55],
+                  [120.50, 13.25],
+                ],
+              ],
+            },
+          },
+        ],
+      },
+    };
+    // ~11 km offshore of Calapan's land edge, inside the 15 km buffer, but
+    // outside the uploaded water polygon (which starts at lon 120.90) — so
+    // this must still fall through to the nearest-within-15km stage.
+    const result = assignMunicipalityToPoint({ lat: 13.4, lon: 121.0 }, [calapanWithWater]);
+    expect(result).toBe("muni-calapan");
+  });
+
+  it("skips municipalities with no uploaded waterGeojson at the water-containment stage (falls through to nearest/null)", () => {
+    // calapanMuni has no waterGeojson — a point beyond the 15 km buffer must
+    // still return null, proving the water stage doesn't false-positive when
+    // waterGeojson is absent.
+    const result = assignMunicipalityToPoint({ lat: 13.4, lon: 120.9 }, [calapanMuni]);
+    expect(result).toBeNull();
+  });
+
   it("attributes an offshore point to the NEAREST municipality, not the first listed", () => {
     const southMuni: MunicipalityForAssignment = {
       id: "muni-south",
@@ -438,6 +511,37 @@ describe("assignMunicipalityToPointOrNearest", () => {
   it("returns null when the municipality list is empty", () => {
     const result = assignMunicipalityToPointOrNearest({ lat: 13.3818, lon: 121.1948 }, []);
     expect(result).toBeNull();
+  });
+
+  it("attributes a point inside an uploaded waterGeojson polygon to that municipality before falling back to nearest", () => {
+    const calapanWithWater: MunicipalityForAssignment = {
+      ...calapanMuni,
+      waterGeojson: {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            properties: { shapeName: "Calapan Water" },
+            geometry: {
+              type: "Polygon",
+              coordinates: [
+                [
+                  [120.50, 13.25],
+                  [120.90, 13.25],
+                  [120.90, 13.55],
+                  [120.50, 13.55],
+                  [120.50, 13.25],
+                ],
+              ],
+            },
+          },
+        ],
+      },
+    };
+    const result = assignMunicipalityToPointOrNearest({ lat: 13.4, lon: 120.7 }, [
+      calapanWithWater,
+    ]);
+    expect(result).toBe("muni-calapan");
   });
 });
 

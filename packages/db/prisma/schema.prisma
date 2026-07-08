@@ -259,10 +259,11 @@ model Tenant {
   retentionPolicies         RetentionPolicy[]
 
   // municipality-coverage
-  municipalities     Municipality[]
-  protectedZones     ProtectedZone[]
-  patrolCoveredZones PatrolCoveredZone[]
-  eventCoveredZones  EventCoveredZone[]
+  municipalities                Municipality[]
+  protectedZones                ProtectedZone[]
+  patrolCoveredZones            PatrolCoveredZone[]
+  eventCoveredZones             EventCoveredZone[]
+  municipalityBoundarySnapshots MunicipalityBoundarySnapshot[]
 
   reportTemplates ReportTemplate[]
 
@@ -1105,15 +1106,35 @@ model Municipality {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
-  tenant         Tenant          @relation(fields: [tenantId], references: [id])
-  patrols        Patrol[]
-  events         Event[]
-  protectedZones ProtectedZone[]
-  fuelEntries    FuelEntry[]
+  tenant            Tenant                          @relation(fields: [tenantId], references: [id])
+  patrols           Patrol[]
+  events            Event[]
+  protectedZones    ProtectedZone[]
+  fuelEntries       FuelEntry[]
+  boundarySnapshots MunicipalityBoundarySnapshot[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])
   @@map("municipalities")
+}
+
+/// Snapshot of a municipality's prior land/water geometry, written immediately
+/// before a boundary-geometry replace so the previous polygon can be restored.
+model MunicipalityBoundarySnapshot {
+  id               String   @id @default(cuid())
+  tenantId         String   @map("tenant_id")
+  municipalityId   String   @map("municipality_id")
+  kind             String   // "land" | "water"
+  previousGeojson  Json?    @map("previous_geojson")
+  replacedByUserId String?  @map("replaced_by_user_id")
+  label            String?
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id])
+  municipality Municipality @relation(fields: [municipalityId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, municipalityId, kind, createdAt])
+  @@map("municipality_boundary_snapshots")
 }
 
 /// Protected zone (marine park, natural park, etc.) — many-to-many via

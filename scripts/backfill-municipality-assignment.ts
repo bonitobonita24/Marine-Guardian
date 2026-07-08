@@ -37,7 +37,7 @@ async function main() {
     const [municipalities, zones] = await Promise.all([
       prisma.municipality.findMany({
         where: { tenantId: tenant.id },
-        select: { id: true, slug: true, name: true, boundaryGeojson: true },
+        select: { id: true, slug: true, name: true, boundaryGeojson: true, waterGeojson: true },
       }),
       prisma.protectedZone.findMany({
         where: { tenantId: tenant.id },

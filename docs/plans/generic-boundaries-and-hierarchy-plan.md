@@ -1,0 +1,135 @@
+# Generic Boundaries + Geographic Hierarchy — Design & TODO
+
+> **Status:** APPROVED 2026-07-08 — building Phase 1. Owner locked all PM recommendations: **D1** keep two tables behind one unified "Boundaries" UI · **D2** fixed 3 provinces · **D3** municipal child-include default OFF · **D4** snapshot prior geometry + UI restore · **D5** water geometry allowed on child boundaries.
+> **Owner directives:** 2026-07-08 (this session). Supersedes the narrow "municipal land/water upload — Option A" task; that task is now **Phase 1–3** of this larger plan.
+> **Deploy discipline:** branch-only. Each phase = its own feature branch → gate → dev Visual QA → commit to branch → STOP → await explicit "push it". Nothing reaches GitHub/staging/prod without the owner's word.
+
+---
+
+## 1. The Vision (owner, 2026-07-08)
+
+The system should stop treating these areas as strictly **"municipal"** and instead treat them as **generic, named Boundaries** whose first-class distinction is **LAND vs WATER**. Municipalities are just the boundaries we happen to have loaded first.
+
+- A boundary has a **free name** ("name it whatever it is") and a **kind**: `municipality | mpa | hotspot | custom`.
+- A boundary carries **land** geometry and/or **water** geometry (either can be uploaded/replaced).
+- All boundaries appear in one selector — today's **"Municipality"** dropdown is **renamed "Boundaries"** (rename can land later; UI label first).
+- Everything is **frontend-manageable** — no more seed-file / CLI-only geometry.
+
+### Geographic hierarchy (3 levels)
+
+```
+PROVINCE            Palawan · Occidental Mindoro · Oriental Mindoro   (top aggregation)
+  └─ MUNICIPALITY   kind=municipality, picks ONE of the 3 provinces
+       └─ CHILD     kind = mpa | hotspot | custom, picks its parent municipality
+```
+
+- **Province-wide report** → includes **all** land + water events/patrols of every municipality under that province.
+- **Municipal-wide report** → events/patrols of that municipality, with an **option to include or exclude its child boundaries** (MPAs / hotspots / custom).
+
+---
+
+## 2. Current State (ground truth from code, 2026-07-08)
+
+| Concept | Where it lives today | Notes |
+|---|---|---|
+| **Province** | `Municipality.province: String` (`schema.prisma:1099`); seeded from `apps/web/src/data/coverage/coverage-areas.ts` | 3 values already: Oriental Mindoro, Occidental Mindoro, Palawan. **Free string, not a model.** Used for display grouping in the filter selector. |
+| **Municipality** (land+water) | `model Municipality` (`schema.prisma:1094`): `boundaryGeojson` (land, `:1101`), `waterGeojson` (water, nullable, `:1104`) | 16 seeded. Exclusive **Layer-1** assignment via `municipalityId` FK on Event/Patrol. Geometry comes ONLY from seed + `scripts/derive-municipal-waters.ts` — **no frontend path to replace a municipality's own polygon.** |
+| **MPA / special-area** | `model ProtectedZone` (`schema.prisma:1122`): `category` (`:1131`), `boundaryGeojson` (land only), `parentMunicipalityId` (`:1133`) | Uploaded via the **shipped** uploader. Overlapping **Layer-2** via `EventCoveredZone`/`PatrolCoveredZone` many-to-many. **No water geometry today.** |
+| **Uploader (shipped)** | `add-mpa-from-file-dialog.tsx` → `municipality.createBoundaryFromUpload` (adminProcedure) | Creates **ProtectedZone** rows only (kinds: mpa, special_area). Reuses `parse-kml-file.ts` (browser) + `mpa-geojson.ts` (server validate). **Never touches Municipality geometry.** |
+| **Assignment** | `assignMunicipalityToPoint` (`packages/shared/src/lib/municipality-assignment/index.ts:143`) | Uses **land polygon only** + a 15 km distance-to-land ring. **Ignores `waterGeojson`.** Runs as BullMQ `municipality-assign` job (per Event upsert / Patrol track) + `scripts/backfill-municipality-assignment.ts` (CLI). |
+| **Foot / seaborne** | `enum PatrolType { foot, seaborne }` — `Patrol.patrolType` | **Self-reported patrol mode**, drives track color + show/hide only (`TrackLegend.tsx`). NOT spatial. Events have no such attribute. |
+| **Report filter** | `{ from, to, municipalityId, protectedZoneId }` | No province-level filter, no terrain (land/water) filter today. |
+
+**Two-layer model is deliberate:** Layer-1 (exclusive, single FK) for space-tiling areas that don't overlap (municipalities); Layer-2 (overlapping, many-to-many) for areas that sit *inside* others (MPAs/hotspots). This constraint drives the design below.
+
+---
+
+## 3. Target Model
+
+### 3.1 Boundary kinds → layer mapping
+
+| Kind | Layer | Assignment | Parent | Geometry |
+|---|---|---|---|---|
+| `municipality` | **L1 exclusive** (`municipalityId` FK) | point-in-land-polygon, then **point-in-water-polygon (NEW)**, then 15 km ring fallback | **Province** (1 of 3) | land + water |
+| `mpa` / `hotspot` / `custom` | **L2 overlapping** (covered-zones) | point-in-(land ∪ water) → covered | **Municipality** | land and/or water |
+
+Kind implies the default layer, so no separate manual "layer" toggle is needed for v1.
+
+### 3.2 Assignment algorithm change (owner-approved this session)
+
+`assignMunicipalityToPoint` gains a water-containment stage:
+
+```
+1. inside a municipality LAND polygon      → that municipality
+2. inside a municipality WATER polygon      → that municipality        ← NEW (uses waterGeojson)
+3. else within 15 km of nearest land        → nearest municipality      ← existing fallback
+```
+
+### 3.3 Province
+
+- Kept as a **fixed selection of 3** for now (Oriental Mindoro, Occidental Mindoro, Palawan), selectable when uploading a `municipality`-kind boundary. Making provinces user-manageable is a later, optional extension.
+
+### 3.4 Reporting rollups
+
+- **Province filter** (new): selecting a province rolls up all municipalities (and their land+water events/patrols) under it.
+- **Municipal report → "Include child boundaries" toggle** (new): default **OFF** (municipal figures stay clean); when ON, folds in events/patrols of child MPAs/hotspots/custom under that municipality.
+
+### 3.5 Terrain (Land / Water) filter — the "foot/seaborne" purpose
+
+- New **spatial** classification derived from the boundary polygons: a point/track inside land geometry = **Land**, inside water geometry = **Water**. Surfaced as a filter `Terrain: [ All | Land | Water ]` on the report map + command center.
+- **Orthogonal** to the existing `Patrol.patrolType` (foot/seaborne) track-color toggle — the two do not merge (a foot patrol can physically be over water). Naming will make the distinction clear (Terrain = spatial; foot/seaborne = self-reported mode).
+
+---
+
+## 4. Open Decisions (lock before the relevant phase)
+
+- **D1 — Table strategy (before Phase 1).** Keep `Municipality` + `ProtectedZone` as two tables behind ONE unified "Boundaries" UI (RECOMMENDED — lowest risk, no mass `municipalityId` FK rename across ~35k events + reports + dashboard), **or** merge into a single `Boundary` table now (cleaner, much bigger/riskier migration). _PM recommendation: keep two, unify the UI; rename the column "later" as you said._
+- **D2 — Province management (before Phase 4).** Fixed 3-option list now (RECOMMENDED), or make provinces user-creatable too?
+- **D3 — Municipal "include children" default (before Phase 4).** Default OFF (RECOMMENDED) vs ON.
+- **D4 — Restore semantics (before Phase 1).** On destructive replace of a boundary's geometry, snapshot the prior geometry so "Restore to official/previous" works from the UI (RECOMMENDED) vs rely on re-running seed/derive scripts (CLI).
+- **D5 — Child boundary water geometry.** MPAs/hotspots currently have land only. Allow water geometry on child boundaries too (RECOMMENDED — matches "land/water priority") vs land-only for children.
+
+---
+
+## 5. Phased Build Plan (branch-per-phase, gated, nothing pushed without approval)
+
+Each phase: `feat/<slug>` branch → implement (Opus plans, Sonnet executes per V32) → HARD GATE (`check-product-sync · typecheck · turbo lint · vitest · web build` + `pnpm audit`) → dev container rebuild + Playwright Visual QA → commit to branch → **STOP** → await "push it".
+
+### Phase 1 — Municipal land/water upload + water-containment assignment  *(the original approved task)* — ✅ DONE 2026-07-08 (branch `feat/municipal-land-water-upload`, gated + Visual-QA green, NOT pushed)
+- [x] Extend the uploader dialog with a "Boundary type" mode → **Municipal land/water boundary**: municipality picker + **Land/Water** + file + destructive replace warning. Existing MPA/special-area flow untouched. *(Province + creating a NEW municipality from upload deferred to Phase 2 — the generic manager; Phase 1 replaces geometry of an EXISTING municipality only.)*
+- [x] New mutation `municipality.replaceBoundaryGeometry` (adminProcedure): **replace** `Municipality.boundaryGeojson` (land) or `waterGeojson` (water) with server-validated geometry; snapshots prior geometry into `MunicipalityBoundarySnapshot` first (D4).
+- [x] `assignMunicipalityToPoint` (+ `-OrNearest`): added water-polygon containment stage (§3.2); processor + backfill selects pass `waterGeojson`. Unit tests: land-hit, water-hit, ring-fallback, skip — 207 pass.
+- [x] Re-derivation: reuses the exact `fanOutAreaRederive` helper (`areaBoundary.rebuild`) → re-derives all events/patrols/fuel; re-runs `importOfficialBoundaries` so the outline redraws. Returns `enqueuedJobs`.
+- [x] AuditLog `MUNICIPALITY_BOUNDARY_REPLACE`.
+- **Gate:** check-product-sync ✓ · typecheck 7/7 ✓ · turbo lint 6/6 ✓ · vitest (web 1660 + shared 207) ✓ · web build ✓ · audit (1 moderate only) ✓. **Visual QA:** 0 console errors; new mode renders + submit-gating + warning verified on dev.
+
+### Phase 2 — Generic "Boundaries" management surface (Full Manager)
+- [ ] Add `kind` label to the boundary concept; relabel "Municipality" → "Boundaries" in the selector + admin menu (label-level; keep FK name internally per D1).
+- [ ] Admin **Boundaries Manager**: list all boundaries (municipalities + MPAs/hotspots/custom), each with land/water status + mini-map preview, per-boundary **Upload/Replace (land|water)**, **Restore** (D4), and re-derivation progress.
+- [ ] Fold the shipped MPA/special-area uploader into this unified surface (two layers, one UI). Free **name** + **kind** + optional **land/water** geometry + parent (municipality→province, child→municipality).
+
+### Phase 3 — Terrain (Land / Water) filter
+- [ ] Derive land/water classification for events (point) + patrols (dominant track) from boundary geometry; store/compute + backfill.
+- [ ] Add `Terrain: [All | Land | Water]` to the report-map + command-center filters (kept distinct from the foot/seaborne track toggle).
+
+### Phase 4 — Hierarchy reporting (Province rollup + child include/exclude)
+- [ ] Province selector in the report filter → rolls up all municipalities (land+water) under the province.
+- [ ] Municipal report **"Include child boundaries"** toggle (D3 default) — folds child MPA/hotspot/custom events/patrols into the municipal report; reflected in PDF export + on-screen figures.
+- [ ] Verify province/municipal aggregations across dashboard + PDF report paths.
+
+---
+
+## 6. Risks & Safety
+
+- **Destructive replace.** Always snapshot prior geometry before overwrite (D4) so a bad upload is reversible from the UI. Back up staging/prod DB before any such op there.
+- **Re-derivation cost.** ~35k events + ~4.6k patrols re-assigned per municipal geometry change → background job only, never synchronous. Surface progress; idempotent job IDs already exist.
+- **Overlap ambiguity.** Only `municipality`-kind boundaries drive the exclusive FK; if two municipality polygons overlap, assignment is last-match/nearest — flag on upload, don't silently mis-assign. MPAs/hotspots are always Layer-2 (overlap is expected there).
+- **Naming collision.** "Terrain (Land/Water)" spatial filter vs "foot/seaborne" patrol mode — keep labels distinct in UI + code to avoid confusion.
+- **Scope creep.** This is a data-model generalization touching assignment, coverage, filters, PDF reports, and the dashboard. Strict phase boundaries + branch-per-phase keep each slice gate-able and reversible.
+
+---
+
+## 7. Not in scope (parked)
+- Full `municipalityId` → `boundaryId` column rename across the codebase (do "later" per owner; UI relabel now).
+- User-creatable provinces (D2 — later).
+- Official Apo Reef coords (needs `PP_TOKEN`) — separate low-pri item.

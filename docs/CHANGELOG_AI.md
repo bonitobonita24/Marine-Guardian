@@ -3,6 +3,24 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-07-08 — Municipal land/water KML/KMZ upload + water-containment assignment (Generic-Boundaries plan, Phase 1)
+
+- Agent:               CLAUDE_CODE (Opus 4.8) PM + 4 Sonnet spec-executors
+- Branch:              feat/municipal-land-water-upload (LOCAL only — NOT pushed, per branch-only policy)
+- Why:                 Owner-approved Phase 1 of the generic-Boundaries plan (docs/plans/generic-boundaries-and-hierarchy-plan.md): let admins replace a municipality's own land/water polygon from the UI (previously seed/CLI-only), make point→municipality assignment consult uploaded water polygons, and preserve prior geometry for later Restore.
+
+### Changes
+- `packages/db/prisma/schema.prisma` + migration `20260708120000_municipality_boundary_snapshot` — NEW `MunicipalityBoundarySnapshot` table (prior land/water geometry snapshotted before a replace; D4 restore groundwork) + back-relations on Municipality & Tenant.
+- `packages/shared/src/lib/municipality-assignment/{types,index}.ts` — `MunicipalityForAssignment.waterGeojson?`; new water-polygon containment stage in `assignMunicipalityToPoint` + `assignMunicipalityToPointOrNearest` (land → water → 15 km ring). +4 unit tests (207 pass).
+- `packages/jobs/src/processors/municipality-assign.processor.ts` + `scripts/backfill-municipality-assignment.ts` — select/pass `waterGeojson` so the new stage fires.
+- `apps/web/src/server/trpc/routers/municipality.ts` — NEW `replaceBoundaryGeometry` adminProcedure: validate → snapshot prior → replace land|water in a txn → `importOfficialBoundaries` overlay redraw → `fanOutAreaRederive` re-derivation → `MUNICIPALITY_BOUNDARY_REPLACE` audit.
+- `apps/web/src/server/trpc/routers/areaBoundary.ts` — export `fanOutAreaRederive` for reuse (no behavior change).
+- `apps/web/src/app/[tenant]/(dashboard)/patrol-areas/add-mpa-from-file-dialog.tsx` — "Boundary type" mode switch; new "Municipal land/water boundary" mode (municipality + land/water + file + destructive replace warning) → `replaceBoundaryGeometry`. Existing MPA/special-area flow unchanged.
+- `docs/plans/generic-boundaries-and-hierarchy-plan.md` — NEW plan doc; Phase 1 marked done.
+- Schema/migrations:   1 new table (municipality_boundary_snapshots) + 1 migration; migrate deploy applied to dev.
+- Errors encountered:  turbo-lint failed on `unknown | null` redundant union (types.ts) — fixed to `unknown`. Pre-existing dev-DB migration drift (add_report_export_pptx stuck failed, events_fulltext_search unapplied) resolved metadata-only via `migrate resolve --applied` to unblock deploy (repo migration files unchanged).
+- Verification:        full gate green (check-product-sync · typecheck 7/7 · turbo lint 6/6 · vitest web 1660 + shared 207 · web build · audit 1-moderate); dev Visual QA 0 console errors.
+
 ## 2026-07-03 — Report Map: selected-patrol floating map panel + track isolation + background-click deselect (Phase 4 S0)
 
 - Agent:               CLAUDE_CODE (Fable 5) — Swarm S0
