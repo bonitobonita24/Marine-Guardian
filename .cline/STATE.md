@@ -19,11 +19,17 @@
 #     s2 (7f4dc50) boundary kinds widened mpa|special_area → +hotspot|custom (create dialog + createBoundaryFromUpload).
 #     s3 (89dcf6f) per-row geometry thumbnail (inline SVG, no Leaflet) in the table Geometry column.
 #     All gate-green + Visual QA 0 console errors. CHANGELOG 2026-07-08.
-#   ⬜ NEXT (Phase 2 remaining, then 3-4): child-boundary WATER geometry D5 (needs ProtectedZone.waterGeojson + coverage
-#     work — the meatiest remaining) · create-NEW-municipality-from-upload w/ Province picker · fold MPA create into one
-#     unified surface → Phase 3 (Land/Water terrain filter, spatial ≠ Patrol.patrolType) → Phase 4 (Province rollup +
-#     municipal child include/exclude in reports/PDF). Branches: feat/municipal-land-water-upload (P1) +
-#     feat/boundaries-manager (P1+P2s1-3), both LOCAL/unpushed. Plan: docs/plans/generic-boundaries-and-hierarchy-plan.md.
+#   D5 DONE (eb27e0c): child-boundary land/water via ProtectedZone.terrain classifier (single geometry tagged land|water,
+#     NOT a 2nd water column — coverage/import UNCHANGED). createBoundaryFromUpload terrain input + dialog Terrain select.
+#     Migrations ..210000 (water_geojson, superseded) + ..220000 (drop it, add terrain). Gate green + QA 0 errors.
+#   ⬜ NEXT: Phase 3 — Land/Water terrain FILTER (the meaty one: derive per-event/patrol terrain spatially — likely as a
+#     byproduct of assignMunicipalityToPoint's land-hit vs water-hit stage — store Event.terrain/Patrol.terrain + backfill
+#     ~40k records + filter UI on report map/command center; spatial ≠ self-reported Patrol.patrolType). BEST DONE FRESH
+#     (correctness-sensitive, big-context). Also remaining Phase 2: create-NEW-municipality-from-upload w/ Province picker;
+#     fold MPA create into unified surface. Then Phase 4 (Province rollup + municipal child include/exclude in reports/PDF).
+#   BRANCHES (all LOCAL/unpushed, gate-green, Visual-QA'd): feat/municipal-land-water-upload (P1 @ 816a3ac) +
+#     feat/boundaries-manager (P1+P2s1-3+D5 @ eb27e0c). Plan: docs/plans/generic-boundaries-and-hierarchy-plan.md.
+#   CREDS this session: universal 3-tier rolled to MG dev/staging/prod, all verified; demo untouched.
 #   🔴 TEST FLAKE: create-area-boundary-dialog.test.tsx + patrol-schedule assignment-dialog.test.tsx have 5s-timeout
 #     tests that FLAKE under full-suite CPU contention (fail in `pnpm test`, pass clean isolated). Not regressions —
 #     re-run isolated to confirm before treating as a break.
