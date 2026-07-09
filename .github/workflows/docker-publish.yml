@@ -71,17 +71,13 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Instant redeploy of the staging stack after the image push: DeployStack
-      # (auto_pull → docker compose pull + up -d on the new :staging-latest). Komodo's
-      # git webhook doesn't fire for files-on-host stacks and the registry poll is
-      # hourly — so CI drives it. Production is NEVER auto-deployed (manual promotion).
-      # Runbook: Server-Setups/Powerbyte-Hostinger/runbooks/komodo-ci-deploy.md
-      # (fmo-style: stack pulls :staging-latest; no SHA-pin Variable for staging.)
-      - name: Deploy to Komodo (staging)
-        if: github.ref == 'refs/heads/main'
-        env:
-          KOMODO_HOST: https://kmd.powerbyte.app
-          KOMODO_API_KEY: ${{ secrets.KOMODO_API_KEY }}
-          KOMODO_API_SECRET: ${{ secrets.KOMODO_API_SECRET }}
-          KOMODO_STACK: marine-guardian-staging
-        run: bash deploy/komodo-deploy.sh
+      # ── Staging is NOT auto-deployed here (2026-07-09 — data-first validation gate) ──
+      # CI's job ends at "build + push image" above. Staging deploys ONLY via
+      # deploy/staging-refresh-and-deploy.sh, which enforces DATA-FIRST ordering:
+      # it refreshes staging's DB from a PROD copy BEFORE pulling the candidate image
+      # and running migrations, so the new code + migrations are rehearsed against real
+      # prod-shaped data before the same image is ever promoted to production.
+      # The old auto "Deploy to Komodo (staging)" step (DeployStack immediately after
+      # the push) is removed because it updated the staging image WITHOUT the prod data
+      # refresh, defeating the rehearsal. Production remains manual-promotion-only.
+      # Pattern: ~/.claude/rules/staging-refresh-gate.md · Runbook: Server-Setups komodo-ci-deploy.md
