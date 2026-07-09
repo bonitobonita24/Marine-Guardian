@@ -190,13 +190,17 @@ coverage June 315 patrols=146 foot/169 seaborne, events page 3206==DB). One real
 roster 11) is being fixed by the fleet on branch fix/rangers-on-duty-kpi (technical [HOW], not deferred). The
 following two are genuine product [WHAT] calls — the number is "correct" for the current filter but the filter/label
 may not match intent:
-- [ ] **"Active Events" tile (dashboard) is permanently 0.** It filters `EventState = 'active'`, but ER never syncs
-  that state to this tenant — only `new_event` (23) and `resolved` (3183) exist. If the tile is meant to show
-  open/unresolved incidents, `new_event` (23) is the population an operator expects. **Decide:** keep `state='active'`
-  (tile stays 0 until ER sends active) OR switch to `new_event`/unresolved. dashboard.ts:65-72.
-- [ ] **"Unacknowledged alerts — last 24h" tile shows a 7-day count.** The War Room feeds the tile its global
-  [now-7d, now] range, so the number is ~7d (~2211) while the label/comment says "last 24h" (~735). **Decide:** give
-  the tile an explicit 24h window OR relabel it to match the War Room range. dashboard.ts:257-275.
+- [x] **"Active Events" tile — FIXED 2026-07-09 (owner-selected), branch fix/active-events-unresolved-kpi @ 9d77a75 (LOCAL).**
+  Now counts UNRESOLVED incidents (`state != 'resolved'`), range- and patrol-independent; drilldown reconciled via a new
+  `unresolved` filter on event.list so tile == drilldown. ⚠ **OWNER DECISION STILL OPEN (small):** the tile now shows
+  **18**, not the "~23" in the fix brief. The 23 = un-filtered `state<>'resolved'`; **5 of those are Skylight automated
+  vessel-detections**. Since every OTHER War Room incident metric (breakdown/feed/trends/lastIncident) AND event.list
+  exclude Skylight (prior owner decisions 2026-06-23/25), I excluded Skylight here too for consistency + KPI==drilldown
+  → 18. If you actually want Skylight automated detections counted as "Active Events" (→ 23), say so and I'll drop the
+  one-line exclusion. Default kept = 18 (consistent). dashboard.ts kpis.activeEvents.
+- [x] **"Unacknowledged — last 24h" tile — FIXED 2026-07-09, branch fix/unacked-alerts-true-24h @ ea1ade8 (LOCAL).**
+  dashboard.alertStats now ALWAYS uses a rolling 24h window (ignores the War Room range); tile shows **549** (verified ==
+  DB last-24h; 2322 in 7d) under a now-truthful "alerts last 24h" label. No open decision. dashboard.ts alertStats.
 
 ## 2026-07-09 — Per-area reports render near-empty in ph: area/distance attribution backfill ([WHAT], data not code)
 Per-area PDF reports are near-empty for ph NOT because of a report bug (logic verified sound) but because the

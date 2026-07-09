@@ -3,6 +3,24 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-07-09 — Two dashboard KPI number fixes (Active Events + Unacknowledged) — DEV ONLY, LOCAL/unpushed
+
+- Agent:               CLAUDE_CODE (Opus 4.8 PM) + 2 Sonnet spec-executor workers (one per fix)
+- Branches:            **fix/active-events-unresolved-kpi @ 9d77a75** (Fix A) and **fix/unacked-alerts-true-24h @ ea1ade8** (Fix B), each off feat/ph-tenant-slug. BOTH LOCAL — NOT pushed (owner decision: NO push this session).
+- Why:                 Two number bugs surfaced during the 2026-07-09 verification (deferred as [WHAT] then owner-selected to fix): the "Active Events" tile read a permanent 0, and the "Unacknowledged — last 24h" tile showed a multi-day count under a 24h label.
+- FIX A (Active Events KPI):
+  - Files:             dashboard.ts (kpis.activeEvents), event.ts (eventListFilters + findMany + raw-SQL where-builders), kpi-drilldown-modal.tsx (+ removed now-dead dateFrom prop; page.tsx caller updated), __tests__/dashboard.test.ts + event.test.ts.
+  - Bug:               `activeEvents` filtered `state='active'` (a value EarthRanger never syncs into this dataset — only new_event/resolved occur) AND required a linked open patrol → structurally always 0.
+  - Fix:               Redefined as currently-UNRESOLVED incidents: count events where `state != 'resolved'`, range- and patrol-independent (a live open-incidents metric like activePatrols), EXCLUDING Skylight automated vessel-detections. Added an `unresolved` filter to event.list (both code paths) and repointed the KPI drilldown at it so the tile and its drilldown list agree.
+  - Verified vs dev DB (tenant ph): 18 unresolved non-Skylight incidents (23 unresolved total, of which 5 are Skylight). Live KPI 18 == drilldown 18. Gate green (product-sync · turbo lint 6/6 · typecheck 7/7 · web build · vitest web 1663). Playwright: 0 console errors.
+  - ⚠ Owner-visibility note: shows 18, not the "~23" in the handoff (that figure was the un-filtered state<>'resolved' count; 5 are Skylight). Skylight is excluded from every other War Room incident metric + event.list, so excluding it here keeps consistency AND KPI==drilldown. Defensible [HOW]; reversible to 23 on owner's word. Logged in PENDING_DECISIONS 2026-07-09.
+- FIX B (Unacknowledged tile):
+  - Files:             dashboard.ts (alertStats), page.tsx, __tests__/dashboard.test.ts.
+  - Bug:               The tile's fixed "alerts last 24h" sub-label was fed the War Room multi-day range, so it displayed a multi-day count (1596) under a 24h label — the label lied.
+  - Fix:               dashboard.alertStats now ALWAYS counts unacknowledged alerts fired in a rolling 24h window, ignoring any supplied range (.input kept for wire back-compat). The page calls alertStats.useQuery() with no range arg so it no longer refetches on window changes.
+  - Verified vs dev DB (tenant ph): 549 unacked in last 24h (2322 in 7d). Live tile 549. Gate green (product-sync · turbo lint 6/6 · typecheck 7/7 · web build · vitest web 1661). Playwright: 0 console errors.
+- Next:                Generic-Boundaries Phase 2 (create-new-municipality-from-upload + Province picker; unified create surface) — plan-first-dispatch, own branch, gate + Visual QA, LOCAL.
+
 ## 2026-07-09 — Full-scale number verification (report/map/charts) + rangersOnDuty KPI fix — DEV ONLY
 
 - Agent:               CLAUDE_CODE (Opus 4.8 PM) + 3 parallel Sonnet verification agents + 1 Sonnet fix worker

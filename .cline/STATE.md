@@ -5,6 +5,39 @@
 # ════════════════════════════════════════════════════════════════════════════
 # ════════════════════════════════════════════════════════════════════════════
 # ════════════════════════════════════════════════════════════════════════════
+# ✅✅ 2026-07-09 (FULL AUTO) — 2 DASHBOARD NUMBER FIXES DONE (A + B), each own branch off feat/ph-tenant-slug,
+#   TDD + FULL GATE + dev Visual QA, LOCAL/unpushed (owner decision #1 = NO push). Milestone complete → save+reboot
+#   into Generic-Boundaries Phase 2 (owner asked to reboot before Phase 2).
+#   FIX A "Active Events" tile — branch **fix/active-events-unresolved-kpi @ 9d77a75** (off feat/ph-tenant-slug):
+#     was state='active' (never synced) + open-patrol join → permanent 0. NOW counts UNRESOLVED incidents
+#     (state != 'resolved'), range- + patrol-INDEPENDENT (a live open-incidents metric like Active Patrols),
+#     EXCLUDING Skylight automated detections. Added `unresolved` filter to event.list (findMany + raw-SQL paths);
+#     KPI drilldown repointed to it so tile == drilldown. Files: dashboard.ts (kpis.activeEvents),
+#     event.ts (eventListFilters + both where-builders), kpi-drilldown-modal.tsx (+ removed dead dateFrom prop from
+#     modal + page.tsx caller), dashboard.test + event.test. Gate GREEN (product-sync·turbo lint6/6·typecheck7/7·
+#     web build·vitest 1663). Dev rebuilt + Playwright-verified: KPI **18** == drilldown **18** == DB **18** non-Skylight
+#     unresolved (23 unresolved total, 5 Skylight); 0 console errors.
+#     ⚠ NOTE FOR OWNER: shows **18**, not the "~23" in the handoff. The 23 = un-filtered `state<>'resolved'`; 5 of those
+#       are Skylight automated vessel-detections. Every other War Room incident metric (breakdown/feed/trends/lastIncident)
+#       AND event.list EXCLUDE Skylight (prior owner decisions 2026-06-23/25), so for consistency + KPI==drilldown I
+#       EXCLUDED Skylight here too → 18. Defensible [HOW]; if you actually want Skylight counted (→23), say so and I'll
+#       drop the exclusion. Logged in docs/PENDING_DECISIONS 2026-07-09.
+#   FIX B "Unacknowledged — last 24h" tile — branch **fix/unacked-alerts-true-24h @ ea1ade8** (off feat/ph-tenant-slug):
+#     tile label is a fixed "alerts last 24h" but was fed the War Room multi-day range → showed a multi-day count (1596)
+#     under a 24h label = lie. NOW dashboard.alertStats ALWAYS uses a rolling 24h window, ignores the range input
+#     (.input kept for wire back-compat); page.tsx calls alertStats.useQuery() with no range arg. Files: dashboard.ts
+#     (alertStats), page.tsx, dashboard.test (inverted the "uses supplied range" test → "ignores range, always 24h").
+#     Gate GREEN (product-sync·turbo lint6/6·typecheck7/7·web build·vitest 1661). Dev rebuilt + Playwright-verified:
+#     Unacknowledged **549** == DB last-24h (2322 in 7d); label truthful; 0 console errors.
+#   rangersOnDuty fix (fix/rangers-on-duty-kpi @ 02665cd) was a PRIOR session — untouched, still local.
+#   ⬜ NEXT (this handoff's decision #3): GENERIC-BOUNDARIES PHASE 2 — create-NEW-municipality-from-upload w/ Province
+#     picker (fixed 3: Or.Mindoro/Occ.Mindoro/Palawan, D2) + fold MPA/boundary create into ONE unified create surface
+#     (free name + kind[municipality|mpa|hotspot|custom] + land/water terrain + parent). Plan:
+#     docs/plans/generic-boundaries-and-hierarchy-plan.md §Phase 2 (remaining items). PLAN-FIRST-DISPATCH (PM+architect
+#     co-plan worker prompts → Sonnet spec-executors → PM verify vs ground truth). Branch off feat/ph-tenant-slug,
+#     gate + Visual QA, commit LOCAL, NO push. STILL-DEFERRED [WHAT]: /ph rollout to staging/demo/prod · push any branch ·
+#     area-attribution backfill · Phase 4 (Province rollup) · Banggai/Pecca tenants.
+# ════════════════════════════════════════════════════════════════════════════
 # ▶▶▶ 2026-07-09 ~09:00 — OWNER AWAKE, reviewed verification, LOCKED next-session plan (then may step away). ◀◀◀
 #   Decisions: (1) PUSH SCOPE = NONE — keep ALL branches local, no merge/push. (2) Apply 2 dashboard number
 #   fixes — (A) "Active Events" tile → count UNRESOLVED (state<>'resolved', ~23) instead of never-synced
