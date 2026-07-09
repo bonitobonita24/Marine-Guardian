@@ -188,6 +188,84 @@ describe("municipalityCoverage.municipalityCoverage — Skylight + municipality 
   });
 });
 
+describe("municipalityCoverage.municipalityCoverage — province rollup (Phase 4B)", () => {
+  it("resolves province to its municipality ids and narrows the group-bys + municipality list to an `in` clause", async () => {
+    const caller = createCaller(makeCtx());
+    // First findMany call is resolveMunicipalityScope's own province lookup;
+    // the second is the chart's municipality list.
+    mockPrisma.municipality.findMany.mockResolvedValueOnce([
+      { id: "muni-1" },
+      { id: "muni-2" },
+    ]);
+    mockPrisma.municipality.findMany.mockResolvedValueOnce([
+      {
+        id: "muni-1",
+        name: "Coron",
+        province: "Palawan",
+        slug: "coron",
+      },
+      {
+        id: "muni-2",
+        name: "Araceli",
+        province: "Palawan",
+        slug: "araceli",
+      },
+    ]);
+
+    await caller.municipalityCoverage({
+      dateFrom: FROM,
+      dateTo: TO,
+      province: "Palawan",
+    });
+
+    // The resolver's own lookup — scoped to the tenant + requested province.
+    const resolverArgs = mockPrisma.municipality.findMany.mock
+      .calls[0]?.[0] as { where: { tenantId: string; province?: string } };
+    expect(resolverArgs.where.tenantId).toBe(TENANT_ID);
+    expect(resolverArgs.where.province).toBe("Palawan");
+
+    // The chart's own municipality list — narrowed via an `in` clause to the
+    // resolved ids (multiple ids never collapse to plain equality).
+    const listArgs = mockPrisma.municipality.findMany.mock.calls[1]?.[0] as {
+      where: { id?: { in: string[] } };
+    };
+    expect(listArgs.where.id).toEqual({ in: ["muni-1", "muni-2"] });
+
+    const patrolArgs = mockPrisma.patrol.groupBy.mock.calls[0]?.[0] as {
+      where: { municipalityId: unknown };
+    };
+    expect(patrolArgs.where.municipalityId).toEqual({ in: ["muni-1", "muni-2"] });
+
+    const eventArgs = mockPrisma.event.groupBy.mock.calls[0]?.[0] as {
+      where: { municipalityId: unknown };
+    };
+    expect(eventArgs.where.municipalityId).toEqual({ in: ["muni-1", "muni-2"] });
+  });
+
+  it("municipalityId always wins over province when both are supplied", async () => {
+    const caller = createCaller(makeCtx());
+    await caller.municipalityCoverage({
+      dateFrom: FROM,
+      dateTo: TO,
+      municipalityId: "muni-1",
+      province: "Palawan",
+    });
+
+    // No province-resolution lookup should occur — resolveMunicipalityScope
+    // short-circuits on municipalityId before touching prisma for province.
+    expect(mockPrisma.municipality.findMany).toHaveBeenCalledTimes(1);
+    const listArgs = mockPrisma.municipality.findMany.mock.calls[0]?.[0] as {
+      where: { id?: string };
+    };
+    expect(listArgs.where.id).toBe("muni-1");
+
+    const patrolArgs = mockPrisma.patrol.groupBy.mock.calls[0]?.[0] as {
+      where: { municipalityId: unknown };
+    };
+    expect(patrolArgs.where.municipalityId).toBe("muni-1");
+  });
+});
+
 describe("municipalityCoverage.protectedZoneCoverage — occurrence-time scoping (Q1 fix 2026-07-07)", () => {
   it("windows by OCCURRENCE time (patrol.startTime / event.reportedAt), NOT the join row's assignedAt", async () => {
     const caller = createCaller(makeCtx());

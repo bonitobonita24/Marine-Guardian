@@ -119,13 +119,16 @@ function ReportMapInner() {
   const summary = trpc.reportMap.summary.useQuery(filter);
   // Municipality Coverage chart — same report filter, mapped to the
   // {dateFrom,dateTo} shape this router expects. Scoped to the selected
-  // municipality when one is picked (province-wide otherwise), matching every
-  // other panel on this page.
+  // municipality when one is picked, or to the selected province rollup
+  // (Phase 4B — municipalityId always wins over province, resolved server-side
+  // via the shared resolveMunicipalityScope), matching every other panel on
+  // this page.
   const municipalityCoverage =
     trpc.municipalityCoverage.municipalityCoverage.useQuery({
       dateFrom: from,
       dateTo: to,
       ...(municipalityId !== null ? { municipalityId } : {}),
+      ...(municipalityId === null && province !== null ? { province } : {}),
     });
 
   // Selected patrol from the "Patrols" list (or a track click on the map) →

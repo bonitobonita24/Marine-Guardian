@@ -25,6 +25,10 @@ import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
 import { prisma } from "@marine-guardian/db";
 import { z } from "zod";
+import {
+  resolveMunicipalityScope,
+  municipalityScopeClause,
+} from "../../reporting/municipality-scope";
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -40,6 +44,12 @@ export const municipalityCoverageRouter = router({
           // chart is restricted to that single municipality; when omitted it
           // shows every municipality (province-wide) as before.
           municipalityId: z.string().optional(),
+          // Optional province rollup (Phase 4B — mirrors the Report Map's
+          // province filter via the shared resolveMunicipalityScope). When
+          // supplied (and municipalityId is not), the chart narrows to every
+          // municipality in that province. A specific municipalityId always
+          // wins over province (same precedence as reportMap.ts).
+          province: z.string().optional(),
           // Legacy fields retained for backward compatibility.
           since: z.date().optional(),
           until: z.date().optional(),
@@ -54,17 +64,28 @@ export const municipalityCoverageRouter = router({
         new Date(Date.now() - THIRTY_DAYS_MS);
       const until = input?.dateTo ?? input?.until ?? new Date();
 
-      // When a municipality is selected, scope both group-bys to that id;
+      // Resolve the effective municipality scope: a specific municipalityId
+      // always wins over province (same precedence as reportMap.ts); a
+      // province-only filter resolves to every municipality in that province;
+      // neither set → undefined (no scoping, the original province-wide
+      // default across every assigned municipality).
+      const muniIds = await resolveMunicipalityScope(ctx.tenantId, {
+        municipalityId: input?.municipalityId,
+        province: input?.province,
+      });
+
+      // When a scope is resolved (specific municipality or province rollup),
+      // scope both group-bys (and the municipality list itself) to that set;
       // otherwise count every assigned municipality (municipalityId not null).
-      const municipalityFilter: string | { not: null } =
-        input?.municipalityId != null ? input.municipalityId : { not: null };
+      const municipalityFilter: string | { in: string[] } | { not: null } =
+        muniIds !== undefined ? municipalityScopeClause(muniIds) : { not: null };
 
       const [municipalities, patrolCounts, eventCounts] = await Promise.all([
         prisma.municipality.findMany({
           where: {
             tenantId: ctx.tenantId,
-            ...(input?.municipalityId != null
-              ? { id: input.municipalityId }
+            ...(muniIds !== undefined
+              ? { id: municipalityScopeClause(muniIds) }
               : {}),
           },
           select: { id: true, name: true, province: true, slug: true },

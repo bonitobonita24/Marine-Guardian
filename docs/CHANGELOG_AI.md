@@ -3,6 +3,17 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-07-09 — Generic-Boundaries Phase 4 item-3: municipalityCoverage chart province-narrowed — DEV ONLY, LOCAL/unpushed
+
+- Agent:               CLAUDE_CODE (Opus 4.8 PM) + 1 Sonnet spec-executor. PM verified diff + full gate.
+- Branch:              **feat/boundaries-phase4b-include-children** (follow-on commit). LOCAL only — NOT pushed.
+- Why:                 Last open Phase 4 reporting item — the `municipalityCoverage` comparison chart was the one report-map panel still province-blind while every sibling panel (reportMap.*) already honored the Phase 4A Province select.
+- What:                `province?: string` added to the `municipalityCoverage` procedure; reuses the shared `resolveMunicipalityScope` (municipalityId wins over province; province → its municipality ids); the municipality list + patrol/event group-bys all scope to the resolved id set. `report-map-view.tsx` threads `province` from the existing `useReportFilter()` Province select into that query (only when no specific municipalityId). No new UI control — the chart lives on the report map, which already has the province filter.
+- Files modified:      apps/web/src/server/trpc/routers/municipalityCoverage.ts, apps/web/src/app/[tenant]/(dashboard)/map/_components/report-map-view.tsx + municipalityCoverage.test.ts (+2 tests: province narrows the group-bys/list via `in`; municipalityId still wins).
+- Schema/migrations:   none.
+- Verification:        Gate GREEN — typecheck 7/7 · turbo lint 6/6 · web build · vitest web 1719 (+ shared/jobs). Reuses the Phase 4A resolver already SQL-exact-verified.
+- Note:                A dedicated Command-Center-wide province filter across every dashboard KPI remains a separate, larger optional effort — deliberately out of scope here.
+
 ## 2026-07-09 — Generic-Boundaries Phase 4B: Municipal "Include child boundaries" toggle (report map + PDF) — DEV ONLY, LOCAL/unpushed
 
 - Agent:               CLAUDE_CODE (Opus 4.8 PM) + 1 Sonnet spec-executor (Wave B view/PDF wiring). PM authored the foundation util + Wave A, verified every diff, ran the full gate + SQL/Playwright ground-truth.
