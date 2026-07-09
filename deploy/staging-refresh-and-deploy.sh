@@ -70,8 +70,18 @@ kill $TUN 2>/dev/null || true
 echo "▶ 5/6 Bring staging up on new image"
 ssh_vps "cd ${STACK}; docker compose -p ${PROJ} --env-file .env ${CF} up -d app worker pdf-renderer && echo '  ok'"
 
-echo "▶ 6/6 Verify"
-sleep 6
-curl -s -o /dev/null -w "  mg-staging health = %{http_code}\n" https://mg-staging.powerbyte.app/api/health
-echo "✅ Staging refreshed from prod + running '${SRC}'. Validate at https://mg-staging.powerbyte.app/login"
-echo "   Green here → the SAME image is safe to promote to production (manual, explicit)."
+echo "▶ 6/6 Verify (poll /api/health up to ~60s — the app needs a moment after 'up -d')"
+CODE=000
+for _ in $(seq 1 20); do
+  CODE=$(curl -s -o /dev/null -w "%{http_code}" https://mg-staging.powerbyte.app/api/health || echo 000)
+  [ "$CODE" = "200" ] && break
+  sleep 3
+done
+echo "  mg-staging /api/health = ${CODE}"
+if [ "$CODE" = "200" ]; then
+  echo "✅ Staging refreshed from prod + running '${SRC}' — HEALTHY. Validate at https://mg-staging.powerbyte.app/login"
+  echo "   Green here → the SAME image is safe to promote to production (manual, explicit)."
+else
+  echo "⚠ Staging came up but /api/health = ${CODE} after ~60s — check 'docker logs marine-guardian_staging_app' before promoting."
+  exit 1
+fi
