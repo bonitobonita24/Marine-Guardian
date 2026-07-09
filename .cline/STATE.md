@@ -4,6 +4,19 @@
 # ════════════════════════════════════════════════════════════════════════════
 # ════════════════════════════════════════════════════════════════════════════
 # ════════════════════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════════════════
+# ▶▶▶ 2026-07-09 ~09:00 — OWNER AWAKE, reviewed verification, LOCKED next-session plan (then may step away). ◀◀◀
+#   Decisions: (1) PUSH SCOPE = NONE — keep ALL branches local, no merge/push. (2) Apply 2 dashboard number
+#   fixes — (A) "Active Events" tile → count UNRESOLVED (state<>'resolved', ~23) instead of never-synced
+#   state='active'; (B) "Unacknowledged last 24h" alerts tile → give it a TRUE 24h window (currently fed the
+#   War Room 7d range → label lies). Each on own branch off feat/ph-tenant-slug, TDD + full gate + dev Visual QA,
+#   commit LOCAL only. (rangersOnDuty fix already on fix/rangers-on-duty-kpi @ 02665cd — don't redo.)
+#   (3) THEN start Generic-Boundaries Phase 2 (create-NEW-municipality-from-upload + Province picker; fold MPA
+#   create into unified Boundaries surface) — plan docs/plans/generic-boundaries-and-hierarchy-plan.md; plan-first
+#   dispatch. NOT selected: area-attribution backfill (stays deferred). Owner asked to save+reboot before doing.
+#   Full plan in .sessions/slot-1/next-session. STILL-DEFERRED [WHAT]: /ph rollout to staging/demo/prod, any push,
+#   area backfill, Phase 4, Banggai/Pecca tenants.
+# ════════════════════════════════════════════════════════════════════════════
 # ✅ 2026-07-09 (FULL AUTO, owner asleep) — FULL-SCALE NUMBER VERIFICATION DONE + 1 bug fixed & UI-verified.
 #   TASK (from prior handoff): test-simulation of report/map/chart numbers vs DB ground truth (tenant ph =
 #   cmoruubw…, 3206 events / 4940 patrols; other tenants empty). Method: 3 parallel Sonnet agents each read a
