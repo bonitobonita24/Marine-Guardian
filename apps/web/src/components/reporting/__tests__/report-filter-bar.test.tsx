@@ -52,7 +52,8 @@ afterEach(() => {
 
 // Read-out probe so we can assert the bar drives the shared context.
 function Probe() {
-  const { from, to, municipalityId, province, protectedZoneId } = useReportFilter();
+  const { from, to, municipalityId, province, includeChildren, protectedZoneId } =
+    useReportFilter();
   return (
     <div
       data-testid="probe"
@@ -60,6 +61,7 @@ function Probe() {
       data-to={to.toISOString()}
       data-municipality={municipalityId ?? "null"}
       data-province={province ?? "null"}
+      data-include-children={String(includeChildren)}
       data-zone={protectedZoneId ?? "null"}
     />
   );
@@ -307,6 +309,56 @@ describe("ReportFilterBar", () => {
     expect(screen.getByText("Naujan")).toBeTruthy();
     expect(screen.queryByText("Mamburao")).toBeNull();
     expect(screen.queryByText("Puerto Princesa")).toBeNull();
+  });
+
+  it("hides the Include child boundaries toggle when 'All municipalities' is active", () => {
+    renderBar();
+    expect(screen.queryByTestId("report-include-children")).toBeNull();
+  });
+
+  it("shows the Include child boundaries toggle only once a specific municipality is selected", async () => {
+    renderBar();
+    expect(screen.queryByTestId("report-include-children")).toBeNull();
+
+    await openAndPick("report-municipality", "Calapan City"); // m-1
+    await waitFor(() => {
+      expect(screen.getByTestId("report-include-children")).toBeTruthy();
+    });
+  });
+
+  it("hides the Include child boundaries toggle again when a province is selected", async () => {
+    renderBar();
+
+    await openAndPick("report-municipality", "Calapan City"); // m-1
+    await waitFor(() => {
+      expect(screen.getByTestId("report-include-children")).toBeTruthy();
+    });
+
+    await openAndPick("report-province", "Palawan");
+    await waitFor(() => {
+      expect(screen.queryByTestId("report-include-children")).toBeNull();
+    });
+  });
+
+  it("toggling Include child boundaries calls setIncludeChildren and updates the shared context", async () => {
+    renderBar();
+
+    await openAndPick("report-municipality", "Calapan City"); // m-1
+    await waitFor(() => {
+      expect(screen.getByTestId("report-include-children")).toBeTruthy();
+    });
+
+    expect(
+      screen.getByTestId("probe").getAttribute("data-include-children"),
+    ).toBe("false");
+
+    fireEvent.click(screen.getByTestId("report-include-children"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("probe").getAttribute("data-include-children"),
+      ).toBe("true");
+    });
   });
 
   it("selecting 'All provinces' restores every province group in the Municipality select", async () => {

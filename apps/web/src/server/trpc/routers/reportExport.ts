@@ -61,6 +61,12 @@ interface ReportExportParams {
    * specific municipalityId was set.
    */
   province?: string;
+  /**
+   * Optional "include child boundaries" toggle (Phase 4B, 2026-07-09) —
+   * carried through verbatim from paramsJson; does not affect the summary
+   * municipalityName (which is derived from municipalityId/province only).
+   */
+  includeChildren?: boolean;
   protectedZoneId?: string;
   areaBoundaryId?: string;
   from?: string;

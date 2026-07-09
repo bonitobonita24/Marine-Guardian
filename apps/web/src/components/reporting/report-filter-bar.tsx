@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import { useReportFilter } from "./report-filter-context";
@@ -68,11 +69,13 @@ export function ReportFilterBar({
     to,
     municipalityId,
     province,
+    includeChildren,
     protectedZoneId,
     terrain,
     setRange,
     setMunicipalityId,
     setProvince,
+    setIncludeChildren,
     setProtectedZoneId,
     setTerrain,
   } = useReportFilter();
@@ -341,6 +344,29 @@ export function ReportFilterBar({
           </SelectContent>
         </Select>
       </div>
+
+      {/* Include child boundaries (Phase 4B) — only meaningful when a SPECIFIC
+          municipality is selected (province-wide and "all municipalities"
+          scopes have no single parent to fold children into). Cleared
+          automatically by the context whenever the municipality selection
+          is broadened back to "all" or a province rollup is chosen. */}
+      {municipalityId !== null && (
+        <div className={fieldClass}>
+          <Label
+            htmlFor="report-include-children"
+            className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+          >
+            Include child boundaries
+          </Label>
+          <Switch
+            id="report-include-children"
+            data-testid="report-include-children"
+            checked={includeChildren}
+            onCheckedChange={setIncludeChildren}
+            aria-label="Include child boundaries — fold in this municipality's MPAs, hotspots & custom zones"
+          />
+        </div>
+      )}
 
       {/* MPA scope — narrow events/patrols to a single protected zone (Apo Reef,
           Harka Piloto), scoped to the selected municipality. Hidden entirely

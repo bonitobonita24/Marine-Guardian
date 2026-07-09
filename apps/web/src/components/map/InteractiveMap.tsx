@@ -157,6 +157,12 @@ type InteractiveMapProps = {
    *  inRange track mode) patrol tracks are narrowed to every municipality
    *  within the given province. */
   province?: string;
+  /** Optional "include child boundaries" toggle (Interactive Report Map,
+   *  Phase 4B, 2026-07-09). When true (and the report is municipality-scoped),
+   *  event markers AND (in inRange track mode) patrol tracks attributed to
+   *  that municipality's child protected zones (MPA/hotspot/custom) are
+   *  folded in alongside the municipality's own directly-attributed rows. */
+  includeChildren?: boolean;
   /**
    * Patrol-track overlay source (2026-06-27):
    *   "active"  (default) — most-recent patrols' tracks, live (Command Center /
@@ -243,6 +249,7 @@ export function InteractiveMap({
   municipalityId,
   protectedZoneId,
   province,
+  includeChildren,
   trackMode = "active",
   displayMode: initialDisplayMode = "dots",
   defaultEventLayers,
@@ -270,6 +277,7 @@ export function InteractiveMap({
     ...(municipalityId !== undefined ? { municipalityId } : {}),
     ...(protectedZoneId !== undefined ? { protectedZoneId } : {}),
     ...(province !== undefined ? { province } : {}),
+    ...(includeChildren !== undefined ? { includeChildren } : {}),
     ...(showSkylight ? { includeSkylight: true } : {}),
   });
   const patrolAreasQuery = trpc.map.patrolAreas.list.useQuery({
@@ -312,6 +320,7 @@ export function InteractiveMap({
       ...(municipalityId !== undefined ? { municipalityId } : {}),
       ...(protectedZoneId !== undefined ? { protectedZoneId } : {}),
       ...(province !== undefined ? { province } : {}),
+      ...(includeChildren !== undefined ? { includeChildren } : {}),
     },
     { enabled: useInRangeTracks },
   );

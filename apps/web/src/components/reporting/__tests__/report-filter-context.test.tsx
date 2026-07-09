@@ -107,6 +107,68 @@ describe("ReportFilterProvider / useReportFilter", () => {
     expect(result.current.province).toBeNull();
   });
 
+  it("defaults includeChildren to false", () => {
+    const { result } = renderHook(() => useReportFilter(), { wrapper });
+    expect(result.current.includeChildren).toBe(false);
+  });
+
+  it("setIncludeChildren toggles the flag", () => {
+    const { result } = renderHook(() => useReportFilter(), { wrapper });
+
+    act(() => {
+      result.current.setIncludeChildren(true);
+    });
+    expect(result.current.includeChildren).toBe(true);
+
+    act(() => {
+      result.current.setIncludeChildren(false);
+    });
+    expect(result.current.includeChildren).toBe(false);
+  });
+
+  it("resetRange also clears includeChildren", () => {
+    const { result } = renderHook(() => useReportFilter(), { wrapper });
+
+    act(() => {
+      result.current.setIncludeChildren(true);
+    });
+    expect(result.current.includeChildren).toBe(true);
+
+    act(() => {
+      result.current.resetRange();
+    });
+    expect(result.current.includeChildren).toBe(false);
+  });
+
+  it("setProvince (to a non-null value) clears includeChildren", () => {
+    const { result } = renderHook(() => useReportFilter(), { wrapper });
+
+    act(() => {
+      result.current.setIncludeChildren(true);
+    });
+    expect(result.current.includeChildren).toBe(true);
+
+    act(() => {
+      result.current.setProvince("Palawan");
+    });
+    expect(result.current.includeChildren).toBe(false);
+  });
+
+  it("setMunicipalityId(null) clears includeChildren", () => {
+    const { result } = renderHook(() => useReportFilter(), { wrapper });
+
+    act(() => {
+      result.current.setMunicipalityId("muni-1");
+      result.current.setIncludeChildren(true);
+    });
+    expect(result.current.includeChildren).toBe(true);
+
+    act(() => {
+      result.current.setMunicipalityId(null);
+    });
+    expect(result.current.includeChildren).toBe(false);
+  });
+
   it("throws when used outside the provider", () => {
     expect(() => renderHook(() => useReportFilter())).toThrow(
       /must be used within a ReportFilterProvider/,

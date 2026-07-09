@@ -29,6 +29,9 @@ vi.mock("@marine-guardian/db", () => ({
     municipality: {
       findMany: vi.fn(),
     },
+    protectedZone: {
+      findMany: vi.fn(),
+    },
   },
 }));
 
@@ -301,6 +304,71 @@ describe("map.events.list province rollup filter", () => {
     expect(prisma.municipality.findMany).not.toHaveBeenCalled();
     const findManyCall = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0];
     expect(findManyCall?.where).not.toHaveProperty("municipalityId");
+  });
+});
+
+describe("map.events.list includeChildren (Phase 4B)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("folds child protected zones into an OR clause when includeChildren is true and a municipality scope resolves", async () => {
+    vi.mocked(prisma.protectedZone.findMany).mockResolvedValue([
+      { id: "zone-1" },
+      { id: "zone-2" },
+    ] as any);
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.events.list({ municipalityId: "muni-1", includeChildren: true });
+
+    expect(prisma.protectedZone.findMany).toHaveBeenCalledWith({
+      where: { tenantId: TENANT_ID, parentMunicipalityId: { in: ["muni-1"] } },
+      select: { id: true },
+    });
+    const findManyCall = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0];
+    expect(findManyCall?.where).toMatchObject({
+      OR: [
+        { municipalityId: "muni-1" },
+        { coveredZones: { some: { protectedZoneId: { in: ["zone-1", "zone-2"] } } } },
+      ],
+    });
+    expect(findManyCall?.where).not.toHaveProperty("municipalityId");
+  });
+
+  it("falls back to the plain municipalityId clause when includeChildren resolves no child zones", async () => {
+    vi.mocked(prisma.protectedZone.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.events.list({ municipalityId: "muni-1", includeChildren: true });
+
+    const findManyCall = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0];
+    expect(findManyCall?.where).toMatchObject({ municipalityId: "muni-1" });
+    expect(findManyCall?.where).not.toHaveProperty("OR");
+  });
+
+  it("never resolves child zones when includeChildren is falsy", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.events.list({ municipalityId: "muni-1" });
+
+    expect(prisma.protectedZone.findMany).not.toHaveBeenCalled();
+    const findManyCall = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0];
+    expect(findManyCall?.where).toMatchObject({ municipalityId: "muni-1" });
+  });
+
+  it("never resolves child zones when no municipality scope is active, even if includeChildren is true", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.events.list({ includeChildren: true });
+
+    expect(prisma.protectedZone.findMany).not.toHaveBeenCalled();
+    const findManyCall = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0];
+    expect(findManyCall?.where).not.toHaveProperty("municipalityId");
+    expect(findManyCall?.where).not.toHaveProperty("OR");
   });
 });
 
@@ -669,6 +737,62 @@ describe("map.patrolTracks.inRange province rollup filter", () => {
     expect(prisma.municipality.findMany).not.toHaveBeenCalled();
     const call = vi.mocked(prisma.patrolTrack.findMany).mock.calls[0]?.[0];
     expect(call?.where?.patrol).toMatchObject({ municipalityId: "muni-9" });
+  });
+});
+
+describe("map.patrolTracks.inRange includeChildren (Phase 4B)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("folds child protected zones into an OR clause when includeChildren is true and a municipality scope resolves", async () => {
+    vi.mocked(prisma.protectedZone.findMany).mockResolvedValue([
+      { id: "zone-1" },
+    ] as any);
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.patrolTracks.inRange({
+      municipalityId: "muni-1",
+      includeChildren: true,
+    });
+
+    expect(prisma.protectedZone.findMany).toHaveBeenCalledWith({
+      where: { tenantId: TENANT_ID, parentMunicipalityId: { in: ["muni-1"] } },
+      select: { id: true },
+    });
+    const call = vi.mocked(prisma.patrolTrack.findMany).mock.calls[0]?.[0];
+    expect(call?.where?.patrol).toMatchObject({
+      OR: [
+        { municipalityId: "muni-1" },
+        { coveredZones: { some: { protectedZoneId: { in: ["zone-1"] } } } },
+      ],
+    });
+    expect(call?.where?.patrol).not.toHaveProperty("municipalityId");
+  });
+
+  it("falls back to the plain municipalityId clause when includeChildren resolves no child zones", async () => {
+    vi.mocked(prisma.protectedZone.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.patrolTracks.inRange({
+      municipalityId: "muni-1",
+      includeChildren: true,
+    });
+
+    const call = vi.mocked(prisma.patrolTrack.findMany).mock.calls[0]?.[0];
+    expect(call?.where?.patrol).toMatchObject({ municipalityId: "muni-1" });
+    expect(call?.where?.patrol).not.toHaveProperty("OR");
+  });
+
+  it("never resolves child zones when includeChildren is falsy", async () => {
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.patrolTracks.inRange({ municipalityId: "muni-1" });
+
+    expect(prisma.protectedZone.findMany).not.toHaveBeenCalled();
   });
 });
 

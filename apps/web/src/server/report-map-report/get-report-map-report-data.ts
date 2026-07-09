@@ -40,7 +40,8 @@ import {
 import { pointsFromTrackGeojson } from "@/server/trpc/routers/map";
 import {
   resolveMunicipalityScope,
-  municipalityScopeClause,
+  resolveChildZoneIds,
+  buildMunicipalityScopeWhere,
 } from "../reporting/municipality-scope";
 import {
   buildSingleCountSeries,
@@ -451,6 +452,14 @@ interface ParsedReportMapParams {
    */
   province?: string;
   protectedZoneId?: string;
+  /**
+   * Optional "include child boundaries" toggle (Phase 4B, 2026-07-09): when
+   * true (and the report is scoped to one or more municipalities), events
+   * and patrols attributed to those municipalities' child protected zones
+   * (MPA/hotspot/custom) via `coveredZones` are folded into the report
+   * alongside the municipality's own directly-attributed rows.
+   */
+  includeChildren?: boolean;
 }
 
 export function parseReportMapParams(paramsJson: unknown): ParsedReportMapParams {
@@ -476,6 +485,9 @@ export function parseReportMapParams(paramsJson: unknown): ParsedReportMapParams
   }
   if (typeof p.protectedZoneId === "string" && p.protectedZoneId.length > 0) {
     out.protectedZoneId = p.protectedZoneId;
+  }
+  if (typeof p.includeChildren === "boolean") {
+    out.includeChildren = p.includeChildren;
   }
   return out;
 }
@@ -649,6 +661,7 @@ export async function getReportMapReportData(
     municipalityId: params.municipalityId,
     province: params.province,
     protectedZoneId: params.protectedZoneId,
+    includeChildren: params.includeChildren,
   };
 
   // Resolve the effective municipality scope ONCE: a specific municipalityId
@@ -659,12 +672,24 @@ export async function getReportMapReportData(
     province: params.province,
   });
 
+  // "Include child boundaries" toggle (Phase 4B): only resolved when the
+  // report is actually municipality-scoped — a regional/all-municipality
+  // report has no municipality set to fold children into.
+  const childZoneIds =
+    params.includeChildren === true && municipalityIds !== undefined
+      ? await resolveChildZoneIds(tenant.id, municipalityIds)
+      : undefined;
+
   const eventFilter: {
     tenantId: string;
     NOT: { eventType: { display: { contains: string; mode: "insensitive" } } };
     reportedAt?: { gte?: Date; lte?: Date };
     municipalityId?: string | { in: string[] };
     coveredZones?: { some: { protectedZoneId: string } };
+    OR?: [
+      { municipalityId: string | { in: string[] } },
+      { coveredZones: { some: { protectedZoneId: { in: string[] } } } },
+    ];
   } = {
     tenantId: tenant.id,
     NOT: {
@@ -678,7 +703,12 @@ export async function getReportMapReportData(
     eventFilter.reportedAt = reportedAt;
   }
   if (municipalityIds !== undefined) {
-    eventFilter.municipalityId = municipalityScopeClause(municipalityIds);
+    const scope = buildMunicipalityScopeWhere(municipalityIds, childZoneIds);
+    if ("OR" in scope) {
+      eventFilter.OR = scope.OR;
+    } else {
+      eventFilter.municipalityId = scope.municipalityId;
+    }
   }
   if (params.protectedZoneId !== undefined) {
     eventFilter.coveredZones = { some: { protectedZoneId: params.protectedZoneId } };
@@ -691,6 +721,10 @@ export async function getReportMapReportData(
     startTime?: { gte?: Date; lte?: Date };
     municipalityId?: string | { in: string[] };
     coveredZones?: { some: { protectedZoneId: string } };
+    OR?: [
+      { municipalityId: string | { in: string[] } },
+      { coveredZones: { some: { protectedZoneId: { in: string[] } } } },
+    ];
   } = { tenantId: tenant.id, isDeleted: false, isTestPatrol: false };
   if (params.from !== undefined || params.to !== undefined) {
     const startTime: { gte?: Date; lte?: Date } = {};
@@ -699,7 +733,12 @@ export async function getReportMapReportData(
     patrolFilter.startTime = startTime;
   }
   if (municipalityIds !== undefined) {
-    patrolFilter.municipalityId = municipalityScopeClause(municipalityIds);
+    const scope = buildMunicipalityScopeWhere(municipalityIds, childZoneIds);
+    if ("OR" in scope) {
+      patrolFilter.OR = scope.OR;
+    } else {
+      patrolFilter.municipalityId = scope.municipalityId;
+    }
   }
   if (params.protectedZoneId !== undefined) {
     patrolFilter.coveredZones = { some: { protectedZoneId: params.protectedZoneId } };

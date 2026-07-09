@@ -234,6 +234,43 @@ describe("reportExport.list — reportSummary enrichment (Report Summary column)
     expect(vi.mocked(prisma.municipality.findMany)).not.toHaveBeenCalled();
   });
 
+  // Phase 4B (2026-07-09): includeChildren is carried through verbatim from
+  // paramsJson (mirrors the province field's pass-through above) but does
+  // NOT affect the summary municipalityName — that is still derived solely
+  // from municipalityId/province.
+  it("carries includeChildren through paramsJson without affecting the resolved municipalityName", async () => {
+    vi.mocked(prisma.reportExport.findMany).mockResolvedValue([
+      {
+        id: "re-map-children",
+        tenantId: TENANT_ID,
+        reportType: "report_map",
+        status: "ready",
+        paramsJson: {
+          municipalityId: "muni-1",
+          includeChildren: true,
+          from: "2026-05-01T00:00:00.000Z",
+          to: "2026-06-01T00:00:00.000Z",
+        },
+      },
+    ] as never);
+    vi.mocked(prisma.municipality.findMany).mockResolvedValue([
+      { id: "muni-1", name: "Calapan City" },
+    ] as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.list({ limit: 50 });
+
+    expect(result.items[0]?.reportSummary).toEqual({
+      municipalityName: "Calapan City",
+      protectedZoneName: null,
+      templateName: null,
+      areaName: null,
+      from: "2026-05-01T00:00:00.000Z",
+      to: "2026-06-01T00:00:00.000Z",
+      period: null,
+    });
+  });
+
   it("resolves areaBoundaryId to name for area report rows", async () => {
     vi.mocked(prisma.reportExport.findMany).mockResolvedValue([
       {

@@ -3,6 +3,24 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-07-09 — Generic-Boundaries Phase 4B: Municipal "Include child boundaries" toggle (report map + PDF) — DEV ONLY, LOCAL/unpushed
+
+- Agent:               CLAUDE_CODE (Opus 4.8 PM) + 1 Sonnet spec-executor (Wave B view/PDF wiring). PM authored the foundation util + Wave A, verified every diff, ran the full gate + SQL/Playwright ground-truth.
+- Branch:              **feat/boundaries-phase4b-include-children** (off feat/boundaries-phase4a-province-rollup @ 94aba55). LOCAL only — NOT pushed (owner standing policy: no push without explicit approval).
+- Why:                 Generic-Boundaries plan Phase 4, second item: a municipal-report "Include child boundaries" toggle (D3 default OFF) that folds a municipality's child MPA/hotspot/custom events + patrols (via coveredZones → protectedZone.parentMunicipalityId) into its report — on-screen + PDF. Un-gated [HOW] build under FULL AUTO.
+- What:
+  - Foundation apps/web/src/server/reporting/municipality-scope.ts (extended): `resolveChildZoneIds(tenantId, muniIds)` (prisma.protectedZone.findMany parentMunicipalityId in muniIds → zone ids) + `buildMunicipalityScopeWhere(muniIds, childZoneIds?)` → plain `{municipalityId}` normally; widens to `{OR:[{municipalityId},{coveredZones:{some:{protectedZoneId:{in:childZoneIds}}}}]}` when the municipality has child zones.
+  - reportMap.ts (Wave A): `includeChildren?: boolean` on reportFilterInput; eventWhere/patrolWhere take childZoneIds + apply the OR; all 7 procedures resolve childZoneIds only when includeChildren===true && a municipality scope exists; highPriorityEvents combines its pre-existing serious-event OR with the scope OR via AND.
+  - map.ts (Wave A): `includeChildren?` on eventsListInput + patrolTracksInRangeInput; both where-builders resolve + apply.
+  - Filter UI (Wave A): report-filter-context.tsx `includeChildren:boolean` (default false) + setter, cleared by resetRange / setProvince(non-null) / setMunicipalityId(null); report-filter-bar.tsx shadcn Switch (data-testid report-include-children) rendered ONLY when a specific municipalityId is selected.
+  - PDF/view wiring (Wave B): reportExport.ts + get-report-map-report-data.ts (parseReportMapParams + inline event/patrol filters resolve childZoneIds + buildMunicipalityScopeWhere; filterInput passes includeChildren so the breakdown charts fold children for free), generate-printable-button.tsx + report-map-view.tsx + InteractiveMap.tsx thread includeChildren from useReportFilter() into every query + the print params.
+- Files added:         none (municipality-scope.ts was created in Phase 4A; here it gains resolveChildZoneIds + buildMunicipalityScopeWhere).
+- Files modified:      municipality-scope.ts, reportMap.ts, map.ts, get-report-map-report-data.ts, reportExport.ts, report-filter-context.tsx, report-filter-bar.tsx, report-map-view.tsx, generate-printable-button.tsx, InteractiveMap.tsx + their test files (municipality-scope/reportMap/map/get-report-map-report-data/reportExport/report-filter-context/report-filter-bar; includeChildren cases TDD).
+- Schema/migrations:   none.
+- Errors encountered:  one test-lint finding the Wave A worker's isolated typecheck missed (`no-unnecessary-type-assertion` on `[] as any` in map.test.ts) — caught by the dual lint gate, fixed inline (drop the assertion).
+- Verification:        FULL GATE GREEN — check-product-sync · typecheck 7/7 · turbo lint 6/6 · `pnpm --filter web build` · vitest web 1717 (+ shared/jobs) · pnpm audit --audit-level=high exit 0 (1 pre-existing moderate NextAuth). Backend verified vs real dev data by replicating the exact OR clause in SQL: Sablayan OFF 73 → ON 106 (+33, Apo Reef child zone); Calapan City OFF 243 → ON 257 (+14, Harka Piloto) — no double-count. DEV app rebuilt off the branch (@45204) + Playwright on /ph: toggle appears ONLY when a specific municipality is selected, default OFF; Sablayan wide-range OFF **73** → ON **106** live in the UI (exact +33); toggle hidden for All/province; 0 console errors (the lone 404 was an operator URL typo, not the feature).
+- Deferred [WHAT] (owner-gated, unchanged): push any branch · /ph rollout to staging/demo/prod · Command Center dashboard province filter + municipalityCoverage province-narrowing (minor) · area-attribution backfill · Banggai/Pecca tenants · Active-Events 18-vs-23 Skylight decision.
+
 ## 2026-07-09 — Generic-Boundaries Phase 4A: Province rollup in the report surface (map + charts + KPIs + PDF) — DEV ONLY, LOCAL/unpushed
 
 - Agent:               CLAUDE_CODE (Opus 4.8 PM) + 5 Sonnet spec-executor workers (router, map+util, filter UI, PDF path, view wiring). PM verified every diff + ran the full gate + SQL/Playwright ground-truth.

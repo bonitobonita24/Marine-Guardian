@@ -41,6 +41,13 @@ export type ReportFilter = {
   municipalityId: string | null;
   /** Active province rollup filter; null = all provinces. */
   province: string | null;
+  /**
+   * When a specific municipality is selected, fold in that municipality's
+   * child boundaries (MPAs, hotspots, custom zones) into the scope. Default
+   * false. Meaningless (and always cleared) outside a specific-municipality
+   * selection.
+   */
+  includeChildren: boolean;
   /** Active MPA (protected-zone) scope filter; null = all zones. */
   protectedZoneId: string | null;
   /**
@@ -55,6 +62,8 @@ export type ReportFilter = {
   setMunicipalityId: (next: string | null) => void;
   /** Set (or clear, with null) the active province rollup. */
   setProvince: (next: string | null) => void;
+  /** Set (or clear) whether child boundaries are folded into the scope. */
+  setIncludeChildren: (next: boolean) => void;
   /** Set (or clear, with null) the active MPA scope. */
   setProtectedZoneId: (next: string | null) => void;
   /** Set (or clear, with null) the active terrain filter. */
@@ -71,6 +80,7 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
   const [to, setTo] = useState<Date>(() => new Date());
   const [municipalityId, setMunicipalityIdState] = useState<string | null>(null);
   const [province, setProvinceState] = useState<string | null>(null);
+  const [includeChildren, setIncludeChildrenState] = useState<boolean>(false);
   const [protectedZoneId, setProtectedZoneIdState] = useState<string | null>(
     null,
   );
@@ -83,10 +93,21 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
 
   const setMunicipalityId = useCallback((next: string | null) => {
     setMunicipalityIdState(next);
+    // Clearing back to "all municipalities" hides the include-children
+    // toggle — never let a stale ON silently keep applying once hidden.
+    if (next === null) setIncludeChildrenState(false);
   }, []);
 
   const setProvince = useCallback((next: string | null) => {
     setProvinceState(next);
+    // A province rollup is mutually exclusive with a specific-municipality
+    // selection (see handleProvinceChange) — the include-children toggle is
+    // only meaningful for a specific municipality, so clear it here too.
+    if (next !== null) setIncludeChildrenState(false);
+  }, []);
+
+  const setIncludeChildren = useCallback((next: boolean) => {
+    setIncludeChildrenState(next);
   }, []);
 
   const setProtectedZoneId = useCallback((next: string | null) => {
@@ -103,6 +124,7 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
     setTo(now);
     setMunicipalityIdState(null);
     setProvinceState(null);
+    setIncludeChildrenState(false);
     setProtectedZoneIdState(null);
     setTerrainState(null);
   }, []);
@@ -113,11 +135,13 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
       to,
       municipalityId,
       province,
+      includeChildren,
       protectedZoneId,
       terrain,
       setRange,
       setMunicipalityId,
       setProvince,
+      setIncludeChildren,
       setProtectedZoneId,
       setTerrain,
       resetRange,
@@ -127,11 +151,13 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
       to,
       municipalityId,
       province,
+      includeChildren,
       protectedZoneId,
       terrain,
       setRange,
       setMunicipalityId,
       setProvince,
+      setIncludeChildren,
       setProtectedZoneId,
       setTerrain,
       resetRange,

@@ -28,7 +28,8 @@ import { pointsFromTrackGeojson } from "./map";
 import { buildEventsPatrolsSeries, dayKeyToLabel } from "./time-series-bucketing";
 import {
   resolveMunicipalityScope,
-  municipalityScopeClause,
+  resolveChildZoneIds,
+  buildMunicipalityScopeWhere,
 } from "../../reporting/municipality-scope";
 
 const LAW_CATEGORY = "law-enforcement-and-apprehensions";
@@ -52,6 +53,12 @@ const reportFilterInput = z
     // Patrol.terrain). Distinct from Patrol.patrolType (self-reported
     // foot/seaborne) — this is a geometry-derived classifier.
     terrain: z.enum(["land", "water"]).optional(),
+    // Optional "include child boundaries" toggle (2026-07-09, Phase 4B): when
+    // true AND a municipality scope is active, folds events/patrols sitting in
+    // that municipality's child zones (MPA/hotspot/custom, via coveredZones)
+    // into the report — typically offshore MPA rows with no exclusive
+    // municipalityId. No-op when no municipality scope is set.
+    includeChildren: z.boolean().optional(),
   })
   .strict();
 
@@ -67,12 +74,17 @@ function eventWhere(
   tenantId: string,
   input: ReportFilterInput,
   municipalityIds?: string[],
+  childZoneIds?: string[],
 ) {
   const where: {
     tenantId: string;
     NOT: { eventType: { display: { contains: string; mode: "insensitive" } } };
     reportedAt?: { gte?: Date; lte?: Date };
     municipalityId?: string | { in: string[] };
+    OR?: [
+      { municipalityId: string | { in: string[] } },
+      { coveredZones: { some: { protectedZoneId: { in: string[] } } } },
+    ];
     coveredZones?: { some: { protectedZoneId: string } };
     terrain?: string;
   } = {
@@ -88,7 +100,9 @@ function eventWhere(
     where.reportedAt = reportedAt;
   }
   if (municipalityIds !== undefined) {
-    where.municipalityId = municipalityScopeClause(municipalityIds);
+    const scope = buildMunicipalityScopeWhere(municipalityIds, childZoneIds);
+    if ("OR" in scope) where.OR = scope.OR;
+    else where.municipalityId = scope.municipalityId;
   }
   if (input.protectedZoneId !== undefined) {
     where.coveredZones = { some: { protectedZoneId: input.protectedZoneId } };
@@ -108,6 +122,7 @@ function patrolWhere(
   tenantId: string,
   input: ReportFilterInput,
   municipalityIds?: string[],
+  childZoneIds?: string[],
 ) {
   const where: {
     tenantId: string;
@@ -115,6 +130,10 @@ function patrolWhere(
     isTestPatrol: false;
     startTime?: { gte?: Date; lte?: Date };
     municipalityId?: string | { in: string[] };
+    OR?: [
+      { municipalityId: string | { in: string[] } },
+      { coveredZones: { some: { protectedZoneId: { in: string[] } } } },
+    ];
     coveredZones?: { some: { protectedZoneId: string } };
     terrain?: string;
   } = { tenantId, isDeleted: false, isTestPatrol: false };
@@ -125,7 +144,9 @@ function patrolWhere(
     where.startTime = startTime;
   }
   if (municipalityIds !== undefined) {
-    where.municipalityId = municipalityScopeClause(municipalityIds);
+    const scope = buildMunicipalityScopeWhere(municipalityIds, childZoneIds);
+    if ("OR" in scope) where.OR = scope.OR;
+    else where.municipalityId = scope.municipalityId;
   }
   if (input.protectedZoneId !== undefined) {
     where.coveredZones = { some: { protectedZoneId: input.protectedZoneId } };
@@ -218,7 +239,11 @@ export async function buildEventBreakdownWithCoords(
     municipality: { select: { name: true } },
   } as const;
   const municipalityIds = await resolveMunicipalityScope(tenantId, input);
-  const where = eventWhere(tenantId, input, municipalityIds);
+  const childZoneIds =
+    input.includeChildren === true && municipalityIds !== undefined
+      ? await resolveChildZoneIds(tenantId, municipalityIds)
+      : undefined;
+  const where = eventWhere(tenantId, input, municipalityIds, childZoneIds);
   const events = includeEventDetails
     ? await prisma.event.findMany({
         where,
@@ -343,7 +368,11 @@ export const reportMapRouter = router({
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
       const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
-      const baseEvent = eventWhere(ctx.tenantId, input, municipalityIds);
+      const childZoneIds =
+        input.includeChildren === true && municipalityIds !== undefined
+          ? await resolveChildZoneIds(ctx.tenantId, municipalityIds)
+          : undefined;
+      const baseEvent = eventWhere(ctx.tenantId, input, municipalityIds, childZoneIds);
       const [totalEvents, lawEnforcementEvents, monitoringEvents, totalPatrols] =
         await Promise.all([
           prisma.event.count({ where: baseEvent }),
@@ -354,7 +383,7 @@ export const reportMapRouter = router({
             where: { ...baseEvent, eventType: { category: MONITORING_CATEGORY } },
           }),
           prisma.patrol.count({
-            where: patrolWhere(ctx.tenantId, input, municipalityIds),
+            where: patrolWhere(ctx.tenantId, input, municipalityIds, childZoneIds),
           }),
         ]);
 
@@ -374,8 +403,12 @@ export const reportMapRouter = router({
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
       const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
+      const childZoneIds =
+        input.includeChildren === true && municipalityIds !== undefined
+          ? await resolveChildZoneIds(ctx.tenantId, municipalityIds)
+          : undefined;
       const rows = await prisma.patrol.findMany({
-        where: patrolWhere(ctx.tenantId, input, municipalityIds),
+        where: patrolWhere(ctx.tenantId, input, municipalityIds, childZoneIds),
         // Cap raised 300 -> 1200 (owner 2026-07-06: "where can I see the
         // remaining?"). The card is scrollable, so realistic ranges now list
         // every patrol in-card; the "Showing N of M" note only appears past the
@@ -423,8 +456,12 @@ export const reportMapRouter = router({
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
       const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
+      const childZoneIds =
+        input.includeChildren === true && municipalityIds !== undefined
+          ? await resolveChildZoneIds(ctx.tenantId, municipalityIds)
+          : undefined;
       const events = await prisma.event.findMany({
-        where: eventWhere(ctx.tenantId, input, municipalityIds),
+        where: eventWhere(ctx.tenantId, input, municipalityIds, childZoneIds),
         select: { eventType: { select: { category: true, display: true } } },
       });
 
@@ -466,14 +503,27 @@ export const reportMapRouter = router({
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
       const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
-      const where = {
-        ...eventWhere(ctx.tenantId, input, municipalityIds),
-        OR: SERIOUS_EVENT_PATTERNS.map((p) => ({
-          eventType: {
-            display: { contains: p, mode: "insensitive" as const },
-          },
-        })),
-      };
+      const childZoneIds =
+        input.includeChildren === true && municipalityIds !== undefined
+          ? await resolveChildZoneIds(ctx.tenantId, municipalityIds)
+          : undefined;
+      const { OR: scopeOr, ...baseWhere } = eventWhere(
+        ctx.tenantId,
+        input,
+        municipalityIds,
+        childZoneIds,
+      );
+      const seriousOr = SERIOUS_EVENT_PATTERNS.map((p) => ({
+        eventType: {
+          display: { contains: p, mode: "insensitive" as const },
+        },
+      }));
+      // eventWhere may itself carry an `OR` (municipality + child-zone scope
+      // widening — Phase 4B); Prisma objects can only have one `OR` key, so
+      // when both are present combine via `AND` instead of clobbering one.
+      const where = scopeOr
+        ? { ...baseWhere, AND: [{ OR: scopeOr }, { OR: seriousOr }] }
+        : { ...baseWhere, OR: seriousOr };
 
       const [rows, total] = await Promise.all([
         prisma.event.findMany({
@@ -533,8 +583,12 @@ export const reportMapRouter = router({
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
       const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
+      const childZoneIds =
+        input.includeChildren === true && municipalityIds !== undefined
+          ? await resolveChildZoneIds(ctx.tenantId, municipalityIds)
+          : undefined;
       const rows = await prisma.event.findMany({
-        where: eventWhere(ctx.tenantId, input, municipalityIds),
+        where: eventWhere(ctx.tenantId, input, municipalityIds, childZoneIds),
         select: {
           id: true,
           title: true,
@@ -569,10 +623,14 @@ export const reportMapRouter = router({
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
       const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
+      const childZoneIds =
+        input.includeChildren === true && municipalityIds !== undefined
+          ? await resolveChildZoneIds(ctx.tenantId, municipalityIds)
+          : undefined;
       const trackRows = await prisma.patrolTrack.findMany({
         where: {
           tenantId: ctx.tenantId,
-          patrol: patrolWhere(ctx.tenantId, input, municipalityIds),
+          patrol: patrolWhere(ctx.tenantId, input, municipalityIds, childZoneIds),
         },
         orderBy: { until: "desc" },
         select: {
@@ -614,13 +672,17 @@ export const reportMapRouter = router({
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
       const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
+      const childZoneIds =
+        input.includeChildren === true && municipalityIds !== undefined
+          ? await resolveChildZoneIds(ctx.tenantId, municipalityIds)
+          : undefined;
       const [events, patrols] = await Promise.all([
         prisma.event.findMany({
-          where: eventWhere(ctx.tenantId, input, municipalityIds),
+          where: eventWhere(ctx.tenantId, input, municipalityIds, childZoneIds),
           select: { reportedAt: true },
         }),
         prisma.patrol.findMany({
-          where: patrolWhere(ctx.tenantId, input, municipalityIds),
+          where: patrolWhere(ctx.tenantId, input, municipalityIds, childZoneIds),
           select: { startTime: true },
         }),
       ]);

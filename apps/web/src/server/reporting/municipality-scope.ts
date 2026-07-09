@@ -53,3 +53,59 @@ export function municipalityScopeClause(
     ? first
     : { in: municipalityIds };
 }
+
+/**
+ * Resolves the child protected-zone ids (MPA/hotspot/custom) whose
+ * parentMunicipalityId falls within the given municipality scope. Backs the
+ * "Include child boundaries" municipal-report toggle (Phase 4B): it folds
+ * events/patrols attributed to a municipality's child zones (via coveredZones)
+ * into that municipality's report — typically offshore MPA rows carrying no
+ * exclusive municipalityId of their own. An empty result is valid (no children).
+ */
+export async function resolveChildZoneIds(
+  tenantId: string,
+  municipalityIds: string[],
+): Promise<string[]> {
+  if (municipalityIds.length === 0) return [];
+  const rows = await prisma.protectedZone.findMany({
+    where: { tenantId, parentMunicipalityId: { in: municipalityIds } },
+    select: { id: true },
+  });
+  return rows.map((z) => z.id);
+}
+
+/** Shape of the municipality-scope portion of an Event/Patrol where clause. */
+export type MunicipalityScopeWhere =
+  | { municipalityId: string | { in: string[] } }
+  | {
+      OR: [
+        { municipalityId: string | { in: string[] } },
+        { coveredZones: { some: { protectedZoneId: { in: string[] } } } },
+      ];
+    };
+
+/**
+ * Builds the municipality-scope portion of a report where clause. Normally a
+ * plain `municipalityId` equality/`in` (matches the existing behaviour). When
+ * `childZoneIds` is a NON-EMPTY list ("Include child boundaries" is ON and the
+ * scope actually has child zones), it widens to an OR that ALSO matches rows
+ * sitting inside one of those child zones (via the coveredZones join) — folding
+ * a municipality's MPA/hotspot/custom activity into its report. An empty or
+ * undefined `childZoneIds` collapses back to the plain municipality clause
+ * (nothing to fold in).
+ */
+export function buildMunicipalityScopeWhere(
+  municipalityIds: string[],
+  childZoneIds?: string[],
+): MunicipalityScopeWhere {
+  const municipalityClause = municipalityScopeClause(municipalityIds);
+  if (childZoneIds !== undefined && childZoneIds.length > 0) {
+    return {
+      OR: [
+        { municipalityId: municipalityClause },
+        { coveredZones: { some: { protectedZoneId: { in: childZoneIds } } } },
+      ],
+    };
+  }
+  return { municipalityId: municipalityClause };
+}

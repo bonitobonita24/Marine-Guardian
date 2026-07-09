@@ -14,6 +14,9 @@ vi.mock("@marine-guardian/db", () => ({
     // findMany used by resolveMunicipalityScope's province rollup (real
     // implementation — not mocked — reads through this mocked prisma client).
     municipality: { findUnique: vi.fn(), findMany: vi.fn() },
+    // findMany used by resolveChildZoneIds (Phase 4B "include children"
+    // toggle) — real implementation, reads through this mocked client.
+    protectedZone: { findMany: vi.fn() },
   },
 }));
 
@@ -879,6 +882,98 @@ describe("getReportMapReportData", () => {
       "Oriental Mindoro",
     );
     expect(parseReportMapParams({ province: "" }).province).toBeUndefined();
+  });
+
+  // ── includeChildren (Phase 4B, 2026-07-09) ────────────────────────────────
+
+  it("parses includeChildren:true from paramsJson and leaves it undefined when absent", () => {
+    expect(
+      parseReportMapParams({ includeChildren: true }).includeChildren,
+    ).toBe(true);
+    expect(parseReportMapParams({ includeChildren: false }).includeChildren).toBe(
+      false,
+    );
+    expect(parseReportMapParams({}).includeChildren).toBeUndefined();
+  });
+
+  it("folds child protected-zone events/patrols into the report when municipalityId + includeChildren:true are set", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValue(TENANT_ROW as never);
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValue({
+      ...EXPORT_ROW,
+      paramsJson: {
+        ...EXPORT_ROW.paramsJson,
+        municipalityId: "muni_a",
+        includeChildren: true,
+      },
+    } as never);
+    vi.mocked(prisma.reportTemplate.findFirst).mockResolvedValue(TEMPLATE_ROW as never);
+    vi.mocked(buildEventBreakdownWithCoords).mockResolvedValue(EMPTY_BREAKDOWN);
+    vi.mocked(prisma.event.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.municipality.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.protectedZone.findMany).mockResolvedValue([
+      { id: "zone_child_1" },
+      { id: "zone_child_2" },
+    ] as never);
+    vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
+
+    const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(result).not.toBeNull();
+    if (!result) return;
+
+    // resolveChildZoneIds is consulted, tenant-scoped, for the resolved
+    // municipality scope.
+    expect(prisma.protectedZone.findMany).toHaveBeenCalledWith({
+      where: { tenantId: TENANT_ID, parentMunicipalityId: { in: ["muni_a"] } },
+      select: { id: true },
+    });
+
+    // Event + patrol where-clauses widen to the OR(municipality, coveredZones)
+    // shape carrying the resolved child zone ids.
+    expect(
+      vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where,
+    ).toMatchObject({
+      OR: [
+        { municipalityId: "muni_a" },
+        { coveredZones: { some: { protectedZoneId: { in: ["zone_child_1", "zone_child_2"] } } } },
+      ],
+    });
+    expect(
+      vi.mocked(prisma.patrol.findMany).mock.calls[0]?.[0]?.where,
+    ).toMatchObject({
+      OR: [
+        { municipalityId: "muni_a" },
+        { coveredZones: { some: { protectedZoneId: { in: ["zone_child_1", "zone_child_2"] } } } },
+      ],
+    });
+  });
+
+  it("does NOT resolve child zones when includeChildren is unset (plain municipality clause, unchanged behavior)", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValue(TENANT_ROW as never);
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValue({
+      ...EXPORT_ROW,
+      paramsJson: { ...EXPORT_ROW.paramsJson, municipalityId: "muni_a" },
+    } as never);
+    vi.mocked(prisma.reportTemplate.findFirst).mockResolvedValue(TEMPLATE_ROW as never);
+    vi.mocked(buildEventBreakdownWithCoords).mockResolvedValue(EMPTY_BREAKDOWN);
+    vi.mocked(prisma.event.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.municipality.findUnique).mockResolvedValue(null);
+    vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
+
+    const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(result).not.toBeNull();
+    if (!result) return;
+
+    expect(prisma.protectedZone.findMany).not.toHaveBeenCalled();
+    expect(
+      vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where,
+    ).toMatchObject({ municipalityId: "muni_a" });
+    expect(
+      vi.mocked(prisma.patrol.findMany).mock.calls[0]?.[0]?.where,
+    ).toMatchObject({ municipalityId: "muni_a" });
   });
 });
 

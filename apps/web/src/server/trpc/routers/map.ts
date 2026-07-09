@@ -11,7 +11,8 @@ import {
 } from "@/lib/event-type-order";
 import {
   resolveMunicipalityScope,
-  municipalityScopeClause,
+  resolveChildZoneIds,
+  buildMunicipalityScopeWhere,
 } from "../../reporting/municipality-scope";
 
 const STALE_THRESHOLD_MS = 60 * 60 * 1000;
@@ -35,6 +36,10 @@ const eventsListInput = z
     // provided, always wins (a specific municipality selection overrides a
     // province-wide rollup) — same semantics as the report surface's filter.
     province: z.string().optional(),
+    // Optional "include child boundaries" toggle (2026-07-09, Phase 4B): when
+    // true AND a municipality scope is active, also matches events/patrols in
+    // that municipality's child zones (MPA/hotspot/custom via coveredZones).
+    includeChildren: z.boolean().optional(),
     // Optional MPA-scope filter (2026-06-29): narrow markers to events that fall
     // inside a given protected zone (EventCoveredZone join). Independent of the
     // municipality filter — both may apply.
@@ -66,6 +71,10 @@ const patrolTracksInRangeInput = z
     // Optional province rollup filter (2026-07-09) — same semantics as
     // eventsListInput.province above.
     province: z.string().optional(),
+    // Optional "include child boundaries" toggle (2026-07-09, Phase 4B): when
+    // true AND a municipality scope is active, also matches events/patrols in
+    // that municipality's child zones (MPA/hotspot/custom via coveredZones).
+    includeChildren: z.boolean().optional(),
     protectedZoneId: z.string().optional(),
   })
   .strict();
@@ -300,6 +309,10 @@ const eventsRouter = router({
       reportedAt?: { gte?: Date; lte?: Date };
       municipalityId?: string | { in: string[] };
       coveredZones?: { some: { protectedZoneId: string } };
+      OR?: [
+        { municipalityId: string | { in: string[] } },
+        { coveredZones: { some: { protectedZoneId: { in: string[] } } } },
+      ];
     } = {
       tenantId: ctx.tenantId,
       locationLat: { not: null },
@@ -316,8 +329,16 @@ const eventsRouter = router({
     // Province rollup (2026-07-09): resolves municipalityId (wins) or every
     // municipality in the given province; undefined when neither is set.
     const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
+    // Phase 4B (2026-07-09): "include child boundaries" folds a municipality
+    // scope's child protected zones (MPA/hotspot/custom) into the map markers.
+    const childZoneIds =
+      input.includeChildren === true && municipalityIds !== undefined
+        ? await resolveChildZoneIds(ctx.tenantId, municipalityIds)
+        : undefined;
     if (municipalityIds !== undefined) {
-      where.municipalityId = municipalityScopeClause(municipalityIds);
+      const scope = buildMunicipalityScopeWhere(municipalityIds, childZoneIds);
+      if ("OR" in scope) where.OR = scope.OR;
+      else where.municipalityId = scope.municipalityId;
     }
     if (input.protectedZoneId !== undefined) {
       where.coveredZones = { some: { protectedZoneId: input.protectedZoneId } };
@@ -551,6 +572,10 @@ const patrolTracksRouter = router({
         startTime?: { gte?: Date; lte?: Date };
         municipalityId?: string | { in: string[] };
         coveredZones?: { some: { protectedZoneId: string } };
+        OR?: [
+          { municipalityId: string | { in: string[] } },
+          { coveredZones: { some: { protectedZoneId: { in: string[] } } } },
+        ];
       } = { isDeleted: false, isTestPatrol: false };
 
       const startTime: { gte?: Date; lte?: Date } = {};
@@ -562,8 +587,16 @@ const patrolTracksRouter = router({
       // Province rollup (2026-07-09): resolves municipalityId (wins) or every
       // municipality in the given province; undefined when neither is set.
       const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
+      // Phase 4B (2026-07-09): "include child boundaries" folds a municipality
+      // scope's child protected zones (MPA/hotspot/custom) into the patrol tracks.
+      const childZoneIds =
+        input.includeChildren === true && municipalityIds !== undefined
+          ? await resolveChildZoneIds(ctx.tenantId, municipalityIds)
+          : undefined;
       if (municipalityIds !== undefined) {
-        patrolWhere.municipalityId = municipalityScopeClause(municipalityIds);
+        const scope = buildMunicipalityScopeWhere(municipalityIds, childZoneIds);
+        if ("OR" in scope) patrolWhere.OR = scope.OR;
+        else patrolWhere.municipalityId = scope.municipalityId;
       }
       if (input.protectedZoneId !== undefined) {
         patrolWhere.coveredZones = {
