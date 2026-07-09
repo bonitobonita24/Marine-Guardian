@@ -39,6 +39,8 @@ import {
 type Category = "mpa" | "special_area" | "hotspot" | "custom";
 type Mode = "protected_area" | "municipal_boundary";
 type BoundaryKind = "land" | "water";
+type CreateKind = "municipality" | "mpa" | "hotspot" | "custom";
+type Province = "" | "Oriental Mindoro" | "Occidental Mindoro" | "Palawan";
 
 const CATEGORY_LABELS: Record<Category, string> = {
   mpa: "Marine Protected Area (MPA)",
@@ -52,8 +54,36 @@ const BOUNDARY_KIND_LABELS: Record<BoundaryKind, string> = {
   water: "Water",
 };
 
+const CREATE_KIND_LABELS: Record<CreateKind, string> = {
+  municipality: "New municipality",
+  mpa: "Marine Protected Area (MPA)",
+  hotspot: "Hotspot",
+  custom: "Custom boundary",
+};
+
+const PROVINCES: readonly Exclude<Province, "">[] = [
+  "Oriental Mindoro",
+  "Occidental Mindoro",
+  "Palawan",
+];
+
+// Maps the create-mode boundary kind to the ProtectedZone category accepted
+// by createBoundaryFromUpload. "municipality" is handled separately via
+// createMunicipalityFromUpload and never reaches this map.
+const CREATE_KIND_TO_CATEGORY: Partial<Record<CreateKind, Category>> = {
+  mpa: "mpa",
+  hotspot: "hotspot",
+  custom: "custom",
+};
+
 type Feedback =
   | { kind: "success"; name: string; category: Category; eventCount: number; patrolCount: number }
+  | {
+      kind: "municipality-success";
+      name: string;
+      province: Exclude<Province, "">;
+      enqueuedJobs: number;
+    }
   | {
       kind: "replace-success";
       municipalityName: string;
@@ -70,9 +100,11 @@ export function AddMpaFromFileDialog() {
 
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("protected_area");
+  const [createKind, setCreateKind] = useState<CreateKind>("mpa");
   const [name, setName] = useState("");
   const [category, setCategory] = useState<Category>("mpa");
   const [terrain, setTerrain] = useState<BoundaryKind>("land");
+  const [province, setProvince] = useState<Province>("");
   const [parentMunicipalityId, setParentMunicipalityId] = useState<string>("");
   const [replaceMunicipalityId, setReplaceMunicipalityId] = useState<string>("");
   const [boundaryKind, setBoundaryKind] = useState<BoundaryKind>("land");
@@ -110,6 +142,24 @@ export function AddMpaFromFileDialog() {
     },
   });
 
+  const createMunicipality = trpc.municipality.createMunicipalityFromUpload.useMutation({
+    onSuccess: (data) => {
+      setFeedback({
+        kind: "municipality-success",
+        name: data.name,
+        province: data.province,
+        enqueuedJobs: data.enqueuedJobs,
+      });
+      void utils.municipality.list.invalidate();
+      void utils.areaBoundary.list.invalidate();
+      void utils.map.officialBoundaries.list.invalidate();
+      void utils.municipality.protectedZones.invalidate();
+    },
+    onError: (err) => {
+      setFeedback({ kind: "error", message: err.message });
+    },
+  });
+
   const replaceBoundary = trpc.municipality.replaceBoundaryGeometry.useMutation({
     onSuccess: (data) => {
       setFeedback({
@@ -129,9 +179,11 @@ export function AddMpaFromFileDialog() {
 
   function resetState() {
     setMode("protected_area");
+    setCreateKind("mpa");
     setName("");
     setCategory("mpa");
     setTerrain("land");
+    setProvince("");
     setParentMunicipalityId("");
     setReplaceMunicipalityId("");
     setBoundaryKind("land");
@@ -141,6 +193,7 @@ export function AddMpaFromFileDialog() {
     setParsing(false);
     setFeedback(null);
     createBoundary.reset();
+    createMunicipality.reset();
     replaceBoundary.reset();
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
@@ -189,13 +242,21 @@ export function AddMpaFromFileDialog() {
   }
 
   function handleSubmit() {
-    if (mode === "protected_area") {
+    if (mode === "protected_area" && createKind === "municipality") {
+      if (geojson == null || name.trim().length < 2 || province === "") return;
+      setFeedback(null);
+      createMunicipality.mutate({
+        name: name.trim(),
+        geojson,
+        province,
+      });
+    } else if (mode === "protected_area") {
       if (geojson == null || name.trim().length < 2 || parentMunicipalityId === "") return;
       setFeedback(null);
       createBoundary.mutate({
         name: name.trim(),
         geojson,
-        category,
+        category: CREATE_KIND_TO_CATEGORY[createKind] ?? category,
         parentMunicipalityId,
         terrain,
       });
@@ -214,18 +275,28 @@ export function AddMpaFromFileDialog() {
 
   const canSubmit =
     mode === "protected_area"
-      ? geojson != null &&
-        name.trim().length >= 2 &&
-        parentMunicipalityId !== "" &&
-        !parsing &&
-        !createBoundary.isPending
+      ? createKind === "municipality"
+        ? geojson != null &&
+          name.trim().length >= 2 &&
+          province !== "" &&
+          !parsing &&
+          !createMunicipality.isPending
+        : geojson != null &&
+          name.trim().length >= 2 &&
+          parentMunicipalityId !== "" &&
+          !parsing &&
+          !createBoundary.isPending
       : geojson != null &&
         replaceMunicipalityId !== "" &&
         !parsing &&
         !replaceBoundary.isPending;
 
-  const isSuccess = feedback?.kind === "success" || feedback?.kind === "replace-success";
-  const isPending = createBoundary.isPending || replaceBoundary.isPending;
+  const isSuccess =
+    feedback?.kind === "success" ||
+    feedback?.kind === "municipality-success" ||
+    feedback?.kind === "replace-success";
+  const isPending =
+    createBoundary.isPending || createMunicipality.isPending || replaceBoundary.isPending;
 
   return (
     <Dialog
@@ -249,7 +320,9 @@ export function AddMpaFromFileDialog() {
           <DialogTitle>Import Boundary from KML/KMZ</DialogTitle>
           <DialogDescription>
             {mode === "protected_area"
-              ? "Upload a KML or KMZ file to create a named sub-area under a municipality. It is drawn on both maps and added to the zone filter, so you can see only the events/patrols inside it — separate from the whole municipality. Existing events/patrols inside it are counted automatically."
+              ? createKind === "municipality"
+                ? "Upload a KML or KMZ file to create a brand-new municipality boundary. It is drawn on both maps and existing events/patrols are re-checked against it automatically."
+                : "Upload a KML or KMZ file to create a named sub-area under a municipality. It is drawn on both maps and added to the zone filter, so you can see only the events/patrols inside it — separate from the whole municipality. Existing events/patrols inside it are counted automatically."
               : "Upload a KML or KMZ file to replace a municipality's land or water boundary geometry."}
           </DialogDescription>
         </DialogHeader>
@@ -285,6 +358,11 @@ export function AddMpaFromFileDialog() {
             event{feedback.eventCount === 1 ? "" : "s"} and {feedback.patrolCount} patrol
             {feedback.patrolCount === 1 ? "" : "s"} fall inside it.
           </p>
+        ) : feedback?.kind === "municipality-success" ? (
+          <p className="text-sm text-emerald-600 dark:text-emerald-400">
+            Created municipality “{feedback.name}” ({feedback.province}). {feedback.enqueuedJobs}{" "}
+            area re-derivation job{feedback.enqueuedJobs === 1 ? "" : "s"} queued.
+          </p>
         ) : feedback?.kind === "replace-success" ? (
           <p className="text-sm text-emerald-600 dark:text-emerald-400">
             {feedback.municipalityName} {BOUNDARY_KIND_LABELS[feedback.boundaryKind].toLowerCase()}{" "}
@@ -308,61 +386,90 @@ export function AddMpaFromFileDialog() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="mpa-category">Category</Label>
+              <Label htmlFor="mpa-create-kind">Boundary kind</Label>
               <Select
-                value={category}
+                value={createKind}
                 onValueChange={(v) => {
-                  setCategory(v as Category);
+                  const next = v as CreateKind;
+                  setCreateKind(next);
+                  const mappedCategory = CREATE_KIND_TO_CATEGORY[next];
+                  if (mappedCategory) setCategory(mappedCategory);
+                  setFeedback(null);
                 }}
               >
-                <SelectTrigger id="mpa-category" data-testid="mpa-category-select">
+                <SelectTrigger id="mpa-create-kind" data-testid="mpa-create-kind-select">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="mpa">Marine Protected Area (MPA)</SelectItem>
-                  <SelectItem value="special_area">Special area</SelectItem>
-                  <SelectItem value="hotspot">Hotspot</SelectItem>
-                  <SelectItem value="custom">Custom boundary</SelectItem>
+                  <SelectItem value="municipality">{CREATE_KIND_LABELS.municipality}</SelectItem>
+                  <SelectItem value="mpa">{CREATE_KIND_LABELS.mpa}</SelectItem>
+                  <SelectItem value="hotspot">{CREATE_KIND_LABELS.hotspot}</SelectItem>
+                  <SelectItem value="custom">{CREATE_KIND_LABELS.custom}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="mpa-terrain">Terrain</Label>
-              <Select
-                value={terrain}
-                onValueChange={(v) => {
-                  setTerrain(v as BoundaryKind);
-                }}
-              >
-                <SelectTrigger id="mpa-terrain" data-testid="mpa-terrain-select">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="land">Land</SelectItem>
-                  <SelectItem value="water">Water</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {createKind === "municipality" ? (
+              <div className="space-y-2">
+                <Label htmlFor="mpa-province">Province</Label>
+                <Select
+                  value={province}
+                  onValueChange={(v) => {
+                    setProvince(v as Province);
+                  }}
+                >
+                  <SelectTrigger id="mpa-province" data-testid="mpa-province-select">
+                    <SelectValue placeholder="Select a province…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PROVINCES.map((p) => (
+                      <SelectItem key={p} value={p}>
+                        {p}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="mpa-terrain">Terrain</Label>
+                  <Select
+                    value={terrain}
+                    onValueChange={(v) => {
+                      setTerrain(v as BoundaryKind);
+                    }}
+                  >
+                    <SelectTrigger id="mpa-terrain" data-testid="mpa-terrain-select">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="land">Land</SelectItem>
+                      <SelectItem value="water">Water</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="mpa-municipality">Under municipality</Label>
-              <Select
-                value={parentMunicipalityId}
-                onValueChange={setParentMunicipalityId}
-              >
-                <SelectTrigger id="mpa-municipality" data-testid="mpa-municipality-select">
-                  <SelectValue placeholder="Select a municipality…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(municipalitiesQuery.data ?? []).map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      {m.name} ({m.province})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="mpa-municipality">Under municipality</Label>
+                  <Select
+                    value={parentMunicipalityId}
+                    onValueChange={setParentMunicipalityId}
+                  >
+                    <SelectTrigger id="mpa-municipality" data-testid="mpa-municipality-select">
+                      <SelectValue placeholder="Select a municipality…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(municipalitiesQuery.data ?? []).map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.name} ({m.province})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="mpa-file">Boundary file (.kml or .kmz)</Label>
