@@ -252,6 +252,116 @@ export const municipalityRouter = router({
     }),
 
   /**
+   * Create a brand-new Layer-1 Municipality from a user-uploaded KML/KMZ
+   * boundary. Unlike createBoundaryFromUpload (which creates a ProtectedZone
+   * sub-boundary under an existing municipality), this creates the top-level
+   * Municipality record itself — used when the coverage area is entirely new
+   * (not a subdivision of an existing municipality).
+   *
+   * The uploaded geometry always becomes the LAND boundary (boundaryGeojson).
+   * Water/municipal-waters geometry is added later via the existing
+   * replaceBoundaryGeometry(kind: "water") mutation — no terrain param here.
+   *
+   * Admin-only (super_admin / site_admin). Tenant-scoped.
+   */
+  createMunicipalityFromUpload: adminProcedure
+    .input(
+      z
+        .object({
+          name: z.string().trim().min(2).max(120),
+          geojson: z.unknown(),
+          province: z.enum(["Oriental Mindoro", "Occidental Mindoro", "Palawan"]),
+        })
+        .strict(),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { tenantId, userId } = ctx;
+
+      // 1a. Validate + normalize geometry (throws MpaGeometryError → BAD_REQUEST).
+      let normalized;
+      try {
+        normalized = normalizeMpaGeometry(input.geojson);
+      } catch (err) {
+        if (err instanceof MpaGeometryError) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+        }
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "The uploaded file could not be read as a map boundary.",
+        });
+      }
+
+      // 1b. Name → slug, enforce uniqueness within the tenant.
+      const slug = slugifyMpaName(input.name);
+      if (slug.length === 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Please enter a name with at least one letter or number.",
+        });
+      }
+      const existing = await prisma.municipality.findFirst({
+        where: { tenantId, slug },
+        select: { id: true },
+      });
+      if (existing) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `A municipality named "${input.name}" already exists. Choose a different name.`,
+        });
+      }
+
+      // 2. Create the Municipality (land boundary stored as FeatureCollection).
+      const muni = await prisma.municipality.create({
+        data: {
+          tenantId,
+          slug,
+          name: input.name,
+          province: input.province,
+          boundaryGeojson: toFeatureCollection(normalized.geometry, {
+            boundaryType: "municipality-land",
+            uploadedAt: new Date().toISOString(),
+            uploadedByUserId: userId,
+          }) as object,
+        },
+        select: { id: true, slug: true, name: true },
+      });
+
+      // 3. Regenerate official overlay records (idempotent) — picks up the
+      // new municipality so it renders on both maps.
+      await importOfficialBoundaries(prisma, tenantId, userId);
+
+      // 4. Fan out area re-derivation for every Event/Patrol/FuelEntry in the
+      // tenant — the municipality universe changed, so previously-derived
+      // areaBoundaryId assignments may now be stale.
+      const fanOut = await fanOutAreaRederive(tenantId, userId);
+
+      // 5. Audit.
+      await prisma.auditLog.create({
+        data: {
+          action: "MUNICIPALITY_UPLOAD_CREATE",
+          userId,
+          tenantId,
+          entityType: "Municipality",
+          entityId: muni.id,
+          changesJson: {
+            name: input.name,
+            slug,
+            province: input.province,
+            vertexCount: normalized.vertexCount,
+            enqueuedJobs: fanOut.enqueued,
+          },
+        },
+      });
+
+      return {
+        municipalityId: muni.id,
+        name: muni.name,
+        province: input.province,
+        enqueuedJobs: fanOut.enqueued,
+      };
+    }),
+
+  /**
    * Replace a municipality's land or water boundary geometry with a new
    * user-uploaded polygon. The prior geometry is snapshotted first
    * (MunicipalityBoundarySnapshot) so it can be recovered/audited later.
