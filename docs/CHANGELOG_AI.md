@@ -3,6 +3,24 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-07-09 — Generic-Boundaries Phase 2: create-new-municipality-from-upload + unified create surface — DEV ONLY, LOCAL/unpushed
+
+- Agent:               CLAUDE_CODE (Opus 4.8 PM) + 1 Plan/Architect agent (co-plan) + 2 Sonnet spec-executor workers (T1 mutation+tests, T2/T3 dialog)
+- Branch:              **feat/boundaries-phase2-create-municipality** (off feat/ph-tenant-slug) — commits d1f7cb0 (T1) + 06a6845 (T2/T3). LOCAL only — NOT pushed (owner standing policy: no push without explicit approval).
+- Why:                 Owner-locked next task (STATE decision #3): complete the remaining Generic-Boundaries Phase 2 — creating a brand-new municipality from an uploaded KML/KMZ with a Province picker, and folding all CREATE paths into one unified surface. Plan: docs/plans/generic-boundaries-and-hierarchy-plan.md §Phase 2.
+- T1 — new mutation (TDD, test-first):
+  - Files added:       apps/web/src/server/trpc/routers/__tests__/municipality-create-municipality.test.ts (5 cases).
+  - Files modified:    apps/web/src/server/trpc/routers/municipality.ts (+ adminProcedure createMunicipalityFromUpload).
+  - Behavior:          input { name, geojson, province: z.enum(["Oriental Mindoro","Occidental Mindoro","Palawan"]) }.strict(). normalize geometry → slug + tenant-scoped uniqueness (CONFLICT) → municipality.create (geometry → boundaryGeojson LAND; PM-locked: no terrain param — water added later via existing replaceBoundaryGeometry(kind:water)) → importOfficialBoundaries overlay redraw → fanOutAreaRederive full-tenant re-derive → AuditLog "MUNICIPALITY_UPLOAD_CREATE" (shape matches sibling MUNICIPALITY_BOUNDARY_REPLACE). RED→GREEN 5/5.
+  - Migration:         NONE — Municipality.province is already a free String; the fixed-3 constraint (D2) lives only in the Zod enum + UI.
+- T2/T3 — unified create dialog:
+  - Files modified:    apps/web/src/app/[tenant]/(dashboard)/patrol-areas/add-mpa-from-file-dialog.tsx.
+  - Behavior:          create mode now has ONE "Boundary kind" select — New municipality | MPA | Hotspot | Custom boundary. kind=municipality → Province select (fixed 3), NO terrain/parent, submit → createMunicipalityFromUpload; kind=mpa/hotspot/custom → existing parent-municipality + Terrain, submit → createBoundaryFromUpload (via CREATE_KIND_TO_CATEGORY). onSuccess invalidates municipality.list + areaBoundary.list + map.officialBoundaries.list + protectedZones. Phase-1 municipal_boundary REPLACE mode untouched. Relabel: dialog description branches per kind; create dialog is NOT next-intl-wired (grep-confirmed) so no messages/*.json change.
+- Gate (Phase 7 Step 19) — ALL GREEN: check-product-sync · typecheck 7/7 · turbo lint 6/6 · web build · vitest (web 1666 / shared 221 / jobs 250) · pnpm audit --audit-level=high exit 0 (1 pre-existing moderate NextAuth).
+- Visual QA (Playwright, dev @45204 rebuilt off branch, /ph login admin@mail.com): dialog opens; Boundary kind = New municipality → Province picker shows exactly Oriental Mindoro/Occidental Mindoro/Palawan, Terrain + Under-municipality hidden; submit gated (name+province set, no file → disabled); MPA/hotspot/custom kinds keep terrain+parent. 0 console errors.
+- Errors encountered:  none (workers reported clean; PM spot-checked mutation diff — audit-log shape confirmed matching sibling).
+- Next / STILL-DEFERRED [WHAT] (owner-gated): push any branch · /ph rollout to staging/demo/prod · Phase 4 (Province rollup + child include/exclude) · area-attribution backfill · Banggai/Pecca tenants.
+
 ## 2026-07-09 — Two dashboard KPI number fixes (Active Events + Unacknowledged) — DEV ONLY, LOCAL/unpushed
 
 - Agent:               CLAUDE_CODE (Opus 4.8 PM) + 2 Sonnet spec-executor workers (one per fix)
