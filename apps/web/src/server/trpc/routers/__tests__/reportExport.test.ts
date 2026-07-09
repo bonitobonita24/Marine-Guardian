@@ -203,6 +203,37 @@ describe("reportExport.list — reportSummary enrichment (Report Summary column)
     );
   });
 
+  it("surfaces province as municipalityName for a province-scoped report_map row (no municipalityId set)", async () => {
+    vi.mocked(prisma.reportExport.findMany).mockResolvedValue([
+      {
+        id: "re-map-2",
+        tenantId: TENANT_ID,
+        reportType: "report_map",
+        status: "ready",
+        paramsJson: {
+          province: "Oriental Mindoro",
+          from: "2026-05-01T00:00:00.000Z",
+          to: "2026-06-01T00:00:00.000Z",
+        },
+      },
+    ] as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.list({ limit: 50 });
+
+    expect(result.items[0]?.reportSummary).toEqual({
+      municipalityName: "Oriental Mindoro",
+      protectedZoneName: null,
+      templateName: null,
+      areaName: null,
+      from: "2026-05-01T00:00:00.000Z",
+      to: "2026-06-01T00:00:00.000Z",
+      period: null,
+    });
+    // Province rollup carries no municipalityId — no municipality name lookup.
+    expect(vi.mocked(prisma.municipality.findMany)).not.toHaveBeenCalled();
+  });
+
   it("resolves areaBoundaryId to name for area report rows", async () => {
     vi.mocked(prisma.reportExport.findMany).mockResolvedValue([
       {

@@ -9,6 +9,10 @@ import {
   canonicalIndex,
   type EventTypeVariant,
 } from "@/lib/event-type-order";
+import {
+  resolveMunicipalityScope,
+  municipalityScopeClause,
+} from "../../reporting/municipality-scope";
 
 const STALE_THRESHOLD_MS = 60 * 60 * 1000;
 
@@ -26,6 +30,11 @@ const eventsListInput = z
     // municipality. Omitted by the Command Center embed + Live Map, which show
     // all municipalities.
     municipalityId: z.string().optional(),
+    // Optional province rollup filter (2026-07-09): narrow markers to every
+    // municipality within a given province. `municipalityId`, when also
+    // provided, always wins (a specific municipality selection overrides a
+    // province-wide rollup) — same semantics as the report surface's filter.
+    province: z.string().optional(),
     // Optional MPA-scope filter (2026-06-29): narrow markers to events that fall
     // inside a given protected zone (EventCoveredZone join). Independent of the
     // municipality filter — both may apply.
@@ -54,6 +63,9 @@ const patrolTracksInRangeInput = z
     from: z.coerce.date().optional(),
     to: z.coerce.date().optional(),
     municipalityId: z.string().optional(),
+    // Optional province rollup filter (2026-07-09) — same semantics as
+    // eventsListInput.province above.
+    province: z.string().optional(),
     protectedZoneId: z.string().optional(),
   })
   .strict();
@@ -286,7 +298,7 @@ const eventsRouter = router({
       locationLon: { not: null };
       NOT?: { eventType: { display: { contains: string; mode: "insensitive" } } };
       reportedAt?: { gte?: Date; lte?: Date };
-      municipalityId?: string;
+      municipalityId?: string | { in: string[] };
       coveredZones?: { some: { protectedZoneId: string } };
     } = {
       tenantId: ctx.tenantId,
@@ -301,8 +313,11 @@ const eventsRouter = router({
     if (!input.includeSkylight) {
       where.NOT = { eventType: { display: { contains: "skylight", mode: "insensitive" } } };
     }
-    if (input.municipalityId !== undefined) {
-      where.municipalityId = input.municipalityId;
+    // Province rollup (2026-07-09): resolves municipalityId (wins) or every
+    // municipality in the given province; undefined when neither is set.
+    const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
+    if (municipalityIds !== undefined) {
+      where.municipalityId = municipalityScopeClause(municipalityIds);
     }
     if (input.protectedZoneId !== undefined) {
       where.coveredZones = { some: { protectedZoneId: input.protectedZoneId } };
@@ -534,7 +549,7 @@ const patrolTracksRouter = router({
         isDeleted: false;
         isTestPatrol: false;
         startTime?: { gte?: Date; lte?: Date };
-        municipalityId?: string;
+        municipalityId?: string | { in: string[] };
         coveredZones?: { some: { protectedZoneId: string } };
       } = { isDeleted: false, isTestPatrol: false };
 
@@ -544,8 +559,11 @@ const patrolTracksRouter = router({
       if (startTime.gte !== undefined || startTime.lte !== undefined) {
         patrolWhere.startTime = startTime;
       }
-      if (input.municipalityId !== undefined) {
-        patrolWhere.municipalityId = input.municipalityId;
+      // Province rollup (2026-07-09): resolves municipalityId (wins) or every
+      // municipality in the given province; undefined when neither is set.
+      const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
+      if (municipalityIds !== undefined) {
+        patrolWhere.municipalityId = municipalityScopeClause(municipalityIds);
       }
       if (input.protectedZoneId !== undefined) {
         patrolWhere.coveredZones = {

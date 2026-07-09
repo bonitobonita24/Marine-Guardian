@@ -10,7 +10,10 @@ vi.mock("@marine-guardian/db", () => ({
     event: { findMany: vi.fn() },
     patrol: { findMany: vi.fn() },
     patrolTrack: { findMany: vi.fn() },
-    municipality: { findUnique: vi.fn() },
+    // findUnique used by the single-municipality bounds lookup;
+    // findMany used by resolveMunicipalityScope's province rollup (real
+    // implementation — not mocked — reads through this mocked prisma client).
+    municipality: { findUnique: vi.fn(), findMany: vi.fn() },
   },
 }));
 
@@ -787,6 +790,95 @@ describe("getReportMapReportData", () => {
       north: 13.2,
       east: 121.2,
     });
+  });
+
+  // ── Province rollup (2026-07-09) ───────────────────────────────────────────
+
+  it("scopes event + patrol filters to every municipality in the province, and titles the report with the province name, when province is set and municipalityId is not", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValue(TENANT_ROW as never);
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValue({
+      ...EXPORT_ROW,
+      paramsJson: { ...EXPORT_ROW.paramsJson, province: "Oriental Mindoro" },
+    } as never);
+    vi.mocked(prisma.reportTemplate.findFirst).mockResolvedValue(TEMPLATE_ROW as never);
+    vi.mocked(buildEventBreakdownWithCoords).mockResolvedValue(EMPTY_BREAKDOWN);
+    vi.mocked(prisma.event.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.municipality.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.municipality.findMany).mockResolvedValue([
+      { id: "muni_pg" },
+      { id: "muni_sj" },
+    ] as never);
+    vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
+
+    const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(result).not.toBeNull();
+    if (!result) return;
+
+    // Province lookup is tenant-scoped.
+    expect(prisma.municipality.findMany).toHaveBeenCalledWith({
+      where: { tenantId: TENANT_ID, province: "Oriental Mindoro" },
+      select: { id: true },
+    });
+
+    // Event + patrol where-clauses both resolve to the { in: [...] } clause.
+    expect(
+      vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where,
+    ).toMatchObject({ municipalityId: { in: ["muni_pg", "muni_sj"] } });
+    expect(
+      vi.mocked(prisma.patrol.findMany).mock.calls[0]?.[0]?.where,
+    ).toMatchObject({ municipalityId: { in: ["muni_pg", "muni_sj"] } });
+
+    // Province-scoped (no municipalityId) — report titled with the province
+    // name; no single-municipality geometry lookup or bounds are fetched.
+    expect(result.municipalityName).toBe("Oriental Mindoro");
+    expect(result.municipalityBounds).toBeNull();
+    expect(prisma.municipality.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("a specific municipalityId still wins over province when both are present", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValue(TENANT_ROW as never);
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValue({
+      ...EXPORT_ROW,
+      paramsJson: {
+        ...EXPORT_ROW.paramsJson,
+        municipalityId: "muni_a",
+        province: "Oriental Mindoro",
+      },
+    } as never);
+    vi.mocked(prisma.reportTemplate.findFirst).mockResolvedValue(TEMPLATE_ROW as never);
+    vi.mocked(buildEventBreakdownWithCoords).mockResolvedValue(EMPTY_BREAKDOWN);
+    vi.mocked(prisma.event.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.municipality.findUnique).mockResolvedValue({
+      name: "Puerto Galera",
+      boundaryGeojson: null,
+      waterGeojson: null,
+    } as never);
+    vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
+
+    const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(result).not.toBeNull();
+    if (!result) return;
+
+    // municipalityId wins — province lookup (findMany) is never consulted.
+    expect(prisma.municipality.findMany).not.toHaveBeenCalled();
+    expect(
+      vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where,
+    ).toMatchObject({ municipalityId: "muni_a" });
+    expect(
+      vi.mocked(prisma.patrol.findMany).mock.calls[0]?.[0]?.where,
+    ).toMatchObject({ municipalityId: "muni_a" });
+    expect(result.municipalityName).toBe("Puerto Galera");
+  });
+
+  it("parses province from paramsJson and drops empty-string province", () => {
+    expect(parseReportMapParams({ province: "Oriental Mindoro" }).province).toBe(
+      "Oriental Mindoro",
+    );
+    expect(parseReportMapParams({ province: "" }).province).toBeUndefined();
   });
 });
 

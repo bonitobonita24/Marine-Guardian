@@ -14,6 +14,9 @@ vi.mock("@marine-guardian/db", () => ({
     patrolTrack: {
       findMany: vi.fn(),
     },
+    municipality: {
+      findMany: vi.fn(),
+    },
   },
 }));
 
@@ -136,6 +139,82 @@ describe("reportMap.eventBreakdown", () => {
 
     const where = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where;
     expect(where).toMatchObject({ tenantId: TENANT_ID, municipalityId: "muni-1" });
+  });
+});
+
+describe("reportMap province rollup filter", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("resolves province to its municipality ids and applies an `in` filter when no municipalityId is given", async () => {
+    vi.mocked(prisma.municipality.findMany).mockResolvedValue([
+      { id: "muni-1" },
+      { id: "muni-2" },
+    ] as any);
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.eventBreakdown({ province: "Oriental Mindoro" });
+
+    expect(prisma.municipality.findMany).toHaveBeenCalledWith({
+      where: { tenantId: TENANT_ID, province: "Oriental Mindoro" },
+      select: { id: true },
+    });
+    const where = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where as any;
+    expect(where.municipalityId).toEqual({ in: ["muni-1", "muni-2"] });
+  });
+
+  it("municipalityId wins over province when both are provided — province lookup is not applied", async () => {
+    vi.mocked(prisma.municipality.findMany).mockResolvedValue([
+      { id: "muni-1" },
+      { id: "muni-2" },
+    ] as any);
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.eventBreakdown({ municipalityId: "muni-9", province: "Oriental Mindoro" });
+
+    const where = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where as any;
+    expect(where.municipalityId).toBe("muni-9");
+  });
+
+  it("omits municipalityId from the where clause when neither municipalityId nor province is given", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.eventBreakdown({});
+
+    expect(prisma.municipality.findMany).not.toHaveBeenCalled();
+    const where = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where as any;
+    expect(where).not.toHaveProperty("municipalityId");
+  });
+
+  it("province with no matching municipalities yields an empty `in` filter (no rows match)", async () => {
+    vi.mocked(prisma.municipality.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.eventBreakdown({ province: "Nonexistent Province" });
+
+    const where = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where as any;
+    expect(where.municipalityId).toEqual({ in: [] });
+  });
+
+  it("applies province scoping to patrol queries too (summary.totalPatrols)", async () => {
+    vi.mocked(prisma.municipality.findMany).mockResolvedValue([
+      { id: "muni-3" },
+    ] as any);
+    vi.mocked(prisma.event.count).mockResolvedValue(0 as any);
+    vi.mocked(prisma.patrol.count).mockResolvedValue(0 as any);
+
+    const caller = createCaller(makeCtx());
+    await caller.summary({ province: "Palawan" });
+
+    const patrolWhereArg = vi.mocked(prisma.patrol.count).mock.calls[0]?.[0]?.where as any;
+    // A single resolved municipality collapses to plain equality (matches the
+    // existing municipalityId-only shape used by every other filter path).
+    expect(patrolWhereArg.municipalityId).toBe("muni-3");
   });
 });
 

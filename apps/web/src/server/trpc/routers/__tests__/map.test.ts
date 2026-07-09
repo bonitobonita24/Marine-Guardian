@@ -26,6 +26,9 @@ vi.mock("@marine-guardian/db", () => ({
     patrolArea: {
       findMany: vi.fn(),
     },
+    municipality: {
+      findMany: vi.fn(),
+    },
   },
 }));
 
@@ -247,6 +250,57 @@ describe("map.events.list", () => {
     // The raw event_details_json is never shipped to the client.
     expect(result[0]).not.toHaveProperty("eventDetailsJson");
     expect(result[1]).not.toHaveProperty("eventDetailsJson");
+  });
+});
+
+describe("map.events.list province rollup filter", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("resolves province to its municipality ids and applies an `in` filter when no municipalityId is given", async () => {
+    vi.mocked(prisma.municipality.findMany).mockResolvedValue([
+      { id: "muni-1" },
+      { id: "muni-2" },
+    ] as any);
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.events.list({ province: "Oriental Mindoro" });
+
+    expect(prisma.municipality.findMany).toHaveBeenCalledWith({
+      where: { tenantId: TENANT_ID, province: "Oriental Mindoro" },
+      select: { id: true },
+    });
+    const findManyCall = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0];
+    expect(findManyCall?.where).toMatchObject({
+      municipalityId: { in: ["muni-1", "muni-2"] },
+    });
+  });
+
+  it("municipalityId wins over province when both are provided", async () => {
+    vi.mocked(prisma.municipality.findMany).mockResolvedValue([
+      { id: "muni-1" },
+    ] as any);
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.events.list({ municipalityId: "muni-9", province: "Oriental Mindoro" });
+
+    expect(prisma.municipality.findMany).not.toHaveBeenCalled();
+    const findManyCall = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0];
+    expect(findManyCall?.where).toMatchObject({ municipalityId: "muni-9" });
+  });
+
+  it("omits municipalityId when neither municipalityId nor province is given", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.events.list({});
+
+    expect(prisma.municipality.findMany).not.toHaveBeenCalled();
+    const findManyCall = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0];
+    expect(findManyCall?.where).not.toHaveProperty("municipalityId");
   });
 });
 
@@ -572,6 +626,49 @@ describe("map.patrolTracks.inRange", () => {
     expect(result.tracks).toEqual([]);
     const call = vi.mocked(prisma.patrolTrack.findMany).mock.calls[0]?.[0];
     expect(call?.where).toMatchObject({ tenantId: "other-tenant" });
+  });
+});
+
+describe("map.patrolTracks.inRange province rollup filter", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("resolves province to its municipality ids and applies an `in` filter when no municipalityId is given", async () => {
+    vi.mocked(prisma.municipality.findMany).mockResolvedValue([
+      { id: "muni-1" },
+      { id: "muni-2" },
+    ] as any);
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.patrolTracks.inRange({ province: "Palawan" });
+
+    expect(prisma.municipality.findMany).toHaveBeenCalledWith({
+      where: { tenantId: TENANT_ID, province: "Palawan" },
+      select: { id: true },
+    });
+    const call = vi.mocked(prisma.patrolTrack.findMany).mock.calls[0]?.[0];
+    expect(call?.where?.patrol).toMatchObject({
+      municipalityId: { in: ["muni-1", "muni-2"] },
+    });
+  });
+
+  it("municipalityId wins over province when both are provided", async () => {
+    vi.mocked(prisma.municipality.findMany).mockResolvedValue([
+      { id: "muni-1" },
+    ] as any);
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.patrolTracks.inRange({
+      municipalityId: "muni-9",
+      province: "Palawan",
+    });
+
+    expect(prisma.municipality.findMany).not.toHaveBeenCalled();
+    const call = vi.mocked(prisma.patrolTrack.findMany).mock.calls[0]?.[0];
+    expect(call?.where?.patrol).toMatchObject({ municipalityId: "muni-9" });
   });
 });
 

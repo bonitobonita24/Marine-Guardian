@@ -3,6 +3,25 @@
 # Agent values: CLINE | CLAUDE_CODE | COPILOT | HUMAN | UNKNOWN
 # ---
 
+## 2026-07-09 — Generic-Boundaries Phase 4A: Province rollup in the report surface (map + charts + KPIs + PDF) — DEV ONLY, LOCAL/unpushed
+
+- Agent:               CLAUDE_CODE (Opus 4.8 PM) + 5 Sonnet spec-executor workers (router, map+util, filter UI, PDF path, view wiring). PM verified every diff + ran the full gate + SQL/Playwright ground-truth.
+- Branch:              **feat/boundaries-phase4a-province-rollup** (off feat/boundaries-phase2-create-municipality). LOCAL only — NOT pushed (owner standing policy: no push without explicit approval).
+- Why:                 Generic-Boundaries plan Phase 4, first item (docs/plans/generic-boundaries-and-hierarchy-plan.md): a Province selector on the Interactive Report Map that rolls every aggregation up to all municipalities in the chosen province (fixed-3 provinces per locked D2). Owner-gated product decisions (D2/D3) already locked → un-gated [HOW] build under FULL AUTO.
+- What:
+  - New shared util apps/web/src/server/reporting/municipality-scope.ts: `resolveMunicipalityScope(tenantId,{municipalityId?,province?})` (a specific municipalityId ALWAYS wins over province; else province → prisma.municipality.findMany province muni ids; else undefined) + `municipalityScopeClause(ids)` (1 id → equality, else {in}).
+  - reportMap.ts: `province?` added to reportFilterInput; the two shared where-builders + all 8 aggregation procedures thread the resolved scope; inline resolver DRY-refactored onto the shared util.
+  - map.ts: `province?` added to eventsListInput + patrolTracksInRangeInput; the events-markers + patrol-tracks-in-range where-builders apply the resolved scope (Command Center/Live Map omit province → unchanged).
+  - PDF path (get-report-map-report-data.ts + reportExport.ts): `province` parsed from print params; event/patrol filters apply the province muni ids; a province-scoped report is titled with the province name (regional-style bounds, no single-municipality geometry).
+  - Filter UI (report-filter-context.tsx + report-filter-bar.tsx): `province: string|null` + `setProvince`; new Province `<Select>` ("All provinces" + the 3 provinces) rendered before Municipality; choosing a province clears municipalityId and narrows the Municipality select to that province's munis; resetRange clears province.
+  - View wiring (report-map-view.tsx, InteractiveMap.tsx, generate-printable-button.tsx, report-map-empty-state.tsx): `province` threaded into every on-screen query input, the map markers/tracks queries, the print params, and the empty-state scope name.
+- Files added:         apps/web/src/server/reporting/municipality-scope.ts.
+- Files modified:      reportMap.ts, map.ts, reportExport.ts, get-report-map-report-data.ts, report-filter-context.tsx, report-filter-bar.tsx, report-map-view.tsx, InteractiveMap.tsx, generate-printable-button.tsx, report-map-empty-state.tsx + their test files (reportMap/map/get-report-map-report-data/reportExport/report-filter-context/report-filter-bar tests; province cases TDD RED→GREEN).
+- Schema/migrations:   none (Municipality.province is a pre-existing free String; fixed-3 provinces are UI/Zod-only per D2).
+- Errors encountered:  concurrent-worker tree contention produced transient cross-file typecheck/test noise (settled after all edits landed); two lint findings the workers' typecheck missed (`no-unnecessary-type-assertion` + nested `expect.objectContaining` `no-unsafe-assignment` in the new tests) — caught by the dual lint gate (turbo lint + next build), fixed inline (remove the assertion; switch to typed `mock.calls[...].where` + `toMatchObject`).
+- Verification:        FULL GATE GREEN — check-product-sync · typecheck 7/7 · turbo lint 6/6 · `pnpm --filter web build` · vitest web 1687 / shared 221 / jobs 250 · pnpm audit --audit-level=high exit 0 (1 pre-existing moderate NextAuth). DEV app rebuilt off the branch (@45204) + Playwright on /ph vs SQL ground truth: Palawan province rollup events **1086** (=LE 104+Mon 982) and patrols **1586** (date-windowed; all-time DB 1587 incl. 1 null-start) — both exact; Araceli municipality (municipalityId wins over province) events **517** / patrols **720** — both exact; province options = exactly the 3; municipality select narrows to Palawan's 7 munis + auto-clears on province select; 0 console errors.
+- Deferred [WHAT] (owner-gated, unchanged): push any branch · /ph rollout to staging/demo/prod · Phase 4B "include child boundaries" toggle · Command Center dashboard province filter + municipalityCoverage province-narrowing (minor) · area-attribution backfill · Banggai/Pecca tenants · Active-Events 18-vs-23 Skylight decision.
+
 ## 2026-07-09 — Generic-Boundaries Phase 2: create-new-municipality-from-upload + unified create surface — DEV ONLY, LOCAL/unpushed
 
 - Agent:               CLAUDE_CODE (Opus 4.8 PM) + 1 Plan/Architect agent (co-plan) + 2 Sonnet spec-executor workers (T1 mutation+tests, T2/T3 dialog)

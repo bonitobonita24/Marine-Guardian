@@ -75,7 +75,8 @@ function rangeLabelWithYear(from: Date, to: Date): string {
 }
 
 function ReportMapInner() {
-  const { from, to, municipalityId, protectedZoneId, terrain } = useReportFilter();
+  const { from, to, municipalityId, protectedZoneId, terrain, province } =
+    useReportFilter();
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
   // "Locate on map" from the High Priority Events list: fly the map to the
@@ -100,6 +101,7 @@ function ReportMapInner() {
     ...(municipalityId !== null ? { municipalityId } : {}),
     ...(protectedZoneId !== null ? { protectedZoneId } : {}),
     ...(terrain !== null ? { terrain } : {}),
+    ...(province !== null ? { province } : {}),
   };
 
   // eventBreakdownWithCoords (not the lean eventBreakdown) — the Report Map
@@ -234,11 +236,16 @@ function ReportMapInner() {
   // Municipality NAME for the empty-state message — derived from the same
   // dropdown options the filter bar renders (cached query, no extra fetch).
   const municipalities = trpc.municipality.list.useQuery();
+  // When a specific municipality is selected, name it directly. Otherwise,
+  // when scoped to a province rollup (no single municipality), fall back to
+  // the province string itself so the empty-state below still names the
+  // active scope truthfully instead of falling through to the "all
+  // municipalities" generic (2026-07-09 province filter threading).
   const municipalityName =
-    municipalityId === null
-      ? null
-      : (municipalities.data?.find((m) => m.id === municipalityId)?.name ??
-        null);
+    municipalityId !== null
+      ? (municipalities.data?.find((m) => m.id === municipalityId)?.name ??
+        null)
+      : province;
 
   // Total events in the active range — the continuous daily series sums to the
   // same total as the full event count (the where-clause already bounds events
@@ -257,6 +264,7 @@ function ReportMapInner() {
 
   const showEmptyState = shouldShowReportMapEmptyState({
     municipalityId,
+    province,
     totalEvents,
     totalPatrols,
     isLoading: eventsOverTime.isLoading || patrolsInRange.isLoading,
@@ -292,6 +300,7 @@ function ReportMapInner() {
           dateTo={to}
           {...(municipalityId !== null ? { municipalityId } : {})}
           {...(protectedZoneId !== null ? { protectedZoneId } : {})}
+          {...(province !== null ? { province } : {})}
           trackMode="inRange"
           defaultEventLayers={{ lawEnforcement: true, monitoring: true }}
           hidePatrolSelector

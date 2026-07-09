@@ -39,6 +39,8 @@ export type ReportFilter = {
   to: Date;
   /** Active municipality filter; null = all municipalities. */
   municipalityId: string | null;
+  /** Active province rollup filter; null = all provinces. */
+  province: string | null;
   /** Active MPA (protected-zone) scope filter; null = all zones. */
   protectedZoneId: string | null;
   /**
@@ -51,6 +53,8 @@ export type ReportFilter = {
   setRange: (next: { from: Date; to: Date }) => void;
   /** Set (or clear, with null) the active municipality. */
   setMunicipalityId: (next: string | null) => void;
+  /** Set (or clear, with null) the active province rollup. */
+  setProvince: (next: string | null) => void;
   /** Set (or clear, with null) the active MPA scope. */
   setProtectedZoneId: (next: string | null) => void;
   /** Set (or clear, with null) the active terrain filter. */
@@ -66,6 +70,7 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
   const [from, setFrom] = useState<Date>(() => sevenDaysAgo(new Date()));
   const [to, setTo] = useState<Date>(() => new Date());
   const [municipalityId, setMunicipalityIdState] = useState<string | null>(null);
+  const [province, setProvinceState] = useState<string | null>(null);
   const [protectedZoneId, setProtectedZoneIdState] = useState<string | null>(
     null,
   );
@@ -78,6 +83,10 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
 
   const setMunicipalityId = useCallback((next: string | null) => {
     setMunicipalityIdState(next);
+  }, []);
+
+  const setProvince = useCallback((next: string | null) => {
+    setProvinceState(next);
   }, []);
 
   const setProtectedZoneId = useCallback((next: string | null) => {
@@ -93,6 +102,7 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
     setFrom(sevenDaysAgo(now));
     setTo(now);
     setMunicipalityIdState(null);
+    setProvinceState(null);
     setProtectedZoneIdState(null);
     setTerrainState(null);
   }, []);
@@ -102,10 +112,12 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
       from,
       to,
       municipalityId,
+      province,
       protectedZoneId,
       terrain,
       setRange,
       setMunicipalityId,
+      setProvince,
       setProtectedZoneId,
       setTerrain,
       resetRange,
@@ -114,10 +126,12 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
       from,
       to,
       municipalityId,
+      province,
       protectedZoneId,
       terrain,
       setRange,
       setMunicipalityId,
+      setProvince,
       setProtectedZoneId,
       setTerrain,
       resetRange,

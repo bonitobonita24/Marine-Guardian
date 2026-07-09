@@ -121,9 +121,9 @@ Each phase: `feat/<slug>` branch → implement (Opus plans, Sonnet executes per 
 - [ ] Add `Terrain: [All | Land | Water]` to the report-map + command-center filters (kept distinct from the foot/seaborne track toggle).
 
 ### Phase 4 — Hierarchy reporting (Province rollup + child include/exclude)
-- [ ] Province selector in the report filter → rolls up all municipalities (land+water) under the province.
-- [ ] Municipal report **"Include child boundaries"** toggle (D3 default) — folds child MPA/hotspot/custom events/patrols into the municipal report; reflected in PDF export + on-screen figures.
-- [ ] Verify province/municipal aggregations across dashboard + PDF report paths.
+- [x] Province selector in the report filter → rolls up all municipalities under the province — **DONE 2026-07-09** (branch `feat/boundaries-phase4a-province-rollup`, off Phase 2 branch, DEV-only LOCAL/unpushed). New `province?` on `reportFilterInput` + map.ts `eventsListInput`/`patrolTracksInRangeInput` + PDF `parseReportMapParams`; shared `apps/web/src/server/reporting/municipality-scope.ts` (`resolveMunicipalityScope` — municipalityId wins over province; else province→muni ids — + `municipalityScopeClause`); reportMap DRY-refactored onto it; all reportMap + map aggregations, the report-map view + InteractiveMap markers/tracks, generate-printable, and the PDF data path (province-named regional report) thread it. New Province `<Select>` (context + bar) narrows the municipality select to the province's munis and clears any specific municipality. Gate GREEN (check-product-sync · typecheck 7/7 · turbo lint 6/6 · web build · vitest web 1687/shared 221/jobs 250 · audit exit 0). Dev Visual QA vs SQL ground truth: Palawan events 1086 (LE 104+Mon 982) ✅ / patrols 1586 ✅; Araceli muni-wins-over-province events 517 ✅ / patrols 720 ✅; province options = exactly 3; 0 console errors.
+- [ ] Municipal report **"Include child boundaries"** toggle (D3 default) — folds child MPA/hotspot/custom events/patrols into the municipal report; reflected in PDF export + on-screen figures. *(Phase 4B — next milestone.)*
+- [ ] Verify province/municipal aggregations across dashboard + PDF report paths. *(Province aggregations verified vs SQL on the report map + PDF path; the Command Center dashboard has no province filter yet, and the `municipalityCoverage` comparison chart is intentionally NOT province-narrowed — minor follow-up.)*
 
 ---
 

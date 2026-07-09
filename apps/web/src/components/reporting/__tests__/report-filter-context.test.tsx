@@ -74,6 +74,39 @@ describe("ReportFilterProvider / useReportFilter", () => {
     expect(Math.abs(spanMs - SEVEN_DAYS_MS)).toBeLessThan(1000);
   });
 
+  it("defaults province to null", () => {
+    const { result } = renderHook(() => useReportFilter(), { wrapper });
+    expect(result.current.province).toBeNull();
+  });
+
+  it("setProvince sets and clears the province", () => {
+    const { result } = renderHook(() => useReportFilter(), { wrapper });
+
+    act(() => {
+      result.current.setProvince("Oriental Mindoro");
+    });
+    expect(result.current.province).toBe("Oriental Mindoro");
+
+    act(() => {
+      result.current.setProvince(null);
+    });
+    expect(result.current.province).toBeNull();
+  });
+
+  it("resetRange also clears the province", () => {
+    const { result } = renderHook(() => useReportFilter(), { wrapper });
+
+    act(() => {
+      result.current.setProvince("Palawan");
+    });
+    expect(result.current.province).toBe("Palawan");
+
+    act(() => {
+      result.current.resetRange();
+    });
+    expect(result.current.province).toBeNull();
+  });
+
   it("throws when used outside the provider", () => {
     expect(() => renderHook(() => useReportFilter())).toThrow(
       /must be used within a ReportFilterProvider/,

@@ -54,6 +54,13 @@ import {
 interface ReportExportParams {
   templateId?: string;
   municipalityId?: string;
+  /**
+   * Optional province rollup filter (2026-07-09) — carried through verbatim
+   * from paramsJson (untyped Json column) so a queued province-scoped
+   * report_map export's summary can reflect province scope even though no
+   * specific municipalityId was set.
+   */
+  province?: string;
   protectedZoneId?: string;
   areaBoundaryId?: string;
   from?: string;
@@ -157,7 +164,7 @@ export const reportExportRouter = router({
             municipalityName:
               p.municipalityId !== undefined
                 ? municipalityNameById.get(p.municipalityId) ?? null
-                : null,
+                : (p.province ?? null),
             protectedZoneName:
               p.protectedZoneId !== undefined
                 ? protectedZoneNameById.get(p.protectedZoneId) ?? null

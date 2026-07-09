@@ -26,6 +26,10 @@ import { isInlineSafeImageAsset } from "@marine-guardian/shared/lib/asset-mime";
 import { SERIOUS_EVENT_PATTERNS } from "@/components/map/eventMarkerStyle";
 import { pointsFromTrackGeojson } from "./map";
 import { buildEventsPatrolsSeries, dayKeyToLabel } from "./time-series-bucketing";
+import {
+  resolveMunicipalityScope,
+  municipalityScopeClause,
+} from "../../reporting/municipality-scope";
 
 const LAW_CATEGORY = "law-enforcement-and-apprehensions";
 const MONITORING_CATEGORY = "monitoring_patrolling_and_surveillance";
@@ -35,6 +39,11 @@ const reportFilterInput = z
     from: z.coerce.date().optional(),
     to: z.coerce.date().optional(),
     municipalityId: z.string().optional(),
+    // Optional province rollup filter (2026-07-09): narrow every aggregation
+    // to all municipalities within a given province. `municipalityId`, when
+    // also provided, always wins (a specific municipality selection overrides
+    // a province-wide rollup).
+    province: z.string().optional(),
     // Optional MPA-scope filter (2026-06-29): narrow every aggregation to
     // events/patrols that fall inside a given protected zone.
     protectedZoneId: z.string().optional(),
@@ -50,14 +59,20 @@ type ReportFilterInput = z.infer<typeof reportFilterInput>;
 
 /**
  * Event where-clause shared by every report aggregation: tenant-scoped, Skylight
- * excluded (markers exclude it too), optional reportedAt range + municipality.
+ * excluded (markers exclude it too), optional reportedAt range + municipality
+ * scope (resolved from either a specific municipalityId or a province rollup
+ * via `resolveMunicipalityScope`).
  */
-function eventWhere(tenantId: string, input: ReportFilterInput) {
+function eventWhere(
+  tenantId: string,
+  input: ReportFilterInput,
+  municipalityIds?: string[],
+) {
   const where: {
     tenantId: string;
     NOT: { eventType: { display: { contains: string; mode: "insensitive" } } };
     reportedAt?: { gte?: Date; lte?: Date };
-    municipalityId?: string;
+    municipalityId?: string | { in: string[] };
     coveredZones?: { some: { protectedZoneId: string } };
     terrain?: string;
   } = {
@@ -72,8 +87,8 @@ function eventWhere(tenantId: string, input: ReportFilterInput) {
   if (reportedAt.gte !== undefined || reportedAt.lte !== undefined) {
     where.reportedAt = reportedAt;
   }
-  if (input.municipalityId !== undefined) {
-    where.municipalityId = input.municipalityId;
+  if (municipalityIds !== undefined) {
+    where.municipalityId = municipalityScopeClause(municipalityIds);
   }
   if (input.protectedZoneId !== undefined) {
     where.coveredZones = { some: { protectedZoneId: input.protectedZoneId } };
@@ -84,14 +99,22 @@ function eventWhere(tenantId: string, input: ReportFilterInput) {
   return where;
 }
 
-/** Patrol where-clause: non-deleted, non-test, optional startTime + municipality. */
-function patrolWhere(tenantId: string, input: ReportFilterInput) {
+/**
+ * Patrol where-clause: non-deleted, non-test, optional startTime + municipality
+ * scope (resolved from either a specific municipalityId or a province rollup
+ * via `resolveMunicipalityScope`).
+ */
+function patrolWhere(
+  tenantId: string,
+  input: ReportFilterInput,
+  municipalityIds?: string[],
+) {
   const where: {
     tenantId: string;
     isDeleted: false;
     isTestPatrol: false;
     startTime?: { gte?: Date; lte?: Date };
-    municipalityId?: string;
+    municipalityId?: string | { in: string[] };
     coveredZones?: { some: { protectedZoneId: string } };
     terrain?: string;
   } = { tenantId, isDeleted: false, isTestPatrol: false };
@@ -101,8 +124,8 @@ function patrolWhere(tenantId: string, input: ReportFilterInput) {
   if (startTime.gte !== undefined || startTime.lte !== undefined) {
     where.startTime = startTime;
   }
-  if (input.municipalityId !== undefined) {
-    where.municipalityId = input.municipalityId;
+  if (municipalityIds !== undefined) {
+    where.municipalityId = municipalityScopeClause(municipalityIds);
   }
   if (input.protectedZoneId !== undefined) {
     where.coveredZones = { some: { protectedZoneId: input.protectedZoneId } };
@@ -194,7 +217,8 @@ export async function buildEventBreakdownWithCoords(
     eventType: { select: { category: true, display: true } },
     municipality: { select: { name: true } },
   } as const;
-  const where = eventWhere(tenantId, input);
+  const municipalityIds = await resolveMunicipalityScope(tenantId, input);
+  const where = eventWhere(tenantId, input, municipalityIds);
   const events = includeEventDetails
     ? await prisma.event.findMany({
         where,
@@ -318,7 +342,8 @@ export const reportMapRouter = router({
   summary: tenantProcedure
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
-      const baseEvent = eventWhere(ctx.tenantId, input);
+      const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
+      const baseEvent = eventWhere(ctx.tenantId, input, municipalityIds);
       const [totalEvents, lawEnforcementEvents, monitoringEvents, totalPatrols] =
         await Promise.all([
           prisma.event.count({ where: baseEvent }),
@@ -328,7 +353,9 @@ export const reportMapRouter = router({
           prisma.event.count({
             where: { ...baseEvent, eventType: { category: MONITORING_CATEGORY } },
           }),
-          prisma.patrol.count({ where: patrolWhere(ctx.tenantId, input) }),
+          prisma.patrol.count({
+            where: patrolWhere(ctx.tenantId, input, municipalityIds),
+          }),
         ]);
 
       return {
@@ -346,8 +373,9 @@ export const reportMapRouter = router({
   patrolsInRange: tenantProcedure
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
+      const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
       const rows = await prisma.patrol.findMany({
-        where: patrolWhere(ctx.tenantId, input),
+        where: patrolWhere(ctx.tenantId, input, municipalityIds),
         // Cap raised 300 -> 1200 (owner 2026-07-06: "where can I see the
         // remaining?"). The card is scrollable, so realistic ranges now list
         // every patrol in-card; the "Showing N of M" note only appears past the
@@ -394,8 +422,9 @@ export const reportMapRouter = router({
   eventBreakdown: tenantProcedure
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
+      const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
       const events = await prisma.event.findMany({
-        where: eventWhere(ctx.tenantId, input),
+        where: eventWhere(ctx.tenantId, input, municipalityIds),
         select: { eventType: { select: { category: true, display: true } } },
       });
 
@@ -436,8 +465,9 @@ export const reportMapRouter = router({
   highPriorityEvents: tenantProcedure
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
+      const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
       const where = {
-        ...eventWhere(ctx.tenantId, input),
+        ...eventWhere(ctx.tenantId, input, municipalityIds),
         OR: SERIOUS_EVENT_PATTERNS.map((p) => ({
           eventType: {
             display: { contains: p, mode: "insensitive" as const },
@@ -502,8 +532,9 @@ export const reportMapRouter = router({
   allEventPointsInRange: tenantProcedure
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
+      const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
       const rows = await prisma.event.findMany({
-        where: eventWhere(ctx.tenantId, input),
+        where: eventWhere(ctx.tenantId, input, municipalityIds),
         select: {
           id: true,
           title: true,
@@ -537,10 +568,11 @@ export const reportMapRouter = router({
   patrolTrackPointsInRange: tenantProcedure
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
+      const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
       const trackRows = await prisma.patrolTrack.findMany({
         where: {
           tenantId: ctx.tenantId,
-          patrol: patrolWhere(ctx.tenantId, input),
+          patrol: patrolWhere(ctx.tenantId, input, municipalityIds),
         },
         orderBy: { until: "desc" },
         select: {
@@ -581,13 +613,14 @@ export const reportMapRouter = router({
   eventsOverTime: tenantProcedure
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
+      const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
       const [events, patrols] = await Promise.all([
         prisma.event.findMany({
-          where: eventWhere(ctx.tenantId, input),
+          where: eventWhere(ctx.tenantId, input, municipalityIds),
           select: { reportedAt: true },
         }),
         prisma.patrol.findMany({
-          where: patrolWhere(ctx.tenantId, input),
+          where: patrolWhere(ctx.tenantId, input, municipalityIds),
           select: { startTime: true },
         }),
       ]);

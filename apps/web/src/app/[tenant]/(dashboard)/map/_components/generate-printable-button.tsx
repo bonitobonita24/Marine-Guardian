@@ -39,7 +39,8 @@ import { tenantHref } from "@/lib/routing/tenant-href";
 
 export function GeneratePrintableButton() {
   const tenant = useTenantSlug();
-  const { from, to, municipalityId, protectedZoneId } = useReportFilter();
+  const { from, to, municipalityId, protectedZoneId, province } =
+    useReportFilter();
   const [open, setOpen] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [feedback, setFeedback] = useState<
@@ -116,6 +117,7 @@ export function GeneratePrintableButton() {
           to: to.toISOString(),
           ...(municipalityId !== null ? { municipalityId } : {}),
           ...(protectedZoneId !== null ? { protectedZoneId } : {}),
+          ...(province !== null ? { province } : {}),
         },
       },
       {

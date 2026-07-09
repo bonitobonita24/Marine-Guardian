@@ -152,6 +152,11 @@ type InteractiveMapProps = {
    *  markers AND (in inRange track mode) patrol tracks are narrowed to events /
    *  patrols that fall inside the given protected zone. */
   protectedZoneId?: string;
+  /** Optional province rollup filter (Interactive Report Map, 2026-07-09).
+   *  When supplied (and `municipalityId` is not), event markers AND (in
+   *  inRange track mode) patrol tracks are narrowed to every municipality
+   *  within the given province. */
+  province?: string;
   /**
    * Patrol-track overlay source (2026-06-27):
    *   "active"  (default) — most-recent patrols' tracks, live (Command Center /
@@ -237,6 +242,7 @@ export function InteractiveMap({
   dateTo,
   municipalityId,
   protectedZoneId,
+  province,
   trackMode = "active",
   displayMode: initialDisplayMode = "dots",
   defaultEventLayers,
@@ -263,6 +269,7 @@ export function InteractiveMap({
     ...(dateTo !== undefined ? { to: dateTo } : {}),
     ...(municipalityId !== undefined ? { municipalityId } : {}),
     ...(protectedZoneId !== undefined ? { protectedZoneId } : {}),
+    ...(province !== undefined ? { province } : {}),
     ...(showSkylight ? { includeSkylight: true } : {}),
   });
   const patrolAreasQuery = trpc.map.patrolAreas.list.useQuery({
@@ -304,6 +311,7 @@ export function InteractiveMap({
       ...(dateTo !== undefined ? { to: dateTo } : {}),
       ...(municipalityId !== undefined ? { municipalityId } : {}),
       ...(protectedZoneId !== undefined ? { protectedZoneId } : {}),
+      ...(province !== undefined ? { province } : {}),
     },
     { enabled: useInRangeTracks },
   );

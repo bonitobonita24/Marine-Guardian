@@ -31,6 +31,7 @@ import { useReportFilter } from "./report-filter-context";
  */
 
 const ALL_MUNICIPALITIES = "all";
+const ALL_PROVINCES = "__all_provinces__";
 const ALL_ZONES = "all";
 const ALL_TERRAIN = "all";
 
@@ -66,10 +67,12 @@ export function ReportFilterBar({
     from,
     to,
     municipalityId,
+    province,
     protectedZoneId,
     terrain,
     setRange,
     setMunicipalityId,
+    setProvince,
     setProtectedZoneId,
     setTerrain,
   } = useReportFilter();
@@ -129,6 +132,18 @@ export function ReportFilterBar({
     return [...groups.entries()];
   })();
 
+  // Distinct province names, canonical order preserved (Map insertion order
+  // from provinceGroups above, which itself preserves municipality.list's
+  // canonical order).
+  const provinceNames = provinceGroups.map(([name]) => name);
+
+  // When a province is selected, the Municipality select narrows to only that
+  // province's group; otherwise show every province group (today's behavior).
+  const visibleProvinceGroups =
+    province === null
+      ? provinceGroups
+      : provinceGroups.filter(([name]) => name === province);
+
   const setLastNDays = (days: number) => {
     const now = new Date();
     setRange({ from: new Date(now.getTime() - days * DAY_MS), to: now });
@@ -155,6 +170,17 @@ export function ReportFilterBar({
 
   const handleMunicipalityChange = (value: string) => {
     setMunicipalityId(value === ALL_MUNICIPALITIES ? null : value);
+  };
+
+  const handleProvinceChange = (value: string) => {
+    if (value === ALL_PROVINCES) {
+      setProvince(null);
+      return;
+    }
+    // A province rollup clears any specific municipality selection — the two
+    // scopes are mutually exclusive at the "select a province" moment.
+    setProvince(value);
+    setMunicipalityId(null);
   };
 
   const handleProtectedZoneChange = (value: string) => {
@@ -250,6 +276,36 @@ export function ReportFilterBar({
         </div>
       </div>
 
+      {/* Province rollup — narrows the Municipality select to a single
+          province's group and clears any specific municipality selection
+          (a province-wide report scope). "All provinces" restores every
+          group in the Municipality select. */}
+      <div className={fieldClass}>
+        <Label
+          htmlFor="report-province"
+          className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+        >
+          Province
+        </Label>
+        <Select value={province ?? ALL_PROVINCES} onValueChange={handleProvinceChange}>
+          <SelectTrigger
+            id="report-province"
+            data-testid="report-province"
+            className={cn(stacked ? "h-7 w-full text-[11px]" : "h-8 w-[12rem] text-xs")}
+          >
+            <SelectValue placeholder="All provinces" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_PROVINCES}>All provinces</SelectItem>
+            {provinceNames.map((name) => (
+              <SelectItem key={name} value={name}>
+                {name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className={fieldClass}>
         <Label
           htmlFor="report-municipality"
@@ -270,9 +326,9 @@ export function ReportFilterBar({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL_MUNICIPALITIES}>All municipalities</SelectItem>
-            {provinceGroups.map(([province, items]) => (
-              <SelectGroup key={province}>
-                <SelectLabel>{province}</SelectLabel>
+            {visibleProvinceGroups.map(([provinceName, items]) => (
+              <SelectGroup key={provinceName}>
+                <SelectLabel>{provinceName}</SelectLabel>
                 {items.map((m) => (
                   // Indent municipalities under their province heading (owner
                   // request) so they don't left-align with the Region label.

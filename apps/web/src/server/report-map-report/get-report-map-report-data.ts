@@ -39,6 +39,10 @@ import {
 } from "@/server/trpc/routers/reportMap";
 import { pointsFromTrackGeojson } from "@/server/trpc/routers/map";
 import {
+  resolveMunicipalityScope,
+  municipalityScopeClause,
+} from "../reporting/municipality-scope";
+import {
   buildSingleCountSeries,
   dayKeyToLabel,
 } from "@/server/trpc/routers/time-series-bucketing";
@@ -439,6 +443,13 @@ interface ParsedReportMapParams {
   from?: Date;
   to?: Date;
   municipalityId?: string;
+  /**
+   * Optional province rollup filter (2026-07-09): narrows the report to every
+   * municipality within a given province. Ignored when `municipalityId` is
+   * also set — a specific municipality selection always wins over a
+   * province-wide rollup (see `resolveMunicipalityScope`).
+   */
+  province?: string;
   protectedZoneId?: string;
 }
 
@@ -459,6 +470,9 @@ export function parseReportMapParams(paramsJson: unknown): ParsedReportMapParams
   }
   if (typeof p.municipalityId === "string" && p.municipalityId.length > 0) {
     out.municipalityId = p.municipalityId;
+  }
+  if (typeof p.province === "string" && p.province.length > 0) {
+    out.province = p.province;
   }
   if (typeof p.protectedZoneId === "string" && p.protectedZoneId.length > 0) {
     out.protectedZoneId = p.protectedZoneId;
@@ -625,18 +639,31 @@ export async function getReportMapReportData(
   const templateSource = rawTemplate ?? APP_DEFAULT_TEMPLATE;
 
   // 3. Build filter input (mirrors reportMap.ts eventWhere / patrolWhere shapes)
+  // `province` is passed through verbatim — buildEventBreakdownWithCoords
+  // (reportMap.ts) already resolves { municipalityId, province } via the
+  // shared resolveMunicipalityScope helper, so the LE/Monitoring/High
+  // Priority breakdown charts get province rollup for free.
   const filterInput = {
     from: params.from,
     to: params.to,
     municipalityId: params.municipalityId,
+    province: params.province,
     protectedZoneId: params.protectedZoneId,
   };
+
+  // Resolve the effective municipality scope ONCE: a specific municipalityId
+  // always wins over province; province-only resolves to every municipality
+  // in that province (tenant-scoped); neither set → undefined (no scoping).
+  const municipalityIds = await resolveMunicipalityScope(tenant.id, {
+    municipalityId: params.municipalityId,
+    province: params.province,
+  });
 
   const eventFilter: {
     tenantId: string;
     NOT: { eventType: { display: { contains: string; mode: "insensitive" } } };
     reportedAt?: { gte?: Date; lte?: Date };
-    municipalityId?: string;
+    municipalityId?: string | { in: string[] };
     coveredZones?: { some: { protectedZoneId: string } };
   } = {
     tenantId: tenant.id,
@@ -650,8 +677,8 @@ export async function getReportMapReportData(
     if (params.to !== undefined) reportedAt.lte = params.to;
     eventFilter.reportedAt = reportedAt;
   }
-  if (params.municipalityId !== undefined) {
-    eventFilter.municipalityId = params.municipalityId;
+  if (municipalityIds !== undefined) {
+    eventFilter.municipalityId = municipalityScopeClause(municipalityIds);
   }
   if (params.protectedZoneId !== undefined) {
     eventFilter.coveredZones = { some: { protectedZoneId: params.protectedZoneId } };
@@ -662,7 +689,7 @@ export async function getReportMapReportData(
     isDeleted: false;
     isTestPatrol: false;
     startTime?: { gte?: Date; lte?: Date };
-    municipalityId?: string;
+    municipalityId?: string | { in: string[] };
     coveredZones?: { some: { protectedZoneId: string } };
   } = { tenantId: tenant.id, isDeleted: false, isTestPatrol: false };
   if (params.from !== undefined || params.to !== undefined) {
@@ -671,8 +698,8 @@ export async function getReportMapReportData(
     if (params.to !== undefined) startTime.lte = params.to;
     patrolFilter.startTime = startTime;
   }
-  if (params.municipalityId !== undefined) {
-    patrolFilter.municipalityId = params.municipalityId;
+  if (municipalityIds !== undefined) {
+    patrolFilter.municipalityId = municipalityScopeClause(municipalityIds);
   }
   if (params.protectedZoneId !== undefined) {
     patrolFilter.coveredZones = { some: { protectedZoneId: params.protectedZoneId } };
@@ -793,14 +820,16 @@ export async function getReportMapReportData(
       )
     : null;
 
-  // Header municipality line (2026-07-06 header redesign): "All
-  // Municipalities" for a regional report (no municipalityId filter);
-  // otherwise the resolved Municipality.name, or null if the id didn't
-  // resolve (header degrades gracefully and omits the line).
+  // Header municipality line (2026-07-06 header redesign; province rollup
+  // added 2026-07-09): the resolved Municipality.name when scoped to one
+  // municipality (or null if the id didn't resolve — header degrades
+  // gracefully and omits the line); the province name when scoped to a
+  // province rollup (no specific municipalityId); "All Municipalities"
+  // for a fully regional report (neither filter set).
   const municipalityName: string | null =
-    params.municipalityId === undefined
-      ? "All Municipalities"
-      : (municipalityGeometry?.name ?? null);
+    params.municipalityId !== undefined
+      ? (municipalityGeometry?.name ?? null)
+      : (params.province ?? "All Municipalities");
 
   // Partner logo default fallback: the editor form promises "leave empty to
   // use Blue Alliance default" (report-template-form.tsx) — honor it here so

@@ -8,6 +8,8 @@ const { stubs } = vi.hoisted(() => ({
     municipalities: [
       { id: "m-1", name: "Calapan City", province: "Oriental Mindoro", slug: "calapan-city" },
       { id: "m-2", name: "Naujan", province: "Oriental Mindoro", slug: "naujan" },
+      { id: "m-3", name: "Mamburao", province: "Occidental Mindoro", slug: "mamburao" },
+      { id: "m-4", name: "Puerto Princesa", province: "Palawan", slug: "puerto-princesa" },
     ] as { id: string; name: string; province: string; slug: string }[],
     protectedZones: [] as {
       id: string;
@@ -50,13 +52,14 @@ afterEach(() => {
 
 // Read-out probe so we can assert the bar drives the shared context.
 function Probe() {
-  const { from, to, municipalityId, protectedZoneId } = useReportFilter();
+  const { from, to, municipalityId, province, protectedZoneId } = useReportFilter();
   return (
     <div
       data-testid="probe"
       data-from={from.toISOString()}
       data-to={to.toISOString()}
       data-municipality={municipalityId ?? "null"}
+      data-province={province ?? "null"}
       data-zone={protectedZoneId ?? "null"}
     />
   );
@@ -259,5 +262,70 @@ describe("ReportFilterBar", () => {
         "null",
       );
     });
+  });
+
+  it("renders a Province select with 'All provinces' plus the 3 distinct provinces", async () => {
+    renderBar();
+    expect(screen.getByTestId("report-province")).toBeTruthy();
+    expect(screen.getByTestId("probe").getAttribute("data-province")).toBe(
+      "null",
+    );
+
+    fireEvent.pointerDown(screen.getByTestId("report-province"));
+    fireEvent.click(screen.getByTestId("report-province"));
+    // The trigger's own selected-value span already renders "All provinces",
+    // so the open listbox contributes a SECOND match — assert on the count.
+    expect((await screen.findAllByText("All provinces")).length).toBe(2);
+    expect(screen.getByText("Oriental Mindoro")).toBeTruthy();
+    expect(screen.getByText("Occidental Mindoro")).toBeTruthy();
+    expect(screen.getByText("Palawan")).toBeTruthy();
+  });
+
+  it("selecting a province sets the province filter and clears any selected municipality", async () => {
+    renderBar();
+
+    await openAndPick("report-municipality", "Calapan City"); // m-1
+    expect(screen.getByTestId("probe").getAttribute("data-municipality")).toBe(
+      "m-1",
+    );
+
+    await openAndPick("report-province", "Palawan");
+
+    const probe = screen.getByTestId("probe");
+    expect(probe.getAttribute("data-province")).toBe("Palawan");
+    expect(probe.getAttribute("data-municipality")).toBe("null");
+  });
+
+  it("narrows the Municipality select to only the selected province's municipalities", async () => {
+    renderBar();
+
+    await openAndPick("report-province", "Oriental Mindoro");
+
+    fireEvent.pointerDown(screen.getByTestId("report-municipality"));
+    fireEvent.click(screen.getByTestId("report-municipality"));
+    expect(await screen.findByText("Calapan City")).toBeTruthy();
+    expect(screen.getByText("Naujan")).toBeTruthy();
+    expect(screen.queryByText("Mamburao")).toBeNull();
+    expect(screen.queryByText("Puerto Princesa")).toBeNull();
+  });
+
+  it("selecting 'All provinces' restores every province group in the Municipality select", async () => {
+    renderBar();
+
+    await openAndPick("report-province", "Palawan");
+    expect(screen.getByTestId("probe").getAttribute("data-province")).toBe(
+      "Palawan",
+    );
+
+    await openAndPick("report-province", "All provinces");
+    expect(screen.getByTestId("probe").getAttribute("data-province")).toBe(
+      "null",
+    );
+
+    fireEvent.pointerDown(screen.getByTestId("report-municipality"));
+    fireEvent.click(screen.getByTestId("report-municipality"));
+    expect(await screen.findByText("Calapan City")).toBeTruthy();
+    expect(screen.getByText("Mamburao")).toBeTruthy();
+    expect(screen.getByText("Puerto Princesa")).toBeTruthy();
   });
 });

@@ -21,8 +21,9 @@ import { CalendarOff } from "lucide-react";
  * message (PatrolListByRangeCard: "No patrols in this range.",
  * EventsOverTimeChart: "No events in range") for the signal that IS empty.
  *
- * Only shown for a specific municipality: a zero across "all municipalities" is
- * a different (and rare) situation, so the band is left as-is there.
+ * Only shown for a specific municipality OR a province rollup (2026-07-09): a
+ * zero across "all municipalities" (no municipality AND no province) is a
+ * different (and rare) situation, so the band is left as-is there.
  */
 
 /**
@@ -30,22 +31,29 @@ import { CalendarOff } from "lucide-react";
  * Pure + side-effect-free so the condition is unit-testable in isolation.
  *
  * Returns true ONLY when:
- *  - a specific municipality is selected (municipalityId !== null), AND
+ *  - a specific municipality OR a province rollup is selected (municipalityId
+ *    !== null, or — 2026-07-09 — province !== null when no single
+ *    municipality is picked), AND
  *  - the queries are no longer loading (avoid flashing the message mid-fetch), AND
  *  - the total event count for the range is exactly zero, AND
  *  - the total patrol count for the range is exactly zero (patrols carry their
  *    own signal — e.g. foot-patrol tracks — independent of events), AND
- *  - the municipality name is known (so the message can always name the place).
+ *  - the resolved scope name is known (so the message can always name the
+ *    place — municipality name or province).
  */
 export function shouldShowReportMapEmptyState(args: {
   municipalityId: string | null;
+  /** Optional province rollup scope (2026-07-09). Ignored when municipalityId
+   *  is set; when municipalityId is null, a non-null province also qualifies
+   *  as a scoped view (as opposed to "all municipalities"). */
+  province?: string | null;
   totalEvents: number;
   totalPatrols: number;
   isLoading: boolean;
   municipalityName: string | null;
 }): boolean {
   return (
-    args.municipalityId !== null &&
+    (args.municipalityId !== null || (args.province ?? null) !== null) &&
     !args.isLoading &&
     args.totalEvents === 0 &&
     args.totalPatrols === 0 &&
