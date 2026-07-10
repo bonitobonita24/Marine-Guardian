@@ -4,6 +4,8 @@ import { encode as defaultEncode } from "next-auth/jwt";
 import bcrypt from "bcryptjs";
 import { prisma } from "@marine-guardian/db";
 import { z } from "zod";
+import { resolvePermissions } from "@/lib/rbac/has-permission";
+import type { RolePermissionPrisma } from "@/lib/rbac/has-permission";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -93,6 +95,7 @@ export const authConfig: NextAuthConfig = {
             roles: [user.role],
             securityVersion: user.securityVersion,
             rememberMe: parsed.data.rememberMe === "true",
+            customRoleId: user.customRoleId,
           };
           console.log("[authorize] returning user:", { id: result.id, tenantId: result.tenantId, roles: result.roles, securityVersion: result.securityVersion });
           return result;
@@ -117,6 +120,23 @@ export const authConfig: NextAuthConfig = {
           token.roles = user.roles;
           token.securityVersion = user.securityVersion;
           token.rememberMe = user.rememberMe ?? false;
+          token.customRoleId = user.customRoleId ?? null;
+          // Coarse permission summary, mirrored for UX gating only (edge
+          // middleware + sidebar nav). matrixProcedure always re-queries the
+          // DB — this cached copy is never treated as authoritative.
+          token.customRolePermissions =
+            user.customRoleId !== null && user.customRoleId !== undefined
+              ? await resolvePermissions(
+                  // The extended (tenant-guard + encryption) client is
+                  // structurally compatible with the base RolePermissionPrisma
+                  // surface at runtime; the extension's generic overload
+                  // signature just isn't assignable under
+                  // exactOptionalPropertyTypes. See has-permission.ts.
+                  prisma as unknown as RolePermissionPrisma,
+                  user.tenantId ?? "",
+                  user.customRoleId,
+                )
+              : null;
         }
         /* eslint-enable @typescript-eslint/no-unnecessary-condition */
 
@@ -152,6 +172,8 @@ export const authConfig: NextAuthConfig = {
             tenantId: token.tenantId ?? "",
             tenantSlug: token.tenantSlug ?? "",
             roles: token.roles ?? [],
+            customRoleId: token.customRoleId ?? null,
+            customRolePermissions: token.customRolePermissions ?? null,
           },
         };
       } catch (e) {

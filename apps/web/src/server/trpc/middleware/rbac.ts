@@ -1,5 +1,10 @@
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure } from "../trpc";
+import { tenantProcedure } from "./tenant";
+import { prisma } from "@marine-guardian/db";
+import type { PrismaClient } from "@marine-guardian/db";
+import { hasPermission } from "../../../lib/rbac/has-permission";
+import type { FeatureKey, FeatureAction } from "../../../lib/rbac/feature-registry";
 
 type Role =
   | "tenant_manager"
@@ -91,3 +96,30 @@ export const userManagementProcedure = requireRole("tenant_manager", "tenant_sup
 // userManagementProcedure (tenant_manager + tenant_superadmin — the tenant
 // owner manages its own billing) — no consumers yet.
 export const billingProcedure = requireRole("tenant_manager", "tenant_superadmin");
+
+// matrixProcedure (tenant-rbac-standard §4 — custom-role permission matrix):
+// gates a single feature/action pair via the authoritative DB-backed
+// resolver (has-permission.ts). Built on tenantProcedure (not one of the
+// requireRole(...) gates above) because a matrix-gated procedure must be
+// reachable by BOTH fixed enum roles (hasPermission defers to true when
+// ctx.customRoleId is null — the upstream enum gates already govern them)
+// AND users assigned a custom role (fully deny-by-default, resolved from
+// RolePermission rows). Reserved features (users/settings/billing/profile)
+// can never be granted via this path — hasPermission hard-clamps them.
+// Downstream routers wire this per-procedure, e.g.:
+//   list: matrixProcedure("events", "view").query(...)
+//   create: matrixProcedure("events", "write").mutation(...)
+export function matrixProcedure(feature: FeatureKey, action: FeatureAction) {
+  return tenantProcedure.use(async ({ ctx, next }) => {
+    const allowed = await hasPermission(
+      prisma as unknown as PrismaClient,
+      { tenantId: ctx.tenantId, customRoleId: ctx.customRoleId },
+      feature,
+      action,
+    );
+    if (!allowed) {
+      throw new TRPCError({ code: "FORBIDDEN" });
+    }
+    return next({ ctx });
+  });
+}

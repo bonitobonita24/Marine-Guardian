@@ -24,6 +24,8 @@ export const edgeAuthConfig: NextAuthConfig = {
           tenantId: token.tenantId ?? "",
           tenantSlug: token.tenantSlug ?? "",
           roles: token.roles ?? [],
+          customRoleId: token.customRoleId ?? null,
+          customRolePermissions: token.customRolePermissions ?? null,
         },
       };
     },

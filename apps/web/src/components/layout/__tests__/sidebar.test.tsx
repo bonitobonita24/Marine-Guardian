@@ -15,12 +15,19 @@ const { stubs } = vi.hoisted(() => {
     useQueryCalled: boolean;
     invalidateUnreadCount: ReturnType<typeof vi.fn<() => Promise<void>>>;
     sessionRoles: string[];
+    sessionCustomRoleId: string | null;
+    sessionCustomRolePermissions: Record<
+      string,
+      { view: boolean; write: boolean; update: boolean; delete: boolean }
+    > | null;
   } = {
     notificationsLength: 0,
     useQueryOpts: undefined,
     useQueryCalled: false,
     invalidateUnreadCount: vi.fn<() => Promise<void>>(),
     sessionRoles: [],
+    sessionCustomRoleId: null,
+    sessionCustomRolePermissions: null,
   };
   return { stubs };
 });
@@ -75,7 +82,13 @@ vi.mock("next-intl", () => ({
 vi.mock("next-auth/react", () => ({
   signOut: vi.fn(),
   useSession: () => ({
-    data: { user: { roles: stubs.sessionRoles } },
+    data: {
+      user: {
+        roles: stubs.sessionRoles,
+        customRoleId: stubs.sessionCustomRoleId,
+        customRolePermissions: stubs.sessionCustomRolePermissions,
+      },
+    },
   }),
 }));
 
@@ -90,6 +103,8 @@ describe("Sidebar — SSE-driven invalidation", () => {
     stubs.invalidateUnreadCount.mockReset();
     stubs.invalidateUnreadCount.mockResolvedValue(undefined);
     stubs.sessionRoles = [];
+    stubs.sessionCustomRoleId = null;
+    stubs.sessionCustomRolePermissions = null;
   });
 
   afterEach(() => {
@@ -138,6 +153,8 @@ describe("Sidebar — viewer role nav filtering", () => {
     stubs.invalidateUnreadCount.mockReset();
     stubs.invalidateUnreadCount.mockResolvedValue(undefined);
     stubs.sessionRoles = [];
+    stubs.sessionCustomRoleId = null;
+    stubs.sessionCustomRolePermissions = null;
   });
 
   afterEach(() => {
@@ -239,6 +256,8 @@ describe("Sidebar — viewer role nav filtering", () => {
     // non-site-admin, so the two site-admin-only items stay hidden rather than
     // flashing in before the session resolves. Route/tRPC layers enforce access.
     stubs.sessionRoles = [];
+    stubs.sessionCustomRoleId = null;
+    stubs.sessionCustomRolePermissions = null;
     const { getByText, queryByText } = render(<Sidebar />);
     expect(queryByText("users")).toBeNull();
     expect(queryByText("settings")).toBeNull();
@@ -259,6 +278,8 @@ describe("Sidebar — Exports submenu item", () => {
     stubs.invalidateUnreadCount.mockReset();
     stubs.invalidateUnreadCount.mockResolvedValue(undefined);
     stubs.sessionRoles = [];
+    stubs.sessionCustomRoleId = null;
+    stubs.sessionCustomRolePermissions = null;
   });
 
   afterEach(() => {
@@ -280,5 +301,92 @@ describe("Sidebar — Exports submenu item", () => {
     stubs.sessionRoles = ["viewer"];
     const { getByText } = render(<Sidebar />);
     expect(getByText("exports")).toBeTruthy();
+  });
+});
+
+// Custom-role matrix nav filtering (tenant-rbac-standard §4, surface 3 of
+// 3 — tRPC matrixProcedure + route middleware + this sidebar). A session
+// with `customRoleId` set is deny-by-default against `customRolePermissions`:
+// only items whose feature key has `view === true` show, plus /dashboard +
+// /profile which are always visible; /users + /settings are never grantable
+// and stay hidden regardless of what the matrix contains.
+describe("Sidebar — custom-role permission-matrix nav filtering", () => {
+  beforeEach(() => {
+    stubs.notificationsLength = 0;
+    stubs.useQueryOpts = undefined;
+    stubs.useQueryCalled = false;
+    stubs.invalidateUnreadCount.mockReset();
+    stubs.invalidateUnreadCount.mockResolvedValue(undefined);
+    stubs.sessionRoles = [];
+    stubs.sessionCustomRoleId = null;
+    stubs.sessionCustomRolePermissions = null;
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("shows only Events + Map (plus Dashboard + Profile) when the matrix grants view on events + map", () => {
+    stubs.sessionCustomRoleId = "custom-role-1";
+    stubs.sessionCustomRolePermissions = {
+      events: { view: true, write: false, update: false, delete: false },
+      map: { view: true, write: false, update: false, delete: false },
+    };
+    const { getByText, queryByText } = render(<Sidebar />);
+
+    expect(getByText("dashboard")).toBeTruthy();
+    expect(getByText("profile")).toBeTruthy();
+    expect(getByText("events")).toBeTruthy();
+    expect(getByText("map")).toBeTruthy();
+
+    expect(queryByText("patrols")).toBeNull();
+    expect(queryByText("patrolAreas")).toBeNull();
+    expect(queryByText("patrolSchedule")).toBeNull();
+    expect(queryByText("exports")).toBeNull();
+    expect(queryByText("notifications")).toBeNull();
+    expect(queryByText("fuel")).toBeNull();
+    expect(queryByText("alerts")).toBeNull();
+    expect(queryByText("subjects")).toBeNull();
+    expect(queryByText("sync")).toBeNull();
+    expect(queryByText("users")).toBeNull();
+    expect(queryByText("settings")).toBeNull();
+  });
+
+  it("shows only Dashboard + Profile when the matrix grants nothing", () => {
+    stubs.sessionCustomRoleId = "custom-role-2";
+    stubs.sessionCustomRolePermissions = {};
+    const { getByText, queryByText } = render(<Sidebar />);
+
+    expect(getByText("dashboard")).toBeTruthy();
+    expect(getByText("profile")).toBeTruthy();
+
+    for (const key of [
+      "map",
+      "exports",
+      "events",
+      "notifications",
+      "patrols",
+      "patrolAreas",
+      "patrolSchedule",
+      "fuel",
+      "alerts",
+      "subjects",
+      "sync",
+      "users",
+      "settings",
+    ]) {
+      expect(queryByText(key)).toBeNull();
+    }
+  });
+
+  it("never shows Users or Settings for a custom role, even if the matrix (incorrectly) grants them", () => {
+    stubs.sessionCustomRoleId = "custom-role-3";
+    stubs.sessionCustomRolePermissions = {
+      users: { view: true, write: true, update: true, delete: true },
+      settings: { view: true, write: true, update: true, delete: true },
+    };
+    const { queryByText } = render(<Sidebar />);
+    expect(queryByText("users")).toBeNull();
+    expect(queryByText("settings")).toBeNull();
   });
 });

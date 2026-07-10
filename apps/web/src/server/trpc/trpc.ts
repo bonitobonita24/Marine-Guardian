@@ -44,6 +44,10 @@ export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
       tenantId: effectiveTenantId,
       roles,
       isPlatformImpersonating,
+      // Custom-role identity — matrixProcedure re-queries the DB via
+      // has-permission.ts for authoritative CRUD checks; this is only the
+      // identity pointer (not the cached permission summary).
+      customRoleId: ctx.session.user.customRoleId ?? null,
     },
   });
 });

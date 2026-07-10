@@ -31,6 +31,7 @@ import { APP_VERSION } from "@/lib/version";
 import { useNotificationStore } from "@/lib/realtime/notification-store";
 import { useTenantSlug } from "@/lib/routing/use-tenant-slug";
 import { tenantHref } from "@/lib/routing/tenant-href";
+import type { CustomRolePermissionSummary } from "@/server/auth/types";
 
 interface NavItem {
   href: string;
@@ -127,7 +128,56 @@ const VIEWER_ALLOWED_HREFS = new Set<string>([
 // /users or /settings URL) lives in middleware.ts + the tRPC layer.
 const TENANT_ADMIN_AREA_HREFS = new Set<string>(["/users", "/settings"]);
 
-function getVisibleNavGroups(roles: readonly string[]) {
+// Every authenticated role keeps these two, regardless of the custom-role
+// permission matrix — /dashboard is the landing page and /profile is the
+// self-service page every role must always reach (mirrors the enum-role
+// behavior above, where neither is ever hidden).
+const ALWAYS_VISIBLE_HREFS = new Set<string>(["/dashboard", "/profile"]);
+
+/**
+ * True iff a nav item's href maps to a feature the custom role's matrix
+ * grants `view` on. Deny-by-default: an unknown/missing feature key, or a
+ * matrix with no entry for it, renders as not-visible.
+ */
+function isFeatureViewableByMatrix(
+  href: string,
+  customRolePermissions: CustomRolePermissionSummary | null | undefined,
+): boolean {
+  const key = href.replace(/^\//, "");
+  return customRolePermissions?.[key]?.view === true;
+}
+
+/**
+ * Custom-role nav filtering (tenant-rbac-standard §4 — data-driven layer,
+ * matrix surface 3 of 3: tRPC + route middleware + this sidebar). Deny by
+ * default against `customRolePermissions`; /dashboard + /profile are always
+ * shown; /users + /settings are never grantable and always hidden.
+ */
+function getVisibleNavGroupsForCustomRole(
+  customRolePermissions: CustomRolePermissionSummary | null | undefined,
+) {
+  return navGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => {
+        if (ALWAYS_VISIBLE_HREFS.has(item.href)) return true;
+        if (TENANT_ADMIN_AREA_HREFS.has(item.href)) return false;
+        return isFeatureViewableByMatrix(item.href, customRolePermissions);
+      }),
+    }))
+    .filter((group) => group.items.length > 0);
+}
+
+function getVisibleNavGroups(
+  roles: readonly string[],
+  options?: {
+    customRoleId?: string | null;
+    customRolePermissions?: CustomRolePermissionSummary | null;
+  },
+) {
+  if (options?.customRoleId != null) {
+    return getVisibleNavGroupsForCustomRole(options.customRolePermissions);
+  }
   if (roles.includes("viewer")) {
     return navGroups
       .map((group) => ({
@@ -168,7 +218,12 @@ export function Sidebar() {
   const unread = unreadCountQuery.data ?? 0;
   const { data: session } = useSession();
   const roles = session?.user.roles ?? [];
-  const visibleNavGroups = getVisibleNavGroups(roles);
+  const customRoleId = session?.user.customRoleId ?? null;
+  const customRolePermissions = session?.user.customRolePermissions ?? null;
+  const visibleNavGroups = getVisibleNavGroups(roles, {
+    customRoleId,
+    customRolePermissions,
+  });
 
   // Realtime-driven invalidation: when `useNotificationStream` (mounted once
   // in RealtimeProvider) prepends a new notification to the in-memory store,

@@ -4,6 +4,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { verifyServiceToken } from "@/server/lib/service-token-guard";
 import { IMPERSONATION_SLUG_COOKIE_NAME } from "@/lib/auth/impersonation";
+import { getFeature } from "@/lib/rbac/feature-registry";
+import type { CustomRolePermissionSummary } from "@/server/auth/types";
 
 // Edge-compatible auth instance — no bcrypt, no prisma, no node:crypto
 const { auth } = NextAuth(edgeAuthConfig);
@@ -100,6 +102,41 @@ function isTenantAdminAreaPath(pathname: string): boolean {
   return TENANT_ADMIN_AREA_PREFIXES.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
+}
+
+// Custom-role (data-driven, tenant-rbac-standard §4) coarse route gate.
+// Segments that are ALWAYS allowed for a custom-role user regardless of the
+// matrix — the landing page and the self-service profile page must never be
+// unreachable. `/users` and `/settings` are deliberately NOT handled here:
+// they are already gated above by isTenantAdminAreaPath (custom roles never
+// carry tenant_superadmin/tenant_manager, so that gate already excludes them).
+const CUSTOM_ROLE_ALWAYS_ALLOWED_SEGMENTS = new Set(["dashboard", "profile"]);
+
+// The first slug-stripped path segment, e.g. "/patrol-areas/123" -> "patrol-areas".
+function firstRestSegment(rest: string): string {
+  return rest.split("/").filter(Boolean)[0] ?? "";
+}
+
+// Edge-only deny-by-default view gate for custom-role users. Only acts on
+// segments present in FEATURE_REGISTRY; any other segment (not a registered
+// grantable feature) is left to the existing gates above and is NOT blocked
+// here. This is a coarse nav guard only — matrixProcedure re-resolves the
+// full CRUD matrix from the DB server-side and is the sole authority.
+function isCustomRoleViewAllowedPath(
+  rest: string,
+  permissions: CustomRolePermissionSummary | null | undefined,
+): boolean {
+  const segment = firstRestSegment(rest);
+  if (CUSTOM_ROLE_ALWAYS_ALLOWED_SEGMENTS.has(segment)) {
+    return true;
+  }
+  const feature = getFeature(segment);
+  if (!feature) {
+    // Not a registered grantable feature (e.g. /users, /settings — already
+    // handled by isTenantAdminAreaPath) — do not gate it here.
+    return true;
+  }
+  return permissions?.[feature.key]?.view === true;
 }
 
 export default async function middleware(request: NextRequest) {
@@ -225,6 +262,17 @@ export default async function middleware(request: NextRequest) {
   // tenant owner manages its own tenant, not just the platform (2026-07-10).
   const isTenantAdminAreaUser = isSuperAdmin || roles.includes("tenant_superadmin");
   if (!isTenantAdminAreaUser && isTenantAdminAreaPath(rest)) {
+    return NextResponse.redirect(new URL(`/${tenantSlug}/dashboard`, request.url));
+  }
+
+  // Custom-role (data-driven matrix, tenant-rbac-standard §4) coarse route
+  // gate — deny-by-default on `view`. Fine-grained CRUD enforcement happens
+  // server-side in tRPC matrixProcedure; this is only the edge nav guard, so
+  // a custom-role user can never even land on a page it has no `view` on.
+  if (
+    session.user.customRoleId != null &&
+    !isCustomRoleViewAllowedPath(rest, session.user.customRolePermissions)
+  ) {
     return NextResponse.redirect(new URL(`/${tenantSlug}/dashboard`, request.url));
   }
 

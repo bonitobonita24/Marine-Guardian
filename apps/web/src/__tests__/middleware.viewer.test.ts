@@ -194,3 +194,58 @@ describe("middleware — administrator role route gate", () => {
     expect(resSettings.status).toBe(200);
   });
 });
+
+// Custom-role (data-driven matrix, tenant-rbac-standard §4) coarse route-gate
+// tests (2026-07-11). Deny-by-default on `view` for any FEATURE_REGISTRY
+// segment; /dashboard and /profile always allowed; enum-role (customRoleId
+// null/undefined) users are completely unaffected by this gate.
+describe("middleware — custom-role route gate", () => {
+  beforeEach(() => {
+    mockAuth.mockReset();
+  });
+
+  function makeCustomRoleSession(
+    permissions: Record<string, { view: boolean; write: boolean; update: boolean; delete: boolean }>,
+    tenantId = "tenant-1",
+  ) {
+    return {
+      user: {
+        id: "user-1",
+        tenantId,
+        tenantSlug: "demo-site",
+        roles: [],
+        customRoleId: "custom-role-1",
+        customRolePermissions: permissions,
+      },
+    };
+  }
+
+  it("allows a custom-role user with events.view=true to reach /events", async () => {
+    mockAuth.mockResolvedValue(
+      makeCustomRoleSession({ events: { view: true, write: false, update: false, delete: false } }),
+    );
+    const res = await middleware(makeRequest("/events"));
+    expect(res.status).toBe(200);
+  });
+
+  it("redirects a custom-role user with no view on /patrols to /dashboard", async () => {
+    mockAuth.mockResolvedValue(makeCustomRoleSession({}));
+    const res = await middleware(makeRequest("/patrols"));
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe("https://app.example.com/demo-site/dashboard");
+  });
+
+  it("allows a custom-role user with empty permissions to reach /dashboard and /profile", async () => {
+    mockAuth.mockResolvedValue(makeCustomRoleSession({}));
+    const resDashboard = await middleware(makeRequest("/dashboard"));
+    expect(resDashboard.status).toBe(200);
+    const resProfile = await middleware(makeRequest("/profile"));
+    expect(resProfile.status).toBe(200);
+  });
+
+  it("does NOT gate an enum-role (non-custom-role) user via the matrix", async () => {
+    mockAuth.mockResolvedValue(makeSession(["operator"]));
+    const res = await middleware(makeRequest("/events"));
+    expect(res.status).toBe(200);
+  });
+});

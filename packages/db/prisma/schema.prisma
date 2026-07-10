@@ -267,6 +267,9 @@ model Tenant {
 
   reportTemplates ReportTemplate[]
 
+  // custom-role matrix layer
+  customRoles CustomRole[]
+
   @@map("tenants")
 }
 
@@ -313,10 +316,16 @@ model User {
   isActive                    Boolean   @default(true) @map("is_active")
   securityVersion             Int       @default(1) @map("security_version")
   lastLoginAt                 DateTime? @map("last_login_at")
+  // custom-role matrix layer — nullable FK, only meaningful when role = tenant_admin.
+  // Anchors a tenant_admin-tier user to a tenant-scoped custom role whose
+  // permissions are resolved from RolePermission (strict CRUD, hard-clamped
+  // to <= tenant_admin ceiling). See DECISIONS_LOG.md "Custom-role matrix layer".
+  customRoleId                String?   @map("custom_role_id")
   createdAt                   DateTime  @default(now()) @map("created_at")
   updatedAt                   DateTime  @updatedAt @map("updated_at")
 
   tenant                   Tenant?                 @relation(fields: [tenantId], references: [id])
+  customRole                CustomRole?             @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
   notificationRecipients   NotificationRecipient[]
   createdPatrolAreas       PatrolArea[]            @relation("PatrolAreaCreatedBy")
   createdAreaBoundaries    AreaBoundary[]          @relation("AreaBoundaryCreatedBy")
@@ -337,7 +346,52 @@ model User {
   breachNotificationsRecorded BreachNotificationRecord[] @relation("BreachRecordedBy")
 
   @@index([tenantId])
+  @@index([customRoleId])
   @@map("users")
+}
+
+/// Custom-role matrix layer — data-driven RBAC below the 3 fixed system tiers
+/// (tenant_manager / tenant_superadmin / tenant_admin). A custom role is a
+/// tenant-scoped named permission set, anchored on User.role = tenant_admin
+/// (the enum stays fixed — a custom role never changes the enum value).
+/// Only tenant_superadmin (+ platform tenant_manager) may create/assign these.
+/// See DECISIONS_LOG.md "Custom-role matrix layer" for the full design.
+model CustomRole {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  name        String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users       User[]
+  permissions RolePermission[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("custom_roles")
+}
+
+/// Per-feature CRUD permission row for a CustomRole. Strict CRUD split:
+/// write = create-only, update = edit-only, delete = separate column.
+/// Deny-by-default — a missing row for a feature means no access.
+/// featureKey granularity = per-nav-href (matches the sidebar nav registry).
+model RolePermission {
+  id           String  @id @default(cuid())
+  tenantId     String  @map("tenant_id")
+  customRoleId String  @map("custom_role_id")
+  featureKey   String  @map("feature_key")
+  view         Boolean @default(false)
+  write        Boolean @default(false)
+  update       Boolean @default(false)
+  delete       Boolean @default(false)
+
+  customRole CustomRole @relation(fields: [customRoleId], references: [id], onDelete: Cascade)
+
+  @@unique([customRoleId, featureKey])
+  @@index([tenantId])
+  @@map("role_permissions")
 }
 
 model EventType {

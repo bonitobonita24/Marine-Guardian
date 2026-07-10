@@ -30,9 +30,11 @@ import { municipalityRouter } from "./municipality";
 import { reportMapRouter } from "./reportMap";
 import { reportTemplateRouter } from "./reportTemplate";
 import { accountRouter } from "./account";
+import { customRoleRouter } from "./customRole";
 
 export const appRouter = router({
   account: accountRouter,
+  customRole: customRoleRouter,
   settings: settingsRouter,
   platform: platformRouter,
   platformUser: platformUserRouter,
