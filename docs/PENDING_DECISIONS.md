@@ -2,6 +2,31 @@
 
 > Un-gated work continues regardless; these items are re-surfaced each session until resolved.
 
+## 2026-07-09 — Post full-deploy owner-gated items (MG only)
+
+**Context:** Generic-Boundaries Phase 4 (province rollup + include-children + coverage narrowing),
+the ph tenant rename, 2 dashboard KPI fixes, and the Phase 3 terrain feature were all reconciled onto
+`main` (origin `f01af4a`→`c93cd01`, 19 commits) and **deployed live to staging + prod + demo** (all
+green on `c93cd01`; 4 additive terrain migrations applied to each; prod backed up first; demo not
+reseeded). The canonical 3-tier login scheme + platform tenant-manager were applied directly to every
+env DB earlier this session (bcrypt-verified). See memory `project_marine_guardian_boundaries_prod_rollout_0709`.
+
+**Remaining owner decisions / gates:**
+- [ ] **`feat/canonical-seed-credentials` (@5a52225, off phase4a) — merge?** Aligns `seed.ts` to the
+  canonical scheme (webmaster upsert keys on `WEBMASTER_EMAIL` via `requireEnv`; optional
+  `tenantadmin@powerbyteitsolutions.com` platform super_admin). DELIBERATELY LEFT UNMERGED: its
+  `requireEnv("WEBMASTER_EMAIL")` would break a future `pnpm db:seed` on any env whose stack `.env`
+  lacks the var. **Before merging: add `WEBMASTER_EMAIL` (+ `TENANTADMIN_EMAIL`/`TENANTADMIN_PASSWORD`,
+  single-quoted for the `#`/`\` chars) to the staging/prod/demo Komodo `.env` files.** Inert until a
+  reseed (live creds already correct), so no urgency.
+- [ ] **Active-Events "18 vs 23" Skylight decision** — dashboard Active-Events KPI shows 18 (unresolved,
+  Skylight-excluded) vs a 23 count that includes Skylight. Owner to decide the canonical definition.
+- [ ] **Banggai / Pecca additional tenants** — new regional tenants beyond `ph` (Philippines). Product/scope call.
+- [ ] **Area-attribution backfill** — re-run point-in-polygon attribution (incl. new water-geometry stage)
+  across historical events/patrols so older rows pick up municipality/terrain assignment. Owner-gated
+  (touches historical data at scale).
+- Out of scope by owner directive (2026-07-09): the separate `fmo.powerbyte.app` reporting tool + any non-MG app — do NOT touch from the MG seat.
+
 ## 2026-07-07 — Ranger roster sync bug (FIXED) + related decisions
 
 **Context (owner report, 2026-07-07):** Command Center roster showed "Apo Reef LGU" ON PATROL, but
