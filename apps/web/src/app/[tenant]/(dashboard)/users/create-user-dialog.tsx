@@ -22,17 +22,16 @@ import {
 } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc/client";
 
-type UserRole =
-  | "tenant_manager"
-  | "tenant_superadmin"
+// Only roles a tenant owner/manager may ASSIGN — tenant_admin and below.
+// tenant_manager (platform) and tenant_superadmin (the single owner) are never
+// created here; ownership is changed via the dedicated reassign/transfer flows.
+type AssignableRole =
+  | "tenant_admin"
   | "field_coordinator"
   | "operator"
-  | "viewer"
-  | "tenant_admin";
+  | "viewer";
 
-const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
-  { value: "tenant_manager", label: "Super Admin" },
-  { value: "tenant_superadmin", label: "Site Admin" },
+const ROLE_OPTIONS: { value: AssignableRole; label: string }[] = [
   { value: "tenant_admin", label: "Administrator" },
   { value: "field_coordinator", label: "Field Coordinator" },
   { value: "operator", label: "Operator" },
@@ -47,7 +46,7 @@ export function CreateUserDialog({ onSuccess }: CreateUserDialogProps) {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState<UserRole>("operator");
+  const [role, setRole] = useState<AssignableRole>("operator");
   const [tempPassword, setTempPassword] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -151,7 +150,7 @@ export function CreateUserDialog({ onSuccess }: CreateUserDialogProps) {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="create-role">Role</Label>
-                <Select value={role} onValueChange={(v) => { setRole(v as UserRole); }}>
+                <Select value={role} onValueChange={(v) => { setRole(v as AssignableRole); }}>
                   <SelectTrigger id="create-role">
                     <SelectValue />
                   </SelectTrigger>

@@ -67,6 +67,61 @@ function makeCtx(
   };
 }
 
+// Privilege-escalation clamp (2026-07-10 security fix): user-management may only
+// assign tenant_admin and below. tenant_manager (platform) and tenant_superadmin
+// (the single owner) are NEVER assignable via create/updateRole — otherwise a
+// tenant_superadmin (allowed through the widened gate) could escalate to platform
+// or mint a second owner. Ownership changes go through reassign/transfer only.
+describe("user privilege-escalation clamp", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const badRole = (r: string) => r as unknown as "tenant_admin";
+
+  it("create rejects assigning tenant_manager (platform escalation)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
+    await expect(
+      caller.create({ email: "e@x.com", fullName: "E", role: badRole("tenant_manager") })
+    ).rejects.toThrow();
+    expect(vi.mocked(prisma.user.create)).not.toHaveBeenCalled();
+  });
+
+  it("create rejects assigning tenant_superadmin (second owner)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
+    await expect(
+      caller.create({ email: "f@x.com", fullName: "F", role: badRole("tenant_superadmin") })
+    ).rejects.toThrow();
+    expect(vi.mocked(prisma.user.create)).not.toHaveBeenCalled();
+  });
+
+  it("create allows tenant_admin", async () => {
+    vi.mocked(prisma.user.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.user.create).mockResolvedValue({
+      id: "u-adm", email: "a@x.com", fullName: "A", role: "tenant_admin", tenantId: TENANT_ID,
+    } as never);
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
+    const r = await caller.create({ email: "a@x.com", fullName: "A", role: "tenant_admin" });
+    expect(r.user.id).toBe("u-adm");
+  });
+
+  it("updateRole rejects assigning a protected role", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
+    await expect(
+      caller.updateRole({ id: "u2", role: badRole("tenant_manager") })
+    ).rejects.toThrow();
+  });
+
+  it("updateRole forbids modifying a user who is currently tenant_superadmin", async () => {
+    vi.mocked(prisma.user.findFirst).mockResolvedValue({
+      id: "owner", role: "tenant_superadmin", tenantId: TENANT_ID,
+    } as never);
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_manager"]));
+    await expect(
+      caller.updateRole({ id: "owner", role: "tenant_admin" })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(vi.mocked(prisma.user.update)).not.toHaveBeenCalled();
+  });
+});
+
 describe("user.create", () => {
   beforeEach(() => vi.clearAllMocks());
 

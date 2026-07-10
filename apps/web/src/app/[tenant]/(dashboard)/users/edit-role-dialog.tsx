@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc/client";
 
+// Full role set — used only for the currentRole prop (display + comparison).
 type UserRole =
   | "tenant_manager"
   | "tenant_superadmin"
@@ -28,9 +29,23 @@ type UserRole =
   | "viewer"
   | "tenant_admin";
 
-const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
-  { value: "tenant_manager", label: "Super Admin" },
-  { value: "tenant_superadmin", label: "Site Admin" },
+// Roles this dialog may ASSIGN — tenant_admin and below. tenant_manager and
+// tenant_superadmin are never editable here (changed via reassign/transfer, and
+// the backend user.updateRole FORBIDs modifying a protected role).
+type AssignableRole =
+  | "tenant_admin"
+  | "field_coordinator"
+  | "operator"
+  | "viewer";
+
+const ASSIGNABLE_ROLES: readonly AssignableRole[] = [
+  "tenant_admin",
+  "field_coordinator",
+  "operator",
+  "viewer",
+];
+
+const ROLE_OPTIONS: { value: AssignableRole; label: string }[] = [
   { value: "tenant_admin", label: "Administrator" },
   { value: "field_coordinator", label: "Field Coordinator" },
   { value: "operator", label: "Operator" },
@@ -54,7 +69,11 @@ export function EditRoleDialog({
   onOpenChange,
   onSuccess,
 }: EditRoleDialogProps) {
-  const [role, setRole] = useState<UserRole>(currentRole);
+  const [role, setRole] = useState<AssignableRole>(
+    (ASSIGNABLE_ROLES as readonly string[]).includes(currentRole)
+      ? (currentRole as AssignableRole)
+      : "tenant_admin"
+  );
   const [error, setError] = useState<string | null>(null);
 
   const utils = trpc.useUtils();
@@ -78,7 +97,11 @@ export function EditRoleDialog({
 
   function handleOpenChange(v: boolean) {
     if (!v) {
-      setRole(currentRole);
+      setRole(
+        (ASSIGNABLE_ROLES as readonly string[]).includes(currentRole)
+          ? (currentRole as AssignableRole)
+          : "tenant_admin"
+      );
       setError(null);
     }
     onOpenChange(v);
@@ -98,7 +121,7 @@ export function EditRoleDialog({
           <div className="space-y-4 py-4">
             <div className="space-y-1.5">
               <Label htmlFor="edit-role">New Role</Label>
-              <Select value={role} onValueChange={(v) => { setRole(v as UserRole); }}>
+              <Select value={role} onValueChange={(v) => { setRole(v as AssignableRole); }}>
                 <SelectTrigger id="edit-role">
                   <SelectValue />
                 </SelectTrigger>

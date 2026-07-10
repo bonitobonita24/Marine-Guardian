@@ -19,6 +19,26 @@ const userRoleSchema = z.enum([
   "tenant_admin",
 ]);
 
+// Roles that user-management (create/updateRole) is allowed to ASSIGN. Privilege
+// ceiling: tenant_admin and below only. tenant_manager (platform) and
+// tenant_superadmin (the single per-tenant owner) are NEVER assignable via this
+// tenant-scoped surface — otherwise a tenant_superadmin (allowed through the
+// widened userManagementProcedure gate) could escalate a user to platform
+// tenant_manager or mint a second owner. Ownership is changed ONLY via the
+// dedicated flows: platformUser.reassignTenantSuperadmin (platform) and
+// user.transferOwnership (owner) — both of which atomically preserve the
+// one-tenant_superadmin-per-tenant invariant.
+const assignableRoleSchema = z.enum([
+  "tenant_admin",
+  "field_coordinator",
+  "operator",
+  "viewer",
+]);
+
+// Roles that may NOT be reassigned away from a user via updateRole (protected —
+// managed only by reassign/transfer): the platform manager and the tenant owner.
+const PROTECTED_ROLES = ["tenant_manager", "tenant_superadmin"] as const;
+
 export const userRouter = router({
   // create/resetPassword/updateRole/deactivate/activate/list/getById are all
   // gated to userManagementProcedure / superAdminProcedure (super_admin ONLY,
@@ -31,7 +51,7 @@ export const userRouter = router({
       z.object({
         email: z.string().email().max(255),
         fullName: z.string().min(1).max(255),
-        role: userRoleSchema,
+        role: assignableRoleSchema,
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -187,14 +207,7 @@ export const userRouter = router({
     .input(
       z.object({
         id: z.string(),
-        role: z.enum([
-          "tenant_manager",
-          "tenant_superadmin",
-          "field_coordinator",
-          "operator",
-          "viewer",
-          "tenant_admin",
-        ]),
+        role: assignableRoleSchema,
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -204,6 +217,16 @@ export const userRouter = router({
       });
       if (!existing) {
         throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
+      }
+
+      // Cannot change a protected role (platform manager / tenant owner) via this
+      // path — those are managed only by reassignTenantSuperadmin / transferOwnership.
+      if ((PROTECTED_ROLES as readonly string[]).includes(existing.role)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "This account's role is managed through ownership transfer, not user management.",
+        });
       }
 
       await prisma.user.update({

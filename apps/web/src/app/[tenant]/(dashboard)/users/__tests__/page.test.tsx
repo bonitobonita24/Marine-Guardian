@@ -217,12 +217,15 @@ describe("UsersPage", () => {
   it("opens EditRoleDialog when Change Role row action is invoked", () => {
     const { getAllByTestId, queryByTestId, getByTestId } = render(<UsersPage />);
     const changeRoleButtons = getAllByTestId("row-action-change-role");
+    // Alice Anderson (tenant_manager — a protected role) must NOT get a Change
+    // Role action; only the editable operator row (Bob Brown) does.
+    expect(changeRoleButtons).toHaveLength(1);
     const first = changeRoleButtons[0];
     if (first === undefined) throw new Error("No change-role button rendered");
     fireEvent.click(first);
     expect(queryByTestId("edit-role-dialog")).not.toBeNull();
     expect(getByTestId("edit-role-dialog").textContent).toContain(
-      "Alice Anderson",
+      "Bob Brown",
     );
   });
 

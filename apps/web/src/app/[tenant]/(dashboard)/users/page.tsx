@@ -268,20 +268,25 @@ export default function UsersPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Button
-                          data-testid="row-action-change-role"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setEditRoleTarget({
-                              id: user.id,
-                              role: user.role,
-                              name: user.fullName,
-                            });
-                          }}
-                        >
-                          Change Role
-                        </Button>
+                        {/* Protected roles (platform manager / tenant owner) are
+                            not editable here — managed via ownership reassign/transfer. */}
+                        {user.role !== "tenant_manager" &&
+                          user.role !== "tenant_superadmin" && (
+                            <Button
+                              data-testid="row-action-change-role"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setEditRoleTarget({
+                                  id: user.id,
+                                  role: user.role,
+                                  name: user.fullName,
+                                });
+                              }}
+                            >
+                              Change Role
+                            </Button>
+                          )}
                         <Button
                           data-testid="row-action-reset-password"
                           variant="outline"
