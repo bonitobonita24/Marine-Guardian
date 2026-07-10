@@ -27,6 +27,7 @@ import { signOut, useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc/client";
+import { APP_VERSION } from "@/lib/version";
 import { useNotificationStore } from "@/lib/realtime/notification-store";
 import { useTenantSlug } from "@/lib/routing/use-tenant-slug";
 import { tenantHref } from "@/lib/routing/tenant-href";
@@ -242,6 +243,18 @@ export function Sidebar() {
           <LogOut className="h-3 w-3" />
           {tAuth("signOut")}
         </Button>
+        {/* White-label signature (design-defaults Entry 3): app version + Powerbyte credit */}
+        <div className="px-2 pt-1 text-[9px] leading-tight text-muted-foreground/70">
+          <p>v{APP_VERSION}</p>
+          <a
+            href="https://www.powerbyteitsolutions.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition-colors hover:text-foreground hover:underline"
+          >
+            Developed by Powerbyte IT Solutions
+          </a>
+        </div>
       </div>
     </aside>
   );
