@@ -2,6 +2,27 @@
 
 > Un-gated work continues regardless; these items are re-surfaced each session until resolved.
 
+## 2026-07-10 — 3-tier tenant RBAC + tenant cleanup (session save / handover)
+
+**DONE this session (no decision needed — verified):**
+- ✅ Renamed the real PH tenant `demo-site`→`ph` on staging/prod/demo; DELETED test tenants (`qa-test-reef` all
+  envs, `bantay-dagat` dev) + their test users. Every env now single-tenant `ph`. Backups taken.
+- ✅ 3-tier tenant RBAC (`tenant_manager`/`tenant_superadmin`/`tenant_admin`) built + **applied to DEV DB** +
+  Visual-QA'd all 3 tiers. Branch `feat/tenant-rbac-3tier` (4 commits, LOCAL/unpushed). Full gate green.
+  Now the fleet standard (AIEF promoted: `~/.claude/rules/tenant-rbac-standard.md` + framework surfaces).
+- ✅ Earlier prior-session items resolved by the above: the "demo stale super_admins" finding + the credential
+  override are folded into the 3-tier scheme. (Supersedes the older `feat/canonical-seed-credentials` branch —
+  its intent is now carried by the new seed on `feat/tenant-rbac-3tier`.)
+
+**GATED — carry to next session (owner [WHAT]):**
+- [ ] **Deploy `feat/tenant-rbac-3tier` — per env, owner word each.** staging → prod → demo. Each env: ship image
+  → `prisma migrate deploy` → normalize to ONE `tenant_superadmin` (retire extra site_admins→tenant_admin FIRST,
+  else the one-owner partial-unique index fails) → apply that env's creds (stg/prod: `webmaster@powerbyteitsolutions.com`
+  + `admin@admin.com`; demo: `admin@demo.com`, NO tenant_admin; also retire demo's `webmaster@marine-guardian.local`
+  + `admin@mail.com`) → health verify. **Prod: pg_dump backup first.** Mirror `admin@admin.com` creds into the vault.
+- [ ] **Custom-role permission-matrix layer** (future gated MG pass): sub-role presets + `tenant_superadmin`
+  role-builder (feature registry × {view,write,update,delete}), per the fleet standard. NOT built.
+
 ## 2026-07-09 — Post full-deploy owner-gated items (MG only)
 
 **Context:** Generic-Boundaries Phase 4 (province rollup + include-children + coverage narrowing),
