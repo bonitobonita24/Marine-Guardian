@@ -3,7 +3,7 @@ import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
-import { userManagementProcedure, superAdminProcedure } from "../middleware/rbac";
+import { userManagementProcedure } from "../middleware/rbac";
 import { prisma, writeAuditLog } from "@marine-guardian/db";
 import type { PrismaClient } from "@marine-guardian/db";
 import { TRPCError } from "@trpc/server";
@@ -123,7 +123,7 @@ export const userRouter = router({
   // picker (e.g. the patrol schedule assignment dropdown) uses listActiveNames
   // below instead, which exposes no email/role/audit data and stays open to
   // every tenant member.
-  list: superAdminProcedure
+  list: userManagementProcedure
     .input(
       z.object({
         cursor: z.string().optional(),
@@ -169,7 +169,7 @@ export const userRouter = router({
       return { items, nextCursor };
     }),
 
-  getById: superAdminProcedure
+  getById: userManagementProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
       return prisma.user.findFirst({

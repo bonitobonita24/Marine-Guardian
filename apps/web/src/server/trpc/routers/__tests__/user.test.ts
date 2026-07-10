@@ -602,9 +602,10 @@ describe("user.list", () => {
     await expect(caller.list({})).resolves.toEqual({ items: [], nextCursor: undefined });
   });
 
-  it("rejects tenant_superadmin with FORBIDDEN (list/getById stay tenant_manager-only)", async () => {
+  it("allows tenant_superadmin (own tenant — user management includes viewing the roster)", async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([]);
     const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
-    await expect(caller.list({})).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.list({})).resolves.toEqual({ items: [], nextCursor: undefined });
   });
 
   it("rejects administrator with FORBIDDEN", async () => {
@@ -637,9 +638,10 @@ describe("user.getById", () => {
     await expect(caller.getById({ id: "u-1" })).resolves.toMatchObject({ id: "u-1" });
   });
 
-  it("rejects tenant_superadmin with FORBIDDEN (list/getById stay tenant_manager-only)", async () => {
+  it("allows tenant_superadmin (own tenant)", async () => {
+    vi.mocked(prisma.user.findFirst).mockResolvedValue({ id: "u-1" } as never);
     const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
-    await expect(caller.getById({ id: "u-1" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.getById({ id: "u-1" })).resolves.toMatchObject({ id: "u-1" });
   });
 
   it("rejects administrator with FORBIDDEN", async () => {
