@@ -20,6 +20,6 @@ export const PLATFORM_ADMIN_EMPTY_TENANT_MESSAGE =
 export function useIsPlatformAdminWithoutTenant(): boolean {
   const { data: session, status } = useSession();
   if (status !== "authenticated") return false;
-  if (!session.user.roles.includes("super_admin")) return false;
+  if (!session.user.roles.includes("tenant_manager")) return false;
   return session.user.tenantId === "";
 }

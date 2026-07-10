@@ -65,7 +65,7 @@ function authedSession() {
     user: {
       id: "u1",
       tenantId: "t1",
-      roles: ["site_admin"],
+      roles: ["tenant_superadmin"],
       email: "test@example.com",
       name: "Test User",
     },

@@ -20,8 +20,8 @@ enum Severity {
 }
 
 enum UserRole {
-  super_admin
-  site_admin
+  tenant_manager
+  tenant_superadmin
   field_coordinator
   operator
   // Read-only role (2026-07-05): can view ONLY Command Center (/dashboard) +
@@ -30,15 +30,15 @@ enum UserRole {
   // rbac.ts, so it is rejected by every tRPC mutation gated by those. Nav +
   // route-level gating live in sidebar.tsx + middleware.ts.
   viewer
-  // Full-access role (2026-07-06): everything super_admin/site_admin can do
+  // Full-access role (2026-07-06): everything tenant_manager/tenant_superadmin can do
   // app-wide — included in adminProcedure/coordinatorProcedure/
   // operatorProcedure/reportGenerateProcedure in rbac.ts — EXCEPT
   // adding/managing user accounts (user.create/resetPassword/updateRole/
   // deactivate/activate), which stay gated to the separate
-  // userManagementProcedure (super_admin + site_admin ONLY; administrator is
+  // userManagementProcedure (tenant_manager + tenant_superadmin ONLY; tenant_admin is
   // deliberately never added to it). Nav + route-level gating for /users
   // live in sidebar.tsx + middleware.ts.
-  administrator
+  tenant_admin
 }
 
 enum Language {

@@ -47,7 +47,7 @@ function tenantUser(slug: string, roles: string[] = ["operator"]): Session {
   return { user: { id: "u", tenantId: "t", tenantSlug: slug, roles } };
 }
 function platformAdmin(): Session {
-  return { user: { id: "s", tenantId: "", tenantSlug: "", roles: ["super_admin"] } };
+  return { user: { id: "s", tenantId: "", tenantSlug: "", roles: ["tenant_manager"] } };
 }
 
 // A redirect response exposes a Location header; next() does not.
@@ -186,7 +186,7 @@ describe("middleware — in-tenant role gates (slug-stripped)", () => {
   it("allows super_admin-with-tenant on /settings", async () => {
     // (a super_admin bound to a tenant — tenantSlug non-empty — is not a platform
     // user; the in-tenant super_admin-only gate must let them through)
-    mockAuth.mockResolvedValue(tenantUser("demo-site", ["super_admin"]));
+    mockAuth.mockResolvedValue(tenantUser("demo-site", ["tenant_manager"]));
     const res = await middleware(makeReq("/demo-site/settings"));
     expect(locationOf(res)).toBeNull();
   });

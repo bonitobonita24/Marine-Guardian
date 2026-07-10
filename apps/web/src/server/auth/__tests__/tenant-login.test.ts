@@ -73,7 +73,7 @@ const SUPER_ADMIN = {
   fullName: "Platform Admin",
   passwordHash: "hash",
   isActive: true,
-  role: "super_admin",
+  role: "tenant_manager",
   securityVersion: 1,
   tenantId: null,
   tenant: null,

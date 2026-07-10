@@ -43,13 +43,13 @@ export default function ExportsPage() {
   const { data: session } = useSession();
   const roles = session?.user.roles ?? [];
   const canViewExports =
-    roles.includes("super_admin") ||
-    roles.includes("site_admin") ||
+    roles.includes("tenant_manager") ||
+    roles.includes("tenant_superadmin") ||
     roles.includes("field_coordinator") ||
     roles.includes("viewer") ||
     // administrator (2026-07-06): full app access except user management;
     // coordinatorProcedure/reportGenerateProcedure both include it server-side.
-    roles.includes("administrator");
+    roles.includes("tenant_admin");
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [cursor, setCursor] = useState<string | undefined>(undefined);

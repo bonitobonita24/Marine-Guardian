@@ -96,7 +96,7 @@ describe("AdminLandingClient", () => {
     stubs.metricsData = undefined;
     stubs.metricsIsLoading = true;
     const { getAllByText } = render(
-      <AdminLandingClient email="admin@test.com" roles={["super_admin"]} />,
+      <AdminLandingClient email="admin@test.com" roles={["tenant_manager"]} />,
     );
     // Three KPI cards should all show "—"
     expect(getAllByText("—").length).toBeGreaterThanOrEqual(3);
@@ -105,7 +105,7 @@ describe("AdminLandingClient", () => {
   it("renders metric values when data is present", () => {
     stubs.metricsData = { totalTenants: 3, totalUsers: 12, totalEvents: 87 };
     const { getByText } = render(
-      <AdminLandingClient email="admin@test.com" roles={["super_admin"]} />,
+      <AdminLandingClient email="admin@test.com" roles={["tenant_manager"]} />,
     );
     expect(getByText("3")).toBeTruthy();
     expect(getByText("12")).toBeTruthy();
@@ -116,7 +116,7 @@ describe("AdminLandingClient", () => {
     stubs.listData = undefined;
     stubs.listIsLoading = true;
     const { getByText } = render(
-      <AdminLandingClient email="admin@test.com" roles={["super_admin"]} />,
+      <AdminLandingClient email="admin@test.com" roles={["tenant_manager"]} />,
     );
     expect(getByText("Loading tenants…")).toBeTruthy();
   });
@@ -125,7 +125,7 @@ describe("AdminLandingClient", () => {
     stubs.listData = [];
     stubs.listIsLoading = false;
     const { getByText } = render(
-      <AdminLandingClient email="admin@test.com" roles={["super_admin"]} />,
+      <AdminLandingClient email="admin@test.com" roles={["tenant_manager"]} />,
     );
     expect(getByText("No tenants yet.")).toBeTruthy();
   });
@@ -133,7 +133,7 @@ describe("AdminLandingClient", () => {
   it("renders tenant rows and status badges for two tenants", () => {
     stubs.listData = baseTenants;
     const { getByText, getAllByText } = render(
-      <AdminLandingClient email="admin@test.com" roles={["super_admin"]} />,
+      <AdminLandingClient email="admin@test.com" roles={["tenant_manager"]} />,
     );
     expect(getByText("Coral Bay Reserve")).toBeTruthy();
     expect(getByText("Reef Watch South")).toBeTruthy();

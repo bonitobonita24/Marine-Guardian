@@ -64,7 +64,7 @@ const USER_ID = "user-admin-1";
 
 function makeCtx(
   tenantId: string | null = TENANT_ID,
-  roles: string[] = ["super_admin"]
+  roles: string[] = ["tenant_manager"]
 ) {
   return {
     session: {
@@ -224,7 +224,7 @@ describe("settings.upsertErConnection", () => {
   // administrator: full app access EXCEPT Users AND Settings — Settings
   // mutations are gated to superAdminProcedure, so administrator is rejected.
   it("throws FORBIDDEN for administrator (Settings excluded 2026-07-06)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_admin"]));
     await expect(
       caller.upsertErConnection({ baseUrl: "https://er.example.com", apiToken: "tok" })
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -234,7 +234,7 @@ describe("settings.upsertErConnection", () => {
   // super_admin ONLY — site_admin was removed from superAdminProcedure and
   // must now be rejected here too (it previously passed via siteAdminProcedure).
   it("throws FORBIDDEN for site_admin (Settings tightened to super_admin 2026-07-07)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await expect(
       caller.upsertErConnection({ baseUrl: "https://er.example.com", apiToken: "tok" })
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -306,7 +306,7 @@ describe("settings.testErConnection", () => {
   });
 
   it("throws FORBIDDEN for administrator (Settings excluded 2026-07-06)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_admin"]));
     await expect(caller.testErConnection()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 

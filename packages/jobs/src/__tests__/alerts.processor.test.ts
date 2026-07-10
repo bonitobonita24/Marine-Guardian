@@ -113,13 +113,13 @@ const mockRule = {
 const mockAdminUser = {
   id: "admin-user-1",
   tenantId: "tenant-1",
-  role: "site_admin",
+  role: "tenant_superadmin",
 };
 
 const mockSuperAdminUser = {
   id: "super-admin-user-1",
   tenantId: "tenant-1",
-  role: "super_admin",
+  role: "tenant_manager",
 };
 
 describe("evaluateAlerts", () => {

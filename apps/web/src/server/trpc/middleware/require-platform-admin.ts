@@ -9,7 +9,7 @@ import { protectedProcedure } from "../trpc";
  * Use ONLY for /admin platform routes that bypass tenant isolation via platformPrisma.
  */
 export const platformAdminProcedure = protectedProcedure.use(async ({ ctx, next }) => {
-  const isSuperAdmin = ctx.roles.includes("super_admin");
+  const isSuperAdmin = ctx.roles.includes("tenant_manager");
   const isPlatformContext = ctx.tenantId === "";
   if (!isSuperAdmin || !isPlatformContext) {
     throw new TRPCError({ code: "FORBIDDEN" });

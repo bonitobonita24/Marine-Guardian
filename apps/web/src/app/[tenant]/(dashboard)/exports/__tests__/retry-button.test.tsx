@@ -3,7 +3,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup, fireEvent } from "@testing-library/react";
 
-type Role = "super_admin" | "site_admin" | "field_coordinator" | "operator";
+type Role = "tenant_manager" | "tenant_superadmin" | "field_coordinator" | "operator";
 
 const { stubs } = vi.hoisted(() => {
   const s: {
@@ -13,7 +13,7 @@ const { stubs } = vi.hoisted(() => {
     listInvalidate: ReturnType<typeof vi.fn<() => Promise<void>>>;
     retryIsPending: boolean;
   } = {
-    roles: ["site_admin"],
+    roles: ["tenant_superadmin"],
     retryMutate: vi.fn<(input: unknown) => void>(),
     retryReset: vi.fn<() => void>(),
     listInvalidate: vi.fn<() => Promise<void>>(),
@@ -67,7 +67,7 @@ import { RetryButton } from "../retry-button";
 
 describe("RetryButton (5.3d)", () => {
   beforeEach(() => {
-    stubs.roles = ["site_admin"];
+    stubs.roles = ["tenant_superadmin"];
     stubs.retryMutate.mockClear();
     stubs.retryReset.mockClear();
     stubs.listInvalidate.mockClear();
@@ -90,7 +90,7 @@ describe("RetryButton (5.3d)", () => {
   });
 
   it("renders the Retry trigger for site_admin and invokes retry.mutate with the exportId on confirm", () => {
-    stubs.roles = ["site_admin"];
+    stubs.roles = ["tenant_superadmin"];
     const { getByTestId } = render(<RetryButton exportId="re-failed-1" />);
 
     const trigger = getByTestId("retry-export-button");
@@ -105,7 +105,7 @@ describe("RetryButton (5.3d)", () => {
   });
 
   it("renders for super_admin as well", () => {
-    stubs.roles = ["super_admin"];
+    stubs.roles = ["tenant_manager"];
     const { getByTestId } = render(<RetryButton exportId="re-2" />);
     expect(getByTestId("retry-export-button")).toBeTruthy();
   });

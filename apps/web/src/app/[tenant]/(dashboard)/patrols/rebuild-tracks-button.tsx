@@ -30,9 +30,9 @@ export function RebuildTracksButton() {
 
   const roles = session?.user.roles ?? [];
   const canRebuild =
-    roles.includes("super_admin") ||
-    roles.includes("site_admin") ||
-    roles.includes("administrator");
+    roles.includes("tenant_manager") ||
+    roles.includes("tenant_superadmin") ||
+    roles.includes("tenant_admin");
 
   const rebuild = trpc.patrol.rebuildTracks.useMutation({
     onSuccess: (data) => {

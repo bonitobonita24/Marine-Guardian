@@ -184,23 +184,25 @@ describe("Sidebar — viewer role nav filtering", () => {
     }
   });
 
-  // super_admin (2026-07-07): the ONLY role that sees Users + Settings. Those
-  // two surfaces were tightened to super_admin only — site_admin no longer
-  // renders them (see the hidden-group test below).
-  it("renders the full nav (incl. users + settings) for super_admin", () => {
-    stubs.sessionRoles = ["super_admin"];
-    const { getByText } = render(<Sidebar />);
-    for (const key of ALL_NAV_LABEL_KEYS) {
-      expect(getByText(key)).toBeTruthy();
-    }
-  });
+  // tenant_manager + tenant_superadmin (2026-07-10, WIDENED — reverses the
+  // 2026-07-07 tenant_manager-only lock): both roles see Users + Settings.
+  // tenant_manager = platform; tenant_superadmin = the tenant's own owner.
+  it.each(["tenant_manager", "tenant_superadmin"])(
+    "renders the full nav (incl. users + settings) for %s",
+    (role) => {
+      stubs.sessionRoles = [role];
+      const { getByText } = render(<Sidebar />);
+      for (const key of ALL_NAV_LABEL_KEYS) {
+        expect(getByText(key)).toBeTruthy();
+      }
+    },
+  );
 
-  // site_admin + field_coordinator + operator (2026-07-07): Users + Settings
-  // are super_admin ONLY (superAdminProcedure) — site_admin was removed from
-  // that gate this date and now hits FORBIDDEN on those pages like the others.
-  // Hide the two nav items so no role sees a menu it cannot use; every other
-  // item stays visible.
-  it.each(["site_admin", "field_coordinator", "operator"])(
+  // field_coordinator + operator: Users + Settings are gated to
+  // tenant_manager/tenant_superadmin ONLY (userManagementProcedure) — these
+  // roles hit FORBIDDEN on those pages. Hide the two nav items so no role
+  // sees a menu it cannot use; every other item stays visible.
+  it.each(["field_coordinator", "operator"])(
     "renders every nav item except 'users' and 'settings' for %s",
     (role) => {
       stubs.sessionRoles = [role];
@@ -220,7 +222,7 @@ describe("Sidebar — viewer role nav filtering", () => {
   // unlike viewer's allow-list above. "profile" stays visible — it is never
   // added to the deny-list so administrator keeps its own self-service page.
   it("renders every nav item except 'users' and 'settings' for an administrator session", () => {
-    stubs.sessionRoles = ["administrator"];
+    stubs.sessionRoles = ["tenant_admin"];
     const { getByText, queryByText } = render(<Sidebar />);
 
     expect(queryByText("users")).toBeNull();

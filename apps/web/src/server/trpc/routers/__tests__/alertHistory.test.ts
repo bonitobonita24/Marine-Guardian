@@ -164,7 +164,7 @@ describe("alertHistory.acknowledge", () => {
 
   it("throws NOT_FOUND when alert belongs to a different tenant", async () => {
     vi.mocked(prisma.alertHistory.findFirst).mockResolvedValue(null);
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await expect(caller.acknowledge({ id: "h-other" })).rejects.toThrow(TRPCError);
   });
 
@@ -183,7 +183,7 @@ describe("alertHistory.acknowledge", () => {
       acknowledgedBy: USER_ID,
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     const result = await caller.acknowledge({ id: "h-1" });
 
     // Update called with correct data
@@ -223,7 +223,7 @@ describe("alertHistory.acknowledge", () => {
       acknowledgedBy: "some-admin",
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     const result = await caller.acknowledge({ id: "h-1" });
 
     // No update or audit when already acked
@@ -244,7 +244,7 @@ describe("alertHistory.acknowledge", () => {
       acknowledgedBy: USER_ID,
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["super_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_manager"]));
     await caller.acknowledge({ id: "h-1" });
 
     const findArg = vi.mocked(prisma.alertHistory.findFirst).mock.calls[0]?.[0] as {
@@ -255,7 +255,7 @@ describe("alertHistory.acknowledge", () => {
   });
 
   it("throws UNAUTHORIZED when no tenant context", async () => {
-    const caller = createCaller(makeCtx(null, ["site_admin"]));
+    const caller = createCaller(makeCtx(null, ["tenant_superadmin"]));
     await expect(caller.acknowledge({ id: "h-1" })).rejects.toThrow(TRPCError);
   });
 });

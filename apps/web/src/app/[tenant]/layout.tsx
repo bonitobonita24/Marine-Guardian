@@ -80,7 +80,7 @@ export default async function TenantLayout({
     return <>{children}</>;
   }
 
-  const isSuperAdmin = session.user.roles.includes("super_admin");
+  const isSuperAdmin = session.user.roles.includes("tenant_manager");
   const isPlatformUser = isSuperAdmin && session.user.tenantSlug === "";
 
   if (isPlatformUser) {

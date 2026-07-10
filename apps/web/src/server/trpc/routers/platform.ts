@@ -293,7 +293,7 @@ export const platformRouter = router({
           data: {
             email: input.admin.email,
             fullName: input.admin.fullName,
-            role: "site_admin",
+            role: "tenant_superadmin",
             tenantId: tenant.id,
             languagePreference: input.admin.languagePreference,
             passwordHash,
@@ -336,7 +336,7 @@ export const platformRouter = router({
           changesJson: {
             after: {
               email: input.admin.email,
-              role: "site_admin",
+              role: "tenant_superadmin",
               tenantId: tenant.id,
               fullName: input.admin.fullName,
             },

@@ -42,7 +42,7 @@ function tenantUser(slug: string, roles = ["operator"]) {
   return { user: { id: "u", tenantId: "t", tenantSlug: slug, roles } };
 }
 function platformAdmin() {
-  return { user: { id: "s", tenantId: "", tenantSlug: "", roles: ["super_admin"] } };
+  return { user: { id: "s", tenantId: "", tenantSlug: "", roles: ["tenant_manager"] } };
 }
 
 beforeEach(() => {

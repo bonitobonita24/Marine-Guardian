@@ -3,7 +3,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup, fireEvent } from "@testing-library/react";
 
-type UserRole = "super_admin" | "site_admin" | "field_coordinator" | "operator";
+type UserRole = "tenant_manager" | "tenant_superadmin" | "field_coordinator" | "operator";
 
 interface UserItem {
   id: string;
@@ -126,7 +126,7 @@ const baseUsers: UserItem[] = [
     id: "u-1",
     email: "alice@example.com",
     fullName: "Alice Anderson",
-    role: "super_admin",
+    role: "tenant_manager",
     isActive: true,
     lastLoginAt: new Date(Date.now() - 1000 * 60 * 60),
     createdAt: new Date("2026-04-01T00:00:00Z"),
@@ -203,8 +203,8 @@ describe("UsersPage", () => {
   it("passes role filter to trpc.user.list query when selected", () => {
     const { getByTestId } = render(<UsersPage />);
     const roleSelect = getByTestId("role-filter");
-    fireEvent.change(roleSelect, { target: { value: "super_admin" } });
-    expect(stubs.lastListInput?.role).toBe("super_admin");
+    fireEvent.change(roleSelect, { target: { value: "tenant_manager" } });
+    expect(stubs.lastListInput?.role).toBe("tenant_manager");
   });
 
   it("passes status filter (isActive) to trpc.user.list query when selected", () => {

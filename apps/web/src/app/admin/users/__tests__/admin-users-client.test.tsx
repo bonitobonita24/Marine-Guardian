@@ -7,7 +7,7 @@ interface UserRow {
   id: string;
   email: string;
   fullName: string;
-  role: "super_admin" | "site_admin" | "field_coordinator" | "operator";
+  role: "tenant_manager" | "tenant_superadmin" | "field_coordinator" | "operator";
   languagePreference: string;
   isActive: boolean;
   lastLoginAt: Date | null;
@@ -95,7 +95,7 @@ const baseUsers: UserRow[] = [
     id: "u-1",
     email: "admin@platform.test",
     fullName: "Platform Admin",
-    role: "super_admin",
+    role: "tenant_manager",
     languagePreference: "en",
     isActive: true,
     lastLoginAt: null,
@@ -107,7 +107,7 @@ const baseUsers: UserRow[] = [
     id: "u-2",
     email: "siteadmin@coral.test",
     fullName: "Site Admin",
-    role: "site_admin",
+    role: "tenant_superadmin",
     languagePreference: "en",
     isActive: true,
     lastLoginAt: null,
@@ -151,7 +151,7 @@ describe("AdminUsersClient", () => {
   it("renders all 4 users in table rows", () => {
     stubs.listItems = baseUsers;
     render(
-      <AdminUsersClient email="admin@marine.test" roles={["super_admin"]} />
+      <AdminUsersClient email="admin@marine.test" roles={["tenant_manager"]} />
     );
     expect(screen.getByText("Platform Admin")).toBeTruthy();
     // "Site Admin" appears as fullName AND as role badge — use getAllByText
@@ -163,7 +163,7 @@ describe("AdminUsersClient", () => {
   it("shows Platform for super_admin tenant cell and tenant name for others", () => {
     stubs.listItems = baseUsers;
     render(
-      <AdminUsersClient email="admin@marine.test" roles={["super_admin"]} />
+      <AdminUsersClient email="admin@marine.test" roles={["tenant_manager"]} />
     );
     expect(screen.getByText("Platform")).toBeTruthy();
     expect(screen.getAllByText("Coral Bay Reserve").length).toBeGreaterThanOrEqual(1);
@@ -173,12 +173,12 @@ describe("AdminUsersClient", () => {
   it("renders role badge text for each role", () => {
     stubs.listItems = baseUsers;
     render(
-      <AdminUsersClient email="admin@marine.test" roles={["super_admin"]} />
+      <AdminUsersClient email="admin@marine.test" roles={["tenant_manager"]} />
     );
-    // Super Admin appears once as badge (fullName is "Platform Admin")
-    expect(screen.getByText("Super Admin")).toBeTruthy();
-    // Site Admin appears in both fullName and badge — use getAllByText
-    expect(screen.getAllByText("Site Admin").length).toBeGreaterThanOrEqual(1);
+    // "Tenant Manager" appears once as badge (fullName is "Platform Admin")
+    expect(screen.getByText("Tenant Manager")).toBeTruthy();
+    // "Tenant Superadmin" appears as the badge (fullName is "Site Admin")
+    expect(screen.getAllByText("Tenant Superadmin").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Field Coordinator")).toBeTruthy();
     expect(screen.getByText("Operator")).toBeTruthy();
   });
@@ -187,7 +187,7 @@ describe("AdminUsersClient", () => {
     stubs.listItems = undefined;
     stubs.listIsLoading = true;
     render(
-      <AdminUsersClient email="admin@marine.test" roles={["super_admin"]} />
+      <AdminUsersClient email="admin@marine.test" roles={["tenant_manager"]} />
     );
     expect(screen.getByText("Loading users…")).toBeTruthy();
   });
@@ -195,7 +195,7 @@ describe("AdminUsersClient", () => {
   it("renders empty state with No users yet. message", () => {
     stubs.listItems = [];
     render(
-      <AdminUsersClient email="admin@marine.test" roles={["super_admin"]} />
+      <AdminUsersClient email="admin@marine.test" roles={["tenant_manager"]} />
     );
     expect(screen.getByText("No users yet.")).toBeTruthy();
   });
@@ -203,7 +203,7 @@ describe("AdminUsersClient", () => {
   it("clicking Edit Role on a row opens EditUserRoleDialog with that user", () => {
     stubs.listItems = baseUsers;
     render(
-      <AdminUsersClient email="admin@marine.test" roles={["super_admin"]} />
+      <AdminUsersClient email="admin@marine.test" roles={["tenant_manager"]} />
     );
 
     expect(screen.queryByTestId("edit-user-role-dialog")).toBeNull();
@@ -220,7 +220,7 @@ describe("AdminUsersClient", () => {
   it("clicking Deactivate on a row opens DeactivateUserDialog with that user email", () => {
     stubs.listItems = baseUsers;
     render(
-      <AdminUsersClient email="admin@marine.test" roles={["super_admin"]} />
+      <AdminUsersClient email="admin@marine.test" roles={["tenant_manager"]} />
     );
 
     expect(screen.queryByTestId("deactivate-user-dialog")).toBeNull();
@@ -239,7 +239,7 @@ describe("AdminUsersClient", () => {
   it("closing one dialog does not affect the other dialog state", () => {
     stubs.listItems = baseUsers;
     render(
-      <AdminUsersClient email="admin@marine.test" roles={["super_admin"]} />
+      <AdminUsersClient email="admin@marine.test" roles={["tenant_manager"]} />
     );
 
     // Open Edit Role dialog for first user

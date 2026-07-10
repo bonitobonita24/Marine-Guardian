@@ -102,7 +102,7 @@ describe("requireRouteAuth", () => {
 
   // Case 5 — super_admin, empty session.tenantId, NO cookie → 401 (existing behavior)
   it("throws 401 for super_admin with empty tenantId and no cookie", async () => {
-    mockAuth.mockResolvedValue(makeSession({ tenantId: "", roles: ["super_admin"] }));
+    mockAuth.mockResolvedValue(makeSession({ tenantId: "", roles: ["tenant_manager"] }));
     mockCookieGet.mockReturnValue(undefined);
 
     let caught: unknown;
@@ -113,18 +113,18 @@ describe("requireRouteAuth", () => {
 
   // Case 6 — super_admin, empty session.tenantId, valid cookie → impersonation (NEW)
   it("returns cookie tenantId for super_admin impersonating a tenant", async () => {
-    mockAuth.mockResolvedValue(makeSession({ tenantId: "", roles: ["super_admin"] }));
+    mockAuth.mockResolvedValue(makeSession({ tenantId: "", roles: ["tenant_manager"] }));
     mockCookieGet.mockReturnValue({ value: VALID_TENANT_ID });
 
     const ctx = await requireRouteAuth();
     expect(ctx.tenantId).toBe(VALID_TENANT_ID);
     expect(ctx.isPlatformImpersonating).toBe(true);
-    expect(ctx.roles).toContain("super_admin");
+    expect(ctx.roles).toContain("tenant_manager");
   });
 
   // Case 7 — super_admin with OWN tenant + cookie → session tenant wins (not impersonating)
   it("returns session tenantId for super_admin who has their own tenant (cookie ignored)", async () => {
-    mockAuth.mockResolvedValue(makeSession({ tenantId: "tenant-a", roles: ["super_admin"] }));
+    mockAuth.mockResolvedValue(makeSession({ tenantId: "tenant-a", roles: ["tenant_manager"] }));
     mockCookieGet.mockReturnValue({ value: VALID_TENANT_ID });
 
     const ctx = await requireRouteAuth();
@@ -145,7 +145,7 @@ describe("requireRouteAuth", () => {
 
   // Case 9 — super_admin, empty tenantId, malformed cookie → 401
   it("throws 401 for super_admin with malformed impersonation cookie", async () => {
-    mockAuth.mockResolvedValue(makeSession({ tenantId: "", roles: ["super_admin"] }));
+    mockAuth.mockResolvedValue(makeSession({ tenantId: "", roles: ["tenant_manager"] }));
     mockCookieGet.mockReturnValue({ value: "../etc/passwd" });
 
     let caught: unknown;

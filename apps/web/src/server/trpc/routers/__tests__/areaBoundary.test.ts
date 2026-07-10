@@ -59,7 +59,7 @@ const USER_ID = "user-123";
 
 function makeCtx(
   tenantId: string | null = TENANT_ID,
-  roles: string[] = ["super_admin"]
+  roles: string[] = ["tenant_manager"]
 ) {
   return {
     session: {
@@ -412,7 +412,7 @@ describe("areaBoundary.rebuild (5.1e)", () => {
       { id: "ptrl-1" },
     ] as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     const result = await caller.rebuild({});
 
     expect(result.tenantId).toBe(TENANT_ID);
@@ -436,7 +436,7 @@ describe("areaBoundary.rebuild (5.1e)", () => {
   });
 
   it("site_admin attempting cross-tenant rebuild is FORBIDDEN (no fan-out, no AuditLog)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await expect(
       caller.rebuild({ tenantId: "other-tenant" })
     ).rejects.toThrow(TRPCError);
@@ -449,7 +449,7 @@ describe("areaBoundary.rebuild (5.1e)", () => {
       { id: "evt-1" },
     ] as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["super_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_manager"]));
     const result = await caller.rebuild({ tenantId: TENANT_ID });
 
     expect(result.action).toBe("AREA_REBUILD");
@@ -474,7 +474,7 @@ describe("areaBoundary.rebuild (5.1e)", () => {
       { id: "fuel-x" },
     ] as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["super_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_manager"]));
     const result = await caller.rebuild({ tenantId: "tenant-other" });
 
     expect(result.tenantId).toBe("tenant-other");
@@ -512,7 +512,7 @@ describe("areaBoundary.rebuild (5.1e)", () => {
   });
 
   it("rebuild with no rows still writes AuditLog (enqueued=0) — empty tenant is a valid no-op", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     const result = await caller.rebuild({});
 
     expect(result.enqueued).toBe(0);

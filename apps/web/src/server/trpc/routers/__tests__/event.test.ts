@@ -1591,14 +1591,14 @@ describe("event.getById — Telegram asset include (Stage 4)", () => {
 
 // ── event.list — pg_trgm fuzzy full-content search (T4) ────────────────────
 
-function makeAdminCtx(roles: string[] = ["site_admin"], tenantId: string | null = TENANT_ID) {
+function makeAdminCtx(roles: string[] = ["tenant_superadmin"], tenantId: string | null = TENANT_ID) {
   return {
     session: {
       user: {
         id: USER_ID,
         tenantId: tenantId as string,
         tenantSlug: "",
-        roles: roles as ["site_admin"],
+        roles: roles as ["tenant_superadmin"],
         email: "admin@example.com",
         name: "Admin User",
       },
@@ -1846,7 +1846,7 @@ describe("event.resolveAllEvents", () => {
   it("resolves every non-resolved event for the tenant when called by an admin role", async () => {
     vi.mocked(prisma.event.updateMany).mockResolvedValue({ count: 5 });
 
-    const caller = createCaller(makeAdminCtx(["site_admin"]));
+    const caller = createCaller(makeAdminCtx(["tenant_superadmin"]));
     const result = await caller.resolveAllEvents();
 
     expect(result).toEqual({ count: 5 });
@@ -1870,7 +1870,7 @@ describe("event.resolveAllEvents", () => {
   it("scopes the resolve-all to the calling admin's own tenant", async () => {
     vi.mocked(prisma.event.updateMany).mockResolvedValue({ count: 2 });
 
-    const caller = createCaller(makeAdminCtx(["super_admin"], "other-tenant"));
+    const caller = createCaller(makeAdminCtx(["tenant_manager"], "other-tenant"));
     await caller.resolveAllEvents();
 
     const call = vi.mocked(prisma.event.updateMany).mock.calls[0];

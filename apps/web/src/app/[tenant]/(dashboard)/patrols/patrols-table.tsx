@@ -39,9 +39,9 @@ export function PatrolsTable() {
   // Phase 7 soft-delete — delete/restore actions + the "Show deleted" toggle
   // are admin-only. Mirrors the 5.2c rebuild-tracks-button gating pattern.
   const canManage =
-    roles.includes("super_admin") ||
-    roles.includes("site_admin") ||
-    roles.includes("administrator");
+    roles.includes("tenant_manager") ||
+    roles.includes("tenant_superadmin") ||
+    roles.includes("tenant_admin");
 
   const [stateFilter, setStateFilter] = useState<StateFilter>("all");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");

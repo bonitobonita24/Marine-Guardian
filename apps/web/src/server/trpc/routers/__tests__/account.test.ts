@@ -107,7 +107,7 @@ describe("account.changeOwnPassword", () => {
     vi.mocked(bcrypt.compare).mockResolvedValue(true as never);
     vi.mocked(prisma.user.update).mockResolvedValue({ id: USER_ID } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_admin"]));
     const result = await caller.changeOwnPassword({
       currentPassword: "correct-current-pass",
       newPassword: "brand-new-pass-1",
@@ -151,9 +151,9 @@ describe("account.changeOwnPassword", () => {
       "viewer",
       "operator",
       "field_coordinator",
-      "administrator",
-      "site_admin",
-      "super_admin",
+      "tenant_admin",
+      "tenant_superadmin",
+      "tenant_manager",
     ];
 
     for (const role of roles) {

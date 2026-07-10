@@ -43,7 +43,7 @@ const USER_ID = "user-123";
 
 function makeCtx(
   tenantId: string | null = TENANT_ID,
-  roles: string[] = ["super_admin"]
+  roles: string[] = ["tenant_manager"]
 ) {
   return {
     session: {
@@ -212,7 +212,7 @@ describe("alertRule.create — canonical condition schema", () => {
     };
     vi.mocked(prisma.alertRule.create).mockResolvedValue(created as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_admin"]));
     const result = await caller.create({
       name: "Admin Rule",
       conditionJson: {},

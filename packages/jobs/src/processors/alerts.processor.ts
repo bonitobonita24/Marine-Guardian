@@ -108,7 +108,7 @@ export async function evaluateAlerts(
 
   for (const rule of matchingRules) {
     const recipients = (await platformPrisma.user.findMany({
-      where: { tenantId, role: { in: ["site_admin", "super_admin"] } },
+      where: { tenantId, role: { in: ["tenant_superadmin", "tenant_manager"] } },
     })) as Recipient[];
 
     if (recipients.length === 0) {

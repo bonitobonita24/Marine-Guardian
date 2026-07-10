@@ -11,6 +11,7 @@ vi.mock("@marine-guardian/db", () => ({
       update: vi.fn(),
       updateMany: vi.fn(),
     },
+    $transaction: vi.fn(),
   },
   writeAuditLog: vi.fn(),
 }));
@@ -54,7 +55,7 @@ const USER_ID = "user-123";
 
 function makeCtx(
   tenantId: string | null = TENANT_ID,
-  roles: string[] = ["super_admin"]
+  roles: string[] = ["tenant_manager"]
 ) {
   return {
     session: {
@@ -151,7 +152,7 @@ describe("user.create", () => {
   // userManagementProcedure (super_admin ONLY), which administrator is
   // deliberately never added to.
   it("rejects an administrator session with FORBIDDEN", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_admin"]));
     await expect(
       caller.create({
         email: "new@example.com",
@@ -161,18 +162,28 @@ describe("user.create", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  // site_admin (tightened 2026-07-07) — user management is now super_admin
-  // ONLY. site_admin was removed from userManagementProcedure, so it must now
-  // be rejected here (it previously could create users).
-  it("rejects a site_admin session with FORBIDDEN (Users tightened to super_admin 2026-07-07)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+  // tenant_superadmin (WIDENED 2026-07-10 — reverses the 2026-07-07
+  // tenant_manager-only lock): the tenant's own owner can create users in
+  // its own tenant.
+  it("allows a tenant_superadmin session to create a user", async () => {
+    vi.mocked(prisma.user.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.user.create).mockResolvedValue({
+      id: "user-new-3",
+      email: "new3@example.com",
+      fullName: "New User Three",
+      role: "operator",
+      isActive: true,
+      createdAt: new Date("2026-07-10T00:00:00Z"),
+    } as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await expect(
       caller.create({
-        email: "new2@example.com",
-        fullName: "New User Two",
+        email: "new3@example.com",
+        fullName: "New User Three",
         role: "operator",
       })
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    ).resolves.toMatchObject({ user: partial({ email: "new3@example.com" }) });
   });
 
   it("still allows a super_admin session to create a user (regression)", async () => {
@@ -186,7 +197,7 @@ describe("user.create", () => {
       createdAt: new Date("2026-07-06T00:00:00Z"),
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["super_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_manager"]));
     await expect(
       caller.create({
         email: "new2@example.com",
@@ -280,11 +291,115 @@ describe("user.updateRole", () => {
   // administrator (2026-07-06) — excluded from userManagementProcedure, so
   // it can never change another user's role.
   it("rejects an administrator session with FORBIDDEN", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_admin"]));
     await expect(
       caller.updateRole({ id: TARGET_ID, role: "field_coordinator" })
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
     expect(vi.mocked(prisma.user.update)).not.toHaveBeenCalled();
+  });
+});
+
+// user.transferOwnership (2026-07-10) — self-service tenant_superadmin
+// handoff. Enforces the "one tenant_superadmin per tenant" invariant
+// (backed by the one_tenant_superadmin_per_tenant partial unique index,
+// migration 20260710093000_tenant_rbac_3tier) LOGICALLY: it demotes the
+// caller to tenant_admin and promotes the target to tenant_superadmin in
+// the SAME transaction, so at no point does the DB (or this mock) see two
+// tenant_superadmin rows for the tenant.
+describe("user.transferOwnership", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Simulate Prisma's $transaction by invoking the callback with the same
+    // mocked client — every method used inside the callback must already be
+    // declared on the `prisma` mock factory above.
+    vi.mocked(prisma.$transaction).mockImplementation((cb: (tx: typeof prisma) => unknown) =>
+      Promise.resolve(cb(prisma))
+    );
+  });
+
+  const TARGET_ID = "user-target-owner";
+  const activeTarget = { id: TARGET_ID, role: "tenant_admin", isActive: true };
+
+  it("rejects FORBIDDEN when the caller does not currently hold tenant_superadmin", async () => {
+    // userManagementProcedure allows tenant_manager through, but the
+    // internal ctx.roles check requires tenant_superadmin specifically.
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_manager"]));
+    await expect(
+      caller.transferOwnership({ newSuperadminUserId: TARGET_ID })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(vi.mocked(prisma.$transaction)).not.toHaveBeenCalled();
+  });
+
+  it("rejects an administrator (tenant_admin) session with FORBIDDEN (userManagementProcedure gate)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_admin"]));
+    await expect(
+      caller.transferOwnership({ newSuperadminUserId: TARGET_ID })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("rejects BAD_REQUEST when transferring to self", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
+    await expect(
+      caller.transferOwnership({ newSuperadminUserId: USER_ID })
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("throws NOT_FOUND when target user does not exist in tenant", async () => {
+    vi.mocked(prisma.user.findFirst).mockResolvedValue(null);
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
+    await expect(
+      caller.transferOwnership({ newSuperadminUserId: TARGET_ID })
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("rejects BAD_REQUEST when target is deactivated", async () => {
+    vi.mocked(prisma.user.findFirst).mockResolvedValue({
+      ...activeTarget,
+      isActive: false,
+    } as never);
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
+    await expect(
+      caller.transferOwnership({ newSuperadminUserId: TARGET_ID })
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("demotes the caller to tenant_admin AND promotes the target to tenant_superadmin atomically, then audits", async () => {
+    vi.mocked(prisma.user.findFirst).mockResolvedValue(activeTarget as never);
+    vi.mocked(prisma.user.update).mockResolvedValue({} as never);
+    vi.mocked(writeAuditLog).mockResolvedValue(undefined);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
+    const result = await caller.transferOwnership({ newSuperadminUserId: TARGET_ID });
+
+    expect(result).toEqual({ id: TARGET_ID, role: "tenant_superadmin" });
+
+    // Caller demoted to tenant_admin — never leaves two tenant_superadmins.
+    expect(vi.mocked(prisma.user.update)).toHaveBeenCalledWith({
+      where: { id: USER_ID },
+      data: partial<{ role: string; securityVersion: { increment: number } }>({
+        role: "tenant_admin",
+        securityVersion: { increment: 1 },
+      }),
+    });
+    // Target promoted to tenant_superadmin.
+    expect(vi.mocked(prisma.user.update)).toHaveBeenCalledWith({
+      where: { id: TARGET_ID },
+      data: partial<{ role: string; securityVersion: { increment: number } }>({
+        role: "tenant_superadmin",
+        securityVersion: { increment: 1 },
+      }),
+    });
+    expect(vi.mocked(prisma.user.update)).toHaveBeenCalledTimes(2);
+
+    expect(vi.mocked(writeAuditLog)).toHaveBeenCalledWith(
+      prisma,
+      partial({
+        action: "TRANSFER_OWNERSHIP",
+        tenantId: TENANT_ID,
+        entityType: "User",
+        entityId: TARGET_ID,
+      })
+    );
   });
 });
 
@@ -417,26 +532,28 @@ describe("user.activate", () => {
 });
 
 // user.list / user.getById lockdown (2026-07-06, tightened 2026-07-07): the
-// full user directory (email, role, lastLoginAt, timestamps) is now
-// super_admin ONLY. site_admin/administrator/field_coordinator/operator/viewer
-// must all get FORBIDDEN — site_admin lost access when Users was tightened to
-// super_admin on 2026-07-07.
+// full user directory (email, role, lastLoginAt, timestamps) stays
+// tenant_manager ONLY (superAdminProcedure, deliberately NOT widened to
+// userManagementProcedure on 2026-07-10 — list/getById are read-heavy audit
+// surfaces, unlike the mutation-only widening on create/updateRole/etc.).
+// tenant_superadmin/administrator/field_coordinator/operator/viewer must all
+// get FORBIDDEN.
 describe("user.list", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("allows super_admin", async () => {
     vi.mocked(prisma.user.findMany).mockResolvedValue([]);
-    const caller = createCaller(makeCtx(TENANT_ID, ["super_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_manager"]));
     await expect(caller.list({})).resolves.toEqual({ items: [], nextCursor: undefined });
   });
 
-  it("rejects site_admin with FORBIDDEN (Users tightened to super_admin 2026-07-07)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+  it("rejects tenant_superadmin with FORBIDDEN (list/getById stay tenant_manager-only)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await expect(caller.list({})).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("rejects administrator with FORBIDDEN", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_admin"]));
     await expect(caller.list({})).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
@@ -461,17 +578,17 @@ describe("user.getById", () => {
 
   it("allows super_admin", async () => {
     vi.mocked(prisma.user.findFirst).mockResolvedValue({ id: "u-1" } as never);
-    const caller = createCaller(makeCtx(TENANT_ID, ["super_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_manager"]));
     await expect(caller.getById({ id: "u-1" })).resolves.toMatchObject({ id: "u-1" });
   });
 
-  it("rejects site_admin with FORBIDDEN (Users tightened to super_admin 2026-07-07)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+  it("rejects tenant_superadmin with FORBIDDEN (list/getById stay tenant_manager-only)", async () => {
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await expect(caller.getById({ id: "u-1" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("rejects administrator with FORBIDDEN", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_admin"]));
     await expect(caller.getById({ id: "u-1" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
@@ -511,7 +628,7 @@ describe("user.listActiveNames", () => {
 
   it("allows every non-viewer, non-admin role (operator, administrator, field_coordinator)", async () => {
     vi.mocked(prisma.user.findMany).mockResolvedValue([]);
-    for (const role of ["operator", "administrator", "field_coordinator", "viewer", "site_admin", "super_admin"]) {
+    for (const role of ["operator", "tenant_admin", "field_coordinator", "viewer", "tenant_superadmin", "tenant_manager"]) {
       const caller = createCaller(makeCtx(TENANT_ID, [role]));
       await expect(caller.listActiveNames()).resolves.toEqual({ items: [] });
     }

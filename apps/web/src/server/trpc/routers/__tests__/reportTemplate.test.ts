@@ -60,7 +60,7 @@ const USER_ID = "admin-1";
 
 function makeCtx(
   tenantId: string | null = TENANT_ID,
-  roles: string[] = ["super_admin"],
+  roles: string[] = ["tenant_manager"],
   userId: string = USER_ID,
 ) {
   return {
@@ -172,7 +172,7 @@ describe("reportTemplate.create", () => {
   // administrator: Settings mutations are gated to superAdminProcedure
   // (super_admin ONLY) — administrator is rejected.
   it("rejects administrator with FORBIDDEN (Settings excluded 2026-07-06)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_admin"]));
     await expect(
       caller.create({
         name: "New Template",
@@ -186,7 +186,7 @@ describe("reportTemplate.create", () => {
   // site_admin (tightened 2026-07-07): Settings is now super_admin ONLY —
   // site_admin was removed from superAdminProcedure.
   it("rejects site_admin with FORBIDDEN (Settings tightened to super_admin 2026-07-07)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await expect(
       caller.create({
         name: "New Template",
@@ -278,7 +278,7 @@ describe("reportTemplate.update", () => {
   });
 
   it("rejects administrator with FORBIDDEN (Settings excluded 2026-07-06)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_admin"]));
     await expect(caller.update({ id: "tmpl-1", name: "Updated" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
@@ -321,7 +321,7 @@ describe("reportTemplate.delete", () => {
   });
 
   it("rejects administrator with FORBIDDEN (Settings excluded 2026-07-06)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_admin"]));
     await expect(caller.delete({ id: "tmpl-1" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
@@ -365,7 +365,7 @@ describe("reportTemplate.setDefault", () => {
   });
 
   it("rejects administrator with FORBIDDEN (Settings excluded 2026-07-06)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_admin"]));
     await expect(caller.setDefault({ id: "tmpl-1" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 

@@ -19,9 +19,9 @@ export default function PatrolAreasPage() {
   const { data: session } = useSession();
   const roles = session?.user.roles ?? [];
   const isAdmin =
-    roles.includes("super_admin") ||
-    roles.includes("site_admin") ||
-    roles.includes("administrator");
+    roles.includes("tenant_manager") ||
+    roles.includes("tenant_superadmin") ||
+    roles.includes("tenant_admin");
 
   const [deleteTarget, setDeleteTarget] = useState<AreaBoundaryRow | null>(
     null,

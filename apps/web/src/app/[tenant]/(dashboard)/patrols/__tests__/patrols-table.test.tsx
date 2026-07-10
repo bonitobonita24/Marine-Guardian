@@ -132,7 +132,7 @@ describe("PatrolsTable", () => {
   });
 
   it("admin sees Delete button on a non-deleted patrol", () => {
-    sessionRoles = ["site_admin"];
+    sessionRoles = ["tenant_superadmin"];
     mockListResult([
       { ...basePatrol, id: "p1", title: "Morning Sweep", isTestPatrol: false },
     ]);
@@ -154,7 +154,7 @@ describe("PatrolsTable", () => {
   });
 
   it("admin sees the 'Show deleted' toggle; operator does not", () => {
-    sessionRoles = ["super_admin"];
+    sessionRoles = ["tenant_manager"];
     mockListResult([]);
     render(<PatrolsTable />);
     expect(screen.queryByTestId("include-deleted-toggle")).not.toBeNull();
@@ -168,7 +168,7 @@ describe("PatrolsTable", () => {
   });
 
   it("deleted row shows Restore button and a Deleted badge (admin)", () => {
-    sessionRoles = ["site_admin"];
+    sessionRoles = ["tenant_superadmin"];
     mockListResult([
       {
         ...basePatrol,
@@ -187,7 +187,7 @@ describe("PatrolsTable", () => {
   });
 
   it("confirming delete calls patrol.softDelete with the row id", () => {
-    sessionRoles = ["site_admin"];
+    sessionRoles = ["tenant_superadmin"];
     mockListResult([
       { ...basePatrol, id: "p1", title: "Morning Sweep", isTestPatrol: false },
     ]);
@@ -201,7 +201,7 @@ describe("PatrolsTable", () => {
   });
 
   it("clicking Restore calls patrol.restore with the row id", () => {
-    sessionRoles = ["site_admin"];
+    sessionRoles = ["tenant_superadmin"];
     mockListResult([
       {
         ...basePatrol,

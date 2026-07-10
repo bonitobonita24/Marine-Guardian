@@ -41,7 +41,7 @@ export default async function DashboardLayout({
   // mirrors requireRouteAuth() in server/lib/route-auth.ts.
   // (session is guaranteed non-null here — the unauth gate above redirects.)
   if (
-    session.user.roles.includes("super_admin") &&
+    session.user.roles.includes("tenant_manager") &&
     session.user.tenantId === ""
   ) {
     const cookieStore = await cookies();

@@ -55,7 +55,7 @@ vi.mock("next-auth/react", () => ({
         email: "u1@example.com",
         name: "Test",
         tenantId: "t1",
-        roles: ["site_admin"],
+        roles: ["tenant_superadmin"],
       },
       expires: "9999-01-01",
     },
@@ -353,7 +353,7 @@ describe("ExportRow (5.3d)", () => {
   });
 
   // Note: this file's useSession mock is fixed at module scope to
-  // roles=["site_admin"] (hoisted before the component import), so a
+  // roles=["tenant_superadmin"] (hoisted before the component import), so a
   // non-admin render of THIS component isn't exercisable per-test without
   // restructuring the mock. The role gate itself
   // (super_admin/site_admin-only) is the same `canRenderPptx` pattern as

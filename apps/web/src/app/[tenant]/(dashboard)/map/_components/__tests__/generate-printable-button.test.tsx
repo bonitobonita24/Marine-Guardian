@@ -10,8 +10,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 
 type Role =
-  | "super_admin"
-  | "site_admin"
+  | "tenant_manager"
+  | "tenant_superadmin"
   | "field_coordinator"
   | "operator"
   | "viewer";
@@ -93,7 +93,7 @@ describe("GeneratePrintableButton — role visibility (2026-07-06)", () => {
     expect(getByTestId("generate-printable-report-button")).toBeTruthy();
   });
 
-  it.each<Role>(["super_admin", "site_admin", "field_coordinator", "operator"])(
+  it.each<Role>(["tenant_manager", "tenant_superadmin", "field_coordinator", "operator"])(
     "still renders the button for %s (no regression)",
     (role) => {
       stubs.roles = [role];

@@ -53,7 +53,7 @@ const OTHER_USER_ID = "user-999";
 
 function makeCtx(
   tenantId: string | null = TENANT_ID,
-  roles: string[] = ["site_admin"],
+  roles: string[] = ["tenant_superadmin"],
   userId: string = USER_ID
 ) {
   return {
@@ -317,7 +317,7 @@ describe("fuelEntry.create / update / delete (RBAC)", () => {
   it("delete is scoped to tenant when admin role", async () => {
     vi.mocked(prisma.fuelEntry.deleteMany).mockResolvedValue({ count: 1 });
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await caller.delete({ id: "fe-1" });
 
     expect(vi.mocked(prisma.fuelEntry.deleteMany)).toHaveBeenCalledWith({

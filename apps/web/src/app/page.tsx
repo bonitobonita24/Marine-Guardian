@@ -15,7 +15,7 @@ export default async function RootPage() {
   }
 
   const isPlatformUser =
-    session.user.roles.includes("super_admin") &&
+    session.user.roles.includes("tenant_manager") &&
     session.user.tenantSlug === "";
   if (isPlatformUser) {
     redirect("/admin");

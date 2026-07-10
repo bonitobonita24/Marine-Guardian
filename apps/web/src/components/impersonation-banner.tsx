@@ -11,7 +11,7 @@ export async function ImpersonationBanner() {
 
   const session = await auth();
   const roles = session?.user.roles ?? [];
-  const isSuperAdmin = roles.includes("super_admin");
+  const isSuperAdmin = roles.includes("tenant_manager");
   if (!isSuperAdmin) return null;
 
   const tenant = await platformPrisma.tenant.findUnique({

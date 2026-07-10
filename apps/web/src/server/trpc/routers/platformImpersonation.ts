@@ -26,7 +26,7 @@ export const platformImpersonationRouter = router({
     .input(z.object({ tenantId: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       // Guard: must be super_admin
-      if (!ctx.roles.includes("super_admin")) {
+      if (!ctx.roles.includes("tenant_manager")) {
         throw new TRPCError({ code: "FORBIDDEN" });
       }
       // Guard: must be in platform context (not already impersonating)
@@ -74,7 +74,7 @@ export const platformImpersonationRouter = router({
 
   exit: protectedProcedure.mutation(async ({ ctx }) => {
     // Guard: must be super_admin
-    if (!ctx.roles.includes("super_admin")) {
+    if (!ctx.roles.includes("tenant_manager")) {
       throw new TRPCError({ code: "FORBIDDEN" });
     }
 

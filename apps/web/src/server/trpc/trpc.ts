@@ -29,7 +29,7 @@ export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
   const sessionTenantId = ctx.session.user.tenantId;
   const roles = ctx.session.user.roles;
   const isPlatformImpersonating =
-    roles.includes("super_admin") &&
+    roles.includes("tenant_manager") &&
     sessionTenantId === "" &&
     ctx.impersonationTenantId !== null;
   const effectiveTenantId = isPlatformImpersonating

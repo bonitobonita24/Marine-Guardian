@@ -13,10 +13,12 @@ vi.mock("@marine-guardian/db", () => ({
       findUnique: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
     },
     tenant: {
       findUnique: vi.fn(),
     },
+    $transaction: vi.fn(),
   },
   writeAuditLog: vi.fn(),
 }));
@@ -49,7 +51,7 @@ const createCaller = createCallerFactory(platformUserRouter);
 const USER_ID = "user-platform-001";
 const TENANT_ID = "tenant-abc-001";
 
-function makeCtx(tenantId = "", roles: string[] = ["super_admin"]) {
+function makeCtx(tenantId = "", roles: string[] = ["tenant_manager"]) {
   return {
     session: {
       user: {
@@ -75,12 +77,12 @@ describe("platformUser — auth gate", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("throws FORBIDDEN when caller is not super_admin", async () => {
-    const caller = createCaller(makeCtx("", ["site_admin"]));
+    const caller = createCaller(makeCtx("", ["tenant_superadmin"]));
     await expect(caller.list({})).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("throws FORBIDDEN when super_admin has non-empty tenantId (tenant-scoped)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["super_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_manager"]));
     await expect(caller.list({})).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
@@ -153,14 +155,14 @@ describe("platformUser.create", () => {
   it("rejects super_admin role with non-null tenantId → BAD_REQUEST", async () => {
     const caller = createCaller(makeCtx());
     await expect(
-      caller.create({ ...baseInput, role: "super_admin", tenantId: TENANT_ID }),
+      caller.create({ ...baseInput, role: "tenant_manager", tenantId: TENANT_ID }),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
   it("rejects non-super_admin role with null tenantId → BAD_REQUEST", async () => {
     const caller = createCaller(makeCtx());
     await expect(
-      caller.create({ ...baseInput, role: "site_admin", tenantId: null }),
+      caller.create({ ...baseInput, role: "tenant_superadmin", tenantId: null }),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
@@ -173,7 +175,7 @@ describe("platformUser.create", () => {
 
     const caller = createCaller(makeCtx());
     await expect(
-      caller.create({ ...baseInput, role: "site_admin", tenantId: TENANT_ID }),
+      caller.create({ ...baseInput, role: "tenant_superadmin", tenantId: TENANT_ID }),
     ).rejects.toMatchObject({ code: "CONFLICT" });
   });
 
@@ -182,7 +184,7 @@ describe("platformUser.create", () => {
 
     const caller = createCaller(makeCtx());
     await expect(
-      caller.create({ ...baseInput, role: "site_admin", tenantId: TENANT_ID }),
+      caller.create({ ...baseInput, role: "tenant_superadmin", tenantId: TENANT_ID }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
@@ -196,7 +198,7 @@ describe("platformUser.create", () => {
       id: "new-user-id",
       email: baseInput.email,
       fullName: baseInput.fullName,
-      role: "site_admin",
+      role: "tenant_superadmin",
       tenantId: TENANT_ID,
       isActive: true,
       createdAt: new Date(),
@@ -205,7 +207,7 @@ describe("platformUser.create", () => {
     vi.mocked(writeAuditLog).mockResolvedValue(undefined as never);
 
     const caller = createCaller(makeCtx());
-    const result = await caller.create({ ...baseInput, role: "site_admin", tenantId: TENANT_ID });
+    const result = await caller.create({ ...baseInput, role: "tenant_superadmin", tenantId: TENANT_ID });
 
     expect(result.user.id).toBe("new-user-id");
     expect(typeof result.tempPassword).toBe("string");
@@ -231,12 +233,12 @@ describe("platformUser.updateRole", () => {
   it("rejects role/tenantId mismatch (super_admin on tenant user) → BAD_REQUEST", async () => {
     vi.mocked(platformPrisma.user.findUnique).mockResolvedValue({
       id: "u1",
-      role: "site_admin",
+      role: "tenant_superadmin",
       tenantId: TENANT_ID,
     } as never);
 
     const caller = createCaller(makeCtx());
-    await expect(caller.updateRole({ id: "u1", role: "super_admin" })).rejects.toMatchObject({
+    await expect(caller.updateRole({ id: "u1", role: "tenant_manager" })).rejects.toMatchObject({
       code: "BAD_REQUEST",
     });
   });
@@ -244,7 +246,7 @@ describe("platformUser.updateRole", () => {
   it("happy path: updates role and audits PLATFORM:UPDATE_USER_ROLE with before/after", async () => {
     vi.mocked(platformPrisma.user.findUnique).mockResolvedValue({
       id: "u1",
-      role: "site_admin",
+      role: "tenant_superadmin",
       tenantId: TENANT_ID,
     } as never);
     vi.mocked(platformPrisma.user.update).mockResolvedValue({} as never);
@@ -260,7 +262,7 @@ describe("platformUser.updateRole", () => {
         action: "PLATFORM:UPDATE_USER_ROLE",
         entityType: "User",
         entityId: "u1",
-        changesJson: { before: { role: "site_admin" }, after: { role: "field_coordinator" } },
+        changesJson: { before: { role: "tenant_superadmin" }, after: { role: "field_coordinator" } },
       }),
     );
   });
@@ -268,7 +270,7 @@ describe("platformUser.updateRole", () => {
   it("reassigns tenantId to a different tenant and audits the change", async () => {
     vi.mocked(platformPrisma.user.findUnique).mockResolvedValue({
       id: "u1",
-      role: "site_admin",
+      role: "tenant_superadmin",
       tenantId: TENANT_ID,
     } as never);
     vi.mocked(platformPrisma.tenant.findUnique).mockResolvedValue({
@@ -281,11 +283,11 @@ describe("platformUser.updateRole", () => {
     const caller = createCaller(makeCtx());
     const result = await caller.updateRole({
       id: "u1",
-      role: "site_admin",
+      role: "tenant_superadmin",
       tenantId: "tenant-other",
     });
 
-    expect(result).toEqual({ id: "u1", role: "site_admin", tenantId: "tenant-other" });
+    expect(result).toEqual({ id: "u1", role: "tenant_superadmin", tenantId: "tenant-other" });
     expect(vi.mocked(platformPrisma.user.update)).toHaveBeenCalledWith(
       partial({
         data: partial({ tenantId: "tenant-other" }),
@@ -296,8 +298,8 @@ describe("platformUser.updateRole", () => {
       partial({
         action: "PLATFORM:UPDATE_USER_ROLE",
         changesJson: {
-          before: { role: "site_admin", tenantId: TENANT_ID },
-          after: { role: "site_admin", tenantId: "tenant-other" },
+          before: { role: "tenant_superadmin", tenantId: TENANT_ID },
+          after: { role: "tenant_superadmin", tenantId: "tenant-other" },
         },
       }),
     );
@@ -306,21 +308,21 @@ describe("platformUser.updateRole", () => {
   it("rejects reassignment to a non-existent tenant → NOT_FOUND", async () => {
     vi.mocked(platformPrisma.user.findUnique).mockResolvedValue({
       id: "u1",
-      role: "site_admin",
+      role: "tenant_superadmin",
       tenantId: TENANT_ID,
     } as never);
     vi.mocked(platformPrisma.tenant.findUnique).mockResolvedValue(null as never);
 
     const caller = createCaller(makeCtx());
     await expect(
-      caller.updateRole({ id: "u1", role: "site_admin", tenantId: "tenant-missing" }),
+      caller.updateRole({ id: "u1", role: "tenant_superadmin", tenantId: "tenant-missing" }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
   it("omits tenantId in input → preserves existing tenantId (backward compat)", async () => {
     vi.mocked(platformPrisma.user.findUnique).mockResolvedValue({
       id: "u1",
-      role: "site_admin",
+      role: "tenant_superadmin",
       tenantId: TENANT_ID,
     } as never);
     vi.mocked(platformPrisma.user.update).mockResolvedValue({} as never);
@@ -344,7 +346,7 @@ describe("platformUser.updateRole", () => {
       platformPrisma,
       partial({
         changesJson: {
-          before: { role: "site_admin" },
+          before: { role: "tenant_superadmin" },
           after: { role: "field_coordinator" },
         },
       }),
@@ -430,6 +432,140 @@ describe("platformUser.resetPassword", () => {
         entityId: "u1",
         changesJson: { note: "password reset" },
       }),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// reassignTenantSuperadmin — enforces the "one tenant_superadmin per tenant"
+// invariant (backed by the one_tenant_superadmin_per_tenant partial unique
+// index, migration 20260710093000_tenant_rbac_3tier) LOGICALLY: every
+// existing tenant_superadmin on the target tenant is demoted to tenant_admin
+// BEFORE the target is promoted, in the same transaction.
+// ---------------------------------------------------------------------------
+
+describe("platformUser.reassignTenantSuperadmin", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(platformPrisma.$transaction).mockImplementation(
+      (cb: (tx: typeof platformPrisma) => unknown) => Promise.resolve(cb(platformPrisma)),
+    );
+  });
+
+  const activeTarget = { id: "u-target", role: "tenant_admin", isActive: true };
+
+  it("rejects unknown or inactive tenant → NOT_FOUND", async () => {
+    vi.mocked(platformPrisma.tenant.findUnique).mockResolvedValue(null as never);
+
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.reassignTenantSuperadmin({ tenantId: TENANT_ID, newSuperadminUserId: "u-target" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("throws NOT_FOUND when target user does not belong to the tenant", async () => {
+    vi.mocked(platformPrisma.tenant.findUnique).mockResolvedValue({
+      id: TENANT_ID,
+      isActive: true,
+    } as never);
+    vi.mocked(platformPrisma.user.findFirst).mockResolvedValue(null as never);
+
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.reassignTenantSuperadmin({ tenantId: TENANT_ID, newSuperadminUserId: "u-target" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("rejects BAD_REQUEST when target is deactivated", async () => {
+    vi.mocked(platformPrisma.tenant.findUnique).mockResolvedValue({
+      id: TENANT_ID,
+      isActive: true,
+    } as never);
+    vi.mocked(platformPrisma.user.findFirst).mockResolvedValue({
+      ...activeTarget,
+      isActive: false,
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.reassignTenantSuperadmin({ tenantId: TENANT_ID, newSuperadminUserId: "u-target" }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("demotes every existing tenant_superadmin on the tenant BEFORE promoting the target, then audits", async () => {
+    vi.mocked(platformPrisma.tenant.findUnique).mockResolvedValue({
+      id: TENANT_ID,
+      isActive: true,
+    } as never);
+    vi.mocked(platformPrisma.user.findFirst).mockResolvedValue(activeTarget as never);
+    vi.mocked(platformPrisma.user.findMany).mockResolvedValue([
+      { id: "old-owner-1" },
+    ] as never);
+    vi.mocked(platformPrisma.user.updateMany).mockResolvedValue({ count: 1 } as never);
+    vi.mocked(platformPrisma.user.update).mockResolvedValue({} as never);
+    vi.mocked(writeAuditLog).mockResolvedValue(undefined as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.reassignTenantSuperadmin({
+      tenantId: TENANT_ID,
+      newSuperadminUserId: "u-target",
+    });
+
+    expect(result).toEqual({ id: "u-target", tenantId: TENANT_ID, role: "tenant_superadmin" });
+
+    // findMany excludes the target itself and scopes to the tenant + role.
+    expect(vi.mocked(platformPrisma.user.findMany)).toHaveBeenCalledWith({
+      where: { tenantId: TENANT_ID, role: "tenant_superadmin", id: { not: "u-target" } },
+      select: { id: true },
+    });
+
+    // Existing owner(s) demoted to tenant_admin.
+    expect(vi.mocked(platformPrisma.user.updateMany)).toHaveBeenCalledWith({
+      where: { id: { in: ["old-owner-1"] } },
+      data: partial<{ role: string; securityVersion: { increment: number } }>({
+        role: "tenant_admin",
+        securityVersion: { increment: 1 },
+      }),
+    });
+
+    // Target promoted to tenant_superadmin.
+    expect(vi.mocked(platformPrisma.user.update)).toHaveBeenCalledWith({
+      where: { id: "u-target" },
+      data: partial<{ role: string; securityVersion: { increment: number } }>({
+        role: "tenant_superadmin",
+        securityVersion: { increment: 1 },
+      }),
+    });
+
+    expect(vi.mocked(writeAuditLog)).toHaveBeenCalledWith(
+      platformPrisma,
+      partial({
+        action: "PLATFORM:REASSIGN_TENANT_SUPERADMIN",
+        entityType: "User",
+        entityId: "u-target",
+      }),
+    );
+  });
+
+  it("skips the demotion updateMany when there is no existing tenant_superadmin on the tenant", async () => {
+    vi.mocked(platformPrisma.tenant.findUnique).mockResolvedValue({
+      id: TENANT_ID,
+      isActive: true,
+    } as never);
+    vi.mocked(platformPrisma.user.findFirst).mockResolvedValue(activeTarget as never);
+    vi.mocked(platformPrisma.user.findMany).mockResolvedValue([] as never);
+    vi.mocked(platformPrisma.user.update).mockResolvedValue({} as never);
+    vi.mocked(writeAuditLog).mockResolvedValue(undefined as never);
+
+    const caller = createCaller(makeCtx());
+    await caller.reassignTenantSuperadmin({
+      tenantId: TENANT_ID,
+      newSuperadminUserId: "u-target",
+    });
+
+    expect(vi.mocked(platformPrisma.user.updateMany)).not.toHaveBeenCalled();
+    expect(vi.mocked(platformPrisma.user.update)).toHaveBeenCalledWith(
+      partial({ where: { id: "u-target" } }),
     );
   });
 });

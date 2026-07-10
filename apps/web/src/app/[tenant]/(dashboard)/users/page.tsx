@@ -23,9 +23,9 @@ type RoleFilter = "all" | UserRole;
 
 const ROLE_FILTER_OPTIONS: { value: RoleFilter; label: string }[] = [
   { value: "all", label: "All Roles" },
-  { value: "super_admin", label: "Super Admin" },
-  { value: "site_admin", label: "Site Admin" },
-  { value: "administrator", label: "Administrator" },
+  { value: "tenant_manager", label: "Super Admin" },
+  { value: "tenant_superadmin", label: "Site Admin" },
+  { value: "tenant_admin", label: "Administrator" },
   { value: "field_coordinator", label: "Field Coordinator" },
   { value: "operator", label: "Operator" },
   { value: "viewer", label: "Viewer" },

@@ -127,14 +127,14 @@ describe("middleware — administrator role route gate", () => {
   });
 
   it("redirects an administrator requesting /users to /dashboard", async () => {
-    mockAuth.mockResolvedValue(makeSession(["administrator"]));
+    mockAuth.mockResolvedValue(makeSession(["tenant_admin"]));
     const res = await middleware(makeRequest("/users"));
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toBe("https://app.example.com/demo-site/dashboard");
   });
 
   it("redirects an administrator requesting a nested /users sub-path to /dashboard", async () => {
-    mockAuth.mockResolvedValue(makeSession(["administrator"]));
+    mockAuth.mockResolvedValue(makeSession(["tenant_admin"]));
     const res = await middleware(makeRequest("/users/some-id"));
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toBe("https://app.example.com/demo-site/dashboard");
@@ -142,14 +142,14 @@ describe("middleware — administrator role route gate", () => {
 
   // Settings (2026-07-06): removed from administrator alongside Users.
   it("redirects an administrator requesting /settings to /dashboard", async () => {
-    mockAuth.mockResolvedValue(makeSession(["administrator"]));
+    mockAuth.mockResolvedValue(makeSession(["tenant_admin"]));
     const res = await middleware(makeRequest("/settings"));
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toBe("https://app.example.com/demo-site/dashboard");
   });
 
   it("redirects an administrator requesting nested /settings sub-paths (report-templates, breach) to /dashboard", async () => {
-    mockAuth.mockResolvedValue(makeSession(["administrator"]));
+    mockAuth.mockResolvedValue(makeSession(["tenant_admin"]));
     for (const path of ["/settings/report-templates", "/settings/breach"]) {
       const res = await middleware(makeRequest(path));
       expect(res.status).toBe(307);
@@ -158,7 +158,7 @@ describe("middleware — administrator role route gate", () => {
   });
 
   it("allows an administrator requesting every other tenant page (e.g. /events, /alerts, /profile)", async () => {
-    mockAuth.mockResolvedValue(makeSession(["administrator"]));
+    mockAuth.mockResolvedValue(makeSession(["tenant_admin"]));
     for (const path of ["/dashboard", "/map", "/events", "/profile", "/alerts", "/patrols"]) {
       const res = await middleware(makeRequest(path));
       expect(res.status).toBe(200);
@@ -166,28 +166,28 @@ describe("middleware — administrator role route gate", () => {
   });
 
   it("does NOT redirect an administrator requesting an /api route", async () => {
-    mockAuth.mockResolvedValue(makeSession(["administrator"]));
+    mockAuth.mockResolvedValue(makeSession(["tenant_admin"]));
     const res = await middleware(makeRequest("/api/stream/notifications"));
     expect(res.status).toBe(200);
     expect(res.headers.get("location")).toBeNull();
   });
 
-  // 2026-07-07: /users + /settings tightened to super_admin ONLY — site_admin
-  // is now redirected away, exactly like administrator (it previously passed).
-  it("redirects a site_admin requesting /users or /settings to /dashboard", async () => {
-    mockAuth.mockResolvedValue(makeSession(["site_admin"]));
+  // 2026-07-10: /users + /settings WIDENED to tenant_manager + tenant_superadmin
+  // (reverses the 2026-07-07 tenant_manager-only lock — see
+  // docs/plans/tenant-rbac-3tier-plan.md). tenant_superadmin is the tenant's
+  // own owner and must reach its tenant's user management + settings.
+  it("does NOT redirect a tenant_superadmin requesting /users or /settings", async () => {
+    mockAuth.mockResolvedValue(makeSession(["tenant_superadmin"]));
     const resUsers = await middleware(makeRequest("/users"));
-    expect(resUsers.status).toBe(307);
-    expect(resUsers.headers.get("location")).toBe("https://app.example.com/demo-site/dashboard");
+    expect(resUsers.status).toBe(200);
     const resSettings = await middleware(makeRequest("/settings"));
-    expect(resSettings.status).toBe(307);
-    expect(resSettings.headers.get("location")).toBe("https://app.example.com/demo-site/dashboard");
+    expect(resSettings.status).toBe(200);
   });
 
-  // super_admin (tenant-scoped, non-platform) is the ONLY role allowed onto
-  // /users + /settings — the gate must let it through.
-  it("does NOT redirect a super_admin requesting /users or /settings", async () => {
-    mockAuth.mockResolvedValue(makeSession(["super_admin"]));
+  // tenant_manager (platform) is also allowed onto /users + /settings — the
+  // gate must let it through.
+  it("does NOT redirect a tenant_manager requesting /users or /settings", async () => {
+    mockAuth.mockResolvedValue(makeSession(["tenant_manager"]));
     const resUsers = await middleware(makeRequest("/users"));
     expect(resUsers.status).toBe(200);
     const resSettings = await middleware(makeRequest("/settings"));

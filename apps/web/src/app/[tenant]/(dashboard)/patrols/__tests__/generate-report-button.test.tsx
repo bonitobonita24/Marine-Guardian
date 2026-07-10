@@ -3,7 +3,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup, fireEvent } from "@testing-library/react";
 
-type Role = "super_admin" | "site_admin" | "field_coordinator" | "operator";
+type Role = "tenant_manager" | "tenant_superadmin" | "field_coordinator" | "operator";
 
 type AreaListItem = { id: string; name: string };
 
@@ -146,7 +146,7 @@ describe("GenerateReportButton (5.3d + 6.2d)", () => {
   // P1-D: coverage report now emits { category, year, month } so the server
   // renders the correct monthly window instead of defaulting to "last 30 days".
   it("P1-D: on confirm (coverage): paramsJson carries {category, year, month} + chosen paperSize", () => {
-    stubs.roles = ["site_admin"];
+    stubs.roles = ["tenant_superadmin"];
     const { getByTestId } = render(<GenerateReportButton />);
 
     fireEvent.click(getByTestId("generate-report-button"));
@@ -178,7 +178,7 @@ describe("GenerateReportButton (5.3d + 6.2d)", () => {
   });
 
   it("P1-D: coverage report period picker hidden when switching to area report", () => {
-    stubs.roles = ["site_admin"];
+    stubs.roles = ["tenant_superadmin"];
     const { getByTestId, queryByTestId } = render(<GenerateReportButton />);
 
     fireEvent.click(getByTestId("generate-report-button"));
@@ -258,7 +258,7 @@ describe("GenerateReportButton (5.3d + 6.2d)", () => {
   });
 
   it("6.2d: on confirm (area): paramsJson carries {areaBoundaryId, startDate, endDate}", () => {
-    stubs.roles = ["site_admin"];
+    stubs.roles = ["tenant_superadmin"];
     const { getByTestId } = render(<GenerateReportButton />);
 
     fireEvent.click(getByTestId("generate-report-button"));
@@ -354,7 +354,7 @@ describe("GenerateReportButton (5.3d + 6.2d)", () => {
   });
 
   it("Task 4: platform-level super_admin (tenantId='') sees empty-tenant guidance", () => {
-    stubs.roles = ["super_admin"];
+    stubs.roles = ["tenant_manager"];
     stubs.tenantId = "";
     stubs.areaListItems = [];
     const { getByTestId } = render(<GenerateReportButton />);
@@ -376,7 +376,7 @@ describe("GenerateReportButton (5.3d + 6.2d)", () => {
   });
 
   it("Task 4: tenant-scoped super_admin (tenantId set) sees the standard empty placeholder, not the platform hint", () => {
-    stubs.roles = ["super_admin"];
+    stubs.roles = ["tenant_manager"];
     stubs.tenantId = "t1";
     stubs.areaListItems = [];
     const { getByTestId, queryByTestId } = render(<GenerateReportButton />);
@@ -392,7 +392,7 @@ describe("GenerateReportButton (5.3d + 6.2d)", () => {
   });
 
   it("Task 4: hint does not render while the area list is loading", () => {
-    stubs.roles = ["super_admin"];
+    stubs.roles = ["tenant_manager"];
     stubs.tenantId = "";
     stubs.areaListItems = [];
     stubs.areaListIsLoading = true;
@@ -409,7 +409,7 @@ describe("GenerateReportButton (5.3d + 6.2d)", () => {
   });
 
   it("Task 4: hint does not render when the area list has items, even for platform admins", () => {
-    stubs.roles = ["super_admin"];
+    stubs.roles = ["tenant_manager"];
     stubs.tenantId = "";
     // Items present (e.g. global areas surfaced via overrideOfficial) — hint
     // should stay hidden because the dropdown is usable.

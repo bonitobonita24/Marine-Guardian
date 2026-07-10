@@ -42,7 +42,7 @@ const createCaller = createCallerFactory(breachRouter);
 const TENANT_ID = "tenant-abc";
 const USER_ID = "admin-1";
 
-function makeCtx(tenantId: string | null = TENANT_ID, roles: string[] = ["super_admin"]) {
+function makeCtx(tenantId: string | null = TENANT_ID, roles: string[] = ["tenant_manager"]) {
   return {
     session: {
       user: {
@@ -93,7 +93,7 @@ describe("breach.record", () => {
   // administrator: Settings/breach-register mutations are gated to
   // superAdminProcedure (super_admin ONLY) — administrator is rejected.
   it("rejects administrator with FORBIDDEN (Settings excluded 2026-07-06)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_admin"]));
     await expect(
       caller.record({
         severity: "low",
@@ -107,7 +107,7 @@ describe("breach.record", () => {
   // site_admin (tightened 2026-07-07): Settings/breach-register is now
   // super_admin ONLY — site_admin was removed from superAdminProcedure.
   it("rejects site_admin with FORBIDDEN (Settings tightened to super_admin 2026-07-07)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await expect(
       caller.record({
         severity: "low",
@@ -219,7 +219,7 @@ describe("breach.list", () => {
   });
 
   it("rejects administrator with FORBIDDEN (Settings excluded 2026-07-06)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_admin"]));
     await expect(caller.list()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

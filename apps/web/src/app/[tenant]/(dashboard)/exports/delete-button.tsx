@@ -33,9 +33,9 @@ export function DeleteButton({ exportId }: DeleteButtonProps) {
 
   const roles = session?.user.roles ?? [];
   const canDelete =
-    roles.includes("super_admin") ||
-    roles.includes("site_admin") ||
-    roles.includes("administrator");
+    roles.includes("tenant_manager") ||
+    roles.includes("tenant_superadmin") ||
+    roles.includes("tenant_admin");
 
   const del = trpc.reportExport.delete.useMutation({
     onSuccess: () => {

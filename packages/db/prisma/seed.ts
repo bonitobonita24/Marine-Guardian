@@ -17,11 +17,18 @@ function requireEnv(name: string): string {
 }
 
 async function main() {
+  // Canonical 3-tier account model (2026-07-10 — tenant_rbac_3tier):
+  //   tenantadmin@powerbyteitsolutions.com  role tenant_manager     tenantId null (platform)
+  //   webmaster@localhost.com               role tenant_superadmin  attached to the primary tenant
+  //   admin@admin.com                       role tenant_admin       attached to the primary tenant
+  // Passwords are NEVER hardcoded — always read from env (.env.{env}).
+  const tenantAdminPassword = requireEnv("TENANTADMIN_PASSWORD");
   const webmasterPassword = requireEnv("WEBMASTER_PASSWORD");
-  const demoSiteAdminPassword = requireEnv("DEMO_SITE_ADMIN_PASSWORD");
+  const adminPassword = requireEnv("ADMIN_PASSWORD");
 
+  const tenantAdminHash = await bcrypt.hash(tenantAdminPassword, BCRYPT_ROUNDS);
   const webmasterHash = await bcrypt.hash(webmasterPassword, BCRYPT_ROUNDS);
-  const demoSiteAdminHash = await bcrypt.hash(demoSiteAdminPassword, BCRYPT_ROUNDS);
+  const adminHash = await bcrypt.hash(adminPassword, BCRYPT_ROUNDS);
 
   // Official Philippines tenant — slug "ph" (holds the Philippine MPAs: Apo Reef
   // + municipal MPAs). Future regional tenants (Banggai, Pecca) get their own
@@ -44,39 +51,68 @@ async function main() {
     },
   });
 
+  // Platform account — tenant_manager, tenantId null (cross-tenant, no single
+  // owner-per-tenant constraint applies since tenant_id is NULL).
   await prisma.user.upsert({
-    where: { email: "webmaster@marine-guardian.local" },
-    update: { passwordHash: webmasterHash },
+    where: { email: "tenantadmin@powerbyteitsolutions.com" },
+    update: { passwordHash: tenantAdminHash },
     create: {
-      email: "webmaster@marine-guardian.local",
-      passwordHash: webmasterHash,
-      fullName: "Webmaster",
-      role: "super_admin",
+      email: "tenantadmin@powerbyteitsolutions.com",
+      passwordHash: tenantAdminHash,
+      fullName: "Tenant Admin",
+      role: "tenant_manager",
       isActive: true,
       tenantId: null,
     },
   });
 
-  const siteAdmin = await prisma.user.upsert({
-    where: { email: "admin@demo-site.local" },
-    update: { passwordHash: demoSiteAdminHash },
+  // Tenant owner — tenant_superadmin. Exactly ONE per tenant is enforced by
+  // the "one_tenant_superadmin_per_tenant" partial unique index (migration
+  // 20260710093000_tenant_rbac_3tier) — do not seed a second tenant_superadmin
+  // for this tenant anywhere else in this file (including SEED_DEV_ACCOUNTS).
+  const tenantOwner = await prisma.user.upsert({
+    where: { email: "webmaster@localhost.com" },
+    update: { passwordHash: webmasterHash },
     create: {
-      email: "admin@demo-site.local",
-      passwordHash: demoSiteAdminHash,
-      fullName: "Demo Site Admin",
-      role: "site_admin",
+      email: "webmaster@localhost.com",
+      passwordHash: webmasterHash,
+      fullName: "Webmaster",
+      role: "tenant_superadmin",
       isActive: true,
       tenantId: tenant.id,
     },
   });
+
+  // Tenant admin — full tenant access EXCEPT user management (rbac.ts
+  // userManagementProcedure deliberately excludes tenant_admin).
+  await prisma.user.upsert({
+    where: { email: "admin@admin.com" },
+    update: { passwordHash: adminHash },
+    create: {
+      email: "admin@admin.com",
+      passwordHash: adminHash,
+      fullName: "Admin",
+      role: "tenant_admin",
+      isActive: true,
+      tenantId: tenant.id,
+    },
+  });
+
+  // Retained as `siteAdmin` alias for the many `createdBy`/`loggedByUserId`
+  // references below (tenant-scoped seed data attribution) — points at the
+  // tenant owner account created above.
+  const siteAdmin = tenantOwner;
 
   // ── DEV-ONLY standardized login accounts ─────────────────────────────────
   // Owner directive: predictable weak credentials for local development ONLY.
   // GATED on SEED_DEV_ACCOUNTS=true, which is set ONLY in .env.dev — never in
   // .env.staging / .env.prod. This guarantees staging/prod seeds are NOT
   // weakened to these values even though they run the same seed script.
-  // admin@mail.com / admin  → site_admin (demo-site tenant)
-  // user@mail.com  / user   → operator   (lowest normal role, demo-site tenant)
+  // admin@mail.com / admin  → tenant_admin (primary tenant — NOT tenant_superadmin;
+  //                            webmaster@localhost.com already holds that role and
+  //                            the one_tenant_superadmin_per_tenant unique index
+  //                            rejects a second tenant_superadmin on the same tenant)
+  // user@mail.com  / user   → operator   (lowest normal role, primary tenant)
   if (process.env["SEED_DEV_ACCOUNTS"] === "true") {
     const devAdminHash = await bcrypt.hash("admin", BCRYPT_ROUNDS);
     const devUserHash = await bcrypt.hash("user", BCRYPT_ROUNDS);
@@ -88,7 +124,7 @@ async function main() {
         email: "admin@mail.com",
         passwordHash: devAdminHash,
         fullName: "Dev Admin",
-        role: "site_admin",
+        role: "tenant_admin",
         isActive: true,
         tenantId: tenant.id,
       },
@@ -108,7 +144,7 @@ async function main() {
     });
 
     console.log("Dev-only accounts seeded (SEED_DEV_ACCOUNTS=true):");
-    console.log("  admin@mail.com / admin  (site_admin)");
+    console.log("  admin@mail.com / admin  (tenant_admin)");
     console.log("  user@mail.com  / user   (operator)");
   }
 
@@ -513,8 +549,9 @@ async function main() {
 
   console.log("Seed complete:");
   console.log(`  Tenant:         ${tenant.name} (${tenant.id})`);
-  console.log(`  Webmaster:      webmaster@marine-guardian.local (super_admin)`);
-  console.log(`  Site Admin:     admin@demo-site.local (site_admin)`);
+  console.log(`  Tenant Admin:   tenantadmin@powerbyteitsolutions.com (tenant_manager)`);
+  console.log(`  Webmaster:      webmaster@localhost.com (tenant_superadmin)`);
+  console.log(`  Admin:          admin@admin.com (tenant_admin)`);
   console.log(`  Event Types:    ${eventTypes.length}`);
   console.log(`  Patrol Area:    ${patrolArea.name}`);
   console.log(`  Subjects:       ${rangers.length}`);

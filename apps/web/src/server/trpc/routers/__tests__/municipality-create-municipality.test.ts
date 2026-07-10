@@ -51,7 +51,7 @@ const squareFC = {
   features: [{ type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [square] } }],
 };
 
-function makeCtx(roles: string[] = ["site_admin"]) {
+function makeCtx(roles: string[] = ["tenant_superadmin"]) {
   return {
     session: {
       user: {

@@ -360,9 +360,9 @@ export function ExportRow({ row }: ExportRowProps) {
   const { data: session } = useSession();
   const roles = session?.user.roles ?? [];
   const canRenderPptx =
-    roles.includes("super_admin") ||
-    roles.includes("site_admin") ||
-    roles.includes("administrator");
+    roles.includes("tenant_manager") ||
+    roles.includes("tenant_superadmin") ||
+    roles.includes("tenant_admin");
 
   const pptxInFlight =
     row.pptxStatus === "queued" || row.pptxStatus === "rendering";

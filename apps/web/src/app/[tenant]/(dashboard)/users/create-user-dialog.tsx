@@ -23,17 +23,17 @@ import {
 import { trpc } from "@/lib/trpc/client";
 
 type UserRole =
-  | "super_admin"
-  | "site_admin"
+  | "tenant_manager"
+  | "tenant_superadmin"
   | "field_coordinator"
   | "operator"
   | "viewer"
-  | "administrator";
+  | "tenant_admin";
 
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
-  { value: "super_admin", label: "Super Admin" },
-  { value: "site_admin", label: "Site Admin" },
-  { value: "administrator", label: "Administrator" },
+  { value: "tenant_manager", label: "Super Admin" },
+  { value: "tenant_superadmin", label: "Site Admin" },
+  { value: "tenant_admin", label: "Administrator" },
   { value: "field_coordinator", label: "Field Coordinator" },
   { value: "operator", label: "Operator" },
   { value: "viewer", label: "Viewer" },

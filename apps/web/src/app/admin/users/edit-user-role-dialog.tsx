@@ -21,12 +21,12 @@ import {
 import { trpc } from "@/lib/trpc/client";
 
 type UserRole =
-  | "super_admin"
-  | "site_admin"
+  | "tenant_manager"
+  | "tenant_superadmin"
   | "field_coordinator"
   | "operator"
   | "viewer"
-  | "administrator";
+  | "tenant_admin";
 
 interface EditUserRoleDialogProps {
   user: {
@@ -66,7 +66,7 @@ export function EditUserRoleDialog({
   function handleRoleChange(value: string) {
     const next = value as UserRole;
     setRole(next);
-    if (next === "super_admin") {
+    if (next === "tenant_manager") {
       setTenantId(null);
       setTenantError(null);
     }
@@ -77,7 +77,7 @@ export function EditUserRoleDialog({
     setError(null);
     setTenantError(null);
 
-    if (role !== "super_admin" && tenantId === null) {
+    if (role !== "tenant_manager" && tenantId === null) {
       setTenantError("Select a tenant for this role.");
       return;
     }
@@ -113,9 +113,9 @@ export function EditUserRoleDialog({
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="super_admin">Super Admin</SelectItem>
-                  <SelectItem value="site_admin">Site Admin</SelectItem>
-                  <SelectItem value="administrator">Administrator</SelectItem>
+                  <SelectItem value="tenant_manager">Super Admin</SelectItem>
+                  <SelectItem value="tenant_superadmin">Site Admin</SelectItem>
+                  <SelectItem value="tenant_admin">Administrator</SelectItem>
                   <SelectItem value="field_coordinator">Field Coordinator</SelectItem>
                   <SelectItem value="operator">Operator</SelectItem>
                   <SelectItem value="viewer">Viewer</SelectItem>
@@ -130,12 +130,12 @@ export function EditUserRoleDialog({
                   setTenantId(v === "" ? null : v);
                   setTenantError(null);
                 }}
-                disabled={role === "super_admin"}
+                disabled={role === "tenant_manager"}
               >
                 <SelectTrigger id="edit-user-tenant">
                   <SelectValue
                     placeholder={
-                      role === "super_admin"
+                      role === "tenant_manager"
                         ? "Platform (no tenant)"
                         : "Select tenant"
                     }

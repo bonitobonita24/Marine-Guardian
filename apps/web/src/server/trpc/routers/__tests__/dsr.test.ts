@@ -273,7 +273,7 @@ describe("dsr.adminList", () => {
 
   it("allows site_admin and scopes to tenant", async () => {
     vi.mocked(prisma.dataSubjectRequest.findMany).mockResolvedValue([] as never);
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await caller.adminList(undefined);
     expect(vi.mocked(prisma.dataSubjectRequest.findMany)).toHaveBeenCalledWith(
       partial({ where: partial({ tenantId: TENANT_ID }) }),
@@ -292,7 +292,7 @@ describe("dsr.adminUpdateStatus", () => {
       dueAt: new Date(),
       resolvedAt: new Date(),
     } as never);
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await caller.adminUpdateStatus({ requestId: "dsr-9", status: "completed" });
     const updArg = vi.mocked(prisma.dataSubjectRequest.update).mock.calls[0]?.[0] as {
       data: { status: string; resolvedAt: Date };
@@ -307,7 +307,7 @@ describe("dsr.adminUpdateStatus", () => {
 
   it("throws NOT_FOUND when the request is outside the tenant", async () => {
     vi.mocked(prisma.dataSubjectRequest.findFirst).mockResolvedValue(null);
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await expect(
       caller.adminUpdateStatus({ requestId: "nope", status: "completed" }),
     ).rejects.toThrow(TRPCError);

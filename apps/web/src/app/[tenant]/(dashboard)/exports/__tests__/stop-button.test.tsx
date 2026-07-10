@@ -3,7 +3,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup, fireEvent } from "@testing-library/react";
 
-type Role = "super_admin" | "site_admin" | "field_coordinator" | "operator";
+type Role = "tenant_manager" | "tenant_superadmin" | "field_coordinator" | "operator";
 
 const { stubs } = vi.hoisted(() => {
   const s: {
@@ -13,7 +13,7 @@ const { stubs } = vi.hoisted(() => {
     listInvalidate: ReturnType<typeof vi.fn<() => Promise<void>>>;
     cancelIsPending: boolean;
   } = {
-    roles: ["site_admin"],
+    roles: ["tenant_superadmin"],
     cancelMutate: vi.fn<(input: unknown) => void>(),
     cancelReset: vi.fn<() => void>(),
     listInvalidate: vi.fn<() => Promise<void>>(),
@@ -67,7 +67,7 @@ import { StopButton } from "../stop-button";
 
 describe("StopButton", () => {
   beforeEach(() => {
-    stubs.roles = ["site_admin"];
+    stubs.roles = ["tenant_superadmin"];
     stubs.cancelMutate.mockClear();
     stubs.cancelReset.mockClear();
     stubs.listInvalidate.mockClear();
@@ -90,7 +90,7 @@ describe("StopButton", () => {
   });
 
   it("renders the Stop trigger for site_admin and invokes cancel.mutate with the exportId on confirm", () => {
-    stubs.roles = ["site_admin"];
+    stubs.roles = ["tenant_superadmin"];
     const { getByTestId } = render(<StopButton exportId="re-queued-1" />);
 
     const trigger = getByTestId("stop-export-button");
@@ -105,7 +105,7 @@ describe("StopButton", () => {
   });
 
   it("renders for super_admin as well", () => {
-    stubs.roles = ["super_admin"];
+    stubs.roles = ["tenant_manager"];
     const { getByTestId } = render(<StopButton exportId="re-2" />);
     expect(getByTestId("stop-export-button")).toBeTruthy();
   });

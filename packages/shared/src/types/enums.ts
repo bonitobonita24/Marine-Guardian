@@ -1,6 +1,6 @@
 export const UserRole = {
-  SUPER_ADMIN: "super_admin",
-  SITE_ADMIN: "site_admin",
+  SUPER_ADMIN: "tenant_manager",
+  SITE_ADMIN: "tenant_superadmin",
   FIELD_COORDINATOR: "field_coordinator",
   OPERATOR: "operator",
 } as const;

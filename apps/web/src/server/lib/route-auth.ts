@@ -51,7 +51,7 @@ export async function requireRouteAuth(): Promise<RouteAuthContext> {
   );
 
   const isPlatformImpersonating =
-    roles.includes("super_admin") &&
+    roles.includes("tenant_manager") &&
     sessionTenantId === "" &&
     impersonationTenantId !== null;
 

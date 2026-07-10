@@ -831,7 +831,7 @@ describe("reportExport.retry (5.3d)", () => {
   it("throws NOT_FOUND when the row does not exist for this tenant (no cross-tenant leak)", async () => {
     vi.mocked(prisma.reportExport.findFirst).mockResolvedValue(null);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await expect(caller.retry({ id: "re-other" })).rejects.toThrow(TRPCError);
 
     expect(vi.mocked(prisma.reportExport.update)).not.toHaveBeenCalled();
@@ -854,7 +854,7 @@ describe("reportExport.retry (5.3d)", () => {
       status: "queued",
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     const result = await caller.retry({ id: "re-failed-1" });
 
     expect(result.id).toBe("re-failed-1");
@@ -885,7 +885,7 @@ describe("reportExport.retry (5.3d)", () => {
       status: "queued",
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await caller.retry({ id: "re-failed-2" });
 
     expect(vi.mocked(enqueuePdfRender)).toHaveBeenCalledTimes(1);
@@ -909,7 +909,7 @@ describe("reportExport.retry (5.3d)", () => {
       status: "queued",
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await caller.retry({ id: "re-failed-3" });
 
     expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledTimes(1);
@@ -942,7 +942,7 @@ describe("reportExport.retry (5.3d)", () => {
       status: "queued",
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await caller.retry({ id: "re-order" });
 
     const findOrder = vi.mocked(prisma.reportExport.findFirst).mock
@@ -998,7 +998,7 @@ describe("reportExport.cancel (Stop button — escape hatch for stuck queued/ren
   it("throws NOT_FOUND when the row does not exist for this tenant (no cross-tenant leak)", async () => {
     vi.mocked(prisma.reportExport.findFirst).mockResolvedValue(null);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await expect(caller.cancel({ id: "re-other" })).rejects.toThrow(TRPCError);
 
     expect(vi.mocked(prisma.reportExport.update)).not.toHaveBeenCalled();
@@ -1017,7 +1017,7 @@ describe("reportExport.cancel (Stop button — escape hatch for stuck queued/ren
       status: "failed",
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     const result = await caller.cancel({ id: "re-queued-1" });
 
     expect(result.id).toBe("re-queued-1");
@@ -1044,7 +1044,7 @@ describe("reportExport.cancel (Stop button — escape hatch for stuck queued/ren
       status: "failed",
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     const result = await caller.cancel({ id: "re-rendering-1" });
 
     expect(result.id).toBe("re-rendering-1");
@@ -1067,7 +1067,7 @@ describe("reportExport.cancel (Stop button — escape hatch for stuck queued/ren
       status: "failed",
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await caller.cancel({ id: "re-queued-2" });
 
     expect(vi.mocked(cancelPdfRender)).toHaveBeenCalledTimes(1);
@@ -1086,7 +1086,7 @@ describe("reportExport.cancel (Stop button — escape hatch for stuck queued/ren
       status: "failed",
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await caller.cancel({ id: "re-queued-3" });
 
     expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledTimes(1);
@@ -1125,7 +1125,7 @@ describe("reportExport.cancel (Stop button — escape hatch for stuck queued/ren
     } as never);
     vi.mocked(cancelPdfRender).mockResolvedValueOnce(undefined);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     const result = await caller.cancel({ id: "re-queued-4" });
 
     expect(result.id).toBe("re-queued-4");
@@ -1167,7 +1167,7 @@ describe("reportExport.delete (Delete button — remove a terminal ready/failed 
   it("throws NOT_FOUND when the row does not exist for this tenant (no cross-tenant leak)", async () => {
     vi.mocked(prisma.reportExport.findFirst).mockResolvedValue(null);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await expect(caller.delete({ id: "re-other" })).rejects.toThrow(TRPCError);
 
     expect(vi.mocked(prisma.reportExport.delete)).not.toHaveBeenCalled();
@@ -1183,7 +1183,7 @@ describe("reportExport.delete (Delete button — remove a terminal ready/failed 
       id: "re-failed-del-1",
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     const result = await caller.delete({ id: "re-failed-del-1" });
 
     expect(result).toEqual({ id: "re-failed-del-1" });
@@ -1202,7 +1202,7 @@ describe("reportExport.delete (Delete button — remove a terminal ready/failed 
       id: "re-ready-del-1",
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     const result = await caller.delete({ id: "re-ready-del-1" });
 
     expect(result).toEqual({ id: "re-ready-del-1" });
@@ -1218,7 +1218,7 @@ describe("reportExport.delete (Delete button — remove a terminal ready/failed 
       id: "re-failed-del-2",
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await caller.delete({ id: "re-failed-del-2" });
 
     expect(vi.mocked(cancelPdfRender)).toHaveBeenCalledTimes(1);
@@ -1235,7 +1235,7 @@ describe("reportExport.delete (Delete button — remove a terminal ready/failed 
       id: "re-failed-del-3",
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await caller.delete({ id: "re-failed-del-3" });
 
     expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledTimes(1);
@@ -1268,7 +1268,7 @@ describe("reportExport.delete (Delete button — remove a terminal ready/failed 
       id: "re-order-del",
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await caller.delete({ id: "re-order-del" });
 
     const findOrder = vi.mocked(prisma.reportExport.findFirst).mock
@@ -1318,7 +1318,7 @@ describe("reportExport.renderPptx (on-demand PDF→PowerPoint)", () => {
   it("throws NOT_FOUND when the row does not exist for this tenant (no cross-tenant leak)", async () => {
     vi.mocked(prisma.reportExport.findFirst).mockResolvedValue(null);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await expect(caller.renderPptx({ id: "re-other" })).rejects.toThrow(
       TRPCError,
     );
@@ -1332,7 +1332,7 @@ describe("reportExport.renderPptx (on-demand PDF→PowerPoint)", () => {
       telegramFileId: null,
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await expect(
       caller.renderPptx({ id: "re-not-ready" }),
     ).rejects.toThrow(TRPCError);
@@ -1347,7 +1347,7 @@ describe("reportExport.renderPptx (on-demand PDF→PowerPoint)", () => {
       telegramFileId: null,
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await expect(caller.renderPptx({ id: "re-no-file" })).rejects.toThrow(
       TRPCError,
     );
@@ -1365,7 +1365,7 @@ describe("reportExport.renderPptx (on-demand PDF→PowerPoint)", () => {
       pptxStatus: "queued",
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     const result = await caller.renderPptx({ id: "re-ready-1" });
 
     expect(result.id).toBe("re-ready-1");
@@ -1398,7 +1398,7 @@ describe("reportExport.renderPptx (on-demand PDF→PowerPoint)", () => {
       pptxStatus: "queued",
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await caller.renderPptx({ id: "re-ready-2" });
 
     expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledTimes(1);

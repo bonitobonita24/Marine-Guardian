@@ -74,7 +74,7 @@ const USER_ID = "user-admin-1";
 
 function makeCtx(
   tenantId: string | null = TENANT_ID,
-  roles: string[] = ["super_admin"],
+  roles: string[] = ["tenant_manager"],
 ) {
   return {
     session: {
@@ -207,13 +207,13 @@ describe("settings.syncNow", () => {
   });
 
   it("rejects administrator (Settings excluded 2026-07-06)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_admin"]));
 
     await expect(caller.syncNow()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("rejects site_admin (Settings tightened to super_admin 2026-07-07)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
 
     await expect(caller.syncNow()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
@@ -370,7 +370,7 @@ describe("settings.updateErSyncConfig", () => {
   });
 
   it("rejects administrator (Settings excluded 2026-07-06)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["administrator"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_admin"]));
 
     await expect(
       caller.updateErSyncConfig({ recurringEnabled: true }),

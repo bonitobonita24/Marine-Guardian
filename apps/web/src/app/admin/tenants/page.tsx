@@ -6,7 +6,7 @@ export default async function AdminTenantsPage() {
   const session = await auth();
   if (
     !session?.user ||
-    !session.user.roles.includes("super_admin") ||
+    !session.user.roles.includes("tenant_manager") ||
     session.user.tenantId !== ""
   ) {
     redirect("/");

@@ -9,12 +9,12 @@ import { platformPrisma, writeAuditLog } from "@marine-guardian/db";
 const BCRYPT_ROUNDS = 12;
 
 const userRoleSchema = z.enum([
-  "super_admin",
-  "site_admin",
+  "tenant_manager",
+  "tenant_superadmin",
   "field_coordinator",
   "operator",
   "viewer",
-  "administrator",
+  "tenant_admin",
 ]);
 
 const languageSchema = z.enum(["en", "id", "ms"]);
@@ -92,13 +92,13 @@ export const platformUserRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      if (input.role === "super_admin" && input.tenantId !== null) {
+      if (input.role === "tenant_manager" && input.tenantId !== null) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Super admin users must not be tenant-scoped.",
         });
       }
-      if (input.role !== "super_admin" && input.tenantId === null) {
+      if (input.role !== "tenant_manager" && input.tenantId === null) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Non-super-admin users must be assigned to a tenant.",
@@ -193,13 +193,13 @@ export const platformUserRouter = router({
       const effectiveTenantId =
         input.tenantId === undefined ? existing.tenantId : input.tenantId;
 
-      if (input.role === "super_admin" && effectiveTenantId !== null) {
+      if (input.role === "tenant_manager" && effectiveTenantId !== null) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Super admin users must not be tenant-scoped.",
         });
       }
-      if (input.role !== "super_admin" && effectiveTenantId === null) {
+      if (input.role !== "tenant_manager" && effectiveTenantId === null) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Non-super-admin users must be assigned to a tenant.",
@@ -323,5 +323,88 @@ export const platformUserRouter = router({
       });
 
       return { tempPassword };
+    }),
+
+  // reassignTenantSuperadmin (2026-07-10): platform-level succession — a
+  // tenant_manager reassigns which user holds tenant_superadmin for ANY
+  // tenant, cross-tenant. Gated by platformAdminProcedure (tenant_manager +
+  // platform context, same as every other mutation in this router). There is
+  // no DB-level unique index enforcing one-superadmin-per-tenant; this
+  // transaction enforces it logically by demoting the tenant's current
+  // tenant_superadmin(s) in the same atomic write that promotes the target.
+  // Self-service equivalent for the tenant owner itself is
+  // user.transferOwnership (tenant-scoped, prisma, not platformPrisma).
+  reassignTenantSuperadmin: platformAdminProcedure
+    .input(
+      z.object({
+        tenantId: z.string(),
+        newSuperadminUserId: z.string(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const tenant = await platformPrisma.tenant.findUnique({
+        where: { id: input.tenantId },
+        select: { id: true, isActive: true },
+      });
+      if (!tenant || !tenant.isActive) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Tenant not found or inactive.",
+        });
+      }
+
+      const target = await platformPrisma.user.findFirst({
+        where: { id: input.newSuperadminUserId, tenantId: input.tenantId },
+        select: { id: true, role: true, isActive: true },
+      });
+      if (!target) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
+      }
+      if (!target.isActive) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot reassign ownership to a deactivated user.",
+        });
+      }
+
+      const currentSuperadmins = await platformPrisma.user.findMany({
+        where: {
+          tenantId: input.tenantId,
+          role: "tenant_superadmin",
+          id: { not: target.id },
+        },
+        select: { id: true },
+      });
+
+      await platformPrisma.$transaction(async (tx) => {
+        if (currentSuperadmins.length > 0) {
+          await tx.user.updateMany({
+            where: { id: { in: currentSuperadmins.map((u) => u.id) } },
+            data: { role: "tenant_admin", securityVersion: { increment: 1 } },
+          });
+        }
+        await tx.user.update({
+          where: { id: target.id },
+          data: { role: "tenant_superadmin", securityVersion: { increment: 1 } },
+        });
+
+        await writeAuditLog(tx, {
+          tenantId: input.tenantId,
+          userId: ctx.userId,
+          action: "PLATFORM:REASSIGN_TENANT_SUPERADMIN",
+          entityType: "User",
+          entityId: target.id,
+          changesJson: {
+            before: {
+              demotedUserIds: currentSuperadmins.map((u) => u.id),
+              targetRole: target.role,
+            },
+            after: { superadminUserId: target.id },
+          },
+          ipAddress: ctx.ip,
+        });
+      });
+
+      return { id: target.id, tenantId: input.tenantId, role: "tenant_superadmin" as const };
     }),
 });

@@ -11,12 +11,12 @@ import { TRPCError } from "@trpc/server";
 const BCRYPT_ROUNDS = 12;
 
 const userRoleSchema = z.enum([
-  "super_admin",
-  "site_admin",
+  "tenant_manager",
+  "tenant_superadmin",
   "field_coordinator",
   "operator",
   "viewer",
-  "administrator",
+  "tenant_admin",
 ]);
 
 export const userRouter = router({
@@ -188,12 +188,12 @@ export const userRouter = router({
       z.object({
         id: z.string(),
         role: z.enum([
-          "super_admin",
-          "site_admin",
+          "tenant_manager",
+          "tenant_superadmin",
           "field_coordinator",
           "operator",
           "viewer",
-          "administrator",
+          "tenant_admin",
         ]),
       })
     )
@@ -289,6 +289,74 @@ export const userRouter = router({
       });
 
       return { id: input.id };
+    }),
+
+  // transferOwnership (2026-07-10): the tenant's current tenant_superadmin
+  // hands ownership to another user in the SAME tenant. Gated by
+  // userManagementProcedure (tenant_manager + tenant_superadmin) but further
+  // restricted here: the CALLER must themselves hold tenant_superadmin on
+  // this tenant right now — a tenant_manager (platform) cannot invoke this on
+  // a tenant it does not own, and this is a self-service handoff, not a
+  // platform action (that path is platformUser.reassignTenantSuperadmin).
+  // There is no DB-level unique index enforcing one-superadmin-per-tenant;
+  // this transaction enforces it logically by demoting the caller in the
+  // same atomic write that promotes the target.
+  transferOwnership: userManagementProcedure
+    .input(z.object({ newSuperadminUserId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.roles.includes("tenant_superadmin")) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only the current tenant owner can transfer ownership.",
+        });
+      }
+
+      if (input.newSuperadminUserId === ctx.userId) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "You are already the tenant owner.",
+        });
+      }
+
+      const target = await prisma.user.findFirst({
+        where: { id: input.newSuperadminUserId, tenantId: ctx.tenantId },
+        select: { id: true, role: true, isActive: true },
+      });
+      if (!target) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
+      }
+      if (!target.isActive) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot transfer ownership to a deactivated user.",
+        });
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id: ctx.userId },
+          data: { role: "tenant_admin", securityVersion: { increment: 1 } },
+        });
+        await tx.user.update({
+          where: { id: target.id },
+          data: { role: "tenant_superadmin", securityVersion: { increment: 1 } },
+        });
+
+        await writeAuditLog(tx as unknown as PrismaClient, {
+          tenantId: ctx.tenantId,
+          userId: ctx.userId,
+          action: "TRANSFER_OWNERSHIP",
+          entityType: "User",
+          entityId: target.id,
+          changesJson: {
+            before: { superadminUserId: ctx.userId, targetRole: target.role },
+            after: { superadminUserId: target.id },
+          },
+          ipAddress: ctx.ip,
+        });
+      });
+
+      return { id: target.id, role: "tenant_superadmin" as const };
     }),
 
   // Command Center map municipality preference (2026-07-04) — per-user, scoped

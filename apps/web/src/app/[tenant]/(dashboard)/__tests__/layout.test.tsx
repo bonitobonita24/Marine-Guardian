@@ -51,7 +51,7 @@ function makeSession(overrides: { tenantId?: string; roles?: string[] }) {
       email: "admin@example.com",
       name: "Admin",
       tenantId: overrides.tenantId ?? "",
-      roles: overrides.roles ?? ["super_admin"],
+      roles: overrides.roles ?? ["tenant_manager"],
     },
   };
 }
@@ -93,7 +93,7 @@ describe("(dashboard) layout — server auth gate (defense-in-depth L2)", () => 
 
 describe("(dashboard) layout — Bug #6 super_admin null-tenant redirect", () => {
   it("redirects a super_admin with empty tenantId and no impersonation cookie to /admin", async () => {
-    mockAuth.mockResolvedValue(makeSession({ tenantId: "", roles: ["super_admin"] }));
+    mockAuth.mockResolvedValue(makeSession({ tenantId: "", roles: ["tenant_manager"] }));
 
     await expect(renderLayout()).rejects.toThrow("REDIRECT:/admin");
 
@@ -102,7 +102,7 @@ describe("(dashboard) layout — Bug #6 super_admin null-tenant redirect", () =>
   });
 
   it("does NOT redirect a super_admin who is impersonating a tenant via cookie", async () => {
-    mockAuth.mockResolvedValue(makeSession({ tenantId: "", roles: ["super_admin"] }));
+    mockAuth.mockResolvedValue(makeSession({ tenantId: "", roles: ["tenant_manager"] }));
     mockCookieGet.mockReturnValue({ value: VALID_TENANT_ID });
 
     await renderLayout();

@@ -49,7 +49,7 @@ const createCaller = createCallerFactory(platformRouter);
 
 const USER_ID = "user-platform-001";
 
-function makeCtx(tenantId = "", roles: string[] = ["super_admin"]) {
+function makeCtx(tenantId = "", roles: string[] = ["tenant_manager"]) {
   return {
     session: {
       user: {
@@ -75,14 +75,14 @@ describe("platform — auth gate", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("throws FORBIDDEN when caller is not super_admin", async () => {
-    const caller = createCaller(makeCtx("", ["site_admin"]));
+    const caller = createCaller(makeCtx("", ["tenant_superadmin"]));
     await expect(caller.list()).rejects.toMatchObject({
       code: "FORBIDDEN",
     });
   });
 
   it("throws FORBIDDEN when caller is super_admin but tenantId is non-empty", async () => {
-    const caller = createCaller(makeCtx("tenant-scoped-001", ["super_admin"]));
+    const caller = createCaller(makeCtx("tenant-scoped-001", ["tenant_manager"]));
     await expect(caller.list()).rejects.toMatchObject({
       code: "FORBIDDEN",
     });
@@ -585,7 +585,7 @@ describe("platform.createTenantWithAdmin", () => {
       id: "cln-user-bbb",
       email: "admin@newreef.test",
       fullName: "Admin User",
-      role: "site_admin",
+      role: "tenant_superadmin",
       tenantId: "cln-tenant-aaa",
       isActive: true,
       createdAt: new Date(),
@@ -605,12 +605,12 @@ describe("platform.createTenantWithAdmin", () => {
 
     expect(result.tenant.id).toBe("cln-tenant-aaa");
     expect(result.user.id).toBe("cln-user-bbb");
-    expect(result.user.role).toBe("site_admin");
+    expect(result.user.role).toBe("tenant_superadmin");
 
     expect(vi.mocked(platformPrisma.user.create)).toHaveBeenCalledWith(
       partial({
         data: partial<{ role: string; tenantId: string }>({
-          role: "site_admin",
+          role: "tenant_superadmin",
           tenantId: "cln-tenant-aaa",
         }),
       }),

@@ -107,7 +107,7 @@ export const patrolRouter = router({
   rebuildTracks: adminProcedure
     .input(z.object({ tenantId: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const isSuperAdmin = ctx.roles.includes("super_admin");
+      const isSuperAdmin = ctx.roles.includes("tenant_manager");
       const targetTenantId = input.tenantId ?? ctx.tenantId;
       if (
         input.tenantId !== undefined &&

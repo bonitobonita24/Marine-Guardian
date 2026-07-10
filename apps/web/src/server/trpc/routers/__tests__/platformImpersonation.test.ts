@@ -60,7 +60,7 @@ const createCaller = createCallerFactory(platformImpersonationRouter);
 const USER_ID = "user-platform-001";
 const TENANT_ID = "cltenantabc0000000001";
 
-function makeCtx(tenantId = "", roles: string[] = ["super_admin"]) {
+function makeCtx(tenantId = "", roles: string[] = ["tenant_manager"]) {
   return {
     session: {
       user: {
@@ -91,14 +91,14 @@ describe("platformImpersonation.enter", () => {
   });
 
   it("rejects non-super_admin with FORBIDDEN", async () => {
-    const caller = createCaller(makeCtx("", ["site_admin"]));
+    const caller = createCaller(makeCtx("", ["tenant_superadmin"]));
     await expect(caller.enter({ tenantId: TENANT_ID })).rejects.toMatchObject({
       code: "FORBIDDEN",
     });
   });
 
   it("rejects super_admin who is already in tenant context (tenantId !== '') with FORBIDDEN", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["super_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_manager"]));
     await expect(caller.enter({ tenantId: TENANT_ID })).rejects.toMatchObject({
       code: "FORBIDDEN",
     });
@@ -220,7 +220,7 @@ describe("platformImpersonation.exit", () => {
   });
 
   it("rejects non-super_admin with FORBIDDEN", async () => {
-    const caller = createCaller(makeCtx("", ["site_admin"]));
+    const caller = createCaller(makeCtx("", ["tenant_superadmin"]));
     await expect(caller.exit()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 

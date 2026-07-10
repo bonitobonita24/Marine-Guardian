@@ -36,9 +36,9 @@ export function StopButton({ exportId }: StopButtonProps) {
 
   const roles = session?.user.roles ?? [];
   const canCancel =
-    roles.includes("super_admin") ||
-    roles.includes("site_admin") ||
-    roles.includes("administrator");
+    roles.includes("tenant_manager") ||
+    roles.includes("tenant_superadmin") ||
+    roles.includes("tenant_admin");
 
   const cancel = trpc.reportExport.cancel.useMutation({
     onSuccess: () => {

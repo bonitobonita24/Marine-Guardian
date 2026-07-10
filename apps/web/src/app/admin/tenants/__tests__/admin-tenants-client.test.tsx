@@ -147,12 +147,12 @@ describe("AdminTenantsClient", () => {
     render(
       <AdminTenantsClient
         email="admin@marine.test"
-        roles={["super_admin", "platform_admin"]}
+        roles={["tenant_manager", "platform_admin"]}
       />
     );
     expect(screen.getByText("Tenant Management")).toBeTruthy();
     expect(screen.getByText("admin@marine.test")).toBeTruthy();
-    expect(screen.getByText("super_admin")).toBeTruthy();
+    expect(screen.getByText("tenant_manager")).toBeTruthy();
     expect(screen.getByText("platform_admin")).toBeTruthy();
   });
 
@@ -160,7 +160,7 @@ describe("AdminTenantsClient", () => {
     stubs.listData = undefined;
     stubs.listIsLoading = true;
     render(
-      <AdminTenantsClient email="admin@marine.test" roles={["super_admin"]} />
+      <AdminTenantsClient email="admin@marine.test" roles={["tenant_manager"]} />
     );
     expect(screen.getByText("Loading tenants…")).toBeTruthy();
   });
@@ -168,7 +168,7 @@ describe("AdminTenantsClient", () => {
   it("shows empty state when list is empty", () => {
     stubs.listData = [];
     render(
-      <AdminTenantsClient email="admin@marine.test" roles={["super_admin"]} />
+      <AdminTenantsClient email="admin@marine.test" roles={["tenant_manager"]} />
     );
     expect(screen.getByText("No tenants yet.")).toBeTruthy();
   });
@@ -176,7 +176,7 @@ describe("AdminTenantsClient", () => {
   it("renders tenant rows with names, status badges, and action buttons", () => {
     stubs.listData = baseTenants;
     render(
-      <AdminTenantsClient email="admin@marine.test" roles={["super_admin"]} />
+      <AdminTenantsClient email="admin@marine.test" roles={["tenant_manager"]} />
     );
 
     expect(screen.getByText("Coral Bay Reserve")).toBeTruthy();
@@ -204,7 +204,7 @@ describe("AdminTenantsClient", () => {
   it("mounts edit dialog when Edit button is clicked", () => {
     stubs.listData = baseTenants;
     render(
-      <AdminTenantsClient email="admin@marine.test" roles={["super_admin"]} />
+      <AdminTenantsClient email="admin@marine.test" roles={["tenant_manager"]} />
     );
 
     expect(screen.queryByTestId("edit-tenant-dialog")).toBeNull();
@@ -220,7 +220,7 @@ describe("AdminTenantsClient", () => {
   it("renders Manage button for active tenant and disables for inactive", () => {
     stubs.listData = baseTenants;
     render(
-      <AdminTenantsClient email="admin@marine.test" roles={["super_admin"]} />
+      <AdminTenantsClient email="admin@marine.test" roles={["tenant_manager"]} />
     );
 
     const activeManage = screen.getByTestId("manage-tenant-coral-bay");
@@ -236,7 +236,7 @@ describe("AdminTenantsClient", () => {
     vi.mocked(useRouter).mockReturnValue({ push: pushMock, refresh: vi.fn() } as unknown as ReturnType<typeof useRouter>);
 
     render(
-      <AdminTenantsClient email="admin@marine.test" roles={["super_admin"]} />
+      <AdminTenantsClient email="admin@marine.test" roles={["tenant_manager"]} />
     );
 
     const manageBtn = screen.getByTestId("manage-tenant-coral-bay");
@@ -254,7 +254,7 @@ describe("AdminTenantsClient", () => {
       { ...(baseTenants[0] as TenantRow), earthrangerUrl: "https://er.coralbaympa.org" },
     ];
     render(
-      <AdminTenantsClient email="admin@marine.test" roles={["super_admin"]} />
+      <AdminTenantsClient email="admin@marine.test" roles={["tenant_manager"]} />
     );
     expect(screen.getByText("https://er.coralbaympa.org")).toBeTruthy();
   });
@@ -262,7 +262,7 @@ describe("AdminTenantsClient", () => {
   it("renders em-dash for tenant with no earthrangerUrl", () => {
     stubs.listData = [{ ...(baseTenants[0] as TenantRow), earthrangerUrl: null }];
     render(
-      <AdminTenantsClient email="admin@marine.test" roles={["super_admin"]} />
+      <AdminTenantsClient email="admin@marine.test" roles={["tenant_manager"]} />
     );
     expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(1);
   });
@@ -271,7 +271,7 @@ describe("AdminTenantsClient", () => {
     const recent = new Date(Date.now() - 5 * 60 * 1000); // 5 minutes ago
     stubs.listData = [{ ...(baseTenants[0] as TenantRow), lastSyncedAt: recent }];
     render(
-      <AdminTenantsClient email="admin@marine.test" roles={["super_admin"]} />
+      <AdminTenantsClient email="admin@marine.test" roles={["tenant_manager"]} />
     );
     // Intl.RelativeTimeFormat produces text like "5 minutes ago"
     expect(screen.getByText(/minutes ago/i)).toBeTruthy();
@@ -280,7 +280,7 @@ describe("AdminTenantsClient", () => {
   it("renders em-dash when tenant has no lastSyncedAt", () => {
     stubs.listData = [{ ...(baseTenants[0] as TenantRow), lastSyncedAt: null }];
     render(
-      <AdminTenantsClient email="admin@marine.test" roles={["super_admin"]} />
+      <AdminTenantsClient email="admin@marine.test" roles={["tenant_manager"]} />
     );
     expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(1);
   });

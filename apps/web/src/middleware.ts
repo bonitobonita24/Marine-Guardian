@@ -88,12 +88,16 @@ function isViewerAllowedPath(pathname: string): boolean {
   );
 }
 
-// super_admin-only prefixes — /users (user management) + /settings (tenant
-// configuration). Checked against the slug-stripped path.
-const SUPER_ADMIN_ONLY_PREFIXES = ["/users", "/settings"];
+// Tenant-admin-area prefixes — /users (user management) + /settings (tenant
+// configuration). Checked against the slug-stripped path. WIDENED 2026-07-10:
+// tenant_manager (platform) AND tenant_superadmin (the tenant's own owner)
+// may both reach these — see isTenantAdminAreaUser below. Renamed from
+// SUPER_ADMIN_ONLY_PREFIXES for clarity now that it is no longer
+// tenant_manager-exclusive.
+const TENANT_ADMIN_AREA_PREFIXES = ["/users", "/settings"];
 
-function isSuperAdminOnlyPath(pathname: string): boolean {
-  return SUPER_ADMIN_ONLY_PREFIXES.some(
+function isTenantAdminAreaPath(pathname: string): boolean {
+  return TENANT_ADMIN_AREA_PREFIXES.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
 }
@@ -165,7 +169,7 @@ export default async function middleware(request: NextRequest) {
   // --- Authenticated -------------------------------------------------------
   const roles = session.user.roles;
   const tenantSlug = session.user.tenantSlug; // "" for platform super_admin
-  const isSuperAdmin = roles.includes("super_admin");
+  const isSuperAdmin = roles.includes("tenant_manager");
   const isPlatformUser = isSuperAdmin && tenantSlug === "";
   const impersonationSlug =
     request.cookies.get(IMPERSONATION_SLUG_COOKIE_NAME)?.value ?? null;
@@ -217,7 +221,10 @@ export default async function middleware(request: NextRequest) {
   if (isViewer && !isViewerAllowedPath(rest)) {
     return NextResponse.redirect(new URL(`/${tenantSlug}/dashboard`, request.url));
   }
-  if (!isSuperAdmin && isSuperAdminOnlyPath(rest)) {
+  // tenant_manager OR tenant_superadmin may reach /users + /settings — the
+  // tenant owner manages its own tenant, not just the platform (2026-07-10).
+  const isTenantAdminAreaUser = isSuperAdmin || roles.includes("tenant_superadmin");
+  if (!isTenantAdminAreaUser && isTenantAdminAreaPath(rest)) {
     return NextResponse.redirect(new URL(`/${tenantSlug}/dashboard`, request.url));
   }
 

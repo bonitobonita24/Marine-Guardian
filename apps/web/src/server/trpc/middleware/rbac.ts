@@ -2,12 +2,12 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure } from "../trpc";
 
 type Role =
-  | "super_admin"
-  | "site_admin"
+  | "tenant_manager"
+  | "tenant_superadmin"
   | "field_coordinator"
   | "operator"
   | "viewer"
-  | "administrator";
+  | "tenant_admin";
 
 export function requireRole(...allowedRoles: Role[]) {
   return protectedProcedure.use(async ({ ctx, next }) => {
@@ -26,19 +26,19 @@ export function requireRole(...allowedRoles: Role[]) {
 // gated separately by userManagementProcedure (below), which administrator
 // is NEVER added to. Nav + route enforcement for the /users page lives in
 // sidebar.tsx + middleware.ts (defense in depth, same pattern as viewer).
-export const adminProcedure = requireRole("super_admin", "site_admin", "administrator");
+export const adminProcedure = requireRole("tenant_manager", "tenant_superadmin", "tenant_admin");
 export const coordinatorProcedure = requireRole(
-  "super_admin",
-  "site_admin",
+  "tenant_manager",
+  "tenant_superadmin",
   "field_coordinator",
-  "administrator",
+  "tenant_admin",
 );
 export const operatorProcedure = requireRole(
-  "super_admin",
-  "site_admin",
+  "tenant_manager",
+  "tenant_superadmin",
   "field_coordinator",
   "operator",
-  "administrator",
+  "tenant_admin",
 );
 // viewer is deliberately NEVER listed in adminProcedure/coordinatorProcedure/
 // operatorProcedure above — it is a strictly read-only role and must be
@@ -52,11 +52,11 @@ export const operatorProcedure = requireRole(
 // procedure for any other mutation; every other write path stays on
 // coordinatorProcedure/adminProcedure/operatorProcedure as before.
 export const reportGenerateProcedure = requireRole(
-  "super_admin",
-  "site_admin",
+  "tenant_manager",
+  "tenant_superadmin",
   "field_coordinator",
   "viewer",
-  "administrator",
+  "tenant_admin",
 );
 
 // superAdminProcedure (2026-07-07): super_admin ONLY — the gate for BOTH
@@ -73,9 +73,21 @@ export const reportGenerateProcedure = requireRole(
 // those roles silently regain access they are meant to be denied. Nav + route
 // enforcement for /users and /settings lives in sidebar.tsx + middleware.ts
 // (defense in depth).
-export const superAdminProcedure = requireRole("super_admin");
+export const superAdminProcedure = requireRole("tenant_manager");
 
-// userManagementProcedure — historical name, kept as an alias so existing
-// call sites (user.ts) don't need a mechanical rename. Refers to the exact
-// same super_admin-only gate as superAdminProcedure above.
-export const userManagementProcedure = superAdminProcedure;
+// userManagementProcedure (2026-07-10): WIDENED from a superAdminProcedure
+// alias to its own gate — tenant_manager (platform) AND tenant_superadmin
+// (the tenant's own owner). Rationale: the tenant owner (tenant_superadmin)
+// must be able to manage its own tenant's users/roles without requiring a
+// platform tenant_manager to do it for them. tenant_admin remains excluded —
+// this is the same narrow carve-out documented on adminProcedure above (full
+// access EXCEPT user management). Nav + route enforcement for /users and
+// /settings lives in sidebar.tsx + middleware.ts (defense in depth) and has
+// been widened to match (tenant_manager OR tenant_superadmin).
+export const userManagementProcedure = requireRole("tenant_manager", "tenant_superadmin");
+
+// billingProcedure (2026-07-10 scaffold): forward-looking gate for a future
+// tenant billing/subscription surface. Same allow-list as
+// userManagementProcedure (tenant_manager + tenant_superadmin — the tenant
+// owner manages its own billing) — no consumers yet.
+export const billingProcedure = requireRole("tenant_manager", "tenant_superadmin");

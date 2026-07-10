@@ -5,8 +5,8 @@ import { render, cleanup, fireEvent } from "@testing-library/react";
 import type { ExportRowItem } from "../export-row";
 
 type Role =
-  | "super_admin"
-  | "site_admin"
+  | "tenant_manager"
+  | "tenant_superadmin"
   | "field_coordinator"
   | "operator"
   | "viewer";
@@ -20,7 +20,7 @@ const { stubs } = vi.hoisted(() => {
     listIsLoading: boolean;
     lastListInput: Record<string, unknown> | undefined;
   } = {
-    roles: ["site_admin"],
+    roles: ["tenant_superadmin"],
     listData: undefined,
     listIsLoading: false,
     lastListInput: undefined,
@@ -136,7 +136,7 @@ function makeRow(overrides: Partial<ExportRowItem> = {}): ExportRowItem {
 
 describe("ExportsPage (5.3d)", () => {
   beforeEach(() => {
-    stubs.roles = ["site_admin"];
+    stubs.roles = ["tenant_superadmin"];
     stubs.listData = undefined;
     stubs.listIsLoading = false;
     stubs.lastListInput = undefined;

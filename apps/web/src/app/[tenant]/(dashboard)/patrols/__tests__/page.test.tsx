@@ -120,7 +120,7 @@ describe("PatrolsPage — BUG-1 regression (React error #310)", () => {
   });
 
   it("renders without crashing for a site_admin session", () => {
-    sessionRoles = ["site_admin"];
+    sessionRoles = ["tenant_superadmin"];
     expect(() => {
       render(<PatrolsPage />);
     }).not.toThrow();

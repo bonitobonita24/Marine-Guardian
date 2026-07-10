@@ -298,7 +298,7 @@ describe("patrol.rebuildTracks (5.2c)", () => {
       { id: "ptrl-3" },
     ] as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     const result = await caller.rebuildTracks({});
 
     expect(result.tenantId).toBe(TENANT_ID);
@@ -333,7 +333,7 @@ describe("patrol.rebuildTracks (5.2c)", () => {
   });
 
   it("site_admin attempting cross-tenant rebuild is FORBIDDEN (no fan-out, no AuditLog)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await expect(
       caller.rebuildTracks({ tenantId: "other-tenant" })
     ).rejects.toThrow(TRPCError);
@@ -346,7 +346,7 @@ describe("patrol.rebuildTracks (5.2c)", () => {
       { id: "ptrl-1" },
     ] as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["super_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_manager"]));
     const result = await caller.rebuildTracks({ tenantId: TENANT_ID });
 
     expect(result.action).toBe("PATROL_TRACK_REBUILD");
@@ -369,7 +369,7 @@ describe("patrol.rebuildTracks (5.2c)", () => {
       { id: "ptrl-y" },
     ] as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["super_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_manager"]));
     const result = await caller.rebuildTracks({ tenantId: "tenant-other" });
 
     expect(result.tenantId).toBe("tenant-other");
@@ -398,7 +398,7 @@ describe("patrol.rebuildTracks (5.2c)", () => {
   });
 
   it("rebuild with no open patrols still writes AuditLog (enqueued=0) — empty tenant is a valid no-op", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     const result = await caller.rebuildTracks({});
 
     expect(result.enqueued).toBe(0);
@@ -473,7 +473,7 @@ describe("patrol.softDelete (Phase 7 soft-delete)", () => {
       isDeleted: false,
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     const result = await caller.softDelete({ id: "pat-1" });
 
     expect(result).toEqual({ id: "pat-1" });
@@ -492,7 +492,7 @@ describe("patrol.softDelete (Phase 7 soft-delete)", () => {
       isDeleted: true,
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await expect(caller.softDelete({ id: "pat-1" })).rejects.toThrow(
       "Patrol already deleted."
     );
@@ -503,7 +503,7 @@ describe("patrol.softDelete (Phase 7 soft-delete)", () => {
   it("cross-tenant (findFirst null) — throws NOT_FOUND, no update, no audit", async () => {
     vi.mocked(prisma.patrol.findFirst).mockResolvedValue(null);
 
-    const caller = createCaller(makeCtx("other-tenant", ["site_admin"]));
+    const caller = createCaller(makeCtx("other-tenant", ["tenant_superadmin"]));
     await expect(caller.softDelete({ id: "pat-1" })).rejects.toThrow(
       "Patrol not found."
     );
@@ -524,7 +524,7 @@ describe("patrol.softDelete (Phase 7 soft-delete)", () => {
       isDeleted: false,
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["super_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_manager"]));
     await caller.softDelete({ id: "pat-1" });
 
     expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith(
@@ -559,7 +559,7 @@ describe("patrol.restore (Phase 7 soft-delete)", () => {
       deletedAt: new Date("2026-06-01T00:00:00Z"),
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     const result = await caller.restore({ id: "pat-1" });
 
     expect(result).toEqual({ id: "pat-1" });
@@ -590,7 +590,7 @@ describe("patrol.restore (Phase 7 soft-delete)", () => {
       deletedAt: null,
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["site_admin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
     await expect(caller.restore({ id: "pat-1" })).rejects.toThrow(
       "Patrol not deleted."
     );
@@ -601,7 +601,7 @@ describe("patrol.restore (Phase 7 soft-delete)", () => {
   it("cross-tenant (findFirst null) — throws NOT_FOUND, no update, no audit", async () => {
     vi.mocked(prisma.patrol.findFirst).mockResolvedValue(null);
 
-    const caller = createCaller(makeCtx("other-tenant", ["site_admin"]));
+    const caller = createCaller(makeCtx("other-tenant", ["tenant_superadmin"]));
     await expect(caller.restore({ id: "pat-1" })).rejects.toThrow(
       "Patrol not found."
     );

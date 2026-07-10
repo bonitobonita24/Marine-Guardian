@@ -113,18 +113,18 @@ const VIEWER_ALLOWED_HREFS = new Set<string>([
   "/profile",
 ]);
 
-// Users (user management) + Settings (tenant configuration) are visible ONLY
-// to super_admin — the exact role `superAdminProcedure` allows and
-// middleware.ts enforces at the route level. site_admin was removed here per
-// owner 2026-07-07 (Users + Settings tightened to super_admin only). Every
-// other authenticated role (site_admin, administrator, field_coordinator,
-// operator) hits FORBIDDEN there, so the nav items are hidden to match — no
-// role should see a menu it cannot use. "/profile" is deliberately NOT in this
-// set, so every role keeps its own self-service Profile page. viewer is
+// Users (user management) + Settings (tenant configuration) are visible to
+// tenant_manager (platform) AND tenant_superadmin (the tenant's own owner) —
+// the exact allow-list `userManagementProcedure` grants and middleware.ts
+// enforces at the route level. WIDENED 2026-07-10: tenant_superadmin can now
+// manage its own tenant's users/settings without a platform tenant_manager.
+// Every other authenticated role (tenant_admin, field_coordinator, operator,
+// viewer) still hits FORBIDDEN there, so the nav items are hidden to match —
+// no role should see a menu it cannot use. "/profile" is deliberately NOT in
+// this set, so every role keeps its own self-service Profile page. viewer is
 // handled by its own allow-list above. Route enforcement (typed/bookmarked
-// /users or /settings URL) lives in middleware.ts + the tRPC layer (every
-// non-super_admin role).
-const SUPER_ADMIN_ONLY_HREFS = new Set<string>(["/users", "/settings"]);
+// /users or /settings URL) lives in middleware.ts + the tRPC layer.
+const TENANT_ADMIN_AREA_HREFS = new Set<string>(["/users", "/settings"]);
 
 function getVisibleNavGroups(roles: readonly string[]) {
   if (roles.includes("viewer")) {
@@ -135,13 +135,14 @@ function getVisibleNavGroups(roles: readonly string[]) {
       }))
       .filter((group) => group.items.length > 0);
   }
-  const isSuperAdmin = roles.includes("super_admin");
-  if (!isSuperAdmin) {
+  const isTenantAdminAreaUser =
+    roles.includes("tenant_manager") || roles.includes("tenant_superadmin");
+  if (!isTenantAdminAreaUser) {
     return navGroups
       .map((group) => ({
         ...group,
         items: group.items.filter(
-          (item) => !SUPER_ADMIN_ONLY_HREFS.has(item.href),
+          (item) => !TENANT_ADMIN_AREA_HREFS.has(item.href),
         ),
       }))
       .filter((group) => group.items.length > 0);

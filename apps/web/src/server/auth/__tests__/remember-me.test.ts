@@ -124,7 +124,7 @@ describe("remember-me — full sign-in wiring (authorize result → jwt callback
       email: "admin@mail.com",
       name: "Dev Admin",
       tenantId: "t1",
-      roles: ["site_admin"],
+      roles: ["tenant_superadmin"],
       securityVersion: 1,
       rememberMe: true,
     };

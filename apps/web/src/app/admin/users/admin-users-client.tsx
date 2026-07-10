@@ -28,12 +28,12 @@ type UserRow = {
   email: string;
   fullName: string;
   role:
-    | "super_admin"
-    | "site_admin"
+    | "tenant_manager"
+    | "tenant_superadmin"
     | "field_coordinator"
     | "operator"
     | "viewer"
-    | "administrator";
+    | "tenant_admin";
   languagePreference: string;
   isActive: boolean;
   lastLoginAt: Date | null;
@@ -46,9 +46,9 @@ type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
 
 function roleBadgeVariant(role: UserRow["role"]): BadgeVariant {
   switch (role) {
-    case "super_admin":
+    case "tenant_manager":
       return "destructive";
-    case "site_admin":
+    case "tenant_superadmin":
       return "default";
     case "field_coordinator":
       return "secondary";
@@ -56,7 +56,7 @@ function roleBadgeVariant(role: UserRow["role"]): BadgeVariant {
       return "outline";
     case "viewer":
       return "secondary";
-    case "administrator":
+    case "tenant_admin":
       return "default";
   }
 }
@@ -141,7 +141,7 @@ export function AdminUsersClient({ email, roles }: Props) {
               ) : (
                 list.data?.items.map((user) => {
                   const tenantDisplay =
-                    user.role === "super_admin"
+                    user.role === "tenant_manager"
                       ? "Platform"
                       : (user.tenant?.name ?? "—");
 
