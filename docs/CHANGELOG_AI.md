@@ -2024,3 +2024,21 @@
 - **Errors encountered:** S1 regression — "report-map" hyphen mismatch with Prisma enum caused tRPC type cascade → exports/page.tsx build failure; fixed by renaming to "report_map" throughout
 - **Verification:** prisma generate ✓, shared typecheck ✓, web lint ✓, web build ✓, 1188/1188 tests ✓
 - **Deferred:** print-render VALID_REPORT_TYPES needs 'report_map' when report-map renderer is built (S6 scope)
+
+## 2026-07-10 — Release v1.0.0: 3-tier RBAC + white-label shipped to all environments
+- Agent:               CLAUDE_CODE
+- Why:                 Owner (Full Auto) — deploy the verified 3-tier tenant RBAC + cut the first
+                       official release + white-label footer, to prod + staging + demo.
+- Files added:         apps/web/src/lib/version.ts
+- Files modified:      apps/web/src/components/layout/sidebar.tsx (version + Powerbyte credit footer),
+                       package.json + apps/web/package.json (0.1.0 -> 1.0.0)
+- Release:             annotated tag v1.0.0 on main @ dd1e48e (pushed).
+- Schema/migrations:   20260710093000_tenant_rbac_3tier applied to prod + staging + demo live DBs.
+- Deploy:              Data-first gate. Pre-flight caught a guaranteed one-owner-index collision
+                       (2 site_admin in tenant `ph` on every env); normalized by demoting the
+                       duplicate admin@demo-site.local -> administrator (kept admin@mail.com owner),
+                       backed up first. Staging refreshed from prod then migrated; prod redeployed +
+                       migrated; demo promoted (migrate, no reseed). All: /api/health=200, /ph/login=200.
+- Errors encountered:  push-to-demo verify printed stale /demo-site/login (404) — cosmetic; real
+                       login is /ph/login=200 (tenant renamed to `ph`). No functional issue.
+- Errors resolved:     Index-collision pre-empted before any migrate; zero failed migrations.
