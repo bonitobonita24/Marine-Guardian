@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
+import { matrixProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
 import { EVENT_CATEGORY } from "@/components/map/eventMarkerStyle";
 import { boundaryKindFromRef, municipalityIdFromRef } from "./boundary-kind";
@@ -300,7 +301,7 @@ export function l3ValuesFromJsons(
 }
 
 const eventsRouter = router({
-  list: tenantProcedure.input(eventsListInput).query(async ({ ctx, input }) => {
+  list: matrixProcedure(tenantProcedure, "map", "view").input(eventsListInput).query(async ({ ctx, input }) => {
     const where: {
       tenantId: string;
       locationLat: { not: null };
@@ -408,7 +409,7 @@ const eventsRouter = router({
 });
 
 const subjectsRouter = router({
-  list: tenantProcedure.query(async ({ ctx }) => {
+  list: matrixProcedure(tenantProcedure, "map", "view").query(async ({ ctx }) => {
     const rows = await prisma.subject.findMany({
       where: {
         tenantId: ctx.tenantId,
@@ -436,7 +437,7 @@ const subjectsRouter = router({
 });
 
 const patrolTracksRouter = router({
-  byPatrolId: tenantProcedure
+  byPatrolId: matrixProcedure(tenantProcedure, "map", "view")
     .input(patrolTracksInput)
     .query(async ({ ctx, input }) => {
       // Phase 7 soft-delete: map view must not render deleted patrol tracks.
@@ -534,7 +535,7 @@ const patrolTracksRouter = router({
   // (2026-06-24). Reads stored PatrolTrack.trackGeojson directly, tagged with
   // patrolType so the client styles each track by type (seaborne solid / foot
   // dashed). Bounded by ACTIVE_TRACKS_PATROL_CAP, ordered by track recency.
-  active: tenantProcedure.query(async ({ ctx }) => {
+  active: matrixProcedure(tenantProcedure, "map", "view").query(async ({ ctx }) => {
     const trackRows = await prisma.patrolTrack.findMany({
       where: {
         tenantId: ctx.tenantId,
@@ -563,7 +564,7 @@ const patrolTracksRouter = router({
   // Same projection as `active` but the patrol set is bounded by startTime ∈
   // [from, to] and (optionally) municipalityId, so the report surface's tracks
   // follow the same FROM/TO/municipality filter as its markers and charts.
-  inRange: tenantProcedure
+  inRange: matrixProcedure(tenantProcedure, "map", "view")
     .input(patrolTracksInRangeInput)
     .query(async ({ ctx, input }) => {
       const patrolWhere: {
@@ -629,7 +630,7 @@ const patrolTracksRouter = router({
 });
 
 const patrolAreasRouter = router({
-  list: tenantProcedure
+  list: matrixProcedure(tenantProcedure, "map", "view")
     .input(patrolAreasInput)
     .query(async ({ ctx, input }) => {
       const where: { tenantId: string; isActive?: boolean } = {
@@ -683,7 +684,7 @@ const eventTypesRouter = router({
   // The law-enforcement + monitoring event types for the map filter tree. Derived
   // from the event_types table (the stable taxonomy) — not the in-range events —
   // so the toggle tree is fully populated regardless of the active date window.
-  byCategory: tenantProcedure.query(async ({ ctx }) => {
+  byCategory: matrixProcedure(tenantProcedure, "map", "view").query(async ({ ctx }) => {
     const rows = await prisma.eventType.findMany({
       where: {
         tenantId: ctx.tenantId,
@@ -748,7 +749,7 @@ const eventTypesRouter = router({
 // from the arcgisReferenceId provenance key (boundary-kind.ts) so the client can
 // style land vs water vs protected-zone distinctly without a schema column.
 const officialBoundariesRouter = router({
-  list: tenantProcedure.query(async ({ ctx }) => {
+  list: matrixProcedure(tenantProcedure, "map", "view").query(async ({ ctx }) => {
     const [rows, municipalities] = await Promise.all([
       prisma.areaBoundary.findMany({
         where: { tenantId: ctx.tenantId, source: "official", isEnabled: true },

@@ -14,7 +14,7 @@ import {
 } from "@marine-guardian/shared/schemas";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
-import { adminProcedure, reportGenerateProcedure } from "../middleware/rbac";
+import { adminProcedure, matrixProcedure, reportGenerateProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
 import {
   cancelPdfRender,
@@ -83,7 +83,7 @@ function extractParams(paramsJson: unknown): ReportExportParams {
 }
 
 export const reportExportRouter = router({
-  list: tenantProcedure
+  list: matrixProcedure(tenantProcedure, "exports", "view")
     .input(listReportExportsInputSchema)
     .query(async ({ ctx, input }) => {
       const items = await prisma.reportExport.findMany({
@@ -196,7 +196,7 @@ export const reportExportRouter = router({
       return { items: itemsWithSummary, nextCursor };
     }),
 
-  getById: tenantProcedure
+  getById: matrixProcedure(tenantProcedure, "exports", "view")
     .input(getReportExportByIdInputSchema)
     .query(async ({ ctx, input }) => {
       return prisma.reportExport.findFirst({
@@ -214,7 +214,7 @@ export const reportExportRouter = router({
    * render to complete. Returns just the status + completedAt + errorMessage
    * to keep the payload small.
    */
-  pollStatus: tenantProcedure
+  pollStatus: matrixProcedure(tenantProcedure, "exports", "view")
     .input(pollReportExportStatusInputSchema)
     .query(async ({ ctx, input }) => {
       return prisma.reportExport.findFirst({
@@ -250,7 +250,7 @@ export const reportExportRouter = router({
    * action — it stays excluded from every other mutation in this router
    * (retry/cancel/delete/renderPptx remain adminProcedure).
    */
-  create: reportGenerateProcedure
+  create: matrixProcedure(reportGenerateProcedure, "exports", "write")
     .input(createReportExportInputSchema)
     .mutation(async ({ ctx, input }) => {
       const created = await prisma.reportExport.create({
@@ -315,7 +315,7 @@ export const reportExportRouter = router({
    * the URL no longer needs to carry tenantId. Cleaner posture: no public
    * URL identifies the tenant a row belongs to.
    */
-  getDownloadUrl: tenantProcedure
+  getDownloadUrl: matrixProcedure(tenantProcedure, "exports", "view")
     .input(getReportExportDownloadUrlInputSchema)
     .query(async ({ ctx, input }) => {
       const row = await prisma.reportExport.findFirst({
@@ -360,7 +360,7 @@ export const reportExportRouter = router({
    * because BullMQ writes to Valkey outside the Postgres transaction
    * scope.
    */
-  retry: adminProcedure
+  retry: matrixProcedure(adminProcedure, "exports", "update")
     .input(retryReportExportInputSchema)
     .mutation(async ({ ctx, input }) => {
       const existing = await prisma.reportExport.findFirst({
@@ -420,7 +420,7 @@ export const reportExportRouter = router({
    * Tenant scope enforced via findFirst {id, tenantId} — NOT_FOUND for
    * cross-tenant rows (never leaks existence).
    */
-  cancel: adminProcedure
+  cancel: matrixProcedure(adminProcedure, "exports", "update")
     .input(cancelReportExportInputSchema)
     .mutation(async ({ ctx, input }) => {
       const existing = await prisma.reportExport.findFirst({
@@ -469,7 +469,7 @@ export const reportExportRouter = router({
    * via findFirst {id, tenantId} — NOT_FOUND for cross-tenant rows (never
    * leaks existence), same posture as retry/cancel.
    */
-  delete: adminProcedure
+  delete: matrixProcedure(adminProcedure, "exports", "delete")
     .input(deleteReportExportInputSchema)
     .mutation(async ({ ctx, input }) => {
       const existing = await prisma.reportExport.findFirst({
@@ -516,7 +516,7 @@ export const reportExportRouter = router({
    * PPTX rendering is an additional, optional, admin-triggered conversion
    * rather than the primary report-generation flow.
    */
-  renderPptx: adminProcedure
+  renderPptx: matrixProcedure(adminProcedure, "exports", "write")
     .input(renderPptxReportExportInputSchema)
     .mutation(async ({ ctx, input }) => {
       const existing = await prisma.reportExport.findFirst({
@@ -569,7 +569,7 @@ export const reportExportRouter = router({
    * pollPptxStatus — lightweight read for the UI to poll while waiting for
    * an on-demand PPTX render to complete. Mirrors pollStatus.
    */
-  pollPptxStatus: tenantProcedure
+  pollPptxStatus: matrixProcedure(tenantProcedure, "exports", "view")
     .input(pollPptxReportExportStatusInputSchema)
     .query(async ({ ctx, input }) => {
       return prisma.reportExport.findFirst({
@@ -589,7 +589,7 @@ export const reportExportRouter = router({
    * never leaks existence. telegramFileId itself is never returned to the
    * client.
    */
-  getPptxDownloadUrl: tenantProcedure
+  getPptxDownloadUrl: matrixProcedure(tenantProcedure, "exports", "view")
     .input(getPptxReportExportDownloadUrlInputSchema)
     .query(async ({ ctx, input }) => {
       const row = await prisma.reportExport.findFirst({

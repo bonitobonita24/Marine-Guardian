@@ -2,7 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
-import { adminProcedure } from "../middleware/rbac";
+import { adminProcedure, matrixProcedure } from "../middleware/rbac";
 import { prisma, decrypt, writeAuditLog } from "@marine-guardian/db";
 import { Prisma } from "@marine-guardian/db";
 import type { PrismaClient } from "@marine-guardian/db";
@@ -347,7 +347,7 @@ async function listViaSearch(
 }
 
 export const eventRouter = router({
-  list: tenantProcedure
+  list: matrixProcedure(tenantProcedure, "events", "view")
     .input(
       eventListFilters.extend({
         cursor: z.string().optional(),
@@ -429,7 +429,7 @@ export const eventRouter = router({
       return { items, nextCursor };
     }),
 
-  getById: tenantProcedure
+  getById: matrixProcedure(tenantProcedure, "events", "view")
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
       return prisma.event.findFirst({
@@ -453,7 +453,7 @@ export const eventRouter = router({
       });
     }),
 
-  updateState: tenantProcedure
+  updateState: matrixProcedure(tenantProcedure, "events", "update")
     .input(
       z.object({
         id: z.string(),
@@ -475,7 +475,7 @@ export const eventRouter = router({
    * ids (Prisma's updateMany never throws for a non-matching id, it just
    * excludes it from `count`).
    */
-  bulkUpdateState: tenantProcedure
+  bulkUpdateState: matrixProcedure(tenantProcedure, "events", "update")
     .input(
       z.object({
         ids: z.string().array().min(1).max(500),
@@ -508,7 +508,7 @@ export const eventRouter = router({
    * mutation (not a one-off data migration) so it can be run again safely if
    * new events accumulate before the owner re-triggers it.
    */
-  resolveAllEvents: adminProcedure.mutation(async ({ ctx }) => {
+  resolveAllEvents: matrixProcedure(adminProcedure, "events", "update").mutation(async ({ ctx }) => {
     const tenantId = ctx.tenantId;
     if (!tenantId) {
       throw new TRPCError({ code: "FORBIDDEN", message: "No tenant context." });
@@ -533,7 +533,7 @@ export const eventRouter = router({
     return result;
   }),
 
-  update: tenantProcedure
+  update: matrixProcedure(tenantProcedure, "events", "update")
     .input(
       z
         .object({
@@ -700,7 +700,7 @@ export const eventRouter = router({
    * Results are deduped: same normalised name + any matching known_id wins
    * the "known" side over ad-hoc. Max 20 suggestions.
    */
-  suggestAccompanyingRangers: tenantProcedure
+  suggestAccompanyingRangers: matrixProcedure(tenantProcedure, "events", "view")
     .input(
       z.object({
         query: z.string().max(200).default(""),
@@ -819,7 +819,7 @@ export const eventRouter = router({
       return { suggestions };
     }),
 
-  addAccompanyingRanger: tenantProcedure
+  addAccompanyingRanger: matrixProcedure(tenantProcedure, "events", "write")
     .input(
       z
         .object({
@@ -895,7 +895,7 @@ export const eventRouter = router({
    * knownRangerId — the promotion itself does NOT mutate existing AR rows so
    * that historical audit lineage is preserved.
    */
-  promoteToKnownRanger: tenantProcedure
+  promoteToKnownRanger: matrixProcedure(tenantProcedure, "events", "write")
     .input(
       z.object({
         name: z.string().min(1).max(200),
@@ -927,7 +927,7 @@ export const eventRouter = router({
       return { knownRanger, created: true };
     }),
 
-  removeAccompanyingRanger: tenantProcedure
+  removeAccompanyingRanger: matrixProcedure(tenantProcedure, "events", "delete")
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const ranger = await prisma.accompanyingRanger.findFirst({
@@ -943,7 +943,7 @@ export const eventRouter = router({
       return { success: true as const, removedId: input.id };
     }),
 
-  stats: tenantProcedure.query(async ({ ctx }) => {
+  stats: matrixProcedure(tenantProcedure, "events", "view").query(async ({ ctx }) => {
     const [total, newEvents, active, resolved] = await Promise.all([
       prisma.event.count({ where: { tenantId: ctx.tenantId } }),
       prisma.event.count({ where: { tenantId: ctx.tenantId, state: "new_event" } }),
@@ -961,7 +961,7 @@ export const eventRouter = router({
    *
    * Security: tenant-scoped (L6) — only returns rows for this tenant's event.
    */
-  getRevisions: tenantProcedure
+  getRevisions: matrixProcedure(tenantProcedure, "events", "view")
     .input(z.object({ eventId: z.string() }))
     .query(async ({ ctx, input }) => {
       // Verify tenant ownership of the event (L6 guard)
@@ -1013,7 +1013,7 @@ export const eventRouter = router({
    * Used by the er-sync processor to skip overwriting locally-edited fields (q-ops conflict rule).
    * Exported as a standalone query so callers outside the router can use the same logic.
    */
-  getEditedFields: tenantProcedure
+  getEditedFields: matrixProcedure(tenantProcedure, "events", "view")
     .input(z.object({ eventId: z.string() }))
     .query(async ({ ctx, input }) => {
       const rows = await prisma.eventRevision.findMany({

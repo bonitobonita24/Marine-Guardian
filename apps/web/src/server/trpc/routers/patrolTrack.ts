@@ -5,6 +5,7 @@ import {
 } from "@marine-guardian/shared/schemas";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
+import { matrixProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
 
 /**
@@ -16,7 +17,7 @@ import { prisma } from "@marine-guardian/db";
  * keyed on patrolId. Per v2 PRODUCT.md §501-502.
  */
 export const patrolTrackRouter = router({
-  list: tenantProcedure
+  list: matrixProcedure(tenantProcedure, "patrols", "view")
     .input(listPatrolTracksInputSchema)
     .query(async ({ ctx, input }) => {
       const items = await prisma.patrolTrack.findMany({
@@ -39,7 +40,7 @@ export const patrolTrackRouter = router({
       return { items, nextCursor };
     }),
 
-  getById: tenantProcedure
+  getById: matrixProcedure(tenantProcedure, "patrols", "view")
     .input(getPatrolTrackByIdInputSchema)
     .query(async ({ ctx, input }) => {
       return prisma.patrolTrack.findFirst({
@@ -47,7 +48,7 @@ export const patrolTrackRouter = router({
       });
     }),
 
-  getByPatrolId: tenantProcedure
+  getByPatrolId: matrixProcedure(tenantProcedure, "patrols", "view")
     .input(getPatrolTrackByPatrolIdInputSchema)
     .query(async ({ ctx, input }) => {
       return prisma.patrolTrack.findFirst({

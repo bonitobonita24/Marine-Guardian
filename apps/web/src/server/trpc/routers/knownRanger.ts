@@ -1,11 +1,11 @@
 import { z } from "zod";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
-import { adminProcedure } from "../middleware/rbac";
+import { adminProcedure, matrixProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
 
 export const knownRangerRouter = router({
-  list: tenantProcedure
+  list: matrixProcedure(tenantProcedure, "events", "view")
     .input(
       z.object({
         cursor: z.string().optional(),
@@ -37,7 +37,7 @@ export const knownRangerRouter = router({
       return { items, nextCursor };
     }),
 
-  create: adminProcedure
+  create: matrixProcedure(adminProcedure, "events", "write")
     .input(
       z.object({
         name: z.string().min(1).max(200),
@@ -53,7 +53,7 @@ export const knownRangerRouter = router({
       });
     }),
 
-  deactivate: adminProcedure
+  deactivate: matrixProcedure(adminProcedure, "events", "delete")
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       return prisma.knownRanger.updateMany({

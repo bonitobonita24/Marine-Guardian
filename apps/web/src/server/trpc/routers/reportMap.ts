@@ -21,6 +21,7 @@
 import { z } from "zod";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
+import { matrixProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
 import { isInlineSafeImageAsset } from "@marine-guardian/shared/lib/asset-mime";
 import { SERIOUS_EVENT_PATTERNS } from "@/components/map/eventMarkerStyle";
@@ -364,7 +365,7 @@ function dayKey(d: Date): string {
 }
 
 export const reportMapRouter = router({
-  summary: tenantProcedure
+  summary: matrixProcedure(tenantProcedure, "exports", "view")
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
       const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
@@ -399,7 +400,7 @@ export const reportMapRouter = router({
   // card. One row per patrol with its leader (from the first segment that has
   // one), start/end times, ER title + serial, type, and start coordinates so the
   // card can fly the map to (and render) the selected patrol's track.
-  patrolsInRange: tenantProcedure
+  patrolsInRange: matrixProcedure(tenantProcedure, "exports", "view")
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
       const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
@@ -452,7 +453,7 @@ export const reportMapRouter = router({
       });
     }),
 
-  eventBreakdown: tenantProcedure
+  eventBreakdown: matrixProcedure(tenantProcedure, "exports", "view")
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
       const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
@@ -499,7 +500,7 @@ export const reportMapRouter = router({
    * Ordered most-severe (priority) then most-recent; capped at 50. `total` is the
    * unbounded count so the card can show "N" even when the list is truncated.
    */
-  highPriorityEvents: tenantProcedure
+  highPriorityEvents: matrixProcedure(tenantProcedure, "exports", "view")
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
       const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
@@ -566,7 +567,7 @@ export const reportMapRouter = router({
    * Counts are identical to `eventBreakdown`; `highPriority.total` is identical
    * to `highPriorityEvents.total` for the same filter — both derived in one pass.
    */
-  eventBreakdownWithCoords: tenantProcedure
+  eventBreakdownWithCoords: matrixProcedure(tenantProcedure, "exports", "view")
     .input(reportFilterInput)
     .query(({ ctx, input }) =>
       buildEventBreakdownWithCoords(ctx.tenantId, input),
@@ -579,7 +580,7 @@ export const reportMapRouter = router({
    * both lat AND lon are non-null; `total` is the unbounded event count so the
    * caller can show "N events" even when the point list is large.
    */
-  allEventPointsInRange: tenantProcedure
+  allEventPointsInRange: matrixProcedure(tenantProcedure, "exports", "view")
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
       const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
@@ -619,7 +620,7 @@ export const reportMapRouter = router({
    * the live interactive map's `tracks.inRange` procedure uses. Returns one entry
    * per patrol that has a materialized track with >= 2 renderable points.
    */
-  patrolTrackPointsInRange: tenantProcedure
+  patrolTrackPointsInRange: matrixProcedure(tenantProcedure, "exports", "view")
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
       const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
@@ -668,7 +669,7 @@ export const reportMapRouter = router({
    * is the new series, reusing `patrolWhere` so it honours the same tenant +
    * date + municipality + protected-zone filter as every other aggregation.
    */
-  eventsOverTime: tenantProcedure
+  eventsOverTime: matrixProcedure(tenantProcedure, "exports", "view")
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
       const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);

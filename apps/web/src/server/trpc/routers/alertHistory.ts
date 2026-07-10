@@ -11,7 +11,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
-import { adminProcedure } from "../middleware/rbac";
+import { adminProcedure, matrixProcedure } from "../middleware/rbac";
 import { prisma, writeAuditLog } from "@marine-guardian/db";
 import type { PrismaClient } from "@marine-guardian/db";
 
@@ -24,7 +24,7 @@ export const alertHistoryListFilters = z.object({
 });
 
 export const alertHistoryRouter = router({
-  list: tenantProcedure
+  list: matrixProcedure(tenantProcedure, "alerts", "view")
     .input(
       alertHistoryListFilters.extend({
         cursor: z.string().optional(),
@@ -74,7 +74,7 @@ export const alertHistoryRouter = router({
    * Idempotent: if the alert is already acknowledged the mutation is a no-op
    *   (returns the existing row unchanged, no audit entry written for double-ack).
    */
-  acknowledge: adminProcedure
+  acknowledge: matrixProcedure(adminProcedure, "alerts", "update")
     .input(z.object({ id: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const { tenantId, userId } = ctx;
@@ -138,7 +138,7 @@ export const alertHistoryRouter = router({
    *
    * L6: tenant-scoped.
    */
-  unacknowledgedCount: tenantProcedure.query(async ({ ctx }) => {
+  unacknowledgedCount: matrixProcedure(tenantProcedure, "alerts", "view").query(async ({ ctx }) => {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const count = await prisma.alertHistory.count({
       where: {

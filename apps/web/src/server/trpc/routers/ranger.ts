@@ -2,6 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
+import { matrixProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
 
 type ActivityType =
@@ -18,7 +19,7 @@ interface ActivityItem {
 }
 
 export const rangerRouter = router({
-  getById: tenantProcedure
+  getById: matrixProcedure(tenantProcedure, "events", "view")
     .input(z.object({ id: z.string() }).strict())
     .query(async ({ input, ctx }) => {
       const ranger = await prisma.knownRanger.findFirst({

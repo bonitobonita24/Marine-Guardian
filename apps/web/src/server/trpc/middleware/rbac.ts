@@ -98,19 +98,37 @@ export const userManagementProcedure = requireRole("tenant_manager", "tenant_sup
 export const billingProcedure = requireRole("tenant_manager", "tenant_superadmin");
 
 // matrixProcedure (tenant-rbac-standard §4 — custom-role permission matrix):
-// gates a single feature/action pair via the authoritative DB-backed
-// resolver (has-permission.ts). Built on tenantProcedure (not one of the
-// requireRole(...) gates above) because a matrix-gated procedure must be
-// reachable by BOTH fixed enum roles (hasPermission defers to true when
-// ctx.customRoleId is null — the upstream enum gates already govern them)
-// AND users assigned a custom role (fully deny-by-default, resolved from
-// RolePermission rows). Reserved features (users/settings/billing/profile)
-// can never be granted via this path — hasPermission hard-clamps them.
+// chains a BASE enum procedure (tenantProcedure/adminProcedure/
+// coordinatorProcedure/operatorProcedure/reportGenerateProcedure) with the
+// authoritative DB-backed matrix resolver (has-permission.ts) for a single
+// feature/action pair. The base argument is what actually enforces the
+// existing enum-role gate (e.g. adminProcedure still rejects viewer/operator
+// at the door); the matrix check layered on top of it is what makes a
+// tenant's CUSTOM roles (below the fixed tiers) work. This composition is
+// zero-regression for every fixed enum role: hasPermission returns true
+// whenever ctx.customRoleId is null, so tenant_manager/tenant_superadmin/
+// tenant_admin/field_coordinator/operator/viewer callers pass straight
+// through unchanged and are governed exactly as before by the base
+// procedure's own requireRole(...) gate. ONLY a user assigned a customRoleId
+// is subject to the deny-by-default RolePermission matrix. Reserved features
+// (users/settings/billing/profile) can never be granted via this path —
+// hasPermission hard-clamps them regardless of base.
 // Downstream routers wire this per-procedure, e.g.:
-//   list: matrixProcedure("events", "view").query(...)
-//   create: matrixProcedure("events", "write").mutation(...)
-export function matrixProcedure(feature: FeatureKey, action: FeatureAction) {
-  return tenantProcedure.use(async ({ ctx, next }) => {
+//   list: matrixProcedure(tenantProcedure, "events", "view").query(...)
+//   create: matrixProcedure(adminProcedure, "events", "write").mutation(...)
+// The four requireRole(...) gates (admin/coordinator/operator/reportGenerate)
+// all share ONE structural type (the return of requireRole), so the union
+// collapses to two genuinely-distinct members: tenantProcedure and any
+// requireRole gate (represented by adminProcedure). All five real gates are
+// assignable to this union at call sites.
+type MatrixBaseProcedure = typeof tenantProcedure | typeof adminProcedure;
+
+export function matrixProcedure(
+  base: MatrixBaseProcedure,
+  feature: FeatureKey,
+  action: FeatureAction,
+) {
+  return base.use(async ({ ctx, next }) => {
     const allowed = await hasPermission(
       prisma as unknown as PrismaClient,
       { tenantId: ctx.tenantId, customRoleId: ctx.customRoleId },

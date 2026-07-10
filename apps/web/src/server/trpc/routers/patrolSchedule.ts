@@ -2,7 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
-import { coordinatorProcedure } from "../middleware/rbac";
+import { coordinatorProcedure, matrixProcedure } from "../middleware/rbac";
 import { prisma, writeAuditLog } from "@marine-guardian/db";
 import type { PrismaClient } from "@marine-guardian/db";
 
@@ -34,7 +34,7 @@ async function findOverlappingSchedules(
 }
 
 export const patrolScheduleRouter = router({
-  list: tenantProcedure
+  list: matrixProcedure(tenantProcedure, "patrol-schedule", "view")
     .input(
       z.object({
         cursor: z.string().optional(),
@@ -70,7 +70,7 @@ export const patrolScheduleRouter = router({
       return { items, nextCursor };
     }),
 
-  checkConflicts: tenantProcedure
+  checkConflicts: matrixProcedure(tenantProcedure, "patrol-schedule", "view")
     .input(
       z.object({
         rangerUserId: z.string().optional(),
@@ -93,7 +93,7 @@ export const patrolScheduleRouter = router({
       return { conflicts };
     }),
 
-  create: coordinatorProcedure
+  create: matrixProcedure(coordinatorProcedure, "patrol-schedule", "write")
     .input(
       z.object({
         patrolAreaId: z.string(),
@@ -163,7 +163,7 @@ export const patrolScheduleRouter = router({
       });
     }),
 
-  update: coordinatorProcedure
+  update: matrixProcedure(coordinatorProcedure, "patrol-schedule", "update")
     .input(
       z.object({
         id: z.string(),
@@ -231,7 +231,7 @@ export const patrolScheduleRouter = router({
       return prisma.patrolSchedule.update({ where: { id }, data });
     }),
 
-  delete: coordinatorProcedure
+  delete: matrixProcedure(coordinatorProcedure, "patrol-schedule", "delete")
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const schedule = await prisma.patrolSchedule.findFirst({

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
+import { matrixProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
 
 // Single source of truth for notification list filters.
@@ -16,7 +17,7 @@ export const notificationListFilters = z.object({
 // via Notification.tenantId). Items are returned in a FLATTENED shape so the UI
 // reads `n.title` not `n.notification.title`.
 export const notificationRouter = router({
-  list: tenantProcedure
+  list: matrixProcedure(tenantProcedure, "notifications", "view")
     .input(
       notificationListFilters.extend({
         cursor: z.string().optional(),
@@ -87,7 +88,7 @@ export const notificationRouter = router({
   // in WHERE; tenant scoping enforced via notification.tenantId join.
   // input.id is NotificationRecipient.id (NOT Notification.id) — the UI passes
   // the flattened item.id which we surface as recipient.id in list().
-  markRead: tenantProcedure
+  markRead: matrixProcedure(tenantProcedure, "notifications", "update")
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       return prisma.notificationRecipient.updateMany({
@@ -101,7 +102,7 @@ export const notificationRouter = router({
     }),
 
   // Bulk mark-all-read for the current user (tenant-scoped via join).
-  markAllRead: tenantProcedure.mutation(async ({ ctx }) => {
+  markAllRead: matrixProcedure(tenantProcedure, "notifications", "update").mutation(async ({ ctx }) => {
     return prisma.notificationRecipient.updateMany({
       where: {
         userId: ctx.userId,
@@ -113,7 +114,7 @@ export const notificationRouter = router({
   }),
 
   // Unread badge in the sidebar polls this. Scoped to current user + tenant.
-  unreadCount: tenantProcedure.query(async ({ ctx }) => {
+  unreadCount: matrixProcedure(tenantProcedure, "notifications", "view").query(async ({ ctx }) => {
     return prisma.notificationRecipient.count({
       where: {
         userId: ctx.userId,

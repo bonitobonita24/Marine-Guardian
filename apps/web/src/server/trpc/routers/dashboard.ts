@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
+import { matrixProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
 
 // WAR ROOM date-range input (2026-06-25, goal items 3-4). Optional and
@@ -31,7 +32,7 @@ function buildRange(input: RangeInput): { gte?: Date; lte?: Date } | undefined {
 }
 
 export const dashboardRouter = router({
-  kpis: tenantProcedure.input(rangeInput).query(async ({ ctx, input }) => {
+  kpis: matrixProcedure(tenantProcedure, "dashboard", "view").input(rangeInput).query(async ({ ctx, input }) => {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -125,7 +126,7 @@ export const dashboardRouter = router({
   // (owner-chosen behaviour 2026-06-24). leaderName is the first segment that
   // actually has a leader; null → the card renders an honest "—".
   // 2026-06-25: optional date range filters by startTime when supplied.
-  activePatrols: tenantProcedure
+  activePatrols: matrixProcedure(tenantProcedure, "dashboard", "view")
     .input(rangeInput)
     .query(async ({ ctx, input }) => {
       const startRange = buildRange(input);
@@ -175,7 +176,7 @@ export const dashboardRouter = router({
       }));
     }),
 
-  eventBreakdown: tenantProcedure
+  eventBreakdown: matrixProcedure(tenantProcedure, "dashboard", "view")
     .input(rangeInput)
     .query(async ({ ctx, input }) => {
       // Exclude Skylight automated vessel-detection events from the WAR ROOM
@@ -224,7 +225,7 @@ export const dashboardRouter = router({
       };
     }),
 
-  recentEvents: tenantProcedure
+  recentEvents: matrixProcedure(tenantProcedure, "dashboard", "view")
     .input(rangeInput)
     .query(async ({ ctx, input }) => {
       // Skylight is a maritime satellite AIS/radar monitoring provider whose
@@ -258,7 +259,7 @@ export const dashboardRouter = router({
   // window; when a date range is supplied (War Room range header) it counts
   // unacknowledged alerts fired within that range instead.
   // Owner decision accepted 2026-06-21 (closes WHAT_OWNER_DECISIONS ACK item).
-  alertStats: tenantProcedure
+  alertStats: matrixProcedure(tenantProcedure, "dashboard", "view")
     .input(rangeInput)
     .query(async ({ ctx, input }) => {
       const firedRange = buildRange(input) ?? {
@@ -278,7 +279,7 @@ export const dashboardRouter = router({
   // (matchedPriority >= 200, i.e. High/Critical) event, derived from existing
   // Event rows. Returns null when no high-priority event exists.
   // 2026-06-25: optional date range filters reportedAt (most recent in range).
-  lastIncident: tenantProcedure
+  lastIncident: matrixProcedure(tenantProcedure, "dashboard", "view")
     .input(rangeInput)
     .query(async ({ ctx, input }) => {
       const reportedRange = buildRange(input);
@@ -304,7 +305,7 @@ export const dashboardRouter = router({
   // patrols (startTime) across the active range, zero-filled per day so each
   // sparkline renders a continuous series. Defaults to the last 7 days when no
   // range is supplied (matches the War Room default window). Read-only.
-  kpiTrends: tenantProcedure.input(rangeInput).query(async ({ ctx, input }) => {
+  kpiTrends: matrixProcedure(tenantProcedure, "dashboard", "view").input(rangeInput).query(async ({ ctx, input }) => {
     const supplied = buildRange(input);
     const to = supplied?.lte ?? new Date();
     const from =
@@ -376,7 +377,7 @@ export const dashboardRouter = router({
   // for a still-open patrol, startTime→now). Default sort (owner spec,
   // 2026-07-04): status group priority on_patrol > active > idle, then within
   // each group by patrolHoursInRange descending. Read-only aggregation.
-  rangerRoster: tenantProcedure
+  rangerRoster: matrixProcedure(tenantProcedure, "dashboard", "view")
     .input(rangeInput)
     .query(async ({ ctx, input }) => {
       const startRange = buildRange(input);

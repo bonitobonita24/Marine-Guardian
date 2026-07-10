@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
-import { adminProcedure } from "../middleware/rbac";
+import { adminProcedure, matrixProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
 import { alertRuleConditionSchema } from "@marine-guardian/shared/schemas";
 
@@ -10,7 +10,7 @@ export const alertRuleListFilters = z.object({
 });
 
 export const alertRuleRouter = router({
-  list: tenantProcedure
+  list: matrixProcedure(tenantProcedure, "alerts", "view")
     .input(
       alertRuleListFilters.extend({
         cursor: z.string().optional(),
@@ -36,7 +36,7 @@ export const alertRuleRouter = router({
       return { items, nextCursor };
     }),
 
-  create: adminProcedure
+  create: matrixProcedure(adminProcedure, "alerts", "write")
     .input(
       z.object({
         name: z.string().min(1).max(200),
@@ -58,7 +58,7 @@ export const alertRuleRouter = router({
       });
     }),
 
-  update: adminProcedure
+  update: matrixProcedure(adminProcedure, "alerts", "update")
     .input(
       z.object({
         id: z.string(),
@@ -79,7 +79,7 @@ export const alertRuleRouter = router({
       });
     }),
 
-  delete: adminProcedure
+  delete: matrixProcedure(adminProcedure, "alerts", "delete")
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       return prisma.alertRule.deleteMany({

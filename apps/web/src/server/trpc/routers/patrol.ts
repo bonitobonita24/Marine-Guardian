@@ -2,7 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
-import { adminProcedure } from "../middleware/rbac";
+import { adminProcedure, matrixProcedure } from "../middleware/rbac";
 import { prisma, writeAuditLog } from "@marine-guardian/db";
 import { Prisma } from "@marine-guardian/db";
 import type { PrismaClient } from "@marine-guardian/db";
@@ -32,7 +32,7 @@ export const patrolListFilters = z.object({
 });
 
 export const patrolRouter = router({
-  list: tenantProcedure
+  list: matrixProcedure(tenantProcedure, "patrols", "view")
     .input(
       patrolListFilters.extend({
         cursor: z.string().optional(),
@@ -65,7 +65,7 @@ export const patrolRouter = router({
       return { items, nextCursor };
     }),
 
-  getById: tenantProcedure
+  getById: matrixProcedure(tenantProcedure, "patrols", "view")
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
       return prisma.patrol.findFirst({
@@ -81,7 +81,7 @@ export const patrolRouter = router({
 
   // Phase 7 soft-delete: stats are operator-facing — deleted patrols never
   // count toward any tile, so isDeleted:false is always applied (no toggle).
-  stats: tenantProcedure.query(async ({ ctx }) => {
+  stats: matrixProcedure(tenantProcedure, "patrols", "view").query(async ({ ctx }) => {
     const [total, open, done, cancelled] = await Promise.all([
       prisma.patrol.count({ where: { tenantId: ctx.tenantId, isDeleted: false } }),
       prisma.patrol.count({ where: { tenantId: ctx.tenantId, isDeleted: false, state: "open" } }),
@@ -104,7 +104,7 @@ export const patrolRouter = router({
   // re-fetching wastes ER API quota. The queue jobId
   // (patrol-track-materialize__${tenantId}__${patrolId}) dedupes any race
   // between this admin trigger and other enqueue paths.
-  rebuildTracks: adminProcedure
+  rebuildTracks: matrixProcedure(adminProcedure, "patrols", "update")
     .input(z.object({ tenantId: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       const isSuperAdmin = ctx.roles.includes("tenant_manager");
@@ -162,7 +162,7 @@ export const patrolRouter = router({
   // is {info,warning,high,critical} (no 'medium'). A recoverable destructive op
   // maps to 'warning'. Read paths are intentionally NOT filtered here (handled
   // in the dependent read-filter session S2).
-  softDelete: adminProcedure
+  softDelete: matrixProcedure(adminProcedure, "patrols", "delete")
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const existing = await prisma.patrol.findFirst({
@@ -213,7 +213,7 @@ export const patrolRouter = router({
    * Writes an append-only PatrolRevision row per changed field (q-ops-04).
    * erOriginalSnapshot is never touched.
    */
-  update: tenantProcedure
+  update: matrixProcedure(tenantProcedure, "patrols", "update")
     .input(
       z
         .object({
@@ -321,7 +321,7 @@ export const patrolRouter = router({
    *
    * Security: tenant-scoped (L6).
    */
-  getRevisions: tenantProcedure
+  getRevisions: matrixProcedure(tenantProcedure, "patrols", "view")
     .input(z.object({ patrolId: z.string() }))
     .query(async ({ ctx, input }) => {
       const patrol = await prisma.patrol.findFirst({
@@ -367,7 +367,7 @@ export const patrolRouter = router({
    * Returns the set of field names that have been locally edited for a patrol.
    * Used by the er-sync processor to skip overwriting locally-edited fields (q-ops conflict rule).
    */
-  getEditedFields: tenantProcedure
+  getEditedFields: matrixProcedure(tenantProcedure, "patrols", "view")
     .input(z.object({ patrolId: z.string() }))
     .query(async ({ ctx, input }) => {
       const rows = await prisma.patrolRevision.findMany({
@@ -381,7 +381,7 @@ export const patrolRouter = router({
   // Phase 7 soft-delete — mirror of softDelete: restore a previously
   // soft-deleted Patrol. Rejects (BAD_REQUEST) when the row is not currently
   // deleted. Same NOT_FOUND enumeration-leak guard as softDelete.
-  restore: adminProcedure
+  restore: matrixProcedure(adminProcedure, "patrols", "update")
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const existing = await prisma.patrol.findFirst({

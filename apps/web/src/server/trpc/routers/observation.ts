@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
+import { matrixProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
 
 export const observationRouter = router({
-  list: tenantProcedure
+  list: matrixProcedure(tenantProcedure, "subjects", "view")
     .input(
       z.object({
         cursor: z.string().optional(),
@@ -31,7 +32,7 @@ export const observationRouter = router({
       return { items, nextCursor };
     }),
 
-  getById: tenantProcedure
+  getById: matrixProcedure(tenantProcedure, "subjects", "view")
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
       return prisma.observation.findFirst({

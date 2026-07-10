@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
+import { matrixProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
 
 export const syncLogRouter = router({
-  list: tenantProcedure
+  list: matrixProcedure(tenantProcedure, "sync", "view")
     .input(
       z.object({
         cursor: z.string().optional(),
@@ -32,7 +33,7 @@ export const syncLogRouter = router({
       return { items, nextCursor };
     }),
 
-  latest: tenantProcedure.query(async ({ ctx }) => {
+  latest: matrixProcedure(tenantProcedure, "sync", "view").query(async ({ ctx }) => {
     return prisma.syncLog.findMany({
       where: { tenantId: ctx.tenantId },
       orderBy: { startedAt: "desc" },

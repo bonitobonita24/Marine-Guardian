@@ -1,11 +1,11 @@
 import { z } from "zod";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
-import { adminProcedure } from "../middleware/rbac";
+import { adminProcedure, matrixProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
 
 export const patrolAreaRouter = router({
-  list: tenantProcedure
+  list: matrixProcedure(tenantProcedure, "patrol-areas", "view")
     .input(
       z.object({
         cursor: z.string().optional(),
@@ -34,7 +34,7 @@ export const patrolAreaRouter = router({
       return { items, nextCursor };
     }),
 
-  getById: tenantProcedure
+  getById: matrixProcedure(tenantProcedure, "patrol-areas", "view")
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
       return prisma.patrolArea.findFirst({
@@ -50,7 +50,7 @@ export const patrolAreaRouter = router({
       });
     }),
 
-  create: adminProcedure
+  create: matrixProcedure(adminProcedure, "patrol-areas", "write")
     .input(
       z.object({
         name: z.string().min(1).max(200),
@@ -74,7 +74,7 @@ export const patrolAreaRouter = router({
       });
     }),
 
-  update: adminProcedure
+  update: matrixProcedure(adminProcedure, "patrol-areas", "update")
     .input(
       z.object({
         id: z.string(),
@@ -96,7 +96,7 @@ export const patrolAreaRouter = router({
       });
     }),
 
-  delete: adminProcedure
+  delete: matrixProcedure(adminProcedure, "patrol-areas", "delete")
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       return prisma.patrolArea.deleteMany({

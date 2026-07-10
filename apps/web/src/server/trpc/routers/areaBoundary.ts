@@ -6,7 +6,7 @@ import {
 } from "@marine-guardian/shared/schemas";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
-import { adminProcedure } from "../middleware/rbac";
+import { adminProcedure, matrixProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
 import { enqueueAreaRederive } from "@marine-guardian/jobs";
 import { importOfficialBoundaries } from "../../boundaries/import-official-boundaries";
@@ -50,7 +50,7 @@ export async function fanOutAreaRederive(
 }
 
 export const areaBoundaryRouter = router({
-  list: tenantProcedure
+  list: matrixProcedure(tenantProcedure, "patrol-areas", "view")
     .input(
       z.object({
         cursor: z.string().optional(),
@@ -81,7 +81,7 @@ export const areaBoundaryRouter = router({
       return { items, nextCursor };
     }),
 
-  getById: tenantProcedure
+  getById: matrixProcedure(tenantProcedure, "patrol-areas", "view")
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
       return prisma.areaBoundary.findFirst({
@@ -90,7 +90,7 @@ export const areaBoundaryRouter = router({
       });
     }),
 
-  create: adminProcedure
+  create: matrixProcedure(adminProcedure, "patrol-areas", "write")
     .input(createAreaBoundarySchema)
     .mutation(async ({ ctx, input }) => {
       const boundary = await prisma.areaBoundary.create({
@@ -114,7 +114,7 @@ export const areaBoundaryRouter = router({
       return { boundary, fanOut };
     }),
 
-  update: adminProcedure
+  update: matrixProcedure(adminProcedure, "patrol-areas", "update")
     .input(
       z.object({ id: z.string() }).merge(updateAreaBoundarySchema)
     )
@@ -134,7 +134,7 @@ export const areaBoundaryRouter = router({
       return { result, fanOut };
     }),
 
-  delete: adminProcedure
+  delete: matrixProcedure(adminProcedure, "patrol-areas", "delete")
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const result = await prisma.areaBoundary.deleteMany({
@@ -156,7 +156,7 @@ export const areaBoundaryRouter = router({
   // per security.md superadmin convention). AuditLog entityId stores the
   // target tenantId — operation targets the tenant's universe, not a
   // specific boundary row.
-  rebuild: adminProcedure
+  rebuild: matrixProcedure(adminProcedure, "patrol-areas", "update")
     .input(z.object({ tenantId: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
       const isSuperAdmin = ctx.roles.includes("tenant_manager");
@@ -197,7 +197,7 @@ export const areaBoundaryRouter = router({
   // already-seeded Municipality + ProtectedZone geometry. Idempotent upsert by
   // arcgisReferenceId ("official:<slug>:land|water" / "official:mpa:<slug>").
   // Display-only: does NOT fan out area re-derivation (run rebuild for that).
-  importOfficial: adminProcedure.mutation(async ({ ctx }) => {
+  importOfficial: matrixProcedure(adminProcedure, "patrol-areas", "write").mutation(async ({ ctx }) => {
     const result = await importOfficialBoundaries(
       prisma,
       ctx.tenantId,

@@ -13,7 +13,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
-import { adminProcedure } from "../middleware/rbac";
+import { adminProcedure, matrixProcedure } from "../middleware/rbac";
 import { prisma, Prisma } from "@marine-guardian/db";
 import { MUNICIPALITIES } from "@/data/coverage/coverage-areas";
 import { assignZonesToPoint } from "@marine-guardian/shared/lib/municipality-assignment";
@@ -42,7 +42,7 @@ function chunk<T>(arr: T[], size: number): T[][] {
 }
 
 export const municipalityRouter = router({
-  list: tenantProcedure.query(async ({ ctx }) => {
+  list: matrixProcedure(tenantProcedure, "patrol-areas", "view").query(async ({ ctx }) => {
     const rows = await prisma.municipality.findMany({
       where: { tenantId: ctx.tenantId },
       select: { id: true, name: true, province: true, slug: true },
@@ -58,7 +58,7 @@ export const municipalityRouter = router({
   // Protected zones (MPAs) for the Report Map MPA-scope filter Select. A flat
   // {id, name, parentMunicipalityId} list — the filter narrows events/patrols
   // to a single zone via the EventCoveredZone / PatrolCoveredZone joins.
-  protectedZones: tenantProcedure.query(async ({ ctx }) => {
+  protectedZones: matrixProcedure(tenantProcedure, "patrol-areas", "view").query(async ({ ctx }) => {
     return prisma.protectedZone.findMany({
       where: { tenantId: ctx.tenantId },
       select: { id: true, name: true, slug: true, category: true, parentMunicipalityId: true },
@@ -88,7 +88,7 @@ export const municipalityRouter = router({
    *
    * Admin-only (super_admin / site_admin). Tenant-scoped.
    */
-  createBoundaryFromUpload: adminProcedure
+  createBoundaryFromUpload: matrixProcedure(adminProcedure, "patrol-areas", "write")
     .input(
       z
         .object({
@@ -264,7 +264,7 @@ export const municipalityRouter = router({
    *
    * Admin-only (super_admin / site_admin). Tenant-scoped.
    */
-  createMunicipalityFromUpload: adminProcedure
+  createMunicipalityFromUpload: matrixProcedure(adminProcedure, "patrol-areas", "write")
     .input(
       z
         .object({
@@ -373,7 +373,7 @@ export const municipalityRouter = router({
    *
    * Admin-only (super_admin / site_admin). Tenant-scoped.
    */
-  replaceBoundaryGeometry: adminProcedure
+  replaceBoundaryGeometry: matrixProcedure(adminProcedure, "patrol-areas", "update")
     .input(
       z
         .object({
@@ -481,7 +481,7 @@ export const municipalityRouter = router({
   // List the most recent boundary-geometry snapshots for a municipality, so
   // an admin can pick one to revert to. Does not return the geojson blob —
   // callers fetch that only when actually reverting.
-  listBoundarySnapshots: adminProcedure
+  listBoundarySnapshots: matrixProcedure(adminProcedure, "patrol-areas", "view")
     .input(
       z
         .object({
@@ -552,7 +552,7 @@ export const municipalityRouter = router({
   // itself is reversible), then swaps in the prior geometry, then
   // regenerates the official overlay + re-derives areas — same pipeline as
   // replaceBoundaryGeometry.
-  revertBoundaryGeometry: adminProcedure
+  revertBoundaryGeometry: matrixProcedure(adminProcedure, "patrol-areas", "update")
     .input(
       z
         .object({

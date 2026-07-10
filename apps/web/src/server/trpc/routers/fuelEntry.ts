@@ -12,6 +12,7 @@ import { tenantProcedure } from "../middleware/tenant";
 import {
   adminProcedure,
   coordinatorProcedure,
+  matrixProcedure,
   operatorProcedure,
 } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
@@ -35,7 +36,7 @@ import { getFuelConsumption } from "../../fuel-analytics/get-fuel-consumption";
  * even if the tenant later changes the configured value.
  */
 export const fuelEntryRouter = router({
-  list: tenantProcedure
+  list: matrixProcedure(tenantProcedure, "fuel", "view")
     .input(listFuelEntriesInputSchema)
     .query(async ({ ctx, input }) => {
       const items = await prisma.fuelEntry.findMany({
@@ -74,7 +75,7 @@ export const fuelEntryRouter = router({
       return { items, nextCursor };
     }),
 
-  getById: tenantProcedure
+  getById: matrixProcedure(tenantProcedure, "fuel", "view")
     .input(getFuelEntryByIdInputSchema)
     .query(async ({ ctx, input }) => {
       return prisma.fuelEntry.findFirst({
@@ -86,7 +87,7 @@ export const fuelEntryRouter = router({
       });
     }),
 
-  create: operatorProcedure
+  create: matrixProcedure(operatorProcedure, "fuel", "write")
     .input(createFuelEntryInputSchema)
     .mutation(async ({ ctx, input }) => {
       // Per spec §196: snapshot the tenant's current currency onto the row.
@@ -140,7 +141,7 @@ export const fuelEntryRouter = router({
    * Ownership check happens BEFORE the write to avoid leaking a row's
    * existence cross-tenant or cross-user (returns NOT_FOUND uniformly).
    */
-  update: operatorProcedure
+  update: matrixProcedure(operatorProcedure, "fuel", "update")
     .input(updateFuelEntryInputSchema)
     .mutation(async ({ ctx, input }) => {
       const existing = await prisma.fuelEntry.findFirst({
@@ -166,7 +167,7 @@ export const fuelEntryRouter = router({
       });
     }),
 
-  updateAny: coordinatorProcedure
+  updateAny: matrixProcedure(coordinatorProcedure, "fuel", "update")
     .input(updateFuelEntryInputSchema)
     .mutation(async ({ ctx, input }) => {
       const { id, ...rest } = input;
@@ -179,7 +180,7 @@ export const fuelEntryRouter = router({
       });
     }),
 
-  delete: adminProcedure
+  delete: matrixProcedure(adminProcedure, "fuel", "delete")
     .input(deleteFuelEntryInputSchema)
     .mutation(async ({ ctx, input }) => {
       return prisma.fuelEntry.deleteMany({
@@ -194,7 +195,7 @@ export const fuelEntryRouter = router({
    * timezone once per call so the aggregation surfaces the right
    * defaults even when the entries list is empty (e.g. empty state UI).
    */
-  consumptionAnalytics: tenantProcedure
+  consumptionAnalytics: matrixProcedure(tenantProcedure, "fuel", "view")
     .input(fuelConsumptionAnalyticsInputSchema)
     .query(async ({ ctx, input }) => {
       const tenant = await prisma.tenant.findFirst({

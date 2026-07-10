@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
+import { matrixProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
 
 export const eventTypeRouter = router({
-  list: tenantProcedure
+  list: matrixProcedure(tenantProcedure, "events", "view")
     .input(
       z.object({
         isActive: z.boolean().optional(),
@@ -22,7 +23,7 @@ export const eventTypeRouter = router({
       });
     }),
 
-  getById: tenantProcedure
+  getById: matrixProcedure(tenantProcedure, "events", "view")
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
       return prisma.eventType.findFirst({

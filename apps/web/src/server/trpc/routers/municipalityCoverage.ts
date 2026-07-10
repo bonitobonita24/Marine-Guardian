@@ -23,6 +23,7 @@
 
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
+import { matrixProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
 import { z } from "zod";
 import {
@@ -33,7 +34,7 @@ import {
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 export const municipalityCoverageRouter = router({
-  municipalityCoverage: tenantProcedure
+  municipalityCoverage: matrixProcedure(tenantProcedure, "map", "view")
     .input(
       z
         .object({
@@ -143,7 +144,7 @@ export const municipalityCoverageRouter = router({
       }));
     }),
 
-  protectedZoneCoverage: tenantProcedure
+  protectedZoneCoverage: matrixProcedure(tenantProcedure, "map", "view")
     .input(
       z
         .object({
