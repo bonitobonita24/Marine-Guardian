@@ -20,8 +20,12 @@
   else the one-owner partial-unique index fails) → apply that env's creds (stg/prod: `webmaster@powerbyteitsolutions.com`
   + `admin@admin.com`; demo: `admin@demo.com`, NO tenant_admin; also retire demo's `webmaster@marine-guardian.local`
   + `admin@mail.com`) → health verify. **Prod: pg_dump backup first.** Mirror `admin@admin.com` creds into the vault.
-- [ ] **Custom-role permission-matrix layer** (future gated MG pass): sub-role presets + `tenant_superadmin`
-  role-builder (feature registry × {view,write,update,delete}), per the fleet standard. NOT built.
+- ✅ **Custom-role permission-matrix layer — BUILT + tRPC-ENFORCED + SHIPPED (Milestone C, v1.1.0, 2026-07-11).**
+  `CustomRole`/`RolePermission` schema + feature-registry × {view,write,update,delete} matrix + DB-backed
+  `hasPermission` (deny-by-default, ≤`tenant_admin`, never Billing/User-Mgmt) + `matrixProcedure` wired across
+  all 117 grantable endpoints (22 routers) + `tenant_superadmin` Role-Builder UI. Deployed staging + prod
+  (migration `20260711090000`), tag `v1.1.0`. Prod verified green (`/api/health` 200, `/login` 200). No decision
+  needed. (Not covered: DEMO stack — see 2026-07-11 deferred items below.)
 
 ## 2026-07-09 — Post full-deploy owner-gated items (MG only)
 
