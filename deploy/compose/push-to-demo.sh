@@ -49,4 +49,4 @@ kill $TUN 2>/dev/null || true
 echo "▶ 5/5 Verify"
 sleep 5
 curl -s -o /dev/null -w "  mg-demo health = %{http_code}\n" https://mg-demo.powerbyte.app/api/health
-echo "✅ push-to-demo done. Demo login: https://mg-demo.powerbyte.app/demo-site/login (admin@demo.com)"
+echo "✅ push-to-demo done. Demo login: https://mg-demo.powerbyte.app/ph/login (admin@demo.com) — tenant slug is 'ph' ('Demo Site' is the display name)"
