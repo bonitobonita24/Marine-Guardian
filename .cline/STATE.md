@@ -21,6 +21,22 @@ PHASE:        Phase 7 — Batch 2 report-map/KPI fixes SHIPPED all 3 envs (prod 
      → currently-OPEN patrols (matches KPI). Verified dev: 41 track polylines + 15 recent-patrol rows
      (both were 0). commit 20afa30, deployed all 3 (prod sha-20afa30). Note: `active` tracks not
      muni-filtered (poss. follow-up); 55 stale open seed patrols = data-hygiene item.
+  5. STALE-SESSION SELF-HEAL (commit fefa157, deployed all 3, prod sha-fefa157): a broken empty-slug
+     session hitting /ph was sent to root /login (tenant acct can't sign in there → "Invalid credentials",
+     looked like "/ph redirects to root domain"). Now cleared + sent to the TENANT login /{slug}/login
+     (cookie deleted so no authed→dashboard bounce loop). Owner unblocked via hard-refresh; self-heal
+     prevents recurrence. Prod fresh-login verified working (tenantSlug=ph, /ph→/ph/dashboard 200).
+
+  ⭐ PENDING — DIAGNOSED, owner-requested, NOT yet implemented: remove "Marine Entry" from ALERTS &
+     ESCALATIONS. Root cause FOUND: "Marine Entry" events = **Skylight Entry Alert** (eventType
+     value=entry_alert_rep, display="Skylight Entry Alert", category=analyzer_event). Codebase ALREADY
+     excludes Skylight from recentEvents/eventBreakdown/lastIncident/activeEvents via
+     `NOT: { eventType: { display: { contains: "skylight", mode: "insensitive" } } }` (dashboard.ts) —
+     the alerts panel just never got it. FIX (ready to build): apply the same Skylight exclusion to
+     `alertHistory.list` (WHERE + via event→eventType relation) AND `dashboard.alertStats`
+     (UNACKNOWLEDGED KPI). Mirror existing Skylight tests. Shared helper `isSkylightOrAnalyzerEvent`
+     exists (apps/web/src/lib/event-label.ts). Note: alertHistory snapshots title only; filter via the
+     live event.eventType.display (deleted-event alerts kept).
   ⭐ NEXT (owner-specced, DEFERRED): Rangers-on-Duty tile → clickable DRILLDOWN DIALOG — left: main
      rangers (segment leaders) each with nested accompanying rangers; right: FULL current-patrol track
      polyline per ranger (PatrolTrack.trackGeojson, like Interactive Report Map). See memory
