@@ -18,6 +18,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PrismaClient } from "@prisma/client";
 import { MUNICIPALITIES } from "../apps/web/src/data/coverage/coverage-areas";
+import { importOfficialBoundaries } from "../apps/web/src/server/boundaries/import-official-boundaries";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WATER_DIR = path.join(__dirname, "..", "apps", "web", "src", "data", "coverage", "water");
@@ -79,6 +80,21 @@ async function main(): Promise<void> {
       updated++;
     }
     console.log(`  ${updated} water polygons replaced (snapshotted), ${missing} without a regenerated file.`);
+
+    // Refresh the official AreaBoundary overlay rows (source="official",
+    // "official:<slug>:water") from the just-updated Municipality.waterGeojson,
+    // so the map overlay draws the new median-line boundaries — the overlay
+    // reads AreaBoundary, NOT Municipality.waterGeojson directly.
+    const anyUser = await prisma.user.findFirst({
+      where: { tenantId: tenant.id },
+      select: { id: true },
+    });
+    if (anyUser) {
+      const res = await importOfficialBoundaries(prisma as never, tenant.id, anyUser.id);
+      console.log(`  official boundaries refreshed: ${res.created} created, ${res.updated} updated.`);
+    } else {
+      console.log("  ⚠ no user for tenant — skipped official-boundary refresh.");
+    }
   }
 }
 

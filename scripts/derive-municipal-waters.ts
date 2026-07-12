@@ -48,6 +48,16 @@ const STEP_DEG = 0.004;
 // Margin (degrees, ~33 km) added around the seed bbox so Voronoi cells extend
 // past every coastline into open sea before being capped by the 15 km buffer.
 const VORONOI_MARGIN_DEG = 0.3;
+// Tiny offshore islets/rocks below this land area (deg² ≈ ~10 km²) are NOT
+// buffered — each would otherwise produce a lone 15 km "circle" in open water,
+// detached from the coast, which reads as a confusing floating boundary (owner
+// 2026-07-13: "remove the boundaries that look like a circle"). Substantial
+// islands (kept) still get their municipal waters; the rocks are still
+// subtracted as land so no water is painted over them.
+const MIN_ISLET_DEG2 = 0.0008;
+// Drop sliver water components below this area (deg² ≈ ~6 km²) — Voronoi/clip
+// numerical artifacts that clutter the overlay.
+const MIN_WATER_DEG2 = 0.0005;
 
 type Poly = GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon>;
 type AnyFC = GeoJSON.FeatureCollection;
@@ -62,6 +72,44 @@ function ringsOf(geom: GeoJSON.Geometry): number[][][] {
   if (geom.type === "Polygon") return geom.coordinates as number[][][];
   if (geom.type === "MultiPolygon") return (geom.coordinates as number[][][][]).flat();
   return [];
+}
+
+/** Shoelace area (deg²) of a ring's outer boundary. */
+function ringArea(ring: number[][]): number {
+  let a = 0;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    a += (ring[j]![0] + ring[i]![0]) * (ring[j]![1] - ring[i]![1]);
+  }
+  return Math.abs(a / 2);
+}
+
+/** The polygon components (as [outer, ...holes] coordinate arrays) of a
+ *  Polygon/MultiPolygon feature, in original order. */
+function polygonComponents(f: Poly): number[][][][] {
+  const g = f.geometry;
+  if (g.type === "Polygon") return [g.coordinates as number[][][]];
+  if (g.type === "MultiPolygon") return g.coordinates as number[][][][];
+  return [];
+}
+
+/** Return a MultiPolygon feature keeping only components whose outer ring area
+ *  is ≥ minDeg². Always keeps at least the largest component. */
+function significantParts(f: Poly, minDeg2: number): Poly {
+  const comps = polygonComponents(f);
+  if (comps.length <= 1) return f;
+  let kept = comps.filter((c) => ringArea(c[0]!) >= minDeg2);
+  if (kept.length === 0) {
+    kept = [comps.reduce((a, b) => (ringArea(a[0]!) >= ringArea(b[0]!) ? a : b))];
+  }
+  return turfFeature({ type: "MultiPolygon", coordinates: kept }) as Poly;
+}
+
+/** Drop water components (Polygon parts of a Polygon/MultiPolygon) below
+ *  minDeg², returning a MultiPolygon feature (or null if nothing survives). */
+function dropSmallWater(f: Poly, minDeg2: number): Poly | null {
+  const kept = polygonComponents(f).filter((c) => ringArea(c[0]!) >= minDeg2);
+  if (kept.length === 0) return null;
+  return turfFeature({ type: "MultiPolygon", coordinates: kept }) as Poly;
 }
 
 /** Densify a land polygon's boundary into evenly-spaced [lon,lat] seed points
@@ -99,9 +147,12 @@ const lands = MUNICIPALITIES.map((m) => ({ entry: m, land: loadLand(m.geojsonFil
 // Union of ALL municipality land (subtrahend — keeps water rings over sea only).
 const allLand = unionAll(lands.map((l) => l.land))!;
 
-// Densify every coastline into muni-labelled Voronoi seeds.
+// Densify every SIGNIFICANT coastline (mainland + real islands, not tiny rocks)
+// into muni-labelled Voronoi seeds.
 const seeds: GeoJSON.Feature[] = [];
-for (const { entry, land } of lands) densifyToSeeds(land, entry.id, seeds);
+for (const { entry, land } of lands) {
+  densifyToSeeds(significantParts(land, MIN_ISLET_DEG2), entry.id, seeds);
+}
 
 // Voronoi over a padded region bbox; cells are index-aligned with `seeds`.
 const region = bbox(featureCollection(seeds));
@@ -140,7 +191,12 @@ for (const [m, feats] of fragsByMuni) {
 const summary: Record<string, unknown>[] = [];
 
 for (const { entry, land } of lands) {
-  const buffered = buffer(land, WATER_KM, { units: "kilometers" }) as Poly | undefined;
+  // Buffer only significant land — tiny rocks don't get a lone 15 km circle.
+  const buffered = buffer(
+    significantParts(land, MIN_ISLET_DEG2),
+    WATER_KM,
+    { units: "kilometers" },
+  ) as Poly | undefined;
   const reg = regionByMuni.get(entry.id);
   if (!buffered || !reg) {
     summary.push({ slug: entry.id, status: "no-buffer-or-region" });
@@ -158,10 +214,14 @@ for (const { entry, land } of lands) {
     summary.push({ slug: entry.id, status: "no-water (fully inland)" });
     continue;
   }
-  const geom =
-    water.geometry.type === "MultiPolygon"
-      ? water.geometry
-      : { type: "MultiPolygon", coordinates: [water.geometry.coordinates] };
+  // Drop sliver artifacts (and any lone remnant circles) so the overlay reads
+  // as one clean coastal water boundary per municipality.
+  const trimmed = dropSmallWater(water, MIN_WATER_DEG2);
+  if (!trimmed) {
+    summary.push({ slug: entry.id, status: "no-water (only slivers)" });
+    continue;
+  }
+  const geom = trimmed.geometry;
 
   const out = {
     type: "FeatureCollection",
