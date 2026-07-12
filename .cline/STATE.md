@@ -10,9 +10,10 @@
 #   equidistance). +2 TDD tests, gate GREEN (typecheck/lint/product-sync/web build/shared 223). Backfilled
 #   dev: 718 events (Baco 257→21, Calapan 243→451, wildlife all→Calapan) + 863 patrols (Baco 209→52,
 #   Calapan 589→723) — both via nearest-coast. Visual-QA confirmed (Baco LE 35→0, Monitoring 63→12).
-#   Dev app+worker REBUILT (live processor now uses fix). FIX B (regen non-overlapping water geometry) =
-#   DEFERRED/owner-gated (PENDING_DECISIONS 2026-07-13; reverses "imaginary line"). See memory
-#   project_marine_guardian_municipal_waters_equidistance_fix_0713. NOTHING DEPLOYED.
+#   Dev app+worker REBUILT (live processor now uses fix). Patrol backfill 863 (Baco 209→52). FIX B ✅ DONE
+#   (owner-approved: all 16 water_geojson regenerated as NON-overlapping median-line partition, 9bcd58e;
+#   zero-overlap verified, loaded dev DB w/ snapshots, 99.7% events consistent). Branch 17 commits. See memory
+#   project_marine_guardian_municipal_waters_equidistance_fix_0713. NOTHING DEPLOYED — deploy owner-gated.
 #
 # (prior) 2026-07-12 by CLAUDE_CODE (Batch 2: MPA-zone-by-province + Rangers-on-Duty count + hide-idle rename — shipped all 3 envs)
 

@@ -266,10 +266,11 @@ The reported "Baco is stealing Calapan's events" bug is FIXED at the ATTRIBUTION
 `containingWaterMunicipality` now resolves overlapping municipal-water polygons by NEAREST coastline (PH RA 7160/
 RA 8550 median-line equidistance). Events already re-backfilled on dev (Baco 257→21, Calapan 243→451, all wildlife
 →Calapan; Visual-QA confirmed). Counts/filtering/labels/Command Center are correct WITHOUT changing any geometry.
-- [ ] **Decide/authorize FIX B (optional, higher-risk):** regenerate every municipality's `water_geojson` as a
-  NON-overlapping median-line partition (`buffer(15km) − union(all land) − regions nearer another muni's coast`) so the
-  MAP OVERLAY (shaded municipal-water boundaries) is also non-overlapping/law-clean, matching the corrected attribution.
-  This REVERSES the 2026-06-29 "imaginary line, overlaps accepted" decision (`derive-municipal-waters.ts` header) and
-  ships regenerated boundary geometry for all 16 munis → best if you eyeball the new polygons before deploy. Verifiable
-  (zero-overlap point-in-polygon check + snapshot prior geometry via MunicipalityBoundarySnapshot). NOT required for the
-  reported fix. Default: HOLD until you confirm you want the boundary polygons themselves re-cut to the median line.
+- [x] **FIX B — APPROVED + DONE 2026-07-13 (owner: "yes… ignore whatever i told about imaginary lines… true legal
+  boundaries will always still be the real to follow"), commit 9bcd58e (LOCAL).** All 16 `water_geojson` regenerated as
+  a NON-overlapping median-line (equidistance) partition: `intersect(buffer(15km), nearest-coast Voronoi region) −
+  union(all land)`. `derive-municipal-waters.ts` rewritten (+@turf/voronoi/dissolve/intersect/bbox); new
+  `load-municipal-waters.ts` pushes them to DB with a `MunicipalityBoundarySnapshot(kind="water")` per muni (reversible).
+  VERIFIED: 19,536-pt grid → 0 overlaps; Baco water 121.278→121.152 (out of Calapan bay); 1124/1127 (99.7%) water events
+  consistent with the new polygons (no re-backfill needed). Gate green; loaded into dev DB (ph, 16 snapshotted); map
+  overlay (DB-sourced) shows the new boundaries. ⚠ Still LOCAL — staging/prod/demo deploy remains owner-gated.
