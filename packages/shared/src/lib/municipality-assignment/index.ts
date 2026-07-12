@@ -76,33 +76,60 @@ function containingMunicipality(
 }
 
 /**
- * Uploaded-water-polygon containment check (exclusive) — a point inside a
- * municipality's uploaded `waterGeojson` (drawn municipal-waters jurisdiction,
- * e.g. from a KML/KMZ upload) belongs to that municipality. Municipalities
- * with no `waterGeojson` (null/undefined) are skipped. Returns the FIRST
- * match, same exclusivity semantics as `containingMunicipality`.
+ * Water-jurisdiction containment check — a point inside a municipality's
+ * `waterGeojson` (derived ~15 km municipal-waters polygon, or an LGU-drawn
+ * KML/KMZ boundary) belongs to that municipality. Municipalities with no
+ * `waterGeojson` (null/undefined) are skipped.
+ *
+ * EQUIDISTANCE (median-line) tie-break — the derived 15 km water buffers of
+ * ADJACENT municipalities overlap heavily (each is buffer(land,15km) − all
+ * land, with no median-line clip), so a shared-bay point commonly falls inside
+ * two or more water polygons at once. PH municipal-waters law partitions such
+ * overlaps by the median line (RA 7160 §131 / RA 8550 IRR / NAMRIA
+ * delineation): the point belongs to the municipality whose COASTLINE is
+ * nearest. We therefore return, among ALL municipalities whose water polygon
+ * contains the point, the one whose LAND polygon (`boundaryGeojson`) is
+ * nearest — NOT the first in array/DB order (which was arbitrary and
+ * mis-attributed ~82% of one municipality's bay events to its neighbour).
  *
  * Runs AFTER land containment and BEFORE the generic nearest/15km-buffer
- * fallback, so an explicit uploaded water boundary always wins over the
- * generic approximation.
+ * fallback, so an explicit water boundary always wins over the generic
+ * approximation, while overlaps between water boundaries resolve by coastline
+ * distance.
  */
 function containingWaterMunicipality(
   tPoint: ReturnType<typeof turfPoint>,
   municipalities: MunicipalityForAssignment[],
 ): string | null {
+  let nearestId: string | null = null;
+  let nearestKm = Infinity;
   for (const muni of municipalities) {
     if (muni.waterGeojson == null) continue;
-    const geojson = unwrapGeojson(muni.waterGeojson);
+    const water = unwrapGeojson(muni.waterGeojson);
     if (
-      booleanPointInPolygon(
+      !booleanPointInPolygon(
         tPoint,
-        geojson as Parameters<typeof booleanPointInPolygon>[1],
+        water as Parameters<typeof booleanPointInPolygon>[1],
       )
     ) {
-      return muni.id;
+      continue;
+    }
+    // Point is in this municipality's waters — measure distance to its coast
+    // (land polygon) to resolve any overlap with another municipality's waters.
+    const land = unwrapGeojson(muni.boundaryGeojson);
+    const km = Math.abs(
+      pointToPolygonDistance(
+        tPoint,
+        land as Parameters<typeof pointToPolygonDistance>[1],
+        { units: "kilometers" },
+      ),
+    );
+    if (km < nearestKm) {
+      nearestKm = km;
+      nearestId = muni.id;
     }
   }
-  return null;
+  return nearestId;
 }
 
 /**

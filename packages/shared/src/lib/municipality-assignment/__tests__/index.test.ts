@@ -833,3 +833,95 @@ describe("extractTrackCoordinates — FeatureCollection track format (real Patro
     expect(classifyTrackTerrain({ type: "FeatureCollection", features: [null] }, [calapanMuni])).toBeNull();
   });
 });
+
+// ── Equidistance (median-line) tie-break for OVERLAPPING water polygons ────────
+// PH municipal-waters law (RA 7160 §131 / RA 8550 IRR / NAMRIA): where two
+// adjacent municipalities' waters overlap, the boundary is the median line —
+// a water point belongs to the municipality whose COASTLINE is nearest. The
+// derived 15 km water buffers overlap heavily, so `containingWaterMunicipality`
+// MUST resolve the overlap by nearest coast, NOT by array/DB order.
+describe("water-polygon overlap resolves by nearest coastline (equidistance)", () => {
+  // West muni: land lon 121.00–121.10 (east coast at 121.10); water 121.00–121.25.
+  const westMuni: MunicipalityForAssignment = {
+    id: "muni-west",
+    slug: "west",
+    name: "West",
+    boundaryGeojson: {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "Polygon",
+            coordinates: [[[121.0, 13.35], [121.1, 13.35], [121.1, 13.45], [121.0, 13.45], [121.0, 13.35]]],
+          },
+        },
+      ],
+    },
+    waterGeojson: {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "Polygon",
+            coordinates: [[[121.0, 13.3], [121.25, 13.3], [121.25, 13.5], [121.0, 13.5], [121.0, 13.3]]],
+          },
+        },
+      ],
+    },
+  };
+  // East muni: land lon 121.20–121.30 (west coast at 121.20); water 121.05–121.30.
+  const eastMuni: MunicipalityForAssignment = {
+    id: "muni-east",
+    slug: "east",
+    name: "East",
+    boundaryGeojson: {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "Polygon",
+            coordinates: [[[121.2, 13.35], [121.3, 13.35], [121.3, 13.45], [121.2, 13.45], [121.2, 13.35]]],
+          },
+        },
+      ],
+    },
+    waterGeojson: {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "Polygon",
+            coordinates: [[[121.05, 13.3], [121.3, 13.3], [121.3, 13.5], [121.05, 13.5], [121.05, 13.3]]],
+          },
+        },
+      ],
+    },
+  };
+
+  // Point in the shared water gap (between the two lands), nearer EAST's coast.
+  const nearEast = { lat: 13.4, lon: 121.18 }; // 0.02 from east coast, 0.08 from west
+  // Point in the shared water gap, nearer WEST's coast.
+  const nearWest = { lat: 13.4, lon: 121.12 }; // 0.02 from west coast, 0.08 from east
+
+  it("assigns an overlap point to the nearer coast regardless of array order (assignMunicipalityToPoint)", () => {
+    expect(assignMunicipalityToPoint(nearEast, [westMuni, eastMuni])).toBe("muni-east");
+    expect(assignMunicipalityToPoint(nearEast, [eastMuni, westMuni])).toBe("muni-east");
+    expect(assignMunicipalityToPoint(nearWest, [westMuni, eastMuni])).toBe("muni-west");
+    expect(assignMunicipalityToPoint(nearWest, [eastMuni, westMuni])).toBe("muni-west");
+  });
+
+  it("assigns an overlap point to the nearer coast regardless of array order (assignMunicipalityToPointOrNearest)", () => {
+    expect(assignMunicipalityToPointOrNearest(nearEast, [westMuni, eastMuni])).toBe("muni-east");
+    expect(assignMunicipalityToPointOrNearest(nearEast, [eastMuni, westMuni])).toBe("muni-east");
+    expect(assignMunicipalityToPointOrNearest(nearWest, [westMuni, eastMuni])).toBe("muni-west");
+    expect(assignMunicipalityToPointOrNearest(nearWest, [eastMuni, westMuni])).toBe("muni-west");
+  });
+});
