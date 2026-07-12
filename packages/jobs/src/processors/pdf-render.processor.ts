@@ -150,7 +150,10 @@ function resolveTelegramTarget(tenant: {
  * exported) because it is a render-time concern, not a spec-level decision —
  * any future per-tenant override would belong in the row's paramsJson.
  */
-const LANDSCAPE_REPORT_TYPES: ReadonlySet<string> = new Set(["coverage", "report_map"]);
+// report_map went PORTRAIT (owner 2026-07-12) — its @page CSS is portrait for the
+// chart/map pages, so the Chromium viewport must be portrait-shaped too (Leaflet
+// tiles to the viewport width). `coverage` stays landscape.
+const LANDSCAPE_REPORT_TYPES: ReadonlySet<string> = new Set(["coverage"]);
 
 function isLastAttempt(job: Job<PdfRenderJobPayload>): boolean {
   const attempts = job.opts.attempts ?? 1;

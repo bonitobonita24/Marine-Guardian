@@ -76,6 +76,7 @@
  */
 
 import type { ReportMapEventDetail, ReportMapReportData } from "@/server/report-map-report/get-report-map-report-data";
+import { colorForEventType } from "@/lib/event-type-color";
 import {
   detailCell,
   type EventColumn,
@@ -539,8 +540,21 @@ interface ReportMapReportProps {
 // Tracks Heatmap page (10 - 2 + 1 = 9).
 const TOTAL_PAGES = 9;
 
+// EarthRanger category strings — used to give each Event Map marker its
+// per-sub-type accent (colorForEventType), matching the breakdown-chart legend.
+const LAW_ENFORCEMENT_CATEGORY = "law-enforcement-and-apprehensions";
+const MONITORING_CATEGORY = "monitoring_patrolling_and_surveillance";
+
 export function ReportMapReport({ data }: ReportMapReportProps) {
-  const layout = resolveLayout(data.template.layout);
+  // Owner 2026-07-12: the Interactive Report Map PDF renders PORTRAIT for the
+  // chart/map pages (to match the requested mock). The wide per-event-type data
+  // tables keep their own @page landscape rule below (mixed-orientation PDF).
+  // A "continuous" template is still honored; every other stored layout is
+  // pinned portrait for this report type.
+  const templateLayout = resolveLayout(data.template.layout);
+  const layout = (templateLayout === "continuous"
+    ? "continuous"
+    : "portrait") as LayoutKey;
   const pageCss = layout === "portrait" ? "A4 portrait" : "A4 landscape";
   const isOnePer = layout === "landscape" || layout === "portrait";
   const mapHeightPx = layout === "portrait" ? "260px" : "370px";
@@ -586,8 +600,21 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
     display: r.type,
     count: r.count,
   }));
-  const lawPoints = data.charts.lawEnforcement.breakdown.flatMap((r) => r.points);
-  const monPoints = data.charts.monitoring.breakdown.flatMap((r) => r.points);
+  // Per-sub-type accent on each marker so the Event Map matches the breakdown
+  // chart legend (owner 2026-07-12). Points are grouped by event type on the
+  // breakdown rows, so the row's type colours every point in that group.
+  const lawPoints = data.charts.lawEnforcement.breakdown.flatMap((r) =>
+    r.points.map((p) => ({
+      ...p,
+      color: colorForEventType(r.type, LAW_ENFORCEMENT_CATEGORY),
+    })),
+  );
+  const monPoints = data.charts.monitoring.breakdown.flatMap((r) =>
+    r.points.map((p) => ({
+      ...p,
+      color: colorForEventType(r.type, MONITORING_CATEGORY),
+    })),
+  );
 
   // Section content flex direction per layout.
   const contentFlex =

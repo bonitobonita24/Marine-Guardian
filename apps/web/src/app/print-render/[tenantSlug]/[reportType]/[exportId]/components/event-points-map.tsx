@@ -38,12 +38,46 @@ const EVENT_MAP_HEIGHT_PX = 360;
 const DEFAULT_CENTER: [number, number] = [13.0, 121.0];
 const DEFAULT_ZOOM = 9;
 
+/** An event point may carry its own per-sub-type accent (owner 2026-07-12); when
+ *  absent the marker uses the section's `markerColor`. */
+type EventPointWithColor = ReportMapEventPoint & { color?: string };
+
+/**
+ * Tight bounding box around the located points, padded by a fraction of the
+ * span (min absolute pad so a lone point still frames sensibly). This focuses
+ * the map on the actual event markers instead of the whole municipality water
+ * polygon — the owner's "zoom in to what matters, not the full boundary" ask.
+ */
+function pointsBounds(
+  points: { lat: number; lon: number }[],
+): ReportMapBounds | null {
+  const first = points[0];
+  if (first === undefined) return null;
+  let south = first.lat;
+  let north = first.lat;
+  let west = first.lon;
+  let east = first.lon;
+  for (const p of points) {
+    south = Math.min(south, p.lat);
+    north = Math.max(north, p.lat);
+    west = Math.min(west, p.lon);
+    east = Math.max(east, p.lon);
+  }
+  const latPad = Math.max((north - south) * 0.18, 0.02);
+  const lonPad = Math.max((east - west) * 0.18, 0.02);
+  return {
+    south: south - latPad,
+    west: west - lonPad,
+    north: north + latPad,
+    east: east + lonPad,
+  };
+}
+
 interface EventPointsMapProps {
-  points: ReportMapEventPoint[];
+  points: EventPointWithColor[];
   markerColor?: string;
-  /** When set (report scoped to one municipality), the map frames this area
-   *  instead of fitting to the data points — fixes the whole-region /
-   *  empty-ocean-margin view on a single-municipality report. */
+  /** Fallback framing (whole municipality water area) used ONLY when there are
+   *  no located points to fit to. */
   municipalityBounds?: ReportMapBounds | null;
 }
 
@@ -54,40 +88,35 @@ export function EventPointsMap({
 }: EventPointsMapProps) {
   const tileLayerRef = useRef<LeafletTileLayer>(null);
 
-  // A specific municipality is in scope — always frame it, even when there
-  // are 0/1 located event points (the case that used to fall through to the
-  // fixed whole-region fallback). Runs AFTER MapRenderGate's invalidateSize.
+  // Prefer a tight box around the event markers; fall back to the municipality
+  // water area only when there are no points. Frames on the data the owner
+  // cares about instead of empty ocean margin.
+  const framingBounds = pointsBounds(points) ?? municipalityBounds;
+
+  // Re-assert the SAME size-independent view the MapContainer initialized with
+  // (boundsToView), via setView — NOT fitBounds. fitBounds recomputes the zoom
+  // from the print container's unreliable measured size; setView applies the
+  // precomputed center/zoom directly (no size dep). Runs AFTER MapRenderGate's
+  // invalidateSize.
   const applyFraming = useCallback(
     (map: LeafletMap) => {
-      if (municipalityBounds) {
-        // Re-assert the SAME size-independent view the MapContainer initialized
-        // with (boundsToView), via setView — NOT fitBounds. fitBounds recomputes
-        // the zoom from the print container's unreliable measured size and was
-        // resetting the correct initial zoom back to the whole-region default;
-        // setView applies the precomputed center/zoom directly (no size dep).
-        const { center, zoom } = boundsToView(
-          municipalityBounds,
-          EVENT_MAP_WIDTH_PX,
-          EVENT_MAP_HEIGHT_PX,
-        );
-        map.setView(center, zoom, { animate: false });
-        return;
-      }
-      if (points.length < 2) return;
-      const latLngs = points.map((p) => [p.lat, p.lon] as [number, number]);
-      map.fitBounds(latLngs, { padding: [16, 16], animate: false });
+      if (!framingBounds) return;
+      const { center, zoom } = boundsToView(
+        framingBounds,
+        EVENT_MAP_WIDTH_PX,
+        EVENT_MAP_HEIGHT_PX,
+      );
+      map.setView(center, zoom, { animate: false });
     },
-    [points, municipalityBounds],
+    [framingBounds],
   );
 
-  // Compute the initial view from municipalityBounds DIRECTLY — independent
-  // of the live container size, which is unreliable at effect time in this
-  // multi-page Puppeteer print document (see bounds-view.ts's file header
-  // for the full root-cause explanation of why post-mount fitBounds alone
-  // was not sufficient). Falls back to the whole-region default when no
-  // municipality is in scope.
-  const initialView = municipalityBounds
-    ? boundsToView(municipalityBounds, EVENT_MAP_WIDTH_PX, EVENT_MAP_HEIGHT_PX)
+  // Compute the initial view DIRECTLY — independent of the live container size,
+  // which is unreliable at effect time in this multi-page Puppeteer print
+  // document (see bounds-view.ts header). Falls back to the whole-region
+  // default when nothing to frame.
+  const initialView = framingBounds
+    ? boundsToView(framingBounds, EVENT_MAP_WIDTH_PX, EVENT_MAP_HEIGHT_PX)
     : { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM };
 
   return (
@@ -108,19 +137,22 @@ export function EventPointsMap({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {points.map((p) => (
-          <CircleMarker
-            key={p.id}
-            center={[p.lat, p.lon]}
-            radius={5}
-            pathOptions={{
-              color: markerColor,
-              fillColor: markerColor,
-              fillOpacity: 0.7,
-              weight: 1,
-            }}
-          />
-        ))}
+        {points.map((p) => {
+          const c = p.color ?? markerColor;
+          return (
+            <CircleMarker
+              key={p.id}
+              center={[p.lat, p.lon]}
+              radius={5}
+              pathOptions={{
+                color: c,
+                fillColor: c,
+                fillOpacity: 0.7,
+                weight: 1,
+              }}
+            />
+          );
+        })}
         <MapRenderGate
           hasAnyOverlay={points.length > 0}
           applyFraming={applyFraming}
