@@ -191,3 +191,28 @@ describe("middleware — in-tenant role gates (slug-stripped)", () => {
     expect(locationOf(res)).toBeNull();
   });
 });
+
+describe("middleware — stale/malformed JWT: empty tenantSlug never yields //dashboard", () => {
+  // Regression (2026-07-12): a reconciliation changed a user's role/tenant via
+  // direct SQL WITHOUT bumping securityVersion, leaving old sessions valid. Such
+  // a JWT can carry an EMPTY tenantSlug for a non-platform role. Hitting a tenant
+  // path then built `/${tenantSlug}/dashboard` === "//dashboard", which a browser
+  // resolves protocol-relative to host "dashboard" → DNS_PROBE_FINISHED_NXDOMAIN.
+  // Fix: an authenticated non-platform user with an empty slug is stale → /login.
+  it("redirects an authed non-platform user with empty slug to /login (NOT //dashboard)", async () => {
+    mockAuth.mockResolvedValue(tenantUser("", ["operator"]));
+    const res = await middleware(makeReq("/ph/patrols"));
+    const loc = locationOf(res);
+    expect(loc).not.toContain("//dashboard");
+    expect(loc).not.toMatch(/^https?:\/\/dashboard/);
+    expect(loc).toContain("/login");
+  });
+
+  it("redirects an authed empty-slug user off the bare tenant root to /login", async () => {
+    mockAuth.mockResolvedValue(tenantUser("", ["viewer"]));
+    const res = await middleware(makeReq("/ph"));
+    const loc = locationOf(res);
+    expect(loc).not.toMatch(/dashboard/);
+    expect(loc).toContain("/login");
+  });
+});

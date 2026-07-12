@@ -233,6 +233,17 @@ export default async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Stale / malformed JWT guard: a non-platform authenticated user MUST carry a
+  // tenant slug. An empty slug here means a session minted before a role/tenant
+  // change that did not bump securityVersion (e.g. a direct-SQL RBAC
+  // reconciliation). Without this guard the tenant-path redirects below build
+  // `/${tenantSlug}/dashboard` === "//dashboard", which a browser resolves
+  // protocol-relative to host "dashboard" (DNS_PROBE_FINISHED_NXDOMAIN). Force
+  // a clean re-login instead — /login is public so this cannot loop.
+  if (!isPlatformUser && tenantSlug === "") {
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+
   // Tenant path /[slug]/… — `seg` is the REQUESTED tenant.
   if (isPlatformUser) {
     // Platform super_admin may only enter a tenant app while impersonating, and
