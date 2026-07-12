@@ -270,6 +270,19 @@ describe("dashboard — WAR ROOM date range (goal items 3-4, 2026-06-25)", () =>
     expect(call.where.startTime).toBeUndefined();
   });
 
+  it("activePatrols hides ghost patrols (no segments AND no start time) from the tile (owner 2026-07-12)", async () => {
+    await createCaller(makeCtx()).activePatrols({ dateFrom: FROM, dateTo: TO });
+    const call = mockPrisma.patrol.findMany.mock.calls[0]?.[0] as {
+      where: { OR?: unknown };
+    };
+    // A real patrol has at least one segment OR a start time; dataless ghosts
+    // (neither) are excluded so the tile never shows blank, never-started rows.
+    expect(call.where.OR).toEqual([
+      { segments: { some: {} } },
+      { startTime: { not: null } },
+    ]);
+  });
+
   it("alertStats uses the supplied range for firedAt", async () => {
     await createCaller(makeCtx()).alertStats({ dateFrom: FROM, dateTo: TO });
     const call = mockPrisma.alertHistory.count.mock.calls[0]?.[0] as {

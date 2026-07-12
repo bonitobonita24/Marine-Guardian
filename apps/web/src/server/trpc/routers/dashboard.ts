@@ -178,6 +178,13 @@ export const dashboardRouter = router({
           isDeleted: false,
           isTestPatrol: false,
           state: "open",
+          // Hide "ghost" patrols from the Recent Patrols tile (owner 2026-07-12):
+          // records that never actually started — no segments AND no start time
+          // (and therefore no leader, no track, empty ER snapshot) — carry no
+          // ranger and clutter the list with blank rows. A real patrol has at
+          // least one segment OR a start time, so keep those. The Active Patrols
+          // KPI (bare open count) is intentionally left unchanged.
+          OR: [{ segments: { some: {} } }, { startTime: { not: null } }],
         },
         orderBy: { startTime: { sort: "desc", nulls: "last" } },
         take: 15,
