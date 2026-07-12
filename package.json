@@ -59,6 +59,12 @@
     "prettier": "^3.4.2",
     "turbo": "^2.3.3",
     "typescript": "^5.7.3",
-    "typescript-eslint": "^8.20.0"
+    "typescript-eslint": "^8.20.0",
+    "@turf/voronoi": "^7.2.0",
+    "@turf/dissolve": "^7.2.0",
+    "@turf/intersect": "^7.2.0",
+    "@turf/bbox": "^7.2.0",
+    "@turf/distance": "^7.2.0",
+    "@turf/polygon-to-line": "^7.2.0"
   }
 }
