@@ -786,8 +786,18 @@ function VerticalTrackLegend({
                                     const valueOn =
                                       disabledTypeValues === undefined ||
                                       !disabledTypeValues.has(valueKey);
+                                    // In-range count ONLY (owner 2026-07-12):
+                                    // the badge must reflect what's plotted on
+                                    // the map for the active date/area filters,
+                                    // matching the L2 parent badge. A sub-value
+                                    // with no in-range markers shows 0 (it stays
+                                    // listed so it can still be toggled) — we no
+                                    // longer fall back to tv.count, the all-time
+                                    // dataset total, which mixed scopes and made
+                                    // the child counts (all-time) disagree with
+                                    // the parent (in-range).
                                     const valueCount =
-                                      typeValueCounts?.[valueKey] ?? tv.count;
+                                      typeValueCounts?.[valueKey] ?? 0;
                                     const valueInputId = `event-type-value-${valueKey}`;
                                     return (
                                       <div
