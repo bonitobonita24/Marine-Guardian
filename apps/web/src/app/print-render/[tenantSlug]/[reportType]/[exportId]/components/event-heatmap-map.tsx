@@ -19,7 +19,7 @@ import type {
   ReportMapEventPoint,
 } from "@/server/report-map-report/get-report-map-report-data";
 import { boundsToView } from "./bounds-view";
-import { HeatLayer } from "./heat-layer";
+import { HeatLayer, type HeatLayerVariant } from "./heat-layer";
 import { MapRenderGate } from "./map-render-gate";
 
 const HEATMAP_WIDTH_PX = 1010;
@@ -55,11 +55,14 @@ function pointsBounds(
 
 interface EventHeatmapMapProps {
   points: ReportMapEventPoint[];
+  /** Category-coloured, intensified heat ramp (owner 2026-07-12). */
+  variant?: HeatLayerVariant;
   municipalityBounds?: ReportMapBounds | null;
 }
 
 export function EventHeatmapMap({
   points,
+  variant = "events",
   municipalityBounds = null,
 }: EventHeatmapMapProps) {
   const tileLayerRef = useRef<LeafletTileLayer>(null);
@@ -99,7 +102,7 @@ export function EventHeatmapMap({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <HeatLayer points={heatPoints} variant="events" />
+        <HeatLayer points={heatPoints} variant={variant} />
         <MapRenderGate
           hasAnyOverlay={points.length > 0}
           applyFraming={applyFraming}

@@ -28,21 +28,27 @@ describe("buildChartRows — canonical event-type order (PDF report)", () => {
     ]);
   });
 
-  it("monitoring: canonical order, matching tolerant of case/punctuation", () => {
+  it("monitoring: EVERY canonical type in order, including zero-count ones (owner 2026-07-12)", () => {
     const rows: EventTypeBreakdownRow[] = [
       row("threats on habitat", 99),
       row("Marine wildlife sightings", 1),
       row("Community Support", 5),
     ];
-    const out = buildChartRows(rows, "monitoring", 10).map((r) => r.name);
-    expect(out).toEqual([
+    const out = buildChartRows(rows, "monitoring", 10);
+    // All 5 canonical monitoring types appear in the fixed order — the two absent
+    // from the data (Infrastructure, Research) render with count 0. A present
+    // type keeps the data's display string ("threats on habitat").
+    expect(out.map((r) => r.name)).toEqual([
       "Marine wildlife sightings",
+      "Infrastructure and assets",
+      "Research and Studies",
       "Community Support",
       "threats on habitat",
     ]);
+    expect(out.map((r) => r.count)).toEqual([1, 0, 0, 5, 99]);
   });
 
-  it("unlisted types sort after canonical ones, by count desc then display asc", () => {
+  it("shows all canonical types first, then unlisted buckets by count desc then display asc", () => {
     const rows: EventTypeBreakdownRow[] = [
       row("Zulu Unknown Type", 3),
       row("Alpha Unknown Type", 3),
@@ -51,20 +57,35 @@ describe("buildChartRows — canonical event-type order (PDF report)", () => {
     ];
     const out = buildChartRows(rows, "lawEnforcement", 10).map((r) => r.name);
     expect(out).toEqual([
-      "Unregistered Illegal Fishing", // canonical first, even at count 1
-      "Beta Unknown Type", // unlisted: count 9
-      "Alpha Unknown Type", // unlisted: count 3, display asc tiebreak
-      "Zulu Unknown Type", // unlisted: count 3
+      // all 6 canonical law types, in canonical order (5 of them at count 0)
+      "Unregistered Illegal Fishing",
+      "Fishing in a prohibited area (MPA)",
+      "Taking of Prohibited Species",
+      "Use of Prohibited Gears",
+      "Compressor Fishing",
+      "Destructive Practices",
+      // then the unlisted buckets, count desc → display asc
+      "Beta Unknown Type",
+      "Alpha Unknown Type",
+      "Zulu Unknown Type",
     ]);
   });
 
-  it("drops zero-count types and respects topN", () => {
+  it("keeps zero-count canonical types in canonical order and respects topN", () => {
     const rows: EventTypeBreakdownRow[] = [
-      row("Unregistered Illegal Fishing", 0), // dropped
+      row("Unregistered Illegal Fishing", 0), // shown (owner: no longer dropped)
       row("Taking of Prohibited Species", 4),
       row("Use of Prohibited Gears", 2),
     ];
-    const out = buildChartRows(rows, "lawEnforcement", 1).map((r) => r.name);
-    expect(out).toEqual(["Taking of Prohibited Species"]);
+    // topN caps the (canonical-ordered) list — the FIRST canonical type wins,
+    // even at count 0.
+    expect(buildChartRows(rows, "lawEnforcement", 1).map((r) => r.name)).toEqual([
+      "Unregistered Illegal Fishing",
+    ]);
+    // topN high enough → all 6 canonical, in order, zero-count included.
+    const full = buildChartRows(rows, "lawEnforcement", 10);
+    expect(full).toHaveLength(6);
+    expect(full[0]).toMatchObject({ name: "Unregistered Illegal Fishing", count: 0 });
+    expect(full[2]).toMatchObject({ name: "Taking of Prohibited Species", count: 4 });
   });
 });

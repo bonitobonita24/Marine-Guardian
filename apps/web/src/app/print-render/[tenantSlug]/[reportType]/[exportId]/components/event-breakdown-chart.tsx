@@ -32,6 +32,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -39,7 +40,8 @@ import {
 } from "recharts";
 import type { EventTypeBreakdownRow } from "@/server/per-area-report/get-per-area-report-data";
 import {
-  canonicalIndex,
+  EVENT_TYPE_ORDER,
+  normalizeTypeLabel,
   type EventTypeVariant,
 } from "@/lib/event-type-order";
 import { eventTypeIcon } from "@/lib/event-type-icon";
@@ -100,24 +102,35 @@ export function buildChartRows(
 ): ChartRow[] {
   const orderVariant = orderVariantFor(variant);
   const category = categoryForVariant(variant);
-  return [...rows]
+  // Index the report's rows by normalized label for tolerant matching.
+  const byNorm = new Map<string, EventTypeBreakdownRow>();
+  for (const r of rows) byNorm.set(normalizeTypeLabel(r.display), r);
+
+  const result: ChartRow[] = [];
+  // 1. EVERY canonical sub-type in its fixed order — INCLUDING zero-count ones
+  //    (owner 2026-07-12: show sub-categories that have no events too). A present
+  //    type uses the report's display; an absent one uses the canonical label at 0.
+  for (const canon of EVENT_TYPE_ORDER[orderVariant]) {
+    const key = normalizeTypeLabel(canon);
+    const hit = byNorm.get(key);
+    const display = hit?.display ?? canon;
+    const count = hit?.count ?? 0;
+    result.push({ name: display, count, fill: colorForEventType(display, category) });
+    byNorm.delete(key);
+  }
+  // 2. Any non-canonical bucket left in the data (e.g. the "Others" aggregate)
+  //    with a real count, appended by count desc.
+  const extras = [...byNorm.values()]
     .filter((r) => r.count > 0)
-    .sort((a, b) => {
-      const ia = canonicalIndex(a.display, orderVariant);
-      const ib = canonicalIndex(b.display, orderVariant);
-      if (ia !== -1 && ib !== -1) return ia - ib;
-      if (ia !== -1) return -1; // canonical types before unlisted
-      if (ib !== -1) return 1;
-      if (b.count !== a.count) return b.count - a.count; // both unlisted → count desc
-      return a.display.localeCompare(b.display);
-    })
-    .slice(0, topN)
-    .map((r) => ({
+    .sort((a, b) => b.count - a.count || a.display.localeCompare(b.display));
+  for (const r of extras) {
+    result.push({
       name: r.display,
       count: r.count,
-      // Per-sub-type accent so the legend colour == the map marker colour.
       fill: colorForEventType(r.display, category),
-    }));
+    });
+  }
+  return result.slice(0, topN);
 }
 
 /**
@@ -178,6 +191,58 @@ export function BreakdownYAxisTick({
         </span>
       </div>
     </foreignObject>
+  );
+}
+
+/**
+ * Bar count label (owner 2026-07-12): the exact event count printed on each bar,
+ * like the mock. A bar wide enough shows the number inside near the left in
+ * white; a tiny or zero-count bar prints it just past the bar end in dark grey
+ * so a "0" category is still legible. Recharts clones this with the per-bar
+ * {x,y,width,height,value} label props.
+ */
+export function BarCountLabel({
+  x = 0,
+  y = 0,
+  width = 0,
+  height = 0,
+  value,
+}: {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  value?: string | number;
+}) {
+  const count = typeof value === "number" ? value : Number(value ?? 0);
+  const cy = y + height / 2;
+  if (count > 0 && width >= 18) {
+    return (
+      <text
+        x={x + 8}
+        y={cy}
+        fill="#ffffff"
+        fontSize={13}
+        fontWeight={800}
+        dominantBaseline="central"
+        textAnchor="start"
+      >
+        {count}
+      </text>
+    );
+  }
+  return (
+    <text
+      x={x + width + 5}
+      y={cy}
+      fill="#374151"
+      fontSize={12}
+      fontWeight={700}
+      dominantBaseline="central"
+      textAnchor="start"
+    >
+      {count}
+    </text>
   );
 }
 
@@ -252,6 +317,7 @@ export function EventBreakdownChart({
             {data.map((row, idx) => (
               <Cell key={`bar-cell-${String(idx)}`} fill={row.fill} />
             ))}
+            <LabelList dataKey="count" content={<BarCountLabel />} />
           </Bar>
         </BarChart>
       </ResponsiveContainer>

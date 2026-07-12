@@ -36,6 +36,33 @@ interface PrintTimeSeriesChartProps {
   height?: number | string;
 }
 
+/** Rotated x-axis tick so every monthly label fits in a narrow chart. */
+function AngledTick({
+  x = 0,
+  y = 0,
+  payload,
+  fontSize = 8,
+}: {
+  x?: number;
+  y?: number;
+  payload?: { value?: string | number };
+  fontSize?: number;
+}) {
+  return (
+    <text
+      x={x}
+      y={y}
+      dy={3}
+      textAnchor="end"
+      transform={`rotate(-45, ${String(x)}, ${String(y)})`}
+      fontSize={fontSize}
+      fill="#6b7280"
+    >
+      {payload?.value != null ? String(payload.value) : ""}
+    </text>
+  );
+}
+
 export function PrintTimeSeriesChart({
   series,
   title,
@@ -71,6 +98,20 @@ export function PrintTimeSeriesChart({
       ? `${String(resolvedHeight)}px`
       : resolvedHeight;
 
+  // X-axis tick strategy (owner 2026-07-12): the series already spans the full
+  // report range (buildSingleCountSeries zero-fills [from,to]). For a monthly
+  // series covering < 2 years show EVERY month (angled so they fit); for a
+  // longer span show only the year-boundary (January) labels — a per-year
+  // cadence. Non-monthly (week/day) series keep the default thinning.
+  const firstLabel = series[0]?.label ?? "";
+  const isMonthly = /^[A-Za-z]{3}\s+\d{4}$/.test(firstLabel);
+  const allMonths = isMonthly && series.length <= 24;
+  const yearTicks = isMonthly
+    ? series.filter((p) => /^Jan\s/i.test(p.label)).map((p) => p.label)
+    : [];
+  const perYear = isMonthly && series.length > 24 && yearTicks.length > 0;
+  const tickFontSize = compact ? 7 : 8;
+
   return (
     <div
       data-testid="print-time-series-chart"
@@ -91,11 +132,12 @@ export function PrintTimeSeriesChart({
       <ResponsiveContainer width="100%" height="100%">
         <LineChart
           data={series}
-          margin={
-            compact
-              ? { top: 4, right: 12, bottom: 12, left: 0 }
-              : { top: 8, right: 16, bottom: 16, left: 0 }
-          }
+          margin={{
+            top: compact ? 4 : 8,
+            right: compact ? 12 : 16,
+            bottom: allMonths ? 30 : compact ? 12 : 16,
+            left: 0,
+          }}
         >
           <CartesianGrid
             vertical={false}
@@ -107,8 +149,18 @@ export function PrintTimeSeriesChart({
             tickLine={false}
             axisLine={false}
             tickMargin={compact ? 4 : 6}
-            minTickGap={24}
-            tick={{ fontSize: compact ? 8 : 9, fill: "#6b7280" }}
+            {...(allMonths
+              ? { interval: 0, height: 42 }
+              : perYear
+                ? { interval: 0, ticks: yearTicks }
+                : { minTickGap: 24 })}
+            tick={
+              allMonths ? (
+                <AngledTick fontSize={tickFontSize} />
+              ) : (
+                { fontSize: compact ? 8 : 9, fill: "#6b7280" }
+              )
+            }
           />
           <YAxis
             tickLine={false}

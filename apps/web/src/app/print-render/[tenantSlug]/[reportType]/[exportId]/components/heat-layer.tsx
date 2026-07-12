@@ -30,7 +30,13 @@ import "leaflet.heat";
 import { useMap } from "react-leaflet";
 import type { HeatLatLng } from "@marine-guardian/shared/lib/heatmap-sample";
 
-export type HeatLayerVariant = "events" | "tracks" | "patrol-seaborne" | "patrol-foot";
+export type HeatLayerVariant =
+  | "events"
+  | "events-law-enforcement"
+  | "events-monitoring"
+  | "tracks"
+  | "patrol-seaborne"
+  | "patrol-foot";
 
 interface HeatLayerProps {
   points: HeatLatLng[];
@@ -49,6 +55,42 @@ const VARIANT_OPTIONS: Record<HeatLayerVariant, L.HeatMapOptions> = {
       0.6: "#f87171",
       0.8: "#ef4444",
       1.0: "#dc2626",
+    },
+  },
+  // Category event-density heatmaps (owner 2026-07-12): INTENSIFIED (bigger
+  // radius, lower blur, faster saturation via max, visible minOpacity) and
+  // coloured to the CATEGORY's accent family so the heatmap reads with the same
+  // colour identity as that category's markers/legend.
+  // Law Enforcement — deep-red ramp.
+  "events-law-enforcement": {
+    radius: 26,
+    blur: 16,
+    max: 0.7,
+    minOpacity: 0.4,
+    maxZoom: 14,
+    gradient: {
+      0.1: "#fecaca",
+      0.3: "#fca5a5",
+      0.5: "#f87171",
+      0.7: "#ef4444",
+      0.85: "#dc2626",
+      1.0: "#991b1b",
+    },
+  },
+  // Monitoring — teal→green ramp (matches the monitoring marker family).
+  "events-monitoring": {
+    radius: 26,
+    blur: 16,
+    max: 0.7,
+    minOpacity: 0.4,
+    maxZoom: 14,
+    gradient: {
+      0.1: "#99f6e4",
+      0.3: "#5eead4",
+      0.5: "#2dd4bf",
+      0.7: "#14b8a6",
+      0.85: "#0d9488",
+      1.0: "#0f766e",
     },
   },
   // Tracks — blue gradient (blue-200 → blue-700 light → dark).

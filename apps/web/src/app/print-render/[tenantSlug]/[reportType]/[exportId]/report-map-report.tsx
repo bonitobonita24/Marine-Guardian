@@ -906,6 +906,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
               </div>
             </div>
           </div>
+          <div className="cat-map-heading">Event Map</div>
           <div className="cat-map">
             <figure aria-label="Law enforcement event locations">
               <figcaption className="sr-only">
@@ -926,6 +927,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
             <figure aria-label="Law enforcement event density heatmap">
               <EventHeatmapMap
                 points={lawPoints}
+                variant="events-law-enforcement"
                 municipalityBounds={data.municipalityBounds}
               />
             </figure>
@@ -970,6 +972,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
               </div>
             </div>
           </div>
+          <div className="cat-map-heading">Event Map</div>
           <div className="cat-map">
             <figure aria-label="Monitoring event locations">
               <figcaption className="sr-only">
@@ -990,6 +993,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
             <figure aria-label="Monitoring event density heatmap">
               <EventHeatmapMap
                 points={monPoints}
+                variant="events-monitoring"
                 municipalityBounds={data.municipalityBounds}
               />
             </figure>
