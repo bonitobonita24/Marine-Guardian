@@ -13,7 +13,7 @@ import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
 import { adminProcedure, matrixProcedure } from "../middleware/rbac";
 import { prisma, writeAuditLog } from "@marine-guardian/db";
-import type { PrismaClient } from "@marine-guardian/db";
+import type { PrismaClient, Prisma } from "@marine-guardian/db";
 
 type Db = PrismaClient;
 
@@ -22,6 +22,32 @@ type Db = PrismaClient;
 export const alertHistoryListFilters = z.object({
   alertRuleId: z.string().optional(),
 });
+
+/**
+ * Excludes Skylight automated vessel-detection alerts from every user-facing
+ * ALERTS & ESCALATIONS surface (owner 2026-07-12: "remove Marine Entry events
+ * from Alerts & Escalations"). In the UI these read as "Marine Entry", but in
+ * the data they are AlertHistory rows linked to an Event whose eventType is
+ * "Skylight Entry Alert" (category `analyzer_event`) — the same automated
+ * feed already stripped from the WAR ROOM breakdown and every report
+ * aggregation. The only reliable Skylight marker is the eventType display
+ * ("Skylight …"), matched case-insensitively.
+ *
+ * `NOT: { event: { … } }` correctly KEEPS alerts with no linked event (the NOT
+ * of a to-one relation condition is satisfied when the relation is null), so
+ * legitimate non-Skylight alerts that carry no event are never dropped.
+ *
+ * Shared by alertHistory.list / .unacknowledgedCount, dashboard.alertStats, and
+ * the /api/exports/alert-history Route Handler so the panel, KPI, and export all
+ * agree.
+ */
+export const EXCLUDE_SKYLIGHT_ALERTS = {
+  NOT: {
+    event: {
+      eventType: { display: { contains: "skylight", mode: "insensitive" } },
+    },
+  },
+} satisfies Prisma.AlertHistoryWhereInput;
 
 export const alertHistoryRouter = router({
   list: matrixProcedure(tenantProcedure, "alerts", "view")
@@ -48,6 +74,7 @@ export const alertHistoryRouter = router({
           tenantId: ctx.tenantId,
           ...(input.alertRuleId !== undefined ? { alertRuleId: input.alertRuleId } : {}),
           ...(hasRange ? { firedAt } : {}),
+          ...EXCLUDE_SKYLIGHT_ALERTS,
         },
         take: input.limit + 1,
         ...(input.cursor !== undefined ? { cursor: { id: input.cursor }, skip: 1 } : {}),
@@ -145,6 +172,7 @@ export const alertHistoryRouter = router({
         tenantId: ctx.tenantId,
         firedAt: { gte: since },
         acknowledgedAt: null,
+        ...EXCLUDE_SKYLIGHT_ALERTS,
       },
     });
     return { count };

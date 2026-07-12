@@ -112,6 +112,22 @@ describe("alertHistory.list", () => {
     );
   });
 
+  it("excludes Skylight ('Marine Entry') alerts via NOT event.eventType.display (owner 2026-07-12)", async () => {
+    vi.mocked(prisma.alertHistory.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50 });
+
+    const arg = vi.mocked(prisma.alertHistory.findMany).mock.calls[0]?.[0] as {
+      where: { NOT?: unknown };
+    };
+    expect(arg.where.NOT).toEqual({
+      event: {
+        eventType: { display: { contains: "skylight", mode: "insensitive" } },
+      },
+    });
+  });
+
   it("paginates with nextCursor when more results exist than limit", async () => {
     const mockItems = Array.from({ length: 51 }, (_, i) => ({
       ...stubAlert,
@@ -275,11 +291,22 @@ describe("alertHistory.unacknowledgedCount", () => {
     expect(result.count).toBe(3);
 
     const countArg = vi.mocked(prisma.alertHistory.count).mock.calls[0]?.[0] as {
-      where: { tenantId: string; acknowledgedAt: null; firedAt: { gte: Date } };
+      where: {
+        tenantId: string;
+        acknowledgedAt: null;
+        firedAt: { gte: Date };
+        NOT?: unknown;
+      };
     };
     expect(countArg.where.tenantId).toBe(TENANT_ID);
     expect(countArg.where.acknowledgedAt).toBeNull();
     expect(countArg.where.firedAt.gte).toBeInstanceOf(Date);
+    // Skylight ("Marine Entry") alerts excluded from the KPI too (owner 2026-07-12).
+    expect(countArg.where.NOT).toEqual({
+      event: {
+        eventType: { display: { contains: "skylight", mode: "insensitive" } },
+      },
+    });
     // gte must be approximately 24h ago
     const diffMs = Date.now() - countArg.where.firedAt.gte.getTime();
     expect(diffMs).toBeGreaterThanOrEqual(23 * 3600 * 1000);

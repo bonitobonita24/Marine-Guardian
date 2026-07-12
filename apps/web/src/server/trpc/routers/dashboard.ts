@@ -4,6 +4,7 @@ import { tenantProcedure } from "../middleware/tenant";
 import { matrixProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
 import { knownRangerIdsLeadingSegments } from "@/server/lib/ranger-on-duty";
+import { EXCLUDE_SKYLIGHT_ALERTS } from "./alertHistory";
 
 // WAR ROOM date-range input (2026-06-25, goal items 3-4). Optional and
 // backward-compatible: when omitted, every procedure behaves exactly as it did
@@ -311,6 +312,7 @@ export const dashboardRouter = router({
           tenantId: ctx.tenantId,
           firedAt: firedRange,
           acknowledgedAt: null,
+          ...EXCLUDE_SKYLIGHT_ALERTS,
         },
       });
       return { unacknowledged };

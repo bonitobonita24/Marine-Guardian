@@ -21,7 +21,10 @@ import {
 } from "@/server/lib/export-pdf";
 import { writeExportAudit } from "@/server/lib/export-audit";
 import { buildExportFilename } from "@/server/lib/export-filename";
-import { alertHistoryListFilters } from "@/server/trpc/routers/alertHistory";
+import {
+  alertHistoryListFilters,
+  EXCLUDE_SKYLIGHT_ALERTS,
+} from "@/server/trpc/routers/alertHistory";
 
 const ROW_CAP = 10_000;
 
@@ -119,6 +122,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       ...(filters.alertRuleId !== undefined
         ? { alertRuleId: filters.alertRuleId }
         : {}),
+      ...EXCLUDE_SKYLIGHT_ALERTS,
     },
     take: ROW_CAP + 1,
     orderBy: { firedAt: "desc" },

@@ -287,6 +287,18 @@ describe("dashboard — WAR ROOM date range (goal items 3-4, 2026-06-25)", () =>
     expect(call.where.firedAt?.lte).toBeUndefined();
   });
 
+  it("alertStats excludes Skylight ('Marine Entry') alerts from the KPI (owner 2026-07-12)", async () => {
+    await createCaller(makeCtx()).alertStats();
+    const call = mockPrisma.alertHistory.count.mock.calls[0]?.[0] as {
+      where: { NOT?: unknown };
+    };
+    expect(call.where.NOT).toEqual({
+      event: {
+        eventType: { display: { contains: "skylight", mode: "insensitive" } },
+      },
+    });
+  });
+
   it("kpis scopes the activeEvents count to the supplied range and open-patrol events", async () => {
     await createCaller(makeCtx()).kpis({ dateFrom: FROM, dateTo: TO });
     const call = mockPrisma.event.count.mock.calls[0]?.[0] as {
