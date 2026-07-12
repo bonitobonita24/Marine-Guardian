@@ -124,7 +124,7 @@ export function RangerRoster({
               htmlFor="cc-hide-idle-rangers"
               className="text-[10px] font-medium text-muted-foreground"
             >
-              Hide idle on map
+              Hide inactive rangers on map
             </Label>
             <Switch
               id="cc-hide-idle-rangers"

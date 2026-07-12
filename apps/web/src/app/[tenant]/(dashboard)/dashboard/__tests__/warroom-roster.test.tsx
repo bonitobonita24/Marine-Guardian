@@ -91,7 +91,7 @@ describe("RangerRoster", () => {
     render(
       <RangerRoster rangers={rangers} summary={summary} isLoading={false} />,
     );
-    expect(screen.queryByText(/hide idle on map/i)).toBeNull();
+    expect(screen.queryByText(/hide inactive rangers on map/i)).toBeNull();
   });
 
   it("renders the hide-idle-on-map toggle (CC-1) and reports changes", () => {
@@ -105,7 +105,7 @@ describe("RangerRoster", () => {
         onHideIdleRangersChange={onHideIdleRangersChange}
       />,
     );
-    const toggle = screen.getByRole("switch", { name: /hide idle on map/i });
+    const toggle = screen.getByRole("switch", { name: /hide inactive rangers on map/i });
     expect((toggle as HTMLInputElement).getAttribute("aria-checked")).toBe(
       "false",
     );

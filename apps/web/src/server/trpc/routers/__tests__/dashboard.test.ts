@@ -221,6 +221,8 @@ describe("dashboard — WAR ROOM date range (goal items 3-4, 2026-06-25)", () =>
     mockPrisma.patrol.count.mockResolvedValue(0);
     mockPrisma.patrol.findMany.mockResolvedValue([]);
     mockPrisma.accompanyingRanger.findMany.mockResolvedValue([]);
+    mockPrisma.patrolSegment.findMany.mockResolvedValue([]);
+    mockPrisma.knownRanger.findMany.mockResolvedValue([]);
     mockPrisma.alertHistory.count.mockResolvedValue(0);
   });
 
@@ -534,5 +536,51 @@ describe("dashboard.kpis.activePatrols — counts open patrols without requiring
       state: "open",
       isDeleted: false,
     });
+  });
+});
+
+// ── kpis.rangersOnDuty — count parity with the Ranger Roster (2026-07-12 owner
+// report: tile read 0 while the roster showed many "on patrol", because open
+// patrols recorded their main ranger only as a patrol_segments leader, with no
+// AccompanyingRanger row). The KPI now unions segment leaders + accompanying. ──
+describe("dashboard.kpis.rangersOnDuty — counts segment leaders AND accompanying rangers", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockPrisma.event.count.mockResolvedValue(0);
+    mockPrisma.patrol.count.mockResolvedValue(1);
+    mockPrisma.patrol.findMany.mockResolvedValue([{ id: "p1" }]);
+    mockPrisma.accompanyingRanger.findMany.mockResolvedValue([]);
+    mockPrisma.knownRanger.findMany.mockResolvedValue([]);
+    mockPrisma.patrolSegment.findMany.mockResolvedValue([]);
+  });
+
+  it("counts a segment leader of an open patrol even with zero AccompanyingRanger rows", async () => {
+    mockPrisma.knownRanger.findMany.mockResolvedValue([
+      { id: "kr1", name: "Alpha", erSubjectId: "er-a" },
+    ]);
+    mockPrisma.patrolSegment.findMany.mockResolvedValue([
+      { leaderName: "Alpha", leaderErId: "er-a" },
+    ]);
+
+    const result = await createCaller(makeCtx()).kpis();
+    expect(result.rangersOnDuty).toBe(1);
+  });
+
+  it("unions accompanying rangers with segment leaders without double-counting the same known ranger", async () => {
+    mockPrisma.knownRanger.findMany.mockResolvedValue([
+      { id: "kr1", name: "Alpha", erSubjectId: "er-a" },
+    ]);
+    // kr1 is BOTH the accompanying ranger AND the segment leader → counted once;
+    // a separate registered-user accompanying ranger adds one more → total 2.
+    mockPrisma.accompanyingRanger.findMany.mockResolvedValue([
+      { registeredUserId: null, knownRangerId: "kr1" },
+      { registeredUserId: "u9", knownRangerId: null },
+    ]);
+    mockPrisma.patrolSegment.findMany.mockResolvedValue([
+      { leaderName: "Alpha", leaderErId: "er-a" },
+    ]);
+
+    const result = await createCaller(makeCtx()).kpis();
+    expect(result.rangersOnDuty).toBe(2);
   });
 });

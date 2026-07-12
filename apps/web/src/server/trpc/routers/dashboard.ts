@@ -3,6 +3,7 @@ import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
 import { matrixProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
+import { knownRangerIdsLeadingSegments } from "@/server/lib/ranger-on-duty";
 
 // WAR ROOM date-range input (2026-06-25, goal items 3-4). Optional and
 // backward-compatible: when omitted, every procedure behaves exactly as it did
@@ -56,10 +57,21 @@ export const dashboardRouter = router({
     // FROM patrols WHERE serial_number = '<N>'` before assuming a code bug.
     const eventRange = buildRange(input);
 
+    // Open-patrol ids up front — the accompanying-ranger + segment-leader
+    // lookups that together define "Rangers on Duty" both scope to these.
+    const openPatrolIds = (
+      await prisma.patrol.findMany({
+        where: { tenantId: ctx.tenantId, state: "open", isDeleted: false },
+        select: { id: true },
+      })
+    ).map((p) => p.id);
+
     const [
       activeEvents,
       activePatrols,
-      rangersOnDuty,
+      accompanying,
+      openPatrolSegmentLeaders,
+      knownRangers,
       eventsThisMonth,
       eventsLastMonth,
     ] = await Promise.all([
@@ -71,23 +83,35 @@ export const dashboardRouter = router({
           ...(eventRange ? { reportedAt: eventRange } : {}),
         },
       }),
+      // activePatrols — bare open-patrol count (no PatrolTrack join). Locked by
+      // "counts an open patrol even with zero PatrolTrack rows" (2026-07-06).
       prisma.patrol.count({
         where: { tenantId: ctx.tenantId, state: "open", isDeleted: false },
       }),
-      prisma.accompanyingRanger.findMany({
-        where: {
-          tenantId: ctx.tenantId,
-          entityType: "patrol",
-          entityId: {
-            in: (
-              await prisma.patrol.findMany({
-                where: { tenantId: ctx.tenantId, state: "open", isDeleted: false },
-                select: { id: true },
-              })
-            ).map((p) => p.id),
-          },
-        },
-        select: { registeredUserId: true, knownRangerId: true },
+      openPatrolIds.length === 0
+        ? Promise.resolve(
+            [] as { registeredUserId: string | null; knownRangerId: string | null }[],
+          )
+        : prisma.accompanyingRanger.findMany({
+            where: {
+              tenantId: ctx.tenantId,
+              entityType: "patrol",
+              entityId: { in: openPatrolIds },
+            },
+            select: { registeredUserId: true, knownRangerId: true },
+          }),
+      openPatrolIds.length === 0
+        ? Promise.resolve([] as { leaderName: string | null; leaderErId: string | null }[])
+        : prisma.patrolSegment.findMany({
+            where: {
+              patrolId: { in: openPatrolIds },
+              OR: [{ leaderName: { not: null } }, { leaderErId: { not: null } }],
+            },
+            select: { leaderName: true, leaderErId: true },
+          }),
+      prisma.knownRanger.findMany({
+        where: { tenantId: ctx.tenantId, isActive: true },
+        select: { id: true, name: true, erSubjectId: true },
       }),
       prisma.event.count({
         where: {
@@ -103,10 +127,23 @@ export const dashboardRouter = router({
       }),
     ]);
 
+    // Rangers on Duty = distinct rangers on a currently-open patrol, counting
+    // BOTH the accompanying rangers (added by a CC officer) AND the patrol's
+    // segment leader (the main ranger the patrol came in under from
+    // EarthRanger). Mirrors the Ranger Roster's "on patrol" set via the shared
+    // knownRangerIdsLeadingSegments helper so the KPI and roster never drift
+    // (2026-07-12 owner report: tile read 0 while many leaders led open patrols
+    // with no AccompanyingRanger rows).
     const uniqueRangerIds = new Set<string>();
-    for (const r of rangersOnDuty) {
+    for (const r of accompanying) {
       if (r.registeredUserId !== null) uniqueRangerIds.add(`u:${r.registeredUserId}`);
       if (r.knownRangerId !== null) uniqueRangerIds.add(`k:${r.knownRangerId}`);
+    }
+    for (const id of knownRangerIdsLeadingSegments(
+      openPatrolSegmentLeaders,
+      knownRangers,
+    )) {
+      uniqueRangerIds.add(`k:${id}`);
     }
 
     return {
@@ -437,37 +474,13 @@ export const dashboardRouter = router({
               select: { leaderName: true, leaderErId: true },
             });
 
-      // KnownRanger ids who lead an open patrol, matched preferentially by
-      // erSubjectId === leaderErId (stable identifier), falling back to a
-      // trimmed case-insensitive name match when either erSubjectId is absent.
-      const knownRangerByErId = new Map(
-        knownRangers
-          .filter((r) => r.erSubjectId != null)
-          .map((r) => [r.erSubjectId as string, r.id]),
+      // KnownRanger ids who lead a currently-open patrol's segment. Shared with
+      // the "Rangers on Duty" KPI (dashboard.kpis) via knownRangerIdsLeadingSegments
+      // so the roster's "on patrol" set and the KPI count never drift (2026-07-12).
+      const leadsOpenPatrol = knownRangerIdsLeadingSegments(
+        openPatrolSegmentLeaders,
+        knownRangers,
       );
-      const knownRangerIdsByNormalizedName = new Map<string, string[]>();
-      for (const r of knownRangers) {
-        const key = r.name.trim().toLowerCase();
-        const list = knownRangerIdsByNormalizedName.get(key) ?? [];
-        list.push(r.id);
-        knownRangerIdsByNormalizedName.set(key, list);
-      }
-
-      const leadsOpenPatrol = new Set<string>();
-      for (const segment of openPatrolSegmentLeaders) {
-        let matchedId: string | undefined;
-        if (segment.leaderErId != null) {
-          matchedId = knownRangerByErId.get(segment.leaderErId);
-        }
-        if (matchedId == null && segment.leaderName != null) {
-          const key = segment.leaderName.trim().toLowerCase();
-          for (const id of knownRangerIdsByNormalizedName.get(key) ?? []) {
-            leadsOpenPatrol.add(id);
-          }
-          continue;
-        }
-        if (matchedId != null) leadsOpenPatrol.add(matchedId);
-      }
 
       // ranger id → patrol ids they are linked to (via AccompanyingRanger).
       const patrolsByRanger = new Map<string, string[]>();
