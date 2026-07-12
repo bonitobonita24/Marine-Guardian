@@ -12,7 +12,10 @@
 #   Calapan 589→723) — both via nearest-coast. Visual-QA confirmed (Baco LE 35→0, Monitoring 63→12).
 #   Dev app+worker REBUILT (live processor now uses fix). Patrol backfill 863 (Baco 209→52). FIX B ✅ DONE
 #   (owner-approved: all 16 water_geojson regenerated as NON-overlapping median-line partition, 9bcd58e;
-#   zero-overlap verified, loaded dev DB w/ snapshots, 99.7% events consistent). Branch 17 commits. See memory
+#   zero-overlap verified, loaded dev DB w/ snapshots). FIX B-2 ✅ (13a035f): removed confusing 15km "circle"
+#   boundaries around tiny offshore islets (buffer only islets ≥10km², drop <6km² slivers) → 1–2 clean water
+#   bodies/muni; loader now also refreshes AreaBoundary overlay via importOfficialBoundaries (overlay draws
+#   AreaBoundary, NOT waterGeojson). Visual-QA confirmed. Branch 19 commits. See memory
 #   project_marine_guardian_municipal_waters_equidistance_fix_0713. NOTHING DEPLOYED — deploy owner-gated.
 #
 # (prior) 2026-07-12 by CLAUDE_CODE (Batch 2: MPA-zone-by-province + Rangers-on-Duty count + hide-idle rename — shipped all 3 envs)
