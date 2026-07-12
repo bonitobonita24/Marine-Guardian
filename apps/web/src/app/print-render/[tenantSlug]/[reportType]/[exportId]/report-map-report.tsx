@@ -535,8 +535,10 @@ interface ReportMapReportProps {
 // full-list pages (one per chart+map section) — see the
 // ".report-section-list" CSS rule + FullEventTable/FullPatrolTable. Revised
 // 2026-07-06: R6 removed the 2 High Priority pages, R5 added the Patrol
-// Tracks Heatmap page (10 - 2 + 1 = 9).
-const TOTAL_PAGES = 9;
+// Tracks Heatmap folded INTO the Patrol page (2026-07-13, owner: one patrol
+// page carries the Total Patrols table + over-time chart + tracks map + heatmap),
+// so one fewer logical page (9 - 1 = 8).
+const TOTAL_PAGES = 8;
 
 // EarthRanger category strings — used to give each Event Map marker its
 // per-sub-type accent (colorForEventType), matching the breakdown-chart legend.
@@ -850,10 +852,13 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
     table.total-patrols-table tfoot th, table.total-patrols-table tfoot td {
       border-top: 2px solid #111; font-weight: 700;
     }
-    /* Full-width patrol tracks map (vertical mockup layout) — same portrait
-       map height the former .section-map used for this section. */
-    .patrol-tracks-block { position: relative; width: 100%; height: ${patrolMapHeightPx}; margin-top: 6px; }
-    .patrol-tracks-block figure { width: 100%; height: 100%; }
+    /* Full-width patrol tracks map + heatmap (vertical mockup layout) — both
+       stack on the ONE Patrol page (owner 2026-07-13), so each map is shorter
+       than the former single 260px .section-map to leave room for the table +
+       over-time chart + both maps on one portrait page. */
+    .patrol-subheading { font-size: 11px; font-weight: 600; color: #374151; margin: 8px 0 3px; }
+    .patrol-tracks-block, .patrol-heatmap-block { position: relative; width: 100%; height: 235px; margin-top: 6px; }
+    .patrol-tracks-block figure, .patrol-heatmap-block figure { width: 100%; height: 100%; }
   `;
 
   return (
@@ -1150,93 +1155,82 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
                 </div>
               </figure>
             </div>
+            {/* Patrol Tracks Heatmap — folded INTO the same Patrol page below
+                the tracks map (owner 2026-07-13: one page carries table +
+                over-time + tracks map + heatmap). Two heat layers (seaborne
+                green / foot orange) over the SAME track points the polyline
+                map uses (buildPatrolHeatPoints). */}
+            <h3 className="patrol-subheading">Patrol Tracks Heatmap</h3>
+            <div
+              className="patrol-heatmap-legend"
+              data-testid="patrol-heatmap-legend"
+              style={{
+                display: "flex",
+                gap: "14px",
+                marginBottom: "4px",
+                fontSize: "9px",
+                color: "#374151",
+              }}
+            >
+              <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                <span
+                  style={{
+                    display: "inline-block",
+                    width: "9px",
+                    height: "9px",
+                    background: "#16A34A",
+                    borderRadius: "2px",
+                  }}
+                />
+                Seaborne
+              </span>
+              <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                <span
+                  style={{
+                    display: "inline-block",
+                    width: "9px",
+                    height: "9px",
+                    background: "#F97316",
+                    borderRadius: "2px",
+                  }}
+                />
+                Foot
+              </span>
+            </div>
+            <div className="patrol-heatmap-block">
+              <figure aria-label="Patrol tracks heatmap — seaborne vs foot density">
+                <figcaption className="sr-only">
+                  <table>
+                    <caption>Patrol tracks heatmap point counts by type</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Type</th>
+                        <th scope="col">Heat Points</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>Seaborne</td>
+                        <td>{data.charts.patrolList.patrolHeatPoints.seaborne.length}</td>
+                      </tr>
+                      <tr>
+                        <td>Foot</td>
+                        <td>{data.charts.patrolList.patrolHeatPoints.foot.length}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </figcaption>
+                <PatrolHeatmapMap
+                  seaborne={data.charts.patrolList.patrolHeatPoints.seaborne}
+                  foot={data.charts.patrolList.patrolHeatPoints.foot}
+                  municipalityBounds={data.municipalityBounds}
+                />
+              </figure>
+            </div>
           <PageFooter {...footerBase} pageNum={3} />
         </section>
 
-        {/* ── Section 4: Patrol Tracks Heatmap ─────────────────────────────
-            NEW (R5, 2026-07-06) — map-only page immediately after Patrol
-            List. Two heat layers (seaborne green / foot tangerine orange) over the SAME
-            track path points the Patrol List polyline map uses (no
-            re-densification — see buildPatrolHeatPoints). */}
-        <section
-          className="report-section"
-          data-testid="section-patrol-heatmap"
-        >
-          <PageHeader
-            {...headerProps}
-            reportTitle={REPORT_MAP_SECTION_TITLES.patrolHeatmap}
-          />
-          <h2 className="section-heading">Patrol Tracks Heatmap</h2>
-          <div
-            className="patrol-heatmap-legend"
-            data-testid="patrol-heatmap-legend"
-            style={{
-              display: "flex",
-              gap: "14px",
-              marginBottom: "6px",
-              fontSize: "9px",
-              color: "#374151",
-            }}
-          >
-            <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-              <span
-                style={{
-                  display: "inline-block",
-                  width: "9px",
-                  height: "9px",
-                  background: "#16A34A",
-                  borderRadius: "2px",
-                }}
-              />
-              Seaborne
-            </span>
-            <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-              <span
-                style={{
-                  display: "inline-block",
-                  width: "9px",
-                  height: "9px",
-                  background: "#F97316",
-                  borderRadius: "2px",
-                }}
-              />
-              Foot
-            </span>
-          </div>
-          <div className="section-map" style={{ width: "100%" }}>
-            <figure aria-label="Patrol tracks heatmap — seaborne vs foot density">
-              <figcaption className="sr-only">
-                <table>
-                  <caption>Patrol tracks heatmap point counts by type</caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">Type</th>
-                      <th scope="col">Heat Points</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>Seaborne</td>
-                      <td>{data.charts.patrolList.patrolHeatPoints.seaborne.length}</td>
-                    </tr>
-                    <tr>
-                      <td>Foot</td>
-                      <td>{data.charts.patrolList.patrolHeatPoints.foot.length}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </figcaption>
-              <PatrolHeatmapMap
-                seaborne={data.charts.patrolList.patrolHeatPoints.seaborne}
-                foot={data.charts.patrolList.patrolHeatPoints.foot}
-                municipalityBounds={data.municipalityBounds}
-              />
-            </figure>
-          </div>
-          <PageFooter {...footerBase} pageNum={4} />
-        </section>
-
-        {/* ── Section 5: Events Over Time ───────────────────────────────── */}
+        {/* ── Section 4: Events Over Time ───────────────────────────────── */}
         <section
           className="report-section"
           data-testid="section-events-over-time"
@@ -1275,7 +1269,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
               </figure>
             </div>
           </div>
-          <PageFooter {...footerBase} pageNum={5} />
+          <PageFooter {...footerBase} pageNum={4} />
         </section>
 
         {/* ── Section 1b: Law Enforcement — per-type tables (landscape) ───── */}
@@ -1298,7 +1292,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
             captionPrefix="Law enforcement full event list"
             eventTypeColumns={data.eventTypeColumns}
           />
-          <PageFooter {...footerBase} pageNum={6} />
+          <PageFooter {...footerBase} pageNum={5} />
         </section>
 
         {/* ── Section 2b: Monitoring — per-type tables (landscape) ────────── */}
@@ -1321,7 +1315,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
             captionPrefix="Monitoring full event list"
             eventTypeColumns={data.eventTypeColumns}
           />
-          <PageFooter {...footerBase} pageNum={7} />
+          <PageFooter {...footerBase} pageNum={6} />
         </section>
 
         {/* ── Section 4b: Patrol List — full list (portrait) ──────────────── */}
@@ -1343,7 +1337,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
             patrols={data.charts.patrolList.breakdown}
             caption="Full patrol list"
           />
-          <PageFooter {...footerBase} pageNum={8} />
+          <PageFooter {...footerBase} pageNum={7} />
         </section>
 
         {/* ── Section 5b: Events Over Time — per-type tables (landscape) ──── */}
@@ -1366,7 +1360,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
             captionPrefix="Events over time — full event list"
             eventTypeColumns={data.eventTypeColumns}
           />
-          <PageFooter {...footerBase} pageNum={9} />
+          <PageFooter {...footerBase} pageNum={8} />
         </section>
 
         {/* Puppeteer networkidle0 anchor. */}
