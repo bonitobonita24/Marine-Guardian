@@ -14,6 +14,13 @@ PHASE:        Phase 7 — Batch 2 report-map/KPI fixes SHIPPED all 3 envs (prod 
      owner's choice — "stale" GPS ≠ roster "idle"). commit 640f0f4.
   Deployed: staging (staging-latest) + prod (re-pinned sha-a2fa2d5→sha-640f0f4, backup
   .env.bak-pre-640f0f4) + dev rebuilt. Health 200 all 3.
+  4. CC LIVE PATROL TRACKS were gone + "RECENT PATROLS: 0" vs ACTIVE PATROLS 55 — both filtered patrols
+     by startTime∈48h; all 55 open patrols started 2026-05-29 (seed) → empty. Fix: CC map trackMode
+     "inRange"→"active" (map.patrolTracks.active = recent patrols-with-tracks; EarthRanger tracks live
+     on COMPLETED patrols, open are header-only — owner decision 2026-06-24); dashboard.activePatrols
+     → currently-OPEN patrols (matches KPI). Verified dev: 41 track polylines + 15 recent-patrol rows
+     (both were 0). commit 20afa30, deployed all 3 (prod sha-20afa30). Note: `active` tracks not
+     muni-filtered (poss. follow-up); 55 stale open seed patrols = data-hygiene item.
   ⭐ NEXT (owner-specced, DEFERRED): Rangers-on-Duty tile → clickable DRILLDOWN DIALOG — left: main
      rangers (segment leaders) each with nested accompanying rangers; right: FULL current-patrol track
      polyline per ranger (PatrolTrack.trackGeojson, like Interactive Report Map). See memory
