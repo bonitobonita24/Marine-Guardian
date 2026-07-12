@@ -43,6 +43,7 @@ import {
   type EventTypeVariant,
 } from "@/lib/event-type-order";
 import { eventTypeIcon } from "@/lib/event-type-icon";
+import { colorForEventType } from "@/lib/event-type-color";
 
 export type EventBreakdownVariant = "lawEnforcement" | "monitoring";
 
@@ -59,13 +60,16 @@ interface ChartRow {
   fill: string;
 }
 
-const BAR_LAW_ENFORCEMENT = "hsl(var(--chart-1))"; // matches dashboard "events" colour
-const BAR_MONITORING = "hsl(var(--chart-2))"; // matches dashboard "monitoring/patrols" colour
+// EarthRanger category strings for the two variants — used to resolve the
+// per-sub-type accent (colorForEventType) with a sensible category fallback so
+// each bar + its icon match the map marker for that sub-type (owner 2026-07-12).
+const LAW_ENFORCEMENT_CATEGORY = "law-enforcement-and-apprehensions";
+const MONITORING_CATEGORY = "monitoring_patrolling_and_surveillance";
 
-function colorForVariant(variant: EventBreakdownVariant): string {
+function categoryForVariant(variant: EventBreakdownVariant): string {
   return variant === "lawEnforcement"
-    ? BAR_LAW_ENFORCEMENT
-    : BAR_MONITORING;
+    ? LAW_ENFORCEMENT_CATEGORY
+    : MONITORING_CATEGORY;
 }
 
 function emptyCopyForVariant(variant: EventBreakdownVariant): string {
@@ -94,8 +98,8 @@ export function buildChartRows(
   variant: EventBreakdownVariant,
   topN: number,
 ): ChartRow[] {
-  const fill = colorForVariant(variant);
   const orderVariant = orderVariantFor(variant);
+  const category = categoryForVariant(variant);
   return [...rows]
     .filter((r) => r.count > 0)
     .sort((a, b) => {
@@ -111,7 +115,8 @@ export function buildChartRows(
     .map((r) => ({
       name: r.display,
       count: r.count,
-      fill,
+      // Per-sub-type accent so the legend colour == the map marker colour.
+      fill: colorForEventType(r.display, category),
     }));
 }
 
@@ -138,10 +143,14 @@ export function BreakdownYAxisTick({
 }) {
   const label = payload?.value != null ? String(payload.value) : "";
   const Icon = eventTypeIcon(label, orderVariantFor(variant));
-  const iconColor = colorForVariant(variant);
-  const width = 146;
+  // Tint the icon with the sub-type's own accent so it matches its bar + marker.
+  const iconColor = colorForEventType(label, categoryForVariant(variant));
+  const width = 158;
+  // Two-line wrap (no ellipsis) so long labels like "Fishing in a prohibited
+  // area (MPA)" render in FULL inside the A4 gutter (owner 2026-07-12). The
+  // foreignObject height fits ~2 lines at 8.5px; the div clips a rare 3rd line.
   return (
-    <foreignObject x={x - width} y={y - 7} width={width} height={14}>
+    <foreignObject x={x - width} y={y - 12} width={width} height={24}>
       <div
         style={{
           display: "flex",
@@ -151,18 +160,18 @@ export function BreakdownYAxisTick({
           width: "100%",
           height: "100%",
           overflow: "hidden",
-          lineHeight: 1,
           paddingRight: "4px",
         }}
       >
         <Icon size={10} color={iconColor} style={{ flexShrink: 0 }} />
         <span
           style={{
-            fontSize: "9px",
+            fontSize: "8.5px",
             color: "#374151",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
+            lineHeight: 1.05,
+            textAlign: "right",
+            whiteSpace: "normal",
+            wordBreak: "break-word",
           }}
         >
           {label}
@@ -224,7 +233,7 @@ export function EventBreakdownChart({
           <YAxis
             type="category"
             dataKey="name"
-            width={150}
+            width={164}
             tickLine={false}
             axisLine={false}
             tick={<BreakdownYAxisTick variant={variant} />}
