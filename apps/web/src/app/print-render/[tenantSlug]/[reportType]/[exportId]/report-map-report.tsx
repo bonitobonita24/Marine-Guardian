@@ -94,10 +94,7 @@ import {
   PatrolHeatmapMap,
   PatrolTracksMap,
 } from "./components/map-islands-client";
-import {
-  PatrolTotalsFigure,
-  PatrolTypeBarChart,
-} from "./components/patrol-type-bar-chart";
+import { PatrolTotalsTable } from "./components/patrol-type-bar-chart";
 import { PrintMultiSeriesChart } from "./components/print-multi-series-chart";
 import { PrintTimeSeriesChart } from "./components/print-time-series-chart";
 
@@ -836,6 +833,27 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
        from 8px to 6px to shave a little more off the section's total. */
     .patrol-charts-row { display: flex; gap: 10px; margin-top: 6px; }
     .patrol-chart-col { flex: 1 1 0; min-width: 0; }
+    /* Total Patrols summary table (owner mockup 2026-07-13, "Patrol Review")
+       — clean 3-column table replacing the former figure/bar stat blocks.
+       Per-row colors are inline + type-tinted (Seaborne green / Foot orange /
+       Total navy); the structural/typographic rules live here. */
+    .total-patrols { margin: 2px 0 6px; }
+    .total-patrols-title { font-size: 14px; font-weight: 700; color: #111; margin: 0 0 3px; }
+    table.total-patrols-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    table.total-patrols-table th, table.total-patrols-table td { padding: 4px 12px; }
+    table.total-patrols-table thead th { font-weight: 600; color: #6b7280; text-align: center; }
+    table.total-patrols-table thead th:first-child { text-align: left; }
+    table.total-patrols-table tbody th[scope="row"],
+    table.total-patrols-table tfoot th[scope="row"] { text-align: left; font-weight: 600; }
+    table.total-patrols-table tbody td,
+    table.total-patrols-table tfoot td { text-align: center; font-variant-numeric: tabular-nums; }
+    table.total-patrols-table tfoot th, table.total-patrols-table tfoot td {
+      border-top: 2px solid #111; font-weight: 700;
+    }
+    /* Full-width patrol tracks map (vertical mockup layout) — same portrait
+       map height the former .section-map used for this section. */
+    .patrol-tracks-block { position: relative; width: 100%; height: ${patrolMapHeightPx}; margin-top: 6px; }
+    .patrol-tracks-block figure { width: 100%; height: 100%; }
   `;
 
   return (
@@ -1014,27 +1032,49 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
             reportTitle={REPORT_MAP_SECTION_TITLES.patrolList}
           />
           <h2 className="section-heading">Patrols</h2>
-          <div className="section-content patrol-section-content">
-            <div className="section-chart">
-              {/* R8 (2026-07-06): the former inline `.total-badge` pills
-                  ("12", "34.6 h", "210.2 km") in the section heading above
-                  are replaced by this labeled stat block — same visual
-                  family as the Seaborne/Foot figures below it, each metric
-                  now paired with a small proportional bar. */}
-              <PatrolTotalsFigure
-                total={data.charts.patrolList.total}
-                totalHours={data.charts.patrolList.patrolTotals.totalHours}
-                totalKm={data.charts.patrolList.patrolTotals.totalKm}
+          {/* Owner mockup 2026-07-13 ("Patrol Review" template): the patrol
+              section flows vertically — Total Patrols table, then the
+              "Patrols Over Time by Type" chart, then the full-width patrol
+              tracks map — replacing the earlier chart-column-beside-map
+              layout. The former PatrolTotalsFigure + PatrolTypeBarChart stat
+              blocks are replaced by the single PatrolTotalsTable. */}
+          <PatrolTotalsTable
+            seaborne={data.charts.patrolTypeTotals.seaborne}
+            foot={data.charts.patrolTypeTotals.foot}
+          />
+          {data.charts.patrolList.breakdown.length === 0 ? (
+            <p className="empty-note">No patrols in this period.</p>
+          ) : (
+            <p className="section-list-hint">Full patrol list in the Full Lists section.</p>
+          )}
+          {/* "Patrols Over Time by Type" — moved ABOVE the tracks map to match
+              the mockup order (Total Patrols → over-time → tracks map). */}
+          <div
+            className="patrol-charts-row"
+            role="group"
+            aria-label="Patrol counts over time by type"
+          >
+            <div className="patrol-chart-col">
+              <PrintMultiSeriesChart
+                title="Patrols Over Time by Type"
+                height={90}
+                series={[
+                  {
+                    label: "Seaborne",
+                    color: "#16A34A",
+                    points: data.charts.patrolList.patrolCountByTypeOverTime.seaborne,
+                  },
+                  {
+                    label: "Foot",
+                    color: "#F97316",
+                    points: data.charts.patrolList.patrolCountByTypeOverTime.foot,
+                  },
+                ]}
               />
-              <PatrolTypeBarChart totals={data.charts.patrolTypeTotals} />
-              {data.charts.patrolList.breakdown.length === 0 ? (
-                <p className="empty-note">No patrols in this period.</p>
-              ) : (
-                <p className="section-list-hint">Full patrol list in the Full Lists section.</p>
-              )}
             </div>
-            <div className="section-map">
-              <figure aria-label="Patrol tracks" style={{ position: "relative" }}>
+          </div>
+          <div className="patrol-tracks-block">
+            <figure aria-label="Patrol tracks" style={{ position: "relative" }}>
                 <figcaption className="sr-only">
                   <table>
                     <caption>Patrol tracks</caption>
@@ -1110,35 +1150,6 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
                 </div>
               </figure>
             </div>
-          </div>
-          {/* R7 (2026-07-06): the two separate Seaborne/Foot over-time
-              charts are combined into ONE chart plotting both series on
-              shared axes with a legend — the two-column patrol-charts-row
-              collapses to a single full-width chart. */}
-          <div
-            className="patrol-charts-row"
-            role="group"
-            aria-label="Patrol counts over time by type"
-          >
-            <div className="patrol-chart-col">
-              <PrintMultiSeriesChart
-                title="Patrols Over Time by Type"
-                height={90}
-                series={[
-                  {
-                    label: "Seaborne",
-                    color: "#16A34A",
-                    points: data.charts.patrolList.patrolCountByTypeOverTime.seaborne,
-                  },
-                  {
-                    label: "Foot",
-                    color: "#F97316",
-                    points: data.charts.patrolList.patrolCountByTypeOverTime.foot,
-                  },
-                ]}
-              />
-            </div>
-          </div>
           <PageFooter {...footerBase} pageNum={3} />
         </section>
 
