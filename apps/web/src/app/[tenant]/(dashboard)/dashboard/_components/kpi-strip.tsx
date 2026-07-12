@@ -20,7 +20,8 @@ import { Sparkline } from "./sparkline";
 export type KpiDrilldown =
   | { kind: "activeEvents" }
   | { kind: "activePatrols" }
-  | { kind: "eventsThisMonth" };
+  | { kind: "eventsThisMonth" }
+  | { kind: "rangersOnDuty" };
 
 type Kpi = {
   label: string;

@@ -641,3 +641,119 @@ describe("dashboard.kpis.rangersOnDuty — counts segment leaders AND accompanyi
     expect(result.rangersOnDuty).toBe(2);
   });
 });
+
+describe("dashboard.rangersOnDuty — drill-down rows + head count", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockPrisma.patrol.findMany.mockResolvedValue([]);
+    mockPrisma.knownRanger.findMany.mockResolvedValue([]);
+    mockPrisma.accompanyingRanger.findMany.mockResolvedValue([]);
+  });
+
+  it("builds a row per open patrol with a matched lead + nested accompanying rangers, and a distinct head count", async () => {
+    mockPrisma.knownRanger.findMany.mockResolvedValue([
+      { id: "r1", name: "Alpha", erSubjectId: "er-a" },
+      { id: "r2", name: "Bravo", erSubjectId: null },
+    ]);
+    mockPrisma.patrol.findMany.mockResolvedValue([
+      {
+        id: "p1",
+        title: "Patrol One",
+        segments: [{ leaderName: "Alpha", leaderErId: "er-a" }],
+        track: { id: "t1" },
+      },
+    ]);
+    mockPrisma.accompanyingRanger.findMany.mockResolvedValue([
+      {
+        entityId: "p1",
+        registeredUserId: null,
+        knownRangerId: "r2",
+        freetextName: null,
+        knownRanger: { name: "Bravo" },
+        registeredUser: null,
+      },
+    ]);
+
+    const result = await createCaller(makeCtx()).rangersOnDuty();
+
+    expect(result.rangers).toEqual([
+      {
+        patrolId: "p1",
+        patrolTitle: "Patrol One",
+        leaderName: "Alpha", // canonical KnownRanger name (matched via erSubjectId)
+        matched: true,
+        accompanying: ["Bravo"],
+        hasTrack: true,
+      },
+    ]);
+    // distinct heads: leader r1 (k:r1) ∪ accompanying r2 (k:r2) = 2
+    expect(result.count).toBe(2);
+  });
+
+  it("drops dataless ghost patrols (no lead AND no accompanying rangers)", async () => {
+    mockPrisma.patrol.findMany.mockResolvedValue([
+      { id: "pg", title: null, segments: [], track: null },
+    ]);
+
+    const result = await createCaller(makeCtx()).rangersOnDuty();
+
+    expect(result.rangers).toEqual([]);
+    expect(result.count).toBe(0);
+  });
+
+  it("keeps an unmatched lead as its raw name with matched=false and hasTrack=false", async () => {
+    mockPrisma.patrol.findMany.mockResolvedValue([
+      {
+        id: "p3",
+        title: "Patrol Three",
+        segments: [{ leaderName: "Ghost Lead", leaderErId: null }],
+        track: null,
+      },
+    ]);
+
+    const result = await createCaller(makeCtx()).rangersOnDuty();
+
+    expect(result.rangers).toEqual([
+      {
+        patrolId: "p3",
+        patrolTitle: "Patrol Three",
+        leaderName: "Ghost Lead",
+        matched: false,
+        accompanying: [],
+        hasTrack: false,
+      },
+    ]);
+    expect(result.count).toBe(0); // no KnownRanger to match → no head
+  });
+
+  it("keeps an accompanying-only patrol and resolves the display name (freetext → knownRanger → user)", async () => {
+    mockPrisma.patrol.findMany.mockResolvedValue([
+      { id: "p4", title: "Patrol Four", segments: [], track: { id: "t4" } },
+    ]);
+    mockPrisma.accompanyingRanger.findMany.mockResolvedValue([
+      {
+        entityId: "p4",
+        registeredUserId: "u9",
+        knownRangerId: null,
+        freetextName: "Freetext Ranger",
+        knownRanger: null,
+        registeredUser: null,
+      },
+    ]);
+
+    const result = await createCaller(makeCtx()).rangersOnDuty();
+
+    expect(result.rangers).toEqual([
+      {
+        patrolId: "p4",
+        patrolTitle: "Patrol Four",
+        leaderName: null,
+        matched: false,
+        accompanying: ["Freetext Ranger"],
+        hasTrack: true,
+      },
+    ]);
+    // distinct heads: accompanying registered user u9 (u:u9) = 1
+    expect(result.count).toBe(1);
+  });
+});

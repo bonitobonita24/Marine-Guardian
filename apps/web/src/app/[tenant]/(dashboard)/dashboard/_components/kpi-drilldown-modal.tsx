@@ -37,8 +37,15 @@ export function KpiDrilldownModal({
   dateTo: string;
   onClose: () => void;
 }) {
-  const open = drilldown !== null;
   const kind = drilldown?.kind ?? null;
+  // This modal handles the three list-backed KPI kinds. "rangersOnDuty" is a
+  // richer two-pane (list + map) drill-down rendered by its own dedicated modal
+  // (RangersOnDutyDrilldownModal), which shares the same selectedKpi state — so
+  // this modal must stay CLOSED for that kind or both dialogs would open at once.
+  const open =
+    kind === "activeEvents" ||
+    kind === "activePatrols" ||
+    kind === "eventsThisMonth";
 
   // "Events This Month" drills into the calendar month containing `dateTo`,
   // independent of the active War Room window (the KPI itself is month-scoped).

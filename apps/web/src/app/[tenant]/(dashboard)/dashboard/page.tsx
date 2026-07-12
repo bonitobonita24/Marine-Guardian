@@ -30,6 +30,7 @@ import { PatrolDetailModal } from "./_components/patrol-detail-modal";
 import { PatrolEditDialog } from "./_components/patrol-edit-dialog";
 import { BreakdownDrilldownModal } from "./_components/breakdown-drilldown-modal";
 import { KpiDrilldownModal } from "./_components/kpi-drilldown-modal";
+import { RangersOnDutyDrilldownModal } from "./_components/rangers-on-duty-drilldown-modal";
 import type { KpiDrilldown } from "./_components/kpi-strip";
 import { AlertDetailModal } from "./_components/alert-detail-modal";
 import { EventDetailModal } from "@/components/events/event-detail-modal";
@@ -336,6 +337,7 @@ function DashboardContent() {
       value: kpis.data?.rangersOnDuty ?? 0,
       icon: Users,
       valueClass: "text-[hsl(var(--success))]",
+      drilldown: { kind: "rangersOnDuty" } as const,
     },
     {
       label: "Events This Month",
@@ -591,6 +593,12 @@ function DashboardContent() {
         drilldown={selectedKpi}
         dateFrom={rangeIso.dateFrom}
         dateTo={rangeIso.dateTo}
+        onClose={() => {
+          setSelectedKpi(null);
+        }}
+      />
+      <RangersOnDutyDrilldownModal
+        open={selectedKpi?.kind === "rangersOnDuty"}
         onClose={() => {
           setSelectedKpi(null);
         }}

@@ -156,6 +156,148 @@ export const dashboardRouter = router({
     };
   }),
 
+  // WAR ROOM "Rangers on Duty" drill-down (2026-07-13). Powers the clickable
+  // KPI tile's dialog: one row per currently-open patrol that has personnel on
+  // it — its MAIN ranger (the first segment leader, matched to a KnownRanger by
+  // erSubjectId/name where possible) with that patrol's accompanying rangers
+  // nested underneath, plus whether the patrol has a materialized GPS track (so
+  // the dialog's map pane can draw the current-patrol polyline). `count` mirrors
+  // dashboard.kpis' distinct-head logic via the SHARED knownRangerIdsLeadingSegments
+  // helper, so the dialog header and the tile value can never disagree. Live
+  // status (currently-open patrols), so intentionally range-independent — the
+  // rangeInput is accepted for signature symmetry but not used.
+  rangersOnDuty: matrixProcedure(tenantProcedure, "dashboard", "view")
+    .input(rangeInput)
+    .query(async ({ ctx }) => {
+      const openPatrols = await prisma.patrol.findMany({
+        where: { tenantId: ctx.tenantId, state: "open", isDeleted: false },
+        select: {
+          id: true,
+          title: true,
+          segments: { select: { leaderName: true, leaderErId: true } },
+          track: { select: { id: true } },
+        },
+      });
+      const openPatrolIds = openPatrols.map((p) => p.id);
+
+      // An empty `in: []` is a valid, cheap query (returns zero rows), so we run
+      // both unconditionally rather than branching — keeps the inferred result
+      // types clean.
+      const [knownRangers, accompanying] = await Promise.all([
+        prisma.knownRanger.findMany({
+          where: { tenantId: ctx.tenantId, isActive: true },
+          select: { id: true, name: true, erSubjectId: true },
+        }),
+        prisma.accompanyingRanger.findMany({
+          where: {
+            tenantId: ctx.tenantId,
+            entityType: "patrol",
+            entityId: { in: openPatrolIds },
+          },
+          select: {
+            entityId: true,
+            registeredUserId: true,
+            knownRangerId: true,
+            freetextName: true,
+            knownRanger: { select: { name: true } },
+            registeredUser: { select: { fullName: true } },
+          },
+        }),
+      ]);
+
+      // Match a segment leader → the canonical KnownRanger name (erSubjectId
+      // first, then normalized name). Mirrors knownRangerIdsLeadingSegments'
+      // matching, but keeps the resolved NAME per-patrol — the shared helper
+      // returns a flat id Set, which loses the patrol association the dialog
+      // needs (the count below still uses the shared helper for exact parity).
+      const rangerByErId = new Map(
+        knownRangers
+          .filter((r) => r.erSubjectId != null)
+          .map((r) => [r.erSubjectId as string, r]),
+      );
+      const rangerByName = new Map<string, { id: string; name: string }>();
+      for (const r of knownRangers) {
+        const key = r.name.trim().toLowerCase();
+        if (!rangerByName.has(key)) rangerByName.set(key, r);
+      }
+
+      // Accompanying-ranger display names grouped by open-patrol id.
+      const accompanyingByPatrol = new Map<string, string[]>();
+      for (const a of accompanying) {
+        const name =
+          a.freetextName ??
+          a.knownRanger?.name ??
+          a.registeredUser?.fullName ??
+          "Unnamed ranger";
+        const list = accompanyingByPatrol.get(a.entityId) ?? [];
+        list.push(name);
+        accompanyingByPatrol.set(a.entityId, list);
+      }
+
+      const rangers = openPatrols
+        .map((p) => {
+          const lead = p.segments.find(
+            (s) => s.leaderName != null || s.leaderErId != null,
+          );
+          let leaderName: string | null = lead?.leaderName ?? null;
+          let matched = false;
+          if (lead != null) {
+            const matchedRanger =
+              (lead.leaderErId != null
+                ? rangerByErId.get(lead.leaderErId)
+                : undefined) ??
+              (lead.leaderName != null
+                ? rangerByName.get(lead.leaderName.trim().toLowerCase())
+                : undefined);
+            if (matchedRanger != null) {
+              leaderName = matchedRanger.name;
+              matched = true;
+            }
+          }
+          return {
+            patrolId: p.id,
+            patrolTitle: p.title,
+            leaderName,
+            matched,
+            accompanying: accompanyingByPatrol.get(p.id) ?? [],
+            hasTrack: p.track != null,
+          };
+        })
+        // Only patrols that actually have someone on duty (a lead ranger OR at
+        // least one accompanying ranger). Dataless/ghost open patrols drop out.
+        .filter((r) => r.leaderName != null || r.accompanying.length > 0)
+        // Lead-rangered patrols first, then alphabetical for a stable order.
+        .sort((a, b) => {
+          if ((a.leaderName != null) !== (b.leaderName != null)) {
+            return a.leaderName != null ? -1 : 1;
+          }
+          return (a.leaderName ?? a.patrolTitle ?? "").localeCompare(
+            b.leaderName ?? b.patrolTitle ?? "",
+          );
+        });
+
+      // Distinct on-duty head count — mirrors dashboard.kpis exactly (shared
+      // helper for leaders + accompanying ids) so the dialog header agrees with
+      // the tile.
+      const uniqueRangerIds = new Set<string>();
+      for (const a of accompanying) {
+        if (a.registeredUserId !== null)
+          uniqueRangerIds.add(`u:${a.registeredUserId}`);
+        if (a.knownRangerId !== null) uniqueRangerIds.add(`k:${a.knownRangerId}`);
+      }
+      const openPatrolSegmentLeaders = openPatrols.flatMap((p) =>
+        p.segments.filter((s) => s.leaderName != null || s.leaderErId != null),
+      );
+      for (const id of knownRangerIdsLeadingSegments(
+        openPatrolSegmentLeaders,
+        knownRangers,
+      )) {
+        uniqueRangerIds.add(`k:${id}`);
+      }
+
+      return { rangers, count: uniqueRangerIds.size };
+    }),
+
   // WAR ROOM "Recent Patrols" table. In the EarthRanger dataset the patrol
   // leader + track data lives on COMPLETED patrols (open patrols are
   // header-only shells with no segment/leader), so an open-only list shows
