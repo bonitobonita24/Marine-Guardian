@@ -39,6 +39,8 @@ function makeReq(
     cookies: {
       get: (name: string) =>
         name in cookies ? { value: cookies[name] } : undefined,
+      getAll: () =>
+        Object.entries(cookies).map(([name, value]) => ({ name, value })),
     },
   } as unknown as NextRequest;
 }
@@ -198,21 +200,30 @@ describe("middleware — stale/malformed JWT: empty tenantSlug never yields //da
   // a JWT can carry an EMPTY tenantSlug for a non-platform role. Hitting a tenant
   // path then built `/${tenantSlug}/dashboard` === "//dashboard", which a browser
   // resolves protocol-relative to host "dashboard" → DNS_PROBE_FINISHED_NXDOMAIN.
-  // Fix: an authenticated non-platform user with an empty slug is stale → /login.
-  it("redirects an authed non-platform user with empty slug to /login (NOT //dashboard)", async () => {
+  // Fix: an authed non-platform user with an empty slug is stale → send to the
+  // TENANT login for the slug in the URL (not root /login, where a tenant account
+  // can't sign in) and CLEAR the stale session cookie so the login page renders
+  // its form instead of bouncing an "authed" visitor to the dashboard (loop).
+  it("redirects an authed empty-slug user to the TENANT login (NOT //dashboard, NOT root /login) and clears the session cookie", async () => {
     mockAuth.mockResolvedValue(tenantUser("", ["operator"]));
-    const res = await middleware(makeReq("/ph/patrols"));
+    const res = await middleware(
+      makeReq("/ph/patrols", {
+        cookies: { "__Secure-authjs.session-token": "stale" },
+      }),
+    );
     const loc = locationOf(res);
     expect(loc).not.toContain("//dashboard");
     expect(loc).not.toMatch(/^https?:\/\/dashboard/);
-    expect(loc).toContain("/login");
+    expect(loc).toContain("/ph/login");
+    // stale session cookie is expired on the redirect response
+    expect(res.cookies.get("__Secure-authjs.session-token")?.value).toBe("");
   });
 
-  it("redirects an authed empty-slug user off the bare tenant root to /login", async () => {
+  it("redirects an authed empty-slug user off the bare tenant root to the tenant login", async () => {
     mockAuth.mockResolvedValue(tenantUser("", ["viewer"]));
     const res = await middleware(makeReq("/ph"));
     const loc = locationOf(res);
     expect(loc).not.toMatch(/dashboard/);
-    expect(loc).toContain("/login");
+    expect(loc).toContain("/ph/login");
   });
 });

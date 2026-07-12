@@ -236,12 +236,25 @@ export default async function middleware(request: NextRequest) {
   // Stale / malformed JWT guard: a non-platform authenticated user MUST carry a
   // tenant slug. An empty slug here means a session minted before a role/tenant
   // change that did not bump securityVersion (e.g. a direct-SQL RBAC
-  // reconciliation). Without this guard the tenant-path redirects below build
-  // `/${tenantSlug}/dashboard` === "//dashboard", which a browser resolves
-  // protocol-relative to host "dashboard" (DNS_PROBE_FINISHED_NXDOMAIN). Force
-  // a clean re-login instead — /login is public so this cannot loop.
+  // reconciliation), or an otherwise broken token. Without this guard the
+  // tenant-path redirects below build `/${tenantSlug}/dashboard` === "//dashboard"
+  // (a protocol-relative host, DNS_PROBE_FINISHED_NXDOMAIN). Redirect to the
+  // login for the tenant IN THE URL — NOT the platform /login, where a tenant
+  // account cannot sign in — and CLEAR the bad session so the tenant login page
+  // renders its form instead of bouncing an "authenticated" visitor to the
+  // dashboard (which would loop straight back through this guard).
   if (!isPlatformUser && tenantSlug === "") {
-    return NextResponse.redirect(new URL("/login", request.url));
+    const res = NextResponse.redirect(new URL(`/${seg}/login`, request.url));
+    for (const c of request.cookies.getAll()) {
+      if (c.name.includes("authjs.session-token")) {
+        res.cookies.set(c.name, "", {
+          maxAge: 0,
+          path: "/",
+          secure: c.name.startsWith("__Secure-"),
+        });
+      }
+    }
+    return res;
   }
 
   // Tenant path /[slug]/… — `seg` is the REQUESTED tenant.
