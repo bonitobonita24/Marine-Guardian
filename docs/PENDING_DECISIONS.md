@@ -260,3 +260,16 @@ underlying attribution data is sparse: only **157/3206 events** and **0/4940 pat
 - [ ] **Decide/authorize:** run the area-derivation backfill (populate `area_boundary_id` on events+patrols via the
   existing enqueueAreaRederive pipeline) and the patrol distance/track materialization backfill (recomputeDistance/
   materializePatrolTrack), so per-area + coverage reports show real numbers. Heavy background jobs; owner-gated.
+
+## 2026-07-13 — Municipal water-boundary GEOMETRY regen (FIX B): reverse the "imaginary line" ([WHAT])
+The reported "Baco is stealing Calapan's events" bug is FIXED at the ATTRIBUTION layer (commit 506d83a, LOCAL):
+`containingWaterMunicipality` now resolves overlapping municipal-water polygons by NEAREST coastline (PH RA 7160/
+RA 8550 median-line equidistance). Events already re-backfilled on dev (Baco 257→21, Calapan 243→451, all wildlife
+→Calapan; Visual-QA confirmed). Counts/filtering/labels/Command Center are correct WITHOUT changing any geometry.
+- [ ] **Decide/authorize FIX B (optional, higher-risk):** regenerate every municipality's `water_geojson` as a
+  NON-overlapping median-line partition (`buffer(15km) − union(all land) − regions nearer another muni's coast`) so the
+  MAP OVERLAY (shaded municipal-water boundaries) is also non-overlapping/law-clean, matching the corrected attribution.
+  This REVERSES the 2026-06-29 "imaginary line, overlaps accepted" decision (`derive-municipal-waters.ts` header) and
+  ships regenerated boundary geometry for all 16 munis → best if you eyeball the new polygons before deploy. Verifiable
+  (zero-overlap point-in-polygon check + snapshot prior geometry via MunicipalityBoundarySnapshot). NOT required for the
+  reported fix. Default: HOLD until you confirm you want the boundary polygons themselves re-cut to the median line.
