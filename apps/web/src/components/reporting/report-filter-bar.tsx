@@ -84,19 +84,38 @@ export function ReportFilterBar({
   const municipalities = trpc.municipality.list.useQuery();
   const protectedZones = trpc.municipality.protectedZones.useQuery();
 
-  // Zones scoped to the active municipality — "all municipalities" shows every
-  // zone (current behavior); a specific municipality narrows the list to zones
-  // whose `parentMunicipalityId` matches it. Zones with a null
-  // `parentMunicipalityId` (unassigned/orphan zones) never surface under a
-  // specific municipality, only under "all". Memoized on the query data +
-  // municipalityId so the array reference stays stable across renders where
-  // neither input changed (keeps the reset effect below from re-running for
-  // no reason).
+  // Zones scoped to the active PROVINCE + municipality filters. A zone carries
+  // no province of its own — it inherits one via parentMunicipalityId →
+  // municipality.province. The three scopes:
+  //   • specific municipality → zones whose parentMunicipalityId matches it;
+  //   • province rollup (municipality "all") → zones whose parent municipality
+  //     is in that province (fixes 2026-07-12 owner report: an Occidental-Mindoro
+  //     zone appearing while the Province filter was Oriental Mindoro);
+  //   • all provinces + all municipalities → every zone.
+  // Orphan zones (null parentMunicipalityId) can't be attributed to a province,
+  // so they surface only under the "all provinces + all municipalities" scope.
+  // Memoized on the query data + municipalityId + province so the array
+  // reference stays stable across unrelated renders (keeps the reset effect
+  // below from re-running for no reason).
   const allZones = useMemo(() => protectedZones.data ?? [], [protectedZones.data]);
   const visibleZones = useMemo(() => {
-    if (municipalityId === null) return allZones;
-    return allZones.filter((z) => z.parentMunicipalityId === municipalityId);
-  }, [allZones, municipalityId]);
+    if (municipalityId !== null) {
+      return allZones.filter((z) => z.parentMunicipalityId === municipalityId);
+    }
+    if (province !== null) {
+      const muniIdsInProvince = new Set(
+        (municipalities.data ?? [])
+          .filter((m) => m.province === province)
+          .map((m) => m.id),
+      );
+      return allZones.filter(
+        (z) =>
+          z.parentMunicipalityId !== null &&
+          muniIdsInProvince.has(z.parentMunicipalityId),
+      );
+    }
+    return allZones;
+  }, [allZones, municipalityId, province, municipalities.data]);
   // While the zones query is still loading we don't yet know whether the
   // selected municipality has zones, so treat "loading" as "not yet decided"
   // and keep the control visible rather than prematurely hiding it.

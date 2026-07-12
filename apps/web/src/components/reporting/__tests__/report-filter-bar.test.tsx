@@ -228,6 +228,29 @@ describe("ReportFilterBar", () => {
     expect(screen.queryByText("Zone Two")).toBeNull();
   });
 
+  it("filters the MPA Zone options by the selected PROVINCE when 'All municipalities' is active", async () => {
+    // z-1 → m-1 (Oriental Mindoro); z-3 → m-3 (Occidental Mindoro). Selecting
+    // province Oriental Mindoro (municipality stays "all") must show ONLY the
+    // Oriental-Mindoro zone — an Occidental-Mindoro zone (Apo Reef, in prod)
+    // must NOT appear. Regression (2026-07-12, owner-reported): visibleZones
+    // previously ignored province and returned every zone whenever
+    // municipalityId was null.
+    stubs.protectedZones = [
+      { id: "z-1", name: "Oriental Zone", slug: "oriental-zone", category: "mpa", parentMunicipalityId: "m-1" },
+      { id: "z-3", name: "Occidental Zone", slug: "occidental-zone", category: "mpa", parentMunicipalityId: "m-3" },
+    ];
+    renderBar();
+
+    await openAndPick("report-province", "Oriental Mindoro");
+    // Province selection clears any specific municipality → "all municipalities".
+    expect(screen.getByTestId("probe").getAttribute("data-municipality")).toBe("null");
+
+    fireEvent.pointerDown(screen.getByTestId("report-protected-zone"));
+    fireEvent.click(screen.getByTestId("report-protected-zone"));
+    expect(await screen.findByText("Oriental Zone")).toBeTruthy();
+    expect(screen.queryByText("Occidental Zone")).toBeNull();
+  });
+
   it("resets protectedZoneId to 'all zones' when the municipality changes out from under the current selection", async () => {
     stubs.protectedZones = [
       {
