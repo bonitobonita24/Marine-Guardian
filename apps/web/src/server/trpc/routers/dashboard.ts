@@ -165,14 +165,18 @@ export const dashboardRouter = router({
   // 2026-06-25: optional date range filters by startTime when supplied.
   activePatrols: matrixProcedure(tenantProcedure, "dashboard", "view")
     .input(rangeInput)
-    .query(async ({ ctx, input }) => {
-      const startRange = buildRange(input);
+    .query(async ({ ctx }) => {
+      // Currently-OPEN patrols — matches the ACTIVE PATROLS KPI (patrol.count
+      // open). Previously scoped by startTime ∈ range, which rendered "No active
+      // patrols" whenever open patrols started outside the window even though the
+      // KPI counted them (owner-reported 2026-07-12: panel read 0 vs KPI 55). The
+      // range input is kept for backward-compat but no longer filters.
       const patrols = await prisma.patrol.findMany({
         where: {
           tenantId: ctx.tenantId,
           isDeleted: false,
           isTestPatrol: false,
-          ...(startRange ? { startTime: startRange } : {}),
+          state: "open",
         },
         orderBy: { startTime: { sort: "desc", nulls: "last" } },
         take: 15,

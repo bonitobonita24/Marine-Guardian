@@ -258,12 +258,16 @@ describe("dashboard — WAR ROOM date range (goal items 3-4, 2026-06-25)", () =>
     expect(call.where.reportedAt).toEqual({ gte: FROM, lte: TO });
   });
 
-  it("activePatrols scopes startTime to the supplied range", async () => {
+  it("activePatrols returns currently-open patrols and no longer scopes by startTime range", async () => {
+    // 2026-07-12: the Recent Patrols panel must match the ACTIVE PATROLS KPI
+    // (open patrols), not filter by startTime ∈ window — long-running/seed open
+    // patrols started outside the window made it read "No active patrols".
     await createCaller(makeCtx()).activePatrols({ dateFrom: FROM, dateTo: TO });
     const call = mockPrisma.patrol.findMany.mock.calls[0]?.[0] as {
-      where: { startTime?: unknown };
+      where: { startTime?: unknown; state?: unknown };
     };
-    expect(call.where.startTime).toEqual({ gte: FROM, lte: TO });
+    expect(call.where.state).toBe("open");
+    expect(call.where.startTime).toBeUndefined();
   });
 
   it("alertStats uses the supplied range for firedAt", async () => {

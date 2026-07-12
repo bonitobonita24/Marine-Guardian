@@ -425,7 +425,14 @@ function DashboardContent() {
             className="relative z-10 h-full w-full"
             dateFrom={from}
             dateTo={to}
-            trackMode="inRange"
+            /* CC is a LIVE war-room: show the most-recent patrols-with-tracks
+               (map.patrolTracks.active), not tracks gated by patrol startTime ∈
+               the 48h window. EarthRanger GPS tracks live on COMPLETED patrols
+               (open patrols are header-only), and seed/long-running patrols can
+               start well outside 48h — inRange then rendered ZERO tracks while
+               ACTIVE PATROLS counted 55 (owner-reported 2026-07-12). "active"
+               is the owner-chosen 2026-06-24 behavior (see map.ts active). */
+            trackMode="active"
             controlsPlacement="floating"
             defaultEventLayers={{ lawEnforcement: true, monitoring: true }}
             filterSlot={
