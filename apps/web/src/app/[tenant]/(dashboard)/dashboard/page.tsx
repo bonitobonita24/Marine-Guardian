@@ -27,6 +27,7 @@ import {
   useDashboardRange,
 } from "./_components/range-context";
 import { PatrolDetailModal } from "./_components/patrol-detail-modal";
+import { PatrolEditDialog } from "./_components/patrol-edit-dialog";
 import { BreakdownDrilldownModal } from "./_components/breakdown-drilldown-modal";
 import { KpiDrilldownModal } from "./_components/kpi-drilldown-modal";
 import type { KpiDrilldown } from "./_components/kpi-strip";
@@ -156,6 +157,11 @@ function DashboardContent() {
   // framed on that patrol until the operator picks another row or clicks the
   // empty basemap (onBackgroundClick below).
   const [selectedMapPatrolId, setSelectedMapPatrolId] = useState<string | null>(
+    null,
+  );
+  // Recent Patrols "Update" button — opens the inline edit dialog for the
+  // currently map-selected row (2026-07-13).
+  const [editingPatrol, setEditingPatrol] = useState<ActivePatrol | null>(
     null,
   );
   const handleSelectPatrol = useCallback((p: ActivePatrol) => {
@@ -492,6 +498,7 @@ function DashboardContent() {
             now={nowValue}
             onSelectPatrol={handleSelectPatrol}
             selectedPatrolId={selectedMapPatrolId}
+            onEditPatrol={setEditingPatrol}
           />
         </div>
       </div>
@@ -552,6 +559,12 @@ function DashboardContent() {
         now={nowValue}
         onClose={() => {
           setSelectedPatrol(null);
+        }}
+      />
+      <PatrolEditDialog
+        patrol={editingPatrol}
+        onClose={() => {
+          setEditingPatrol(null);
         }}
       />
       <AlertDetailModal

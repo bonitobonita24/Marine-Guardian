@@ -25,6 +25,8 @@ afterEach(() => {
 
 const patrol: ActivePatrol = {
   id: "p-1",
+  title: null,
+  boatName: null,
   patrolType: "seaborne",
   areaName: "Reef North",
   startTime: new Date("2026-06-25T08:00:00Z"),

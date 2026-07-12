@@ -6,7 +6,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ShieldCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Pencil, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { elapsedHm, formatKm, patrolTypeMeta } from "./lib";
 
@@ -18,6 +19,8 @@ import { elapsedHm, formatKm, patrolTypeMeta } from "./lib";
 
 export type ActivePatrol = {
   id: string;
+  title: string | null;
+  boatName: string | null;
   patrolType: string;
   areaName: string | null;
   startTime: Date | string | null;
@@ -38,6 +41,7 @@ export function ActivePatrols({
   now,
   onSelectPatrol,
   selectedPatrolId,
+  onEditPatrol,
 }: {
   patrols: ActivePatrol[];
   isLoading: boolean;
@@ -47,6 +51,8 @@ export function ActivePatrols({
    *  when set, that row gets a highlight style so the operator can see which
    *  Recent Patrols entry the map is framed on. */
   selectedPatrolId?: string | null;
+  /** Opens the inline edit dialog for the currently-selected row (2026-07-13). */
+  onEditPatrol?: (patrol: ActivePatrol) => void;
 }) {
   return (
     <section
@@ -88,6 +94,7 @@ export function ActivePatrols({
                 <TableHead className="text-right text-[10px] uppercase">
                   KM
                 </TableHead>
+                <TableHead className="w-8" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -147,6 +154,23 @@ export function ActivePatrols({
                       title={km === null ? "No GPS track recorded" : undefined}
                     >
                       {formatKm(km)}
+                    </TableCell>
+                    <TableCell className="w-8 text-right">
+                      {onEditPatrol !== undefined && selected ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          aria-label="Update patrol"
+                          className="h-6 w-6 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onEditPatrol(p);
+                          }}
+                        >
+                          <Pencil className="h-3 w-3" aria-hidden="true" />
+                        </Button>
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 );

@@ -119,6 +119,8 @@ describe("ActivePatrols", () => {
   const patrols: ActivePatrol[] = [
     {
       id: "p1",
+      title: null,
+      boatName: null,
       patrolType: "seaborne",
       areaName: "A12a",
       startTime: new Date("2026-06-21T05:48:00Z"),

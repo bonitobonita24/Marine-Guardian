@@ -190,6 +190,8 @@ export const dashboardRouter = router({
         take: 15,
         select: {
           id: true,
+          title: true,
+          boatName: true,
           patrolType: true,
           areaName: true,
           startTime: true,
@@ -207,6 +209,8 @@ export const dashboardRouter = router({
 
       return patrols.map((p) => ({
         id: p.id,
+        title: p.title,
+        boatName: p.boatName,
         patrolType: p.patrolType,
         areaName: p.areaName,
         startTime: p.startTime,

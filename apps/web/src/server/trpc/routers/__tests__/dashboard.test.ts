@@ -283,6 +283,34 @@ describe("dashboard — WAR ROOM date range (goal items 3-4, 2026-06-25)", () =>
     ]);
   });
 
+  it("activePatrols returns title and boatName for the inline edit dialog (2026-07-13)", async () => {
+    mockPrisma.patrol.findMany.mockResolvedValueOnce([
+      {
+        id: "p1",
+        title: "Morning sweep",
+        boatName: "MV Bantay",
+        patrolType: "seaborne",
+        areaName: "Reef North",
+        startTime: FROM,
+        totalDistanceKm: 10,
+        computedDistanceKm: null,
+        totalHours: 2,
+        computedDurationHours: null,
+        startLocationLat: null,
+        startLocationLon: null,
+        endLocationLat: null,
+        endLocationLon: null,
+        segments: [],
+      },
+    ]);
+    const result = await createCaller(makeCtx()).activePatrols({
+      dateFrom: FROM,
+      dateTo: TO,
+    });
+    expect(result[0]?.title).toBe("Morning sweep");
+    expect(result[0]?.boatName).toBe("MV Bantay");
+  });
+
   it("alertStats uses the supplied range for firedAt", async () => {
     await createCaller(makeCtx()).alertStats({ dateFrom: FROM, dateTo: TO });
     const call = mockPrisma.alertHistory.count.mock.calls[0]?.[0] as {
