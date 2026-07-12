@@ -22,7 +22,6 @@ import type {
   ReportMapTrackRow,
 } from "@/server/report-map-report/get-report-map-report-data";
 import type { HeatLatLng } from "@marine-guardian/shared/lib/heatmap-sample";
-import type { HeatLayerVariant } from "./heat-layer";
 
 const EventPointsMapDynamic = dynamic(
   () =>
@@ -76,8 +75,7 @@ interface PatrolHeatmapMapProps {
 }
 
 interface EventHeatmapMapProps {
-  points: ReportMapEventPoint[];
-  variant?: HeatLayerVariant;
+  points: (ReportMapEventPoint & { color?: string })[];
   municipalityBounds?: ReportMapBounds | null;
 }
 

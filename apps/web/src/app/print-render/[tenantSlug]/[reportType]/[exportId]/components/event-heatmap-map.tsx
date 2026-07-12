@@ -19,7 +19,7 @@ import type {
   ReportMapEventPoint,
 } from "@/server/report-map-report/get-report-map-report-data";
 import { boundsToView } from "./bounds-view";
-import { HeatLayer, type HeatLayerVariant } from "./heat-layer";
+import { HeatLayer } from "./heat-layer";
 import { MapRenderGate } from "./map-render-gate";
 
 const HEATMAP_WIDTH_PX = 1010;
@@ -53,20 +53,52 @@ function pointsBounds(
   };
 }
 
+/** Fallback hue for points with no assigned sub-type colour (slate-500). */
+const NEUTRAL_HEAT_COLOR = "#64748b";
+
+/**
+ * Per-point heat weight. leaflet.heat scales every point's intensity by
+ * `1 / 2^(maxZoom - currentZoom)` in `_redraw`; at the tight event-framing zoom
+ * (well below maxZoom) a weight of 1 collapses to a fraction, so a blob never
+ * reaches the vivid stops of its sub-type gradient and washes out to a faint
+ * tint — leaving only the most dominant hue (red) visible. A high weight (capped
+ * back to 1.0 by the layer `max`) saturates every blob to its true legend colour
+ * regardless of zoom. The radial "heatwave" falloff is unaffected — it comes
+ * from the blur circle's own alpha gradient, not the weight. (owner 2026-07-12)
+ */
+const HEAT_WEIGHT = 15;
+
+type ColoredEventPoint = ReportMapEventPoint & { color?: string };
+
 interface EventHeatmapMapProps {
-  points: ReportMapEventPoint[];
-  /** Category-coloured, intensified heat ramp (owner 2026-07-12). */
-  variant?: HeatLayerVariant;
+  /**
+   * Located event points, each carrying its sub-event-type legend `color`
+   * (owner 2026-07-12). The heatmap renders ONE leaflet.heat layer per distinct
+   * colour so each sub-type's density blobs paint in its own hue — matching the
+   * Event Map markers + breakdown-chart legend — instead of a single
+   * category-wide ramp.
+   */
+  points: ColoredEventPoint[];
   municipalityBounds?: ReportMapBounds | null;
 }
 
 export function EventHeatmapMap({
   points,
-  variant = "events",
   municipalityBounds = null,
 }: EventHeatmapMapProps) {
   const tileLayerRef = useRef<LeafletTileLayer>(null);
-  const heatPoints: HeatLatLng[] = points.map((p) => [p.lat, p.lon, 1]);
+
+  // Group points by their sub-type legend colour → one HeatLayer per hue.
+  const groups = new Map<string, HeatLatLng[]>();
+  for (const p of points) {
+    const key = p.color ?? NEUTRAL_HEAT_COLOR;
+    const arr = groups.get(key);
+    const tuple: HeatLatLng = [p.lat, p.lon, HEAT_WEIGHT];
+    if (arr) arr.push(tuple);
+    else groups.set(key, [tuple]);
+  }
+  const colorGroups = [...groups.entries()];
+
   const framingBounds = pointsBounds(points) ?? municipalityBounds;
 
   const applyFraming = useCallback(
@@ -102,7 +134,9 @@ export function EventHeatmapMap({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <HeatLayer points={heatPoints} variant={variant} />
+        {colorGroups.map(([color, pts]) => (
+          <HeatLayer key={color} points={pts} color={color} />
+        ))}
         <MapRenderGate
           hasAnyOverlay={points.length > 0}
           applyFraming={applyFraming}
