@@ -48,6 +48,15 @@ const PatrolHeatmapMapDynamic = dynamic(
   { ssr: false },
 );
 
+// Event-density heatmap island (owner 2026-07-12) — same ssr:false rationale.
+const EventHeatmapMapDynamic = dynamic(
+  () =>
+    import("./event-heatmap-map").then((mod) => ({
+      default: mod.EventHeatmapMap,
+    })),
+  { ssr: false },
+);
+
 interface EventPointsMapProps {
   points: ReportMapEventPoint[];
   markerColor?: string;
@@ -65,6 +74,11 @@ interface PatrolHeatmapMapProps {
   municipalityBounds?: ReportMapBounds | null;
 }
 
+interface EventHeatmapMapProps {
+  points: ReportMapEventPoint[];
+  municipalityBounds?: ReportMapBounds | null;
+}
+
 export function EventPointsMap(props: EventPointsMapProps) {
   return <EventPointsMapDynamic {...props} />;
 }
@@ -75,4 +89,8 @@ export function PatrolTracksMap(props: PatrolTracksMapProps) {
 
 export function PatrolHeatmapMap(props: PatrolHeatmapMapProps) {
   return <PatrolHeatmapMapDynamic {...props} />;
+}
+
+export function EventHeatmapMap(props: EventHeatmapMapProps) {
+  return <EventHeatmapMapDynamic {...props} />;
 }

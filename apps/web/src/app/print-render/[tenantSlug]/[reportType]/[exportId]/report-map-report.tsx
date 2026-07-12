@@ -89,6 +89,7 @@ import { RowHeightSync } from "./components/row-height-sync";
 // Leaflet islands are loaded dynamically (ssr:false) via the client wrapper to
 // prevent window-is-not-defined during Next.js server-side bundle evaluation.
 import {
+  EventHeatmapMap,
   EventPointsMap,
   PatrolHeatmapMap,
   PatrolTracksMap,
@@ -569,6 +570,11 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
   // clips, since neither the section nor the row has a fixed/overflow:
   // hidden height) — correctness over one-page fit, per the owner.
   const patrolMapHeightPx = mapHeightPx;
+  // Category pages (Law Enf, Monitoring) pack a two-column charts row + TWO
+  // full-width maps (event points + event heatmap) onto one A4-portrait page
+  // (owner 2026-07-12 mock), so each map is a touch shorter than the single-map
+  // sections to keep the whole page to one physical sheet.
+  const catMapHeightPx = "235px";
 
   const period = fmtPeriod(data.filter.from, data.filter.to);
   const generatedAt = fmtDateTimeLocal(data.generatedAt);
@@ -705,6 +711,18 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
       border-radius: 4px; padding: 1px 6px; margin-left: 8px; vertical-align: middle;
     }
     .section-content { display: flex; flex-direction: ${contentFlex}; gap: 10px; }
+    /* Category-page composition (owner 2026-07-12 mock): a two-column charts
+       row (breakdown | events-over-time) then a full-width event map then a
+       full-width event heatmap, stacked. Heights budgeted so the whole
+       category page fits ONE A4-portrait page (overflow:hidden = one-page guard). */
+    .cat-charts-row { display: flex; flex-direction: row; gap: 10px; align-items: stretch; }
+    .cat-chart { flex: 1 1 50%; min-width: 0; height: 175px; display: flex; flex-direction: column; overflow: hidden; }
+    .cat-chart .chart-breakdown-slot { height: 100%; }
+    .cat-timeseries-slot { flex: 1 1 auto; min-height: 0; }
+    h3.cat-subheading { font-size: 11px; font-weight: 700; color: #111; margin: 0 0 2px; display: flex; align-items: center; }
+    .cat-map { width: 100%; height: ${catMapHeightPx}; margin-top: 8px; overflow: hidden; }
+    .cat-map figure { margin: 0; padding: 0; width: 100%; height: 100%; display: block; }
+    .cat-map-heading { font-size: 10px; font-weight: 700; color: #374151; margin: 6px 0 2px; text-transform: uppercase; letter-spacing: 0.04em; }
     .section-chart {
       ${layout === "landscape" ? "flex: 0 0 40%; min-width: 0;" : "width: 100%;"}
       /* Explicit height matching .section-map (not just min-height) so a
@@ -842,7 +860,10 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
             so their MapReadySignal falls through to the direct-flip path. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: "window.__renderPending = 5;",
+            // 7 map islands: 3 EventPointsMap (Law Enf, Monitoring, Events Over
+            // Time) + 1 PatrolTracksMap + 1 PatrolHeatmapMap + 2 EventHeatmapMap
+            // (Law Enf + Monitoring category-page heatmaps, added 2026-07-12).
+            __html: "window.__renderPending = 7;",
           }}
         />
       </head>
@@ -863,8 +884,8 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
               {data.charts.lawEnforcement.total.toLocaleString()}
             </span>
           </h2>
-          <div className="section-content">
-            <div className="section-chart">
+          <div className="cat-charts-row">
+            <div className="cat-chart">
               <div className="chart-breakdown-slot">
                 <EventBreakdownChart
                   rows={lawRows}
@@ -872,23 +893,42 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
                   topN={12}
                 />
               </div>
-              <p className="section-list-hint">Full event list in the Full Lists section.</p>
             </div>
-            <div className="section-map">
-              <figure aria-label="Law enforcement event locations">
-                <figcaption className="sr-only">
-                  <MapAltTable
-                    caption="Law enforcement event locations"
-                    points={lawPoints}
-                  />
-                </figcaption>
-                <EventPointsMap
+            <div className="cat-chart">
+              <h3 className="cat-subheading">
+                Events Over Time
+                <span className="total-badge">
+                  {data.charts.eventsOverTime.total.toLocaleString()}
+                </span>
+              </h3>
+              <div className="cat-timeseries-slot">
+                <PrintTimeSeriesChart series={data.charts.eventsOverTime.series} />
+              </div>
+            </div>
+          </div>
+          <div className="cat-map">
+            <figure aria-label="Law enforcement event locations">
+              <figcaption className="sr-only">
+                <MapAltTable
+                  caption="Law enforcement event locations"
                   points={lawPoints}
-                  markerColor="#dc2626"
-                  municipalityBounds={data.municipalityBounds}
                 />
-              </figure>
-            </div>
+              </figcaption>
+              <EventPointsMap
+                points={lawPoints}
+                markerColor="#dc2626"
+                municipalityBounds={data.municipalityBounds}
+              />
+            </figure>
+          </div>
+          <div className="cat-map-heading">Event Density Heatmap</div>
+          <div className="cat-map">
+            <figure aria-label="Law enforcement event density heatmap">
+              <EventHeatmapMap
+                points={lawPoints}
+                municipalityBounds={data.municipalityBounds}
+              />
+            </figure>
           </div>
           <PageFooter {...footerBase} pageNum={1} />
         </section>
@@ -908,8 +948,8 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
               {data.charts.monitoring.total.toLocaleString()}
             </span>
           </h2>
-          <div className="section-content">
-            <div className="section-chart">
+          <div className="cat-charts-row">
+            <div className="cat-chart">
               <div className="chart-breakdown-slot">
                 <EventBreakdownChart
                   rows={monRows}
@@ -917,23 +957,42 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
                   topN={12}
                 />
               </div>
-              <p className="section-list-hint">Full event list in the Full Lists section.</p>
             </div>
-            <div className="section-map">
-              <figure aria-label="Monitoring event locations">
-                <figcaption className="sr-only">
-                  <MapAltTable
-                    caption="Monitoring event locations"
-                    points={monPoints}
-                  />
-                </figcaption>
-                <EventPointsMap
+            <div className="cat-chart">
+              <h3 className="cat-subheading">
+                Events Over Time
+                <span className="total-badge">
+                  {data.charts.eventsOverTime.total.toLocaleString()}
+                </span>
+              </h3>
+              <div className="cat-timeseries-slot">
+                <PrintTimeSeriesChart series={data.charts.eventsOverTime.series} />
+              </div>
+            </div>
+          </div>
+          <div className="cat-map">
+            <figure aria-label="Monitoring event locations">
+              <figcaption className="sr-only">
+                <MapAltTable
+                  caption="Monitoring event locations"
                   points={monPoints}
-                  markerColor="#0891b2"
-                  municipalityBounds={data.municipalityBounds}
                 />
-              </figure>
-            </div>
+              </figcaption>
+              <EventPointsMap
+                points={monPoints}
+                markerColor="#0891b2"
+                municipalityBounds={data.municipalityBounds}
+              />
+            </figure>
+          </div>
+          <div className="cat-map-heading">Event Density Heatmap</div>
+          <div className="cat-map">
+            <figure aria-label="Monitoring event density heatmap">
+              <EventHeatmapMap
+                points={monPoints}
+                municipalityBounds={data.municipalityBounds}
+              />
+            </figure>
           </div>
           <PageFooter {...footerBase} pageNum={2} />
         </section>

@@ -93,20 +93,20 @@ export const reportHeaderStyles = `
       margin-bottom: 10px;
     }
     .pr-header-logos { flex: 0 0 auto; display: flex; align-items: center; gap: 12px; }
-    /* Logos at least 1 inch tall (96px @ 96dpi); both aligned to the same
-       height so the rounded municipal logo lines up with the Blue Alliance
-       logo (owner spec 2026-07-06). */
-    .pr-header-logo { height: 96px; width: auto; max-width: 130px; object-fit: contain; }
+    /* Logos sized to the (smaller) title block, both aligned to the same height
+       so the rounded municipal logo lines up with the Blue Alliance logo. Owner
+       2026-07-12: shrink the header a little (title + logos) for the portrait page. */
+    .pr-header-logo { height: 66px; width: auto; max-width: 92px; object-fit: contain; }
     .pr-header-logo-placeholder {
-      width: 96px; height: 96px; flex: 0 0 auto; border-radius: 50%;
+      width: 66px; height: 66px; flex: 0 0 auto; border-radius: 50%;
       background: #1d5b78;
     }
     .pr-header-text { flex: 1 1 auto; min-width: 0; text-align: left; }
     h1.pr-header-main-title {
-      font-size: 22px; font-weight: 800; margin: 0 0 1px; color: #111;
+      font-size: 18px; font-weight: 800; margin: 0 0 1px; color: #111;
       line-height: 1.2; letter-spacing: -0.01em;
     }
-    p.pr-header-brand { font-size: 18px; font-weight: 700; margin: 0 0 2px; color: #111; line-height: 1.2; }
+    p.pr-header-brand { font-size: 15px; font-weight: 700; margin: 0 0 2px; color: #111; line-height: 1.2; }
     p.pr-header-date-range { font-size: 12px; font-weight: 500; color: #374151; margin: 0 0 1px; }
     p.pr-header-report-title { font-size: 12px; font-weight: 500; margin: 0; color: #374151; }
 `;

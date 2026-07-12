@@ -20,15 +20,21 @@ describe("colorForEventType", () => {
     expect(colorForEventType("fishing in a prohibited area")).toBe(
       colorForEventType("Fishing in a prohibited area (MPA)"),
     );
-    expect(colorForEventType("Fishing in a prohibited area (MPA)")).toBe("#ea580c");
+    expect(colorForEventType("Fishing in a prohibited area (MPA)")).toBe("#f97316");
   });
 
-  it("falls back to the category accent for an unlisted type", () => {
-    expect(colorForEventType("Some New ER Type", LAW)).toBe("#dc2626");
-    expect(colorForEventType("Another New Type", MON)).toBe("#0d9488");
+  it("gives the 'Others' aggregate a neutral slate distinct from every real type accent", () => {
+    const labels = [...EVENT_TYPE_ORDER.law_enforcement, ...EVENT_TYPE_ORDER.monitoring];
+    const typeColors = new Set(labels.map((l) => colorForEventType(l, null)));
+    // "Others" (and any unlisted type) → slate, regardless of category — never
+    // duplicates a canonical type's colour (the old red-collision bug).
+    expect(colorForEventType("Others", LAW)).toBe("#64748b");
+    expect(colorForEventType("Others", MON)).toBe("#64748b");
+    expect(typeColors.has("#64748b")).toBe(false);
   });
 
-  it("falls back to neutral grey with no type and no known category", () => {
+  it("falls back to neutral slate for an unlisted type or no type", () => {
+    expect(colorForEventType("Some New ER Type", LAW)).toBe("#64748b");
     expect(colorForEventType(null, null)).toBe("#64748b");
     expect(colorForEventType(undefined, "analyzer_event")).toBe("#64748b");
   });
