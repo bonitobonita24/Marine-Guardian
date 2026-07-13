@@ -47,7 +47,7 @@ async function main() {
 
     const municipalities = await prisma.municipality.findMany({
       where: { tenantId: tenant.id },
-      select: { id: true, slug: true, name: true, boundaryGeojson: true },
+      select: { id: true, slug: true, name: true, boundaryGeojson: true, waterGeojson: true },
     });
 
     if (municipalities.length === 0) {

@@ -43,7 +43,7 @@ async function main() {
       }),
       prisma.protectedZone.findMany({
         where: { tenantId: tenant.id },
-        select: { id: true, slug: true, name: true, boundaryGeojson: true },
+        select: { id: true, slug: true, name: true, boundaryGeojson: true, waterGeojson: true },
       }),
     ]);
 
