@@ -207,3 +207,96 @@ describe("GeneratePrintableButton — region report options (2026-07-13)", () =>
     expect(payload.paramsJson.templateId).toBe("tpl-2");
   });
 });
+
+// "Split into two files" toggle (2026-07-13). Default OFF preserves the
+// existing single-export behavior; ON fires two exports (exportMode:
+// "charts" and "lists") sharing the same scope in one Generate click.
+describe("GeneratePrintableButton — split into two files (2026-07-13)", () => {
+  beforeEach(() => {
+    stubs.roles = ["field_coordinator"];
+    mutateSpy.mockClear();
+  });
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("renders the split checkbox, default unchecked", () => {
+    const { getByTestId } = render(<GeneratePrintableButton />);
+    fireEvent.click(getByTestId("generate-printable-report-button"));
+
+    const checkbox = getByTestId("split-files-checkbox");
+    expect(checkbox).toBeTruthy();
+    expect(checkbox.getAttribute("data-state")).toBe("unchecked");
+    expect(checkbox.getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("split OFF + Generate sends a single export with NO exportMode", () => {
+    const { getByTestId } = render(<GeneratePrintableButton />);
+    fireEvent.click(getByTestId("generate-printable-report-button"));
+
+    const select = getByTestId("report-template-select") as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: "tpl-2" } });
+
+    fireEvent.click(getByTestId("generate-printable-confirm"));
+
+    expect(mutateSpy).toHaveBeenCalledTimes(1);
+    const [payload] = mutateSpy.mock.calls[0] as [
+      { paramsJson: Record<string, unknown> },
+    ];
+    expect(payload.paramsJson).not.toHaveProperty("exportMode");
+  });
+
+  it("split ON + Generate sends TWO exports: exportMode charts and lists, same scope (template case)", () => {
+    const { getByTestId } = render(<GeneratePrintableButton />);
+    fireEvent.click(getByTestId("generate-printable-report-button"));
+
+    const select = getByTestId("report-template-select") as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: "tpl-2" } });
+    fireEvent.click(getByTestId("split-files-checkbox"));
+
+    fireEvent.click(getByTestId("generate-printable-confirm"));
+
+    expect(mutateSpy).toHaveBeenCalledTimes(2);
+    const [firstPayload] = mutateSpy.mock.calls[0] as [
+      { paramsJson: Record<string, unknown> },
+    ];
+    const [secondPayload] = mutateSpy.mock.calls[1] as [
+      { paramsJson: Record<string, unknown> },
+    ];
+    const exportModes = [
+      firstPayload.paramsJson.exportMode,
+      secondPayload.paramsJson.exportMode,
+    ];
+    expect(exportModes.sort()).toEqual(["charts", "lists"]);
+    expect(firstPayload.paramsJson.templateId).toBe("tpl-2");
+    expect(secondPayload.paramsJson.templateId).toBe("tpl-2");
+  });
+
+  it("split ON + Generate sends TWO exports sharing the same scope (region case)", () => {
+    const { getByTestId } = render(<GeneratePrintableButton />);
+    fireEvent.click(getByTestId("generate-printable-report-button"));
+
+    const select = getByTestId("report-template-select") as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: "region:Palawan" } });
+    fireEvent.click(getByTestId("split-files-checkbox"));
+
+    fireEvent.click(getByTestId("generate-printable-confirm"));
+
+    expect(mutateSpy).toHaveBeenCalledTimes(2);
+    const [firstPayload] = mutateSpy.mock.calls[0] as [
+      { paramsJson: Record<string, unknown> },
+    ];
+    const [secondPayload] = mutateSpy.mock.calls[1] as [
+      { paramsJson: Record<string, unknown> },
+    ];
+    const exportModes = [
+      firstPayload.paramsJson.exportMode,
+      secondPayload.paramsJson.exportMode,
+    ];
+    expect(exportModes.sort()).toEqual(["charts", "lists"]);
+    expect(firstPayload.paramsJson.province).toBe("Palawan");
+    expect(secondPayload.paramsJson.province).toBe("Palawan");
+    expect(firstPayload.paramsJson).not.toHaveProperty("templateId");
+    expect(secondPayload.paramsJson).not.toHaveProperty("templateId");
+  });
+});

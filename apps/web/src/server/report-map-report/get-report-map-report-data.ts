@@ -417,6 +417,19 @@ export interface ReportMapReportData {
    */
   isRegionReport: boolean;
   /**
+   * Export-mode split (2026-07-13, PDF-export scoping): controls which
+   * section groups `report-map-report.tsx` renders —
+   *   "combined" (default) — every chart/map section AND every full-list
+   *     section, i.e. today's unchanged 8-page document.
+   *   "charts"   — ONLY the 4 chart+map sections (Law Enforcement,
+   *     Monitoring, Patrol List, Events Over Time); the 4 full-list
+   *     sections are omitted entirely.
+   *   "lists"    — ONLY the 4 full-list sections; the 4 chart+map sections
+   *     (and therefore every map island) are omitted entirely.
+   * See `parseReportMapParams` for how this is read from `paramsJson`.
+   */
+  exportMode: ReportMapExportMode;
+  /**
    * Per-event-type-display GLOBAL (all-time, tenant-wide) ordered detail-key
    * list — owner Option A (2026-07-06): every printable report's per-type
    * event table renders this SAME standard column set, regardless of how
@@ -451,6 +464,15 @@ const APP_DEFAULT_TEMPLATE = {
 
 // ─── Param parsing ────────────────────────────────────────────────────────────
 
+/** See `ReportMapReportData.exportMode` for the semantics of each value. */
+export type ReportMapExportMode = "combined" | "charts" | "lists";
+
+const REPORT_MAP_EXPORT_MODES: readonly ReportMapExportMode[] = [
+  "combined",
+  "charts",
+  "lists",
+];
+
 interface ParsedReportMapParams {
   templateId?: string;
   from?: Date;
@@ -472,6 +494,14 @@ interface ParsedReportMapParams {
    * alongside the municipality's own directly-attributed rows.
    */
   includeChildren?: boolean;
+  /**
+   * Only set when `paramsJson.exportMode` is a recognised
+   * `ReportMapExportMode` string. Absent (undefined) for every other input
+   * — callers apply the "combined" default themselves (see
+   * `getReportMapReportData`), matching the existing optional-field
+   * convention on this interface.
+   */
+  exportMode?: ReportMapExportMode;
 }
 
 export function parseReportMapParams(paramsJson: unknown): ParsedReportMapParams {
@@ -500,6 +530,12 @@ export function parseReportMapParams(paramsJson: unknown): ParsedReportMapParams
   }
   if (typeof p.includeChildren === "boolean") {
     out.includeChildren = p.includeChildren;
+  }
+  if (
+    typeof p.exportMode === "string" &&
+    REPORT_MAP_EXPORT_MODES.includes(p.exportMode as ReportMapExportMode)
+  ) {
+    out.exportMode = p.exportMode as ReportMapExportMode;
   }
   return out;
 }
@@ -1153,6 +1189,7 @@ export async function getReportMapReportData(
     municipalityBounds,
     municipalityName,
     isRegionReport,
+    exportMode: params.exportMode ?? "combined",
     eventTypeColumns,
     charts: {
       lawEnforcement,

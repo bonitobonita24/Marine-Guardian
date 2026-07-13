@@ -76,7 +76,11 @@
  */
 
 import type { ComponentProps } from "react";
-import type { ReportMapEventDetail, ReportMapReportData } from "@/server/report-map-report/get-report-map-report-data";
+import type {
+  ReportMapEventDetail,
+  ReportMapExportMode,
+  ReportMapReportData,
+} from "@/server/report-map-report/get-report-map-report-data";
 import { colorForEventType } from "@/lib/event-type-color";
 import {
   detailCell,
@@ -554,8 +558,63 @@ interface ReportMapReportProps {
 // 2026-07-06: R6 removed the 2 High Priority pages, R5 added the Patrol
 // Tracks Heatmap folded INTO the Patrol page (2026-07-13, owner: one patrol
 // page carries the Total Patrols table + over-time chart + tracks map + heatmap),
-// so one fewer logical page (9 - 1 = 8).
-const TOTAL_PAGES = 8;
+// so one fewer logical page (9 - 1 = 8) in the default "combined" export
+// mode (CHART_PAGE_COUNT + LIST_PAGE_COUNT below — see also
+// `resolveReportMapExportSections`, which computes the actual page total
+// per export mode).
+
+// Chart+map sections (1-4) always carry exactly this many map islands when
+// rendered — 3 EventPointsMap (Law Enf, Monitoring, Events Over Time) + 1
+// PatrolTracksMap + 1 PatrolHeatmapMap + 2 EventHeatmapMap (Law Enf +
+// Monitoring category-page heatmaps) — see the `window.__renderPending`
+// script comment below for the itemized count. The 4 full-list sections
+// (5-8) never contain a map island.
+const CHART_MAP_ISLAND_COUNT = 7;
+const CHART_PAGE_COUNT = 4;
+const LIST_PAGE_COUNT = 4;
+
+/**
+ * Export-mode → section-visibility plan (2026-07-13, PDF-export scoping —
+ * see `ReportMapReportData.exportMode`). Pure + exported so the mode →
+ * {show/hide sections, map-island count, total pages} mapping is unit
+ * testable without rendering the full RSC document (Leaflet islands need a
+ * browser environment).
+ *
+ *   "combined" (default) — both groups render; unchanged 8-page document.
+ *   "charts"   — only the 4 chart+map sections render; 4 pages, islands
+ *                unchanged (all islands live in the chart sections).
+ *   "lists"    — only the 4 full-list sections render; 4 pages, ZERO map
+ *                islands (no chart section is rendered), so `mapIslandCount`
+ *                is 0 — the caller must flip `window.__renderReady`
+ *                directly rather than seed a `__renderPending` counter that
+ *                nothing would ever decrement (see the script block below).
+ */
+export interface ReportMapExportSectionPlan {
+  showCharts: boolean;
+  showLists: boolean;
+  mapIslandCount: number;
+  totalPages: number;
+  /** Page-number offset applied to the 4 full-list sections' `pageNum` —
+   *  0 when the chart sections are omitted (list pages renumber from 1),
+   *  or `CHART_PAGE_COUNT` when both groups render (list pages continue
+   *  after the chart pages, e.g. 5-8). */
+  listPageOffset: number;
+}
+
+export function resolveReportMapExportSections(
+  exportMode: ReportMapExportMode,
+): ReportMapExportSectionPlan {
+  const showCharts = exportMode !== "lists";
+  const showLists = exportMode !== "charts";
+  return {
+    showCharts,
+    showLists,
+    mapIslandCount: showCharts ? CHART_MAP_ISLAND_COUNT : 0,
+    totalPages:
+      (showCharts ? CHART_PAGE_COUNT : 0) + (showLists ? LIST_PAGE_COUNT : 0),
+    listPageOffset: showCharts ? CHART_PAGE_COUNT : 0,
+  };
+}
 
 // EarthRanger category strings — used to give each Event Map marker its
 // per-sub-type accent (colorForEventType), matching the breakdown-chart legend.
@@ -595,6 +654,12 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
   const period = fmtPeriod(data.filter.from, data.filter.to);
   const generatedAt = fmtDateTimeLocal(data.generatedAt);
 
+  // Export-mode section-visibility plan (2026-07-13) — see
+  // `resolveReportMapExportSections` doc for the "combined"/"charts"/"lists"
+  // semantics.
+  const { showCharts, showLists, mapIslandCount, totalPages, listPageOffset } =
+    resolveReportMapExportSections(data.exportMode);
+
   const headerProps: HeaderProps = {
     municipalLogoDataUri: data.template.municipalLogoDataUri,
     partnerLogoDataUri: data.template.partnerLogoDataUri,
@@ -606,7 +671,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
   const footerBase = {
     footerNotes: data.template.footerNotes,
     generatedAt,
-    totalPages: TOTAL_PAGES,
+    totalPages,
   };
 
   // Adapt ReportMapEventBreakdownRow → EventTypeBreakdownRow for EventBreakdownChart.
@@ -888,29 +953,35 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
         </title>
         <style>{css}</style>
         {/* Initialise the multi-map render-ready counter before any island
-            mounts. 5 = 3 EventPointsMap (Law Enforcement, Monitoring, Events
-            Over Time) + 1 PatrolTracksMap + 1 PatrolHeatmapMap. Recomputed
-            2026-07-06 (R5/R6): removing the High Priority section's
-            EventPointsMap (-1) and adding the new Patrol Tracks Heatmap
-            section's PatrolHeatmapMap (+1) nets to the SAME total of 5 map
-            islands actually rendered below — verified by counting every
-            <EventPointsMap>/<PatrolTracksMap>/<PatrolHeatmapMap> JSX usage
-            in this file. Each MapReadySignal decrements the counter;
-            window.__renderReady is only set once all five reach zero.
-            Backward-compat: single-map documents never set __renderPending
-            so their MapReadySignal falls through to the direct-flip path. */}
+            mounts. mapIslandCount = 7 in "combined"/"charts" export mode: 3
+            EventPointsMap (Law Enf, Monitoring, Events Over Time) + 1
+            PatrolTracksMap + 1 PatrolHeatmapMap + 2 EventHeatmapMap (Law Enf
+            + Monitoring category-page heatmaps) — verified by counting every
+            <EventPointsMap>/<PatrolTracksMap>/<PatrolHeatmapMap>/
+            <EventHeatmapMap> JSX usage in the (showCharts-gated) sections
+            below. Each MapReadySignal decrements the counter; window.__
+            renderReady is only set once it reaches zero.
+            "lists" export mode omits every chart section, so
+            mapIslandCount is 0 — nothing would ever decrement a
+            __renderPending counter, so window.__renderReady is flipped
+            directly instead (the pdf-renderer's 8s waitForFunction fallback
+            would otherwise idle the full timeout on every list-only
+            export — see deploy/pdf-renderer/src/server.js). */}
         <script
           dangerouslySetInnerHTML={{
-            // 7 map islands: 3 EventPointsMap (Law Enf, Monitoring, Events Over
-            // Time) + 1 PatrolTracksMap + 1 PatrolHeatmapMap + 2 EventHeatmapMap
-            // (Law Enf + Monitoring category-page heatmaps, added 2026-07-12).
-            __html: "window.__renderPending = 7;",
+            __html:
+              mapIslandCount > 0
+                ? `window.__renderPending = ${String(mapIslandCount)};`
+                : "window.__renderReady = true;",
           }}
         />
       </head>
       <body>
 
         {/* ── Section 1: Law Enforcement ────────────────────────────────── */}
+        {/* Chart+map section — omitted entirely in "lists" export mode
+            (2026-07-13, see resolveReportMapExportSections). */}
+        {showCharts && (
         <section
           className="report-section"
           data-testid="section-law-enforcement"
@@ -974,8 +1045,10 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
           </div>
           <PageFooter {...footerBase} pageNum={1} />
         </section>
+        )}
 
         {/* ── Section 2: Monitoring ─────────────────────────────────────── */}
+        {showCharts && (
         <section
           className="report-section"
           data-testid="section-monitoring"
@@ -1039,6 +1112,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
           </div>
           <PageFooter {...footerBase} pageNum={2} />
         </section>
+        )}
 
         {/* ── Section 3: Patrol List ───────────────────────────────────────
             (R6, 2026-07-06: the former High Priority section that used to
@@ -1046,6 +1120,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
             in the Master file history; High Priority's underlying chart
             data is intentionally left intact in get-report-map-report-data.ts,
             only its two rendered pages were removed.) */}
+        {showCharts && (
         <section
           className="report-section"
           data-testid="section-patrol-list"
@@ -1247,8 +1322,10 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
             </div>
           <PageFooter {...footerBase} pageNum={3} />
         </section>
+        )}
 
         {/* ── Section 4: Events Over Time ───────────────────────────────── */}
+        {showCharts && (
         <section
           className="report-section"
           data-testid="section-events-over-time"
@@ -1289,8 +1366,14 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
           </div>
           <PageFooter {...footerBase} pageNum={4} />
         </section>
+        )}
 
-        {/* ── Section 1b: Law Enforcement — per-type tables (landscape) ───── */}
+        {/* ── Section 1b: Law Enforcement — per-type tables (landscape) ─────
+            Full-list section — omitted entirely in "charts" export mode
+            (2026-07-13, see resolveReportMapExportSections). pageNum starts
+            from listPageOffset + 1 so numbering is contiguous whether or
+            not the chart sections above are also rendered. */}
+        {showLists && (
         <section
           className="report-section-list event-list"
           data-testid="section-law-enforcement-list"
@@ -1310,10 +1393,12 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
             captionPrefix="Law enforcement full event list"
             eventTypeColumns={data.eventTypeColumns}
           />
-          <PageFooter {...footerBase} pageNum={5} />
+          <PageFooter {...footerBase} pageNum={listPageOffset + 1} />
         </section>
+        )}
 
         {/* ── Section 2b: Monitoring — per-type tables (landscape) ────────── */}
+        {showLists && (
         <section
           className="report-section-list event-list"
           data-testid="section-monitoring-list"
@@ -1333,10 +1418,12 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
             captionPrefix="Monitoring full event list"
             eventTypeColumns={data.eventTypeColumns}
           />
-          <PageFooter {...footerBase} pageNum={6} />
+          <PageFooter {...footerBase} pageNum={listPageOffset + 2} />
         </section>
+        )}
 
         {/* ── Section 4b: Patrol List — full list (portrait) ──────────────── */}
+        {showLists && (
         <section
           className="report-section-list"
           data-testid="section-patrol-list-list"
@@ -1355,10 +1442,12 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
             patrols={data.charts.patrolList.breakdown}
             caption="Full patrol list"
           />
-          <PageFooter {...footerBase} pageNum={7} />
+          <PageFooter {...footerBase} pageNum={listPageOffset + 3} />
         </section>
+        )}
 
         {/* ── Section 5b: Events Over Time — per-type tables (landscape) ──── */}
+        {showLists && (
         <section
           className="report-section-list event-list"
           data-testid="section-events-over-time-list"
@@ -1378,8 +1467,9 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
             captionPrefix="Events over time — full event list"
             eventTypeColumns={data.eventTypeColumns}
           />
-          <PageFooter {...footerBase} pageNum={8} />
+          <PageFooter {...footerBase} pageNum={listPageOffset + 4} />
         </section>
+        )}
 
         {/* Puppeteer networkidle0 anchor. */}
         <img

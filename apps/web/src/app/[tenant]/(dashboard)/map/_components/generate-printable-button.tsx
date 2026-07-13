@@ -22,6 +22,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -43,14 +44,24 @@ export function GeneratePrintableButton() {
     useReportFilter();
   const [open, setOpen] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [splitFiles, setSplitFiles] = useState(false);
   const [feedback, setFeedback] = useState<
-    | { kind: "success"; exportId: string }
+    | { kind: "success"; exportId: string; count: number }
     | { kind: "error"; message: string }
     | null
   >(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initializedRef = useRef(false);
   const REQUEST_TIMEOUT_MS = 15000;
+  // When true, the two split-mode create.mutate calls track their own
+  // completion via per-call callbacks (see handleConfirm) — the hook-level
+  // onSuccess/onError below must stand down so a single exportMode result
+  // doesn't clobber the combined feedback message.
+  const splitTrackingRef = useRef(false);
+  const splitResultRef = useRef<{ done: number; errors: string[] }>({
+    done: 0,
+    errors: [],
+  });
 
   const templates = trpc.reportTemplate.list.useQuery(
     { limit: 50 },
@@ -98,9 +109,11 @@ export function GeneratePrintableButton() {
 
   const create = trpc.reportExport.create.useMutation({
     onSuccess: (data) => {
-      setFeedback({ kind: "success", exportId: data.id });
+      if (splitTrackingRef.current) return;
+      setFeedback({ kind: "success", exportId: data.id, count: 1 });
     },
     onError: (err) => {
+      if (splitTrackingRef.current) return;
       setFeedback({ kind: "error", message: err.message });
     },
   });
@@ -132,34 +145,84 @@ export function GeneratePrintableButton() {
 
     const isRegion = selectedTemplateId.startsWith(REGION_PREFIX);
 
-    create.mutate(
-      {
-        reportType: "report_map",
-        paperSize: "A4",
-        paramsJson: isRegion
-          ? {
-              // Region reports cover the whole province — no templateId, no
-              // municipality/zone scope, ignoring the live map filter.
-              province: selectedTemplateId.slice(REGION_PREFIX.length),
-              from: from.toISOString(),
-              to: to.toISOString(),
-            }
-          : {
-              templateId: selectedTemplateId,
-              from: from.toISOString(),
-              to: to.toISOString(),
-              ...(municipalityId !== null ? { municipalityId } : {}),
-              ...(protectedZoneId !== null ? { protectedZoneId } : {}),
-              ...(province !== null ? { province } : {}),
-              ...(includeChildren ? { includeChildren } : {}),
-            },
-      },
-      {
-        onSettled: () => {
-          clearRequestTimeout();
+    // Base scope — identical for both the single-file and split-file paths.
+    // exportMode is orthogonal to scope (region vs template) and is only
+    // added below when splitFiles is on.
+    const baseParams = isRegion
+      ? {
+          // Region reports cover the whole province — no templateId, no
+          // municipality/zone scope, ignoring the live map filter.
+          province: selectedTemplateId.slice(REGION_PREFIX.length),
+          from: from.toISOString(),
+          to: to.toISOString(),
+        }
+      : {
+          templateId: selectedTemplateId,
+          from: from.toISOString(),
+          to: to.toISOString(),
+          ...(municipalityId !== null ? { municipalityId } : {}),
+          ...(protectedZoneId !== null ? { protectedZoneId } : {}),
+          ...(province !== null ? { province } : {}),
+          ...(includeChildren ? { includeChildren } : {}),
+        };
+
+    if (!splitFiles) {
+      // Unchanged single-file path: no exportMode key at all — the server
+      // defaults paramsJson.exportMode to "combined".
+      create.mutate(
+        {
+          reportType: "report_map",
+          paperSize: "A4",
+          paramsJson: baseParams,
         },
-      },
-    );
+        {
+          onSettled: () => {
+            clearRequestTimeout();
+          },
+        },
+      );
+      return;
+    }
+
+    // Split path: fire two exports (charts-only + lists-only) sharing the
+    // same scope. Tracked via splitResultRef/splitTrackingRef rather than
+    // the hook-level onSuccess/onError, so a single exportMode's result
+    // doesn't prematurely overwrite the combined feedback message.
+    splitTrackingRef.current = true;
+    splitResultRef.current = { done: 0, errors: [] };
+
+    const finalizeSplit = () => {
+      if (splitResultRef.current.done < 2) return;
+      splitTrackingRef.current = false;
+      clearRequestTimeout();
+      const { errors } = splitResultRef.current;
+      if (errors.length > 0) {
+        setFeedback({ kind: "error", message: errors[0] as string });
+      } else {
+        setFeedback({ kind: "success", exportId: "split", count: 2 });
+      }
+    };
+
+    (["charts", "lists"] as const).forEach((exportMode) => {
+      create.mutate(
+        {
+          reportType: "report_map",
+          paperSize: "A4",
+          paramsJson: { ...baseParams, exportMode },
+        },
+        {
+          onSuccess: () => {
+            splitResultRef.current.done += 1;
+            finalizeSplit();
+          },
+          onError: (err) => {
+            splitResultRef.current.done += 1;
+            splitResultRef.current.errors.push(err.message);
+            finalizeSplit();
+          },
+        },
+      );
+    });
   }
 
   function handleClose() {
@@ -167,6 +230,8 @@ export function GeneratePrintableButton() {
     setOpen(false);
     setFeedback(null);
     setSelectedTemplateId("");
+    setSplitFiles(false);
+    splitTrackingRef.current = false;
     create.reset();
   }
 
@@ -216,7 +281,9 @@ export function GeneratePrintableButton() {
 
         {feedback?.kind === "success" ? (
           <p className="text-sm text-emerald-600 dark:text-emerald-400">
-            Export queued (id: {feedback.exportId}).{" "}
+            {feedback.count === 2
+              ? "2 report exports queued (Summary & Charts + Detailed Event Lists)."
+              : `Export queued (id: ${feedback.exportId}).`}{" "}
             <Link
               href={tenantHref(tenant, "/exports")}
               className="underline underline-offset-4"
@@ -267,6 +334,28 @@ export function GeneratePrintableButton() {
                   </>
                 )}
               </select>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <Checkbox
+                id="split-files"
+                data-testid="split-files-checkbox"
+                checked={splitFiles}
+                onCheckedChange={(checked) => { setSplitFiles(checked === true); }}
+                aria-describedby="split-files-hint"
+                className="mt-0.5"
+              />
+              <div className="grid gap-0.5 leading-none">
+                <Label htmlFor="split-files" className="cursor-pointer">
+                  Split charts and detailed lists into separate files
+                </Label>
+                <p
+                  id="split-files-hint"
+                  className="text-xs text-muted-foreground"
+                >
+                  Creates two downloadable files instead of one.
+                </p>
+              </div>
             </div>
           </div>
         )}

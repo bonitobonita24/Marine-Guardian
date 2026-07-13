@@ -180,6 +180,27 @@ describe("parseReportMapParams", () => {
     expect(out.from).toBeUndefined();
     expect(out.to).toBeUndefined();
   });
+
+  // ── exportMode (2026-07-13 export-mode split) ────────────────────────────
+
+  it("leaves exportMode undefined when absent — caller applies the combined default", () => {
+    expect(parseReportMapParams({}).exportMode).toBeUndefined();
+  });
+
+  it("echoes a recognised exportMode value verbatim", () => {
+    expect(parseReportMapParams({ exportMode: "charts" }).exportMode).toBe("charts");
+    expect(parseReportMapParams({ exportMode: "lists" }).exportMode).toBe("lists");
+    expect(parseReportMapParams({ exportMode: "combined" }).exportMode).toBe(
+      "combined",
+    );
+  });
+
+  it("drops an unrecognised exportMode value", () => {
+    expect(
+      parseReportMapParams({ exportMode: "everything" }).exportMode,
+    ).toBeUndefined();
+    expect(parseReportMapParams({ exportMode: 42 }).exportMode).toBeUndefined();
+  });
 });
 
 // ─── getReportMapReportData ───────────────────────────────────────────────────
@@ -983,6 +1004,41 @@ describe("getReportMapReportData", () => {
     expect(
       vi.mocked(prisma.patrol.findMany).mock.calls[0]?.[0]?.where,
     ).toMatchObject({ municipalityId: "muni_a" });
+  });
+
+  // ── exportMode (2026-07-13 export-mode split) ────────────────────────────
+
+  it("defaults exportMode to combined when paramsJson has no exportMode", async () => {
+    setupHappyPath();
+    const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(result).not.toBeNull();
+    if (!result) return;
+    expect(result.exportMode).toBe("combined");
+  });
+
+  it("echoes exportMode charts/lists from paramsJson", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValue(TENANT_ROW as never);
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValue({
+      ...EXPORT_ROW,
+      paramsJson: { ...EXPORT_ROW.paramsJson, exportMode: "charts" },
+    } as never);
+    vi.mocked(prisma.reportTemplate.findFirst).mockResolvedValue(TEMPLATE_ROW as never);
+    vi.mocked(buildEventBreakdownWithCoords).mockResolvedValue(EMPTY_BREAKDOWN);
+    vi.mocked(prisma.event.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.municipality.findUnique).mockResolvedValue(null);
+    vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
+
+    const chartsResult = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(chartsResult?.exportMode).toBe("charts");
+
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValue({
+      ...EXPORT_ROW,
+      paramsJson: { ...EXPORT_ROW.paramsJson, exportMode: "lists" },
+    } as never);
+    const listsResult = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(listsResult?.exportMode).toBe("lists");
   });
 });
 
