@@ -19,7 +19,7 @@
 
 import { PrismaClient } from "@prisma/client";
 import {
-  assignMunicipalityToPoint,
+  assignMunicipalityByContainment,
   assignZonesToPoint,
   assignZonesToTrack,
   classifyPointTerrain,
@@ -76,7 +76,7 @@ async function main() {
         continue;
       }
       const point = { lat: event.locationLat, lon: event.locationLon };
-      const municipalityId = assignMunicipalityToPoint(point, municipalities);
+      const municipalityId = assignMunicipalityByContainment(point, municipalities);
       const zoneIds = assignZonesToPoint(point, zones);
       const terrain = classifyPointTerrain(point, municipalities);
 
@@ -122,7 +122,7 @@ async function main() {
         continue;
       }
       const point = { lat: patrol.startLocationLat, lon: patrol.startLocationLon };
-      const municipalityId = assignMunicipalityToPoint(point, municipalities);
+      const municipalityId = assignMunicipalityByContainment(point, municipalities);
 
       const zoneIds = patrol.track?.trackGeojson
         ? assignZonesToTrack(patrol.track.trackGeojson, zones)

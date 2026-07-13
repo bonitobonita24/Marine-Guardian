@@ -239,6 +239,11 @@ export function assignMunicipalityToPoint(
 }
 
 /**
+ * ⚠ NOT FOR ATTRIBUTION. Use `assignMunicipalityByContainment` instead — the
+ * governing principle (owner 2026-07-13) is boundaries-only: an out-of-bounds
+ * point must stay UNATTRIBUTED, never snapped to the nearest municipality. Kept
+ * only for legacy/non-attribution callers and tests.
+ *
  * Assign a geographic point to a municipality with NO distance cap.
  *
  * Three-stage attribution:
@@ -402,6 +407,10 @@ function extractTrackCoordinates(trackGeojson: unknown): [number, number][] {
 }
 
 /**
+ * ⚠ NOT FOR ATTRIBUTION. Use `assignMunicipalityToDominantTrackByContainment`
+ * — boundaries-only governing principle (owner 2026-07-13): a wholly-offshore
+ * track stays UNATTRIBUTED, never snapped to the nearest LGU. Kept for legacy callers/tests.
+ *
  * Assign a patrol track to the municipality where the DOMINANT share of the
  * track's GPS points fall — not just the start point.
  *
@@ -461,6 +470,93 @@ export function assignMunicipalityToDominantTrack(
       fallbackPoint ?? (firstPoint ? { lat: firstPoint[1], lon: firstPoint[0] } : undefined);
     return representativePoint ? nearestMunicipality(representativePoint, municipalities) : null;
   }
+
+  let dominantId: string | null = null;
+  let dominantCount = -1;
+  let dominantFirstHit = Infinity;
+  for (const [municipalityId, count] of tallies) {
+    const firstHit = firstHitIndex.get(municipalityId) ?? Infinity;
+    if (
+      count > dominantCount ||
+      (count === dominantCount && firstHit < dominantFirstHit)
+    ) {
+      dominantId = municipalityId;
+      dominantCount = count;
+      dominantFirstHit = firstHit;
+    }
+  }
+
+  return dominantId;
+}
+
+// ── Layer 1c — Boundary-ONLY attribution (governing principle) ──────────────
+// GOVERNING PRINCIPLE (owner 2026-07-13): municipality attribution follows ONLY
+// the boundaries we hold — pure point-in-polygon containment, nothing more. A
+// coordinate outside every land AND water polygon is UNATTRIBUTED (open/national
+// waters or bad coords); it is NEVER snapped to the "nearest" municipality.
+// These functions replace the nearest-based assigners
+// (assignMunicipalityToPoint / assignMunicipalityToPointOrNearest /
+// assignMunicipalityToDominantTrack) for ALL event + patrol attribution.
+
+/**
+ * Assign a geographic point to a municipality by CONTAINMENT ONLY.
+ *
+ * 1. Inside a municipality's LAND polygon → that municipality.
+ * 2. Else inside a municipality's WATER polygon (the boundaries we hold) →
+ *    that municipality (nearest-coast tie-break for overlapping waters, per
+ *    `containingWaterMunicipality`).
+ * 3. Else → null. No distance/nearest fallback — jurisdiction is a boundary
+ *    fact, not a proximity guess.
+ *
+ * @param point - { lat, lon } — WGS-84 decimal degrees
+ * @param municipalities - array loaded from DB (one per tenant)
+ * @returns municipality id, or null when the point is outside every boundary
+ */
+export function assignMunicipalityByContainment(
+  point: { lat: number; lon: number },
+  municipalities: MunicipalityForAssignment[],
+): string | null {
+  const tPoint = turfPoint([point.lon, point.lat]);
+  const land = containingMunicipality(tPoint, municipalities);
+  if (land != null) return land;
+  return containingWaterMunicipality(tPoint, municipalities);
+}
+
+/**
+ * Assign a patrol track to the municipality holding the DOMINANT share of its
+ * GPS points, by CONTAINMENT ONLY (governing principle).
+ *
+ * Same dominant-by-tally + earliest-first-hit tie-break as
+ * `assignMunicipalityToDominantTrack`, but each track point is classified with
+ * `assignMunicipalityByContainment` (land ∪ water polygon, no distance) and
+ * there is NO nearest-municipality fallback: a track whose points are all
+ * outside every boundary (wholly offshore / bad coords) returns null instead
+ * of being snapped to the nearest coastal LGU.
+ *
+ * @param trackGeojson - raw GeoJSON from PatrolTrack.trackGeojson
+ * @param municipalities - array loaded from DB (one per tenant)
+ * @returns municipality id, or null when no track point falls inside any boundary
+ */
+export function assignMunicipalityToDominantTrackByContainment(
+  trackGeojson: unknown,
+  municipalities: MunicipalityForAssignment[],
+): string | null {
+  const points = extractTrackCoordinates(trackGeojson);
+
+  const tallies = new Map<string, number>();
+  const firstHitIndex = new Map<string, number>();
+
+  points.forEach(([lon, lat], index) => {
+    const municipalityId = assignMunicipalityByContainment({ lat, lon }, municipalities);
+    if (municipalityId == null) return;
+    tallies.set(municipalityId, (tallies.get(municipalityId) ?? 0) + 1);
+    if (!firstHitIndex.has(municipalityId)) {
+      firstHitIndex.set(municipalityId, index);
+    }
+  });
+
+  // Boundaries only — no nearest fallback. Null when nothing is contained.
+  if (tallies.size === 0) return null;
 
   let dominantId: string | null = null;
   let dominantCount = -1;

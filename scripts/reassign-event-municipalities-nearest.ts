@@ -28,7 +28,7 @@
  */
 
 import { PrismaClient } from "@prisma/client";
-import { assignMunicipalityToPointOrNearest } from "../packages/shared/src/lib/municipality-assignment/index.js";
+import { assignMunicipalityByContainment } from "../packages/shared/src/lib/municipality-assignment/index.js";
 
 const prisma = new PrismaClient();
 
@@ -83,7 +83,7 @@ async function main() {
       }
 
       const point = { lat: event.locationLat as number, lon: event.locationLon as number };
-      const municipalityId = assignMunicipalityToPointOrNearest(point, municipalities);
+      const municipalityId = assignMunicipalityByContainment(point, municipalities);
 
       if (municipalityId === event.municipalityId) {
         unchanged++;

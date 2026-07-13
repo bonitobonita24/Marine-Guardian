@@ -11,6 +11,8 @@ import {
   assignMunicipalityToPoint,
   assignMunicipalityToPointOrNearest,
   assignMunicipalityToDominantTrack,
+  assignMunicipalityByContainment,
+  assignMunicipalityToDominantTrackByContainment,
   assignZonesToPoint,
   classifyPointTerrain,
   classifyTrackTerrain,
@@ -923,5 +925,150 @@ describe("water-polygon overlap resolves by nearest coastline (equidistance)", (
     expect(assignMunicipalityToPointOrNearest(nearEast, [eastMuni, westMuni])).toBe("muni-east");
     expect(assignMunicipalityToPointOrNearest(nearWest, [westMuni, eastMuni])).toBe("muni-west");
     expect(assignMunicipalityToPointOrNearest(nearWest, [eastMuni, westMuni])).toBe("muni-west");
+  });
+});
+
+// ── Governing principle: boundaries-only attribution (owner 2026-07-13) ──────
+// Attribution follows ONLY the boundaries we hold (pure point-in-polygon
+// containment). A coordinate outside every land AND water polygon is
+// UNATTRIBUTED — never snapped to the nearest municipality.
+
+// Calapan land (lon 121.10–121.30) + an adjacent water box just west of it
+// (lon 120.90–121.10). A point west of 120.90 is outside BOTH.
+const calapanLandAndWater: MunicipalityForAssignment = {
+  id: "muni-calapan",
+  slug: "calapan-city",
+  name: "Calapan City",
+  boundaryGeojson: CALAPAN_GEOJSON,
+  waterGeojson: {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        properties: {},
+        geometry: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [120.9, 13.25],
+              [121.1, 13.25],
+              [121.1, 13.55],
+              [120.9, 13.55],
+              [120.9, 13.25],
+            ],
+          ],
+        },
+      },
+    ],
+  },
+};
+
+describe("assignMunicipalityByContainment", () => {
+  const insideLand = { lat: 13.4, lon: 121.2 }; // inside land rectangle
+  const insideWaterOnly = { lat: 13.4, lon: 121.0 }; // outside land, inside water box
+  const offshore = { lat: 13.4, lon: 120.5 }; // west of water box — outside BOTH
+
+  it("attributes a point inside the land polygon", () => {
+    expect(assignMunicipalityByContainment(insideLand, [calapanLandAndWater])).toBe("muni-calapan");
+  });
+
+  it("attributes a point inside the water polygon (the boundaries we hold)", () => {
+    expect(assignMunicipalityByContainment(insideWaterOnly, [calapanLandAndWater])).toBe("muni-calapan");
+  });
+
+  it("returns null for a point outside every land AND water boundary", () => {
+    expect(assignMunicipalityByContainment(offshore, [calapanLandAndWater])).toBeNull();
+  });
+
+  it("returns null for the open ocean far from any boundary", () => {
+    expect(assignMunicipalityByContainment({ lat: 14.0, lon: 118.0 }, [calapanLandAndWater])).toBeNull();
+  });
+
+  it("returns null when the municipality list is empty", () => {
+    expect(assignMunicipalityByContainment(insideLand, [])).toBeNull();
+  });
+
+  it("GOVERNING PRINCIPLE: an out-of-bounds point is UNATTRIBUTED, unlike the deprecated nearest snap", () => {
+    // Same offshore point: containment = null; the old uncapped-nearest assigner
+    // would fabricate an attribution to the nearest coastal municipality.
+    expect(assignMunicipalityByContainment(offshore, [calapanLandAndWater])).toBeNull();
+    expect(assignMunicipalityToPointOrNearest(offshore, [calapanLandAndWater])).toBe("muni-calapan");
+  });
+});
+
+describe("assignMunicipalityToDominantTrackByContainment", () => {
+  const trackInLand = {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        properties: {},
+        geometry: {
+          type: "LineString",
+          coordinates: [
+            [121.15, 13.3],
+            [121.2, 13.4],
+            [121.25, 13.45],
+          ],
+        },
+      },
+    ],
+  };
+  const trackOffshore = {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        properties: {},
+        geometry: {
+          type: "LineString",
+          coordinates: [
+            [120.5, 13.3],
+            [120.4, 13.4],
+            [120.3, 13.45],
+          ],
+        },
+      },
+    ],
+  };
+  const trackMostlyLand = {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        properties: {},
+        geometry: {
+          type: "LineString",
+          coordinates: [
+            [121.2, 13.4], // land
+            [121.22, 13.41], // land
+            [120.5, 13.3], // offshore — ignored (not contained)
+          ],
+        },
+      },
+    ],
+  };
+
+  it("attributes a track that lies inside a municipality", () => {
+    expect(assignMunicipalityToDominantTrackByContainment(trackInLand, [calapanLandAndWater])).toBe("muni-calapan");
+  });
+
+  it("takes the DOMINANT contained municipality, ignoring out-of-bounds points", () => {
+    expect(assignMunicipalityToDominantTrackByContainment(trackMostlyLand, [calapanLandAndWater])).toBe("muni-calapan");
+  });
+
+  it("GOVERNING PRINCIPLE: a wholly-offshore track is UNATTRIBUTED (no nearest fallback)", () => {
+    expect(assignMunicipalityToDominantTrackByContainment(trackOffshore, [calapanLandAndWater])).toBeNull();
+    // Contrast: the deprecated dominant-track assigner snaps it to the nearest LGU.
+    expect(assignMunicipalityToDominantTrack(trackOffshore, [calapanLandAndWater])).toBe("muni-calapan");
+  });
+
+  it("returns null for an empty / unparseable track", () => {
+    expect(
+      assignMunicipalityToDominantTrackByContainment(
+        { type: "FeatureCollection", features: [] },
+        [calapanLandAndWater],
+      ),
+    ).toBeNull();
   });
 });

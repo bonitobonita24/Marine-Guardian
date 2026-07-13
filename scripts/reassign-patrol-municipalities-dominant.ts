@@ -24,7 +24,10 @@
  */
 
 import { PrismaClient } from "@prisma/client";
-import { assignMunicipalityToDominantTrack } from "../packages/shared/src/lib/municipality-assignment/index.js";
+import {
+  assignMunicipalityToDominantTrackByContainment,
+  assignMunicipalityByContainment,
+} from "../packages/shared/src/lib/municipality-assignment/index.js";
 
 const prisma = new PrismaClient();
 
@@ -81,15 +84,19 @@ async function main() {
         continue;
       }
 
-      const fallbackPoint = hasStartLocation
-        ? { lat: patrol.startLocationLat as number, lon: patrol.startLocationLon as number }
-        : undefined;
-
-      const municipalityId = assignMunicipalityToDominantTrack(
-        trackGeojson,
-        municipalities,
-        fallbackPoint,
-      );
+      // Boundaries-only (governing principle): track → dominant containment;
+      // no track but a start point → start-point containment; else null. No
+      // nearest fallback — a wholly-offshore patrol stays UNATTRIBUTED.
+      const municipalityId =
+        trackGeojson != null
+          ? assignMunicipalityToDominantTrackByContainment(trackGeojson, municipalities)
+          : assignMunicipalityByContainment(
+              {
+                lat: patrol.startLocationLat as number,
+                lon: patrol.startLocationLon as number,
+              },
+              municipalities,
+            );
 
       if (municipalityId === patrol.municipalityId) {
         unchanged++;

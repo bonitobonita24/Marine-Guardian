@@ -24,8 +24,8 @@ import { platformPrisma } from "@marine-guardian/db";
 import type { MunicipalityAssignJobPayload } from "../queues/types";
 import { validateTenantContext } from "../workers/base-worker";
 import {
-  assignMunicipalityToPointOrNearest,
-  assignMunicipalityToDominantTrack,
+  assignMunicipalityByContainment,
+  assignMunicipalityToDominantTrackByContainment,
   assignZonesToPoint,
   assignZonesToTrack,
   classifyPointTerrain,
@@ -73,7 +73,8 @@ export async function processMunicipalityAssign(
     }
 
     const point = { lat: event.locationLat, lon: event.locationLon };
-    const municipalityId = assignMunicipalityToPointOrNearest(point, municipalities);
+    // Boundaries-only attribution (governing principle): containment, no nearest.
+    const municipalityId = assignMunicipalityByContainment(point, municipalities);
     const zoneIds = assignZonesToPoint(point, zones);
     const terrain = classifyPointTerrain(point, municipalities);
 
@@ -119,11 +120,12 @@ export async function processMunicipalityAssign(
     ? { lat: patrol.startLocationLat as number, lon: patrol.startLocationLon as number }
     : undefined;
 
-  // Layer 1 — dominant track location (falls back to the nearest municipality
-  // when there's no usable track or the track yields no in-municipality points).
+  // Layer 1 — dominant track location by CONTAINMENT ONLY (governing principle):
+  // an offshore/out-of-bounds track or point stays UNATTRIBUTED (null), never
+  // snapped to the nearest municipality.
   const municipalityId = trackGeojson != null
-    ? assignMunicipalityToDominantTrack(trackGeojson, municipalities, point)
-    : assignMunicipalityToPointOrNearest(point as { lat: number; lon: number }, municipalities);
+    ? assignMunicipalityToDominantTrackByContainment(trackGeojson, municipalities)
+    : assignMunicipalityByContainment(point as { lat: number; lon: number }, municipalities);
 
   // Layer 2 — use track if materialised, fallback to single point
   const zoneIds = trackGeojson != null
