@@ -53,15 +53,6 @@ export function GeneratePrintableButton() {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initializedRef = useRef(false);
   const REQUEST_TIMEOUT_MS = 15000;
-  // When true, the two split-mode create.mutate calls track their own
-  // completion via per-call callbacks (see handleConfirm) — the hook-level
-  // onSuccess/onError below must stand down so a single exportMode result
-  // doesn't clobber the combined feedback message.
-  const splitTrackingRef = useRef(false);
-  const splitResultRef = useRef<{ done: number; errors: string[] }>({
-    done: 0,
-    errors: [],
-  });
 
   const templates = trpc.reportTemplate.list.useQuery(
     { limit: 50 },
@@ -107,16 +98,13 @@ export function GeneratePrintableButton() {
     }
   }, [open, templates.data]);
 
-  const create = trpc.reportExport.create.useMutation({
-    onSuccess: (data) => {
-      if (splitTrackingRef.current) return;
-      setFeedback({ kind: "success", exportId: data.id, count: 1 });
-    },
-    onError: (err) => {
-      if (splitTrackingRef.current) return;
-      setFeedback({ kind: "error", message: err.message });
-    },
-  });
+  // No hook-level onSuccess/onError: feedback is set explicitly in
+  // handleConfirm via mutateAsync so the split path (two concurrent creates)
+  // reports reliably. Firing two create.mutate() calls on one useMutation and
+  // counting their per-call callbacks is unreliable — react-query's single
+  // observer does not deliver both callbacks, so the confirmation never showed
+  // even though both exports were created (2026-07-13 fix).
+  const create = trpc.reportExport.create.useMutation();
 
   function clearRequestTimeout() {
     if (timeoutRef.current !== null) {
@@ -129,7 +117,7 @@ export function GeneratePrintableButton() {
   // being called on an unmounted component if the user navigates away.
   useEffect(() => clearRequestTimeout, []);
 
-  function handleConfirm() {
+  async function handleConfirm() {
     setFeedback(null);
     clearRequestTimeout();
     timeoutRef.current = setTimeout(() => {
@@ -139,7 +127,6 @@ export function GeneratePrintableButton() {
           message:
             "The report service is taking too long to respond. Please try again in a moment.",
         });
-        create.reset();
       }
     }, REQUEST_TIMEOUT_MS);
 
@@ -166,63 +153,58 @@ export function GeneratePrintableButton() {
           ...(includeChildren ? { includeChildren } : {}),
         };
 
-    if (!splitFiles) {
-      // Unchanged single-file path: no exportMode key at all — the server
-      // defaults paramsJson.exportMode to "combined".
-      create.mutate(
-        {
+    try {
+      if (!splitFiles) {
+        // Single-file path: no exportMode key — the server defaults
+        // paramsJson.exportMode to "combined".
+        const data = await create.mutateAsync({
           reportType: "report_map",
           paperSize: "A4",
           paramsJson: baseParams,
-        },
-        {
-          onSettled: () => {
-            clearRequestTimeout();
-          },
-        },
+        });
+        clearRequestTimeout();
+        setFeedback({ kind: "success", exportId: data.id, count: 1 });
+        return;
+      }
+
+      // Split path: fire two exports (charts-only + lists-only) sharing the
+      // same scope. mutateAsync returns an independent promise per call, so
+      // Promise.allSettled reliably resolves after BOTH complete — avoiding
+      // the single-observer callback race that dropped the confirmation.
+      const results = await Promise.allSettled(
+        (["charts", "lists"] as const).map((exportMode) =>
+          create.mutateAsync({
+            reportType: "report_map",
+            paperSize: "A4",
+            paramsJson: { ...baseParams, exportMode },
+          }),
+        ),
       );
-      return;
-    }
-
-    // Split path: fire two exports (charts-only + lists-only) sharing the
-    // same scope. Tracked via splitResultRef/splitTrackingRef rather than
-    // the hook-level onSuccess/onError, so a single exportMode's result
-    // doesn't prematurely overwrite the combined feedback message.
-    splitTrackingRef.current = true;
-    splitResultRef.current = { done: 0, errors: [] };
-
-    const finalizeSplit = () => {
-      if (splitResultRef.current.done < 2) return;
-      splitTrackingRef.current = false;
       clearRequestTimeout();
-      const { errors } = splitResultRef.current;
-      if (errors.length > 0) {
-        setFeedback({ kind: "error", message: errors[0] as string });
+      const rejected = results.find(
+        (r): r is PromiseRejectedResult => r.status === "rejected",
+      );
+      if (rejected) {
+        setFeedback({
+          kind: "error",
+          message:
+            rejected.reason instanceof Error
+              ? rejected.reason.message
+              : "Failed to queue one of the report exports. Please try again.",
+        });
       } else {
         setFeedback({ kind: "success", exportId: "split", count: 2 });
       }
-    };
-
-    (["charts", "lists"] as const).forEach((exportMode) => {
-      create.mutate(
-        {
-          reportType: "report_map",
-          paperSize: "A4",
-          paramsJson: { ...baseParams, exportMode },
-        },
-        {
-          onSuccess: () => {
-            splitResultRef.current.done += 1;
-            finalizeSplit();
-          },
-          onError: (err) => {
-            splitResultRef.current.done += 1;
-            splitResultRef.current.errors.push(err.message);
-            finalizeSplit();
-          },
-        },
-      );
-    });
+    } catch (err) {
+      clearRequestTimeout();
+      setFeedback({
+        kind: "error",
+        message:
+          err instanceof Error
+            ? err.message
+            : "Failed to queue the report export. Please try again.",
+      });
+    }
   }
 
   function handleClose() {
@@ -231,7 +213,6 @@ export function GeneratePrintableButton() {
     setFeedback(null);
     setSelectedTemplateId("");
     setSplitFiles(false);
-    splitTrackingRef.current = false;
     create.reset();
   }
 
@@ -377,7 +358,7 @@ export function GeneratePrintableButton() {
           {feedback?.kind !== "success" && (
             <Button
               data-testid="generate-printable-confirm"
-              onClick={handleConfirm}
+              onClick={() => void handleConfirm()}
               disabled={confirmDisabled}
               aria-busy={create.isPending}
             >

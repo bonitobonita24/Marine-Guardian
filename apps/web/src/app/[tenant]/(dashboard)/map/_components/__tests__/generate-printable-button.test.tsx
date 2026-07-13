@@ -24,7 +24,12 @@ const { stubs } = vi.hoisted(() => {
 // Region-mode tests (2026-07-13) need to observe exactly what paramsJson was
 // passed to reportExport.create.mutate — captured here so both the mock and
 // the assertions can share it without re-wiring vi.mock per test.
-const { mutateSpy } = vi.hoisted(() => ({ mutateSpy: vi.fn() }));
+// mutateSpy backs create.mutateAsync (the component now uses mutateAsync so the
+// split path's two concurrent creates resolve reliably). It returns a resolved
+// promise with an {id} so the single-file await path can read data.id.
+const { mutateSpy } = vi.hoisted(() => ({
+  mutateSpy: vi.fn().mockReturnValue(Promise.resolve({ id: "export-test" })),
+}));
 
 // Path-based tenancy: the /exports link reads the tenant slug via useParams.
 vi.mock("next/navigation", () => ({
@@ -97,6 +102,7 @@ vi.mock("@/lib/trpc/client", () => ({
           onError?: (err: { message: string }) => void;
         }) => ({
           mutate: mutateSpy,
+          mutateAsync: mutateSpy,
           isPending: false,
           reset: vi.fn(),
           onSuccessCb: opts?.onSuccess,
