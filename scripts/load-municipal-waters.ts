@@ -17,6 +17,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PrismaClient } from "@prisma/client";
+import { shouldSkipManualBoundary } from "@marine-guardian/db";
 import { MUNICIPALITIES } from "../apps/web/src/data/coverage/coverage-areas";
 import { importOfficialBoundaries } from "../apps/web/src/server/boundaries/import-official-boundaries";
 
@@ -26,10 +27,16 @@ const LABEL = "median-line regen 2026-07-13 (non-overlapping, RA 7160/RA 8550)";
 
 const tenantIdx = process.argv.indexOf("--tenant");
 const TENANT_ID = tenantIdx !== -1 ? process.argv[tenantIdx + 1] : undefined;
+const FORCE = process.argv.includes("--force");
 
 const prisma = new PrismaClient();
 
 async function main(): Promise<void> {
+  if (FORCE) {
+    console.log(
+      "⚠  --force passed: manually-uploaded water boundaries WILL be overwritten by this run.",
+    );
+  }
   const tenants = await prisma.tenant.findMany({
     where: TENANT_ID ? { id: TENANT_ID } : {},
     select: { id: true, slug: true },
@@ -51,15 +58,28 @@ async function main(): Promise<void> {
     console.log(`\n[load-municipal-waters] Tenant: ${tenant.slug}`);
     const munis = await prisma.municipality.findMany({
       where: { tenantId: tenant.id },
-      select: { id: true, slug: true, name: true, waterGeojson: true },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        waterGeojson: true,
+        landBoundaryManual: true,
+        waterBoundaryManual: true,
+      },
     });
 
     let updated = 0;
     let missing = 0;
+    let skippedManual = 0;
     for (const muni of munis) {
       const newWater = waterBySlug.get(muni.slug);
       if (newWater == null) {
         missing++;
+        continue;
+      }
+      if (shouldSkipManualBoundary(muni, "water", FORCE)) {
+        console.log(`  ⏭  skipped (manual water boundary): ${muni.slug}`);
+        skippedManual++;
         continue;
       }
       await prisma.$transaction([
@@ -79,7 +99,9 @@ async function main(): Promise<void> {
       ]);
       updated++;
     }
-    console.log(`  ${updated} water polygons replaced (snapshotted), ${missing} without a regenerated file.`);
+    console.log(
+      `  ${updated} water polygons replaced (snapshotted), ${missing} without a regenerated file, ${skippedManual} skipped (manual water boundary).`,
+    );
 
     // Refresh the official AreaBoundary overlay rows (source="official",
     // "official:<slug>:water") from the just-updated Municipality.waterGeojson,

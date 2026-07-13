@@ -24,7 +24,7 @@ import {
   slugifyMpaName,
   MpaGeometryError,
 } from "@/server/boundaries/mpa-geojson";
-import { fanOutAreaRederive } from "./areaBoundary";
+import { fanOutAreaRederive, fanOutMunicipalityReassign } from "./areaBoundary";
 
 // Canonical display order = owner's province-grouped list (coverage-areas.ts).
 // Map each municipality slug → its registry index; anything not in the registry
@@ -322,6 +322,7 @@ export const municipalityRouter = router({
             uploadedAt: new Date().toISOString(),
             uploadedByUserId: userId,
           }) as object,
+          landBoundaryManual: true,
         },
         select: { id: true, slug: true, name: true },
       });
@@ -334,6 +335,11 @@ export const municipalityRouter = router({
       // tenant — the municipality universe changed, so previously-derived
       // areaBoundaryId assignments may now be stale.
       const fanOut = await fanOutAreaRederive(tenantId, userId);
+
+      // 4b. Fan out municipality re-attribution — a brand-new municipality
+      // means some Events/Patrols may now belong to it instead of whatever
+      // municipality previously contained (or nearest-matched) that point.
+      const municipalityFanOut = await fanOutMunicipalityReassign(tenantId, userId);
 
       // 5. Audit.
       await prisma.auditLog.create({
@@ -349,6 +355,7 @@ export const municipalityRouter = router({
             province: input.province,
             vertexCount: normalized.vertexCount,
             enqueuedJobs: fanOut.enqueued,
+            municipalityReassignJobs: municipalityFanOut.enqueued,
           },
         },
       });
@@ -358,6 +365,7 @@ export const municipalityRouter = router({
         name: muni.name,
         province: input.province,
         enqueuedJobs: fanOut.enqueued,
+        municipalityReassignJobs: municipalityFanOut.enqueued,
       };
     }),
 
@@ -439,8 +447,8 @@ export const municipalityRouter = router({
           where: { id: municipality.id },
           data:
             input.kind === "land"
-              ? { boundaryGeojson: newGeojson }
-              : { waterGeojson: newGeojson },
+              ? { boundaryGeojson: newGeojson, landBoundaryManual: true }
+              : { waterGeojson: newGeojson, waterBoundaryManual: true },
         });
       });
 
@@ -453,6 +461,13 @@ export const municipalityRouter = router({
       // derived areaBoundaryId assignments may now be stale. Reuses the same
       // helper as areaBoundary.rebuild.
       const fanOut = await fanOutAreaRederive(tenantId, userId);
+
+      // 5b. Fan out municipality re-attribution — the boundary (land OR
+      // water) that determines which municipality a point/track falls
+      // inside just changed, so previously-derived `municipalityId`
+      // assignments on Event/Patrol rows may now be wrong (this is what
+      // was missing before — only areaBoundaryId was recomputed).
+      const municipalityFanOut = await fanOutMunicipalityReassign(tenantId, userId);
 
       // 6. Audit.
       await prisma.auditLog.create({
@@ -467,6 +482,7 @@ export const municipalityRouter = router({
             municipalitySlug: municipality.slug,
             kind: input.kind,
             vertexCount: normalized.vertexCount,
+            municipalityReassignJobs: municipalityFanOut.enqueued,
           },
         },
       });
@@ -475,6 +491,7 @@ export const municipalityRouter = router({
         municipalityName: municipality.name,
         kind: input.kind,
         enqueuedJobs: fanOut.enqueued,
+        municipalityReassignJobs: municipalityFanOut.enqueued,
       };
     }),
 
@@ -632,6 +649,11 @@ export const municipalityRouter = router({
       // stale. Reuses the same helper as replaceBoundaryGeometry.
       const fanOut = await fanOutAreaRederive(tenantId, userId);
 
+      // 4b. Fan out municipality re-attribution — same reasoning as
+      // replaceBoundaryGeometry: the restored boundary changes which
+      // municipality a point/track falls inside.
+      const municipalityFanOut = await fanOutMunicipalityReassign(tenantId, userId);
+
       // 5. Audit.
       await prisma.auditLog.create({
         data: {
@@ -645,6 +667,7 @@ export const municipalityRouter = router({
             municipalitySlug: municipality.slug,
             kind,
             snapshotId: snapshot.id,
+            municipalityReassignJobs: municipalityFanOut.enqueued,
           },
         },
       });
@@ -653,6 +676,7 @@ export const municipalityRouter = router({
         municipalityName: municipality.name,
         kind,
         enqueuedJobs: fanOut.enqueued,
+        municipalityReassignJobs: municipalityFanOut.enqueued,
       };
     }),
 });

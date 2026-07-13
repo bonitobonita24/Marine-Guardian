@@ -24,14 +24,15 @@ vi.mock("@/server/boundaries/import-official-boundaries", () => ({
   importOfficialBoundaries: vi.fn().mockResolvedValue({ created: 1, updated: 34, total: 35 }),
 }));
 
-// Stub the area-rederive fan-out — not under test here.
+// Stub the area-rederive + municipality-reassign fan-outs — not under test here.
 vi.mock("../areaBoundary", () => ({
   fanOutAreaRederive: vi.fn().mockResolvedValue({ enqueued: 12 }),
+  fanOutMunicipalityReassign: vi.fn().mockResolvedValue({ enqueued: 7 }),
 }));
 
 import { prisma } from "@marine-guardian/db";
 import { importOfficialBoundaries } from "@/server/boundaries/import-official-boundaries";
-import { fanOutAreaRederive } from "../areaBoundary";
+import { fanOutAreaRederive, fanOutMunicipalityReassign } from "../areaBoundary";
 import { createCallerFactory } from "../../trpc";
 import { municipalityRouter } from "../municipality";
 
@@ -99,12 +100,15 @@ describe("municipality.createMunicipalityFromUpload", () => {
     expect(createArg?.data.name).toBe("Test Town");
     expect(createArg?.data.province).toBe("Palawan");
     expect(createArg?.data.boundaryGeojson).toBeDefined();
+    expect(createArg?.data.landBoundaryManual).toBe(true);
 
     expect(importOfficialBoundaries).toHaveBeenCalledWith(prisma, TENANT_ID, "user-123");
     expect(fanOutAreaRederive).toHaveBeenCalledWith(TENANT_ID, "user-123");
+    expect(fanOutMunicipalityReassign).toHaveBeenCalledWith(TENANT_ID, "user-123");
 
     expect(prisma.auditLog.create).toHaveBeenCalled();
     expect(res.enqueuedJobs).toBe(12);
+    expect(res.municipalityReassignJobs).toBe(7);
   });
 
   it("rejects a duplicate municipality name for the tenant (CONFLICT)", async () => {

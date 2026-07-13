@@ -19,6 +19,8 @@ export {
   enqueueAreaRederive,
   getPatrolTrackMaterializeQueue,
   enqueuePatrolTrackMaterialize,
+  getMunicipalityAssignQueue,
+  enqueueMunicipalityAssign,
   getPdfRenderQueue,
   enqueuePdfRender,
   cancelPdfRender,
@@ -35,6 +37,7 @@ export {
   type MaintenanceJobPayload,
   type AreaRederiveJobPayload,
   type PatrolTrackMaterializeJobPayload,
+  type MunicipalityAssignJobPayload,
   type PdfRenderJobPayload,
   type PptxRenderJobPayload,
 } from "./queues/index";

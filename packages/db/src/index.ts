@@ -3,6 +3,8 @@ export type { ExtendedPrismaClient } from "./client";
 export { Prisma } from "@prisma/client";
 export type { PrismaClient } from "@prisma/client";
 export { writeAuditLog } from "./helpers/audit";
+export { shouldSkipManualBoundary } from "./helpers/manual-boundary-guard";
+export type { BoundaryKind, ManualBoundaryFlags } from "./helpers/manual-boundary-guard";
 export { withTenant, setCurrentTenantId, getCurrentTenantId } from "./helpers/rls";
 export { tenantGuardExtension } from "./middleware/tenant-guard";
 export { encryptionExtension, encrypt, decrypt } from "./middleware/encryption";

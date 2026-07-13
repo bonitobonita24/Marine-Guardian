@@ -19,6 +19,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
+import { shouldSkipManualBoundary } from "../src/helpers/manual-boundary-guard";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -118,6 +119,20 @@ export async function seedMunicipalities(prisma: PrismaClient): Promise<void> {
     for (const m of municipalities) {
       const geojson = readGeojson(m.geojsonFile);
       const water = readGeojsonOptional(m.waterFile);
+
+      // Check for a pre-existing row and its manual-boundary flags BEFORE
+      // deciding what the update payload may touch — a manually-uploaded
+      // (ER/human) boundary must never be silently clobbered by this seed.
+      const existing = await prisma.municipality.findUnique({
+        where: { tenantId_slug: { tenantId: tenant.id, slug: m.id } },
+        select: { landBoundaryManual: true, waterBoundaryManual: true },
+      });
+
+      const skipLand = existing != null && shouldSkipManualBoundary(existing, "land");
+      const skipWater = existing != null && shouldSkipManualBoundary(existing, "water");
+      if (skipLand) console.log(`    ⏭  skipped land boundary (manual): ${m.id}`);
+      if (skipWater) console.log(`    ⏭  skipped water boundary (manual): ${m.id}`);
+
       const row = await prisma.municipality.upsert({
         where: { tenantId_slug: { tenantId: tenant.id, slug: m.id } },
         create: {
@@ -133,8 +148,8 @@ export async function seedMunicipalities(prisma: PrismaClient): Promise<void> {
           name: m.name,
           province: m.province,
           psgcCode: m.psgcCode,
-          boundaryGeojson: geojson,
-          ...(water !== undefined ? { waterGeojson: water } : {}),
+          ...(skipLand ? {} : { boundaryGeojson: geojson }),
+          ...(!skipWater && water !== undefined ? { waterGeojson: water } : {}),
         },
         select: { id: true, slug: true },
       });

@@ -8,7 +8,7 @@ import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
 import { adminProcedure, matrixProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
-import { enqueueAreaRederive } from "@marine-guardian/jobs";
+import { enqueueAreaRederive, enqueueMunicipalityAssign } from "@marine-guardian/jobs";
 import { importOfficialBoundaries } from "../../boundaries/import-official-boundaries";
 
 // 5.1d — AreaBoundary CUD fan-out helper. When a boundary is created,
@@ -47,6 +47,38 @@ export async function fanOutAreaRederive(
     ),
   ]);
   return { enqueued: events.length + patrols.length + fuelEntries.length };
+}
+
+// Municipality boundary-geometry-change fan-out. When a Municipality's
+// land or water boundary is uploaded/replaced/reverted, every Event and
+// Patrol in the tenant may now belong to a different municipality
+// (Layer 1 `municipalityId`) — the point-in-polygon universe changed.
+// Reuses the exact same municipality-assign BullMQ queue that er-sync and
+// patrol-track-materialize already enqueue against (municipality-assign.
+// queue.ts / municipality-assign.processor.ts), so this fan-out converges
+// to the identical assignment logic as normal ingestion — no separate
+// re-attribution code path to keep in sync. FuelEntry is intentionally
+// excluded — MunicipalityAssignJobPayload only supports "event" | "patrol"
+// (FuelEntry has no municipalityId column). Explicit `where: { tenantId }`
+// is defense-in-depth per security.md tenant-scoping rule, mirroring
+// fanOutAreaRederive above.
+export async function fanOutMunicipalityReassign(
+  tenantId: string,
+  userId: string,
+): Promise<{ enqueued: number }> {
+  const [events, patrols] = await Promise.all([
+    prisma.event.findMany({ where: { tenantId }, select: { id: true } }),
+    prisma.patrol.findMany({ where: { tenantId }, select: { id: true } }),
+  ]);
+  await Promise.all([
+    ...events.map((e) =>
+      enqueueMunicipalityAssign({ entity: "event", id: e.id, tenantId, userId }),
+    ),
+    ...patrols.map((p) =>
+      enqueueMunicipalityAssign({ entity: "patrol", id: p.id, tenantId, userId }),
+    ),
+  ]);
+  return { enqueued: events.length + patrols.length };
 }
 
 export const areaBoundaryRouter = router({

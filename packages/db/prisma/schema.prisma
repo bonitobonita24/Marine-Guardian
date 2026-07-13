@@ -1165,6 +1165,10 @@ model Municipality {
   // Derived ~15 km municipal-water polygon (land ∪ 15 km seaward buffer minus all
   // land). Null until seed-municipalities loads it from data/coverage/water/.
   waterGeojson    Json?    @map("water_geojson")
+  // True once this boundary was set by a manual upload/authoritative import —
+  // hardcoded municipal-boundary loaders/regenerators must skip it.
+  landBoundaryManual  Boolean @default(false) @map("land_boundary_manual")
+  waterBoundaryManual Boolean @default(false) @map("water_boundary_manual")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
