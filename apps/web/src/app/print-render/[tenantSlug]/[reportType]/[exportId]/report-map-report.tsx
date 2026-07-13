@@ -75,6 +75,7 @@
  *   - Logo img elements carry descriptive alt text
  */
 
+import type { ComponentProps } from "react";
 import type { ReportMapEventDetail, ReportMapReportData } from "@/server/report-map-report/get-report-map-report-data";
 import { colorForEventType } from "@/lib/event-type-color";
 import {
@@ -176,28 +177,44 @@ interface HeaderProps {
   partnerLogoDataUri: string | null;
   municipalityName: string | null;
   period: string;
+  /** Region mode (2026-07-13): true when the report is scoped to a whole
+   *  province — see ReportMapReportData.isRegionReport. */
+  regionMode: boolean;
 }
 
 /** Wraps the shared <ReportHeader> — every report-map-report page passes
  *  its own per-section `reportTitle` (see REPORT_MAP_SECTION_TITLES above)
  *  alongside the shared municipal/partner logo + municipality + date-range
- *  props threaded from the top-level component. */
+ *  props threaded from the top-level component. In `regionMode`, the
+ *  province name (carried in `municipalityName`) is passed as `mainTitle`
+ *  instead so <ReportHeader> renders it unprefixed with no logos. */
 function PageHeader({
   municipalLogoDataUri,
   partnerLogoDataUri,
   municipalityName,
   period,
+  regionMode,
   reportTitle,
 }: HeaderProps & { reportTitle: string }) {
-  return (
-    <ReportHeader
-      municipalLogoUrl={municipalLogoDataUri}
-      partnerLogoUrl={partnerLogoDataUri}
-      municipalityName={municipalityName}
-      reportTitle={reportTitle}
-      dateRange={period}
-    />
-  );
+  const reportHeaderProps: ComponentProps<typeof ReportHeader> = regionMode
+    ? {
+        municipalLogoUrl: null,
+        partnerLogoUrl: null,
+        municipalityName: null,
+        regionMode: true,
+        reportTitle,
+        dateRange: period,
+        ...(municipalityName !== null ? { mainTitle: municipalityName } : {}),
+      }
+    : {
+        municipalLogoUrl: municipalLogoDataUri,
+        partnerLogoUrl: partnerLogoDataUri,
+        municipalityName,
+        regionMode: false,
+        reportTitle,
+        dateRange: period,
+      };
+  return <ReportHeader {...reportHeaderProps} />;
 }
 
 // ─── Page footer ──────────────────────────────────────────────────────────────
@@ -583,6 +600,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
     partnerLogoDataUri: data.template.partnerLogoDataUri,
     municipalityName: data.municipalityName,
     period,
+    regionMode: data.isRegionReport,
   };
 
   const footerBase = {

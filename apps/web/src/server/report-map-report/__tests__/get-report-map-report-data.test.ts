@@ -666,6 +666,9 @@ describe("getReportMapReportData", () => {
     // Header municipality line (2026-07-06): regional/all-municipality
     // report — no municipalityId filter.
     expect(result.municipalityName).toBe("All Municipalities");
+    // Region mode (2026-07-13): neither municipalityId nor province set —
+    // this is the "All Municipalities" fallback, NOT region mode.
+    expect(result.isRegionReport).toBe(false);
   });
 
   it("returns null municipalityBounds when the municipality has no geometry", async () => {
@@ -838,6 +841,9 @@ describe("getReportMapReportData", () => {
     expect(result.municipalityName).toBe("Oriental Mindoro");
     expect(result.municipalityBounds).toBeNull();
     expect(prisma.municipality.findUnique).not.toHaveBeenCalled();
+    // Region mode (2026-07-13): province set, no municipalityId — the print
+    // header renders the province name alone, with no logos.
+    expect(result.isRegionReport).toBe(true);
   });
 
   it("a specific municipalityId still wins over province when both are present", async () => {
@@ -875,6 +881,9 @@ describe("getReportMapReportData", () => {
       vi.mocked(prisma.patrol.findMany).mock.calls[0]?.[0]?.where,
     ).toMatchObject({ municipalityId: "muni_a" });
     expect(result.municipalityName).toBe("Puerto Galera");
+    // Region mode (2026-07-13): a specific municipalityId wins over
+    // province — this is NOT a region report.
+    expect(result.isRegionReport).toBe(false);
   });
 
   it("parses province from paramsJson and drops empty-string province", () => {

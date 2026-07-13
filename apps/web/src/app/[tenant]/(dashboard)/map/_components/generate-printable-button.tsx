@@ -57,6 +57,29 @@ export function GeneratePrintableButton() {
     { enabled: open },
   );
 
+  // Region options ("whole province" reports) are derived from the same
+  // municipality.list source the map filter bar uses — it already returns
+  // municipalities in the canonical province order (Oriental Mindoro →
+  // Occidental Mindoro → Palawan; see report-filter-bar.tsx's provinceGroups
+  // comment). We mirror that "first-appearance order" derivation locally
+  // rather than importing a shared constant, since report-filter-bar.tsx
+  // does not export one — it computes provinceNames inline the same way.
+  const municipalities = trpc.municipality.list.useQuery(undefined, {
+    enabled: open,
+  });
+  const provinceNames = (() => {
+    const seen = new Set<string>();
+    const names: string[] = [];
+    for (const m of municipalities.data ?? []) {
+      if (!seen.has(m.province)) {
+        seen.add(m.province);
+        names.push(m.province);
+      }
+    }
+    return names;
+  })();
+  const REGION_PREFIX = "region:";
+
   // Default-select the isDefault template (or first) on first dialog open.
   // Reset on close so re-open re-runs this selection.
   useEffect(() => {
@@ -107,19 +130,29 @@ export function GeneratePrintableButton() {
       }
     }, REQUEST_TIMEOUT_MS);
 
+    const isRegion = selectedTemplateId.startsWith(REGION_PREFIX);
+
     create.mutate(
       {
         reportType: "report_map",
         paperSize: "A4",
-        paramsJson: {
-          templateId: selectedTemplateId,
-          from: from.toISOString(),
-          to: to.toISOString(),
-          ...(municipalityId !== null ? { municipalityId } : {}),
-          ...(protectedZoneId !== null ? { protectedZoneId } : {}),
-          ...(province !== null ? { province } : {}),
-          ...(includeChildren ? { includeChildren } : {}),
-        },
+        paramsJson: isRegion
+          ? {
+              // Region reports cover the whole province — no templateId, no
+              // municipality/zone scope, ignoring the live map filter.
+              province: selectedTemplateId.slice(REGION_PREFIX.length),
+              from: from.toISOString(),
+              to: to.toISOString(),
+            }
+          : {
+              templateId: selectedTemplateId,
+              from: from.toISOString(),
+              to: to.toISOString(),
+              ...(municipalityId !== null ? { municipalityId } : {}),
+              ...(protectedZoneId !== null ? { protectedZoneId } : {}),
+              ...(province !== null ? { province } : {}),
+              ...(includeChildren ? { includeChildren } : {}),
+            },
       },
       {
         onSettled: () => {
@@ -207,15 +240,31 @@ export function GeneratePrintableButton() {
               >
                 {templates.isLoading ? (
                   <option value="">Loading templates…</option>
-                ) : (templates.data?.items.length ?? 0) === 0 ? (
+                ) : (templates.data?.items.length ?? 0) === 0 &&
+                  provinceNames.length === 0 ? (
                   <option value="">No templates available</option>
                 ) : (
-                  templates.data?.items.map((tpl) => (
-                    <option key={tpl.id} value={tpl.id}>
-                      {tpl.name}
-                      {tpl.isDefault ? " (default)" : ""}
-                    </option>
-                  ))
+                  <>
+                    {provinceNames.length > 0 && (
+                      <optgroup label="Regions">
+                        {provinceNames.map((name) => (
+                          <option key={name} value={`${REGION_PREFIX}${name}`}>
+                            {name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {(templates.data?.items.length ?? 0) > 0 && (
+                      <optgroup label="Templates">
+                        {templates.data?.items.map((tpl) => (
+                          <option key={tpl.id} value={tpl.id}>
+                            {tpl.name}
+                            {tpl.isDefault ? " (default)" : ""}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </>
                 )}
               </select>
             </div>

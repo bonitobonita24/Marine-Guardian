@@ -405,6 +405,18 @@ export interface ReportMapReportData {
    */
   municipalityName: string | null;
   /**
+   * REGION MODE (2026-07-13, owner directive): true when the report is
+   * scoped to a whole PROVINCE (`filter.province` set, no
+   * `filter.municipalityId`) rather than a single municipality. The
+   * print-render template passes this straight through to `<ReportHeader
+   * regionMode>` so the header renders the province name alone (no "LGU "
+   * prefix, no brand subline, no logos) instead of the per-municipality
+   * layout. False for a single-municipality report AND for the fully
+   * regional "All Municipalities" fallback (neither municipalityId nor
+   * province set) — that fallback keeps the existing brand-title header.
+   */
+  isRegionReport: boolean;
+  /**
    * Per-event-type-display GLOBAL (all-time, tenant-wide) ordered detail-key
    * list — owner Option A (2026-07-06): every printable report's per-type
    * event table renders this SAME standard column set, regardless of how
@@ -870,6 +882,11 @@ export async function getReportMapReportData(
       ? (municipalityGeometry?.name ?? null)
       : (params.province ?? "All Municipalities");
 
+  // Region mode (2026-07-13): scoped to a whole province, no specific
+  // municipality selected. See ReportMapReportData.isRegionReport doc.
+  const isRegionReport =
+    params.municipalityId === undefined && params.province !== undefined;
+
   // Partner logo default fallback: the editor form promises "leave empty to
   // use Blue Alliance default" (report-template-form.tsx) — honor it here so
   // partnerLogoDataUri is NEVER null, covering: no partnerLogoKey set, an
@@ -1135,6 +1152,7 @@ export async function getReportMapReportData(
     template,
     municipalityBounds,
     municipalityName,
+    isRegionReport,
     eventTypeColumns,
     charts: {
       lawEnforcement,

@@ -29,10 +29,13 @@
  */
 
 export interface ReportHeaderProps {
-  /** Big, bold, dominant title line. Defaults to the fixed brand title. */
+  /** Big, bold, dominant title line. Defaults to the fixed brand title.
+   *  In `regionMode`, this is the ONLY title source (the region/province
+   *  name) — rendered verbatim, with no "LGU " prefix. */
   mainTitle?: string;
   /** Municipality name line — omitted entirely when null/undefined so a
-   *  template with no municipality concept doesn't render an empty line. */
+   *  template with no municipality concept doesn't render an empty line.
+   *  Ignored when `regionMode` is true. */
   municipalityName?: string | null;
   /** Per-page / per-section report title (smaller, third line). */
   reportTitle: string;
@@ -40,6 +43,16 @@ export interface ReportHeaderProps {
   dateRange: string;
   municipalLogoUrl?: string | null;
   partnerLogoUrl?: string | null;
+  /**
+   * REGION MODE (2026-07-13, owner directive): set when the report is
+   * scoped to a whole PROVINCE (Oriental Mindoro / Occidental Mindoro /
+   * Palawan) rather than a single municipality. In this mode the header
+   * renders ONLY `mainTitle` (the province name, unprefixed) — no
+   * "LGU " prefix, no "Blue Alliance Monitoring" brand subline — and
+   * suppresses the entire logo slot (no <img>, no placeholder circle
+   * boxes). Defaults to false — every other call site is unaffected.
+   */
+  regionMode?: boolean;
 }
 
 export function ReportHeader({
@@ -49,27 +62,39 @@ export function ReportHeader({
   dateRange,
   municipalLogoUrl,
   partnerLogoUrl,
+  regionMode = false,
 }: ReportHeaderProps) {
   const hasMunicipality =
-    municipalityName !== null && municipalityName !== undefined && municipalityName.length > 0;
+    !regionMode &&
+    municipalityName !== null &&
+    municipalityName !== undefined &&
+    municipalityName.length > 0;
   // Owner mockup 2026-07-06: big line 1 = "LGU <municipality name>", line 2 =
   // "Blue Alliance Monitoring". For a report with no single municipality
   // (regional / all-municipality), fall back to the brand line as the title.
-  const line1 = hasMunicipality ? `LGU ${municipalityName}` : (mainTitle ?? "Blue Alliance Monitoring");
+  // Region mode (2026-07-13): line 1 = the region/province name ALONE, no
+  // "LGU " prefix and no brand subline.
+  const line1 = regionMode
+    ? (mainTitle ?? "")
+    : hasMunicipality
+      ? `LGU ${municipalityName}`
+      : (mainTitle ?? "Blue Alliance Monitoring");
   return (
     <header className="pr-header" role="banner">
-      <div className="pr-header-logos">
-        {municipalLogoUrl !== null && municipalLogoUrl !== undefined && municipalLogoUrl.length > 0 ? (
-          <img src={municipalLogoUrl} alt="Municipal logo" className="pr-header-logo" />
-        ) : (
-          <div className="pr-header-logo-placeholder" aria-hidden="true" />
-        )}
-        {partnerLogoUrl !== null && partnerLogoUrl !== undefined && partnerLogoUrl.length > 0 ? (
-          <img src={partnerLogoUrl} alt="Blue Alliance logo" className="pr-header-logo" />
-        ) : (
-          <div className="pr-header-logo-placeholder" aria-hidden="true" />
-        )}
-      </div>
+      {regionMode ? null : (
+        <div className="pr-header-logos">
+          {municipalLogoUrl !== null && municipalLogoUrl !== undefined && municipalLogoUrl.length > 0 ? (
+            <img src={municipalLogoUrl} alt="Municipal logo" className="pr-header-logo" />
+          ) : (
+            <div className="pr-header-logo-placeholder" aria-hidden="true" />
+          )}
+          {partnerLogoUrl !== null && partnerLogoUrl !== undefined && partnerLogoUrl.length > 0 ? (
+            <img src={partnerLogoUrl} alt="Blue Alliance logo" className="pr-header-logo" />
+          ) : (
+            <div className="pr-header-logo-placeholder" aria-hidden="true" />
+          )}
+        </div>
+      )}
       <div className="pr-header-text">
         <h1 className="pr-header-main-title">{line1}</h1>
         {hasMunicipality ? <p className="pr-header-brand">Blue Alliance Monitoring</p> : null}
