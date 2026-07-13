@@ -1,7 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  Download,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -572,6 +579,9 @@ export function EventDetailModal({ eventId, onClose }: EventDetailModalProps) {
  * next navigation via on-screen buttons and the ← / → arrow keys. Replaces the
  * old "open in a new tab" behaviour for image assets.
  */
+const LIGHTBOX_MIN_SCALE = 1;
+const LIGHTBOX_MAX_SCALE = 5;
+
 function PhotoLightbox({
   images,
   index,
@@ -581,6 +591,52 @@ function PhotoLightbox({
   index: number | null;
   onIndexChange: (i: number | null) => void;
 }) {
+  // Zoom + pan state for the enlarged image. Reset whenever the shown photo
+  // changes or the lightbox closes.
+  const [scale, setScale] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const dragOrigin = useRef<{ x: number; y: number; ox: number; oy: number } | null>(
+    null,
+  );
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  const resetZoom = useCallback(() => {
+    setScale(1);
+    setOffset({ x: 0, y: 0 });
+  }, []);
+
+  const zoomBy = useCallback((delta: number) => {
+    setScale((s) => {
+      const next = Math.min(
+        LIGHTBOX_MAX_SCALE,
+        Math.max(LIGHTBOX_MIN_SCALE, s + delta),
+      );
+      if (next === 1) setOffset({ x: 0, y: 0 });
+      return next;
+    });
+  }, []);
+
+  // Reset zoom when the visible photo changes (prev/next or reopen).
+  useEffect(() => {
+    resetZoom();
+  }, [index, resetZoom]);
+
+  // Wheel-to-zoom via a native non-passive listener (React's synthetic onWheel
+  // is passive, so preventDefault would be ignored and the page would scroll).
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || index === null) return;
+    const onWheelNative = (e: WheelEvent) => {
+      e.preventDefault();
+      zoomBy(e.deltaY < 0 ? 0.3 : -0.3);
+    };
+    el.addEventListener("wheel", onWheelNative, { passive: false });
+    return () => {
+      el.removeEventListener("wheel", onWheelNative);
+    };
+  }, [index, zoomBy]);
+
   useEffect(() => {
     if (index === null || images.length === 0) return;
     const onKey = (e: KeyboardEvent) => {
@@ -600,6 +656,29 @@ function PhotoLightbox({
   const current = images[index];
   if (current === undefined) return null;
   const multi = images.length > 1;
+  const zoomed = scale > 1;
+  const href = `/api/assets/${current.id}`;
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (!zoomed) return;
+    dragOrigin.current = {
+      x: e.clientX,
+      y: e.clientY,
+      ox: offset.x,
+      oy: offset.y,
+    };
+    setDragging(true);
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    const d = dragOrigin.current;
+    if (!d) return;
+    setOffset({ x: d.ox + (e.clientX - d.x), y: d.oy + (e.clientY - d.y) });
+  };
+  const endDrag = () => {
+    dragOrigin.current = null;
+    setDragging(false);
+  };
 
   return (
     <Dialog
@@ -615,12 +694,77 @@ function PhotoLightbox({
         <DialogDescription className="sr-only">
           {current.filename}
         </DialogDescription>
-        <div className="relative flex items-center justify-center">
+        <div
+          ref={containerRef}
+          className="relative flex items-center justify-center overflow-hidden"
+        >
           <img
-            src={`/api/assets/${current.id}`}
+            src={href}
             alt={current.filename}
-            className="max-h-[85vh] w-auto max-w-full rounded object-contain"
+            draggable={false}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+            onDoubleClick={() => {
+              if (zoomed) {
+                resetZoom();
+              } else {
+                setScale(2);
+              }
+            }}
+            style={{
+              transform: `translate(${String(offset.x)}px, ${String(offset.y)}px) scale(${String(scale)})`,
+              cursor: zoomed ? (dragging ? "grabbing" : "grab") : "zoom-in",
+              transition: dragging ? "none" : "transform 0.15s ease-out",
+            }}
+            className="max-h-[85vh] w-auto max-w-full select-none rounded object-contain"
           />
+
+          {/* Zoom controls + download — top-right toolbar. */}
+          <div className="absolute right-2 top-2 flex items-center gap-1">
+            <button
+              type="button"
+              aria-label="Zoom out"
+              disabled={!zoomed}
+              onClick={() => {
+                zoomBy(-0.5);
+              }}
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 disabled:opacity-40"
+            >
+              <ZoomOut className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              aria-label="Zoom in"
+              disabled={scale >= LIGHTBOX_MAX_SCALE}
+              onClick={() => {
+                zoomBy(0.5);
+              }}
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 disabled:opacity-40"
+            >
+              <ZoomIn className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              aria-label="Reset zoom"
+              disabled={!zoomed}
+              onClick={resetZoom}
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 disabled:opacity-40"
+            >
+              <Maximize2 className="h-5 w-5" />
+            </button>
+            <a
+              href={href}
+              download={current.filename}
+              aria-label="Download photo"
+              data-testid="lightbox-download"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+            >
+              <Download className="h-5 w-5" />
+            </a>
+          </div>
+
           {multi && (
             <>
               <button
@@ -629,7 +773,7 @@ function PhotoLightbox({
                 onClick={() => {
                   onIndexChange((index - 1 + images.length) % images.length);
                 }}
-                className="absolute left-2 flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+                className="absolute left-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
@@ -639,11 +783,11 @@ function PhotoLightbox({
                 onClick={() => {
                   onIndexChange((index + 1) % images.length);
                 }}
-                className="absolute right-2 flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+                className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
               >
                 <ChevronRight className="h-5 w-5" />
               </button>
-              <span className="absolute bottom-2 rounded bg-black/60 px-2 py-0.5 text-xs text-white tabular-nums">
+              <span className="absolute bottom-2 rounded bg-black/60 px-2 py-0.5 text-xs tabular-nums text-white">
                 {`${String(index + 1)} / ${String(images.length)}`}
               </span>
             </>
