@@ -228,11 +228,11 @@ async function main() {
         type: "Polygon",
         coordinates: [
           [
-            [120.95, 14.55],
-            [120.98, 14.55],
-            [120.98, 14.58],
-            [120.95, 14.58],
-            [120.95, 14.55],
+            [121.24, 13.44],
+            [121.27, 13.44],
+            [121.27, 13.47],
+            [121.24, 13.47],
+            [121.24, 13.44],
           ],
         ],
       },
@@ -279,11 +279,11 @@ async function main() {
       tenantId: tenant.id,
       name: "North Reef Zone",
       aliases: [],
-      region: "Manila Bay",
+      region: "Oriental Mindoro",
       geometryType: "Polygon",
       geometryGeojson: {
         type: "Polygon",
-        coordinates: [[[120.95, 14.55], [120.98, 14.55], [120.98, 14.58], [120.95, 14.58], [120.95, 14.55]]],
+        coordinates: [[[121.24, 13.44], [121.27, 13.44], [121.27, 13.47], [121.24, 13.47], [121.24, 13.44]]],
       },
       createdByUserId: siteAdmin.id,
     },
@@ -297,11 +297,11 @@ async function main() {
       tenantId: tenant.id,
       name: "South Mangrove Zone",
       aliases: [],
-      region: "Manila Bay",
+      region: "Oriental Mindoro",
       geometryType: "Polygon",
       geometryGeojson: {
         type: "Polygon",
-        coordinates: [[[120.95, 14.50], [120.98, 14.50], [120.98, 14.53], [120.95, 14.53], [120.95, 14.50]]],
+        coordinates: [[[121.14, 13.29], [121.17, 13.29], [121.17, 13.32], [121.14, 13.32], [121.14, 13.29]]],
       },
       createdByUserId: siteAdmin.id,
     },
@@ -379,9 +379,9 @@ async function main() {
     // 3 = high/red, 2 = amber, 1 = low/green, 0 = gray. (Earlier seed data used
     // EarthRanger's raw 0/100/200/300 scale, which is out of range and was
     // rejected / mis-filtered by the events API.)
-    { erEventId: "event-001", title: "Illegal Net Sighting", serialNumber: "ER-2026-001", priority: 3, state: "active", locationLat: 14.567, locationLon: 120.965, reportedByName: "Ranger Alpha", reportedAt: daysAgo(2), areaName: "North Reef Zone", areaBoundaryId: northBoundary.id, eventTypeValue: "illegal_fishing" },
-    { erEventId: "event-002", title: "Wildlife Sighting — Sea Turtle", serialNumber: null, priority: 1, state: "new_event", locationLat: 14.55, locationLon: 120.96, reportedByName: null, reportedAt: daysAgo(1), areaName: "North Reef Zone", areaBoundaryId: northBoundary.id, eventTypeValue: "wildlife_sighting" },
-    { erEventId: "event-003", title: "Vessel Intrusion", serialNumber: null, priority: 2, state: "active", locationLat: 14.52, locationLon: 120.98, reportedByName: "Ranger Charlie", reportedAt: daysAgo(0), areaName: "South Mangrove Zone", areaBoundaryId: southBoundary.id, eventTypeValue: "vessel_intrusion" },
+    { erEventId: "event-001", title: "Illegal Net Sighting", serialNumber: "ER-2026-001", priority: 3, state: "active", locationLat: 13.455, locationLon: 121.255, reportedByName: "Ranger Alpha", reportedAt: daysAgo(2), areaName: "North Reef Zone", areaBoundaryId: northBoundary.id, eventTypeValue: "illegal_fishing" },
+    { erEventId: "event-002", title: "Wildlife Sighting — Sea Turtle", serialNumber: null, priority: 1, state: "new_event", locationLat: 13.45, locationLon: 121.26, reportedByName: null, reportedAt: daysAgo(1), areaName: "North Reef Zone", areaBoundaryId: northBoundary.id, eventTypeValue: "wildlife_sighting" },
+    { erEventId: "event-003", title: "Vessel Intrusion", serialNumber: null, priority: 2, state: "active", locationLat: 13.305, locationLon: 121.155, reportedByName: "Ranger Charlie", reportedAt: daysAgo(0), areaName: "South Mangrove Zone", areaBoundaryId: southBoundary.id, eventTypeValue: "vessel_intrusion" },
     { erEventId: "event-004", title: "Equipment Damage Resolved", serialNumber: null, priority: 1, state: "resolved", locationLat: null, locationLon: null, reportedByName: null, reportedAt: daysAgo(10), areaName: "North Reef Zone", areaBoundaryId: northBoundary.id, eventTypeValue: "equipment_damage" },
   ];
 
@@ -417,8 +417,8 @@ async function main() {
         tenantId: tenant.id,
         erObservationId: `obs-00${i}`,
         subjectId: rangers[(i - 1) % 5]!.id,
-        locationLat: 14.55 + i * 0.005,
-        locationLon: 120.96 + i * 0.005,
+        locationLat: 13.45 + i * 0.005,
+        locationLon: 121.25 + i * 0.005,
         recordedAt: daysAgo(i),
         sourceName: "GPS Tracker",
         syncedAt: now,
