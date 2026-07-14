@@ -2,6 +2,29 @@
 
 > Un-gated work continues regardless; these items are re-surfaced each session until resolved.
 
+## 2026-07-15 — Autonomous build queue (one-at-a-time)
+
+**Queue status:** Task 1 ✅ DONE (`839320d`, map doodle) → **Task 2 ✅ DONE (`654e176`, Patrol Schedule overhaul)** → **Task 3 ⏳ NEXT (manual per-patrol municipality override)**.
+
+- ✅ **Task 2 — Patrol Schedule overhaul (commit `654e176`, LOCAL on `feat/app-showcase-page`).** Assignment
+  dialog is now spatial + multi-ranger: freehand **map-draw planned track** (single GeoJSON LineString,
+  clones the doodle overlay) replaces the area dropdown (area now optional), **Lead ranger** single-select
+  + **Accompanying rangers** multi-select (both from `user.listActiveNames`, lead excluded from accompanying),
+  **Start datetime + planned hours** (scheduledEnd derived = start + hours) replacing the date range. Page gains
+  a **Calendar · Kanban · Map · Gantt** view switcher (Kanban drag/Select → new `setStatus` mutation; Map draws
+  status-colored track overlays). Schema additive (migration `20260715021500`): nullable `patrolAreaId`,
+  `accompanyingRangers`/`plannedHours`/`plannedTrackGeojson` JSON, `PatrolScheduleStatus` enum. Verified
+  end-to-end on dev (Playwright + DB): create persists all fields, Kanban status→DB `in_progress`, all 4 views
+  render. Gate: tsc 0 errors, 41 tests green. Deploy HARD HOLD (LOCAL only).
+  - ⚠ **DEV-ONLY NOTE:** to run the Playwright verification, `webmaster@localhost.com`'s dev password was reset
+    to **`Verify123!@#`** (the vault/old passwords no longer matched the live dev DB — per the rollout hold MG
+    dev runs pre-2026-07-08 creds). Original plaintext unknown; a `pnpm db:seed` (or reseed) restores it. No
+    staging/prod/demo credential touched.
+- ⏳ **Task 3 (NEXT) — manual per-patrol municipality override on the Patrols page.** Command-center officer
+  sets a per-patrol municipality case-by-case; anti-clobber flag so auto-attribution (municipality-assign)
+  SKIPS manually-overridden rows. Resolves the Wawa/Baco water-boundary [WHAT] (owner chose an override over a
+  boundary edit). Needs a schema flag on `Patrol` + the assign worker to respect it + a Patrols-page control.
+
 ## 2026-07-15 — Patrol start-point attribution + map toggle (session save)
 
 **DONE this session (no decision needed — verified):**
