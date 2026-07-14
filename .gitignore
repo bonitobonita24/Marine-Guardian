@@ -71,3 +71,6 @@ tests/visual/diff/
 /*.png
 /trpc-batch-*.json
 scripts/*.local.ts
+
+# AI video working sources (heavy raws + masters) — not committed; web reel lives in public/showcase/story/
+/marketing-assets/

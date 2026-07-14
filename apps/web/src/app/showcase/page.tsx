@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { ShowcaseNav } from "./_components/showcase-nav";
 import { Hero } from "./_components/hero";
+import { StoryReel } from "./_components/story-reel";
 import { FeatureMarquee } from "./_components/feature-marquee";
 import {
   ProblemSection,
@@ -29,6 +30,7 @@ export default function ShowcasePage() {
     <main className="min-h-screen bg-background text-foreground">
       <ShowcaseNav />
       <Hero />
+      <StoryReel />
       <FeatureMarquee />
       <ProblemSection />
       <FeatureSections />
