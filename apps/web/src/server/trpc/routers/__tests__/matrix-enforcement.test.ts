@@ -12,6 +12,12 @@ vi.mock("@marine-guardian/db", () => ({
     },
   },
   writeAuditLog: vi.fn(),
+  PatrolScheduleStatus: {
+    planned: "planned",
+    in_progress: "in_progress",
+    completed: "completed",
+    cancelled: "cancelled",
+  },
 }));
 
 vi.mock("../../../lib/rate-limit", () => ({

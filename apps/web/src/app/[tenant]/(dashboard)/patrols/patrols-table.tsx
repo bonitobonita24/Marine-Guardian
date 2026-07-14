@@ -57,6 +57,15 @@ export function PatrolsTable() {
     title: string | null;
   } | null>(null);
 
+  // Pending municipality-override target.
+  const [overrideTarget, setOverrideTarget] = useState<{
+    id: string;
+    title: string | null;
+    current: string | null;
+    manual: boolean;
+  } | null>(null);
+  const [selectedMuni, setSelectedMuni] = useState<string>("");
+
   // When filters change, reset accumulated + cursor
   useEffect(() => {
     setAccumulated([]);
@@ -89,6 +98,17 @@ export function PatrolsTable() {
 
   const restore = trpc.patrol.restore.useMutation({
     onSuccess: () => {
+      refreshList();
+    },
+  });
+
+  const muniQuery = trpc.municipality.list.useQuery(undefined, {
+    enabled: overrideTarget !== null,
+  });
+
+  const setOverride = trpc.patrol.setMunicipalityOverride.useMutation({
+    onSuccess: () => {
+      setOverrideTarget(null);
       refreshList();
     },
   });
@@ -180,6 +200,7 @@ export function PatrolsTable() {
                   <TableHead>Title</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>State</TableHead>
+                  <TableHead>Municipality</TableHead>
                   <TableHead>Start</TableHead>
                   <TableHead>End</TableHead>
                   <TableHead>First seen</TableHead>
@@ -220,6 +241,23 @@ export function PatrolsTable() {
                     <TableCell className="capitalize">{p.patrolType}</TableCell>
                     <TableCell className="capitalize">{p.state}</TableCell>
                     <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span>
+                          {p.municipality?.name ?? (
+                            <span className="text-muted-foreground">Unattributed</span>
+                          )}
+                        </span>
+                        {p.municipalityManual && (
+                          <Badge
+                            variant="outline"
+                            data-testid={`manual-badge-${p.id}`}
+                          >
+                            Manual
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
                       {p.startTime !== null
                         ? new Date(p.startTime).toLocaleString()
                         : "—"}
@@ -239,6 +277,23 @@ export function PatrolsTable() {
                         className="text-right"
                         onClick={(e) => { e.stopPropagation(); }}
                       >
+                        <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          data-testid={`override-button-${p.id}`}
+                          onClick={() => {
+                            setSelectedMuni(p.municipalityId ?? "");
+                            setOverrideTarget({
+                              id: p.id,
+                              title: p.title,
+                              current: p.municipalityId,
+                              manual: p.municipalityManual,
+                            });
+                          }}
+                        >
+                          Override
+                        </Button>
                         {p.isDeleted ? (
                           <Button
                             variant="outline"
@@ -261,6 +316,7 @@ export function PatrolsTable() {
                             Delete
                           </Button>
                         )}
+                        </div>
                       </TableCell>
                     )}
                   </TableRow>
@@ -322,6 +378,76 @@ export function PatrolsTable() {
               }}
             >
               {softDelete.isPending ? "Deleting…" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={overrideTarget !== null}
+        onOpenChange={(v) => {
+          if (!v && !setOverride.isPending) {
+            setOverrideTarget(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Set patrol municipality</DialogTitle>
+            <DialogDescription>
+              Manually setting the municipality stops automatic attribution
+              from overwriting it. &quot;Clear override&quot; re-enables
+              automatic attribution.
+            </DialogDescription>
+          </DialogHeader>
+          <select
+            data-testid="override-municipality-select"
+            aria-label="Select municipality"
+            value={selectedMuni}
+            onChange={(e) => { setSelectedMuni(e.target.value); }}
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm w-full"
+          >
+            <option value="">— Select municipality —</option>
+            {muniQuery.data?.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+                {m.province ? ` (${m.province})` : ""}
+              </option>
+            ))}
+          </select>
+          {setOverride.error && (
+            <p className="text-sm text-destructive">{setOverride.error.message}</p>
+          )}
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => { setOverrideTarget(null); }}
+              disabled={setOverride.isPending}
+            >
+              Cancel
+            </Button>
+            {overrideTarget?.manual === true && (
+              <Button
+                variant="outline"
+                data-testid="clear-override-button"
+                disabled={setOverride.isPending}
+                onClick={() => {
+                  setOverride.mutate({ id: overrideTarget.id, municipalityId: null });
+                }}
+              >
+                Clear override (auto)
+              </Button>
+            )}
+            <Button
+              data-testid="save-override-button"
+              disabled={selectedMuni === "" || setOverride.isPending}
+              onClick={() => {
+                if (overrideTarget !== null) {
+                  setOverride.mutate({ id: overrideTarget.id, municipalityId: selectedMuni });
+                }
+              }}
+            >
+              {setOverride.isPending ? "Saving…" : "Save override"}
             </Button>
           </DialogFooter>
         </DialogContent>

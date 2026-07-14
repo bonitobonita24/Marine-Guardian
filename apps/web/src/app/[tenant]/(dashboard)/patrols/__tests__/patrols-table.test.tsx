@@ -21,6 +21,8 @@ vi.mock("next-auth/react", () => ({
   }),
 }));
 
+const setOverrideMutate = vi.fn();
+
 vi.mock("@/lib/trpc/client", () => ({
   trpc: {
     patrol: {
@@ -41,6 +43,18 @@ vi.mock("@/lib/trpc/client", () => ({
           error: null,
         }),
       },
+      setMunicipalityOverride: {
+        useMutation: (): unknown => ({
+          mutate: setOverrideMutate,
+          isPending: false,
+          error: null,
+        }),
+      },
+    },
+    municipality: {
+      list: {
+        useQuery: (): unknown => ({ data: [] }),
+      },
     },
   },
 }));
@@ -51,6 +65,7 @@ beforeEach(() => {
   useQueryMock.mockReset();
   softDeleteMutate.mockReset();
   restoreMutate.mockReset();
+  setOverrideMutate.mockReset();
   sessionRoles = [];
 });
 

@@ -205,3 +205,68 @@ describe("processMunicipalityAssign — patrol Layer-1 START-point attribution",
     );
   });
 });
+
+// Task 3 — manual per-patrol municipality override anti-clobber contract
+// (owner 2026-07-15): once an officer sets municipalityId by hand
+// (municipalityManual=true), auto attribution must NEVER overwrite it —
+// terrain + covered-zones still refresh (geometry-derived), but the Layer-1
+// municipalityId/municipalityAssignedAt write is skipped.
+describe("processMunicipalityAssign — patrol manual-override anti-clobber", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    pp.municipality.findMany.mockResolvedValue([]);
+    pp.protectedZone.findMany.mockResolvedValue([]);
+  });
+
+  it("does not overwrite municipalityId/municipalityAssignedAt when municipalityManual=true, but still writes terrain", async () => {
+    const startPoint = { lat: 13.4, lon: 121.2 };
+
+    pp.patrol.findUnique.mockResolvedValueOnce({
+      id: "patrol-manual-1",
+      tenantId: "tenant-1",
+      startLocationLat: startPoint.lat,
+      startLocationLon: startPoint.lon,
+      municipalityId: "muni-manual-existing",
+      municipalityManual: true,
+      track: null,
+    });
+
+    mockedAssignByContainment.mockReturnValue("muni-auto-computed");
+
+    const result = await processMunicipalityAssign(makeJob({ entity: "patrol", id: "patrol-manual-1" }));
+
+    expect(pp.patrol.update).toHaveBeenCalledTimes(1);
+    const callArgs = pp.patrol.update.mock.calls[0]![0];
+    expect(callArgs.data).not.toHaveProperty("municipalityId");
+    expect(callArgs.data).not.toHaveProperty("municipalityAssignedAt");
+    expect(callArgs.data).toHaveProperty("terrain");
+
+    expect(result.municipalityId).toBe("muni-manual-existing");
+    expect(result.skipped).toBe(false);
+    expect(result.skipReason).toBe("manual_override");
+  });
+
+  it("writes municipalityId/municipalityAssignedAt as normal when municipalityManual=false", async () => {
+    const startPoint = { lat: 13.4, lon: 121.2 };
+
+    pp.patrol.findUnique.mockResolvedValueOnce({
+      id: "patrol-auto-1",
+      tenantId: "tenant-1",
+      startLocationLat: startPoint.lat,
+      startLocationLon: startPoint.lon,
+      municipalityId: null,
+      municipalityManual: false,
+      track: null,
+    });
+
+    mockedAssignByContainment.mockReturnValue("muni-auto-computed");
+
+    const result = await processMunicipalityAssign(makeJob({ entity: "patrol", id: "patrol-auto-1" }));
+
+    const callArgs = pp.patrol.update.mock.calls[0]![0];
+    expect(callArgs.data).toHaveProperty("municipalityId", "muni-auto-computed");
+    expect(callArgs.data).toHaveProperty("municipalityAssignedAt");
+    expect(result.municipalityId).toBe("muni-auto-computed");
+    expect(result.skipReason).toBeUndefined();
+  });
+});

@@ -18,6 +18,9 @@ vi.mock("@marine-guardian/db", () => ({
     user: {
       findMany: vi.fn(),
     },
+    municipality: {
+      findFirst: vi.fn(),
+    },
     auditLog: {
       create: vi.fn(),
     },
@@ -58,6 +61,7 @@ vi.mock("@marine-guardian/db", () => ({
 
 vi.mock("@marine-guardian/jobs", () => ({
   enqueuePatrolTrackMaterialize: vi.fn().mockResolvedValue("job-id"),
+  enqueueMunicipalityAssign: vi.fn().mockResolvedValue("job-id"),
 }));
 
 vi.mock("../../../lib/rate-limit", () => ({
@@ -74,7 +78,7 @@ vi.mock("../../../auth", () => ({
 }));
 
 import { prisma } from "@marine-guardian/db";
-import { enqueuePatrolTrackMaterialize } from "@marine-guardian/jobs";
+import { enqueuePatrolTrackMaterialize, enqueueMunicipalityAssign } from "@marine-guardian/jobs";
 import { createCallerFactory } from "../../trpc";
 import { patrolRouter } from "../patrol";
 
@@ -840,5 +844,87 @@ describe("patrol.update — BUG-2b required-field validation", () => {
     const caller = createCaller(makeCtx());
     const result = await caller.update({ id: "pat-1", boatName: "Sea Hawk" });
     expect(result).toMatchObject({ id: "pat-1", boatName: "Sea Hawk" });
+  });
+});
+
+// ── patrol.setMunicipalityOverride (Task 3 — manual override anti-clobber) ──
+
+describe("patrol.setMunicipalityOverride", () => {
+  const existingPatrol = {
+    id: "pat-1",
+    municipalityId: null,
+    municipalityManual: false,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValue(existingPatrol as never);
+    vi.mocked(prisma.patrol.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
+
+  it("sets a valid municipality — municipalityManual=true, municipalityId written, audit logged", async () => {
+    vi.mocked(prisma.municipality.findFirst).mockResolvedValue({ id: "muni-1" } as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.setMunicipalityOverride({ id: "pat-1", municipalityId: "muni-1" });
+
+    expect(result).toEqual({ id: "pat-1", municipalityId: "muni-1", municipalityManual: true });
+    expect(vi.mocked(prisma.patrol.update).mock.calls[0]?.[0]).toMatchObject({
+      where: { id: "pat-1" },
+      data: { municipalityId: "muni-1", municipalityManual: true },
+    });
+    expect(vi.mocked(enqueueMunicipalityAssign)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.auditLog.create).mock.calls[0]?.[0]).toMatchObject({
+      data: { action: "SET_PATROL_MUNICIPALITY_OVERRIDE", entityType: "Patrol", entityId: "pat-1" },
+    });
+  });
+
+  it("clears the override (municipalityId: null) — municipalityManual=false, re-enqueues municipality-assign, audit logged", async () => {
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValue({
+      id: "pat-1",
+      municipalityId: "muni-1",
+      municipalityManual: true,
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.setMunicipalityOverride({ id: "pat-1", municipalityId: null });
+
+    expect(result).toEqual({ id: "pat-1", municipalityId: null, municipalityManual: false });
+    expect(vi.mocked(prisma.patrol.update)).toHaveBeenCalledWith({
+      where: { id: "pat-1" },
+      data: { municipalityManual: false },
+    });
+    expect(vi.mocked(enqueueMunicipalityAssign)).toHaveBeenCalledWith({
+      entity: "patrol",
+      id: "pat-1",
+      tenantId: TENANT_ID,
+      userId: USER_ID,
+    });
+    expect(vi.mocked(prisma.auditLog.create).mock.calls[0]?.[0]).toMatchObject({
+      data: { action: "CLEAR_PATROL_MUNICIPALITY_OVERRIDE", entityType: "Patrol", entityId: "pat-1" },
+    });
+  });
+
+  it("invalid municipality — throws BAD_REQUEST, no patrol.update, no audit", async () => {
+    vi.mocked(prisma.municipality.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.setMunicipalityOverride({ id: "pat-1", municipalityId: "muni-missing" })
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(vi.mocked(prisma.patrol.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.auditLog.create)).not.toHaveBeenCalled();
+  });
+
+  it("missing patrol (cross-tenant) — throws NOT_FOUND, no update, no audit", async () => {
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.setMunicipalityOverride({ id: "pat-missing", municipalityId: "muni-1" })
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(vi.mocked(prisma.patrol.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.auditLog.create)).not.toHaveBeenCalled();
   });
 });

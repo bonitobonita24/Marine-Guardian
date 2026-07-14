@@ -6,7 +6,7 @@ import { adminProcedure, matrixProcedure } from "../middleware/rbac";
 import { prisma, writeAuditLog } from "@marine-guardian/db";
 import { Prisma } from "@marine-guardian/db";
 import type { PrismaClient } from "@marine-guardian/db";
-import { enqueuePatrolTrackMaterialize } from "@marine-guardian/jobs";
+import { enqueuePatrolTrackMaterialize, enqueueMunicipalityAssign } from "@marine-guardian/jobs";
 
 /**
  * The set of patrol fields that are locally editable.
@@ -55,6 +55,7 @@ export const patrolRouter = router({
         orderBy: { createdAt: "desc" },
         include: {
           segments: { select: { id: true, leaderName: true, actualStart: true, actualEnd: true } },
+          municipality: { select: { id: true, name: true } },
         },
       });
       let nextCursor: string | undefined;
@@ -311,6 +312,100 @@ export const patrolRouter = router({
       });
 
       return updated;
+    }),
+
+  /**
+   * Manual per-patrol municipality override (Task 3 — anti-clobber flag).
+   *
+   * Setting a municipality marks municipalityManual=true so the async
+   * municipality-assign processor skips overwriting it going forward.
+   * Clearing (municipalityId: null) reverts to auto-attribution and
+   * re-enqueues the job to recompute the geometry-derived value.
+   *
+   * Security: tenant-scoped (L6); matrix-gated same as `update`.
+   */
+  setMunicipalityOverride: matrixProcedure(tenantProcedure, "patrols", "update")
+    .input(
+      z
+        .object({
+          id: z.string(),
+          municipalityId: z.string().nullable(),
+        })
+        .strict()
+    )
+    .mutation(async ({ ctx, input }) => {
+      const existing = await prisma.patrol.findFirst({
+        where: { id: input.id, tenantId: ctx.tenantId },
+        select: { id: true, municipalityId: true, municipalityManual: true },
+      });
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Patrol not found." });
+      }
+
+      if (input.municipalityId !== null) {
+        const municipality = await prisma.municipality.findFirst({
+          where: { id: input.municipalityId, tenantId: ctx.tenantId },
+          select: { id: true },
+        });
+        if (!municipality) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Municipality not found." });
+        }
+
+        await prisma.patrol.update({
+          where: { id: input.id },
+          data: {
+            municipalityId: input.municipalityId,
+            municipalityManual: true,
+            municipalityAssignedAt: new Date(),
+          },
+        });
+
+        await writeAuditLog(prisma as unknown as PrismaClient, {
+          tenantId: ctx.tenantId,
+          userId: ctx.userId,
+          action: "SET_PATROL_MUNICIPALITY_OVERRIDE",
+          entityType: "Patrol",
+          entityId: input.id,
+          changesJson: {
+            before: { municipalityId: existing.municipalityId, municipalityManual: existing.municipalityManual },
+            after: { municipalityId: input.municipalityId, municipalityManual: true },
+          },
+          ipAddress: ctx.ip,
+          severity: "info",
+        });
+      } else {
+        await prisma.patrol.update({
+          where: { id: input.id },
+          data: { municipalityManual: false },
+        });
+
+        await enqueueMunicipalityAssign({
+          entity: "patrol",
+          id: input.id,
+          tenantId: ctx.tenantId,
+          userId: ctx.userId,
+        });
+
+        await writeAuditLog(prisma as unknown as PrismaClient, {
+          tenantId: ctx.tenantId,
+          userId: ctx.userId,
+          action: "CLEAR_PATROL_MUNICIPALITY_OVERRIDE",
+          entityType: "Patrol",
+          entityId: input.id,
+          changesJson: {
+            before: { municipalityId: existing.municipalityId, municipalityManual: existing.municipalityManual },
+            after: { municipalityId: null, municipalityManual: false },
+          },
+          ipAddress: ctx.ip,
+          severity: "info",
+        });
+      }
+
+      return {
+        id: input.id,
+        municipalityId: input.municipalityId,
+        municipalityManual: input.municipalityId !== null,
+      };
     }),
 
   /**

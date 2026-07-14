@@ -584,6 +584,10 @@ model Patrol {
   // municipality-coverage — assigned asynchronously after patrol-track materializes
   municipalityId         String?   @map("municipality_id")
   municipalityAssignedAt DateTime? @map("municipality_assigned_at")
+  // manual-override — when true, an officer set municipalityId by hand; the
+  // municipality-assign processor MUST NOT overwrite it (anti-clobber). Auto
+  // attribution still refreshes terrain + covered-zones (geometry-derived).
+  municipalityManual Boolean @default(false) @map("municipality_manual")
 
   // terrain-filter — spatial classifier derived from geometry; nullable until backfilled.
   terrain String? @map("terrain")

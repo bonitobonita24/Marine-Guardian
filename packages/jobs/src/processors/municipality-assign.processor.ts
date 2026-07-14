@@ -115,6 +115,8 @@ export async function processMunicipalityAssign(
       tenantId: true,
       startLocationLat: true,
       startLocationLon: true,
+      municipalityId: true,
+      municipalityManual: true,
       track: { select: { trackGeojson: true } },
     },
   });
@@ -158,10 +160,15 @@ export async function processMunicipalityAssign(
     ? classifyTrackTerrain(trackGeojson, municipalities)
     : classifyPointTerrain(point as { lat: number; lon: number }, municipalities);
 
-  // Update patrol row (Layer 1)
+  // Update patrol row (Layer 1) — anti-clobber: a manually-overridden
+  // municipalityId is never overwritten by auto attribution. Terrain +
+  // covered-zones are geometry-derived and always refresh regardless.
+  const manualOverride = patrol.municipalityManual === true;
   await platformPrisma.patrol.update({
     where: { id },
-    data: { municipalityId, municipalityAssignedAt: now, terrain },
+    data: manualOverride
+      ? { terrain }
+      : { municipalityId, municipalityAssignedAt: now, terrain },
   });
 
   // Upsert junction rows (Layer 2) — idempotent
@@ -173,5 +180,12 @@ export async function processMunicipalityAssign(
     });
   }
 
-  return { entity, id, municipalityId, zoneIds, skipped: false };
+  return {
+    entity,
+    id,
+    municipalityId: manualOverride ? patrol.municipalityId : municipalityId,
+    zoneIds,
+    skipped: false,
+    ...(manualOverride ? { skipReason: "manual_override" } : {}),
+  };
 }
