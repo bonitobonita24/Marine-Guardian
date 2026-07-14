@@ -22,21 +22,21 @@ export function Hero() {
 
   return (
     <section id="top" className="relative overflow-hidden">
-      {/* Cinematic marine motion background — AI-generated (watermark-free),
-          muted + looping. Reduced motion → poster still only, no autoplay
-          (WCAG 2.3.3). Poster paints first so it never blocks LCP. */}
+      {/* Muted story-reel background — AI-generated (watermark-free), muted +
+          looping, no audio track. Reduced motion → poster still only, no
+          autoplay (WCAG 2.3.3). Poster paints first so it never blocks LCP. */}
       <div aria-hidden className="pointer-events-none absolute inset-0">
         <video
           className="h-full w-full object-cover"
-          poster="/showcase/mg-showcase-hero-poster.jpg"
+          poster="/showcase/mg-hero-reel-poster.jpg"
           autoPlay={!shouldReduceMotion}
           loop
           muted
           playsInline
           preload="metadata"
         >
-          <source src="/showcase/mg-showcase-hero.webm" type="video/webm" />
-          <source src="/showcase/mg-showcase-hero.mp4" type="video/mp4" />
+          <source src="/showcase/mg-hero-reel.webm" type="video/webm" />
+          <source src="/showcase/mg-hero-reel.mp4" type="video/mp4" />
         </video>
         {/* Legibility overlay — darkens the footage and fades to solid at the
             bottom so the headline stays readable and the section blends out. */}
@@ -104,10 +104,10 @@ export function Hero() {
           className="relative mt-14 lg:mt-20"
         >
           <BrowserFrame
-            src="/showcase/hero-warroom.png"
-            alt="Marine Guardian Command Center War Room on a wall display"
+            src="/showcase/real/command-center-fullscreen.png"
+            alt="Marine Guardian Command Center War Room — live map of the Mindoro/Palawan MPAs with event markers, KPI cards, alerts panel and live event feed"
             url="app.marine-guardian / command-center"
-            className="mx-auto max-w-5xl shadow-2xl shadow-black/60"
+            className="mx-auto w-full max-w-6xl shadow-2xl shadow-black/60"
           />
         </motion.div>
       </div>
