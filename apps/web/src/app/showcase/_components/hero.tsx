@@ -22,6 +22,28 @@ export function Hero() {
 
   return (
     <section id="top" className="relative overflow-hidden">
+      {/* Cinematic marine motion background — AI-generated (watermark-free),
+          muted + looping. Reduced motion → poster still only, no autoplay
+          (WCAG 2.3.3). Poster paints first so it never blocks LCP. */}
+      <div aria-hidden className="pointer-events-none absolute inset-0">
+        <video
+          className="h-full w-full object-cover"
+          poster="/showcase/mg-showcase-hero-poster.jpg"
+          autoPlay={!shouldReduceMotion}
+          loop
+          muted
+          playsInline
+          preload="metadata"
+        >
+          <source src="/showcase/mg-showcase-hero.webm" type="video/webm" />
+          <source src="/showcase/mg-showcase-hero.mp4" type="video/mp4" />
+        </video>
+        {/* Legibility overlay — darkens the footage and fades to solid at the
+            bottom so the headline stays readable and the section blends out. */}
+        <div className="absolute inset-0 bg-background/70" />
+        <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-background/75 to-background" />
+      </div>
+
       {/* Ocean / cyan glow backdrop — marketing surface only. Pure CSS gradients,
           no motion, harmonised with the app's near-black neutral base. */}
       <div aria-hidden className="pointer-events-none absolute inset-0">
