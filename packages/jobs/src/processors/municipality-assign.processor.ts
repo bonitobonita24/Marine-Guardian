@@ -30,11 +30,11 @@ import type { MunicipalityAssignJobPayload } from "../queues/types";
 import { validateTenantContext } from "../workers/base-worker";
 import {
   assignMunicipalityByContainment,
-  assignMunicipalityToDominantTrackByContainment,
   assignZonesToPoint,
   assignZonesToTrack,
   classifyPointTerrain,
   classifyTrackTerrain,
+  firstTrackPoint,
 } from "@marine-guardian/shared/lib/municipality-assignment";
 
 export interface MunicipalityAssignResult {
@@ -135,12 +135,17 @@ export async function processMunicipalityAssign(
     ? { lat: patrol.startLocationLat as number, lon: patrol.startLocationLon as number }
     : undefined;
 
-  // Layer 1 — dominant track location by CONTAINMENT ONLY (governing principle):
-  // an offshore/out-of-bounds track or point stays UNATTRIBUTED (null), never
-  // snapped to the nearest municipality.
-  const municipalityId = trackGeojson != null
-    ? assignMunicipalityToDominantTrackByContainment(trackGeojson, municipalities)
-    : assignMunicipalityByContainment(point as { lat: number; lon: number }, municipalities);
+  // Layer 1 — a patrol is counted ONLY in the municipality that CONTAINS its
+  // START point (owner governing rule 2026-07-15): regardless of where the
+  // track later overlaps or traverses into neighbors, jurisdiction follows the
+  // origin — never the dominant-track share, never the nearest LGU. Prefer the
+  // recorded start location; fall back to the track's first point; a start
+  // outside every boundary stays UNATTRIBUTED (null).
+  const startPoint = point ?? firstTrackPoint(trackGeojson);
+  const municipalityId =
+    startPoint != null
+      ? assignMunicipalityByContainment(startPoint, municipalities)
+      : null;
 
   // Layer 2 — use track if materialised, fallback to single point
   const zoneIds = trackGeojson != null

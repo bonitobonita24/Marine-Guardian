@@ -34,15 +34,19 @@ vi.mock("@marine-guardian/db", () => ({
 // they are stubbed so the not-found path never reaches them.
 vi.mock("@marine-guardian/shared/lib/municipality-assignment", () => ({
   assignMunicipalityByContainment: vi.fn().mockReturnValue(null),
-  assignMunicipalityToDominantTrackByContainment: vi.fn().mockReturnValue(null),
   assignZonesToPoint: vi.fn().mockReturnValue([]),
   assignZonesToTrack: vi.fn().mockReturnValue([]),
   classifyPointTerrain: vi.fn().mockReturnValue("land"),
   classifyTrackTerrain: vi.fn().mockReturnValue("land"),
+  firstTrackPoint: vi.fn().mockReturnValue(null),
 }));
 
 import { processMunicipalityAssign } from "../municipality-assign.processor";
 import { platformPrisma } from "@marine-guardian/db";
+import {
+  assignMunicipalityByContainment,
+  firstTrackPoint,
+} from "@marine-guardian/shared/lib/municipality-assignment";
 
 // Typed handle onto the mocked prisma surface used by this processor.
 const pp = platformPrisma as unknown as {
@@ -51,6 +55,9 @@ const pp = platformPrisma as unknown as {
   event: { findUnique: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
   patrol: { findUnique: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
 };
+
+const mockedAssignByContainment = assignMunicipalityByContainment as unknown as ReturnType<typeof vi.fn>;
+const mockedFirstTrackPoint = firstTrackPoint as unknown as ReturnType<typeof vi.fn>;
 
 function makeJob(
   overrides: Partial<MunicipalityAssignJobPayload> = {},
@@ -113,5 +120,88 @@ describe("processMunicipalityAssign — missing row robustness", () => {
     expect(result.skipped).toBe(true);
     expect(result.skipReason).toBe("no_location");
     expect(pp.event.update).not.toHaveBeenCalled();
+  });
+});
+
+// Layer-1 patrol attribution governing rule (owner 2026-07-15): a patrol is
+// counted ONLY in the municipality that CONTAINS its START point — never the
+// dominant-track share, never nearest. These tests prove the processor calls
+// assignMunicipalityByContainment with the START point (recorded
+// startLocation, or the track's first point as fallback) rather than any
+// track-majority computation.
+describe("processMunicipalityAssign — patrol Layer-1 START-point attribution", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    pp.municipality.findMany.mockResolvedValue([]);
+    pp.protectedZone.findMany.mockResolvedValue([]);
+  });
+
+  it("uses the recorded start point's municipality (A) even when the track's majority lies in a different municipality (B)", async () => {
+    const startPoint = { lat: 13.4, lon: 121.2 }; // inside municipality A
+    const trackGeojson = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates: [[121.5, 13.7], [121.51, 13.71], [121.52, 13.72]] }, // mostly in B
+        },
+      ],
+    };
+
+    pp.patrol.findUnique.mockResolvedValueOnce({
+      id: "patrol-1",
+      tenantId: "tenant-1",
+      startLocationLat: startPoint.lat,
+      startLocationLon: startPoint.lon,
+      track: { trackGeojson },
+    });
+
+    // assignMunicipalityByContainment is only ever called with the START
+    // point in this scenario — return "muni-A" for it, "muni-B" for anything
+    // else, so the assertion fails loudly if the processor ever passes a
+    // track/dominant point instead.
+    mockedAssignByContainment.mockImplementation((point: { lat: number; lon: number }) =>
+      point.lat === startPoint.lat && point.lon === startPoint.lon ? "muni-A" : "muni-B",
+    );
+
+    const result = await processMunicipalityAssign(makeJob({ entity: "patrol", id: "patrol-1" }));
+
+    expect(result.municipalityId).toBe("muni-A");
+    expect(mockedFirstTrackPoint).not.toHaveBeenCalled();
+    expect(pp.patrol.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ municipalityId: "muni-A" }) }),
+    );
+  });
+
+  it("falls back to the track's first point when startLocationLat/Lon is null, and attributes by ITS containing municipality", async () => {
+    const firstPoint = { lat: 13.9, lon: 121.9 }; // inside municipality A
+    const trackGeojson = {
+      type: "FeatureCollection",
+      features: [
+        { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [[121.9, 13.9]] } },
+      ],
+    };
+
+    pp.patrol.findUnique.mockResolvedValueOnce({
+      id: "patrol-2",
+      tenantId: "tenant-1",
+      startLocationLat: null,
+      startLocationLon: null,
+      track: { trackGeojson },
+    });
+
+    mockedFirstTrackPoint.mockReturnValue(firstPoint);
+    mockedAssignByContainment.mockImplementation((point: { lat: number; lon: number }) =>
+      point.lat === firstPoint.lat && point.lon === firstPoint.lon ? "muni-A" : "muni-B",
+    );
+
+    const result = await processMunicipalityAssign(makeJob({ entity: "patrol", id: "patrol-2" }));
+
+    expect(result.municipalityId).toBe("muni-A");
+    expect(mockedFirstTrackPoint).toHaveBeenCalledWith(trackGeojson);
+    expect(pp.patrol.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ municipalityId: "muni-A" }) }),
+    );
   });
 });

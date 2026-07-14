@@ -16,6 +16,7 @@ import {
   assignZonesToPoint,
   classifyPointTerrain,
   classifyTrackTerrain,
+  firstTrackPoint,
   isPointInAnyGeometry,
   nearestMunicipality,
 } from "../index.js";
@@ -1070,5 +1071,38 @@ describe("assignMunicipalityToDominantTrackByContainment", () => {
         [calapanLandAndWater],
       ),
     ).toBeNull();
+  });
+});
+
+describe("firstTrackPoint", () => {
+  it("returns the first coordinate of a valid LineString FeatureCollection track as { lat, lon }", () => {
+    const track = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [121.15, 13.3],
+              [121.2, 13.4],
+              [121.25, 13.45],
+            ],
+          },
+        },
+      ],
+    };
+    expect(firstTrackPoint(track)).toEqual({ lat: 13.3, lon: 121.15 });
+  });
+
+  it("returns null for an empty FeatureCollection", () => {
+    expect(firstTrackPoint({ type: "FeatureCollection", features: [] })).toBeNull();
+  });
+
+  it("returns null for malformed/invalid geojson", () => {
+    expect(firstTrackPoint(null)).toBeNull();
+    expect(firstTrackPoint({ type: "FeatureCollection" })).toBeNull();
+    expect(firstTrackPoint({ type: "FeatureCollection", features: [null] })).toBeNull();
   });
 });

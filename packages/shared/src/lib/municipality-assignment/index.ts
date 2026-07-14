@@ -407,6 +407,19 @@ function extractTrackCoordinates(trackGeojson: unknown): [number, number][] {
 }
 
 /**
+ * First GPS point of a patrol track as { lat, lon }, or null when the track
+ * has no extractable coordinates. Used for START-point municipality
+ * attribution when a patrol has no recorded startLocation.
+ */
+export function firstTrackPoint(
+  trackGeojson: unknown,
+): { lat: number; lon: number } | null {
+  const points = extractTrackCoordinates(trackGeojson);
+  const first = points[0];
+  return first ? { lat: first[1], lon: first[0] } : null;
+}
+
+/**
  * ⚠ NOT FOR ATTRIBUTION. Use `assignMunicipalityToDominantTrackByContainment`
  * — boundaries-only governing principle (owner 2026-07-13): a wholly-offshore
  * track stays UNATTRIBUTED, never snapped to the nearest LGU. Kept for legacy callers/tests.
