@@ -67,7 +67,7 @@
     { "name": "andrej-karpathy-skills", "marketplace": "karpathy-skills", "status": "ACTIVE", "reason": "4 behavioral principles: think before coding, simplicity first, surgical changes, goal-driven execution" }
   ],
   "installedRulesFiles": [
-    { "path": ".claude/rules/memory-governance.md", "version": "V32 Zero Opus Execution + V32.1 Sonnet subagent overhead note", "reason": "Tiered Decomposition (§1 file-size-based, ≤500 lines/Sonnet task) + Smart Checkpoint (§2) + Phase Hooks (§3) + Architect-Execute Model (§4 zero Opus execution) + Mid-Project Adoption (§5)" }
+    { "path": ".ai_prompt/memory-governance.md", "version": "V32 Zero Opus Execution + V32.1 Sonnet subagent overhead note", "reason": "Tiered Decomposition (§1 file-size-based, ≤500 lines/Sonnet task) + Smart Checkpoint (§2) + Phase Hooks (§3) + Architect-Execute Model (§4 zero Opus execution) + Mid-Project Adoption (§5)" }
   ],
   "mcpServers": [
     { "name": "socraticode", "configPath": ".vscode/mcp.json", "type": "MCP-only (NOT plugin)", "reason": "Vector search — verified clean (no instructions field, zero behavioral directives), coexists with code-review-graph" },
@@ -94,7 +94,7 @@
     "detected": true,
     "frameworkVersion": "V32.1.4 (CLAUDE.md) / V32.1.3 upgrade marker",
     "memoryGovernanceInstalled": true,
-    "memoryGovernancePath": ".claude/rules/memory-governance.md",
+    "memoryGovernancePath": ".ai_prompt/memory-governance.md",
     "memoryGovernanceVersion": "V32 Zero Opus Execution + V32.1 Sonnet subagent context-overhead note",
     "currentPhase": "POST-§210 BACKLOG awaiting Bonito's next selection",
     "midProjectAdoption": false,

@@ -952,3 +952,21 @@ Locked: yes
 - [swarm S1 · 2026-07-01 15:27:20] S1/q-S1-01: A (framework/convention) — Extract duplicated LE + Monitoring event-list IIFEs to local EventListTable({events, caption}) to match MapAltTable/PageHeader/PageFooter named-component convention in report-map-report.tsx.
 - [swarm S1 · 2026-07-01 15:27:34] q-S1-02 [A]: Keep shortDay() co-located in both print chart components; rule-of-three not met (N=2), premature-abstraction guidance applies. Revisit if a 3rd consumer appears.
 - [swarm S1 · 2026-07-01 15:27:49] S1/q-S1-03 [A]: Merge PatrolOverTimeChart + PrintEventsOverTimeChart into shared PrintTimeSeriesChart with parametric props (series, title, color, valueLabel, height); retire duplicates. Rationale: identical Recharts config, only prop-level variation; framework DRY/reuse convention.
+
+## Phase-7 HARD PRE-MERGE dual-lint gate — MG-specific (2026-07-14)
+Decision: Every Phase-7 Feature Update (and any pre-merge to main) MUST pass BOTH lint
+passes before squash-merge — each catches lint debt the other misses:
+  - `pnpm turbo run lint`                 (workspace ESLint --max-warnings 0; catches
+                                           unused-eslint-disable + warnings `next build`
+                                           does NOT fail on — CI Turbo-lint job. Per 2026-06-29 root cause)
+  - `pnpm --filter @marine-guardian/web build`  (Next.js production build runs ESLint;
+                                           catches lint debt workspace `turbo lint` misses.
+                                           Per 2026-05-31 root cause, commit 19e4d4a)
+Both required. IF either fails → fix at source → re-run → do NOT squash-merge with a failing gate.
+Provenance: this guardrail previously lived only as an MG edit inside the auto-loaded
+`.claude/rules/phases.md`. On 2026-07-14 that file (and the other 6 leftover detail files)
+were removed from `.claude/rules/` to complete the framework's V32.7 relocation (detail files
+live on-demand in `.ai_prompt/`; only CLAUDE.md auto-loads). This log entry is now the
+authoritative, framework-sync-proof home for the gate — consult it at every Feature Update
+work-start (Rule 4). See git branch chore/empty-claude-rules-v327-cleanup.
+Locked: yes
