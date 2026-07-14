@@ -21,6 +21,7 @@ import {
   LogOut,
   Fuel,
   CircleUserRound,
+  Brush,
   type LucideIcon,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
@@ -57,6 +58,7 @@ const navGroups: NavGroup[] = [
       { href: "/map", icon: Map, labelKey: "map" },
       // Rendered indented as a submenu under "Interactive Report Map".
       { href: "/exports", icon: FileDown, labelKey: "exports", indent: true },
+      { href: "/doodles", icon: Brush, labelKey: "doodles", indent: true },
     ],
   },
   {
@@ -112,6 +114,7 @@ const VIEWER_ALLOWED_HREFS = new Set<string>([
   "/dashboard",
   "/map",
   "/exports",
+  "/doodles",
   "/profile",
 ]);
 

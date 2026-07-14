@@ -311,6 +311,7 @@ function ReportMapInner() {
           hidePatrolSelector
           hideSubjects
           controlsPlacement="floating"
+          doodleSurface="report-map"
           filterSlot={<ReportFilterBar layout="stacked" />}
           onEventClick={setSelectedEventId}
           focusLocation={focusLocation}

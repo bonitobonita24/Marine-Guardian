@@ -442,6 +442,7 @@ function DashboardContent() {
                is the owner-chosen 2026-06-24 behavior (see map.ts active). */
             trackMode="active"
             controlsPlacement="floating"
+            doodleSurface="command-center"
             defaultEventLayers={{ lawEnforcement: true, monitoring: true }}
             filterSlot={
               <MapMunicipalitySelect

@@ -270,6 +270,8 @@ model Tenant {
   // custom-role matrix layer
   customRoles CustomRole[]
 
+  doodles Doodle[]
+
   @@map("tenants")
 }
 
@@ -338,6 +340,7 @@ model User {
   actingAuditLogs          AuditLog[]              @relation("AuditLogActingUser")
   loggedFuelEntries        FuelEntry[]             @relation("FuelEntryLoggedBy")
   requestedReportExports   ReportExport[]          @relation("ReportExportRequestedBy")
+  doodlesCreated           Doodle[]                @relation("DoodleCreatedBy")
   reportedEvents           Event[]                 @relation("EventReportedByUser")
 
   // V32.9 compliance
@@ -791,6 +794,28 @@ model ReportExport {
   @@index([tenantId, status])
   @@index([tenantId, createdAt])
   @@map("report_exports")
+}
+
+/// Map annotation ("Doodle") — tenant-scoped, user-owned freehand drawings
+/// saved over the Command Center / Report Map. Gated under the existing
+/// "exports" RBAC feature key (no new feature key introduced).
+model Doodle {
+  id              String   @id @default(cuid())
+  tenantId        String   @map("tenant_id")
+  createdByUserId String   @map("created_by_user_id")
+  name            String
+  surface         String // "command-center" | "report-map"
+  geometryJson    Json     @map("geometry_json") // GeoJSON FeatureCollection of stroke LineStrings, each feature.properties = { color, thickness }
+  viewJson        Json?    @map("view_json") // { center: [lng,lat], zoom } to restore the view
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdBy User   @relation("DoodleCreatedBy", fields: [createdByUserId], references: [id])
+
+  @@index([tenantId])
+  @@index([tenantId, createdAt])
+  @@map("doodles")
 }
 
 model PatrolSchedule {

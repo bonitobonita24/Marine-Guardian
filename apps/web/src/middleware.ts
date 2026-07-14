@@ -84,7 +84,7 @@ const TENANT_LOGIN_RE = /^\/[^/]+\/login\/?$/;
 // viewer role — strictly read-only, scoped to Command Center (/dashboard) +
 // Interactive Report Map (/map) + Exports (/exports) + Profile (/profile).
 // Checked against the slug-stripped path (see stripSlug).
-const VIEWER_ALLOWED_PREFIXES = ["/dashboard", "/map", "/exports", "/profile"];
+const VIEWER_ALLOWED_PREFIXES = ["/dashboard", "/map", "/exports", "/doodles", "/profile"];
 
 function isViewerAllowedPath(pathname: string): boolean {
   return VIEWER_ALLOWED_PREFIXES.some(

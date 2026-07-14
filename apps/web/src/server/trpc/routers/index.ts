@@ -31,6 +31,7 @@ import { reportMapRouter } from "./reportMap";
 import { reportTemplateRouter } from "./reportTemplate";
 import { accountRouter } from "./account";
 import { customRoleRouter } from "./customRole";
+import { doodleRouter } from "./doodle";
 
 export const appRouter = router({
   account: accountRouter,
@@ -65,6 +66,7 @@ export const appRouter = router({
   municipality: municipalityRouter,
   reportMap: reportMapRouter,
   reportTemplate: reportTemplateRouter,
+  doodle: doodleRouter,
 });
 
 export type AppRouter = typeof appRouter;

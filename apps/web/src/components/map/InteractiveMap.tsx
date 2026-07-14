@@ -24,6 +24,9 @@ import { MapPolygon } from "./MapPolygon";
 import { MapHeatmap } from "./MapHeatmap";
 import { PatrolSelector } from "./PatrolSelector";
 import { TrackLegend } from "./TrackLegend";
+import { DoodleOverlay } from "./doodle/DoodleOverlay";
+import { DoodleToolbar } from "./doodle/DoodleToolbar";
+import { useDoodle } from "./doodle/useDoodle";
 import {
   DEFAULT_TRACK_VISIBILITY,
   filterVisibleTracks,
@@ -46,7 +49,7 @@ import {
 import { isSubjectVisible } from "./subjectVisibility";
 import { isImageAsset } from "@marine-guardian/shared/lib/asset-mime";
 import { eventTypeIcon } from "@/lib/event-type-icon";
-import { AlertTriangle, Flag, FlagTriangleRight } from "lucide-react";
+import { AlertTriangle, Flag, FlagTriangleRight, Pencil } from "lucide-react";
 
 // MapLibre coordinate convention is [longitude, latitude] (locked in DECISIONS_LOG).
 // Default view spans Marine Guardian's primary operating area; the map auto-fits
@@ -240,6 +243,12 @@ type InteractiveMapProps = {
    *  ONLY subject markers whose name is in `activeSubjectNames`, hiding
    *  everything else. */
   hideIdleSubjects?: boolean;
+  /** Enables the Doodle map-annotation overlay (freehand drawing pinned to
+   *  geo coordinates, saved via trpc.doodle.create) when set. Identifies
+   *  which surface a saved doodle belongs to. Omitted → no doodle UI at all
+   *  (e.g. the Rangers-on-Duty drilldown map, which also reuses this
+   *  component, stays unaffected). */
+  doodleSurface?: "command-center" | "report-map";
 };
 
 export function InteractiveMap({
@@ -265,7 +274,9 @@ export function InteractiveMap({
   onBackgroundClick,
   activeSubjectNames,
   hideIdleSubjects,
+  doodleSurface,
 }: InteractiveMapProps) {
+  const doodle = useDoodle();
   // Skylight opt-in (SKY-1). Default OFF — Skylight events stay excluded from
   // the map's events unless the operator toggles this on (TrackLegend "Show
   // Skylight events" switch, wired below).
@@ -775,6 +786,44 @@ export function InteractiveMap({
       >
         <MapControls />
 
+        {/* Doodle mode toggle — alongside the existing zoom/compass controls
+            (both z-10). Only rendered when the caller opts a surface in via
+            `doodleSurface` (Command Center / Report Map); other consumers of
+            this shared component (e.g. the Rangers-on-Duty drilldown map)
+            never render it. */}
+        {doodleSurface !== undefined && (
+          <div className="absolute z-10 bottom-24 right-2 border-border bg-background flex flex-col overflow-hidden rounded-md border shadow-sm">
+            <button
+              type="button"
+              onClick={doodle.toggleActive}
+              aria-label={doodle.active ? "Exit doodle mode" : "Doodle on map"}
+              aria-pressed={doodle.active}
+              className={cn(
+                "flex size-8 items-center justify-center transition-all",
+                "hover:bg-accent dark:hover:bg-accent/40",
+                "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset",
+              )}
+            >
+              <Pencil
+                className={cn("size-4", doodle.active && "text-primary")}
+              />
+            </button>
+          </div>
+        )}
+
+        {/* Doodle drawing surface — a portaled child of the map (see
+            DoodleOverlay), pinned to geo coordinates so strokes stay put on
+            pan/zoom. Sits at z-10, below the floating controls (z-20). */}
+        {doodleSurface !== undefined && (
+          <DoodleOverlay
+            active={doodle.active}
+            color={doodle.color}
+            thickness={doodle.thickness}
+            strokes={doodle.strokes}
+            onStrokesChange={doodle.setStrokes}
+          />
+        )}
+
         {(patrolAreasQuery.data ?? []).map((area) => (
           <MapPolygon
             key={`patrol-area-${area.id}`}
@@ -1103,6 +1152,22 @@ export function InteractiveMap({
               className="bg-background/95 backdrop-blur shadow-md"
             />
           </div>
+        )}
+
+        {/* Doodle toolbar — shown only while doodle mode is ON. */}
+        {doodleSurface !== undefined && doodle.active && (
+          <DoodleToolbar
+            surface={doodleSurface}
+            map={mapInstance}
+            color={doodle.color}
+            onColorChange={doodle.setColor}
+            thickness={doodle.thickness}
+            onThicknessChange={doodle.setThickness}
+            strokes={doodle.strokes}
+            onUndo={doodle.undo}
+            onClear={doodle.clear}
+            onSaved={doodle.reset}
+          />
         )}
       </div>
     </div>
