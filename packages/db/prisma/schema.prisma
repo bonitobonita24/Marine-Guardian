@@ -818,23 +818,34 @@ model Doodle {
   @@map("doodles")
 }
 
-model PatrolSchedule {
-  id             String   @id @default(cuid())
-  tenantId       String   @map("tenant_id")
-  patrolAreaId   String   @map("patrol_area_id")
-  rangerUserId   String?  @map("ranger_user_id")
-  rangerName     String   @map("ranger_name")
-  scheduledStart DateTime @map("scheduled_start")
-  scheduledEnd   DateTime @map("scheduled_end")
-  notes          String?
-  createdBy      String   @map("created_by")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+enum PatrolScheduleStatus {
+  planned
+  in_progress
+  completed
+  cancelled
+}
 
-  tenant     Tenant     @relation(fields: [tenantId], references: [id])
-  patrolArea PatrolArea @relation(fields: [patrolAreaId], references: [id], onDelete: Cascade)
-  ranger     User?      @relation("PatrolScheduleRanger", fields: [rangerUserId], references: [id])
-  creator    User       @relation("PatrolScheduleCreatedBy", fields: [createdBy], references: [id])
+model PatrolSchedule {
+  id                  String                @id @default(cuid())
+  tenantId            String                @map("tenant_id")
+  patrolAreaId        String?               @map("patrol_area_id")
+  rangerUserId        String?               @map("ranger_user_id")
+  rangerName          String                @map("ranger_name")
+  accompanyingRangers Json?                 @map("accompanying_rangers") // Array of { userId?: string, name: string }
+  scheduledStart      DateTime              @map("scheduled_start")
+  scheduledEnd        DateTime              @map("scheduled_end")
+  plannedHours        Float?                @map("planned_hours")
+  plannedTrackGeojson Json?                 @map("planned_track_geojson")
+  status              PatrolScheduleStatus  @default(planned)
+  notes               String?
+  createdBy           String                @map("created_by")
+  createdAt           DateTime              @default(now()) @map("created_at")
+  updatedAt           DateTime              @updatedAt @map("updated_at")
+
+  tenant     Tenant      @relation(fields: [tenantId], references: [id])
+  patrolArea PatrolArea? @relation(fields: [patrolAreaId], references: [id], onDelete: SetNull)
+  ranger     User?       @relation("PatrolScheduleRanger", fields: [rangerUserId], references: [id])
+  creator    User        @relation("PatrolScheduleCreatedBy", fields: [createdBy], references: [id])
 
   @@index([tenantId])
   @@index([patrolAreaId])

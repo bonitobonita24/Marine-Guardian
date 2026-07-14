@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,14 +20,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+} from "@/components/ui/dropdown-menu";
 import { trpc } from "@/lib/trpc/client";
+import {
+  PlannedTrackDraw,
+  type PlannedTrackGeoJSON,
+} from "./planned-track-draw";
 
 type ConflictItem = {
   id: string;
   scheduledStart: Date;
   scheduledEnd: Date;
   rangerName: string;
-  patrolArea: { id: string; name: string };
+  patrolArea: { id: string; name: string } | null;
 };
 
 function formatRange(start: Date, end: Date): string {
@@ -37,6 +47,24 @@ function formatRange(start: Date, end: Date): string {
     year: "numeric",
   });
   return `${fmt.format(start)} – ${fmt.format(end)}`;
+}
+
+function formatDateTime(date: Date): string {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
+/** Formats a Date as a `datetime-local` input value using LOCAL time
+ *  components (not UTC) so `new Date(inputValue)` round-trips back to the
+ *  same instant — `datetime-local` strings are parsed as local time. */
+function toDatetimeLocalValue(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${String(date.getFullYear())}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 /** Debounce hook — returns the debounced value after delayMs */
@@ -64,13 +92,17 @@ const NAME_SOURCE_LABELS: Record<NameSuggestion["source"], string> = {
 
 const UNASSIGNED_VALUE = "__none__";
 
+type AccompanyingRanger = { userId?: string; name: string };
+
 interface InitialValues {
   id: string;
-  patrolAreaId: string;
+  patrolAreaId: string | null;
   rangerUserId: string | null;
   rangerName: string;
+  accompanyingRangers?: AccompanyingRanger[] | null;
   scheduledStart: Date;
-  scheduledEnd: Date;
+  plannedHours?: number | null;
+  plannedTrackGeojson?: PlannedTrackGeoJSON | null;
   notes: string | null;
 }
 
@@ -94,8 +126,13 @@ export function AssignmentDialog({
   const [patrolAreaId, setPatrolAreaId] = useState<string | null>(null);
   const [rangerUserId, setRangerUserId] = useState<string | null>(null);
   const [rangerName, setRangerName] = useState<string>("");
+  const [accompanyingRangers, setAccompanyingRangers] = useState<
+    AccompanyingRanger[]
+  >([]);
+  const [plannedTrackGeojson, setPlannedTrackGeojson] =
+    useState<PlannedTrackGeoJSON | null>(null);
   const [scheduledStartRaw, setScheduledStartRaw] = useState<string>("");
-  const [scheduledEndRaw, setScheduledEndRaw] = useState<string>("");
+  const [plannedHoursRaw, setPlannedHoursRaw] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
   const [validationError, setValidationError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<
@@ -164,8 +201,14 @@ export function AssignmentDialog({
       setRangerUserId(initial.rangerUserId);
       setRangerName(initial.rangerName);
       lastAutoFillName.current = initial.rangerName;
-      setScheduledStartRaw(initial.scheduledStart.toISOString().slice(0, 10));
-      setScheduledEndRaw(initial.scheduledEnd.toISOString().slice(0, 10));
+      setAccompanyingRangers(initial.accompanyingRangers ?? []);
+      setPlannedTrackGeojson(initial.plannedTrackGeojson ?? null);
+      setScheduledStartRaw(toDatetimeLocalValue(initial.scheduledStart));
+      setPlannedHoursRaw(
+        initial.plannedHours !== null && initial.plannedHours !== undefined
+          ? String(initial.plannedHours)
+          : "",
+      );
       setNotes(initial.notes ?? "");
     }
   }, [mode, initial]);
@@ -186,10 +229,20 @@ export function AssignmentDialog({
     [usersQuery.data],
   );
 
-  // Auto-fill rangerName when rangerUserId changes
+  // Accompanying-ranger candidates exclude whoever is currently the lead.
+  const accompanyingCandidates = useMemo(
+    () => rangerOptions.filter((u) => u.id !== rangerUserId),
+    [rangerOptions, rangerUserId],
+  );
+
+  // Auto-fill rangerName when the lead rangerUserId changes
   function handleRangerSelect(value: string) {
     const nextId = value === UNASSIGNED_VALUE ? null : value;
     setRangerUserId(nextId);
+    if (nextId !== null) {
+      // The lead can't also be an accompanying ranger.
+      setAccompanyingRangers((prev) => prev.filter((r) => r.userId !== nextId));
+    }
     if (nextId === null) {
       // Unassigned — clear auto-fill tracking but don't wipe a manual name
       lastAutoFillName.current = "";
@@ -204,6 +257,22 @@ export function AssignmentDialog({
       lastAutoFillName.current = user.fullName;
       setNameOpen(false);
     }
+  }
+
+  function toggleAccompanying(user: { id: string; fullName: string }, checked: boolean) {
+    setAccompanyingRangers((prev) => {
+      if (checked) {
+        if (prev.some((r) => r.userId === user.id)) return prev;
+        return [...prev, { userId: user.id, name: user.fullName }];
+      }
+      return prev.filter((r) => r.userId !== user.id);
+    });
+  }
+
+  function removeAccompanying(target: AccompanyingRanger) {
+    setAccompanyingRangers((prev) =>
+      prev.filter((r) => (r.userId ?? r.name) !== (target.userId ?? target.name)),
+    );
   }
 
   const create = trpc.patrolSchedule.create.useMutation({
@@ -249,10 +318,12 @@ export function AssignmentDialog({
     setPatrolAreaId(null);
     setRangerUserId(null);
     setRangerName("");
+    setAccompanyingRangers([]);
+    setPlannedTrackGeojson(null);
     lastAutoFillName.current = "";
     setNameOpen(false);
     setScheduledStartRaw("");
-    setScheduledEndRaw("");
+    setPlannedHoursRaw("");
     setNotes("");
     setValidationError(null);
     setFeedback(null);
@@ -274,20 +345,17 @@ export function AssignmentDialog({
   function buildValidatedPayload():
     | {
         ok: true;
-        validPatrolAreaId: string;
+        validPatrolAreaId: string | undefined;
         trimmedName: string;
         startDate: Date;
-        endDate: Date;
+        plannedHoursValue: number;
         trimmedNotes: string;
+        accompanying: AccompanyingRanger[];
       }
     | { ok: false } {
-    if (patrolAreaId === null || patrolAreaId === "") {
-      setValidationError("Patrol area is required.");
-      return { ok: false };
-    }
     const trimmedName = rangerName.trim();
     if (trimmedName.length < 1) {
-      setValidationError("Ranger name is required.");
+      setValidationError("Lead ranger name is required.");
       return { ok: false };
     }
     if (trimmedName.length > 200) {
@@ -295,33 +363,40 @@ export function AssignmentDialog({
       return { ok: false };
     }
     if (scheduledStartRaw === "") {
-      setValidationError("Scheduled start date is required.");
-      return { ok: false };
-    }
-    if (scheduledEndRaw === "") {
-      setValidationError("Scheduled end date is required.");
+      setValidationError("Scheduled start date & time is required.");
       return { ok: false };
     }
     const startDate = new Date(scheduledStartRaw);
     if (Number.isNaN(startDate.getTime())) {
-      setValidationError("Scheduled start date is invalid.");
+      setValidationError("Scheduled start date & time is invalid.");
       return { ok: false };
     }
-    const endDate = new Date(scheduledEndRaw);
-    if (Number.isNaN(endDate.getTime())) {
-      setValidationError("Scheduled end date is invalid.");
+    if (plannedHoursRaw === "") {
+      setValidationError("Planned hours is required.");
       return { ok: false };
     }
-    if (endDate < startDate) {
-      setValidationError("Scheduled end must be on or after the start date.");
+    const plannedHoursValue = Number(plannedHoursRaw);
+    if (!Number.isFinite(plannedHoursValue) || plannedHoursValue <= 0) {
+      setValidationError("Planned hours must be a positive number.");
+      return { ok: false };
+    }
+    if (plannedHoursValue > 1000) {
+      setValidationError("Planned hours must be 1000 or fewer.");
       return { ok: false };
     }
     if (notes.length > 2000) {
       setValidationError("Notes must be 2000 characters or fewer.");
       return { ok: false };
     }
-    // patrolAreaId narrowed to string by the null/empty guard above
-    return { ok: true, validPatrolAreaId: patrolAreaId, trimmedName, startDate, endDate, trimmedNotes: notes.trim() };
+    return {
+      ok: true,
+      validPatrolAreaId: patrolAreaId ?? undefined,
+      trimmedName,
+      startDate,
+      plannedHoursValue,
+      trimmedNotes: notes.trim(),
+      accompanying: accompanyingRangers,
+    };
   }
 
   async function handleSubmit() {
@@ -330,7 +405,17 @@ export function AssignmentDialog({
 
     const validated = buildValidatedPayload();
     if (!validated.ok) return;
-    const { validPatrolAreaId, trimmedName, startDate, endDate, trimmedNotes } = validated;
+    const {
+      validPatrolAreaId,
+      trimmedName,
+      startDate,
+      plannedHoursValue,
+      trimmedNotes,
+      accompanying,
+    } = validated;
+    const effectiveEnd = new Date(
+      startDate.getTime() + plannedHoursValue * 3600 * 1000,
+    );
 
     // Pre-flight conflict check (primary gate — server error is race-condition safety net)
     const conflictPayload: {
@@ -340,7 +425,7 @@ export function AssignmentDialog({
       excludeId?: string;
     } = {
       scheduledStart: startDate,
-      scheduledEnd: endDate,
+      scheduledEnd: effectiveEnd,
     };
     if (rangerUserId !== null) conflictPayload.rangerUserId = rangerUserId;
     if (mode === "edit" && initial !== undefined) conflictPayload.excludeId = initial.id;
@@ -352,11 +437,13 @@ export function AssignmentDialog({
 
     if (mode === "create") {
       create.mutate({
-        patrolAreaId: validPatrolAreaId,
+        ...(validPatrolAreaId !== undefined ? { patrolAreaId: validPatrolAreaId } : {}),
         ...(rangerUserId !== null ? { rangerUserId } : {}),
         rangerName: trimmedName,
+        ...(accompanying.length > 0 ? { accompanyingRangers: accompanying } : {}),
         scheduledStart: startDate,
-        scheduledEnd: endDate,
+        plannedHours: plannedHoursValue,
+        ...(plannedTrackGeojson !== null ? { plannedTrackGeojson } : {}),
         ...(trimmedNotes !== "" ? { notes: trimmedNotes } : {}),
         overrideConflicts: false,
       });
@@ -364,22 +451,28 @@ export function AssignmentDialog({
       if (initial === undefined) return;
 
       // Build update payload — only send fields that differ.
-      // Note: rangerUserId can only be CHANGED to a different ranger via this dialog;
-      // setting it back to "Unassigned" (null) is not supported by the backend update
-      // schema (it accepts string|undefined, not nullable). Re-assigning to null is a
-      // backend gap to address separately.
+      // Note: rangerUserId/patrolAreaId can only be CHANGED to a different
+      // value via this dialog; resetting either back to null (Unassigned /
+      // No area) is not supported by the backend update schema (it accepts
+      // string|undefined, not nullable) — same for plannedTrackGeojson. A
+      // dedicated "clear" mutation would be needed to close that gap.
       const payload: {
         id: string;
         patrolAreaId?: string;
         rangerUserId?: string;
         rangerName?: string;
+        accompanyingRangers?: AccompanyingRanger[];
         scheduledStart?: Date;
-        scheduledEnd?: Date;
+        plannedHours?: number;
+        plannedTrackGeojson?: PlannedTrackGeoJSON;
         notes?: string;
         overrideConflicts?: boolean;
       } = { id: initial.id, overrideConflicts: false };
 
-      if (validPatrolAreaId !== initial.patrolAreaId) {
+      if (
+        validPatrolAreaId !== undefined &&
+        validPatrolAreaId !== (initial.patrolAreaId ?? undefined)
+      ) {
         payload.patrolAreaId = validPatrolAreaId;
       }
       if (rangerUserId !== null && rangerUserId !== initial.rangerUserId) {
@@ -388,11 +481,26 @@ export function AssignmentDialog({
       if (trimmedName !== initial.rangerName) {
         payload.rangerName = trimmedName;
       }
+      if (
+        JSON.stringify(accompanying) !==
+        JSON.stringify(initial.accompanyingRangers ?? [])
+      ) {
+        payload.accompanyingRangers = accompanying;
+      }
       if (startDate.getTime() !== initial.scheduledStart.getTime()) {
         payload.scheduledStart = startDate;
       }
-      if (endDate.getTime() !== initial.scheduledEnd.getTime()) {
-        payload.scheduledEnd = endDate;
+      const initialPlannedHours = initial.plannedHours ?? undefined;
+      if (plannedHoursValue !== initialPlannedHours) {
+        payload.plannedHours = plannedHoursValue;
+      }
+      if (
+        JSON.stringify(plannedTrackGeojson) !==
+        JSON.stringify(initial.plannedTrackGeojson ?? null)
+      ) {
+        if (plannedTrackGeojson !== null) {
+          payload.plannedTrackGeojson = plannedTrackGeojson;
+        }
       }
       const initialNotes = initial.notes ?? "";
       if (trimmedNotes !== initialNotes && trimmedNotes !== "") {
@@ -407,17 +515,26 @@ export function AssignmentDialog({
     // Re-derive from current state — do not use stale cached payload
     const validated = buildValidatedPayload();
     if (!validated.ok) return;
-    const { validPatrolAreaId, trimmedName, startDate, endDate, trimmedNotes } = validated;
+    const {
+      validPatrolAreaId,
+      trimmedName,
+      startDate,
+      plannedHoursValue,
+      trimmedNotes,
+      accompanying,
+    } = validated;
 
     setPendingConflicts(null);
 
     if (mode === "create") {
       create.mutate({
-        patrolAreaId: validPatrolAreaId,
+        ...(validPatrolAreaId !== undefined ? { patrolAreaId: validPatrolAreaId } : {}),
         ...(rangerUserId !== null ? { rangerUserId } : {}),
         rangerName: trimmedName,
+        ...(accompanying.length > 0 ? { accompanyingRangers: accompanying } : {}),
         scheduledStart: startDate,
-        scheduledEnd: endDate,
+        plannedHours: plannedHoursValue,
+        ...(plannedTrackGeojson !== null ? { plannedTrackGeojson } : {}),
         ...(trimmedNotes !== "" ? { notes: trimmedNotes } : {}),
         overrideConflicts: true,
       });
@@ -429,13 +546,18 @@ export function AssignmentDialog({
         patrolAreaId?: string;
         rangerUserId?: string;
         rangerName?: string;
+        accompanyingRangers?: AccompanyingRanger[];
         scheduledStart?: Date;
-        scheduledEnd?: Date;
+        plannedHours?: number;
+        plannedTrackGeojson?: PlannedTrackGeoJSON;
         notes?: string;
         overrideConflicts?: boolean;
       } = { id: initial.id, overrideConflicts: true };
 
-      if (validPatrolAreaId !== initial.patrolAreaId) {
+      if (
+        validPatrolAreaId !== undefined &&
+        validPatrolAreaId !== (initial.patrolAreaId ?? undefined)
+      ) {
         payload.patrolAreaId = validPatrolAreaId;
       }
       if (rangerUserId !== null && rangerUserId !== initial.rangerUserId) {
@@ -444,11 +566,26 @@ export function AssignmentDialog({
       if (trimmedName !== initial.rangerName) {
         payload.rangerName = trimmedName;
       }
+      if (
+        JSON.stringify(accompanying) !==
+        JSON.stringify(initial.accompanyingRangers ?? [])
+      ) {
+        payload.accompanyingRangers = accompanying;
+      }
       if (startDate.getTime() !== initial.scheduledStart.getTime()) {
         payload.scheduledStart = startDate;
       }
-      if (endDate.getTime() !== initial.scheduledEnd.getTime()) {
-        payload.scheduledEnd = endDate;
+      const initialPlannedHours = initial.plannedHours ?? undefined;
+      if (plannedHoursValue !== initialPlannedHours) {
+        payload.plannedHours = plannedHoursValue;
+      }
+      if (
+        JSON.stringify(plannedTrackGeojson) !==
+        JSON.stringify(initial.plannedTrackGeojson ?? null)
+      ) {
+        if (plannedTrackGeojson !== null) {
+          payload.plannedTrackGeojson = plannedTrackGeojson;
+        }
       }
       const initialNotes = initial.notes ?? "";
       if (trimmedNotes !== initialNotes && trimmedNotes !== "") {
@@ -462,6 +599,17 @@ export function AssignmentDialog({
   const testPrefix = `patrol-schedule-assignment-${mode}`;
   const title = mode === "create" ? "Schedule patrol assignment" : "Edit assignment";
 
+  // Live "ends ~" hint from the current start + planned-hours inputs.
+  const computedEndHint = useMemo(() => {
+    if (scheduledStartRaw === "" || plannedHoursRaw === "") return null;
+    const start = new Date(scheduledStartRaw);
+    const hours = Number(plannedHoursRaw);
+    if (Number.isNaN(start.getTime()) || !Number.isFinite(hours) || hours <= 0) {
+      return null;
+    }
+    return formatDateTime(new Date(start.getTime() + hours * 3600 * 1000));
+  }, [scheduledStartRaw, plannedHoursRaw]);
+
   return (
     <Dialog
       open={open}
@@ -473,16 +621,24 @@ export function AssignmentDialog({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            Assign a ranger to a patrol area for a scheduled date range. Ranger
-            selection is optional — enter a name manually if the ranger is not
-            yet registered. Start and end dates are required.
+            Draw the planned patrol track, assign a lead ranger, and set a
+            start time and planned duration. The patrol area is optional.
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4">
-          {/* Patrol area */}
+          {/* Planned track — map draw (primary spatial input) */}
           <div className="space-y-2">
-            <Label htmlFor={`${testPrefix}-area`}>Patrol area</Label>
+            <Label>Planned track</Label>
+            <PlannedTrackDraw
+              value={plannedTrackGeojson}
+              onChange={setPlannedTrackGeojson}
+            />
+          </div>
+
+          {/* Patrol area (optional secondary) */}
+          <div className="space-y-2">
+            <Label htmlFor={`${testPrefix}-area`}>Patrol area (optional)</Label>
             <Select
               value={patrolAreaId ?? ""}
               onValueChange={(v) => {
@@ -505,9 +661,9 @@ export function AssignmentDialog({
             </Select>
           </div>
 
-          {/* Ranger select (optional) */}
+          {/* Lead ranger select */}
           <div className="space-y-2">
-            <Label htmlFor={`${testPrefix}-ranger`}>Ranger (optional)</Label>
+            <Label htmlFor={`${testPrefix}-ranger`}>Lead ranger</Label>
             <Select
               value={rangerUserId ?? UNASSIGNED_VALUE}
               onValueChange={handleRangerSelect}
@@ -529,9 +685,9 @@ export function AssignmentDialog({
             </Select>
           </div>
 
-          {/* Ranger name — 3-source autocomplete combobox */}
+          {/* Lead ranger name — 3-source autocomplete combobox / manual fallback */}
           <div className="space-y-2">
-            <Label htmlFor={`${testPrefix}-name`}>Ranger name</Label>
+            <Label htmlFor={`${testPrefix}-name`}>Lead ranger name</Label>
             <div className="relative">
               <Input
                 id={`${testPrefix}-name`}
@@ -612,14 +768,76 @@ export function AssignmentDialog({
             </div>
           </div>
 
-          {/* Date range */}
+          {/* Accompanying rangers — multi-select */}
+          <div className="space-y-2">
+            <Label>Accompanying rangers (optional)</Label>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-start font-normal"
+                  data-testid={`${testPrefix}-accompanying-trigger`}
+                >
+                  {accompanyingRangers.length === 0
+                    ? "Select accompanying rangers…"
+                    : `${String(accompanyingRangers.length)} selected`}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                className="max-h-64 w-[--radix-dropdown-menu-trigger-width]"
+              >
+                {accompanyingCandidates.length === 0 && (
+                  <p className="px-2 py-1.5 text-xs text-muted-foreground">
+                    No other rangers available.
+                  </p>
+                )}
+                {accompanyingCandidates.map((u) => {
+                  const checked = accompanyingRangers.some((r) => r.userId === u.id);
+                  return (
+                    <DropdownMenuCheckboxItem
+                      key={u.id}
+                      checked={checked}
+                      onSelect={(e) => { e.preventDefault(); }}
+                      onCheckedChange={(next) => { toggleAccompanying(u, next); }}
+                    >
+                      {u.fullName}
+                    </DropdownMenuCheckboxItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {accompanyingRangers.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {accompanyingRangers.map((r) => (
+                  <span
+                    key={r.userId ?? r.name}
+                    className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs"
+                  >
+                    {r.name}
+                    <button
+                      type="button"
+                      aria-label={`Remove ${r.name}`}
+                      onClick={() => { removeAccompanying(r); }}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Start date/time + planned hours */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor={`${testPrefix}-start`}>Start date</Label>
+              <Label htmlFor={`${testPrefix}-start`}>Start date &amp; time</Label>
               <Input
                 id={`${testPrefix}-start`}
                 data-testid={`${testPrefix}-start`}
-                type="date"
+                type="datetime-local"
                 value={scheduledStartRaw}
                 onChange={(e) => {
                   setScheduledStartRaw(e.target.value);
@@ -627,18 +845,29 @@ export function AssignmentDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor={`${testPrefix}-end`}>End date</Label>
+              <Label htmlFor={`${testPrefix}-hours`}>Planned hours</Label>
               <Input
-                id={`${testPrefix}-end`}
-                data-testid={`${testPrefix}-end`}
-                type="date"
-                value={scheduledEndRaw}
+                id={`${testPrefix}-hours`}
+                data-testid={`${testPrefix}-hours`}
+                type="number"
+                min="0.5"
+                step="0.5"
+                placeholder="e.g. 4"
+                value={plannedHoursRaw}
                 onChange={(e) => {
-                  setScheduledEndRaw(e.target.value);
+                  setPlannedHoursRaw(e.target.value);
                 }}
               />
             </div>
           </div>
+          {computedEndHint !== null && (
+            <p
+              data-testid={`${testPrefix}-end-hint`}
+              className="text-xs text-muted-foreground"
+            >
+              Ends ~{computedEndHint}
+            </p>
+          )}
 
           {/* Notes */}
           <div className="space-y-2">
@@ -669,7 +898,7 @@ export function AssignmentDialog({
             <ul className="mt-2 space-y-1 text-amber-900 dark:text-amber-200">
               {pendingConflicts.map((c) => (
                 <li key={c.id}>
-                  {c.patrolArea.name} —{" "}
+                  {c.patrolArea?.name ?? "No area"} —{" "}
                   {formatRange(c.scheduledStart, c.scheduledEnd)}
                 </li>
               ))}

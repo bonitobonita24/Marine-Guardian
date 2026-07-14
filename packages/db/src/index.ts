@@ -1,6 +1,6 @@
 export { prisma, platformPrisma } from "./client";
 export type { ExtendedPrismaClient } from "./client";
-export { Prisma } from "@prisma/client";
+export { Prisma, PatrolScheduleStatus } from "@prisma/client";
 export type { PrismaClient } from "@prisma/client";
 export { writeAuditLog } from "./helpers/audit";
 export { shouldSkipManualBoundary } from "./helpers/manual-boundary-guard";

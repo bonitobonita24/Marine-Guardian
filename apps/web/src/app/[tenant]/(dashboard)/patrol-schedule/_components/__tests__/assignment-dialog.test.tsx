@@ -96,6 +96,20 @@ vi.mock("@/lib/trpc/client", () => ({
 }));
 
 // ---------------------------------------------------------------------------
+// planned-track-draw.tsx wraps @/components/ui/map (real maplibre-gl needs a
+// WebGL canvas jsdom doesn't provide). Stub it the same way the existing
+// map-consuming test suites do (see components/map/__tests__/SingleEventMap)
+// — this test only exercises the dialog's form wiring, not the map draw
+// surface itself.
+// ---------------------------------------------------------------------------
+vi.mock("@/components/ui/map", () => ({
+  Map: ({ children }: { children?: React.ReactNode }) => (
+    <div data-testid="mock-map">{children}</div>
+  ),
+  useMap: () => ({ map: null, isLoaded: false }),
+}));
+
+// ---------------------------------------------------------------------------
 // Mock shadcn Select as a native <select> so fireEvent.change works.
 // SelectTrigger propagates its data-testid to the parent Select via context.
 // Must use vi.hoisted + import React separately since vi.mock factory runs
@@ -184,8 +198,8 @@ import { AssignmentDialog } from "../assignment-dialog";
 // ---------------------------------------------------------------------------
 const AREA_ID = "area-1";
 const RANGER_ID = "user-1";
-const START = "2026-06-01";
-const END = "2026-06-05";
+const START = "2026-06-01T08:00";
+const PLANNED_HOURS = "4";
 
 const CONFLICT_ITEMS = [
   {
@@ -253,10 +267,10 @@ async function fillForm(
   );
   if (startEl) fireEvent.change(startEl, { target: { value: START } });
 
-  const endEl = document.body.querySelector<HTMLInputElement>(
-    `[data-testid="${prefix}-end"]`,
+  const hoursEl = document.body.querySelector<HTMLInputElement>(
+    `[data-testid="${prefix}-hours"]`,
   );
-  if (endEl) fireEvent.change(endEl, { target: { value: END } });
+  if (hoursEl) fireEvent.change(hoursEl, { target: { value: PLANNED_HOURS } });
 }
 
 // ---------------------------------------------------------------------------
@@ -371,11 +385,11 @@ describe("AssignmentDialog — conflict confirm UI", () => {
 
     const initial = {
       id: "sched-existing",
-      patrolAreaId: AREA_ID,
-      rangerUserId: RANGER_ID,
+      patrolAreaId: AREA_ID as string | null,
+      rangerUserId: RANGER_ID as string | null,
       rangerName: "Ranger Rico",
-      scheduledStart: new Date(`${START}T00:00:00Z`),
-      scheduledEnd: new Date(`${END}T00:00:00Z`),
+      scheduledStart: new Date(`${START}:00Z`),
+      plannedHours: 4,
       notes: null as string | null,
     };
 

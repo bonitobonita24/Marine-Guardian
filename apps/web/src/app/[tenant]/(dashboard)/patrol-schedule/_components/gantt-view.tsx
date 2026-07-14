@@ -19,9 +19,11 @@ type ScheduleItem = {
   rangerName: string;
   scheduledStart: Date;
   scheduledEnd: Date;
-  patrolArea: { id: string; name: string; colorHex: string };
+  patrolArea: { id: string; name: string; colorHex: string } | null;
   ranger: { id: string; fullName: string } | null;
 };
+
+const NO_AREA_COLOR = "#94a3b8"; // slate-400 fallback when no patrol area is set
 
 type Props = {
   items: ScheduleItem[];
@@ -45,15 +47,16 @@ function groupByRanger(items: ScheduleItem[]): Map<string, ScheduleItem[]> {
 }
 
 function toGanttFeature(item: ScheduleItem): GanttFeature {
+  const areaName = item.patrolArea?.name ?? "No area";
   return {
     id: item.id,
-    name: item.patrolArea.name,
+    name: areaName,
     startAt: new Date(item.scheduledStart),
     endAt: new Date(item.scheduledEnd),
     status: {
-      id: item.patrolArea.id,
-      name: item.patrolArea.name,
-      color: item.patrolArea.colorHex,
+      id: item.patrolArea?.id ?? "no-area",
+      name: areaName,
+      color: item.patrolArea?.colorHex ?? NO_AREA_COLOR,
     },
   };
 }

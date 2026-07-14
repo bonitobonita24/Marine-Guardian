@@ -3,8 +3,26 @@ import { TRPCError } from "@trpc/server";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
 import { coordinatorProcedure, matrixProcedure } from "../middleware/rbac";
-import { prisma, writeAuditLog } from "@marine-guardian/db";
+import { prisma, writeAuditLog, PatrolScheduleStatus } from "@marine-guardian/db";
 import type { PrismaClient } from "@marine-guardian/db";
+
+const accompanyingRangerSchema = z.object({
+  userId: z.string().optional(),
+  name: z.string().min(1).max(200),
+});
+
+// Derive the effective scheduledEnd from scheduledStart + plannedHours when
+// plannedHours is provided; otherwise fall back to an explicit scheduledEnd.
+function deriveScheduledEnd(
+  start: Date,
+  plannedHours: number | undefined,
+  explicitEnd: Date | undefined,
+): Date | undefined {
+  if (plannedHours !== undefined) {
+    return new Date(start.getTime() + plannedHours * 3600 * 1000);
+  }
+  return explicitEnd;
+}
 
 // Half-open interval overlap: A.start < B.end AND B.start < A.end
 async function findOverlappingSchedules(
@@ -96,22 +114,37 @@ export const patrolScheduleRouter = router({
   create: matrixProcedure(coordinatorProcedure, "patrol-schedule", "write")
     .input(
       z.object({
-        patrolAreaId: z.string(),
+        patrolAreaId: z.string().optional(),
         rangerUserId: z.string().optional(),
         rangerName: z.string().min(1).max(200),
+        accompanyingRangers: z.array(accompanyingRangerSchema).optional(),
         scheduledStart: z.date(),
-        scheduledEnd: z.date(),
+        scheduledEnd: z.date().optional(),
+        plannedHours: z.number().positive().max(1000).optional(),
+        plannedTrackGeojson: z.record(z.any()).optional(),
+        status: z.nativeEnum(PatrolScheduleStatus).optional(),
         notes: z.string().max(2000).optional(),
         overrideConflicts: z.boolean().default(false),
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const effectiveEnd = deriveScheduledEnd(
+        input.scheduledStart,
+        input.plannedHours,
+        input.scheduledEnd,
+      );
+      if (effectiveEnd === undefined) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Either scheduledEnd or plannedHours is required",
+        });
+      }
       if (input.rangerUserId !== undefined && !input.overrideConflicts) {
         const conflicts = await findOverlappingSchedules(
           ctx.tenantId,
           input.rangerUserId,
           input.scheduledStart,
-          input.scheduledEnd,
+          effectiveEnd,
         );
         if (conflicts.length > 0) {
           throw new TRPCError({
@@ -121,19 +154,26 @@ export const patrolScheduleRouter = router({
           });
         }
       }
+      const createData = {
+        tenantId: ctx.tenantId,
+        ...(input.patrolAreaId !== undefined ? { patrolAreaId: input.patrolAreaId } : {}),
+        ...(input.rangerUserId !== undefined ? { rangerUserId: input.rangerUserId } : {}),
+        rangerName: input.rangerName,
+        ...(input.accompanyingRangers !== undefined
+          ? { accompanyingRangers: input.accompanyingRangers }
+          : {}),
+        scheduledStart: input.scheduledStart,
+        scheduledEnd: effectiveEnd,
+        ...(input.plannedHours !== undefined ? { plannedHours: input.plannedHours } : {}),
+        ...(input.plannedTrackGeojson !== undefined
+          ? { plannedTrackGeojson: input.plannedTrackGeojson }
+          : {}),
+        ...(input.status !== undefined ? { status: input.status } : {}),
+        ...(input.notes !== undefined ? { notes: input.notes } : {}),
+        createdBy: ctx.userId,
+      };
       if (input.overrideConflicts) {
-        const created = await prisma.patrolSchedule.create({
-          data: {
-            tenantId: ctx.tenantId,
-            patrolAreaId: input.patrolAreaId,
-            ...(input.rangerUserId !== undefined ? { rangerUserId: input.rangerUserId } : {}),
-            rangerName: input.rangerName,
-            scheduledStart: input.scheduledStart,
-            scheduledEnd: input.scheduledEnd,
-            ...(input.notes !== undefined ? { notes: input.notes } : {}),
-            createdBy: ctx.userId,
-          },
-        });
+        const created = await prisma.patrolSchedule.create({ data: createData });
         // Extended prisma client is structurally compatible but not assignable to PrismaClient — safe cast.
         await writeAuditLog(prisma as unknown as PrismaClient, {
           tenantId: ctx.tenantId,
@@ -144,40 +184,34 @@ export const patrolScheduleRouter = router({
           changesJson: {
             rangerUserId: input.rangerUserId ?? null,
             scheduledStart: input.scheduledStart.toISOString(),
-            scheduledEnd: input.scheduledEnd.toISOString(),
+            scheduledEnd: effectiveEnd.toISOString(),
           },
         });
         return created;
       }
-      return prisma.patrolSchedule.create({
-        data: {
-          tenantId: ctx.tenantId,
-          patrolAreaId: input.patrolAreaId,
-          ...(input.rangerUserId !== undefined ? { rangerUserId: input.rangerUserId } : {}),
-          rangerName: input.rangerName,
-          scheduledStart: input.scheduledStart,
-          scheduledEnd: input.scheduledEnd,
-          ...(input.notes !== undefined ? { notes: input.notes } : {}),
-          createdBy: ctx.userId,
-        },
-      });
+      return prisma.patrolSchedule.create({ data: createData });
     }),
 
   update: matrixProcedure(coordinatorProcedure, "patrol-schedule", "update")
     .input(
       z.object({
         id: z.string(),
+        patrolAreaId: z.string().optional(),
         rangerUserId: z.string().optional(),
         rangerName: z.string().min(1).max(200).optional(),
+        accompanyingRangers: z.array(accompanyingRangerSchema).optional(),
         scheduledStart: z.date().optional(),
         scheduledEnd: z.date().optional(),
+        plannedHours: z.number().positive().max(1000).optional(),
+        plannedTrackGeojson: z.record(z.any()).optional(),
+        status: z.nativeEnum(PatrolScheduleStatus).optional(),
         notes: z.string().max(2000).optional(),
         overrideConflicts: z.boolean().default(false),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const { id, overrideConflicts, ...rest } = input;
-      const data = Object.fromEntries(
+      const { id, overrideConflicts, scheduledEnd: inputScheduledEnd, plannedHours: inputPlannedHours, scheduledStart: inputScheduledStart, ...rest } = input;
+      const data: Record<string, unknown> = Object.fromEntries(
         Object.entries(rest).filter(([, v]) => v !== undefined)
       );
       const schedule = await prisma.patrolSchedule.findFirst({
@@ -189,8 +223,36 @@ export const patrolScheduleRouter = router({
       // Resolve effective values for conflict check
       const effectiveRangerId =
         input.rangerUserId !== undefined ? input.rangerUserId : schedule.rangerUserId;
-      const effectiveStart = input.scheduledStart ?? schedule.scheduledStart;
-      const effectiveEnd = input.scheduledEnd ?? schedule.scheduledEnd;
+      const effectiveStart = inputScheduledStart ?? schedule.scheduledStart;
+      const effectivePlannedHours =
+        inputPlannedHours !== undefined ? inputPlannedHours : schedule.plannedHours ?? undefined;
+      // Recompute scheduledEnd from plannedHours whenever plannedHours OR
+      // scheduledStart changed (and an effective plannedHours is known);
+      // otherwise fall back to an explicit scheduledEnd, else keep as-is.
+      let effectiveEnd: Date;
+      if (
+        (inputPlannedHours !== undefined || inputScheduledStart !== undefined) &&
+        effectivePlannedHours !== undefined
+      ) {
+        effectiveEnd = new Date(effectiveStart.getTime() + effectivePlannedHours * 3600 * 1000);
+      } else if (inputScheduledEnd !== undefined) {
+        effectiveEnd = inputScheduledEnd;
+      } else {
+        effectiveEnd = schedule.scheduledEnd;
+      }
+      if (inputScheduledStart !== undefined) {
+        data.scheduledStart = inputScheduledStart;
+      }
+      if (inputPlannedHours !== undefined) {
+        data.plannedHours = inputPlannedHours;
+      }
+      if (
+        inputScheduledEnd !== undefined ||
+        inputPlannedHours !== undefined ||
+        inputScheduledStart !== undefined
+      ) {
+        data.scheduledEnd = effectiveEnd;
+      }
       if (effectiveRangerId !== null && !overrideConflicts) {
         const conflicts = await findOverlappingSchedules(
           ctx.tenantId,
@@ -241,5 +303,28 @@ export const patrolScheduleRouter = router({
         throw new Error("Not found");
       }
       return prisma.patrolSchedule.delete({ where: { id: input.id } });
+    }),
+
+  // Lightweight status-only update (Kanban drag). Reuses the "update" matrix
+  // gate — no conflict re-check since neither the ranger nor the time
+  // window changes.
+  setStatus: matrixProcedure(coordinatorProcedure, "patrol-schedule", "update")
+    .input(
+      z.object({
+        id: z.string(),
+        status: z.nativeEnum(PatrolScheduleStatus),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const schedule = await prisma.patrolSchedule.findFirst({
+        where: { id: input.id, tenantId: ctx.tenantId },
+      });
+      if (!schedule) {
+        throw new Error("Not found");
+      }
+      return prisma.patrolSchedule.update({
+        where: { id: input.id },
+        data: { status: input.status },
+      });
     }),
 });

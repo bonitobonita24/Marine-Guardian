@@ -12,6 +12,12 @@ vi.mock("@marine-guardian/db", () => ({
     },
   },
   writeAuditLog: vi.fn(),
+  PatrolScheduleStatus: {
+    planned: "planned",
+    in_progress: "in_progress",
+    completed: "completed",
+    cancelled: "cancelled",
+  },
 }));
 
 vi.mock("../../../lib/rate-limit", () => ({
@@ -27,7 +33,7 @@ vi.mock("../../../auth", () => ({
   auth: vi.fn(),
 }));
 
-import { prisma, writeAuditLog } from "@marine-guardian/db";
+import { prisma, writeAuditLog, PatrolScheduleStatus } from "@marine-guardian/db";
 import { createCallerFactory } from "../../trpc";
 import { patrolScheduleRouter } from "../patrolSchedule";
 
@@ -76,8 +82,12 @@ const mockScheduleRow = {
   patrolAreaId: "area-1",
   rangerUserId: RANGER_ID,
   rangerName: "John Doe",
+  accompanyingRangers: null,
   scheduledStart: START,
   scheduledEnd: END,
+  plannedHours: null,
+  plannedTrackGeojson: null,
+  status: PatrolScheduleStatus.planned,
   notes: null,
   createdBy: USER_ID,
   createdAt: new Date(),
@@ -323,5 +333,152 @@ describe("patrolSchedule.update — conflict detection", () => {
       notes: "no-override",
     });
     expect(vi.mocked(writeAuditLog)).not.toHaveBeenCalled();
+  });
+});
+
+describe("patrolSchedule.create — overhaul fields", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("succeeds without patrolAreaId — now optional", async () => {
+    vi.mocked(prisma.patrolSchedule.create).mockResolvedValue(mockScheduleRow);
+    const caller = createCaller(makeCtx());
+    await caller.create({
+      rangerName: "No Area Ranger",
+      scheduledStart: START,
+      scheduledEnd: END,
+    });
+    expect(vi.mocked(prisma.patrolSchedule.create)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        data: expect.not.objectContaining({ patrolAreaId: expect.anything() }),
+      }),
+    );
+  });
+
+  it("derives scheduledEnd from scheduledStart + plannedHours when plannedHours provided", async () => {
+    vi.mocked(prisma.patrolSchedule.create).mockResolvedValue(mockScheduleRow);
+    const caller = createCaller(makeCtx());
+    await caller.create({
+      rangerName: "Timed Ranger",
+      scheduledStart: START,
+      plannedHours: 4,
+    });
+    const expectedEnd = new Date(START.getTime() + 4 * 3600 * 1000);
+    expect(vi.mocked(prisma.patrolSchedule.create)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        data: expect.objectContaining({
+          plannedHours: 4,
+          scheduledEnd: expectedEnd,
+        }),
+      }),
+    );
+  });
+
+  it("throws BAD_REQUEST when neither scheduledEnd nor plannedHours provided", async () => {
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.create({
+        rangerName: "Incomplete Ranger",
+        scheduledStart: START,
+      }),
+    ).rejects.toThrow(TRPCError);
+  });
+
+  it("persists accompanyingRangers on create", async () => {
+    vi.mocked(prisma.patrolSchedule.create).mockResolvedValue(mockScheduleRow);
+    const caller = createCaller(makeCtx());
+    await caller.create({
+      rangerName: "Lead Ranger",
+      scheduledStart: START,
+      scheduledEnd: END,
+      accompanyingRangers: [{ userId: "u-2", name: "Second Ranger" }],
+    });
+    expect(vi.mocked(prisma.patrolSchedule.create)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        data: expect.objectContaining({
+          accompanyingRangers: [{ userId: "u-2", name: "Second Ranger" }],
+        }),
+      }),
+    );
+  });
+});
+
+describe("patrolSchedule.update — overhaul fields", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("recomputes scheduledEnd from plannedHours when plannedHours changes", async () => {
+    vi.mocked(prisma.patrolSchedule.findFirst).mockResolvedValue(mockScheduleRow);
+    vi.mocked(prisma.patrolSchedule.update).mockResolvedValue(mockScheduleRow);
+    const caller = createCaller(makeCtx());
+    await caller.update({
+      id: SCHEDULE_ID,
+      plannedHours: 6,
+    });
+    const expectedEnd = new Date(mockScheduleRow.scheduledStart.getTime() + 6 * 3600 * 1000);
+    expect(vi.mocked(prisma.patrolSchedule.update)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        data: expect.objectContaining({
+          plannedHours: 6,
+          scheduledEnd: expectedEnd,
+        }),
+      }),
+    );
+  });
+
+  it("persists accompanyingRangers on update", async () => {
+    vi.mocked(prisma.patrolSchedule.findFirst).mockResolvedValue(mockScheduleRow);
+    vi.mocked(prisma.patrolSchedule.update).mockResolvedValue(mockScheduleRow);
+    const caller = createCaller(makeCtx());
+    await caller.update({
+      id: SCHEDULE_ID,
+      accompanyingRangers: [{ name: "Third Ranger" }],
+    });
+    expect(vi.mocked(prisma.patrolSchedule.update)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        data: expect.objectContaining({
+          accompanyingRangers: [{ name: "Third Ranger" }],
+        }),
+      }),
+    );
+  });
+});
+
+describe("patrolSchedule.setStatus", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("updates only the status field", async () => {
+    vi.mocked(prisma.patrolSchedule.findFirst).mockResolvedValue(mockScheduleRow);
+    vi.mocked(prisma.patrolSchedule.update).mockResolvedValue({
+      ...mockScheduleRow,
+      status: PatrolScheduleStatus.in_progress,
+    });
+    const caller = createCaller(makeCtx());
+    const result = await caller.setStatus({
+      id: SCHEDULE_ID,
+      status: PatrolScheduleStatus.in_progress,
+    });
+    expect(result.status).toBe(PatrolScheduleStatus.in_progress);
+    expect(vi.mocked(prisma.patrolSchedule.update)).toHaveBeenCalledWith({
+      where: { id: SCHEDULE_ID },
+      data: { status: PatrolScheduleStatus.in_progress },
+    });
+  });
+
+  it("throws when the schedule is not found in the tenant", async () => {
+    vi.mocked(prisma.patrolSchedule.findFirst).mockResolvedValue(null);
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.setStatus({ id: "missing-id", status: PatrolScheduleStatus.completed }),
+    ).rejects.toThrow();
   });
 });
