@@ -10,6 +10,11 @@
 //   - NO try/catch — exceptions propagate to BullMQ which retries with
 //     exponential backoff (3 attempts, 5 s start). Same doctrine as
 //     patrol-track-materialize.processor.ts.
+//   - Missing target row is NOT an error: the entity may have been deleted
+//     between enqueue and processing (e.g. a stale backlog drained after a
+//     staging refresh). We use findUnique + skip-if-null so the job returns
+//     a clean skipped result instead of throwing (findUniqueOrThrow) and
+//     churning through retries + noisy failures for a row that no longer exists.
 //   - Idempotent: upsert on unique constraints means re-running the job
 //     with the same input converges to the same DB state.
 //   - Municipalities and protected zones are loaded from DB (not from the
@@ -63,10 +68,15 @@ export async function processMunicipalityAssign(
   ]);
 
   if (entity === "event") {
-    const event = await platformPrisma.event.findUniqueOrThrow({
+    const event = await platformPrisma.event.findUnique({
       where: { id },
       select: { id: true, tenantId: true, locationLat: true, locationLon: true },
     });
+
+    if (event == null) {
+      // Row deleted between enqueue and processing — skip cleanly, do not throw.
+      return { entity, id, municipalityId: null, zoneIds: [], skipped: true, skipReason: "not_found" };
+    }
 
     if (event.locationLat == null || event.locationLon == null) {
       return { entity, id, municipalityId: null, zoneIds: [], skipped: true, skipReason: "no_location" };
@@ -98,7 +108,7 @@ export async function processMunicipalityAssign(
 
   // ── Patrol path ──────────────────────────────────────────────────────────
 
-  const patrol = await platformPrisma.patrol.findUniqueOrThrow({
+  const patrol = await platformPrisma.patrol.findUnique({
     where: { id },
     select: {
       id: true,
@@ -108,6 +118,11 @@ export async function processMunicipalityAssign(
       track: { select: { trackGeojson: true } },
     },
   });
+
+  if (patrol == null) {
+    // Row deleted between enqueue and processing — skip cleanly, do not throw.
+    return { entity, id, municipalityId: null, zoneIds: [], skipped: true, skipReason: "not_found" };
+  }
 
   const trackGeojson = patrol.track?.trackGeojson ?? null;
   const hasStartLocation = patrol.startLocationLat != null && patrol.startLocationLon != null;
