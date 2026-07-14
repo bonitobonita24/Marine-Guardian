@@ -77,6 +77,23 @@ const config: Config = {
         "caption": ["11px", { fontWeight: "400" }],
         "micro": ["9px", { fontWeight: "600" }],
       },
+      // Showcase (marketing) marquee — Magic UI marquee.tsx is authored for
+      // Tailwind v4; these keyframes/animation port it to this app's Tailwind v3.
+      // Reads --duration + --gap set inline by the Marquee component.
+      keyframes: {
+        marquee: {
+          from: { transform: "translateX(0)" },
+          to: { transform: "translateX(calc(-100% - var(--gap)))" },
+        },
+        "marquee-vertical": {
+          from: { transform: "translateY(0)" },
+          to: { transform: "translateY(calc(-100% - var(--gap)))" },
+        },
+      },
+      animation: {
+        marquee: "marquee var(--duration, 40s) linear infinite",
+        "marquee-vertical": "marquee-vertical var(--duration, 40s) linear infinite",
+      },
     },
   },
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment

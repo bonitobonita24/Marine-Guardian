@@ -73,8 +73,10 @@ const PRINT_RENDER_PREFIX = "/print-render/";
 const RENDERER_ASSET_PREFIX = "/api/assets/";
 
 // Public paths (no session required). "/login" = platform/super_admin login;
-// "/privacy" = the standalone privacy notice; api auth/health/trpc handshakes.
-const publicPaths = ["/login", "/privacy", "/api/auth", "/api/health", "/api/trpc"];
+// "/privacy" = the standalone privacy notice; "/showcase" = the public,
+// unauthenticated product/marketing showcase page (+ its /showcase/* static
+// assets under public/showcase/); api auth/health/trpc handshakes.
+const publicPaths = ["/login", "/privacy", "/showcase", "/api/auth", "/api/health", "/api/trpc"];
 // Per-tenant login: /[slug]/login (and trailing slash). Public — a tenant user
 // must reach their own login while unauthenticated.
 const TENANT_LOGIN_RE = /^\/[^/]+\/login\/?$/;
