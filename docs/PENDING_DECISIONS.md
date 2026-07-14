@@ -2,6 +2,36 @@
 
 > Un-gated work continues regardless; these items are re-surfaced each session until resolved.
 
+## 2026-07-15 — Patrol start-point attribution + map toggle (session save)
+
+**DONE this session (no decision needed — verified):**
+- ✅ **Patrol municipality attribution fixed: START-point containment, not dominant-track** (commit
+  `d89b5d4`, LOCAL on `feat/app-showcase-page` — the shared working tree; only the 4 fix files were
+  committed, the other workspace's showcase edits left untouched). Owner governing rule 2026-07-15: a
+  patrol is counted ONLY in the municipality whose boundary contains its start point, regardless of
+  overlap/traversal. Was `assignMunicipalityToDominantTrackByContainment` (tally across all track
+  points). shared 236/236 + jobs 255/255 green. Layer-2 zones + terrain stay track-based (a patrol
+  covers every zone/cell it passes through). Dev worker rebuilt; all 4978 ph patrols re-enqueued —
+  **backfill draining in background (~hours, failed=0), verify final counts next session.**
+
+**⚠ GATED — owner [WHAT], the ACTUAL fix for the screenshot examples:**
+- [ ] **Calapan/Baco WATER boundary at the Wawa/Pambisan river mouth.** Verified by running the real
+  fix logic on the owner's screenshot start points (`Cal obet Nestor arvie`, `Joseph Dytioco`, etc.):
+  they **still resolve to Baco** because their START is in water the median-line equidistance partition
+  ([[obs 38302]] / FIX B) assigned to Baco. These are Seaborne launches from the Wawa mouth. So the
+  start-point rule is working correctly — the examples are a **boundary-placement** question, not an
+  algorithm bug. Decision: adjust the Calapan/Baco water boundary at Wawa (owner-editable boundaries)
+  so those launches read as Calapan, OR accept "start-in-Baco-water = Baco patrol." Attribution fix
+  stands either way.
+
+**QUEUED — owner-APPROVED build (scope confirmed this session), deferred to build next:**
+- [ ] **"Include traversing patrols" toggle in MAP CONTROLS** — Command Center + Interactive Report
+  Map. Default OFF = start-attributed patrols only (the clean view). ON = ALSO overlay any patrol whose
+  track **enters the selected municipality's boundary (LAND ∪ WATER)** — foot + seaborne (owner chose
+  land-or-water over water-only). Backend: in-memory turf intersect over in-range candidate tracks
+  (tracks are JSON, not PostGIS) — no schema change; low risk at this scale. Patrols only (events
+  unaffected). Local/dev only under the deploy HARD HOLD.
+
 ## 2026-07-10 — 3-tier tenant RBAC + tenant cleanup (session save / handover)
 
 **DONE this session (no decision needed — verified):**
