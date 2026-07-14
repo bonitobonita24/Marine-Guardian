@@ -4,6 +4,7 @@ import { processErSync } from "./processors/er-sync.processor";
 import { processAlert } from "./processors/alerts.processor";
 import { processEmail } from "./processors/email.processor";
 import { processMaintenance } from "./processors/maintenance.processor";
+import { processMunicipalityAssign } from "./processors/municipality-assign.processor";
 import { startAreaRederiveWorker } from "./workers/area-rederive.worker";
 import { startPatrolTrackMaterializeWorker } from "./workers/patrol-track-materialize.worker";
 import { startPdfRenderWorker } from "./workers/pdf-render.worker";
@@ -18,6 +19,13 @@ const workers = [
   createWorker(QUEUE_NAMES.ALERTS, processAlert, { concurrency: 3 }),
   createWorker(QUEUE_NAMES.EMAIL, processEmail, { concurrency: 5 }),
   createWorker(QUEUE_NAMES.MAINTENANCE, processMaintenance, { concurrency: 1 }),
+  // municipality-assign — point-in-polygon attribution of each harvested
+  // event/patrol. er-sync enqueues one job per synced entity (see
+  // er-sync.processor enqueueMunicipalityAssign); this consumer was previously
+  // MISSING, so jobs piled up unconsumed and new ER data never got attributed.
+  createWorker(QUEUE_NAMES.MUNICIPALITY_ASSIGN, processMunicipalityAssign, {
+    concurrency: 5,
+  }),
   // 5.1c — area-rederive worker. Concurrency + rate-limit live inside the
   // factory (see workers/area-rederive.worker.ts) to keep the v2 spec L545
   // ceiling co-located with the worker registration.
@@ -42,7 +50,11 @@ const workers = [
   startPptxRenderWorker(),
 ];
 
-console.log(`[worker] ${String(workers.length)} workers registered: ${Object.values(QUEUE_NAMES).join(", ")}`);
+// Log the ACTUALLY-registered queues (each BullMQ Worker exposes .name = its
+// queue) — not Object.values(QUEUE_NAMES), which lists queue names whether or
+// not a worker consumes them (the trap that hid the missing municipality-assign
+// consumer).
+console.log(`[worker] ${String(workers.length)} workers registered: ${workers.map((w) => w.name).join(", ")}`);
 
 /**
  * ops-milestone-1 — Bootstrap recurring ER sync for all tenants with a
