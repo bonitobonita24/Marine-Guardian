@@ -14,8 +14,13 @@
   covers every zone/cell it passes through). Dev worker rebuilt; all 4978 ph patrols re-enqueued —
   **backfill draining in background (~hours, failed=0), verify final counts next session.**
 
-**⚠ GATED — owner [WHAT], the ACTUAL fix for the screenshot examples:**
-- [ ] **Calapan/Baco WATER boundary at the Wawa/Pambisan river mouth.** Verified by running the real
+**✅ RESOLVED (owner 2026-07-15) — build a manual override, do NOT edit the boundary:**
+- Owner decided: some Wawa launches are *intentionally* Baco, so rather than adjust the water boundary,
+  add a **manual per-patrol municipality override** on the Patrols page (command-center officer sets it
+  case-by-case; anti-clobber flag so auto-attribution won't overwrite). Tracked as **Task #3** in the
+  autonomous build queue. The boundary itself stays as the median-line partition. Original finding below
+  for context:
+- [x] **Calapan/Baco WATER boundary at the Wawa/Pambisan river mouth.** Verified by running the real
   fix logic on the owner's screenshot start points (`Cal obet Nestor arvie`, `Joseph Dytioco`, etc.):
   they **still resolve to Baco** because their START is in water the median-line equidistance partition
   ([[obs 38302]] / FIX B) assigned to Baco. These are Seaborne launches from the Wawa mouth. So the
