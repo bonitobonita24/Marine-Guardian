@@ -4,7 +4,7 @@
 
 ## 2026-07-15 — Autonomous build queue (one-at-a-time)
 
-**Queue status:** Task 1 ✅ DONE (`839320d`, map doodle) → **Task 2 ✅ DONE (`654e176`, Patrol Schedule overhaul)** → **Task 3 ⏳ NEXT (manual per-patrol municipality override)**.
+**Queue status:** Task 1 ✅ DONE (`839320d`, map doodle) → Task 2 ✅ DONE (`654e176`, Patrol Schedule overhaul) → **Task 3 ✅ DONE (`f055d76`, manual per-patrol municipality override)**. Owner build queue is now **DRAINED** — next un-gated build is the owner-APPROVED "Include traversing patrols" map toggle (see below).
 
 - ✅ **Task 2 — Patrol Schedule overhaul (commit `654e176`, LOCAL on `feat/app-showcase-page`).** Assignment
   dialog is now spatial + multi-ranger: freehand **map-draw planned track** (single GeoJSON LineString,
@@ -20,10 +20,26 @@
     to **`Verify123!@#`** (the vault/old passwords no longer matched the live dev DB — per the rollout hold MG
     dev runs pre-2026-07-08 creds). Original plaintext unknown; a `pnpm db:seed` (or reseed) restores it. No
     staging/prod/demo credential touched.
-- ⏳ **Task 3 (NEXT) — manual per-patrol municipality override on the Patrols page.** Command-center officer
-  sets a per-patrol municipality case-by-case; anti-clobber flag so auto-attribution (municipality-assign)
-  SKIPS manually-overridden rows. Resolves the Wawa/Baco water-boundary [WHAT] (owner chose an override over a
-  boundary edit). Needs a schema flag on `Patrol` + the assign worker to respect it + a Patrols-page control.
+- ✅ **Task 3 — manual per-patrol municipality override (commit `f055d76`, LOCAL on `feat/app-showcase-page`).**
+  `Patrol.municipalityManual` boolean (migration `20260715030500`, applied to dev DB). When true, the
+  municipality-assign processor's Layer-1 write SKIPS `municipalityId`/`municipalityAssignedAt` (preserves the
+  manual value) but still refreshes `terrain` + covered-zones — one guard at the processor choke-point covers
+  EVERY re-attribution path (`fanOutMunicipalityReassign`, backfills, er-sync). New `patrol.setMunicipalityOverride
+  ({ id, municipalityId })` mutation (non-null sets manual, validates in-tenant municipality; null clears + re-enqueues
+  auto), audited. Patrols page gains a **Municipality** column (name / "Unattributed" + a "Manual" badge) and an admin
+  **Override** dialog (pick municipality / "Clear override (auto)"). Resolves the Wawa/Baco water-boundary [WHAT]
+  (owner chose an override over a boundary edit; the median-line water boundary stays as-is). Gate: `next build`
+  compiles + pages collect, web+jobs typecheck 0, lint 0/0, 1839/1839 tests. Runtime-verified end-to-end (dev
+  rebuild + Playwright + DB): override pinned Taytay on a Calapan patrol, a real processor re-run KEPT Taytay
+  (`skipReason:"manual_override"` — anti-clobber holds), clear reverted to geometry-derived Calapan. Deploy HARD
+  HOLD (LOCAL only). Also fixed a pre-existing red suite from Task 2 (`matrix-enforcement.test.ts` was missing
+  `PatrolScheduleStatus` in its `@marine-guardian/db` vi.mock, crashing `patrolScheduleRouter` import).
+  - ⚠ **ENVIRONMENTAL FLAG (not a feature defect, [HOW] for next session):** the dev `municipality-assign` BullMQ
+    queue is **wedged** — a prior-session backfill (the 4978-patrol start-point re-attribution) has ~2071 waiting +
+    5 frozen `active` jobs occupying all concurrency slots, not advancing. Live auto-attribution jobs won't drain
+    until the dev worker is restarted/queue cleared. Left as-is during this save to avoid mid-reboot interference
+    with the owner's backfill; NOT restarted. Deterministic-jobId dedup trap also confirmed: re-enqueue with the
+    standard jobId collapses onto the completed job and won't re-run (relevant to any manual re-attribution trigger).
 
 ## 2026-07-15 — Patrol start-point attribution + map toggle (session save)
 
