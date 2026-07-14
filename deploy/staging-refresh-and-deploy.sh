@@ -11,8 +11,16 @@
 #   2. Refresh staging data FROM PROD (prod is READ-ONLY; staging wiped + reloaded)
 #   3. Pull candidate image           (Docker Hub — AFTER the data refresh)
 #   4. Migrate staging                (prod-data → new schema = the prod-migration rehearsal)
+#   4b. Re-key ER token               (prod copy carries prod-keyed secrets — re-key to staging's ENCRYPTION_KEY so ER sync works)
 #   5. Bring staging up on new image
 #   6. Health verify
+#
+# WHY 4b: the prod DB copy (step 2) carries tenant_er_connections.api_token_enc
+# ciphertext encrypted with PROD's ENCRYPTION_KEY. Staging runs a DIFFERENT key,
+# so ER sync would fail "unable to authenticate data" until the token is re-keyed.
+# scripts/rekey-er-token.ts re-encrypts prod-keyed tokens under staging's key
+# (idempotent + defensive — see that file). This makes the fix durable across
+# every refresh instead of a manual one-off after each run.
 #
 # HARD RULES:
 #   • PRODUCTION is only ever READ (pg_dump). It is never written, migrated, or restarted here.
@@ -65,6 +73,20 @@ if ! DATABASE_URL="$DBURL_LOCAL" pnpm --filter @marine-guardian/db db:migrate:de
     DATABASE_URL="$DBURL_LOCAL" pnpm --filter @marine-guardian/db exec prisma migrate resolve --applied "$M" || true
   done
 fi
+
+echo "▶ 4b/6 Re-key staging ER token (prod copy carries prod-keyed secrets)"
+PROD_ENCKEY=$(ssh_vps "docker exec ${PRODPROJ}_app printenv ENCRYPTION_KEY 2>/dev/null" | tr -d '\r\n' || true)
+STAGING_ENCKEY=$(ssh_vps "docker exec ${PROJ}_app printenv ENCRYPTION_KEY 2>/dev/null" | tr -d '\r\n' || true)
+if [ -z "$PROD_ENCKEY" ] || [ -z "$STAGING_ENCKEY" ]; then
+  echo "  ⚠ could not read one/both ENCRYPTION_KEYs — skipping re-key (staging ER sync may fail until re-keyed)"
+elif [ "$PROD_ENCKEY" = "$STAGING_ENCKEY" ]; then
+  echo "  · prod & staging ENCRYPTION_KEY identical — no re-key needed"
+else
+  ENCRYPTION_KEY="$STAGING_ENCKEY" OLD_ENCRYPTION_KEY="$PROD_ENCKEY" DATABASE_URL="$DBURL_LOCAL" \
+    pnpm --filter @marine-guardian/jobs exec tsx ../../scripts/rekey-er-token.ts \
+    || echo "  ⚠ re-key reported an issue (non-fatal) — check staging ER sync after deploy"
+fi
+
 kill $TUN 2>/dev/null || true
 
 echo "▶ 5/6 Bring staging up on new image"
