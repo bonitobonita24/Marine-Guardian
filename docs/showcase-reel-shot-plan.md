@@ -5,8 +5,14 @@
 > 6 scenes · 0.4s crossfades). Pipeline run: flux-2-pro keyframes → nano-banana composites (real War-Room
 > red-alert screenshot on the Command Center wall, real MG app screen on the phone, Blue Alliance logo on
 > the polos) → Kling v2.5 turbo pro I2V (5s ea) → ffmpeg xfade stitch. All 6 clips verified watermark-free.
-> Known minor: the wide BA logo text softens on some moving polos (reads as "Blue Alliance"; far better than
-> the old garbled military insignia). Cost ≈ $2.6. LOCAL only, HARD HOLD.
+> Cost ≈ $2.6 + ≈$0.5 shot-2 re-fix. LOCAL only, HARD HOLD.
+>
+> **Shot-2 (boat) branding re-fix (owner-flagged):** the boat vests originally garbled to "BliNe Alliance"
+> through I2V motion. Fixed by (a) re-compositing the still with the EXACT text "BLUE ALLIANCE" spelled
+> explicitly (nano-banana) + cleaning the right vest, then (b) a MINIMAL-MOTION Kling i2v (locked camera,
+> near-static poses) so the text no longer deforms. Verified legible + stable across all frames, watermark-free.
+> Technique (explicit-text composite + low-motion i2v) is the reusable recipe if any other scene's logo needs
+> the same treatment. Remaining scenes' logos are smaller/less central and read as Blue Alliance at reel pace.
 > Target = the 28.5s `story-reel` on `/showcase` (`apps/web/public/showcase/mg-hero-reel.{mp4,webm}` + poster).
 > LOCAL only, HARD HOLD. Route: **image-first keyframe → Kling image-to-video** (premium fal.ai — `FAL_KEY`
 > present in `claude-code-video-toolkit/.env`). Toolkit: `tools/fal_image.py` (keyframes), `tools/fal_video.py`
