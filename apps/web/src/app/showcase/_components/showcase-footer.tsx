@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Waves } from "lucide-react";
 
 // Mirrors apps/web/package.json "version". Git tags remain the source of truth
@@ -24,6 +25,14 @@ export function ShowcaseFooter() {
           </div>
 
           <div className="text-caption text-muted-foreground sm:text-right">
+            <p>
+              <Link
+                href="/docs"
+                className="transition-colors hover:text-foreground hover:underline"
+              >
+                Documentation
+              </Link>
+            </p>
             <p>{APP_VERSION}</p>
             <a
               href="https://www.powerbyteitsolutions.com/"

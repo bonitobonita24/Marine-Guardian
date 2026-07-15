@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Waves } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,12 @@ export function ShowcaseNav() {
               {l.label}
             </a>
           ))}
+          <Link
+            href="/docs"
+            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Documentation
+          </Link>
         </nav>
 
         <Button asChild size="sm">
