@@ -1,13 +1,23 @@
 "use client";
 
-import { Check, ArrowRight } from "lucide-react";
+import { Check, ArrowRight, BarChart3 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { BentoCard, BentoGrid } from "@/components/ui/bento-grid";
 import { Reveal } from "./reveal";
 import { BrowserFrame } from "./browser-frame";
+import { FEATURES, ROLES, STEPS, BENTO, PAINS } from "./data";
 import type { ResolvedFeature, ResolvedRole, ResolvedStep, ResolvedBentoItem, ResolvedPain } from "./resolve-cms";
+
+/**
+ * resolve-cms.ts (server) deliberately strips `icon` (a LucideIcon
+ * function/component reference) from every Resolved* prop it hands to these
+ * "use client" sections — a function crossing the RSC server→client boundary
+ * throws "Functions cannot be passed directly to Client Components". The
+ * resolvers preserve ./data.ts's array order 1:1, so the icon is re-attached
+ * here, client-side, by index against the same code-owned ./data.ts arrays.
+ */
 
 /* ---------------------------------------------------------------- Problem -- */
 
@@ -33,17 +43,20 @@ export function ProblemSection({ eyebrow, title, body, pains }: ProblemSectionPr
         </Reveal>
 
         <div className="mt-14 grid gap-5 md:grid-cols-3">
-          {pains.map((p, i) => (
+          {pains.map((p, i) => {
+            const Icon = PAINS[i]?.icon;
+            return (
             <Reveal key={p.id} delay={i * 0.08}>
               <div className="h-full rounded-xl border border-border bg-secondary/20 p-6">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[hsl(var(--destructive)/0.16)] text-[hsl(var(--destructive))]">
-                  <p.icon className="h-5 w-5" />
+                  {Icon != null && <Icon className="h-5 w-5" />}
                 </div>
                 <h3 className="mt-4 text-lg font-semibold text-foreground">{p.title}</h3>
                 <p className="mt-2 text-sm text-muted-foreground">{p.body}</p>
               </div>
             </Reveal>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>
@@ -74,6 +87,7 @@ export function FeatureSections({ eyebrow, title, features }: FeatureSectionsPro
         <div className="mt-16 flex flex-col gap-20 lg:gap-28">
           {features.map((f, i) => {
             const reversed = i % 2 === 1;
+            const Icon = FEATURES[i]?.icon;
             return (
               <div
                 key={f.id}
@@ -88,7 +102,7 @@ export function FeatureSections({ eyebrow, title, features }: FeatureSectionsPro
                     className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-caption font-medium"
                     style={{ color: `hsl(${f.accent})` }}
                   >
-                    <f.icon className="h-3.5 w-3.5" />
+                    {Icon != null && <Icon className="h-3.5 w-3.5" />}
                     {f.eyebrow}
                   </div>
                   <h3 className="mt-4 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
@@ -141,6 +155,11 @@ export type BentoSectionProps = {
   bento: ResolvedBentoItem[];
 };
 
+// Unreachable in practice (bento.map's index always has a matching ./data.ts
+// entry — resolveBento preserves BENTO's order 1:1); satisfies BentoCard's
+// required Icon: React.ElementType prop without a forbidden `!` assertion.
+const DEFAULT_BENTO_ICON = BarChart3;
+
 export function BentoSection({ eyebrow, title, bento }: BentoSectionProps) {
   return (
     <section className="border-y border-border/60 bg-background py-20 lg:py-28">
@@ -156,12 +175,12 @@ export function BentoSection({ eyebrow, title, bento }: BentoSectionProps) {
 
         <Reveal className="mt-14">
           <BentoGrid className="lg:grid-cols-3">
-            {bento.map((item) => (
+            {bento.map((item, i) => (
               <BentoCard
                 key={item.name}
                 name={item.name}
                 description={item.description}
-                Icon={item.icon}
+                Icon={BENTO[i]?.icon ?? DEFAULT_BENTO_ICON}
                 className={item.className}
                 href="#contact"
                 cta="Request a demo"
@@ -211,18 +230,21 @@ export function HowItWorks({ eyebrow, title, steps }: HowItWorksProps) {
         </Reveal>
 
         <div className="mt-14 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-          {steps.map((s, i) => (
+          {steps.map((s, i) => {
+            const Icon = STEPS[i]?.icon;
+            return (
             <Reveal key={s.n} delay={i * 0.08}>
               <div className="relative h-full rounded-xl border border-border bg-secondary/20 p-6">
                 <span className="text-sm font-bold text-[hsl(var(--info))]">{s.n}</span>
                 <div className="mt-3 flex h-10 w-10 items-center justify-center rounded-lg bg-[hsl(var(--info)/0.14)] text-[hsl(var(--info))]">
-                  <s.icon className="h-5 w-5" />
+                  {Icon != null && <Icon className="h-5 w-5" />}
                 </div>
                 <h3 className="mt-4 text-base font-semibold text-foreground">{s.title}</h3>
                 <p className="mt-2 text-sm text-muted-foreground">{s.body}</p>
               </div>
             </Reveal>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>
@@ -253,11 +275,13 @@ export function RolesSection({ eyebrow, title, subcopy, roles }: RolesSectionPro
         </Reveal>
 
         <div className="mt-14 grid gap-5 sm:grid-cols-2">
-          {roles.map((r, i) => (
+          {roles.map((r, i) => {
+            const Icon = ROLES[i]?.icon;
+            return (
             <Reveal key={r.name} delay={i * 0.06}>
               <div className="flex h-full gap-4 rounded-xl border border-border bg-secondary/20 p-6">
                 <div className="flex h-11 w-11 flex-none items-center justify-center rounded-lg bg-[hsl(var(--info)/0.14)] text-[hsl(var(--info))]">
-                  <r.icon className="h-5 w-5" />
+                  {Icon != null && <Icon className="h-5 w-5" />}
                 </div>
                 <div>
                   <h3 className="text-base font-semibold text-foreground">{r.name}</h3>
@@ -265,7 +289,8 @@ export function RolesSection({ eyebrow, title, subcopy, roles }: RolesSectionPro
                 </div>
               </div>
             </Reveal>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>

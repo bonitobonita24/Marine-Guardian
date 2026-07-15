@@ -51,8 +51,11 @@ describe("resolveFeatures — empty DB is byte-identical to the code literals", 
       expect(r.title).toBe(source.title);
       expect(r.body).toBe(source.body);
       expect(r.bullets).toEqual(source.bullets);
-      // code-only fields pass through untouched
-      expect(r.icon).toBe(source.icon);
+      // code-only fields pass through untouched. `icon` is DELIBERATELY
+      // excluded — resolve-cms.ts strips it because a LucideIcon (function
+      // ref) cannot cross the RSC server->client boundary; icons are
+      // re-attached client-side in sections.tsx by index against ./data.ts.
+      expect(r).not.toHaveProperty("icon");
       expect(r.image).toBe(source.image);
       expect(r.accent).toBe(source.accent);
     });
