@@ -75,8 +75,18 @@ const RENDERER_ASSET_PREFIX = "/api/assets/";
 // Public paths (no session required). "/login" = platform/super_admin login;
 // "/privacy" = the standalone privacy notice; "/showcase" = the public,
 // unauthenticated product/marketing showcase page (+ its /showcase/* static
-// assets under public/showcase/); api auth/health/trpc handshakes.
-const publicPaths = ["/login", "/privacy", "/showcase", "/api/auth", "/api/health", "/api/trpc"];
+// assets under public/showcase/); "/docs" = the public in-app documentation
+// site (+ its /docs/* image assets under public/docs/); api auth/health/trpc
+// handshakes.
+const publicPaths = [
+  "/login",
+  "/privacy",
+  "/showcase",
+  "/docs",
+  "/api/auth",
+  "/api/health",
+  "/api/trpc",
+];
 // Per-tenant login: /[slug]/login (and trailing slash). Public — a tenant user
 // must reach their own login while unauthenticated.
 const TENANT_LOGIN_RE = /^\/[^/]+\/login\/?$/;

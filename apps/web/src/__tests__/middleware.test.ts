@@ -119,6 +119,37 @@ describe("middleware — unauthenticated", () => {
   });
 });
 
+describe("middleware — public docs site (/docs)", () => {
+  // /docs is the public, unauthenticated in-app documentation site (peer of
+  // /showcase). It and every nested docs path + docs image asset must bypass
+  // the auth gate — the publicPaths startsWith("/docs") match short-circuits
+  // before auth() and before the tenant-slug resolver (so "docs" is never
+  // treated as a [tenant] slug).
+  it("lets the /docs index through unauthenticated", async () => {
+    mockAuth.mockResolvedValue(null);
+    const res = await middleware(makeReq("/docs"));
+    expect(locationOf(res)).toBeNull();
+  });
+
+  it("lets a nested docs page through unauthenticated", async () => {
+    mockAuth.mockResolvedValue(null);
+    const res = await middleware(makeReq("/docs/getting-started/overview"));
+    expect(locationOf(res)).toBeNull();
+  });
+
+  it("lets a docs image asset through unauthenticated", async () => {
+    mockAuth.mockResolvedValue(null);
+    const res = await middleware(makeReq("/docs/getting-started/dashboard.png"));
+    expect(locationOf(res)).toBeNull();
+  });
+
+  it("never treats /docs as a tenant slug for an authenticated tenant user", async () => {
+    mockAuth.mockResolvedValue(tenantUser("demo-site"));
+    const res = await middleware(makeReq("/docs/getting-started/overview"));
+    expect(locationOf(res)).toBeNull();
+  });
+});
+
 describe("middleware — cross-tenant URL access (SECURITY)", () => {
   it("DENIES a tenant user editing the URL to another tenant → bounced to own dashboard", async () => {
     mockAuth.mockResolvedValue(tenantUser("demo-site"));
