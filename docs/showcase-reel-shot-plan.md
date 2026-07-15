@@ -1,6 +1,12 @@
 # MG Showcase Hero Reel — Regeneration Shot Plan (plan-first gate)
 
-> **Status:** PLAN for owner approval. **No generation runs until this is approved.**
+> **Status:** ✅ GENERATED 2026-07-15 (owner-authorized). New watermark-free reel live on `/showcase`
+> (both the hero background `mg-hero-reel.*` and the StoryReel `story/mg-story-reel.*`, 1280×720 · 28.2s ·
+> 6 scenes · 0.4s crossfades). Pipeline run: flux-2-pro keyframes → nano-banana composites (real War-Room
+> red-alert screenshot on the Command Center wall, real MG app screen on the phone, Blue Alliance logo on
+> the polos) → Kling v2.5 turbo pro I2V (5s ea) → ffmpeg xfade stitch. All 6 clips verified watermark-free.
+> Known minor: the wide BA logo text softens on some moving polos (reads as "Blue Alliance"; far better than
+> the old garbled military insignia). Cost ≈ $2.6. LOCAL only, HARD HOLD.
 > Target = the 28.5s `story-reel` on `/showcase` (`apps/web/public/showcase/mg-hero-reel.{mp4,webm}` + poster).
 > LOCAL only, HARD HOLD. Route: **image-first keyframe → Kling image-to-video** (premium fal.ai — `FAL_KEY`
 > present in `claude-code-video-toolkit/.env`). Toolkit: `tools/fal_image.py` (keyframes), `tools/fal_video.py`
