@@ -71,8 +71,17 @@ export interface DeleteInput {
   key: string;
 }
 
-/** Accepted MIME types for logo/template images. */
-export type ImageContentType = "image/png" | "image/jpeg";
+/**
+ * Accepted MIME types for logo/template images. Widened 2026-07-15 (CMS
+ * Build Plan W3) to include webp (pasted screenshots are often webp) + gif —
+ * the CMS media route (apps/web/src/app/api/cms/media/route.ts) validates
+ * against this same union so the allowlist has a single source of truth.
+ */
+export type ImageContentType =
+  | "image/png"
+  | "image/jpeg"
+  | "image/webp"
+  | "image/gif";
 
 export interface UploadImageInput {
   bucket: string;
@@ -85,8 +94,13 @@ export interface UploadImageResult {
   key: string;
 }
 
-/** 10 MiB — logo images for print templates should never exceed this. */
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+/**
+ * 10 MiB — logo images for print templates (and CMS-pasted media, W3) should
+ * never exceed this. Exported so callers (e.g. the CMS media upload route)
+ * can pre-validate before calling uploadImage and return a clean 413 instead
+ * of relying solely on the throw below.
+ */
+export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 let cachedClient: S3Client | null = null;
 
@@ -183,6 +197,23 @@ export function buildLogoKey(
 ): string {
   const normalizedExt = ext.startsWith(".") ? ext.slice(1) : ext;
   return `logos/${tenantId}/${templateId}.${normalizedExt}`;
+}
+
+/**
+ * Key shape for CMS-pasted media (docs/showcase editor images, W3). Content
+ * is GLOBAL (not tenant-scoped) — `tenantId` is null/"" for every CMS upload
+ * today (nullable future-proofing column on CmsMedia), so it collapses to
+ * the "global" segment. Shape: cms/${tenantId||'global'}/${mediaId}.${ext}
+ * (CMS_BUILD_PLAN.md — Spike-confirmed facts).
+ */
+export function buildCmsMediaKey(
+  tenantId: string | null,
+  mediaId: string,
+  ext: string,
+): string {
+  const normalizedExt = ext.startsWith(".") ? ext.slice(1) : ext;
+  const tenantSegment = tenantId === null || tenantId === "" ? "global" : tenantId;
+  return `cms/${tenantSegment}/${mediaId}.${normalizedExt}`;
 }
 
 export async function uploadPdf(

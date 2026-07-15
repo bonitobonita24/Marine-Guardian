@@ -24,6 +24,14 @@ export class RouteAuthError extends Error {
 const unauthorized = (): RouteAuthError =>
   new RouteAuthError(NextResponse.json({ error: "Unauthorized" }, { status: 401 }));
 
+const forbidden = (): RouteAuthError =>
+  new RouteAuthError(NextResponse.json({ error: "Forbidden" }, { status: 403 }));
+
+export interface PlatformAdminRouteAuthContext {
+  userId: string;
+  roles: string[];
+}
+
 /**
  * Verify the current request has a valid authenticated session with tenant context.
  *
@@ -66,5 +74,35 @@ export async function requireRouteAuth(): Promise<RouteAuthContext> {
     tenantId: effectiveTenantId,
     roles,
     isPlatformImpersonating,
+  };
+}
+
+/**
+ * Verify the current request is an authenticated PLATFORM admin — role
+ * `tenant_manager` AND an empty `session.user.tenantId` (mirrors
+ * `platformAdminProcedure` in server/trpc/middleware/require-platform-admin.ts).
+ *
+ * Deliberately distinct from `requireRouteAuth`: that helper REQUIRES a
+ * resolved tenant context (session tenantId or impersonation) and throws
+ * Unauthorized when both are empty — which would reject a pure-platform
+ * session with no active impersonation. CMS media is GLOBAL, platform-admin-
+ * only content (CMS_BUILD_PLAN.md — W3), so it needs the platform identity
+ * check WITHOUT a tenant-context requirement.
+ */
+export async function requirePlatformAdminRouteAuth(): Promise<PlatformAdminRouteAuthContext> {
+  const session = await auth();
+  if (session === null || session.user.id === "") {
+    throw unauthorized();
+  }
+
+  const roles = session.user.roles;
+  const isPlatformAdmin = roles.includes("tenant_manager") && session.user.tenantId === "";
+  if (!isPlatformAdmin) {
+    throw forbidden();
+  }
+
+  return {
+    userId: session.user.id,
+    roles,
   };
 }

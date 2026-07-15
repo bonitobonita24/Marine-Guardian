@@ -32,6 +32,8 @@ import { reportTemplateRouter } from "./reportTemplate";
 import { accountRouter } from "./account";
 import { customRoleRouter } from "./customRole";
 import { doodleRouter } from "./doodle";
+import { cmsDocsRouter } from "./cmsDocs";
+import { cmsShowcaseRouter } from "./cmsShowcase";
 
 export const appRouter = router({
   account: accountRouter,
@@ -67,6 +69,8 @@ export const appRouter = router({
   reportMap: reportMapRouter,
   reportTemplate: reportTemplateRouter,
   doodle: doodleRouter,
+  cmsDocs: cmsDocsRouter,
+  cmsShowcase: cmsShowcaseRouter,
 });
 
 export type AppRouter = typeof appRouter;

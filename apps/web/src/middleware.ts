@@ -77,7 +77,10 @@ const RENDERER_ASSET_PREFIX = "/api/assets/";
 // unauthenticated product/marketing showcase page (+ its /showcase/* static
 // assets under public/showcase/); "/docs" = the public in-app documentation
 // site (+ its /docs/* image assets under public/docs/); api auth/health/trpc
-// handshakes.
+// handshakes; "/api/cms/media/" (WITH the trailing slash, CMS_BUILD_PLAN.md —
+// W3) = the public CMS-media GET catch-all only — the trailing slash means
+// this does NOT also match the sibling admin-only POST at the bare
+// "/api/cms/media" path (no trailing segment), which must stay session-gated.
 const publicPaths = [
   "/login",
   "/privacy",
@@ -86,6 +89,7 @@ const publicPaths = [
   "/api/auth",
   "/api/health",
   "/api/trpc",
+  "/api/cms/media/",
 ];
 // Per-tenant login: /[slug]/login (and trailing slash). Public — a tenant user
 // must reach their own login while unauthenticated.
