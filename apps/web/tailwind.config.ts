@@ -1,5 +1,6 @@
 import type { Config } from "tailwindcss";
 import tailwindcssAnimate from "tailwindcss-animate";
+import tailwindScrollbarHide from "tailwind-scrollbar-hide";
 
 const config: Config = {
   darkMode: ["class"],
@@ -149,7 +150,7 @@ const config: Config = {
   	}
   },
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-  plugins: [tailwindcssAnimate],
+  plugins: [tailwindcssAnimate, tailwindScrollbarHide],
 };
 
 export default config;

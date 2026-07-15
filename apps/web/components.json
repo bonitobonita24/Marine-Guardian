@@ -18,6 +18,7 @@
     "hooks": "@/hooks"
   },
   "registries": {
-    "@mapcn": "https://mapcn.dev/r/{name}.json"
+    "@mapcn": "https://mapcn.dev/r/{name}.json",
+    "@plate": "https://platejs.org/r/{name}.json"
   }
 }
