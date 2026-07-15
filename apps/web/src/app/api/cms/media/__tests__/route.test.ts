@@ -55,10 +55,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { POST } from "../route";
 import { RouteAuthError } from "@/server/lib/route-auth";
 
+interface UploadImageArgs {
+  bucket: string;
+  key: string;
+  body: Buffer;
+  contentType: string;
+}
+
+interface CmsMediaCreateArgs {
+  data: Record<string, unknown>;
+}
+
 function makeRequest(body: Uint8Array, contentType: string, scope?: string): NextRequest {
-  const url = scope
-    ? `http://localhost/api/cms/media?scope=${scope}`
-    : "http://localhost/api/cms/media";
+  const url =
+    scope != null && scope !== ""
+      ? `http://localhost/api/cms/media?scope=${scope}`
+      : "http://localhost/api/cms/media";
   return new NextRequest(url, {
     method: "POST",
     headers: { "content-type": contentType, "content-length": String(body.byteLength) },
@@ -117,11 +129,11 @@ describe("POST /api/cms/media", () => {
         contentType: "image/png",
       }),
     );
-    const uploadArgs = mockUploadImage.mock.calls[0]?.[0];
+    const uploadArgs = mockUploadImage.mock.calls[0]?.[0] as UploadImageArgs;
     expect(uploadArgs.body).toBeInstanceOf(Buffer);
     expect(uploadArgs.body.length).toBe(pngBytes.byteLength);
 
-    const createArgs = mockPrisma.cmsMedia.create.mock.calls[0]?.[0];
+    const createArgs = mockPrisma.cmsMedia.create.mock.calls[0]?.[0] as CmsMediaCreateArgs;
     expect(createArgs.data).toMatchObject({
       mimeType: "image/png",
       bytes: pngBytes.byteLength,
@@ -148,7 +160,7 @@ describe("POST /api/cms/media", () => {
       expect.objectContaining({ contentType: "image/webp" }),
     );
     // scope defaults to "docs" when the ?scope= query param is absent.
-    const createArgs = mockPrisma.cmsMedia.create.mock.calls[0]?.[0];
+    const createArgs = mockPrisma.cmsMedia.create.mock.calls[0]?.[0] as CmsMediaCreateArgs;
     expect(createArgs.data).toMatchObject({ scope: "docs" });
   });
 

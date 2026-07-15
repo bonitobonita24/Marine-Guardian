@@ -114,7 +114,7 @@ describe("cmsDocs — public reads", () => {
       },
     ] as any);
 
-    const caller = createCaller(ANON_CTX as any);
+    const caller = createCaller(ANON_CTX);
     const tree = await caller.tree();
 
     expect(prisma.docPage.findMany).toHaveBeenCalledWith(
@@ -138,7 +138,7 @@ describe("cmsDocs — public reads", () => {
       bodyMarkdown: "# Hello",
     } as any);
 
-    const caller = createCaller(ANON_CTX as any);
+    const caller = createCaller(ANON_CTX);
     const page = await caller.getBySlug({ slug: "index" });
 
     expect(page).toMatchObject({ slug: "index", bodyMarkdown: "# Hello" });
@@ -150,7 +150,7 @@ describe("cmsDocs — public reads", () => {
       published: false,
     } as any);
 
-    const caller = createCaller(ANON_CTX as any);
+    const caller = createCaller(ANON_CTX);
     await expect(caller.getBySlug({ slug: "draft-page" })).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
@@ -170,24 +170,24 @@ describe("cmsDocs — writes reject non-platform-admin callers", () => {
   };
 
   it("create: rejects an anonymous caller", async () => {
-    const caller = createCaller(ANON_CTX as any);
+    const caller = createCaller(ANON_CTX);
     await expect(caller.create(createInput as any)).rejects.toBeInstanceOf(TRPCError);
     expect(prisma.docPage.create).not.toHaveBeenCalled();
   });
 
   it("create: rejects a tenant-scoped (non-platform-admin) caller", async () => {
-    const caller = createCaller(tenantUserCtx(["tenant_superadmin"]) as any);
+    const caller = createCaller(tenantUserCtx(["tenant_superadmin"]));
     await expect(caller.create(createInput as any)).rejects.toMatchObject({ code: "FORBIDDEN" });
     expect(prisma.docPage.create).not.toHaveBeenCalled();
   });
 
   it("update: rejects an anonymous and a non-platform-admin caller", async () => {
-    const anonCaller = createCaller(ANON_CTX as any);
+    const anonCaller = createCaller(ANON_CTX);
     await expect(anonCaller.update({ slug: "index", title: "X" } as any)).rejects.toBeInstanceOf(
       TRPCError,
     );
 
-    const tenantCaller = createCaller(tenantUserCtx() as any);
+    const tenantCaller = createCaller(tenantUserCtx());
     await expect(
       tenantCaller.update({ slug: "index", title: "X" } as any),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -196,10 +196,10 @@ describe("cmsDocs — writes reject non-platform-admin callers", () => {
   });
 
   it("delete: rejects an anonymous and a non-platform-admin caller", async () => {
-    const anonCaller = createCaller(ANON_CTX as any);
+    const anonCaller = createCaller(ANON_CTX);
     await expect(anonCaller.delete({ slug: "index" })).rejects.toBeInstanceOf(TRPCError);
 
-    const tenantCaller = createCaller(tenantUserCtx() as any);
+    const tenantCaller = createCaller(tenantUserCtx());
     await expect(tenantCaller.delete({ slug: "index" })).rejects.toMatchObject({
       code: "FORBIDDEN",
     });
@@ -210,10 +210,10 @@ describe("cmsDocs — writes reject non-platform-admin callers", () => {
   it("reorder: rejects an anonymous and a non-platform-admin caller", async () => {
     const items = { items: [{ slug: "index", orderInParent: 1 }] };
 
-    const anonCaller = createCaller(ANON_CTX as any);
+    const anonCaller = createCaller(ANON_CTX);
     await expect(anonCaller.reorder(items)).rejects.toBeInstanceOf(TRPCError);
 
-    const tenantCaller = createCaller(tenantUserCtx() as any);
+    const tenantCaller = createCaller(tenantUserCtx());
     await expect(tenantCaller.reorder(items)).rejects.toMatchObject({ code: "FORBIDDEN" });
 
     expect(prisma.$transaction).not.toHaveBeenCalled();
@@ -231,13 +231,13 @@ describe("cmsDocs — writes succeed for a platform admin", () => {
       slug: "new-page",
     } as any);
 
-    const caller = createCaller(platformAdminCtx() as any);
+    const caller = createCaller(platformAdminCtx());
     const row = await caller.create({
       slug: "new-page",
       parentSlug: "index",
       title: "New Page",
       bodyMarkdown: "content",
-    } as any);
+    });
 
     expect(row).toMatchObject({ id: "doc-1", slug: "new-page" });
     expect(prisma.docPage.create).toHaveBeenCalled();
@@ -247,8 +247,8 @@ describe("cmsDocs — writes succeed for a platform admin", () => {
     vi.mocked(prisma.docPage.findUnique).mockResolvedValue({ id: "doc-1", slug: "index" } as any);
     vi.mocked(prisma.docPage.update).mockResolvedValue({ id: "doc-1", slug: "index" } as any);
 
-    const caller = createCaller(platformAdminCtx() as any);
-    await caller.update({ slug: "index", title: "Updated Title" } as any);
+    const caller = createCaller(platformAdminCtx());
+    await caller.update({ slug: "index", title: "Updated Title" });
 
     const call = vi.mocked(prisma.docPage.update).mock.calls[0]?.[0];
     expect(call?.data).toMatchObject({ title: "Updated Title", updatedById: "admin-1" });

@@ -79,7 +79,7 @@ describe("cmsShowcase.getAll — public", () => {
       { key: "feature.war-room.bullets", value: "", valueJson: ["a", "b"] },
     ] as any);
 
-    const caller = createCaller(ANON_CTX as any);
+    const caller = createCaller(ANON_CTX);
     const fields = await caller.getAll();
 
     expect(fields).toEqual({
@@ -95,7 +95,7 @@ describe("cmsShowcase.update — admin-gated", () => {
   });
 
   it("rejects an anonymous caller", async () => {
-    const caller = createCaller(ANON_CTX as any);
+    const caller = createCaller(ANON_CTX);
     await expect(
       caller.update({ key: "hero.headline", value: "New copy" }),
     ).rejects.toBeInstanceOf(TRPCError);
@@ -103,7 +103,7 @@ describe("cmsShowcase.update — admin-gated", () => {
   });
 
   it("rejects a tenant-scoped (non-platform-admin) caller", async () => {
-    const caller = createCaller(tenantUserCtx(["tenant_superadmin"]) as any);
+    const caller = createCaller(tenantUserCtx(["tenant_superadmin"]));
     await expect(
       caller.update({ key: "hero.headline", value: "New copy" }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -117,7 +117,7 @@ describe("cmsShowcase.update — admin-gated", () => {
       value: "New copy",
     } as any);
 
-    const caller = createCaller(platformAdminCtx() as any);
+    const caller = createCaller(platformAdminCtx());
     const row = await caller.update({ key: "hero.headline", value: "New copy" });
 
     expect(row).toMatchObject({ id: "f-1", key: "hero.headline" });
