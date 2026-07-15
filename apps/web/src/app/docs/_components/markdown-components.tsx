@@ -15,14 +15,14 @@ import { cn } from "@/lib/utils";
 export const docsMarkdownComponents: Components = {
   h1: ({ className, node: _node, ...props }) => (
     <h1
-      className={cn("mt-2 scroll-m-20 text-3xl font-semibold tracking-tight text-foreground", className)}
+      className={cn("mt-2 scroll-m-20 text-4xl font-semibold tracking-tight text-foreground", className)}
       {...props}
     />
   ),
   h2: ({ className, node: _node, ...props }) => (
     <h2
       className={cn(
-        "mt-10 scroll-m-20 border-b border-border pb-2 text-xl font-semibold tracking-tight text-foreground first:mt-0",
+        "mt-12 scroll-m-20 border-b border-border pb-2 text-2xl font-semibold tracking-tight text-foreground first:mt-0",
         className,
       )}
       {...props}
@@ -30,18 +30,18 @@ export const docsMarkdownComponents: Components = {
   ),
   h3: ({ className, node: _node, ...props }) => (
     <h3
-      className={cn("mt-8 scroll-m-20 text-lg font-semibold tracking-tight text-foreground", className)}
+      className={cn("mt-8 scroll-m-20 text-xl font-semibold tracking-tight text-foreground", className)}
       {...props}
     />
   ),
   p: ({ className, node: _node, ...props }) => (
-    <p className={cn("leading-7 text-foreground [&:not(:first-child)]:mt-5", className)} {...props} />
+    <p className={cn("text-lg leading-8 text-foreground [&:not(:first-child)]:mt-6", className)} {...props} />
   ),
   ul: ({ className, node: _node, ...props }) => (
-    <ul className={cn("my-5 ml-6 list-disc text-foreground [&>li]:mt-2", className)} {...props} />
+    <ul className={cn("my-6 ml-6 list-disc text-lg leading-8 text-foreground [&>li]:mt-2", className)} {...props} />
   ),
   ol: ({ className, node: _node, ...props }) => (
-    <ol className={cn("my-5 ml-6 list-decimal text-foreground [&>li]:mt-2", className)} {...props} />
+    <ol className={cn("my-6 ml-6 list-decimal text-lg leading-8 text-foreground [&>li]:mt-2", className)} {...props} />
   ),
   a: ({ href, className, children, node: _node }) => {
     const target = href ?? "#";
@@ -63,7 +63,7 @@ export const docsMarkdownComponents: Components = {
   code: ({ className, node: _node, ...props }) => (
     <code
       className={cn(
-        "relative rounded bg-muted px-[0.4rem] py-[0.2rem] font-mono text-sm text-foreground",
+        "relative rounded bg-muted px-[0.4rem] py-[0.2rem] font-mono text-[0.9em] text-foreground",
         className,
       )}
       {...props}
@@ -72,7 +72,7 @@ export const docsMarkdownComponents: Components = {
   pre: ({ className, node: _node, ...props }) => (
     <pre
       className={cn(
-        "my-5 overflow-x-auto rounded-lg border border-border bg-muted p-4 text-sm [&>code]:bg-transparent [&>code]:p-0",
+        "my-6 overflow-x-auto rounded-lg border border-border bg-muted p-4 text-[0.9375rem] [&>code]:bg-transparent [&>code]:p-0 [&>code]:text-[0.9375rem]",
         className,
       )}
       {...props}
@@ -85,8 +85,8 @@ export const docsMarkdownComponents: Components = {
     />
   ),
   table: ({ className, node: _node, ...props }) => (
-    <div className="my-5 w-full overflow-x-auto">
-      <table className={cn("w-full border-collapse text-sm", className)} {...props} />
+    <div className="my-6 w-full overflow-x-auto">
+      <table className={cn("w-full border-collapse text-base", className)} {...props} />
     </div>
   ),
   th: ({ className, node: _node, ...props }) => (

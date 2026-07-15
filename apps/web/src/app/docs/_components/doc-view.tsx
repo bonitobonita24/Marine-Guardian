@@ -20,11 +20,11 @@ export async function DocView({ slug = [] }: { slug?: string[] }) {
   return (
     <article className="w-full">
       <header className="mb-8 border-b border-border pb-6">
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+        <h1 className="text-4xl font-semibold tracking-tight text-foreground">
           {page.frontmatter.title}
         </h1>
         {page.frontmatter.description != null && page.frontmatter.description !== "" ? (
-          <p className="mt-2 text-base text-muted-foreground">{page.frontmatter.description}</p>
+          <p className="mt-3 text-lg text-muted-foreground">{page.frontmatter.description}</p>
         ) : null}
       </header>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={docsMarkdownComponents}>
