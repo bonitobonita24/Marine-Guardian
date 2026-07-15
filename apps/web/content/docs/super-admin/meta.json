@@ -1,0 +1,4 @@
+{
+  "title": "Super Admin",
+  "pages": ["index", "tenant-management", "platform-users", "impersonation"]
+}

@@ -1,0 +1,42 @@
+---
+title: Performance Matrix
+description: How Marine Guardian credits each ranger for reported vs. accompanied work.
+---
+
+The **Performance Matrix** is the reported-versus-accompanied breakdown that
+appears on a ranger's [detail profile](/docs/rangers/ranger-detail). It makes
+sure every ranger gets credit for the work they did — whether they filed the
+report or backed up a teammate in the field.
+
+## Who uses it
+
+- **Coordinators and site admins** use it to understand workload and
+  contribution across the team.
+- **Operators** can view it as part of a ranger's profile.
+
+## How it is counted
+
+For each ranger, Marine Guardian tallies two independent figures per event
+category:
+
+| Column | Meaning |
+| --- | --- |
+| **Reported** | Events where this ranger is the reporter of record. |
+| **Accompanied** | Events (and patrols) where this ranger was recorded as an *accompanying* ranger for someone else's report. |
+| **Total** | Reported + Accompanied — the ranger's total credit. |
+
+The categories come from the event types in your data, so the matrix rolls a
+ranger's events up by category and shows reported, accompanied, and total for
+each — plus overall counts (`reportedCount`, `accompaniedCount`, and a combined
+`totalCredit`).
+
+## Where the accompanied credit comes from
+
+Accompanied credit is derived from the **accompanying-rangers** relation recorded
+on events and patrols. When a ranger is added as an accompanying ranger on an
+event or patrol, that link feeds directly into their accompanied totals here.
+
+The same performance data can also be exported as a **Ranger Performance PDF**
+from the [Reports & Exports](/docs/reports) screen.
+
+![Ranger performance matrix](/docs/rangers/ranger-performance-matrix.png)

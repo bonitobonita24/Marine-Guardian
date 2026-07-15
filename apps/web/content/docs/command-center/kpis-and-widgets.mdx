@@ -1,0 +1,56 @@
+---
+title: KPIs & Widgets
+description: The metric tiles, trends, event breakdown, recent activity, and alert panel that make up the War Room.
+---
+
+# KPIs & Widgets
+
+The War Room is built from a set of tiles and panels, each backed by its own procedure on the `dashboard` router. Every panel respects the active FROM/TO range at the top of the page unless it is a live-status metric.
+
+## Who uses this section
+
+Command center operators and field coordinators reading the daily picture; site administrators reviewing overall status. All require **view** on the `dashboard` feature.
+
+## KPI tiles
+
+The headline tiles come from `dashboard.kpis`:
+
+| Tile | What it counts |
+| --- | --- |
+| **Active Patrols** | Patrols currently in the **open** state right now (a live count — range-independent). |
+| **Rangers On Duty** | Distinct rangers currently on an open patrol, counting both lead and accompanying rangers. |
+| **Active Events** | Events in the **active** state that are tied to an open patrol, within the selected range. |
+| **Events This Month / Last Month** | A month-over-month comparison of event volume. |
+
+`dashboard.kpiTrends` supplies the small trend series behind the tiles so you can see movement over the selected range.
+
+> **Note:** *Active Patrols* counts a patrol whenever its own state is `open` — it does not require a materialized GPS track. A patrol with no track data still counts as active.
+
+## Rangers on duty
+
+The **Rangers On Duty** tile drills into `dashboard.rangersOnDuty`, which lists each open patrol that actually has someone on it (a lead ranger or at least one accompanying ranger). Lead-rangered patrols are shown first, then ordered alphabetically. The header count matches the KPI tile exactly.
+
+The `dashboard.rangerRoster` procedure backs the roster view of who is currently assigned.
+
+## Active patrols & recent activity
+
+- **`dashboard.activePatrols`** feeds the Recent Patrols table — the most recent real patrols (with segments or a start time), showing title, boat, type, area, start time, and distance. Ghost/empty patrols are filtered out.
+- **`dashboard.recentEvents`** lists the latest events in the range for the activity feed.
+- **`dashboard.lastIncident`** surfaces the most recent incident for quick reference.
+
+## Event breakdown
+
+`dashboard.eventBreakdown` groups events for the range so operators can see the mix of activity at a glance. Events fall into two categories — **Law Enforcement** and **Monitoring** — which carry through to the map and reports.
+
+## Alert panel
+
+`dashboard.alertStats` powers the alert summary on the War Room. Operators use it to spot new critical activity that needs acknowledgement, then jump into the relevant event to review and update its state.
+
+## Key actions
+
+1. Set the **FROM** and **TO** dates to the window you care about.
+2. Read the KPI tiles for the live and range-based numbers.
+3. Click any tile or row to open its **drill-down modal** with full details.
+4. Watch the alert panel and follow up on anything that needs acknowledgement.
+
+![KPI cards](/docs/command-center/kpi-cards.png)

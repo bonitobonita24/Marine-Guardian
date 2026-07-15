@@ -1,0 +1,32 @@
+---
+title: Alert History
+description: The log of every alert that fired, with acknowledgement tracking.
+---
+
+**Alert History** is the record of every time an alert rule fired. It is where
+the team confirms that each alert was seen and handled. Route:
+`/[tenant]/alerts/history`.
+
+## Who uses it
+
+- **Operators and coordinators** review fired alerts and see which are still
+  outstanding.
+- **Site admins / super admins** acknowledge alert entries.
+
+## What it shows
+
+- A chronological list of fired alerts, each linked to the underlying event
+  (shown by the event's title, serial number, or id).
+- Acknowledgement state, so you can distinguish handled alerts from those still
+  awaiting a response.
+- An **unacknowledged count** the app uses to badge outstanding alerts.
+
+## Key actions
+
+- **Acknowledge** — mark an alert as handled (admin action). This clears it from
+  the outstanding count.
+
+> **Note:** Automated *Skylight / Marine Entry* analyzer events are deliberately
+> excluded from the alert history so the log stays focused on actionable alerts.
+
+![Alert history](/docs/alerts-notifications/alert-history.png)

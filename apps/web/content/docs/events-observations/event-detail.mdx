@@ -1,0 +1,56 @@
+---
+title: Event Detail
+description: The event detail modal — full fields, edit history, and accompanying rangers.
+---
+
+# Event Detail
+
+Selecting an event in the Operations List opens the **Event Detail modal** — the full record behind a single event. You can also deep-link straight to it with `/{tenant}/events?eventId=<id>`, which auto-opens the modal on load (this is where Alert History and Notifications link to).
+
+The modal is backed by `event.getById` and the related edit/history procedures.
+
+## Who uses this section
+
+Field coordinators filling in or correcting event details, operators reviewing an incident, and administrators auditing changes. Viewing requires **view** on `events`; editing requires **update**, and managing accompanying rangers requires **write**/**delete**.
+
+## What the detail shows
+
+`event.getById` returns the full event, including:
+
+- **Identity** — serial number, title, priority, and current state.
+- **Location** — latitude/longitude and area name.
+- **Reporting** — who reported it and when.
+- **Details & notes** — the structured event details and notes (stored as JSON).
+- **Enforcement fields** — offender, vessel name/registration, address, and action taken, where applicable.
+- **Linked patrol** — the patrol the event is tied to, if any.
+- **Event type** — its display name and category (Law Enforcement or Monitoring).
+
+## Editing an event
+
+- **`event.update`** saves corrections to the event's fields.
+- **`event.updateState`** moves it between **New**, **Active**, and **Resolved**.
+
+## Edit history
+
+Because coordinators often correct field data after a patrol, the event keeps a revision trail:
+
+- **`event.getRevisions`** returns the history of changes.
+- **`event.getEditedFields`** identifies which fields were edited.
+
+## Accompanying rangers
+
+An event can record the rangers who were present alongside the reporter:
+
+- **`event.suggestAccompanyingRangers`** proposes likely rangers to add.
+- **`event.addAccompanyingRanger`** attaches one.
+- **`event.promoteToKnownRanger`** turns an ad-hoc name into a known ranger record.
+- **`event.removeAccompanyingRanger`** removes one.
+
+## Key actions
+
+1. Open an event from the Operations List, or deep-link with `?eventId=<id>`.
+2. Review the full detail — location, reporter, details, enforcement fields, linked patrol.
+3. Correct fields with **update**, and change **state** as you work it.
+4. Manage **accompanying rangers** and check the **revision history** when auditing changes.
+
+![Event detail modal](/docs/events-observations/event-detail-modal.png)

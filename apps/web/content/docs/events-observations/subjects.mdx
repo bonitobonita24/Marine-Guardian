@@ -1,0 +1,43 @@
+---
+title: Subjects
+description: The tracked entities — patrol boats, rangers, and marine animals — organized into groups.
+---
+
+# Subjects
+
+A **subject** is an entity Marine Guardian tracks: a patrol boat, a ranger, or a marine animal. Subjects are organized into **subject groups** and accumulate **observations** over time. The Subjects page at `/{tenant}/subjects` is where you browse and inspect them.
+
+It is backed by the `subject` router; each subject's sightings come from the `observation` router.
+
+## Who uses this section
+
+Operators and field coordinators reviewing what is being tracked and its recent history. Requires **view** on the `subjects` feature.
+
+## Browsing subjects
+
+`subject.list` powers the subject browser with:
+
+- **Search** by name.
+- **Filter** by group (`groupId`) or by active status (`isActive`).
+- **Infinite scroll** via cursor pagination (up to 50 per page by default).
+
+Subjects are listed alphabetically by name, each showing its group.
+
+## Subject groups
+
+`subject.groups` returns the visible subject groups, each with a count of how many subjects it holds. Groups are the main way to organize and filter subjects — both here and on the [Live Map](/docs/live-map/subject-tracking).
+
+## Subject detail
+
+Selecting a subject opens its detail via `subject.getById`, which includes:
+
+- The subject's **group**.
+- Its most recent **observations**, newest first.
+
+## Key actions
+
+1. Open the Subjects page and search or filter by **group** / active status.
+2. Select a subject to view its **group** and recent **observations**.
+3. Follow a subject onto the **[Live Map](/docs/live-map/subject-tracking)** to see its position.
+
+![Subjects list](/docs/events-observations/subjects-list.png)

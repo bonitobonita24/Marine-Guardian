@@ -1,0 +1,42 @@
+---
+title: Tenant Settings
+description: Connect the tenant to EarthRanger and control how data syncs.
+---
+
+Tenant Settings (`/[tenant]/settings`) is where a tenant is connected to its
+EarthRanger instance and where data-sync behavior is controlled. It is built from
+two cards: **EarthRanger Connection** and **EarthRanger Sync**.
+
+## Who uses this
+
+Configuring the connection and sync is restricted to the tenant's administrators
+(the **tenant owner / Site Admin** tier and the platform **Super Admin**). The
+recent-sync status table is readable by other tenant users.
+
+## EarthRanger Connection
+
+Connect the tenant to an EarthRanger instance so its data can be pulled in.
+
+- **Server URL** — the EarthRanger instance base URL.
+- **API token** — a bearer token used to authenticate. The token is stored
+  **encrypted** and shown masked once saved; leaving the field untouched keeps the
+  existing token.
+- **Test Connection** — runs a live probe against the instance and records the
+  result (connection status and last-validated time).
+
+Saving new credentials resets the connection status so the next test reflects the
+new values.
+
+## EarthRanger Sync
+
+Control how the tenant's data refreshes from EarthRanger.
+
+- **Recurring sync** — a toggle for automatic scheduled pulls, with a configurable
+  interval (from one minute up to 24 hours). Recurring sync can only be enabled
+  once the connection has been verified with **Test Connection**.
+- **Sync now** — trigger an immediate pull.
+- **Recent syncs** — a table of the most recent sync runs for the tenant.
+
+For deeper monitoring, see [EarthRanger Sync](/docs/earthranger-sync).
+
+![Tenant settings — EarthRanger connection and sync](/docs/settings/tenant-settings.png)

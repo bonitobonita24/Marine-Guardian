@@ -1,0 +1,37 @@
+---
+title: Breach Register
+description: Track data-privacy breaches through their required notification lifecycle.
+---
+
+The Breach Register (`/[tenant]/settings/breach`) is an admin-only log for
+recording and tracking **data-privacy breaches** through the lifecycle required
+by Philippine National Privacy Commission (NPC) rules (Circular 16-03), part of
+Marine Guardian's compliance with the Data Privacy Act of 2012 (RA 10173).
+
+## Who uses this
+
+Restricted to the tenant's administrators (the **tenant owner / Site Admin**
+tier). Every action is audited.
+
+## The breach lifecycle
+
+A breach record advances through defined stages —
+**detected → assessed → notified → reported → closed** — capturing the required
+notifications along the way:
+
+- **Record a breach** — log a newly detected incident.
+- **Mark NPC notified** — record that the National Privacy Commission was
+  notified (the regime expects notification within 72 hours of knowledge).
+- **Mark subjects notified** — record that affected data subjects were informed.
+- **Submit report** — record the full written report (expected within five
+  business days of the notification).
+- **List** — review the tenant's breach register.
+
+## Related privacy surfaces
+
+The breach register is one part of the compliance posture. Self-service
+data-subject rights (access, rectification, erasure requests, and portability)
+live on the Profile page (`/[tenant]/profile`), and a public privacy notice is
+served outside the tenant workspace.
+
+![Breach register](/docs/settings/breach-config.png)

@@ -1,0 +1,10 @@
+{
+  "title": "Reports & Exports",
+  "pages": [
+    "index",
+    "per-area-report",
+    "consolidated-report",
+    "event-log",
+    "report-map"
+  ]
+}

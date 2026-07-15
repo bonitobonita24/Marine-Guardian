@@ -1,0 +1,47 @@
+---
+title: Subject Tracking
+description: Subjects and subject groups on the map — patrol boats, rangers, and marine animals, plus their observations.
+---
+
+# Subject Tracking
+
+A **subject** is anything Marine Guardian tracks on the map — a patrol boat, a ranger, or a marine animal. Subjects are organized into **subject groups**, and each subject accumulates **observations** (recorded position/sighting records) over time.
+
+Subjects and their positions are read through the `map` router's `subjects` sub-router for plotting, and through the `subject` and `observation` routers for detail.
+
+## Who uses this section
+
+Operators locating tracked assets and animals, and field coordinators reviewing where a subject has been. Requires **view** on the `subjects` feature.
+
+## Subjects on the map
+
+The Live Map plots each subject's current position from the `subjects` sub-router. Subjects can be filtered by group so you can isolate, for example, just patrol boats or just a monitored species.
+
+## Subject groups
+
+The `subject.groups` procedure returns the visible subject groups, each with a count of how many subjects it contains. Groups are the primary way to organize and filter the subject layer.
+
+## Browsing and searching subjects
+
+The `subject.list` procedure powers the subject browser with:
+
+- **Search** by name.
+- **Filter** by group (`groupId`) or by active status (`isActive`).
+- **Infinite scroll** via cursor pagination.
+
+## Subject detail & observations
+
+Selecting a subject opens its detail via `subject.getById`, which includes:
+
+- The subject's **group**.
+- Its most recent **observations**, newest first.
+
+The `observation.list` procedure can also list observations directly, optionally filtered to a single subject (`subjectId`). Each observation is a recorded sighting/position for its subject.
+
+## Key actions
+
+1. Open the Live Map and enable the subjects layer.
+2. Filter by **subject group** or active status to focus the map.
+3. Select a subject to open its detail and review its recent observations.
+
+![Subject detail](/docs/live-map/subject-detail.png)

@@ -3,32 +3,42 @@ title: Marine Guardian Documentation
 description: Guides, references, and walkthroughs for the Marine Guardian Command Center.
 ---
 
-Welcome to the **Marine Guardian** documentation. This is a scaffold placeholder —
-real content and screenshots land in later passes.
+Welcome to the **Marine Guardian** documentation — the operational reference for the
+Command Center used by marine protected-area teams to plan patrols, monitor rangers,
+track events and subjects, and turn field activity into reports. Use the sidebar to
+move between sections.
 
-## What lives here
+## Where to start
 
-This site documents the Marine Guardian Command Center: patrol management,
-interactive report maps, EarthRanger integration, exports, and tenant
-administration. Use the sidebar to move between sections.
+- **[Getting Started](/docs/getting-started)** — what Marine Guardian is, who uses it, the roles at a glance, and the core concepts (tenants, EarthRanger, patrols, and events).
 
 ## Sections
 
-- **Getting Started** — orientation and first steps.
+**Operations**
 
-> This page is rendered from `content/docs/index.mdx` through the headless
-> `next-mdx-remote` pipeline. Content authors edit MDX files; the sidebar tree
-> is generated from the folder structure and `meta.json` ordering.
+- **[Command Center](/docs/command-center)** — the War Room dashboard: KPIs, activity widgets, and the live tactical map.
+- **[Live Map](/docs/live-map)** — the standalone geospatial view of subjects, tracks, and boundary layers.
+- **[Events & Observations](/docs/events-observations)** — logging and managing events, event detail, observations, and subjects.
 
-## A quick example
+**Field & Patrols**
 
-Inline `code` and fenced blocks are supported via `remark-gfm`:
+- **[Patrols](/docs/patrols)** — patrol monitoring, patrol detail, area planning (boundaries), and the patrol schedule.
+- **[Fuel](/docs/fuel)** — fuel logging and allocations.
 
-```ts
-export const APP = "Marine Guardian";
-```
+**Reporting & People**
 
-| Feature        | Status      |
-| -------------- | ----------- |
-| Docs shell     | Scaffolded  |
-| Real content   | Coming soon |
+- **[Reports & Exports](/docs/reports)** — per-area, consolidated, and event-log reports plus the interactive report map.
+- **[Rangers](/docs/rangers)** — the ranger roster, ranger profiles, and the performance matrix.
+- **[Alerts & Notifications](/docs/alerts-notifications)** — alert rules, alert history, and the notification center.
+
+**Administration**
+
+- **[Users & Roles](/docs/users-roles)** — user management and the custom-role permission matrix.
+- **[Settings](/docs/settings)** — tenant settings, report templates, and the data-breach register.
+- **[EarthRanger Sync](/docs/earthranger-sync)** — connecting an EarthRanger/DAS source and monitoring sync status.
+- **[Super Admin](/docs/super-admin)** — the platform panel: tenant management, platform users, and impersonation.
+- **[Internationalization](/docs/i18n)** — supported languages and language preferences.
+
+> This documentation is generated from the app's product spec and grounded in the real
+> application — every feature described maps to a live screen. Screenshots throughout are
+> from a demo dataset.

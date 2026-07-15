@@ -1,0 +1,53 @@
+---
+title: Event Management
+description: The Operations List — filter, search, page through, and export events, and move them through their states.
+---
+
+# Event Management
+
+The Events page at `/{tenant}/events` is the **Operations List**: an infinite-scroll list of every event, with filters, full-content search, a stats summary, and export. It replaced the earlier Kanban board — events now live in one continuous, filterable list rather than columns.
+
+It is backed by the `event` router (`event.list`, `event.stats`, and the state-change procedures).
+
+## Who uses this section
+
+Operators triaging incoming events, field coordinators reviewing and correcting them, and administrators overseeing the record. Requires **view** on the `events` feature; changing state or details requires **update**, and bulk-resolve is admin-only.
+
+## The Operations List
+
+`event.list` powers the list with:
+
+- **Infinite scroll** — cursor pagination loads more events as you scroll (up to 50 per page by default).
+- **Full-content search** — a fuzzy (pg_trgm) search across event content, including details stored as JSON.
+- **Filters** — by date range, and the same tenant-scoped filters used across the app (including linking to active patrols).
+
+A **stats summary** (`event.stats`) sits in the page header, and **Export** buttons let you download the current list — the export carries your active filters.
+
+## Event states
+
+Every event carries one of three states, shown with a distinct color in the list:
+
+| State | Meaning |
+| --- | --- |
+| **New** (`new_event`) | Just arrived, not yet triaged. |
+| **Active** (`active`) | Being worked / under attention. |
+| **Resolved** (`resolved`) | Closed out. |
+
+Operators move an event between states as they work it:
+
+- **`event.updateState`** changes a single event's state.
+- **`event.bulkUpdateState`** changes several at once.
+- **`event.resolveAllEvents`** (administrators only) resolves everything in one action.
+
+## Event categories
+
+Events belong to a **type**, and types roll up into two categories used across the map and reports: **Law Enforcement** and **Monitoring**. The `eventType.list` procedure supplies the available types.
+
+## Key actions
+
+1. Open the Events page and scroll the Operations List (it loads more as you go).
+2. Use **search** and **filters** to narrow to the events you need.
+3. Change an event's **state** as you triage it, or select several for a bulk update.
+4. Use **Export** to download the filtered list.
+
+![Events list](/docs/events-observations/events-list.png)

@@ -1,0 +1,4 @@
+{
+  "title": "Settings",
+  "pages": ["index", "tenant-settings", "report-templates", "breach-config"]
+}

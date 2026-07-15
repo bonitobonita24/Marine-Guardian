@@ -1,0 +1,40 @@
+---
+title: Tenant Management
+description: Provision and manage MPA tenant sites from the platform.
+---
+
+Tenant Management (`/admin/tenants`) is where the platform Super Admin onboards
+and maintains **tenant sites** — one per MPA. A platform overview
+(`/admin`) also surfaces cross-tenant metrics.
+
+## Who uses this
+
+Reserved for the platform **Super Admin** role (`tenant_manager`). Tenant-level
+roles cannot create or manage tenants. All actions are audited at the platform
+level.
+
+## What a tenant has
+
+- **Name** — the display name of the site.
+- **Slug** — the lowercase URL identifier used for path-based routing
+  (`/[tenant]/...`). Slugs must be unique; a duplicate is rejected.
+- **Timezone** and **currency** — tenant defaults (currency is inherited by
+  records such as fuel entries at creation time).
+
+## Key actions
+
+- **List tenants** and view **platform metrics**.
+- **Create a tenant** — provide the name, slug, timezone, and currency.
+- **Create a tenant with its first admin** — provision the tenant and its initial
+  tenant owner (Site Admin) in one step, supplying the admin's email, full name,
+  password, and language preference.
+- **Update a tenant** — edit its details.
+- **Deactivate a tenant** — disable a site; an inactive tenant cannot be entered
+  via impersonation.
+
+## Onboarding flow
+
+A typical onboarding: the Super Admin creates the tenant and assigns its first
+Site Admin, and the Site Admin then [connects
+EarthRanger](/docs/earthranger-sync/connecting-earthranger) and configures the
+tenant. If a slug is already taken, choose a different one.

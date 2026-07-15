@@ -1,0 +1,51 @@
+---
+title: Patrol Area Planning
+description: Define and maintain municipalities, official boundaries, and protected zones that patrols and reports are measured against.
+---
+
+# Patrol Area Planning
+
+Patrol areas are the geographic backbone of Marine Guardian. They decide which municipality or protected zone a patrol or event "counts" toward, and they power the filters on the report map and coverage reports. This work is done on the **Boundaries** page (`/patrol-areas`).
+
+## Who uses it
+
+Boundary management is **Site Admin only**. Reviewers can see the boundaries that exist, but creating, editing, importing, and deleting them requires an admin role.
+
+## What lives here
+
+The Boundaries page centers on the **area boundary table** — the list of boundaries currently defined for your tenant. Boundaries come in a few flavors:
+
+- **Municipalities** — the top-level coverage areas (with a land boundary, and optionally municipal-waters geometry added later).
+- **Protected zones** — named sub-areas under a municipality, such as an **MPA** (Marine Protected Area) or a **special area**, used to filter events and patrols down to just that zone.
+- **Official boundaries** — the generated overlay records that render your municipalities and zones on the maps.
+
+## Key actions
+
+### Create Area
+
+The **Create Area** button (admins only) defines a new area boundary directly in the app.
+
+### Add a boundary from a file
+
+The **Add MPA from File** dialog lets you upload a **KML or KMZ** boundary. Marine Guardian parses the file, validates the geometry on the server, and creates a protected zone under the municipality you choose. After upload it:
+
+1. Validates the name and geometry against the parent municipality.
+2. Creates the protected zone.
+3. Regenerates the official boundary overlays so the new zone appears on both maps.
+4. Backfills historical coverage — existing events and patrols that fall inside the new zone are counted immediately, so you don't start from zero.
+
+A brand-new **municipality** (not a subdivision of an existing one) is created the same way, from an uploaded KML/KMZ that becomes its land boundary. Municipalities are grouped by province (Oriental Mindoro, Occidental Mindoro, Palawan).
+
+### Import official boundaries
+
+The **Import Official Boundaries** button regenerates the official overlay records from your current municipalities and zones. It is idempotent — safe to run repeatedly.
+
+### Rebuild coverage
+
+The **Rebuild** button re-runs area derivation for every event, patrol, and fuel entry in your tenant. Use it after an external boundary import or a bulk change has shifted the map, so every record is re-matched to the correct area.
+
+## How areas connect to patrols and reports
+
+Once boundaries exist, every patrol and event is matched to the municipalities and protected zones it falls within. That matching is what lets coverage reports show **patrol and event counts per municipality** (and per protected zone), and what powers the municipality and MPA filters on the report map.
+
+![Boundaries management page](/docs/patrols/patrol-areas.png)

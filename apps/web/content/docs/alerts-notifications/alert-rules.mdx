@@ -1,0 +1,41 @@
+---
+title: Alert Rules
+description: Define the conditions that raise an alert and the channels that deliver it.
+---
+
+**Alert Rules** are the tenant-configurable conditions that decide when Marine
+Guardian raises an alert. Route: `/[tenant]/alerts`.
+
+## Who uses it
+
+- **Site admins / super admins** create, edit, activate/deactivate, and delete
+  rules.
+- **Operators and coordinators** can view the configured rules (read-only).
+
+## Anatomy of a rule
+
+A rule has three parts:
+
+- **Name** — a short label for the rule.
+- **Condition** — what to match. Conditions are validated against a canonical
+  schema so the evaluator always understands them (for example, matching a
+  specific event type).
+- **Notification channels** — one or more of **in-app** and **email**. At least
+  one channel is required. (SMS is scaffolded but not active — see the
+  [overview](/docs/alerts-notifications).)
+
+Each rule also has an **Active** switch, so you can pause a rule without deleting
+it.
+
+## Key actions
+
+- **New Rule** — open the create form, set the name, condition, and channels,
+  then save.
+- **Edit** — change any part of an existing rule.
+- **Toggle Active / Inactive** — turn a rule on or off with the row switch.
+- **Delete** — remove a rule you no longer need.
+
+Creating, editing, toggling, and deleting rules are admin-only actions; all are
+tenant-scoped.
+
+![Alert rules list and editor](/docs/alerts-notifications/alert-rules.png)

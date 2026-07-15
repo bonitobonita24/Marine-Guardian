@@ -1,0 +1,38 @@
+---
+title: Ranger Detail
+description: One ranger's full profile — KPIs, activity timeline, and event summary.
+---
+
+The **Ranger Detail** page is a single ranger's profile, assembled live from
+their field activity. Route: `/[tenant]/rangers/[id]`.
+
+## Who uses it
+
+- **Coordinators and operators** review a ranger's activity and patrol history.
+- Access is tenant-scoped and permission-checked, so you only see rangers in
+  your own tenant.
+
+## What the page shows
+
+- **Profile header** — the ranger's identity at the top of the page.
+- **KPI cards** — headline counts of the ranger's activity, including patrol
+  KPIs split by **foot patrol** and **seaborne patrol**.
+- **Event summary** — the ranger's events grouped by category, split into
+  **reported** and **accompanied** (see the
+  [Performance Matrix](/docs/rangers/performance-matrix) for how this is counted).
+- **Activity timeline** — a chronological feed of the ranger's recent activity:
+  events they **reported**, events they **accompanied**, patrols they **led**,
+  and patrols they **accompanied**.
+
+## Reported vs. accompanied
+
+The profile deliberately separates two kinds of contribution:
+
+- **Reported** — events where this ranger is the reporter of record.
+- **Accompanied** — events and patrols where this ranger was recorded as an
+  accompanying ranger, even though someone else was the lead reporter.
+
+Both count toward the ranger's total credit, so support work in the field is
+never invisible.
+
+![Ranger detail profile](/docs/rangers/ranger-detail.png)

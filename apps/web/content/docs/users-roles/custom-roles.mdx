@@ -1,0 +1,59 @@
+---
+title: Custom Roles
+description: Define named, tenant-scoped roles with a per-feature permission matrix.
+---
+
+Beyond the built-in roles, a tenant can define its own **custom roles** — named
+permission sets scoped to that tenant. Custom Roles lives at
+`/[tenant]/settings/roles`.
+
+## Who uses this
+
+Only the **tenant owner (Site Admin / `tenant_superadmin`)** and the platform
+**Super Admin (`tenant_manager`)** can create, edit, assign, or remove custom
+roles. A custom role is anchored on the `tenant_admin` tier, and its access can
+never exceed what a `tenant_admin` may do (the ceiling).
+
+## The permission matrix
+
+Each custom role holds a matrix of **features × actions**. For every operational
+feature, you grant any combination of four actions:
+
+- **view**, **write** (create), **update** (edit), **delete**
+
+A feature only exposes the actions it actually supports. The grantable features
+are:
+
+| Feature | Actions available |
+|---------|-------------------|
+| Dashboard | view |
+| Live Map | view |
+| Exports | view |
+| Events | view · write · update · delete |
+| Patrols | view · write · update · delete |
+| Patrol Areas | view · write · update · delete |
+| Patrol Schedule | view · write · update · delete |
+| Fuel | view · write · update · delete |
+| Subjects | view · write · update · delete |
+| Notifications | view · update |
+| Alerts | view · update |
+| Sync | view |
+
+## Reserved surfaces (never grantable)
+
+Some surfaces can **never** be handed to a custom role, by design:
+**User Management**, **tenant Settings**, **Billing**, and the personal
+**Profile** page. User management and settings stay exclusive to the tenant owner
+(and Super Admin); Profile is self-service for every user.
+
+## Key actions
+
+- **Create a role** — name it and set its permission matrix.
+- **Edit a role** — adjust the matrix at any time.
+- **Assign / unassign** — attach the custom role to a user, or remove it.
+- **Delete a role** — remove a role that is no longer needed.
+
+Enforcement is applied everywhere the permission is relevant — the sidebar hides
+features a role cannot view, and each action is checked server-side.
+
+![Custom role builder](/docs/users-roles/custom-roles.png)

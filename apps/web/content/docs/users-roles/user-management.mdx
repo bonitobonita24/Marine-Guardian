@@ -1,0 +1,36 @@
+---
+title: User Management
+description: Create accounts, assign roles, reset passwords, and transfer ownership within a tenant.
+---
+
+User Management (`/[tenant]/users`) is where a tenant's administrators manage the
+people who can sign in to that tenant.
+
+## Who uses this
+
+Restricted to the **tenant owner (Site Admin / `tenant_superadmin`)** and the
+platform **Super Admin (`tenant_manager`)**. Other roles cannot open or act on
+this surface. Every action is scoped to the current tenant and written to the
+audit log.
+
+## Key actions
+
+- **Create a user** — add an account with an email, full name, initial password,
+  role, and language preference.
+- **Assign / change role** — set a user's role (see
+  [Roles at a Glance](/docs/getting-started/roles-at-a-glance)).
+- **Reset password** — set a new password for a user; this invalidates their
+  existing sessions and forces a fresh sign-in.
+- **Deactivate / activate** — disable an account without deleting it, and
+  re-enable it later.
+- **Transfer ownership** — hand the tenant-owner role to another user. Because a
+  tenant has exactly one owner, the transfer promotes the chosen user and demotes
+  the current owner in a single, mediated step.
+- **List & view users** — browse the tenant's accounts and open an individual
+  user's details.
+
+> **Self-service note.** Users change *their own* password from the Profile page
+> (`/[tenant]/profile`), not here — User Management is for an administrator acting
+> on *another* account.
+
+![User management](/docs/users-roles/user-management.png)

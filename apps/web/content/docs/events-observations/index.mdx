@@ -1,0 +1,31 @@
+---
+title: Events & Observations
+description: Manage law-enforcement and monitoring events, and browse the subjects and observations behind them.
+---
+
+# Events & Observations
+
+This section covers the operational records Marine Guardian pulls in from the field: **events** (incidents and monitoring reports) and the **subjects & observations** that describe what is being tracked. It brings together three related surfaces:
+
+- **Event Management** (`/{tenant}/events`) — the Operations List of every event, with filters, search, states, and export.
+- **Observations** (`/{tenant}/observations`) — the recorded sightings/position records.
+- **Subjects** (`/{tenant}/subjects`) — the tracked entities (boats, rangers, marine animals) observations belong to.
+
+Events are backed by the `event` and `eventType` routers; subjects and observations by the `subject` and `observation` routers.
+
+## Who uses this section
+
+- **Command center operators** triage new events, update their state, and export data.
+- **Field coordinators** fill in missing event details, review completed operations, and manage accompanying rangers.
+- **Site administrators** oversee the full record and can resolve events in bulk.
+
+Events require the `events` permission (view/write/update/delete); subjects and observations require **view** on the `subjects` feature.
+
+## In this section
+
+- [Event Management](/docs/events-observations/event-management) — the Operations List: filters, search, states, and export.
+- [Event Detail](/docs/events-observations/event-detail) — the detail modal: fields, revisions, and accompanying rangers.
+- [Observations](/docs/events-observations/observations) — browsing recorded observations.
+- [Subjects](/docs/events-observations/subjects) — the tracked entities and their groups.
+
+![Events list](/docs/events-observations/events-list.png)

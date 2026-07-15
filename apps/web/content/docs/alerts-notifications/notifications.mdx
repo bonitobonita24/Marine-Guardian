@@ -1,0 +1,36 @@
+---
+title: Notifications
+description: The in-app inbox where each user reads the alerts sent to them.
+---
+
+The **Notification Center** is each user's personal inbox for in-app messages —
+alerts, warnings, and system notices. Route: `/[tenant]/notifications`.
+
+## Who uses it
+
+- **Every signed-in user** has their own notification list and unread count.
+- The list is tenant- and user-scoped, so you only ever see your own
+  notifications.
+
+## What it shows
+
+Notifications are typed so you can tell severity at a glance:
+
+- **Critical** — urgent, act-now items.
+- **Warning** — needs attention.
+- **Info** — informational updates.
+- **System** — platform / housekeeping messages.
+
+Each notification tracks read/unread state, and the app keeps a live **unread
+count** for badging elsewhere in the interface. The Notification Center updates
+in real time as new notifications arrive.
+
+## Key actions
+
+- **Mark as read** — clear a single notification.
+- **Mark all as read** — clear every unread notification in view at once.
+
+Reading notifications never deletes them; it only updates their read state and
+the unread count.
+
+![Notification Center](/docs/alerts-notifications/notification-center.png)

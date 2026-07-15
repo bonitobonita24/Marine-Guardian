@@ -1,0 +1,37 @@
+---
+title: Ranger Roster
+description: The live list of rangers and the known-rangers registry behind it.
+---
+
+The roster is your directory of rangers. It shows who is available and links
+through to each ranger's [detail profile](/docs/rangers/ranger-detail).
+
+## Who uses it
+
+- **Coordinators and operators** view the roster to see who is on the ground.
+- **Site admins / super admins** manage the underlying known-rangers registry —
+  creating manual entries and deactivating rangers who are no longer active.
+
+## Where the roster lives
+
+The live ranger roster is a panel in the **Command Center / War Room** dashboard,
+alongside the live map and event feed. From there you open any ranger to see
+their full profile at `/[tenant]/rangers/[id]`.
+
+> **Note:** there is no separate standalone roster page at `/[tenant]/rangers`;
+> the roster is surfaced within the Command Center, and individual ranger
+> profiles live at `/[tenant]/rangers/[id]`.
+
+## The known-rangers registry
+
+Behind the roster is the **known-rangers registry** — the master list of rangers
+the system recognizes. Each known ranger carries a **source**:
+
+- **EarthRanger sync** — pulled in automatically from EarthRanger.
+- **Manual entry** — added directly in Marine Guardian by an admin.
+
+Admins can **add** a manual known ranger and **deactivate** one that should no
+longer appear. These management actions are restricted to admin roles; everyone
+else has read access.
+
+![Ranger roster in the Command Center](/docs/rangers/rangers-roster.png)

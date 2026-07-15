@@ -1,0 +1,39 @@
+---
+title: Connecting EarthRanger
+description: Connect a tenant to its EarthRanger instance and enable recurring sync.
+---
+
+Before any data flows in, a tenant must be connected to its EarthRanger
+instance. This is done once from **Tenant Settings** (`/[tenant]/settings`).
+
+## Who does this
+
+Restricted to the tenant's administrators (the **tenant owner / Site Admin** tier
+and the platform **Super Admin**). The action is audited.
+
+## Steps
+
+1. **Enter the EarthRanger server URL** — the base URL of the tenant's
+   EarthRanger instance.
+2. **Enter the API token** — a bearer token used to authenticate. It is stored
+   encrypted and displayed masked after saving.
+3. **Test the connection** — run a live probe. Marine Guardian records the
+   resulting status and the last-validated time. Recurring sync cannot be enabled
+   until the connection tests successfully.
+4. **Enable recurring sync** (optional) — turn on automatic scheduled pulls and
+   set the interval (from one minute up to 24 hours).
+5. **Sync now** (optional) — trigger an immediate pull at any time.
+
+If the token is invalid, the test surfaces a clear error and sync is not started
+— re-check the credentials and test again.
+
+## Updating credentials
+
+Re-saving the server URL or token resets the connection status, so run
+**Test Connection** again after any change. Leaving the token field untouched
+keeps the previously stored token.
+
+See [Tenant Settings](/docs/settings/tenant-settings) for the full settings
+surface, and [Sync Status](/docs/earthranger-sync/sync-status) for monitoring.
+
+![Connecting EarthRanger](/docs/earthranger-sync/connecting-earthranger.png)

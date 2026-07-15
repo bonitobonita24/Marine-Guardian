@@ -1,24 +1,42 @@
 ---
 title: Overview
-description: A first orientation to the Marine Guardian Command Center.
+description: A tour of the main Marine Guardian surfaces.
 ---
 
-This is a nested example page at `content/docs/getting-started/overview.mdx`,
-proving the sidebar sub-navigation renders before any real content exists.
+Marine Guardian brings a tenant's EarthRanger data together into a set of
+purpose-built operations surfaces. Each lives under the tenant path
+(`/[tenant]/...`) and is reachable from the left sidebar.
 
-## Placeholder
+## The core surfaces
 
-Replace this body with a real getting-started walkthrough. Screenshots will be
-referenced by same-origin absolute paths, e.g.:
+- **Command Center (War Room)** — the primary large-display view: live map,
+  real-time event feed, and an alert panel. Built for an operations-room screen.
+- **Dashboard** — KPIs and a live activity feed in a data-dense, multi-panel
+  layout.
+- **Live Map** — a full-screen map with layers, heatmaps, and drawing tools.
+- **Events** — the operations list and the Kanban board for moving events
+  through their states (`new → active → resolved`) and filling in details.
+- **Patrols** — monitor active patrols and review completed patrol tracks
+  against planned patrol-area polygons.
+- **Patrol Areas & Schedule** — draw patrol-area polygons and schedule ranger
+  assignments on a Gantt chart.
+- **Fuel** — log bulk fuel allocations per area and view consumption analytics.
+- **Reports** — per-area, consolidated, detailed event-log, and ranger
+  performance reports.
+- **Alerts & Notifications** — configure alert rules and review the in-app
+  notification center.
 
-```mdx
-![Command Center dashboard](/docs/getting-started/dashboard.png)
-```
+## Admin & foundational surfaces
 
-Images live under `apps/web/public/docs/**` and are served at `/docs/...`.
+This documentation cluster covers the administrative and foundational surfaces
+that support those operations:
 
-## Next steps
+- [Users & Roles](/docs/users-roles) — user management and custom roles.
+- [Settings](/docs/settings) — tenant settings, report templates, and the
+  breach register.
+- [EarthRanger Sync](/docs/earthranger-sync) — connecting a data source and
+  monitoring sync health.
+- [Super Admin](/docs/super-admin) — platform-level tenant and user management.
+- [Internationalization](/docs/i18n) — the supported interface languages.
 
-- Explore the interactive report map.
-- Configure your first patrol area.
-- Review roles and permissions for your tenant.
+![Marine Guardian dashboard](/docs/getting-started/dashboard.png)

@@ -1,0 +1,47 @@
+---
+title: Alerts & Notifications
+description: Define what matters, get told when it happens, and track every alert.
+---
+
+Marine Guardian's alerting has three parts working together:
+
+- **Alert Rules** decide *what* is worth an alert.
+- **Alert History** is the log of every time a rule fired, with acknowledgement.
+- The **Notification Center** is where each user reads the messages sent to them.
+
+## Who uses it
+
+- **Operators and coordinators** watch alerts, acknowledge them, and clear their
+  notifications.
+- **Site admins / super admins** create and edit alert rules and acknowledge
+  alert-history entries.
+
+## Notification channels
+
+Alerts are delivered over two active channels in v1:
+
+- **In-app** — surfaced in the [Notification Center](/docs/alerts-notifications/notifications).
+- **Email** — sent via SMTP.
+
+Every rule must have at least one channel selected.
+
+> **SMS is planned, not active.** SMS delivery (Twilio and MSG91) is scaffolded
+> in the codebase but is **not enabled in v1**. Only in-app and email alerts are
+> sent today.
+
+## How it flows
+
+1. An admin defines an [Alert Rule](/docs/alerts-notifications/alert-rules) with a
+   condition and one or more channels.
+2. When incoming activity matches the condition, an alert fires and is recorded
+   in [Alert History](/docs/alerts-notifications/alert-history).
+3. The configured channels deliver the alert — an in-app notification lands in
+   each recipient's [Notification Center](/docs/alerts-notifications/notifications),
+   and/or an email is sent.
+4. A responder **acknowledges** the alert so the team knows it's being handled.
+
+## Next steps
+
+- [Alert Rules](/docs/alerts-notifications/alert-rules)
+- [Alert History](/docs/alerts-notifications/alert-history)
+- [Notifications](/docs/alerts-notifications/notifications)

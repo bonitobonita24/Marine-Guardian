@@ -1,0 +1,62 @@
+---
+title: Reports & Exports
+description: Generate downloadable PDF reports and explore field data on the interactive Report Map.
+---
+
+Marine Guardian turns your patrol, event, and coverage data into shareable
+documents. The **Exports** screen queues report jobs, tracks their status, and
+lets you download the finished file. The **Report Map** is the interactive tool
+you use to scope and preview a spatial report before exporting it.
+
+Route: `/[tenant]/exports` · Interactive map: the Report Map view.
+
+## Who uses it
+
+- **Operators and coordinators** browse the export history and generate reports
+  of what they can already see.
+- **Site admins / super admins** additionally retry, cancel, and delete export
+  jobs, and render the PowerPoint (`.pptx`) variant.
+- Every action is tenant-scoped and permission-checked (feature key `exports`),
+  so a user only ever sees and generates their own tenant's data.
+
+## Report types
+
+Each report is generated as a **PDF** (paper size **A4**, **Letter**, or
+**Legal** — A4 by default). The following report types are available:
+
+| Report | What it covers |
+| --- | --- |
+| **Per-Area** | A single patrol area / protected zone — events, patrols, and coverage within its boundary. See [Per-Area Report](/docs/reports/per-area-report). |
+| **Consolidated** | A roll-up across areas for a period. See [Consolidated Report](/docs/reports/consolidated-report). |
+| **Event Log (Detailed)** | A line-by-line log of events over a date range. See [Event Log](/docs/reports/event-log). |
+| **Coverage** | Planned patrol-area coverage versus actual patrol tracks for a period. |
+| **Ranger Performance** | Per-ranger reported-versus-accompanied activity, exported as a PDF. The same data is available live under [Rangers → Performance Matrix](/docs/rangers/performance-matrix). |
+| **Patrol-filtered** | Events and coverage narrowed to a selected set of patrols. |
+| **Report Map** | A snapshot exported directly from the interactive map. See [Report Map](/docs/reports/report-map). |
+
+## How exports work
+
+1. **Generate.** From the Report Map (or a report screen) you choose the report
+   type, scope, and paper size, then submit. A queued export row is created
+   immediately.
+2. **Render.** A background worker renders the PDF (and, for admins, an optional
+   PowerPoint deck). The row shows a live status — *queued*, in progress, *ready*,
+   or *failed*.
+3. **Download.** Once ready, use the row's download action to retrieve the file.
+   Files are stored server-side; the download link is resolved on the server so
+   the underlying storage locator is never exposed to the browser.
+4. **Manage.** Admins can **Retry** a stuck or failed job, **Cancel** one in
+   progress, or **Delete** a finished export.
+
+The export history table also shows a human-readable summary per row (for
+example the area or period the report was generated for) so you can recognize a
+report before re-generating the same thing.
+
+![Exports history and report generation](/docs/reports/reports-list.png)
+
+## Next steps
+
+- [Per-Area Report](/docs/reports/per-area-report)
+- [Consolidated Report](/docs/reports/consolidated-report)
+- [Event Log](/docs/reports/event-log)
+- [Report Map](/docs/reports/report-map)

@@ -1,0 +1,40 @@
+---
+title: Report Map
+description: The interactive map used to scope, preview, and export spatial reports.
+---
+
+The **Report Map** is the interactive, spatial front end to reporting. You draw
+or select an area, choose a time range, and the map computes what happened
+inside it — then you export that view as a PDF.
+
+## Who uses it
+
+- **Operators, coordinators, and viewers** explore the map and generate a report
+  from it (feature key `exports`, view access).
+- **Site admins / super admins** additionally manage the exported jobs.
+
+## What the map shows
+
+As you set an area and range, the Report Map queries live tenant data and layers
+it on the map:
+
+- **Summary** figures for the selected area and period.
+- **Patrols in range** and their **track points**, so you can see actual coverage.
+- **Event breakdown** by type — including geolocated event points so incidents
+  appear where they happened.
+- **High-priority events** highlighted for quick triage.
+- **Events over time**, for the trend within the selected window.
+
+## Key actions
+
+1. Select or draw the area of interest and set the date range.
+2. Review the computed summary, patrol tracks, and event points on the map.
+3. Choose a paper size and **Generate** the report. This creates a `report_map`
+   export in the Exports history.
+4. Download the finished PDF from the Exports screen once it is *ready*.
+
+A report generated from the map lands in the same [Exports](/docs/reports)
+history as every other report type, where its row is tagged as a Report Map
+export.
+
+![Interactive Report Map](/docs/reports/report-map.png)

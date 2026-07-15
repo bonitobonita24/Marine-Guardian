@@ -1,4 +1,20 @@
 {
   "title": "Documentation",
-  "pages": ["index", "getting-started"]
+  "pages": [
+    "index",
+    "getting-started",
+    "command-center",
+    "live-map",
+    "events-observations",
+    "patrols",
+    "fuel",
+    "reports",
+    "rangers",
+    "alerts-notifications",
+    "users-roles",
+    "settings",
+    "earthranger-sync",
+    "super-admin",
+    "i18n"
+  ]
 }

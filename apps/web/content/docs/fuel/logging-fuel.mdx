@@ -1,0 +1,50 @@
+---
+title: Logging Fuel
+description: Add, edit, and delete fuel allocation entries, and read the consumption analytics panel.
+---
+
+# Logging Fuel
+
+The **Fuel Logging** page (`/fuel`) is where you record fuel allocations and review consumption. It has two parts: the **analytics panel** at the top and the **entries table** below.
+
+## Who uses it
+
+- **Operators and above** — log new fuel entries and edit **their own** entries.
+- **Coordinators and above** — edit **any** entry.
+- **Site Admins** — delete entries.
+- **Reviewers** — view entries and analytics.
+
+## Log a fuel entry
+
+The **Log Fuel** button (shown to Operators and above) opens the entry dialog. An entry captures:
+
+- **Municipality / area** — chosen from a list grouped by province; the area name is taken from the selected municipality.
+- **Date received** — defaults to today.
+- **Liters** — a positive number.
+- **Total price** — a positive number, recorded in the tenant's current currency.
+- **Notes** — optional.
+
+Liters and total price must both be positive; the dialog validates them before saving.
+
+> **Receipt photos** are not part of the log form yet — the field is reserved for a future update, so entries are currently logged without an attached receipt image.
+
+## The entries table
+
+Below the analytics, the **Entries** table lists fuel allocations chronologically. You can filter by **area** and **date**. Each row exposes the actions your role allows:
+
+- **Edit** — Operators can edit their own entries; Coordinators and above can edit any entry.
+- **Delete** — Site Admins only.
+
+If you try to edit an entry you don't own without the higher role, Marine Guardian blocks the change.
+
+## Consumption analytics
+
+The **analytics panel** aggregates your fuel entries into:
+
+- **KPIs** — headline totals for the current view.
+- **A trend chart** — consumption over time.
+- **A per-area breakdown** — how fuel is distributed across your patrol areas.
+
+The analytics respect the tenant's currency and timezone, and show sensible defaults even when there are no entries yet.
+
+![Fuel entry dialog and entries table](/docs/fuel/fuel-log-dialog.png)

@@ -1,0 +1,35 @@
+---
+title: Live Map
+description: The standalone geospatial view — plot current subject positions, patrol tracks, events, and boundaries on one map.
+---
+
+# Live Map
+
+The Live Map is Marine Guardian's dedicated full-screen geospatial view, served at `/{tenant}/map`. Where the War Room map is one panel among many, the Live Map gives the whole screen to the map so operators can explore positions, tracks, and coverage in detail.
+
+It is backed by the `map` tRPC router (with sub-routers for events, event types, subjects, patrol tracks, patrol areas, and official boundaries), plus the `subject` and `observation` routers for the things being tracked.
+
+## Who uses this section
+
+- **Command center operators** locating current activity and reviewing where patrols have covered.
+- **Field coordinators** checking patrol tracks against planned patrol areas and boundaries.
+
+Everything on the map requires **view** on the `map` feature.
+
+## What it shows
+
+The Live Map plots the **current positions** of tracked subjects and the geometry around them. It composes several layers:
+
+- Subject positions (patrol boats, rangers, marine animals) from the `subjects` sub-router.
+- Patrol tracks from the `patrolTracks` sub-router.
+- Events, grouped by Law Enforcement and Monitoring type, from the `events` and `eventTypes` sub-routers.
+- Planned **patrol areas** and imported **official boundaries** (municipality land/water and MPA outlines) as overlays.
+
+> **Note:** The Live Map renders these layers from query data — it plots the latest known positions and geometry each time it loads. It is a plotting-and-layers view, not a continuous live stream.
+
+## In this section
+
+- [Tracks & Layers](/docs/live-map/tracks-and-layers) — patrol tracks, event types, patrol areas, and boundary overlays, and how to toggle them.
+- [Subject Tracking](/docs/live-map/subject-tracking) — subjects, subject groups, and reading a subject's detail and observations.
+
+![Live Map overview](/docs/live-map/live-map-overview.png)

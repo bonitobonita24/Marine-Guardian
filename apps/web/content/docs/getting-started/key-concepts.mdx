@@ -1,0 +1,46 @@
+---
+title: Key Concepts
+description: The core ideas behind Marine Guardian — tenants, EarthRanger, patrols, and events.
+---
+
+A few concepts recur throughout Marine Guardian. Understanding them makes the
+rest of the documentation easier to follow.
+
+## Tenants
+
+Each MPA site is a **tenant** — an isolated workspace with its own users,
+EarthRanger connection, and data. Tenant workspaces are addressed by a
+path-based URL using the tenant's slug (`/[tenant]/dashboard`,
+`/[tenant]/events`, and so on). Data is strictly scoped per tenant; a user in one
+tenant cannot see another tenant's records.
+
+## EarthRanger
+
+**EarthRanger** (also referred to as DAS) is the field data platform that
+patrollers report from. Marine Guardian **pulls** patrol, event, and subject data
+from a tenant's EarthRanger instance — it does not replace EarthRanger in the
+field. A tenant administrator connects EarthRanger once, and data flows in on a
+schedule. See [EarthRanger Sync](/docs/earthranger-sync).
+
+## Subjects, events, and patrols
+
+- **Subjects** are the tracked entities that appear on the map — patrol boats,
+  rangers, and marine animals — sourced from EarthRanger.
+- **Events** are field incidents and observations (for example a blast-fishing
+  report). Operators move each event through states (`new → active → resolved`)
+  and fill in missing details.
+- **Patrols** are field operations with a GPS track. Coordinators review a
+  completed patrol's track against the planned patrol-area polygons.
+
+## Sync
+
+Data reaches Marine Guardian through **sync** runs against EarthRanger — either an
+immediate manual sync or a recurring scheduled sync. Every run is logged so you
+can confirm data is current. See [Sync Status](/docs/earthranger-sync/sync-status).
+
+## Audit log
+
+Administrative actions — connecting EarthRanger, changing a user's role,
+recording a data breach, entering a tenant as Super Admin — are written to an
+**audit log** for accountability. This underpins the platform's data-privacy
+posture.

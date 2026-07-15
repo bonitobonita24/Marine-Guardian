@@ -1,0 +1,23 @@
+---
+title: EarthRanger Sync
+description: How Marine Guardian pulls patrol, event, and subject data from EarthRanger.
+---
+
+Marine Guardian's operational data — patrols, events, and subjects — originates
+in a tenant's **EarthRanger** (DAS) instance, where field patrollers report from.
+Marine Guardian **pulls** that data on a schedule and surfaces it across the
+command center. It does not replace EarthRanger in the field.
+
+This section covers:
+
+- [**Connecting EarthRanger**](/docs/earthranger-sync/connecting-earthranger) —
+  set up the connection and enable recurring sync.
+- [**Sync Status**](/docs/earthranger-sync/sync-status)
+  (`/[tenant]/sync`) — monitor sync runs and confirm data is current.
+
+## Who manages this
+
+Setting up and configuring the connection is restricted to the tenant's
+administrators (the **tenant owner / Site Admin** tier and the platform
+**Super Admin**). Viewing sync status is available to tenant users with the
+`sync` view permission.

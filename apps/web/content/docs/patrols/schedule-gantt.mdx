@@ -1,0 +1,48 @@
+---
+title: Patrol Schedule
+description: Plan ranger assignments across calendar, kanban, map, and Gantt views, with conflict detection.
+---
+
+# Patrol Schedule
+
+The **Patrol Schedule** page (`/patrol-schedule`) is where coordinators plan upcoming ranger assignments. The same set of assignments can be viewed four ways, and the schedule warns you when an assignment would double-book a ranger.
+
+## Who uses it
+
+- **Coordinators and above** — create, edit, delete, and re-status assignments.
+- **Reviewers** — view the schedule read-only.
+
+## Four views of the same schedule
+
+A view switcher at the top of the page toggles between:
+
+- **Calendar** — assignments laid out by date.
+- **Kanban** — assignments as cards grouped by status; drag a card to change its status.
+- **Map** — assignments plotted geographically, including any planned track.
+- **Gantt** — a timeline of assignments you can drag to reschedule.
+
+A **period toolbar** sets the window you are looking at (for example, a biweekly or monthly span).
+
+## Assignment status
+
+Every assignment has a status: `planned`, `in_progress`, `completed`, or `cancelled`. New assignments start as `planned`. On the **Kanban** view you can drag a card between columns to update its status directly.
+
+## Creating an assignment
+
+The **Add assignment** button opens the assignment dialog. An assignment captures:
+
+- **Ranger** — the assigned ranger (a registered user or a name), plus optional **accompanying rangers**.
+- **Patrol area** — the area the patrol will cover (optional).
+- **Scheduled start**, and either a **scheduled end** or **planned hours** (the end is derived from planned hours when you provide them).
+- **Planned track** — an optional route drawn on the map.
+- **Notes**.
+
+## Conflict detection
+
+When you schedule the same ranger over a time window that overlaps an existing assignment, Marine Guardian flags the **conflict** before you save. You can resolve it by adjusting the ranger or the times, or deliberately **override** the conflict — overrides are recorded in the audit log.
+
+## Editing and deleting
+
+Each assignment can be edited or deleted from its row (and from the calendar, kanban, map, or Gantt view). Editing the ranger or the time window re-checks for conflicts; a simple status change on the Kanban board does not.
+
+![Patrol Schedule Gantt and view switcher](/docs/patrols/patrol-schedule-gantt.png)

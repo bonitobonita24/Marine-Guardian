@@ -1,0 +1,9 @@
+{
+  "title": "Alerts & Notifications",
+  "pages": [
+    "index",
+    "alert-rules",
+    "alert-history",
+    "notifications"
+  ]
+}

@@ -1,0 +1,35 @@
+---
+title: Observations
+description: Browse the recorded observations — the sighting and position records behind each subject.
+---
+
+# Observations
+
+An **observation** is a single recorded sighting or position for a subject — the raw record behind what appears on the map. The Observations page at `/{tenant}/observations` lets you browse these records.
+
+It is backed by the `observation` router.
+
+## Who uses this section
+
+Operators and field coordinators reviewing the history of what was seen and where. Requires **view** on the `subjects` feature.
+
+## Browsing observations
+
+`observation.list` returns observations with:
+
+- **Infinite scroll** via cursor pagination (up to 50 per page by default).
+- An optional **`subjectId`** filter to narrow to a single subject's observations.
+
+Observations are ordered by when they were recorded, newest first.
+
+## Relationship to subjects
+
+Each observation belongs to a **subject** (see [Subjects](/docs/events-observations/subjects)). From a subject's detail you can see its most recent observations directly; this page lets you browse observations across subjects, or filter to one.
+
+## Key actions
+
+1. Open the Observations page to browse recorded observations.
+2. Filter by **subject** to focus on one tracked entity's history.
+3. Scroll to load more (the list pages as you go).
+
+![Observations list](/docs/events-observations/observations-list.png)

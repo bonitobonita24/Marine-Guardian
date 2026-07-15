@@ -1,0 +1,41 @@
+---
+title: Roles at a Glance
+description: The role tiers Marine Guardian uses and what each can do.
+---
+
+Marine Guardian uses a **tiered role model**: a platform tier that spans all
+tenants, two administrative tiers inside each tenant, and operational domain
+roles. On top of these, tenant owners can define **custom roles** with a
+fine-grained permission matrix.
+
+## Platform tier
+
+| Role | Scope | What it does |
+|------|-------|--------------|
+| **Super Admin** (`tenant_manager`) | All tenants (platform) | Provision and manage tenant sites, manage platform users, and enter a tenant to provide support. Managed from the [Super Admin](/docs/super-admin) area. |
+
+## Tenant administration tiers
+
+| Role | Scope | What it does |
+|------|-------|--------------|
+| **Tenant owner / Site Admin** (`tenant_superadmin`) | One tenant | Full control inside the tenant: [manage users](/docs/users-roles/user-management), build [custom roles](/docs/users-roles/custom-roles), [connect EarthRanger](/docs/earthranger-sync), configure [report templates](/docs/settings/report-templates), and handle the [breach register](/docs/settings/breach-config). |
+| **Tenant admin** (`tenant_admin`) | One tenant | Full operational access across the tenant, but **excluded from user management and tenant settings**. This role is also the *ceiling* for any custom role. |
+
+## Operational domain roles
+
+| Role | What it does |
+|------|--------------|
+| **Field Coordinator** (`field_coordinator`) | Plan patrol areas, schedule ranger assignments, monitor and review patrols, edit event details, and generate/export reports. |
+| **Command Center Operator** (`operator`) | Monitor the War Room and live map, work the event feed and Kanban board, acknowledge and escalate alerts, and log fuel. |
+| **Viewer** (`viewer`) | Read-only access to the surfaces it is granted. |
+
+## Custom roles
+
+Below the tenant-admin ceiling, a tenant owner can create **named custom roles**
+whose access is defined per feature (view / write / update / delete). See
+[Custom Roles](/docs/users-roles/custom-roles).
+
+> **Note on naming.** The interface and product materials refer to these roles by
+> friendly names (Super Admin, Site Admin, Field Coordinator, Operator). The
+> values in parentheses above are the underlying role identifiers used by the
+> system.

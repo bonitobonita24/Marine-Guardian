@@ -1,0 +1,35 @@
+---
+title: Report Templates
+description: Configure branded page headers and footers for printable report maps.
+---
+
+Report Templates (`/[tenant]/settings/report-templates`) store the branded
+header and footer used when a tenant generates a **printable report map**. Each
+template captures the organizational branding so exported reports look official.
+
+## Who uses this
+
+Creating, editing, and deleting templates is restricted to the tenant's
+administrators (the **tenant owner / Site Admin** tier). Other roles can use a
+template when generating a report, but cannot manage the templates themselves.
+
+## What a template holds
+
+- **Name** — an internal label for the template.
+- **Report title** — the title printed on the report.
+- **Municipal logo** and **partner logo** — image uploads for institutional
+  branding (optional). These are treated as organizational assets, not personal
+  data.
+- **Footer notes** — optional fine-print text for the report footer.
+- **Default** — one template per tenant can be marked the default; it is
+  auto-selected when a report is generated without choosing one. Marking a new
+  template default clears the flag on the previous default.
+
+## Key actions
+
+- **Create** a template with the fields above.
+- **Edit** an existing template.
+- **Set default** — choose which template is used automatically.
+- **Delete** a template that is no longer needed.
+
+![Report templates](/docs/settings/report-templates.png)

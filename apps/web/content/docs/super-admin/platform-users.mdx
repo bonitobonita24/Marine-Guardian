@@ -1,0 +1,28 @@
+---
+title: Platform Users
+description: Manage platform-level user accounts and reassign tenant owners.
+---
+
+Platform Users (`/admin/users`) is where the platform Super Admin manages user
+accounts at the platform level, including the ability to reassign a tenant's
+owner as a break-glass measure.
+
+## Who uses this
+
+Reserved for the platform **Super Admin** role (`tenant_manager`). This is
+distinct from in-tenant [User Management](/docs/users-roles/user-management),
+which a tenant owner uses within a single tenant.
+
+## Key actions
+
+- **List** platform-level user accounts.
+- **Create** a user.
+- **Update role** — change a platform user's role.
+- **Reset password** — set a new password, invalidating the user's sessions.
+- **Deactivate** — disable an account.
+- **Reassign tenant owner** — reassign a tenant's owner
+  (`tenant_superadmin`). Because a tenant must always have exactly one owner, this
+  provides platform-level recovery when a tenant's own owner is unavailable —
+  complementing the in-tenant **transfer ownership** action.
+
+All actions are audited at the platform level.

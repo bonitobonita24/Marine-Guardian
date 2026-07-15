@@ -1,0 +1,30 @@
+---
+title: Impersonation
+description: Enter a tenant workspace as Super Admin to provide support.
+---
+
+Impersonation lets the platform Super Admin **enter a tenant** to see what that
+tenant sees, for support and troubleshooting. It is a deliberately guarded,
+fully-audited action.
+
+## Who uses this
+
+Reserved for the platform **Super Admin** role (`tenant_manager`). No other role
+can impersonate a tenant.
+
+## How it works
+
+- **Enter a tenant** — the Super Admin, while in the platform context, selects a
+  tenant to enter. Marine Guardian confines the session to that tenant's URL and
+  scopes all data access to that tenant.
+- **Guards** — impersonation is refused if the caller is not a platform Super
+  Admin, if a tenant session is already active, or if the target tenant is
+  inactive.
+- **Exit** — the Super Admin leaves impersonation to return to the platform
+  context.
+
+## Auditing
+
+Entering a tenant is recorded in the audit log as a **high-severity** event,
+capturing the acting user and the tenant that was entered. This keeps
+cross-tenant support access accountable.

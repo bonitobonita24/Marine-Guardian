@@ -1,0 +1,31 @@
+---
+title: Command Center
+description: The War Room dashboard — your single-screen overview of live activity, patrols, events, and alerts.
+---
+
+# Command Center
+
+The Command Center (also called the **War Room**) is the landing screen for Marine Guardian. It pulls the most important numbers and lists onto one page so an operator can judge, at a glance, what is happening across the site right now — how many patrols are out, how many rangers are on duty, what events have come in, and whether any alerts need attention.
+
+The dashboard is served at `/{tenant}/dashboard` and is backed by the `dashboard` tRPC router.
+
+## Who uses this section
+
+- **Command center operators** monitor live activity, watch the alert panel, and open events for review.
+- **Field coordinators** track active patrols and recent operations.
+- **Site administrators** get a top-level view of the whole site's status.
+
+Access is governed by the `dashboard` permission — a role must have **view** on the Command Center feature to open it.
+
+## What the War Room shows
+
+Every War Room element defaults to the **most recent 7 days** relative to now. The active range is shown at the top with **FROM** and **TO** calendar pickers, so you can widen or narrow the window to any span. Most data items are clickable and open a drill-down modal with the full details behind the number or row.
+
+Some tiles are deliberately **range-independent** — live-status metrics like *Active Patrols* and *Rangers On Duty* always reflect what is open right now, and the month-over-month event comparison always compares this calendar month with the last.
+
+## In this section
+
+- [KPIs & Widgets](/docs/command-center/kpis-and-widgets) — the metric tiles, event breakdown, recent activity, and alert panel.
+- [War Room Map](/docs/command-center/war-room-map) — the embedded map view and how it ties to the rest of the dashboard.
+
+![War Room overview](/docs/command-center/war-room-overview.png)

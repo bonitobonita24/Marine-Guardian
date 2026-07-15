@@ -1,0 +1,30 @@
+---
+title: War Room Map
+description: The geospatial view that plots patrols, events, and boundaries alongside the War Room panels.
+---
+
+# War Room Map
+
+The War Room pairs its metric tiles with a map so operators can see *where* activity is happening, not just how much. The map plots the current picture for the selected range — patrol tracks, events by type, and the coverage boundaries they are measured against.
+
+## Who uses this section
+
+Command center operators watching live activity and field coordinators reviewing where patrols have covered. Both require **view** on the `dashboard` (and, for the standalone map, `map`) feature.
+
+## What it plots
+
+The map draws on the same `map` router that powers the standalone [Live Map](/docs/live-map):
+
+- **Patrol tracks** for the range, so you can see where boats and rangers have been.
+- **Events** placed at their reported locations, grouped by Law Enforcement and Monitoring type.
+- **Official boundaries** — municipality land/water outlines and MPA (protected-area) outlines — as a thin-line overlay for context.
+
+## How to use it
+
+1. Adjust the **FROM/TO** range to focus the map on a specific window.
+2. Read patrol tracks and event markers together to understand coverage versus incidents.
+3. Click through from a marker or the surrounding panels into the full event or patrol detail.
+
+For the full-screen geospatial experience — layer toggles, subject positions, and per-patrol tracks — use the dedicated **[Live Map](/docs/live-map)**.
+
+![War Room map](/docs/command-center/war-room-map.png)

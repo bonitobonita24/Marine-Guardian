@@ -1,0 +1,51 @@
+---
+title: Patrol Monitoring
+description: Review every patrol, filter by type and state, export records, and rebuild GPS tracks.
+---
+
+# Patrol Monitoring
+
+The **Patrols** page (`/patrols`) is the master list of all patrols in your tenant. Use it to review activity, export records for reporting, and open any patrol for a closer look.
+
+## Who uses it
+
+- **Rangers, Operators, and Coordinators** — read-only review of patrol activity.
+- **Site Admins** — the same review, plus the ability to rebuild GPS tracks for active patrols.
+
+## What you see
+
+The header carries the page actions; the **Patrols table** below lists patrols row by row. Each patrol shows its title, type, state, boat name, and timing. Deleted and test patrols are excluded from the default view.
+
+Patrols carry two classifications:
+
+- **Type** — `foot` or `seaborne`.
+- **State** — `open`, `done`, or `cancelled`.
+
+## Key actions
+
+### Export the list
+
+Two export buttons in the header generate a downloadable file of the current patrol list:
+
+- **Export CSV** — a spreadsheet-friendly file.
+- **Export PDF** — a formatted document.
+
+Exports include these columns: ID, Serial, Title, Patrol Type, State, Boat, Start Time, End Time, Distance (km), and Created At. A single export is capped at 10,000 rows.
+
+### Generate a report
+
+The **Generate Report** button produces a patrol report for the current view.
+
+### Rebuild GPS tracks (Site Admins)
+
+The **Rebuild Tracks** button re-fetches and re-materializes the GPS track for every currently **open** patrol in your tenant. Closed patrols (`done` or `cancelled`) are skipped on purpose — their tracks are final once the patrol closes, so re-fetching them would waste EarthRanger sync quota. Use this after an area boundary change or when a track looks incomplete.
+
+## About GPS tracks
+
+Each patrol's GPS track is a **materialized** record, not something you draw by hand. Tracks are built by the patrol-track sync job and are **read-only** in the app — they refresh automatically during sync, and Site Admins can force a rebuild for open patrols with the button above.
+
+## Open a patrol
+
+Select any row to open its [detail page](/docs/patrols/patrol-detail), where you can see the full breakdown, edit the fields Marine Guardian lets you change locally, and review the patrol's history.
+
+![Patrol Monitoring list with export and rebuild actions](/docs/patrols/patrols-list.png)

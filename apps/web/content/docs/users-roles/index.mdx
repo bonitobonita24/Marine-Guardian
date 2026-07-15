@@ -1,0 +1,21 @@
+---
+title: Users & Roles
+description: Manage the people in a tenant and the roles that govern what they can do.
+---
+
+Marine Guardian gives each tenant control over **who has access** and **what they
+can do**. Two surfaces cover this:
+
+- [**User Management**](/docs/users-roles/user-management) (`/[tenant]/users`) —
+  create user accounts, assign roles, reset passwords, activate/deactivate
+  accounts, and transfer tenant ownership.
+- [**Custom Roles**](/docs/users-roles/custom-roles) (`/[tenant]/settings/roles`)
+  — define named, tenant-scoped roles with a per-feature permission matrix.
+
+## Who manages this
+
+Both surfaces are restricted to the tenant's administrators — the **tenant owner
+(Site Admin / `tenant_superadmin`)** and the platform **Super Admin
+(`tenant_manager`)**. The `tenant_admin` role and every operational role
+(coordinator, operator, viewer) **cannot** manage users or roles. See
+[Roles at a Glance](/docs/getting-started/roles-at-a-glance) for the full model.

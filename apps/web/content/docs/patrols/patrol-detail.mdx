@@ -1,0 +1,49 @@
+---
+title: Patrol Detail
+description: A single patrol's key facts, locally editable fields, segments, accompanying rangers, and edit history.
+---
+
+# Patrol Detail
+
+The patrol detail page (`/patrols/[id]`) shows everything Marine Guardian knows about one patrol and lets you make the small set of edits that survive future EarthRanger syncs.
+
+## Who uses it
+
+- **Rangers, Operators, and Coordinators** — review the full patrol record.
+- **Anyone with patrol edit rights** — update the patrol's title, boat name, and area name.
+
+## Header and key details
+
+The header shows the patrol's title, its **state** badge (`open`, `done`, or `cancelled`), and — when they apply — a **Test** badge or a **Deleted** badge, along with the patrol's ID.
+
+A read-only panel summarizes the patrol's key facts:
+
+- **Type** — `foot` or `seaborne`
+- **Start** and **End** times
+- **First seen** — when the patrol first appeared in a sync
+
+## Edit tab
+
+The **Edit** tab lets you change three fields:
+
+- **Title**
+- **Boat name**
+- **Area name**
+
+> Fields edited here are protected from future EarthRanger sync overwrites. Marine Guardian records the local edit so a later sync won't undo your change, while leaving every other field to update from EarthRanger normally.
+
+The **Save changes** button stays disabled until you actually change something, and confirms with a short "Saved." message.
+
+## History tab
+
+The **History** tab shows a revision timeline of the patrol's local edits, alongside the original values captured from EarthRanger. Use it to see what changed, and to compare a locally edited field against its source-of-record value. The history is loaded the first time you open the tab.
+
+## Segments
+
+When a patrol is broken into segments, they are listed with each segment's **leader**, **actual start**, and **actual end** times.
+
+## Accompanying rangers
+
+Any additional rangers on the patrol are listed by name — resolved from their registered user account, a known ranger record, or a free-text name, in that order.
+
+![Patrol detail with Edit and History tabs](/docs/patrols/patrol-detail.png)

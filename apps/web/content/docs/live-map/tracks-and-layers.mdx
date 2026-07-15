@@ -1,0 +1,53 @@
+---
+title: Tracks & Layers
+description: Patrol tracks, event types, patrol areas, and official boundary overlays on the Live Map.
+---
+
+# Tracks & Layers
+
+The Live Map composes several data layers, each from its own sub-router on `map`. Together they let an operator see where patrols went, what happened where, and how that measures against planned areas and official boundaries.
+
+## Who uses this section
+
+Operators and field coordinators reviewing coverage and activity. All layers require **view** on the `map` feature.
+
+## Patrol tracks
+
+The `patrolTracks` sub-router supplies the GPS lines drawn on the map:
+
+- **`active`** — tracks for patrols that are currently open.
+- **`byPatrolId`** — the full track for a single selected patrol.
+- **`inRange`** — tracks within the selected date/area window.
+
+Use tracks to see the actual path a boat or ranger followed, and to compare it against the planned patrol area.
+
+## Events by type
+
+Events are plotted at their reported locations and grouped into two categories that carry through the whole app:
+
+- **Law Enforcement**
+- **Monitoring**
+
+The `eventTypes.byCategory` procedure returns the available types under each category so the map can filter and style event markers accordingly.
+
+## Patrol areas
+
+The `patrolAreas` sub-router returns the planned **patrol area** polygons (from the PatrolArea table). These are the operational areas a patrol is meant to cover, and overlaying them lets you judge coverage versus plan.
+
+## Official boundaries
+
+The `officialBoundaries` sub-router draws the imported coverage outlines as a thin-line overlay:
+
+- **Municipality** land and water boundaries.
+- **MPA / protected-zone** outlines.
+
+These are distinct from patrol areas — they are the official geographic context that events and reports are measured against. Each boundary carries a `kind` (land, water, or protected zone) so the map can style them distinctly.
+
+## Key actions
+
+1. Open the Live Map and let the layers load.
+2. Toggle the layers you need — tracks, event types, patrol areas, boundaries.
+3. Select a patrol to see its full track via `patrolTracks.byPatrolId`.
+4. Read tracks against patrol areas and official boundaries to assess coverage.
+
+![Layer controls](/docs/live-map/layer-controls.png)

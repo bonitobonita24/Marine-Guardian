@@ -1,0 +1,31 @@
+---
+title: Sync Status
+description: Monitor EarthRanger sync runs and confirm the tenant's data is current.
+---
+
+The Sync surface (`/[tenant]/sync`) lets a tenant confirm that its EarthRanger
+data is current by reviewing the history of sync runs.
+
+## Who uses this
+
+Available to tenant users who have the `sync` **view** permission. Setting up the
+connection and enabling recurring sync remain administrator actions (see
+[Connecting EarthRanger](/docs/earthranger-sync/connecting-earthranger)).
+
+## What it shows
+
+- **Sync runs** — a list of recent sync attempts across sync types, newest first.
+- **Latest sync** — the most recent run, so you can see at a glance when data was
+  last refreshed.
+
+A compact recent-syncs table also appears on the EarthRanger Sync card in
+[Tenant Settings](/docs/settings/tenant-settings).
+
+## When sync fails
+
+If EarthRanger becomes unreachable, sync runs are recorded as failed and the
+command center surfaces a sync-failure indicator with the last successful sync
+time — so operators know the on-screen data may be stale. Resolve the connection
+(re-test credentials) and run a manual sync to catch up.
+
+![Sync status](/docs/earthranger-sync/sync-status.png)

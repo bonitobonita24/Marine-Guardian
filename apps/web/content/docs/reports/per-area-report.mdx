@@ -1,0 +1,29 @@
+---
+title: Per-Area Report
+description: A PDF report scoped to a single patrol area or protected zone.
+---
+
+The **Per-Area** report produces a PDF for one patrol area or protected zone —
+the events, patrols, and coverage that fall inside its boundary. It is the go-to
+document when a stakeholder asks "what happened in *this* zone?"
+
+## Who uses it
+
+- **Operators, coordinators, and viewers** can generate a Per-Area report of the
+  data they already have access to.
+- **Site admins / super admins** manage the resulting export jobs (retry,
+  cancel, delete) and can also render the PowerPoint variant.
+
+## Key actions
+
+1. Open the Report Map or the Exports screen and choose the **Per-Area** report
+   type (stored internally as the `area` report type).
+2. Select the target area / protected zone that scopes the report.
+3. Pick a paper size — **A4** (default), **Letter**, or **Legal**.
+4. Submit. A queued export appears in the history; download it once its status
+   turns *ready*.
+
+The export row's summary shows the area the report was generated for, so
+repeated per-area reports are easy to tell apart in the history list.
+
+![Per-Area report generation](/docs/reports/per-area-report.png)

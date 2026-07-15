@@ -1,0 +1,26 @@
+---
+title: Super Admin
+description: The platform-level area for provisioning tenants and managing platform users.
+---
+
+The Super Admin area is the **platform control plane** — it sits above every
+tenant rather than inside one. It is used to provision new MPA sites, manage
+platform-level users, and (for support) enter a tenant. It lives under `/admin`,
+separate from the tenant workspaces.
+
+## Who uses this
+
+Reserved for the platform **Super Admin** role (`tenant_manager`) — the only role
+that spans all tenants. No tenant-level role can reach these surfaces.
+
+This section covers:
+
+- [**Tenant Management**](/docs/super-admin/tenant-management) — create and manage
+  tenant sites.
+- [**Platform Users**](/docs/super-admin/platform-users) — manage platform-level
+  user accounts and tenant owners.
+- [**Impersonation**](/docs/super-admin/impersonation) — enter a tenant to
+  provide support.
+
+> This documentation section is intentionally text-only. The platform panel is
+> not illustrated with screenshots.
