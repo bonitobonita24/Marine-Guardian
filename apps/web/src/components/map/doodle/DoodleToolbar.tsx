@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type MapLibreGL from "maplibre-gl";
-import { Undo2, Trash2, Save, Check } from "lucide-react";
+import { Undo2, Trash2, Save, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,6 +39,8 @@ type DoodleToolbarProps = {
   onUndo: () => void;
   onClear: () => void;
   onSaved: () => void;
+  /** Close/exit doodle mode (hides the toolbar; keeps any current strokes). */
+  onClose: () => void;
 };
 
 /** Builds the GeoJSON FeatureCollection the backend stores as geometryJson. */
@@ -70,6 +72,7 @@ export function DoodleToolbar({
   onUndo,
   onClear,
   onSaved,
+  onClose,
 }: DoodleToolbarProps) {
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
@@ -114,7 +117,17 @@ export function DoodleToolbar({
           "absolute right-3 bottom-3 z-20 flex w-56 flex-col gap-2 rounded-md border bg-background/95 p-3 shadow-md backdrop-blur",
         )}
       >
-        <p className="text-xs font-medium text-muted-foreground">Doodle</p>
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-medium text-muted-foreground">Doodle</p>
+          <button
+            type="button"
+            aria-label="Close doodle toolbar"
+            onClick={onClose}
+            className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <X className="size-4" aria-hidden="true" />
+          </button>
+        </div>
 
         {/* Color presets + native color input */}
         <div className="flex flex-wrap items-center gap-1.5">

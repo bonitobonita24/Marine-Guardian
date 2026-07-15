@@ -1167,6 +1167,9 @@ export function InteractiveMap({
             onUndo={doodle.undo}
             onClear={doodle.clear}
             onSaved={doodle.reset}
+            onClose={() => {
+              doodle.setActive(false);
+            }}
           />
         )}
       </div>
