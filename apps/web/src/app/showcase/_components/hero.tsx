@@ -6,7 +6,23 @@ import { ArrowRight, Radio } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BrowserFrame } from "./browser-frame";
 
-export function Hero() {
+export type HeroProps = {
+  eyebrow: string;
+  headline: string;
+  headlineAccent: string;
+  subcopy: string;
+  ctaPrimaryLabel: string;
+  ctaSecondaryLabel: string;
+};
+
+export function Hero({
+  eyebrow,
+  headline,
+  headlineAccent,
+  subcopy,
+  ctaPrimaryLabel,
+  ctaSecondaryLabel,
+}: HeroProps) {
   const shouldReduceMotion = useReducedMotion() ?? false;
 
   // Entrance animation config — transform + opacity only. Reduced motion
@@ -58,16 +74,16 @@ export function Hero() {
           className="mx-auto inline-flex items-center gap-2 rounded-full border border-border bg-secondary/40 px-3 py-1 text-caption text-muted-foreground"
         >
           <Radio className="h-3.5 w-3.5 text-[hsl(var(--info))]" />
-          Marine Protected Area Operations Intelligence
+          {eyebrow}
         </motion.div>
 
         <motion.h1
           {...rise(0.08)}
           className="mt-6 max-w-4xl text-4xl font-bold leading-[1.05] tracking-tight text-foreground sm:text-5xl lg:text-6xl"
         >
-          Marine Guardian
+          {headline}
           <span className="block bg-gradient-to-r from-[hsl(var(--info))] to-[hsl(var(--success))] bg-clip-text text-transparent">
-            Command Center
+            {headlineAccent}
           </span>
         </motion.h1>
 
@@ -75,21 +91,18 @@ export function Hero() {
           {...rise(0.16)}
           className="mt-5 max-w-2xl text-lg text-muted-foreground sm:text-xl"
         >
-          Real-time operations intelligence for marine protected areas.
-          EarthRanger collects the field data — Marine Guardian turns it into a
-          live command center for monitoring, incident escalation, patrol
-          planning, and the reports that used to take days.
+          {subcopy}
         </motion.p>
 
         <motion.div {...rise(0.24)} className="mt-8 flex flex-wrap items-center gap-3">
           <Button asChild size="lg">
             <a href="#features">
-              See it in action
+              {ctaPrimaryLabel}
               <ArrowRight className="h-4 w-4" />
             </a>
           </Button>
           <Button asChild size="lg" variant="outline">
-            <a href="#contact">Request a demo</a>
+            <a href="#contact">{ctaSecondaryLabel}</a>
           </Button>
         </motion.div>
 

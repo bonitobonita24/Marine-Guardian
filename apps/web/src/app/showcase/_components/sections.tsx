@@ -1,57 +1,40 @@
 "use client";
 
-import { AlertTriangle, Clock, FileWarning, Check, ArrowRight } from "lucide-react";
+import { Check, ArrowRight } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { BentoCard, BentoGrid } from "@/components/ui/bento-grid";
 import { Reveal } from "./reveal";
 import { BrowserFrame } from "./browser-frame";
-import { FEATURES, ROLES, STEPS, BENTO } from "./data";
+import type { ResolvedFeature, ResolvedRole, ResolvedStep, ResolvedBentoItem, ResolvedPain } from "./resolve-cms";
 
 /* ---------------------------------------------------------------- Problem -- */
 
-const PAINS = [
-  {
-    icon: FileWarning,
-    title: "Reports built by hand",
-    body: "Per-area breakdowns, patrol stats, and ranger matrices assembled manually as static monthly PDFs — tedious and error-prone.",
-  },
-  {
-    icon: Clock,
-    title: "Insights arrive stale",
-    body: "By the time a monthly report is finished, the data it describes is weeks old. Decisions run on yesterday's picture.",
-  },
-  {
-    icon: AlertTriangle,
-    title: "No real-time view or alerting",
-    body: "EarthRanger collects field data but offers no charts, no cross-area analytics, and no configurable alerting or command center.",
-  },
-];
+export type ProblemSectionProps = {
+  eyebrow: string;
+  title: string;
+  body: string;
+  pains: ResolvedPain[];
+};
 
-export function ProblemSection() {
+export function ProblemSection({ eyebrow, title, body, pains }: ProblemSectionProps) {
   return (
     <section className="border-b border-border/60 bg-background py-20 lg:py-28">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <Reveal className="mx-auto max-w-3xl text-center">
           <p className="text-caption font-semibold uppercase tracking-[0.14em] text-[hsl(var(--info))]">
-            The reporting gap
+            {eyebrow}
           </p>
           <h2 className="mt-3 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-            EarthRanger captures the field. Nothing turns it into command.
+            {title}
           </h2>
-          <p className="mt-4 text-lg text-muted-foreground">
-            EarthRanger is an excellent field data collection platform — but it
-            has no reporting, no charts for events or patrols, no cross-area
-            analytics within a site, and no configurable alerting. So managers
-            hand-build stale monthly PDFs, with no unified view for real-time
-            monitoring, escalation, or patrol planning.
-          </p>
+          <p className="mt-4 text-lg text-muted-foreground">{body}</p>
         </Reveal>
 
         <div className="mt-14 grid gap-5 md:grid-cols-3">
-          {PAINS.map((p, i) => (
-            <Reveal key={p.title} delay={i * 0.08}>
+          {pains.map((p, i) => (
+            <Reveal key={p.id} delay={i * 0.08}>
               <div className="h-full rounded-xl border border-border bg-secondary/20 p-6">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[hsl(var(--destructive)/0.16)] text-[hsl(var(--destructive))]">
                   <p.icon className="h-5 w-5" />
@@ -69,21 +52,27 @@ export function ProblemSection() {
 
 /* --------------------------------------------------------------- Features -- */
 
-export function FeatureSections() {
+export type FeatureSectionsProps = {
+  eyebrow: string;
+  title: string;
+  features: ResolvedFeature[];
+};
+
+export function FeatureSections({ eyebrow, title, features }: FeatureSectionsProps) {
   return (
     <section id="features" className="bg-background py-20 lg:py-28">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <Reveal className="mx-auto max-w-3xl text-center">
           <p className="text-caption font-semibold uppercase tracking-[0.14em] text-[hsl(var(--info))]">
-            One platform, every layer of the operation
+            {eyebrow}
           </p>
           <h2 className="mt-3 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-            From live map to finished report
+            {title}
           </h2>
         </Reveal>
 
         <div className="mt-16 flex flex-col gap-20 lg:gap-28">
-          {FEATURES.map((f, i) => {
+          {features.map((f, i) => {
             const reversed = i % 2 === 1;
             return (
               <div
@@ -146,22 +135,28 @@ export function FeatureSections() {
 
 /* ------------------------------------------------------------------ Bento -- */
 
-export function BentoSection() {
+export type BentoSectionProps = {
+  eyebrow: string;
+  title: string;
+  bento: ResolvedBentoItem[];
+};
+
+export function BentoSection({ eyebrow, title, bento }: BentoSectionProps) {
   return (
     <section className="border-y border-border/60 bg-background py-20 lg:py-28">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <Reveal className="mx-auto max-w-3xl text-center">
           <p className="text-caption font-semibold uppercase tracking-[0.14em] text-[hsl(var(--info))]">
-            And there is more under the hood
+            {eyebrow}
           </p>
           <h2 className="mt-3 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-            Built for how MPA teams actually work
+            {title}
           </h2>
         </Reveal>
 
         <Reveal className="mt-14">
           <BentoGrid className="lg:grid-cols-3">
-            {BENTO.map((item) => (
+            {bento.map((item) => (
               <BentoCard
                 key={item.name}
                 name={item.name}
@@ -196,21 +191,27 @@ export function BentoSection() {
 
 /* ------------------------------------------------------------- How it works */
 
-export function HowItWorks() {
+export type HowItWorksProps = {
+  eyebrow: string;
+  title: string;
+  steps: ResolvedStep[];
+};
+
+export function HowItWorks({ eyebrow, title, steps }: HowItWorksProps) {
   return (
     <section id="how" className="bg-background py-20 lg:py-28">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <Reveal className="mx-auto max-w-3xl text-center">
           <p className="text-caption font-semibold uppercase tracking-[0.14em] text-[hsl(var(--info))]">
-            How it works
+            {eyebrow}
           </p>
           <h2 className="mt-3 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-            From connection to command in four steps
+            {title}
           </h2>
         </Reveal>
 
         <div className="mt-14 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-          {STEPS.map((s, i) => (
+          {steps.map((s, i) => (
             <Reveal key={s.n} delay={i * 0.08}>
               <div className="relative h-full rounded-xl border border-border bg-secondary/20 p-6">
                 <span className="text-sm font-bold text-[hsl(var(--info))]">{s.n}</span>
@@ -230,24 +231,29 @@ export function HowItWorks() {
 
 /* ------------------------------------------------------------------ Roles -- */
 
-export function RolesSection() {
+export type RolesSectionProps = {
+  eyebrow: string;
+  title: string;
+  subcopy: string;
+  roles: ResolvedRole[];
+};
+
+export function RolesSection({ eyebrow, title, subcopy, roles }: RolesSectionProps) {
   return (
     <section id="roles" className="border-t border-border/60 bg-background py-20 lg:py-28">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <Reveal className="mx-auto max-w-3xl text-center">
           <p className="text-caption font-semibold uppercase tracking-[0.14em] text-[hsl(var(--info))]">
-            Roles & permissions
+            {eyebrow}
           </p>
           <h2 className="mt-3 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-            The right access for every seat
+            {title}
           </h2>
-          <p className="mt-4 text-lg text-muted-foreground">
-            Scoped, tenant-isolated roles from the command floor to the platform.
-          </p>
+          <p className="mt-4 text-lg text-muted-foreground">{subcopy}</p>
         </Reveal>
 
         <div className="mt-14 grid gap-5 sm:grid-cols-2">
-          {ROLES.map((r, i) => (
+          {roles.map((r, i) => (
             <Reveal key={r.name} delay={i * 0.06}>
               <div className="flex h-full gap-4 rounded-xl border border-border bg-secondary/20 p-6">
                 <div className="flex h-11 w-11 flex-none items-center justify-center rounded-lg bg-[hsl(var(--info)/0.14)] text-[hsl(var(--info))]">
@@ -268,7 +274,14 @@ export function RolesSection() {
 
 /* -------------------------------------------------------------------- CTA -- */
 
-export function ClosingCTA() {
+export type ClosingCTAProps = {
+  title: string;
+  body: string;
+  primaryLabel: string;
+  secondaryLabel: string;
+};
+
+export function ClosingCTA({ title, body, primaryLabel, secondaryLabel }: ClosingCTAProps) {
   return (
     <section id="contact" className="relative overflow-hidden bg-background py-24 lg:py-32">
       <div aria-hidden className="pointer-events-none absolute inset-0">
@@ -277,21 +290,18 @@ export function ClosingCTA() {
       <div className="relative mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
         <Reveal>
           <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
-            Bring your marine protected area into one command center
+            {title}
           </h2>
-          <p className="mx-auto mt-5 max-w-2xl text-lg text-muted-foreground">
-            Connect EarthRanger, watch the War Room come alive, and export the
-            report that used to take days — in seconds.
-          </p>
+          <p className="mx-auto mt-5 max-w-2xl text-lg text-muted-foreground">{body}</p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Button asChild size="lg">
               <a href="mailto:hello@powerbyteitsolutions.com?subject=Marine%20Guardian%20demo">
-                Request a demo
+                {primaryLabel}
                 <ArrowRight className="h-4 w-4" />
               </a>
             </Button>
             <Button asChild size="lg" variant="outline">
-              <a href="#features">Explore the features</a>
+              <a href="#features">{secondaryLabel}</a>
             </Button>
           </div>
         </Reveal>

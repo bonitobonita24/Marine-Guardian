@@ -12,6 +12,9 @@ import {
   ShieldCheck,
   Printer,
   Brush,
+  FileWarning,
+  Clock,
+  AlertTriangle,
   type LucideIcon,
 } from "lucide-react";
 
@@ -238,6 +241,48 @@ export const BENTO: BentoItem[] = [
     image: "/showcase/real/multi-tenant.png",
   },
 ];
+
+// ProblemSection "pains" cards — icon + id are code (layout), title/body are
+// the current literals used as CMS fallbacks (W5, CMS_BUILD_PLAN.md; keys
+// problem.<id>.title|body). Order matches the KEY SCHEME comment in
+// packages/db/prisma/seed-cms.ts.
+export type Pain = {
+  id: string;
+  icon: LucideIcon;
+  title: string;
+  body: string;
+};
+
+export const PAINS: Pain[] = [
+  {
+    id: "reports-by-hand",
+    icon: FileWarning,
+    title: "Reports built by hand",
+    body: "Per-area breakdowns, patrol stats, and ranger matrices assembled manually as static monthly PDFs — tedious and error-prone.",
+  },
+  {
+    id: "insights-stale",
+    icon: Clock,
+    title: "Insights arrive stale",
+    body: "By the time a monthly report is finished, the data it describes is weeks old. Decisions run on yesterday's picture.",
+  },
+  {
+    id: "no-realtime-alerting",
+    icon: AlertTriangle,
+    title: "No real-time view or alerting",
+    body: "EarthRanger collects field data but offers no charts, no cross-area analytics, and no configurable alerting or command center.",
+  },
+];
+
+// role.<slug> / bento.<slug> keys (packages/db/prisma/seed-cms.ts KEY SCHEME)
+// — order matches ROLES / BENTO above 1:1.
+export const ROLE_SLUGS = ["command-center-operator", "field-coordinator", "site-admin", "super-admin"] as const;
+export const BENTO_SLUGS = [
+  "ranger-performance-matrix",
+  "patrol-area-planning",
+  "fuel-logging-analytics",
+  "multi-tenant-currency-aware",
+] as const;
 
 export const MARQUEE_CHIPS = [
   "War Room",
