@@ -14,7 +14,7 @@ interface Params {
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { slug } = await params;
-  const page = getDocPage(slug);
+  const page = await getDocPage(slug);
   return {
     title: page ? `${page.frontmatter.title} · Marine Guardian Docs` : "Not found · Marine Guardian Docs",
     description: page?.frontmatter.description,

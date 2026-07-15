@@ -1,28 +1,21 @@
 import { notFound } from "next/navigation";
-import { compileMDX } from "next-mdx-remote/rsc";
+import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import { getDocPage, type DocFrontmatter } from "@/lib/docs/source";
+import { getDocPage } from "@/lib/docs/source";
 
-import { docsMdxComponents } from "./mdx-components";
+import { docsMarkdownComponents } from "./markdown-components";
 
 // Shared server-side docs renderer used by both app/docs/page.tsx (index,
-// slug=[]) and app/docs/[...slug]/page.tsx. Resolves the MDX for the slug,
-// compiles it in an RSC (next-mdx-remote/rsc + remark-gfm), and renders the
-// body into a centered reading column (Entry-1: mx-auto max-w-3xl).
+// slug=[]) and app/docs/[...slug]/page.tsx. Resolves the DB-backed markdown
+// for the slug (CMS_BUILD_PLAN.md W4 — src/lib/docs/source.ts reads Postgres,
+// not the filesystem) and renders the body with react-markdown + remark-gfm
+// (GFM tables/strikethrough/task-lists) into a centered reading column
+// (Entry-1: mx-auto max-w-3xl, applied by the docs layout).
 
 export async function DocView({ slug = [] }: { slug?: string[] }) {
-  const page = getDocPage(slug);
+  const page = await getDocPage(slug);
   if (!page) notFound();
-
-  const { content } = await compileMDX<DocFrontmatter>({
-    source: page.source,
-    options: {
-      parseFrontmatter: true,
-      mdxOptions: { remarkPlugins: [remarkGfm] },
-    },
-    components: docsMdxComponents,
-  });
 
   return (
     <article className="w-full">
@@ -34,7 +27,9 @@ export async function DocView({ slug = [] }: { slug?: string[] }) {
           <p className="mt-2 text-base text-muted-foreground">{page.frontmatter.description}</p>
         ) : null}
       </header>
-      {content}
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={docsMarkdownComponents}>
+        {page.source}
+      </ReactMarkdown>
     </article>
   );
 }

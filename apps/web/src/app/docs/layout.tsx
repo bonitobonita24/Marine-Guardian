@@ -10,6 +10,13 @@ import { getDocsTree } from "@/lib/docs/source";
 
 import { DocsSidebar } from "./_components/docs-sidebar";
 
+// The docs tree + page bodies now come from Postgres (CMS_BUILD_PLAN.md W4),
+// which is unreachable at Docker build time (no DATABASE_URL during `next
+// build`'s static-export pass) and can change at runtime via the CMS editor
+// — so the whole /docs subtree renders per-request rather than being
+// statically prerendered.
+export const dynamic = "force-dynamic";
+
 // Public docs shell (peer of /showcase, NOT under [tenant]). Renders the
 // shadcn Sidebar app-shell: a persistent left tree (off-canvas sheet on mobile
 // via the sidebar block) + an inset content area with a header holding the
@@ -17,8 +24,8 @@ import { DocsSidebar } from "./_components/docs-sidebar";
 // ThemeProvider (defaultTheme="dark"). Reading content lives in a centered
 // max-w-3xl column (design-defaults Entry 1).
 
-export default function DocsLayout({ children }: { children: ReactNode }) {
-  const tree = getDocsTree();
+export default async function DocsLayout({ children }: { children: ReactNode }) {
+  const tree = await getDocsTree();
 
   return (
     <SidebarProvider>
