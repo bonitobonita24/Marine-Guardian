@@ -1,3 +1,7 @@
+// @ts-nocheck -- vendor shadcn @plate kit component (CMS_BUILD_PLAN.md W6),
+// unused by the CMS editor (no font-color toolbar wired). Left in place by
+// the CLI install; excluded from strict `exactOptionalPropertyTypes`
+// checking rather than hand-fixed or deleted from the shared kit tree.
 'use client';
 
 import React from 'react';

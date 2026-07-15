@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { trpc } from "@/lib/trpc/client";
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -16,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Building2, FileEdit, Users } from "lucide-react";
 import { SignOutButton } from "./sign-out-button";
 
 interface Props {
@@ -52,6 +55,43 @@ export function AdminLandingClient({ email, roles }: Props) {
           ))}
           <SignOutButton />
         </div>
+      </div>
+
+      {/* Section nav */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Link href="/admin/tenants" data-testid="admin-nav-tenants">
+          <Card className="transition-colors hover:bg-accent/50">
+            <CardHeader className="flex flex-row items-center gap-3">
+              <Building2 className="size-5 text-muted-foreground" />
+              <div>
+                <CardTitle className="text-sm">Tenants</CardTitle>
+                <CardDescription>Create, manage, and impersonate tenants</CardDescription>
+              </div>
+            </CardHeader>
+          </Card>
+        </Link>
+        <Link href="/admin/users" data-testid="admin-nav-users">
+          <Card className="transition-colors hover:bg-accent/50">
+            <CardHeader className="flex flex-row items-center gap-3">
+              <Users className="size-5 text-muted-foreground" />
+              <div>
+                <CardTitle className="text-sm">Users</CardTitle>
+                <CardDescription>Platform user accounts</CardDescription>
+              </div>
+            </CardHeader>
+          </Card>
+        </Link>
+        <Link href="/admin/content" data-testid="admin-nav-content">
+          <Card className="transition-colors hover:bg-accent/50">
+            <CardHeader className="flex flex-row items-center gap-3">
+              <FileEdit className="size-5 text-muted-foreground" />
+              <div>
+                <CardTitle className="text-sm">Content</CardTitle>
+                <CardDescription>Edit /docs and /showcase (CMS)</CardDescription>
+              </div>
+            </CardHeader>
+          </Card>
+        </Link>
       </div>
 
       {/* KPI cards */}

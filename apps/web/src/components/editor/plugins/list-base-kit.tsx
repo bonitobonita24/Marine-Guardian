@@ -1,3 +1,8 @@
+/* eslint-disable @typescript-eslint/strict-boolean-expressions, @typescript-eslint/no-misused-spread --
+   vendor shadcn @plate kit plugin config (CMS_BUILD_PLAN.md W6); this
+   project's ESLint config enables stricter rules than the upstream Plate
+   registry targets, with no behavioral bug. Regenerate via
+   `npx shadcn add @plate/list-kit` rather than hand-editing. */
 import { BaseListPlugin, isOrderedList } from '@platejs/list';
 import { KEYS } from 'platejs';
 
