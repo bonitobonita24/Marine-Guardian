@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Marine Guardian — Command Center · Feature Deck</title>
+
+<!-- Fonts: DM Sans (display/body) + JetBrains Mono (labels/data) — tactical command-center feel -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+/* ===========================================
+   THEME TOKENS — from docs/DESIGN.md (shadcn stock neutral dark)
+   Change these to change the whole look.
+   =========================================== */
+:root{
+  --bg:#0A0A0A;            /* --background 0 0% 3.9% */
+  --elevated:#161616;      /* between bg and border, for mockup chrome */
+  --panel:#111111;         /* card surface, slightly lifted from bg for the deck */
+  --border:#262626;        /* --border 0 0% 14.9% */
+  --border-soft:#1d1d1d;
+  --fg:#FAFAFA;            /* --foreground 0 0% 98% */
+  --muted:#A3A3A3;         /* --muted-foreground 0 0% 63.9% */
+  --muted-dim:#6b6b6b;
+  /* Semantic operational colors (DESIGN.md) */
+  --success:#31A24C;
+  --danger:#F0284A;
+  --warning:#E8912D;
+  --caution:#F7D154;
+  --info:#00C9DB;          /* cyan — patrol tracks / marine accent = the deck's one accent */
+  --accent:var(--info);
+  --accent-glow:rgba(0,201,219,0.22);
+
+  --font-display:'DM Sans',system-ui,sans-serif;
+  --font-mono:'JetBrains Mono',ui-monospace,monospace;
+
+  --stage-bg:#050505;
+  --slide-bg:#0A0A0A;
+
+  --ease:cubic-bezier(0.16,1,0.3,1);
+  --dur:0.6s;
+}
+
+*{margin:0;padding:0;box-sizing:border-box;}
+
+/* ===========================================
+   FIXED 16:9 STAGE — viewport-base.css (verbatim, mandatory)
+   =========================================== */
+html,body{width:100%;height:100%;margin:0;overflow:hidden;background:var(--stage-bg,#000);}
+.deck-viewport{position:fixed;inset:0;overflow:hidden;background:var(--stage-bg,#000);}
+.deck-stage{position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;transform-origin:0 0;background:var(--slide-bg,#fff);}
+.slide{position:absolute;inset:0;width:1920px;height:1080px;overflow:hidden;display:block;visibility:hidden;opacity:0;pointer-events:none;background:var(--slide-bg,#fff);}
+.slide.active,.slide.visible{visibility:visible;opacity:1;pointer-events:auto;z-index:1;}
+img,video,canvas,svg{max-width:100%;max-height:100%;}
+.deck-controls{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:1000;}
+@media print{
+  html,body{width:1920px;height:auto;overflow:visible;background:#fff;}
+  .deck-viewport{position:static;overflow:visible;background:#fff;}
+  .deck-stage{position:static;width:auto;height:auto;transform:none!important;background:none;}
+  .slide{position:relative;display:block!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;width:1920px;height:1080px;break-after:page;page-break-after:always;}
+  .slide:last-child{break-after:auto;page-break-after:auto;}
+  .deck-controls{display:none!important;}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:0.01ms!important;transition-duration:0.2s!important;}
+}
+
+/* ===========================================
+   SLIDE BASE + ATMOSPHERE
+   Every slide sits on a dark grid with a faint cyan glow (command-center depth).
+   =========================================== */
+.slide{
+  color:var(--fg);
+  font-family:var(--font-display);
+  background-color:var(--slide-bg);
+  background-image:
+    radial-gradient(ellipse 900px 620px at 82% 12%, var(--accent-glow) 0%, transparent 60%),
+    radial-gradient(ellipse 1100px 700px at 6% 96%, rgba(49,162,76,0.06) 0%, transparent 55%),
+    linear-gradient(rgba(255,255,255,0.020) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.020) 1px, transparent 1px);
+  background-size:100% 100%,100% 100%,54px 54px,54px 54px;
+  padding:96px;
+}
+.slide-content{position:relative;z-index:2;width:100%;height:100%;display:flex;flex-direction:column;}
+
+/* Thin cyan hairline across the top edge — the "system online" motif */
+.slide::before{
+  content:"";position:absolute;left:0;top:0;height:3px;width:100%;
+  background:linear-gradient(90deg,transparent,var(--accent),transparent);
+  opacity:.5;z-index:3;
+}
+
+/* ===========================================
+   REVEAL / STAGGER ANIMATIONS (transform+opacity only)
+   =========================================== */
+.reveal{opacity:0;transform:translateY(28px);transition:opacity var(--dur) var(--ease),transform var(--dur) var(--ease);}
+.slide.visible .reveal{opacity:1;transform:translateY(0);}
+.reveal-l{opacity:0;transform:translateX(-40px);transition:opacity var(--dur) var(--ease),transform var(--dur) var(--ease);}
+.slide.visible .reveal-l{opacity:1;transform:translateX(0);}
+.reveal-scale{opacity:0;transform:scale(.94);transition:opacity var(--dur) var(--ease),transform var(--dur) var(--ease);}
+.slide.visible .reveal-scale{opacity:1;transform:scale(1);}
+.slide.visible .d1{transition-delay:.08s;}
+.slide.visible .d2{transition-delay:.18s;}
+.slide.visible .d3{transition-delay:.28s;}
+.slide.visible .d4{transition-delay:.38s;}
+.slide.visible .d5{transition-delay:.48s;}
+.slide.visible .d6{transition-delay:.58s;}
+.slide.visible .d7{transition-delay:.68s;}
+
+/* ===========================================
+   TYPOGRAPHY HELPERS
+   =========================================== */
+.eyebrow{
+  font-family:var(--font-mono);font-size:16px;font-weight:600;letter-spacing:3.5px;
+  text-transform:uppercase;color:var(--accent);display:flex;align-items:center;gap:14px;
+}
+.eyebrow::before{content:"";width:34px;height:2px;background:var(--accent);display:inline-block;}
+.eyebrow.plain::before{display:none;}
+h1.headline{font-size:118px;font-weight:800;line-height:.98;letter-spacing:-3px;}
+h2.title{font-size:62px;font-weight:800;line-height:1.03;letter-spacing:-1.6px;}
+h2.title .hl{color:var(--accent);}
+.lede{font-size:26px;line-height:1.5;color:var(--muted);font-weight:400;max-width:60ch;}
+.section-num{font-family:var(--font-mono);font-size:15px;color:var(--muted-dim);letter-spacing:2px;}
+
+/* ===========================================
+   FEATURE SLIDE — two-column (text + browser mockup)
+   =========================================== */
+.feature{display:grid;grid-template-columns:600px 1fr;gap:60px;height:100%;align-items:center;}
+.feature .col-text{display:flex;flex-direction:column;gap:24px;}
+.feature h2.title{font-size:50px;letter-spacing:-1.2px;}
+.feature .lede{font-size:21px;max-width:none;}
+
+.flist{display:flex;flex-direction:column;gap:14px;margin-top:6px;}
+.fitem{display:flex;gap:15px;align-items:flex-start;}
+.fitem .mk{flex:0 0 auto;width:9px;height:9px;border-radius:2px;background:var(--accent);margin-top:9px;box-shadow:0 0 10px var(--accent-glow);}
+.fitem .ft{font-size:19px;line-height:1.42;color:#e7e7e7;}
+.fitem .ft b{color:var(--fg);font-weight:700;}
+
+/* Browser mockup frame for real screenshots */
+.mockup{
+  border:1px solid var(--border);border-radius:14px;overflow:hidden;
+  background:var(--elevated);box-shadow:0 40px 90px -30px rgba(0,0,0,.8),0 0 0 1px rgba(0,201,219,.06);
+  width:100%;
+}
+.mockup .bar{
+  height:40px;background:#141414;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:9px;padding:0 16px;
+}
+.mockup .dot{width:11px;height:11px;border-radius:50%;background:#333;}
+.mockup .dot.r{background:#F0284A;}.mockup .dot.y{background:#E8912D;}.mockup .dot.g{background:#31A24C;}
+.mockup .url{
+  margin-left:14px;font-family:var(--font-mono);font-size:13px;color:var(--muted);
+  background:#0d0d0d;border:1px solid var(--border);border-radius:20px;padding:5px 16px;letter-spacing:.3px;
+}
+.mockup .shot{display:block;width:100%;height:560px;object-fit:cover;object-position:top center;background:#0A0A0A;}
+.mockup .shot.contain{object-fit:contain;background:#0A0A0A;}
+
+/* ===========================================
+   CARDS / CHIP GRIDS
+   =========================================== */
+.pillars{display:grid;grid-template-columns:repeat(2,1fr);gap:24px;margin-top:14px;}
+.pillar{
+  background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:32px 34px;
+  display:flex;flex-direction:column;gap:12px;position:relative;overflow:hidden;
+}
+.pillar::after{content:"";position:absolute;left:0;top:0;width:3px;height:100%;background:var(--accent);opacity:.7;}
+.pillar .pnum{font-family:var(--font-mono);font-size:14px;color:var(--accent);letter-spacing:2px;}
+.pillar h3{font-size:26px;font-weight:700;letter-spacing:-.4px;}
+.pillar p{font-size:18px;line-height:1.45;color:var(--muted);}
+
+/* Problem panel */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:64px;height:100%;align-items:center;}
+.painlist{display:flex;flex-direction:column;gap:16px;}
+.pain{
+  display:flex;gap:18px;align-items:center;background:rgba(240,40,74,0.05);
+  border:1px solid rgba(240,40,74,0.22);border-radius:12px;padding:20px 24px;
+}
+.pain .x{font-family:var(--font-mono);color:var(--danger);font-size:22px;font-weight:700;flex:0 0 auto;}
+.pain .pt{font-size:20px;color:#ededed;line-height:1.35;}
+.pain .pt b{color:#fff;}
+
+/* Flow steps */
+.flow{display:grid;grid-template-columns:repeat(4,1fr);gap:22px;margin-top:20px;position:relative;}
+.step{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:30px 28px;display:flex;flex-direction:column;gap:14px;}
+.step .sk{font-family:var(--font-mono);font-size:13px;letter-spacing:2px;color:var(--accent);text-transform:uppercase;}
+.step h3{font-size:24px;font-weight:700;letter-spacing:-.4px;}
+.step p{font-size:17px;line-height:1.45;color:var(--muted);}
+.step .arrow{position:absolute;}
+
+/* Loop chips */
+.loop{display:grid;grid-template-columns:repeat(5,1fr);gap:20px;margin-top:26px;}
+.lchip{
+  background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:30px 22px;text-align:center;
+  display:flex;flex-direction:column;gap:12px;align-items:center;
+}
+.lchip .ln{width:46px;height:46px;border-radius:50%;border:1.5px solid var(--accent);color:var(--accent);
+  display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:19px;font-weight:600;}
+.lchip h3{font-size:22px;font-weight:700;}
+.lchip p{font-size:15.5px;line-height:1.4;color:var(--muted);}
+
+/* Roles table */
+.rtable{width:100%;border-collapse:collapse;margin-top:8px;font-size:19px;}
+.rtable th,.rtable td{text-align:left;padding:20px 24px;border-bottom:1px solid var(--border);vertical-align:top;}
+.rtable thead th{font-family:var(--font-mono);font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);background:var(--elevated);}
+.rtable tbody tr:hover{background:rgba(255,255,255,.02);}
+.rtable .role{font-weight:700;color:var(--fg);white-space:nowrap;}
+.rtable .role .badge{display:block;font-family:var(--font-mono);font-size:12px;color:var(--accent);letter-spacing:1px;margin-top:5px;font-weight:600;}
+.rtable td.can{color:#dcdcdc;line-height:1.4;}
+.rtable td.cant{color:var(--muted);line-height:1.4;font-size:17px;}
+
+/* Security grid */
+.secgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:24px;margin-top:14px;}
+.seccard{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:30px 32px;display:flex;flex-direction:column;gap:12px;}
+.seccard .tag{font-family:var(--font-mono);font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);}
+.seccard h3{font-size:24px;font-weight:700;}
+.seccard p{font-size:17.5px;line-height:1.5;color:var(--muted);}
+.seccard p b{color:#e6e6e6;font-weight:600;}
+
+/* Stack chips */
+.stack{display:flex;flex-wrap:wrap;gap:16px;margin-top:26px;max-width:1400px;}
+.tech{
+  font-family:var(--font-mono);font-size:20px;font-weight:500;color:#e9e9e9;
+  background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 24px;
+  display:flex;align-items:center;gap:12px;
+}
+.tech .dt{width:9px;height:9px;border-radius:50%;background:var(--accent);}
+
+/* Header row for content slides */
+.shead{display:flex;flex-direction:column;gap:16px;margin-bottom:34px;}
+
+/* Title slide specifics */
+.title-slide .slide-content{justify-content:center;align-items:flex-start;}
+.title-slide .tmeta{
+  display:flex;gap:28px;margin-top:40px;font-family:var(--font-mono);font-size:16px;color:var(--muted);
+  letter-spacing:1px;align-items:center;
+}
+.title-slide .tmeta .pill{border:1px solid var(--border);border-radius:20px;padding:8px 18px;color:#dcdcdc;}
+.title-slide .tmeta .live{display:flex;align-items:center;gap:9px;color:var(--success);}
+.title-slide .tmeta .live .d{width:9px;height:9px;border-radius:50%;background:var(--success);box-shadow:0 0 10px var(--success);animation:pulse 1.8s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+
+/* Closing slide */
+.closing .slide-content{justify-content:center;align-items:center;text-align:center;}
+.closing h2{font-size:76px;font-weight:800;letter-spacing:-2px;line-height:1.05;max-width:22ch;}
+.closing .lede{text-align:center;margin:0 auto;}
+.whitelabel{margin-top:64px;display:flex;flex-direction:column;align-items:center;gap:10px;}
+.whitelabel .ver{font-family:var(--font-mono);font-size:15px;color:var(--muted-dim);letter-spacing:2px;}
+.whitelabel a{
+  font-family:var(--font-mono);font-size:19px;color:var(--muted);text-decoration:none;letter-spacing:.5px;
+  border:1px solid var(--border);border-radius:24px;padding:12px 26px;transition:color .2s,border-color .2s;
+}
+.whitelabel a:hover{color:var(--accent);border-color:var(--accent);}
+
+/* ===========================================
+   DECK CHROME (outside the stage): progress + counter
+   =========================================== */
+.deck-progress{position:fixed;top:0;left:0;height:3px;background:var(--accent);width:0;z-index:1200;transition:width .35s var(--ease);box-shadow:0 0 12px var(--accent);}
+.deck-counter{position:fixed;bottom:24px;right:32px;z-index:1200;font-family:var(--font-mono);font-size:15px;color:var(--muted);letter-spacing:1px;}
+.deck-counter b{color:var(--fg);}
+.deck-hint{position:fixed;bottom:24px;left:32px;z-index:1200;font-family:var(--font-mono);font-size:13px;color:var(--muted-dim);letter-spacing:.5px;}
+
+/* Slide brand tag (bottom-left inside stage) */
+.brandtag{position:absolute;left:96px;bottom:44px;z-index:2;font-family:var(--font-mono);font-size:13px;color:var(--muted-dim);letter-spacing:1.5px;text-transform:uppercase;}
+.brandtag .b{color:var(--muted);}
+
+/* Inline edit affordance */
+.edit-hotzone{position:fixed;top:0;left:0;width:80px;height:80px;z-index:10000;cursor:pointer;}
+.edit-toggle{position:fixed;top:16px;left:16px;z-index:10001;opacity:0;pointer-events:none;transition:opacity .3s ease;
+  background:var(--panel);border:1px solid var(--border);border-radius:10px;color:var(--fg);
+  font-size:18px;padding:8px 12px;cursor:pointer;font-family:var(--font-mono);}
+.edit-toggle.show,.edit-toggle.active{opacity:1;pointer-events:auto;}
+.edit-toggle.active{border-color:var(--accent);color:var(--accent);}
+body.editing [contenteditable]{outline:1px dashed rgba(0,201,219,.4);outline-offset:3px;border-radius:3px;}
+body.editing [contenteditable]:focus{outline:1px solid var(--accent);}
+.edit-save{position:fixed;top:16px;left:70px;z-index:10001;display:none;background:var(--accent);color:#04252a;border:none;
+  border-radius:10px;padding:8px 16px;font-family:var(--font-mono);font-size:14px;font-weight:600;cursor:pointer;}
+body.editing .edit-save{display:inline-block;}
+</style>
+</head>
+<body>
+
+<div class="deck-progress" id="progress"></div>
+<div class="deck-viewport">
+  <main class="deck-stage" id="deckStage">
+
+    <!-- ============ SLIDE 1 — TITLE / HERO ============ -->
+    <section class="slide title-slide active">
+      <div class="slide-content">
+        <div class="eyebrow reveal d1">Marine Protected Area · Command Center</div>
+        <h1 class="headline reveal d2" contenteditable="false" style="margin-top:26px;">Marine<br>Guardian</h1>
+        <p class="lede reveal d3" style="font-size:30px;margin-top:30px;color:#d0d0d0;">
+          Real-time operations intelligence for marine protected areas —<br>
+          the command center EarthRanger never had.
+        </p>
+        <div class="tmeta reveal d4">
+          <span class="live"><span class="d"></span>SYSTEM ONLINE</span>
+          <span class="pill">v1.1.0</span>
+          <span class="pill">24/7 War Room</span>
+          <span>Feature Deck</span>
+        </div>
+      </div>
+      <div class="brandtag"><span class="b">Powerbyte IT Solutions</span> · Marine Guardian</div>
+    </section>
+
+    <!-- ============ SLIDE 2 — THE PROBLEM ============ -->
+    <section class="slide">
+      <div class="slide-content">
+        <div class="split">
+          <div>
+            <div class="section-num reveal d1">01 / THE PROBLEM</div>
+            <h2 class="title reveal d2" style="margin-top:18px;">EarthRanger <span class="hl">collects</span> the field data.<br>Nothing turns it into decisions.</h2>
+            <p class="lede reveal d3" style="margin-top:26px;">
+              EarthRanger is an excellent field-collection platform — but it has no
+              reporting, no charts, no cross-area analytics within a site, and no
+              configurable alerting. MPA managers rebuild the same monthly report by
+              hand, every month.
+            </p>
+          </div>
+          <div class="painlist">
+            <div class="pain reveal-scale d3"><span class="x">✕</span><span class="pt">No <b>reporting or charts</b> for events &amp; patrols</span></div>
+            <div class="pain reveal-scale d4"><span class="x">✕</span><span class="pt">No <b>cross-area analytics</b> within a site</span></div>
+            <div class="pain reveal-scale d5"><span class="x">✕</span><span class="pt">No <b>configurable alerting</b> or escalation</span></div>
+            <div class="pain reveal-scale d6"><span class="x">✕</span><span class="pt">Monthly PDFs built <b>manually</b> — stale, error-prone</span></div>
+            <div class="pain reveal-scale d7"><span class="x">✕</span><span class="pt">No unified <b>command-center view</b> for live monitoring</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="brandtag"><span class="b">Marine Guardian</span> · Problem</div>
+    </section>
+
+    <!-- ============ SLIDE 3 — THE SOLUTION ============ -->
+    <section class="slide">
+      <div class="slide-content">
+        <div class="shead">
+          <div class="eyebrow reveal d1">02 / The Solution</div>
+          <h2 class="title reveal d2">One command center, <span class="hl">on top of</span> EarthRanger.</h2>
+          <p class="lede reveal d3">Marine Guardian syncs every tenant's EarthRanger data and turns it into live monitoring, automated analytics, patrol planning, and alerting — without changing how rangers work in the field.</p>
+        </div>
+        <div class="pillars">
+          <div class="pillar reveal-scale d3"><span class="pnum">01</span><h3>Live monitoring</h3><p>A 24/7 War Room with live map, KPIs, event feed and alerts — built for a wall display.</p></div>
+          <div class="pillar reveal-scale d4"><span class="pnum">02</span><h3>Automated analytics</h3><p>Per-area, consolidated and ranger-performance reports — generated, not hand-built.</p></div>
+          <div class="pillar reveal-scale d5"><span class="pnum">03</span><h3>Configurable alerting</h3><p>Per-tenant rules with in-app + email escalation and war-room acknowledgement.</p></div>
+          <div class="pillar reveal-scale d6"><span class="pnum">04</span><h3>Patrol planning</h3><p>Draw coverage zones, schedule rangers on a Gantt, and compare planned vs actual.</p></div>
+        </div>
+      </div>
+      <div class="brandtag"><span class="b">Marine Guardian</span> · Solution</div>
+    </section>
+
+    <!-- ============ SLIDE 4 — HOW IT WORKS (DATA FLOW) ============ -->
+    <section class="slide">
+      <div class="slide-content">
+        <div class="shead">
+          <div class="eyebrow reveal d1">03 / How it works</div>
+          <h2 class="title reveal d2">Field data in. <span class="hl">Command intelligence</span> out.</h2>
+          <p class="lede reveal d3">A scheduled, incremental sync mirrors each tenant's EarthRanger into Marine Guardian — where local edits, planning and reporting live alongside the source of truth.</p>
+        </div>
+        <div class="flow">
+          <div class="step reveal d3"><span class="sk">Source</span><h3>EarthRanger API</h3><p>Per-tenant REST + SocketIO. Events, subjects, patrols, observations, event types.</p></div>
+          <div class="step reveal d4"><span class="sk">Sync</span><h3>Delta ingest</h3><p>Incremental <code style="font-family:var(--font-mono);color:#cfcfcf;">updated_since</code> watermark. Configurable interval, retry with backoff, per-run sync log.</p></div>
+          <div class="step reveal d5"><span class="sk">Store</span><h3>Command DB</h3><p>PostgreSQL, tenant-isolated. Immutable ER snapshot + local edits protected by revision-presence.</p></div>
+          <div class="step reveal d6"><span class="sk">Act</span><h3>Live ops &amp; reports</h3><p>War Room, maps, event ops, patrol planning, fuel, alerts and exports — all in real time.</p></div>
+        </div>
+        <p class="reveal d7" style="margin-top:34px;font-family:var(--font-mono);font-size:17px;color:var(--muted);letter-spacing:.5px;">
+          ↳ Local edits survive upstream ER changes · state updates pushed back to EarthRanger via API
+        </p>
+      </div>
+      <div class="brandtag"><span class="b">Marine Guardian</span> · Architecture</div>
+    </section>
+
+    <!-- ============ SLIDE 5 — THE OPERATIONAL LOOP ============ -->
+    <section class="slide">
+      <div class="slide-content">
+        <div class="shead">
+          <div class="eyebrow reveal d1">04 / Core flows</div>
+          <h2 class="title reveal d2">The daily <span class="hl">operational loop</span>.</h2>
+          <p class="lede reveal d3">Seven role-based flows condense into one repeatable cycle — from live watch to the monthly report, all inside a single command center.</p>
+        </div>
+        <div class="loop">
+          <div class="lchip reveal-scale d3"><span class="ln">1</span><h3>Monitor</h3><p>Operators watch the War Room — live map, KPIs, event feed.</p></div>
+          <div class="lchip reveal-scale d4"><span class="ln">2</span><h3>Escalate</h3><p>Acknowledge alerts, update state, escalate critical incidents.</p></div>
+          <div class="lchip reveal-scale d5"><span class="ln">3</span><h3>Investigate</h3><p>Fill in missing details, review patrol tracks &amp; linked events.</p></div>
+          <div class="lchip reveal-scale d6"><span class="ln">4</span><h3>Plan</h3><p>Draw coverage zones, schedule rangers on the Gantt timeline.</p></div>
+          <div class="lchip reveal-scale d7"><span class="ln">5</span><h3>Report</h3><p>Generate per-area, consolidated &amp; ranger reports; export.</p></div>
+        </div>
+      </div>
+      <div class="brandtag"><span class="b">Marine Guardian</span> · Core Flows</div>
+    </section>
+
+    <!-- ============ SLIDE 6 — COMMAND CENTER WAR ROOM ============ -->
+    <section class="slide">
+      <div class="slide-content">
+        <div class="feature">
+          <div class="col-text">
+            <div class="eyebrow reveal-l d1 plain">Command · War Room</div>
+            <h2 class="title reveal-l d2">Command Center War Room</h2>
+            <p class="lede reveal-l d3">A 24/7 wall-display command center — map-dominant, dark-locked, streaming live with no interaction required.</p>
+            <div class="flist">
+              <div class="fitem reveal-l d4"><span class="mk"></span><span class="ft"><b>KPI strip with sparklines</b> — active events, unacked alerts, active patrols, rangers on duty, coverage %</span></div>
+              <div class="fitem reveal-l d5"><span class="mk"></span><span class="ft"><b>Live MapLibre map</b> with subjects, events, patrol tracks, area polygons and heatmaps</span></div>
+              <div class="fitem reveal-l d6"><span class="mk"></span><span class="ft"><b>Alert &amp; escalation panel</b>, live event feed, active patrols and ranger roster</span></div>
+              <div class="fitem reveal-l d7"><span class="mk"></span><span class="ft"><b>Selectable date range</b> (default last 7 days) · click-to-drill-down on every element</span></div>
+            </div>
+          </div>
+          <div class="mockup reveal-scale d3">
+            <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">mindoro / command-center</span></div>
+            <img class="shot" src="assets/command-center-fullscreen.jpg" alt="Marine Guardian Command Center War Room">
+          </div>
+        </div>
+      </div>
+      <div class="brandtag"><span class="b">Marine Guardian</span> · War Room</div>
+    </section>
+
+    <!-- ============ SLIDE 7 — LIVE / INTERACTIVE REPORT MAP ============ -->
+    <section class="slide">
+      <div class="slide-content">
+        <div class="feature">
+          <div class="col-text">
+            <div class="eyebrow reveal-l d1 plain">Command · Live Map</div>
+            <h2 class="title reveal-l d2">Interactive Report Map</h2>
+            <p class="lede reveal-l d3">A full-canvas MapLibre GL analysis surface where every layer, filter and marker is interactive.</p>
+            <div class="flist">
+              <div class="fitem reveal-l d4"><span class="mk"></span><span class="ft"><b>Toggleable layers</b> — subjects, event markers, patrol tracks, area polygons, heatmaps</span></div>
+              <div class="fitem reveal-l d5"><span class="mk"></span><span class="ft"><b>Colorblind-safe tracks</b> — seaborne solid cyan, foot dashed orange (hue <i>and</i> pattern)</span></div>
+              <div class="fitem reveal-l d6"><span class="mk"></span><span class="ft"><b>Shared FROM/TO + municipality filter</b> scopes the map and five data panels at once</span></div>
+              <div class="fitem reveal-l d7"><span class="mk"></span><span class="ft"><b>Click any marker, track or row</b> to inspect detail and zoom the map to it</span></div>
+            </div>
+          </div>
+          <div class="mockup reveal-scale d3">
+            <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">mindoro / report-map</span></div>
+            <img class="shot" src="assets/live-map.jpg" alt="Marine Guardian Interactive Report Map">
+          </div>
+        </div>
+      </div>
+      <div class="brandtag"><span class="b">Marine Guardian</span> · Live Map</div>
+    </section>
+
+    <!-- ============ SLIDE 8 — EVENT MANAGEMENT ============ -->
+    <section class="slide">
+      <div class="slide-content">
+        <div class="feature">
+          <div class="col-text">
+            <div class="eyebrow reveal-l d1 plain">Operations · Events</div>
+            <h2 class="title reveal-l d2">Event Management</h2>
+            <p class="lede reveal-l d3">A continuous, newest-first operations list where operators triage and complete every incident.</p>
+            <div class="flist">
+              <div class="fitem reveal-l d4"><span class="mk"></span><span class="ft"><b>Infinite-scroll ops list</b> with cursor pagination and server-side filters (category, state, area, date)</span></div>
+              <div class="fitem reveal-l d5"><span class="mk"></span><span class="ft"><b>Inline state control</b> — New → Active → Resolved, RBAC-gated and L5-audited</span></div>
+              <div class="fitem reveal-l d6"><span class="mk"></span><span class="ft"><b>Fill missing fields</b> (offender, vessel, action taken); state changes push back to EarthRanger</span></div>
+              <div class="fitem reveal-l d7"><span class="mk"></span><span class="ft"><b>Accompanying rangers</b> — 3-source autocomplete, equal performance credit</span></div>
+            </div>
+          </div>
+          <div class="mockup reveal-scale d3">
+            <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">mindoro / events</span></div>
+            <img class="shot" src="assets/events-operations.jpg" alt="Marine Guardian Event Operations list">
+          </div>
+        </div>
+      </div>
+      <div class="brandtag"><span class="b">Marine Guardian</span> · Events</div>
+    </section>
+
+    <!-- ============ SLIDE 9 — PATROL OPERATIONS ============ -->
+    <section class="slide">
+      <div class="slide-content">
+        <div class="feature">
+          <div class="col-text">
+            <div class="eyebrow reveal-l d1 plain">Operations · Patrols</div>
+            <h2 class="title reveal-l d2">Patrol Operations &amp; Planning</h2>
+            <p class="lede reveal-l d3">Monitor active patrols, plan coverage zones, and schedule rangers — foot and seaborne, end to end.</p>
+            <div class="flist">
+              <div class="fitem reveal-l d4"><span class="mk"></span><span class="ft"><b>Active &amp; completed patrols</b> with track overlays, elapsed time, distance and boat name (seaborne)</span></div>
+              <div class="fitem reveal-l d5"><span class="mk"></span><span class="ft"><b>Patrol-area planning</b> — draw estimated coverage polygons, assign type and rangers</span></div>
+              <div class="fitem reveal-l d6"><span class="mk"></span><span class="ft"><b>Gantt schedule</b> — drag-and-resize ranger assignments across days and weeks</span></div>
+              <div class="fitem reveal-l d7"><span class="mk"></span><span class="ft"><b>KPI summary</b> — patrols, km and hours, split by type and area; planned vs actual</span></div>
+            </div>
+          </div>
+          <div class="mockup reveal-scale d3">
+            <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">mindoro / patrol-areas</span></div>
+            <img class="shot contain" src="assets/patrol-areas.jpg" alt="Marine Guardian patrol area planning">
+          </div>
+        </div>
+      </div>
+      <div class="brandtag"><span class="b">Marine Guardian</span> · Patrols</div>
+    </section>
+
+    <!-- ============ SLIDE 10 — FUEL LOGGING ============ -->
+    <section class="slide">
+      <div class="slide-content">
+        <div class="feature">
+          <div class="col-text">
+            <div class="eyebrow reveal-l d1 plain">Logistics · Fuel</div>
+            <h2 class="title reveal-l d2">Fuel Logging &amp; Consumption</h2>
+            <p class="lede reveal-l d3">Track bulk fuel allocations per area and turn them into a real consumption rate against seaborne patrol distance.</p>
+            <div class="flist">
+              <div class="fitem reveal-l d4"><span class="mk"></span><span class="ft"><b>Field-first receipts</b> — liters, cost, date and a camera-captured receipt photo</span></div>
+              <div class="fitem reveal-l d5"><span class="mk"></span><span class="ft"><b>Consumption analytics</b> — liters per seaborne-patrol km, per area and period</span></div>
+              <div class="fitem reveal-l d6"><span class="mk"></span><span class="ft"><b>Trend chart + period selectors</b> — daily, weekly, monthly, quarterly, annually</span></div>
+              <div class="fitem reveal-l d7"><span class="mk"></span><span class="ft"><b>Currency-aware</b> — IDR, PHP or MYR, formatted per tenant</span></div>
+            </div>
+          </div>
+          <div class="mockup reveal-scale d3">
+            <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">mindoro / fuel</span></div>
+            <img class="shot contain" src="assets/fuel.jpg" alt="Marine Guardian fuel logging and consumption">
+          </div>
+        </div>
+      </div>
+      <div class="brandtag"><span class="b">Marine Guardian</span> · Fuel</div>
+    </section>
+
+    <!-- ============ SLIDE 11 — REPORTS & EXPORTS ============ -->
+    <section class="slide">
+      <div class="slide-content">
+        <div class="feature">
+          <div class="col-text">
+            <div class="eyebrow reveal-l d1 plain">Analytics · Reports</div>
+            <h2 class="title reveal-l d2">Reports &amp; Exports</h2>
+            <p class="lede reveal-l d3">The manual monthly PDF, automated — per area, across areas, and down to the individual event.</p>
+            <div class="flist">
+              <div class="fitem reveal-l d4"><span class="mk"></span><span class="ft"><b>Four report suites</b> — per-area, consolidated cross-area, detailed event log, ranger performance</span></div>
+              <div class="fitem reveal-l d5"><span class="mk"></span><span class="ft"><b>Dynamic by design</b> — charts populate from synced event types; new ER types appear automatically</span></div>
+              <div class="fitem reveal-l d6"><span class="mk"></span><span class="ft"><b>Printable Report Map</b> — A4 landscape, LGU-branded header/footer, 5-page chart+map spread</span></div>
+              <div class="fitem reveal-l d7"><span class="mk"></span><span class="ft"><b>Export to PDF &amp; CSV</b> — templated and repeatable</span></div>
+            </div>
+          </div>
+          <div class="mockup reveal-scale d3">
+            <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">mindoro / reports</span></div>
+            <img class="shot contain" src="assets/reports.jpg" alt="Marine Guardian reports and analytics">
+          </div>
+        </div>
+      </div>
+      <div class="brandtag"><span class="b">Marine Guardian</span> · Reports</div>
+    </section>
+
+    <!-- ============ SLIDE 12 — RANGER PERFORMANCE ============ -->
+    <section class="slide">
+      <div class="slide-content">
+        <div class="feature">
+          <div class="col-text">
+            <div class="eyebrow reveal-l d1 plain">Analytics · Rangers</div>
+            <h2 class="title reveal-l d2">Ranger Performance</h2>
+            <p class="lede reveal-l d3">Credit every ranger fairly — reporters and everyone who accompanied them — across every activity type.</p>
+            <div class="flist">
+              <div class="fitem reveal-l d4"><span class="mk"></span><span class="ft"><b>Equal-credit algorithm</b> — reporter and all tagged accompanying rangers earn the same credit</span></div>
+              <div class="fitem reveal-l d5"><span class="mk"></span><span class="ft"><b>Ranger × event-type matrix</b> — dynamic columns from synced types, with subtotals</span></div>
+              <div class="fitem reveal-l d6"><span class="mk"></span><span class="ft"><b>Patrol stats per ranger</b> — foot and seaborne count / km / hours, incl. accompanied</span></div>
+              <div class="fitem reveal-l d7"><span class="mk"></span><span class="ft"><b>Drill-down</b> — click a ranger for reported / accompanied / total-credit detail</span></div>
+            </div>
+          </div>
+          <div class="mockup reveal-scale d3">
+            <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">mindoro / reports / rangers</span></div>
+            <img class="shot contain" src="assets/ranger-performance.jpg" alt="Marine Guardian ranger performance report">
+          </div>
+        </div>
+      </div>
+      <div class="brandtag"><span class="b">Marine Guardian</span> · Ranger Performance</div>
+    </section>
+
+    <!-- ============ SLIDE 13 — ALERTS & NOTIFICATIONS ============ -->
+    <section class="slide">
+      <div class="slide-content">
+        <div class="feature">
+          <div class="col-text">
+            <div class="eyebrow reveal-l d1 plain">Command · Alerts</div>
+            <h2 class="title reveal-l d2">Alerts &amp; Notifications</h2>
+            <p class="lede reveal-l d3">Configurable, per-tenant rules that surface the events that matter — and prove they were seen.</p>
+            <div class="flist">
+              <div class="fitem reveal-l d4"><span class="mk"></span><span class="ft"><b>Per-tenant alert rules</b> — by event type, priority threshold and category</span></div>
+              <div class="fitem reveal-l d5"><span class="mk"></span><span class="ft"><b>In-app + email channels</b> (SMS scaffolded for a later release)</span></div>
+              <div class="fitem reveal-l d6"><span class="mk"></span><span class="ft"><b>War-room acknowledgement</b> — records who ACKed and when, L5-audited</span></div>
+              <div class="fitem reveal-l d7"><span class="mk"></span><span class="ft"><b>Notification center</b> — read/unread, priority-coded, click-through to the record</span></div>
+            </div>
+          </div>
+          <div class="mockup reveal-scale d3">
+            <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">mindoro / alerts</span></div>
+            <img class="shot contain" src="assets/alerts.jpg" alt="Marine Guardian alert rules">
+          </div>
+        </div>
+      </div>
+      <div class="brandtag"><span class="b">Marine Guardian</span> · Alerts</div>
+    </section>
+
+    <!-- ============ SLIDE 14 — EARTHRANGER SYNC & SETTINGS ============ -->
+    <section class="slide">
+      <div class="slide-content">
+        <div class="feature">
+          <div class="col-text">
+            <div class="eyebrow reveal-l d1 plain">Admin · Integration</div>
+            <h2 class="title reveal-l d2">EarthRanger Sync &amp; Settings</h2>
+            <p class="lede reveal-l d3">Each site connects its own EarthRanger server — secured, testable, and fully in the admin's control.</p>
+            <div class="flist">
+              <div class="fitem reveal-l d4"><span class="mk"></span><span class="ft"><b>Encrypted per-tenant connection</b> — AES-256-GCM token, never returned to the client</span></div>
+              <div class="fitem reveal-l d5"><span class="mk"></span><span class="ft"><b>Test connection</b> probes the ER subjects endpoint and writes back a status badge</span></div>
+              <div class="fitem reveal-l d6"><span class="mk"></span><span class="ft"><b>Sync controls</b> — enable recurring sync, set interval, or run a one-shot “Sync now”</span></div>
+              <div class="fitem reveal-l d7"><span class="mk"></span><span class="ft"><b>Local-edit protection</b> — edited fields survive upstream ER changes (revision-presence)</span></div>
+            </div>
+          </div>
+          <div class="mockup reveal-scale d3">
+            <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">mindoro / sync-status</span></div>
+            <img class="shot contain" src="assets/earthranger-sync.jpg" alt="Marine Guardian EarthRanger sync status">
+          </div>
+        </div>
+      </div>
+      <div class="brandtag"><span class="b">Marine Guardian</span> · Sync</div>
+    </section>
+
+    <!-- ============ SLIDE 15 — MULTI-TENANT & I18N ============ -->
+    <section class="slide">
+      <div class="slide-content">
+        <div class="feature">
+          <div class="col-text">
+            <div class="eyebrow reveal-l d1 plain">Platform · Multi-tenant</div>
+            <h2 class="title reveal-l d2">Multi-site &amp; Multilingual</h2>
+            <p class="lede reveal-l d3">One platform, many marine protected areas — each isolated, branded and onboarded on its own terms.</p>
+            <div class="flist">
+              <div class="fitem reveal-l d4"><span class="mk"></span><span class="ft"><b>Shared-schema multi-tenancy</b> isolated by <code style="font-family:var(--font-mono);color:#cfcfcf;">tenant_id</code> with the L1–L6 security stack</span></div>
+              <div class="fitem reveal-l d5"><span class="mk"></span><span class="ft"><b>Subdirectory routing</b> — <code style="font-family:var(--font-mono);color:#cfcfcf;">/mindoro</code>, <code style="font-family:var(--font-mono);color:#cfcfcf;">/banggai</code>, <code style="font-family:var(--font-mono);color:#cfcfcf;">/pecca</code></span></div>
+              <div class="fitem reveal-l d6"><span class="mk"></span><span class="ft"><b>Super Admin panel</b> — onboard sites, assign site admins, cross-tenant health overview</span></div>
+              <div class="fitem reveal-l d7"><span class="mk"></span><span class="ft"><b>Built-in i18n</b> — English, Bahasa Indonesia, Bahasa Malaysia</span></div>
+            </div>
+          </div>
+          <div class="mockup reveal-scale d3">
+            <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="url">admin / tenants</span></div>
+            <img class="shot contain" src="assets/multi-tenant.jpg" alt="Marine Guardian super admin multi-tenant management">
+          </div>
+        </div>
+      </div>
+      <div class="brandtag"><span class="b">Marine Guardian</span> · Platform</div>
+    </section>
+
+    <!-- ============ SLIDE 16 — ROLES & PERMISSIONS ============ -->
+    <section class="slide">
+      <div class="slide-content">
+        <div class="shead">
+          <div class="eyebrow reveal d1">05 / Roles &amp; permissions</div>
+          <h2 class="title reveal d2">Four roles, <span class="hl">scoped by responsibility</span>.</h2>
+        </div>
+        <table class="rtable reveal d3">
+          <thead><tr><th style="width:230px;">Role</th><th>Can do</th><th style="width:420px;">Cannot do</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="role">Super Admin<span class="badge">PLATFORM</span></td>
+              <td class="can">Create &amp; manage tenants, assign Site Admins, view platform health, access any tenant for support.</td>
+              <td class="cant">Operate inside a tenant as a regular user without being added; modify ER configuration.</td>
+            </tr>
+            <tr>
+              <td class="role">Site Admin<span class="badge">TENANT OWNER</span></td>
+              <td class="can">Configure EarthRanger connection, manage users &amp; alert rules, all reports, report templates, all Operator &amp; Coordinator actions.</td>
+              <td class="cant">Create/manage other tenants; access other tenants' data; change platform settings.</td>
+            </tr>
+            <tr>
+              <td class="role">Field Coordinator<span class="badge">PLANNING</span></td>
+              <td class="can">Plan patrol areas, schedule rangers (Gantt), monitor patrols, review &amp; edit events, view and export reports.</td>
+              <td class="cant">Manage users; configure ER connection or alert rules; access tenant settings.</td>
+            </tr>
+            <tr>
+              <td class="role">Command Operator<span class="badge">OPERATIONS</span></td>
+              <td class="can">Monitor War Room &amp; map, update event states, acknowledge &amp; escalate alerts, fill event details, log fuel, view dashboards.</td>
+              <td class="cant">Plan patrol areas; schedule rangers; manage users; configure settings/alerts; export reports.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="brandtag"><span class="b">Marine Guardian</span> · Roles</div>
+    </section>
+
+    <!-- ============ SLIDE 17 — SECURITY & COMPLIANCE ============ -->
+    <section class="slide">
+      <div class="slide-content">
+        <div class="shead">
+          <div class="eyebrow reveal d1">06 / Security &amp; compliance</div>
+          <h2 class="title reveal d2">Enterprise security, <span class="hl">privacy by design</span>.</h2>
+        </div>
+        <div class="secgrid">
+          <div class="seccard reveal-scale d3"><span class="tag">Always-on stack</span><h3>L3 · L5 · L6</h3><p><b>RBAC</b>, <b>audit logging</b> and <b>Prisma query guardrails</b> active on every request — no opt-out.</p></div>
+          <div class="seccard reveal-scale d4"><span class="tag">Tenant isolation</span><h3>L1 + L2 + L4</h3><p>Every record scoped by <b>tenant_id</b>; no cross-tenant read path. ER tokens encrypted at rest.</p></div>
+          <div class="seccard reveal-scale d5"><span class="tag">PH Data Privacy Act</span><h3>RA 10173 / NPC</h3><p><b>15-day DSR</b> response · six data-subject rights · request-and-review erasure honouring legal hold.</p></div>
+          <div class="seccard reveal-scale d6"><span class="tag">Retention &amp; access</span><h3>Tiered &amp; accessible</h3><p>Audit/security logs <b>5y</b>, operational data <b>3y</b>. <b>WCAG 2.2 AA</b> on compliance &amp; auth surfaces.</p></div>
+        </div>
+      </div>
+      <div class="brandtag"><span class="b">Marine Guardian</span> · Security</div>
+    </section>
+
+    <!-- ============ SLIDE 18 — BUILT ON (TECH STACK) ============ -->
+    <section class="slide">
+      <div class="slide-content">
+        <div class="shead">
+          <div class="eyebrow reveal d1">07 / Built on</div>
+          <h2 class="title reveal d2">A modern, <span class="hl">production-grade</span> stack.</h2>
+          <p class="lede reveal d3">Type-safe end to end, containerized for a single-VPS or multi-server future, and dark-locked by design for the ops room.</p>
+        </div>
+        <div class="stack">
+          <span class="tech reveal-scale d3"><span class="dt"></span>Next.js</span>
+          <span class="tech reveal-scale d3"><span class="dt"></span>tRPC</span>
+          <span class="tech reveal-scale d4"><span class="dt"></span>Prisma</span>
+          <span class="tech reveal-scale d4"><span class="dt"></span>Auth.js v5</span>
+          <span class="tech reveal-scale d4"><span class="dt"></span>PostgreSQL</span>
+          <span class="tech reveal-scale d5"><span class="dt"></span>Valkey + BullMQ</span>
+          <span class="tech reveal-scale d5"><span class="dt"></span>MapLibre GL</span>
+          <span class="tech reveal-scale d5"><span class="dt"></span>shadcn/ui + Tailwind</span>
+          <span class="tech reveal-scale d6"><span class="dt"></span>Recharts</span>
+          <span class="tech reveal-scale d6"><span class="dt"></span>Docker + Komodo</span>
+          <span class="tech reveal-scale d6"><span class="dt"></span>EarthRanger API</span>
+        </div>
+      </div>
+      <div class="brandtag"><span class="b">Marine Guardian</span> · Stack</div>
+    </section>
+
+    <!-- ============ SLIDE 19 — CLOSING / CTA + WHITE-LABEL ============ -->
+    <section class="slide closing">
+      <div class="slide-content">
+        <div class="eyebrow plain reveal d1" style="justify-content:center;">Marine Guardian — Command Center</div>
+        <h2 class="reveal d2" style="margin-top:26px;">Real-time operations intelligence<br>for marine protected areas.</h2>
+        <p class="lede reveal d3" style="margin-top:30px;font-size:26px;">From EarthRanger field data to a live command center, automated reports, and defensible records — one platform per site.</p>
+        <div class="whitelabel reveal d4">
+          <span class="ver">v1.1.0 · Command Center</span>
+          <a href="https://www.powerbyteitsolutions.com/" target="_blank" rel="noopener noreferrer">Developed by Powerbyte IT Solutions</a>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- Deck chrome (outside the fixed stage) -->
+<div class="deck-counter"><b id="curNum">01</b> / <span id="totNum">19</span></div>
+
+<!-- Inline edit affordance -->
+<div class="edit-hotzone" id="editHotzone"></div>
+<button class="edit-toggle" id="editToggle" title="Edit mode (E)">✏️ Edit</button>
+<button class="edit-save" id="editSave" title="Download edited deck">⤓ Save HTML</button>
+
+<script>
+/* ===========================================
+   SLIDE PRESENTATION CONTROLLER
+   Fixed 16:9 stage scaling + keyboard/touch/wheel nav + progress/counter.
+   =========================================== */
+class SlidePresentation{
+  constructor(){
+    this.slides=[...document.querySelectorAll('.slide')];
+    this.stage=document.getElementById('deckStage');
+    this.progress=document.getElementById('progress');
+    this.curNum=document.getElementById('curNum');
+    this.totNum=document.getElementById('totNum');
+    this.i=0;
+    this.totNum.textContent=String(this.slides.length).padStart(2,'0');
+    this.scale();
+    window.addEventListener('resize',()=>this.scale());
+    this.bindNav();
+    this.show(0);
+  }
+  scale(){
+    const f=Math.min(window.innerWidth/1920,window.innerHeight/1080);
+    const x=(window.innerWidth-1920*f)/2;
+    const y=(window.innerHeight-1080*f)/2;
+    this.stage.style.transform=`translate(${x}px, ${y}px) scale(${f})`;
+  }
+  show(n){
+    this.i=Math.max(0,Math.min(n,this.slides.length-1));
+    this.slides.forEach((s,k)=>{
+      s.classList.toggle('active',k===this.i);
+      s.classList.toggle('visible',k===this.i);
+    });
+    this.progress.style.width=((this.i)/(this.slides.length-1)*100)+'%';
+    this.curNum.textContent=String(this.i+1).padStart(2,'0');
+  }
+  next(){this.show(this.i+1);}
+  prev(){this.show(this.i-1);}
+  bindNav(){
+    document.addEventListener('keydown',e=>{
+      if(e.target.getAttribute && e.target.getAttribute('contenteditable')==='true') return;
+      if(['ArrowRight','ArrowDown',' ','PageDown'].includes(e.key)){e.preventDefault();this.next();}
+      else if(['ArrowLeft','ArrowUp','PageUp'].includes(e.key)){e.preventDefault();this.prev();}
+      else if(e.key==='Home'){this.show(0);}
+      else if(e.key==='End'){this.show(this.slides.length-1);}
+    });
+    // Wheel (debounced)
+    let wl=false;
+    window.addEventListener('wheel',e=>{
+      if(document.body.classList.contains('editing'))return;
+      if(wl)return;wl=true;setTimeout(()=>wl=false,600);
+      if(e.deltaY>24)this.next();else if(e.deltaY<-24)this.prev();
+    },{passive:true});
+    // Touch/swipe
+    let sx=0,sy=0;
+    window.addEventListener('touchstart',e=>{sx=e.touches[0].clientX;sy=e.touches[0].clientY;},{passive:true});
+    window.addEventListener('touchend',e=>{
+      const dx=e.changedTouches[0].clientX-sx, dy=e.changedTouches[0].clientY-sy;
+      if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>50){dx<0?this.next():this.prev();}
+    },{passive:true});
+  }
+}
+const deck=new SlidePresentation();
+
+/* ===========================================
+   INLINE EDIT MODE (JS hover with 400ms grace, E key, download)
+   Uses JS classes only — NOT the CSS ~ sibling hack (breaks with pointer-events).
+   =========================================== */
+const editor={
+  isActive:false,
+  toggle(){
+    this.isActive=!this.isActive;
+    document.body.classList.toggle('editing',this.isActive);
+    document.getElementById('editToggle').classList.toggle('active',this.isActive);
+    // Only make on-slide text editable (not chrome)
+    document.querySelectorAll('.deck-stage h1,.deck-stage h2,.deck-stage h3,.deck-stage p,.deck-stage .ft,.deck-stage .eyebrow,.deck-stage td')
+      .forEach(el=>el.setAttribute('contenteditable',this.isActive?'true':'false'));
+  },
+  download(){
+    document.querySelectorAll('[contenteditable]').forEach(el=>el.setAttribute('contenteditable','false'));
+    const html='<!DOCTYPE html>\n'+document.documentElement.outerHTML;
+    const blob=new Blob([html],{type:'text/html'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='marine-guardian-feature-deck.html';
+    a.click();
+    if(this.isActive)document.querySelectorAll('.deck-stage h1,.deck-stage h2,.deck-stage h3,.deck-stage p,.deck-stage .ft,.deck-stage .eyebrow,.deck-stage td').forEach(el=>el.setAttribute('contenteditable','true'));
+  }
+};
+const editToggle=document.getElementById('editToggle');
+const hotzone=document.getElementById('editHotzone');
+let hideTimeout=null;
+editToggle.addEventListener('click',()=>editor.toggle());
+document.getElementById('editSave').addEventListener('click',()=>editor.download());
+hotzone.addEventListener('mouseenter',()=>{clearTimeout(hideTimeout);editToggle.classList.add('show');});
+hotzone.addEventListener('mouseleave',()=>{hideTimeout=setTimeout(()=>{if(!editor.isActive)editToggle.classList.remove('show');},400);});
+editToggle.addEventListener('mouseenter',()=>clearTimeout(hideTimeout));
+editToggle.addEventListener('mouseleave',()=>{hideTimeout=setTimeout(()=>{if(!editor.isActive)editToggle.classList.remove('show');},400);});
+document.addEventListener('keydown',e=>{
+  if((e.key==='e'||e.key==='E') && !(e.target.getAttribute && e.target.getAttribute('contenteditable')==='true')){editor.toggle();}
+});
+</script>
+</body>
+</html>
