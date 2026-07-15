@@ -133,8 +133,6 @@ export function FeatureSections({ eyebrow, title, features }: FeatureSectionsPro
                     src={f.image}
                     alt={f.imageAlt}
                     url={`app.marine-guardian / ${f.id}`}
-                    beamColorFrom={`hsl(${f.accent})`}
-                    beamColorTo="#00C9DB"
                     className="shadow-xl shadow-black/40"
                   />
                 </Reveal>
