@@ -11,6 +11,7 @@ import {
   Languages,
   ShieldCheck,
   Printer,
+  Brush,
   type LucideIcon,
 } from "lucide-react";
 
@@ -58,6 +59,21 @@ export const FEATURES: Feature[] = [
     imageAlt: "Interactive Report Map showing Mindoro and Palawan with patrol tracks, event markers and layer toggles",
     accent: "var(--info)",
     icon: MapIcon,
+  },
+  {
+    id: "doodles",
+    eyebrow: "Doodle Annotations",
+    title: "Sketch on the map when a marker isn't enough",
+    body: "Some things are easier drawn than described. Switch on the Doodle tool right in the Command Center or Report Map controls and draw freehand — a patrol boundary, a suspect route, a stretch of reef. Strokes are pinned to real coordinates, so the sketch stays locked to the geography as you pan and zoom.",
+    bullets: [
+      "Six preset pen colors plus a custom picker and three thicknesses; undo or clear as you go",
+      "Save a sketch with a name — it keeps its exact map framing to reopen the way you left it",
+      "Saved doodles are shared across the site in a searchable list; teammates preview them read-only",
+    ],
+    image: "/showcase/real/doodles.png",
+    imageAlt: "Doodle annotation tool active on the Report Map with a freehand patrol boundary sketched in red and the color and thickness toolbar",
+    accent: "var(--warning)",
+    icon: Brush,
   },
   {
     id: "operations",
@@ -226,6 +242,7 @@ export const BENTO: BentoItem[] = [
 export const MARQUEE_CHIPS = [
   "War Room",
   "Live Map",
+  "Map Doodles",
   "Patrol Tracks",
   "Operations List",
   "Gantt Scheduling",

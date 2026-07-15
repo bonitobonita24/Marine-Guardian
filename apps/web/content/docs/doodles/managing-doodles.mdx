@@ -1,0 +1,37 @@
+---
+title: Managing doodles
+description: The Doodles list page collects every saved annotation in your site — preview one on a read-only map, see who drew it and where, and delete the ones you no longer need.
+---
+
+# Managing doodles
+
+Every saved doodle collects on the **Doodles** page, reached from the sidebar under the Interactive Report Map (brush icon) at `/{tenant}/doodles`. It is the shared library of hand-drawn map annotations for your site.
+
+## The list
+
+The page shows one row per saved doodle, with:
+
+- **Name** — the label given when it was saved.
+- **Drawn on** — the surface it came from: **Command Center** or **Interactive Report Map**.
+- **Created** — when it was saved.
+- **Created by** — shown as **You** for your own doodles.
+
+Doodles are **tenant-scoped**: the list shows every doodle saved in your site, drawn by any teammate — not just your own. If nobody has saved one yet, the page explains how to make one with the Doodle tool.
+
+## Previewing a doodle
+
+Click **View** on a row to open a read-only preview. The saved strokes are replayed on a map, framed at the center and zoom the doodle was saved with (or fitted to the strokes for older doodles that predate saved framing). The preview is read-only — there is no drawing or editing here. To change a doodle, redraw it with the Doodle tool and save a new one.
+
+## Deleting a doodle
+
+**Administrators** can remove a doodle with the **Delete** action on its row, which asks for confirmation first. Operators and viewers can open and read doodles but cannot delete them.
+
+## Who can do what
+
+Doodles are governed by the existing **Exports** permission, so there is nothing extra to configure:
+
+- **View the list and preview doodles** — command center operators, field coordinators, viewers, and administrators.
+- **Draw and save doodles** — anyone who can create exports.
+- **Delete doodles** — administrators (Site Admin tier and above).
+
+![Doodles list page with saved annotations and per-row View and Delete actions](/docs/doodles/doodles.png)

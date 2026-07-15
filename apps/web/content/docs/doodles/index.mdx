@@ -1,0 +1,36 @@
+---
+title: Doodles
+description: Freehand map annotations — sketch boundaries, routes, and callouts directly on the Command Center or Interactive Report Map, then save them to a named, tenant-shared list.
+---
+
+# Doodles
+
+Doodles are freehand sketches drawn straight onto a map. When words and markers are not enough — "patrol along *this* line", "the incident happened inside *this* stretch of reef" — an operator switches on the Doodle tool, draws the shape by hand, and saves it. Saved doodles collect in a tenant-shared list so the rest of the team can open and read them later.
+
+Doodles live on top of two existing maps rather than a map of their own:
+
+- The **Command Center** map (`/{tenant}/dashboard`).
+- The **Interactive Report Map** (`/{tenant}/map`).
+
+Each saved doodle records **which surface** it was drawn on and the **map view** (center and zoom) it was drawn at, so opening it later restores the same framing.
+
+## Who uses this section
+
+- **Command center operators** marking up the live map to flag an area or sketch a quick route during a shift.
+- **Field coordinators** sketching patrol boundaries or annotating coverage on the Report Map.
+- Any teammate with permission can **open and read** every saved doodle in their site; **administrators** can delete them.
+
+Doodles reuse the existing **Exports** permission — no separate access to configure. Anyone who can view exports can view doodles; anyone who can create exports can draw and save them.
+
+## What a doodle is
+
+A doodle is a set of freehand strokes stored in real-world coordinates (longitude/latitude), so the drawing stays pinned to the geography as you pan and zoom — it is not a screenshot painted onto the screen. Each stroke keeps its own **color** and **thickness**. Alongside the strokes, a doodle stores a **name** and the map view it was saved at.
+
+> **Note:** A doodle is a saved annotation, not a live layer. Drawing happens in the Doodle tool on the map; saved doodles are reopened as a **read-only preview**. Editing a saved doodle is not supported — redraw and save a new one instead.
+
+## In this section
+
+- [Creating doodles](/docs/doodles/creating-doodles) — turning on the Doodle tool, choosing colors and pen thickness, and saving a sketch.
+- [Managing doodles](/docs/doodles/managing-doodles) — the Doodles list page, previewing a saved doodle, and deleting one.
+
+![Doodles list page showing saved map annotations](/docs/doodles/doodles.png)
