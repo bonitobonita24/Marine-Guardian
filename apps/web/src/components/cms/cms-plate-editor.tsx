@@ -36,6 +36,7 @@ import { MarkToolbarButton } from '@/components/ui/mark-toolbar-button';
 import { MediaToolbarButton } from '@/components/ui/media-toolbar-button';
 import { TableToolbarButton } from '@/components/ui/table-toolbar-button';
 import { Toolbar, ToolbarButton, ToolbarGroup } from '@/components/ui/toolbar';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { CmsUploadScopeProvider } from '@/hooks/use-upload-file';
 import { cn } from '@/lib/utils';
 
@@ -110,6 +111,7 @@ export const CmsPlateEditor = React.forwardRef<CmsPlateEditorHandle, CmsPlateEdi
     }, [editor, onChange]);
 
     return (
+      <TooltipProvider>
       <CmsUploadScopeProvider scope={scope}>
         <Plate editor={editor} onChange={handlePlateChange}>
           <div className={cn('rounded-md border border-input', className)}>
@@ -182,6 +184,7 @@ export const CmsPlateEditor = React.forwardRef<CmsPlateEditorHandle, CmsPlateEdi
           </div>
         </Plate>
       </CmsUploadScopeProvider>
+      </TooltipProvider>
     );
   },
 );
