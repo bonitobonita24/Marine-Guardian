@@ -1,6 +1,7 @@
 import { PrismaClient, Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { seedMunicipalities } from "./seed-municipalities";
+import { seedCms } from "./seed-cms";
 
 const prisma = new PrismaClient();
 
@@ -547,6 +548,10 @@ async function main() {
   // Seed municipalities + protected zones for all tenants.
   await seedMunicipalities(prisma);
 
+  // Seed the CMS content models (DocPage/ShowcaseField) from the current
+  // filesystem docs + showcase literals — docs/CMS_BUILD_PLAN.md W2.
+  const cmsCounts = await seedCms(prisma);
+
   console.log("Seed complete:");
   console.log(`  Tenant:         ${tenant.name} (${tenant.id})`);
   console.log(`  Tenant Admin:   tenantadmin@powerbyteitsolutions.com (tenant_manager)`);
@@ -564,6 +569,8 @@ async function main() {
   console.log(`  Alert Rules:    2`);
   console.log(`  Report Exports: 2`);
   console.log(`  Municipalities: 11 + 1 protected zone (per tenant)`);
+  console.log(`  CMS DocPages:   ${cmsCounts.docPages}`);
+  console.log(`  CMS ShowcaseFields: ${cmsCounts.showcaseFields}`);
 }
 
 main()

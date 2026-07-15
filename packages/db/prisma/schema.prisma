@@ -1355,3 +1355,79 @@ model ReportTemplate {
   @@index([tenantId, isDefault])
   @@map("report_templates")
 }
+
+// ─── V-CMS WYSIWYG content models (docs/CMS_BUILD_PLAN.md, W2) ──────────────
+// Standalone tables — no FKs to Tenant/User — so this migration stays purely
+// additive. Content is GLOBAL (public /docs + /showcase routes); tenantId is
+// a nullable future-proofing column only, never enforced today. Edit gate =
+// platformAdminProcedure (role tenant_manager + tenantId null), applied at
+// the tRPC layer in W3 — not modeled here.
+
+enum DocPageKind {
+  page
+  folderIndex
+}
+
+enum CmsMediaScope {
+  docs
+  showcase
+}
+
+/// A single /docs page, seeded 1:1 from content/docs mdx files (source.ts is
+/// the derivation authority — see seed-cms.ts for the exact slug rule).
+model DocPage {
+  id             String      @id @default(cuid())
+  slug           String      @unique
+  parentSlug     String?     @map("parent_slug")
+  kind           DocPageKind @default(page)
+  title          String
+  description    String?
+  orderInParent  Int         @default(0) @map("order_in_parent")
+  bodyMarkdown   String      @map("body_markdown")
+  /// Optional Plate JSON value — fallback only if markdown round-trip fidelity
+  /// fails (see CMS_BUILD_PLAN.md risks). Unused until W6.
+  bodyJson       Json?       @map("body_json")
+  published      Boolean     @default(true)
+  tenantId       String?     @map("tenant_id")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+  updatedById    String?     @map("updated_by_id")
+
+  @@index([parentSlug])
+  @@index([tenantId])
+  @@map("cms_doc_pages")
+}
+
+/// A single editable text field on /showcase, keyed by a stable dotted id
+/// (e.g. "hero.headline", "feature.war-room.title"). See seed-cms.ts for the
+/// full key list.
+model ShowcaseField {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  /// Optional structured value (e.g. a feature's bullet-point array). When
+  /// set, this is the source of truth for the field and `value` is unused.
+  valueJson   Json?    @map("value_json")
+  tenantId    String?  @map("tenant_id")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedById String?  @map("updated_by_id")
+
+  @@index([tenantId])
+  @@map("cms_showcase_fields")
+}
+
+/// An image uploaded via the CMS editor's Ctrl+V/drag-drop paste (W6). Not
+/// seeded by W2 — table exists so W3's media routes have somewhere to write.
+model CmsMedia {
+  id           String        @id @default(cuid())
+  key          String        @unique
+  mimeType     String        @map("mime_type")
+  bytes        Int
+  scope        CmsMediaScope
+  tenantId     String?       @map("tenant_id")
+  uploadedById String?       @map("uploaded_by_id")
+  createdAt    DateTime      @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([scope])
+  @@map("cms_media")
+}
