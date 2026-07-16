@@ -125,6 +125,42 @@ describe("reportMap.summary", () => {
   });
 });
 
+// Fixtures for includeTraversing coverage fold-in tests (below) — two
+// adjacent unit squares so a straight track crossing the shared edge splits
+// ~50/50 by raw clip fraction (mirrors traversing-coverage.test.ts).
+const TRAVERSING_SQUARE_A = {
+  type: "Polygon",
+  coordinates: [
+    [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+      [0, 1],
+      [0, 0],
+    ],
+  ],
+};
+const TRAVERSING_SQUARE_B = {
+  type: "Polygon",
+  coordinates: [
+    [
+      [1, 0],
+      [2, 0],
+      [2, 1],
+      [1, 1],
+      [1, 0],
+    ],
+  ],
+};
+// Half inside A (x: 0.5→1.0), half inside B (x: 1.0→1.5).
+const TRAVERSING_CROSSING_TRACK = {
+  type: "LineString",
+  coordinates: [
+    [0.5, 0.5],
+    [1.5, 0.5],
+  ],
+};
+
 describe("reportMap.eventBreakdown", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -746,5 +782,129 @@ describe("reportMap.patrolTrackPointsInRange", () => {
     const where = vi.mocked(prisma.patrolTrack.findMany).mock.calls[0]?.[0]?.where as any;
     expect(where).toMatchObject({ tenantId: "tenant-xyz" });
     expect(where?.patrol).toMatchObject({ tenantId: "tenant-xyz" });
+  });
+});
+
+describe("reportMap.summary includeTraversing (W6 coverage — single-muni + province fold-in)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("(1) single-municipality fold-in still works (regression) — traversing coverage adds to totalDistanceKm/totalHours", async () => {
+    vi.mocked(prisma.event.count).mockResolvedValue(0 as any);
+    vi.mocked(prisma.patrol.count).mockResolvedValue(1 as any);
+    // Attributed patrol totals (unrelated to the traversing patrol below).
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([
+      { totalDistanceKm: 20, computedDistanceKm: null, totalHours: 5, computedDurationHours: null },
+    ] as any);
+    // sumTraversingCoverageAcross's own municipality geometry lookup — a
+    // single municipalityId never triggers resolveMunicipalityScope's own
+    // findMany call, so this is the ONLY municipality.findMany invocation.
+    vi.mocked(prisma.municipality.findMany).mockResolvedValue([
+      { id: "muni-b", boundaryGeojson: TRAVERSING_SQUARE_B, waterGeojson: null },
+    ] as any);
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([
+      {
+        trackGeojson: TRAVERSING_CROSSING_TRACK,
+        patrol: {
+          municipalityId: "muni-a", // origin elsewhere — traverses into muni-b
+          totalHours: null,
+          computedDurationHours: 4,
+          computedDistanceKm: 10,
+          totalDistanceKm: null,
+        },
+      },
+    ] as any);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.summary({ municipalityId: "muni-b", includeTraversing: true });
+
+    // Attributed (20km/5h) + traversing credit (~5km/~2h from the crossing track).
+    expect(result.totalDistanceKm).toBeCloseTo(25, 0);
+    expect(result.totalHours).toBeCloseTo(7, 0);
+    expect(result.totalPatrols).toBe(1);
+  });
+
+  it("(2) province fold-in sums per-member traversing coverage into totalDistanceKm/totalHours", async () => {
+    vi.mocked(prisma.event.count).mockResolvedValue(0 as any);
+    vi.mocked(prisma.patrol.count).mockResolvedValue(0 as any);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([]);
+    // municipality.findMany is called TWICE here: once by
+    // resolveMunicipalityScope (province lookup — where.province set), once
+    // by sumTraversingCoverageAcross (geometry lookup — where.id.in set).
+    // Distinguish by the where-clause shape.
+    vi.mocked(prisma.municipality.findMany).mockImplementation((args: any) => {
+      if (args?.where?.province !== undefined) {
+        return Promise.resolve([{ id: "muni-a" }, { id: "muni-b" }] as any);
+      }
+      return Promise.resolve([
+        { id: "muni-a", boundaryGeojson: TRAVERSING_SQUARE_A, waterGeojson: null },
+        { id: "muni-b", boundaryGeojson: TRAVERSING_SQUARE_B, waterGeojson: null },
+      ] as any);
+    });
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([
+      {
+        trackGeojson: TRAVERSING_CROSSING_TRACK,
+        patrol: {
+          municipalityId: "muni-a", // origin = muni-a, excluded from its own credit
+          totalHours: null,
+          computedDurationHours: 4,
+          computedDistanceKm: 10,
+          totalDistanceKm: null,
+        },
+      },
+    ] as any);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.summary({ province: "Oriental Mindoro", includeTraversing: true });
+
+    // Only muni-b (the non-origin member the track crosses) is credited:
+    // ~half the track (~5km/~2h) — muni-a is excluded as the origin.
+    expect(result.totalDistanceKm).toBeCloseTo(5, 0);
+    expect(result.totalHours).toBeCloseTo(2, 0);
+    expect(result.totalPatrols).toBe(0);
+  });
+
+  it("(3) totalPatrols is IDENTICAL whether includeTraversing is on or off (the toggle never inflates the count)", async () => {
+    const runOnce = async (includeTraversing: boolean) => {
+      vi.clearAllMocks();
+      vi.mocked(prisma.event.count).mockResolvedValue(0 as any);
+      vi.mocked(prisma.patrol.count).mockResolvedValue(9 as any);
+      vi.mocked(prisma.patrol.findMany).mockResolvedValue([]);
+      vi.mocked(prisma.municipality.findMany).mockImplementation((args: any) => {
+        if (args?.where?.province !== undefined) {
+          return Promise.resolve([{ id: "muni-a" }, { id: "muni-b" }] as any);
+        }
+        return Promise.resolve([
+          { id: "muni-a", boundaryGeojson: TRAVERSING_SQUARE_A, waterGeojson: null },
+          { id: "muni-b", boundaryGeojson: TRAVERSING_SQUARE_B, waterGeojson: null },
+        ] as any);
+      });
+      vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([
+        {
+          trackGeojson: TRAVERSING_CROSSING_TRACK,
+          patrol: {
+            municipalityId: "muni-a",
+            totalHours: null,
+            computedDurationHours: 4,
+            computedDistanceKm: 10,
+            totalDistanceKm: null,
+          },
+        },
+      ] as any);
+
+      const caller = createCaller(makeCtx());
+      return caller.summary({ province: "Oriental Mindoro", includeTraversing });
+    };
+
+    const off = await runOnce(false);
+    const on = await runOnce(true);
+
+    expect(off.totalPatrols).toBe(9);
+    expect(on.totalPatrols).toBe(9);
+    expect(on.totalPatrols).toBe(off.totalPatrols);
+    // Sanity: the toggle DID actually change the coverage totals — otherwise
+    // this test wouldn't be exercising the fold-in at all.
+    expect(on.totalDistanceKm).toBeGreaterThan(off.totalDistanceKm);
   });
 });

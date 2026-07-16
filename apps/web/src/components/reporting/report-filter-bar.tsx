@@ -390,11 +390,14 @@ export function ReportFilterBar({
       )}
 
       {/* Include traversing patrols — folds in patrols that merely pass through
-          (but did not START in) the selected municipality. Only meaningful
-          for a SPECIFIC municipality (backend traversing computation is
-          single-municipality only) — disabled + hinted, not hidden, when a
-          province rollup or "all municipalities" is active, so the control's
-          presence doesn't jump around while its target is unavailable. */}
+          (but did not START in) the selected scope. Meaningful for a SPECIFIC
+          municipality OR a PROVINCE rollup (the backend credits coverage to
+          every municipality in the province a traversing patrol passes
+          through, while the patrol's count still stays at its origin
+          municipality) — disabled + hinted, not hidden, only when NEITHER a
+          municipality nor a province is selected ("all municipalities" /
+          "all provinces"), so the control's presence doesn't jump around
+          while its target is unavailable. */}
       <div className={fieldClass}>
         <Label
           htmlFor="report-include-traversing"
@@ -406,18 +409,29 @@ export function ReportFilterBar({
           id="report-include-traversing"
           data-testid="report-include-traversing"
           checked={includeTraversing}
-          disabled={municipalityId === null}
+          disabled={municipalityId === null && province === null}
           onCheckedChange={setIncludeTraversing}
-          aria-label="Include traversing patrols — fold in patrols that pass through this municipality without starting here"
+          aria-label="Include traversing patrols — fold in patrols that pass through this municipality or province without starting here"
         />
-        {municipalityId === null && (
+        {municipalityId === null && province === null && (
           <span
             className={cn(
               "text-[10px] text-muted-foreground",
               stacked ? "" : "ml-1",
             )}
           >
-            Select a municipality to enable
+            Select a municipality or province to enable
+          </span>
+        )}
+        {municipalityId === null && province !== null && (
+          <span
+            className={cn(
+              "text-[10px] text-muted-foreground",
+              stacked ? "" : "ml-1",
+            )}
+          >
+            Credits coverage across {province}&apos;s municipalities — patrol
+            count stays at origin
           </span>
         )}
       </div>

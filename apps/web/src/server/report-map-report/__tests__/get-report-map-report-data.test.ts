@@ -1040,6 +1040,179 @@ describe("getReportMapReportData", () => {
     const listsResult = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
     expect(listsResult?.exportMode).toBe("lists");
   });
+
+  // ── Traversing patrols — province rollup (W6 coverage, 2026-07-16) ────────
+  // Two adjacent unit squares so a straight track crossing the shared edge
+  // splits ~50/50 by raw clip fraction (mirrors traversing-coverage.test.ts).
+  const TRAVERSING_SQUARE_A = {
+    type: "Polygon",
+    coordinates: [
+      [
+        [0, 0],
+        [1, 0],
+        [1, 1],
+        [0, 1],
+        [0, 0],
+      ],
+    ],
+  };
+  const TRAVERSING_SQUARE_B = {
+    type: "Polygon",
+    coordinates: [
+      [
+        [1, 0],
+        [2, 0],
+        [2, 1],
+        [1, 1],
+        [1, 0],
+      ],
+    ],
+  };
+  // Half inside A (x: 0.5→1.0), half inside B (x: 1.0→1.5).
+  const TRAVERSING_CROSSING_TRACK = {
+    type: "LineString",
+    coordinates: [
+      [0.5, 0.5],
+      [1.5, 0.5],
+    ],
+  };
+
+  it("buildTraversingPatrols (province): emits one row per (patrol, credited member); subtotals reconcile with the summed member coverage", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValue(TENANT_ROW as never);
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValue({
+      ...EXPORT_ROW,
+      paramsJson: {
+        ...EXPORT_ROW.paramsJson,
+        province: "Oriental Mindoro",
+        includeTraversing: true,
+      },
+    } as never);
+    vi.mocked(prisma.reportTemplate.findFirst).mockResolvedValue(TEMPLATE_ROW as never);
+    vi.mocked(buildEventBreakdownWithCoords).mockResolvedValue(EMPTY_BREAKDOWN);
+    vi.mocked(prisma.event.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.municipality.findUnique).mockResolvedValue(null);
+
+    // municipality.findMany is shared by resolveMunicipalityScope's province
+    // lookup (where.province set, {id} only) and buildTraversingPatrols'
+    // geometry lookup (where.id.in set, full geometry select) — distinguish
+    // by the where-clause shape.
+    vi.mocked(prisma.municipality.findMany).mockImplementation(
+      (args?: { where?: { province?: unknown; id?: { in?: string[] } } }) => {
+        if (args?.where?.province !== undefined) {
+          return Promise.resolve([{ id: "muni_pg" }, { id: "muni_sj" }] as never);
+        }
+        return Promise.resolve([
+          { id: "muni_pg", name: "Puerto Galera", boundaryGeojson: TRAVERSING_SQUARE_A, waterGeojson: null },
+          { id: "muni_sj", name: "San Jose", boundaryGeojson: TRAVERSING_SQUARE_B, waterGeojson: null },
+        ] as never);
+      },
+    );
+
+    // patrolTrack.findMany is shared by the main track-polyline query
+    // (select WITHOUT municipalityId) and buildTraversingPatrols (select
+    // WITH municipalityId) — distinguish by the select shape.
+    vi.mocked(prisma.patrolTrack.findMany).mockImplementation(
+      (args?: { select?: { patrol?: { select?: Record<string, unknown> } } }) => {
+        const patrolSelect = args?.select?.patrol?.select ?? {};
+        if ("municipalityId" in patrolSelect) {
+          return Promise.resolve([
+            {
+              trackGeojson: TRAVERSING_CROSSING_TRACK,
+              patrol: {
+                id: "patrol-1",
+                title: "Cross-boundary sweep",
+                patrolType: "seaborne",
+                municipalityId: "muni_pg",
+                totalHours: null,
+                computedDurationHours: 4,
+                computedDistanceKm: 10,
+                totalDistanceKm: null,
+                municipality: { name: "Puerto Galera" },
+              },
+            },
+          ] as never);
+        }
+        return Promise.resolve([] as never);
+      },
+    );
+    vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
+
+    const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(result).not.toBeNull();
+    if (!result) return;
+
+    expect(result.traversingPatrols).toBeDefined();
+    const tp = result.traversingPatrols;
+    if (!tp) throw new Error("traversingPatrols fixture missing");
+
+    // Origin muni_pg is excluded from its own credited rows — only muni_sj
+    // (the non-origin member the track crosses) produces a row.
+    expect(tp.rows).toHaveLength(1);
+    expect(tp.rows[0]).toMatchObject({
+      patrolId: "patrol-1",
+      startMunicipalityName: "Puerto Galera",
+      creditedMunicipalityName: "San Jose",
+    });
+    const [firstRow] = tp.rows;
+    if (!firstRow) throw new Error("expected traversingPatrols row fixture");
+    expect(firstRow.insideKm).toBeGreaterThan(0);
+    expect(firstRow.insideHoursEst).toBeGreaterThan(0);
+
+    // Subtotals reconcile with the summed row-level coverage.
+    const summedKm = tp.rows.reduce((s, r) => s + r.insideKm, 0);
+    const summedHours = tp.rows.reduce((s, r) => s + r.insideHoursEst, 0);
+    expect(tp.total.insideKm).toBeCloseTo(summedKm, 5);
+    expect(tp.total.insideHoursEst).toBeCloseTo(summedHours, 5);
+    expect(tp.total.count).toBe(tp.rows.length);
+    expect(tp.seaborne.count + tp.foot.count).toBe(tp.total.count);
+    expect(tp.seaborne.count).toBe(1); // the fixture patrol is seaborne
+  });
+
+  it("traversingPatrols is undefined when includeTraversing is off, even with a province scope resolved", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValue(TENANT_ROW as never);
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValue({
+      ...EXPORT_ROW,
+      paramsJson: { ...EXPORT_ROW.paramsJson, province: "Oriental Mindoro" },
+    } as never);
+    vi.mocked(prisma.reportTemplate.findFirst).mockResolvedValue(TEMPLATE_ROW as never);
+    vi.mocked(buildEventBreakdownWithCoords).mockResolvedValue(EMPTY_BREAKDOWN);
+    vi.mocked(prisma.event.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.municipality.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.municipality.findMany).mockResolvedValue([
+      { id: "muni_pg" },
+      { id: "muni_sj" },
+    ] as never);
+    vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
+
+    const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(result).not.toBeNull();
+    if (!result) return;
+    expect(result.traversingPatrols).toBeUndefined();
+  });
+
+  it("traversingPatrols is undefined for a fully regional report (no municipalityId, no province) even with includeTraversing on", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValue(TENANT_ROW as never);
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValue({
+      ...EXPORT_ROW,
+      paramsJson: { ...EXPORT_ROW.paramsJson, includeTraversing: true },
+    } as never);
+    vi.mocked(prisma.reportTemplate.findFirst).mockResolvedValue(TEMPLATE_ROW as never);
+    vi.mocked(buildEventBreakdownWithCoords).mockResolvedValue(EMPTY_BREAKDOWN);
+    vi.mocked(prisma.event.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.municipality.findUnique).mockResolvedValue(null);
+    vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
+
+    const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(result).not.toBeNull();
+    if (!result) return;
+    expect(result.traversingPatrols).toBeUndefined();
+    expect(prisma.municipality.findMany).not.toHaveBeenCalled();
+  });
 });
 
 // ─── unionGeometryBounds ──────────────────────────────────────────────────────

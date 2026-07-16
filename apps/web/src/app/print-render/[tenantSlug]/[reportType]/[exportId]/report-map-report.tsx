@@ -538,6 +538,7 @@ function TraversingPatrolsTable({ data, caption }: TraversingPatrolsTableProps) 
           <th scope="col">Patrol</th>
           <th scope="col">Type</th>
           <th scope="col">Started In</th>
+          <th scope="col">Credited To</th>
           <th scope="col">Distance Inside</th>
           <th scope="col">Time Inside (est.)</th>
         </tr>
@@ -548,6 +549,7 @@ function TraversingPatrolsTable({ data, caption }: TraversingPatrolsTableProps) 
             <td>{r.title ?? r.patrolId.slice(0, 8)}</td>
             <td>{fmtPatrolType(r.patrolType)}</td>
             <td>{r.startMunicipalityName}</td>
+            <td>{r.creditedMunicipalityName}</td>
             <td>{fmtDistKm(r.insideKm)}</td>
             <td>{fmtHours(r.insideHoursEst)}</td>
           </tr>
@@ -560,6 +562,7 @@ function TraversingPatrolsTable({ data, caption }: TraversingPatrolsTableProps) 
           </th>
           <td>—</td>
           <td>—</td>
+          <td>—</td>
           <td>{fmtDistKm(data.foot.insideKm)}</td>
           <td>{fmtHours(data.foot.insideHoursEst)}</td>
         </tr>
@@ -569,11 +572,13 @@ function TraversingPatrolsTable({ data, caption }: TraversingPatrolsTableProps) 
           </th>
           <td>—</td>
           <td>—</td>
+          <td>—</td>
           <td>{fmtDistKm(data.seaborne.insideKm)}</td>
           <td>{fmtHours(data.seaborne.insideHoursEst)}</td>
         </tr>
         <tr className="total-row">
           <th scope="row">Total ({data.total.count.toLocaleString()})</th>
+          <td>—</td>
           <td>—</td>
           <td>—</td>
           <td>{fmtDistKm(data.total.insideKm)}</td>

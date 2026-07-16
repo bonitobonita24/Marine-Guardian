@@ -4,7 +4,10 @@ import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
 import { matrixProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
-import { clipTrackToMunicipality } from "@marine-guardian/shared/lib/coverage-clip";
+import {
+  clipTrackAcrossMembers,
+  bboxOfGeojson,
+} from "../../reporting/traversing-coverage";
 import { EVENT_CATEGORY } from "@/components/map/eventMarkerStyle";
 import { boundaryKindFromRef, municipalityIdFromRef } from "./boundary-kind";
 import {
@@ -147,55 +150,6 @@ export function resolvePatrolTrackWindow(patrol: PatrolTrackInput): {
 }
 
 type TrackPoint = { lat: number; lon: number; recordedAt: Date | null };
-
-// Bbox = [minLon, minLat, maxLon, maxLat]
-type Bbox = [number, number, number, number];
-
-/**
- * Recursively collect every leaf [lon, lat] coordinate pair out of an
- * arbitrary GeoJSON value (FeatureCollection / Feature / any Geometry /
- * GeometryCollection) without needing to understand its `type` field —
- * a coordinate pair is any array whose first two elements are numbers.
- * Used only for a cheap bbox pre-filter (see `bboxFromGeojson`); the real
- * geometry-aware extraction/clipping happens in `clipTrackToMunicipality`.
- */
-function collectLeafCoordPairs(node: unknown, out: number[][]): void {
-  if (!Array.isArray(node)) return;
-  if (
-    node.length >= 2 &&
-    typeof node[0] === "number" &&
-    typeof node[1] === "number"
-  ) {
-    out.push(node as number[]);
-    return;
-  }
-  for (const child of node) collectLeafCoordPairs(child, out);
-}
-
-/** Cheap bounding box over every coordinate pair found anywhere in a GeoJSON value. */
-function bboxFromGeojson(raw: unknown): Bbox | null {
-  const coords: number[][] = [];
-  collectLeafCoordPairs(raw, coords);
-  if (coords.length === 0) return null;
-  let minLon = Infinity;
-  let minLat = Infinity;
-  let maxLon = -Infinity;
-  let maxLat = -Infinity;
-  for (const pair of coords) {
-    const lon = pair[0] as number;
-    const lat = pair[1] as number;
-    if (lon < minLon) minLon = lon;
-    if (lat < minLat) minLat = lat;
-    if (lon > maxLon) maxLon = lon;
-    if (lat > maxLat) maxLat = lat;
-  }
-  return [minLon, minLat, maxLon, maxLat];
-}
-
-/** True when two bboxes overlap (touching edges count as overlap). */
-function bboxesOverlap(a: Bbox, b: Bbox): boolean {
-  return a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
-}
 
 /**
  * Extract polyline points from a stored PatrolTrack.trackGeojson.
@@ -664,32 +618,43 @@ const patrolTracksRouter = router({
         };
       }
 
-      // Traversing-patrols mode (2026-07-16): only activates for a single
-      // concrete municipality selection (municipalityId set directly) — a
-      // patrol is counted at its origin municipality only, but its
-      // coverage (distance/time) is credited to every municipality it
-      // physically passes through, so this endpoint can also render tracks
-      // that traverse the selected municipality without being attributed to
-      // it, with their clipped per-track numbers for popups.
-      //
-      // NOTE: province-level / multi-municipality traversing is a
-      // documented follow-up — not implemented here. When the scope is a
-      // province rollup or unset, `includeTraversing` has no effect and the
-      // query falls through to the unchanged attributed-only path below.
-      if (input.includeTraversing === true && input.municipalityId !== undefined) {
-        const targetMunicipalityId = input.municipalityId;
-        const muni = await prisma.municipality.findUnique({
-          where: { id: targetMunicipalityId },
-          select: { boundaryGeojson: true, waterGeojson: true },
+      // Traversing-patrols mode (2026-07-16, extended for province/multi-
+      // municipality scope): activates for ANY resolved municipality scope
+      // (a single concrete municipality OR a province rollup of several). A
+      // patrol is still counted only at its origin municipality — this
+      // toggle only affects which tracks are RENDERED, never any count
+      // tile — but its coverage (distance/time) is credited to every scope
+      // member it physically passes through. At province scope, `attributed`
+      // and `traversing` are NOT mutually exclusive: a patrol whose origin
+      // is member A can also cross member B, so it may be BOTH
+      // attributed=true and traversing=true with insideKm/insideHoursEst > 0
+      // (the credited coverage across the OTHER members it crosses). In the
+      // single-municipality case (municipalityIds.length === 1) there is no
+      // non-origin member to cross, so an attributed patrol's traversing
+      // stays false — output is unchanged from the prior single-muni-only
+      // behavior.
+      if (
+        input.includeTraversing === true &&
+        municipalityIds !== undefined &&
+        municipalityIds.length > 0
+      ) {
+        const muniRows = await prisma.municipality.findMany({
+          where: { id: { in: municipalityIds } },
+          select: { id: true, boundaryGeojson: true, waterGeojson: true },
         });
 
-        if (muni === null) {
+        if (muniRows.length === 0) {
           return { tracks: [] };
         }
 
-        const muniBbox =
-          bboxFromGeojson(muni.boundaryGeojson) ??
-          bboxFromGeojson(muni.waterGeojson);
+        const members = muniRows.map((m) => ({
+          id: m.id,
+          landGeojson: m.boundaryGeojson,
+          waterGeojson: m.waterGeojson,
+          bbox:
+            bboxOfGeojson(m.waterGeojson ?? m.boundaryGeojson) ??
+            bboxOfGeojson(m.boundaryGeojson),
+        }));
 
         const candidatePatrolWhere: {
           isDeleted: false;
@@ -728,30 +693,19 @@ const patrolTracksRouter = router({
           const points = pointsFromTrackGeojson(row.trackGeojson);
           if (points.length < 2) return [];
 
-          const attributed = row.patrol.municipalityId === targetMunicipalityId;
+          const attributed =
+            row.patrol.municipalityId !== null &&
+            municipalityIds.includes(row.patrol.municipalityId);
 
-          // Cheap bbox pre-filter: skip the expensive turf clip when the
-          // track's own bbox doesn't even overlap the municipality's bbox
-          // (attributed patrols always get the full clip so their numbers
-          // stay accurate even on a degenerate/empty muni bbox).
-          if (!attributed && muniBbox !== null) {
-            const trackBbox = bboxFromGeojson(row.trackGeojson);
-            if (trackBbox !== null && !bboxesOverlap(trackBbox, muniBbox)) {
-              return [];
-            }
-          }
+          const result = clipTrackAcrossMembers(row.trackGeojson, members, {
+            originMunicipalityId: row.patrol.municipalityId,
+            computedDurationHours: row.patrol.computedDurationHours,
+            totalHours: row.patrol.totalHours,
+            computedDistanceKm: row.patrol.computedDistanceKm,
+            totalDistanceKm: row.patrol.totalDistanceKm,
+          });
 
-          const clip = clipTrackToMunicipality(
-            row.trackGeojson,
-            {
-              landGeojson: muni.boundaryGeojson,
-              waterGeojson: muni.waterGeojson ?? undefined,
-            },
-            row.patrol.computedDurationHours ?? row.patrol.totalHours,
-            row.patrol.computedDistanceKm ?? row.patrol.totalDistanceKm ?? null,
-          );
-
-          const traversing = !attributed && clip.traverses;
+          const traversing = result.traversesNonOrigin;
           if (!attributed && !traversing) return [];
 
           return [
@@ -762,8 +716,8 @@ const patrolTracksRouter = router({
               points,
               attributed,
               traversing,
-              insideKm: clip.insideKm,
-              insideHoursEst: clip.insideHoursEst,
+              insideKm: result.insideKm,
+              insideHoursEst: result.insideHoursEst,
             },
           ];
         });

@@ -796,6 +796,154 @@ describe("map.patrolTracks.inRange includeChildren (Phase 4B)", () => {
   });
 });
 
+// Fixtures for includeTraversing province-rollup tests (below) — two
+// adjacent unit squares so a straight track crossing the shared edge splits
+// ~50/50 by raw clip fraction (mirrors traversing-coverage.test.ts).
+const TRAVERSING_SQUARE_A = {
+  type: "Polygon",
+  coordinates: [
+    [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+      [0, 1],
+      [0, 0],
+    ],
+  ],
+};
+const TRAVERSING_SQUARE_B = {
+  type: "Polygon",
+  coordinates: [
+    [
+      [1, 0],
+      [2, 0],
+      [2, 1],
+      [1, 1],
+      [1, 0],
+    ],
+  ],
+};
+// Half inside A (x: 0.5→1.0), half inside B (x: 1.0→1.5). `clipTrackAcrossMembers`
+// reads the raw LineString geometry directly (turf-friendly), but
+// `pointsFromTrackGeojson` (used to build `points` for the map) expects the
+// stored FeatureCollection wrapper — same trackGeojson value passed to both.
+const TRAVERSING_CROSSING_TRACK = {
+  type: "FeatureCollection",
+  features: [
+    {
+      type: "Feature",
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [0.5, 0.5],
+          [1.5, 0.5],
+        ],
+      },
+    },
+  ],
+};
+
+describe("map.patrolTracks.inRange includeTraversing (province rollup, W6)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns per-track insideKm/traversing for a province-scoped candidate set, crediting the non-origin member (attributed && traversing both true)", async () => {
+    // municipality.findMany is called TWICE: once by resolveMunicipalityScope
+    // (province lookup — where.province set), once by the includeTraversing
+    // branch's own geometry lookup (where.id.in set).
+    vi.mocked(prisma.municipality.findMany).mockImplementation(
+      (args?: { where?: { province?: unknown; id?: { in?: string[] } } }) => {
+        if (args?.where?.province !== undefined) {
+          return Promise.resolve([{ id: "muni-a" }, { id: "muni-b" }] as any);
+        }
+        return Promise.resolve([
+          { id: "muni-a", boundaryGeojson: TRAVERSING_SQUARE_A, waterGeojson: null },
+          { id: "muni-b", boundaryGeojson: TRAVERSING_SQUARE_B, waterGeojson: null },
+        ] as any);
+      },
+    );
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([
+      {
+        trackGeojson: TRAVERSING_CROSSING_TRACK,
+        patrol: {
+          id: "patrol-1",
+          title: "Cross-boundary sweep",
+          patrolType: "seaborne",
+          municipalityId: "muni-a", // origin IS in the province scope
+          computedDurationHours: 4,
+          totalHours: null,
+          computedDistanceKm: 10,
+          totalDistanceKm: null,
+        },
+      },
+    ] as any);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.patrolTracks.inRange({
+      province: "Oriental Mindoro",
+      includeTraversing: true,
+    });
+
+    expect(result.tracks).toHaveLength(1);
+    const [track] = result.tracks;
+    if (!track) throw new Error("expected patrolTracks.inRange fixture track");
+    expect(track.patrolId).toBe("patrol-1");
+    // Attributed (origin muni-a is a province member) AND traversing (also
+    // crosses muni-b, the other member) — NOT mutually exclusive at
+    // province scope.
+    expect(track.attributed).toBe(true);
+    expect(track.traversing).toBe(true);
+    expect(track.insideKm).toBeGreaterThan(0);
+    expect(track.insideHoursEst).toBeGreaterThan(0);
+  });
+
+  it("excludes a track whose patrol is neither attributed to nor traversing any scope member", async () => {
+    vi.mocked(prisma.municipality.findMany).mockImplementation(
+      (args?: { where?: { province?: unknown; id?: { in?: string[] } } }) => {
+        if (args?.where?.province !== undefined) {
+          return Promise.resolve([{ id: "muni-a" }, { id: "muni-b" }] as any);
+        }
+        return Promise.resolve([
+          { id: "muni-a", boundaryGeojson: TRAVERSING_SQUARE_A, waterGeojson: null },
+          { id: "muni-b", boundaryGeojson: TRAVERSING_SQUARE_B, waterGeojson: null },
+        ] as any);
+      },
+    );
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([
+      {
+        // Far-away track that never touches A or B, and an origin outside
+        // the province — neither attributed nor traversing.
+        trackGeojson: {
+          type: "LineString",
+          coordinates: [
+            [20, 20],
+            [21, 21],
+          ],
+        },
+        patrol: {
+          id: "patrol-elsewhere",
+          title: "Unrelated patrol",
+          patrolType: "foot",
+          municipalityId: "muni-far",
+          computedDurationHours: 2,
+          totalHours: null,
+          computedDistanceKm: 5,
+          totalDistanceKm: null,
+        },
+      },
+    ] as any);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.patrolTracks.inRange({
+      province: "Oriental Mindoro",
+      includeTraversing: true,
+    });
+
+    expect(result.tracks).toEqual([]);
+  });
+});
+
 describe("map.patrolAreas.list", () => {
   beforeEach(() => {
     vi.clearAllMocks();

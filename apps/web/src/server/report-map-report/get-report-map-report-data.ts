@@ -33,7 +33,6 @@
 
 import { prisma } from "@marine-guardian/db";
 import { getImageBytes, getExportsBucketName } from "@marine-guardian/storage";
-import { clipTrackToMunicipality } from "@marine-guardian/shared/lib/coverage-clip";
 import {
   buildEventBreakdownWithCoords,
   photoAssetIdsFrom,
@@ -44,6 +43,11 @@ import {
   resolveChildZoneIds,
   buildMunicipalityScopeWhere,
 } from "../reporting/municipality-scope";
+import {
+  clipTrackAcrossMembers,
+  bboxOfGeojson,
+  type TraversingMember,
+} from "../reporting/traversing-coverage";
 import {
   buildSingleCountSeries,
   dayKeyToLabel,
@@ -320,12 +324,23 @@ export function buildPatrolTypeTotals(
 // ─── Traversing patrols (appended page, 2026-07-16) ──────────────────────────
 
 /**
- * One patrol that TRAVERSES the report's selected municipality without being
- * attributed to it (`patrol.municipalityId !== municipalityId` — covers both
- * "attributed to a neighboring municipality" and "unattributed"). Owner-locked
- * semantics: this patrol is NOT counted toward the municipality (it's counted
- * once, at `startMunicipalityName`) — only its clipped in-boundary coverage
- * (`insideKm` / `insideHoursEst`) is attributable here.
+ * One patrol that TRAVERSES a member municipality of the report's scope
+ * without being attributed to it (`patrol.municipalityId !== <that member>`
+ * — covers both "attributed to a neighboring municipality" and
+ * "unattributed"). Owner-locked semantics: this patrol is NOT counted toward
+ * the member (it's counted once, at `startMunicipalityName`) — only its
+ * clipped in-boundary coverage (`insideKm` / `insideHoursEst`) is
+ * attributable here.
+ *
+ * PROVINCE/MULTI-MUNICIPALITY SCOPE (2026-07-16 W3): when the report resolves
+ * to more than one member municipality (a province rollup), ONE ROW IS
+ * EMITTED PER (patrol, credited member) — a single patrol track that
+ * traverses two different non-origin members of the same province produces
+ * two rows, one per member, each carrying that member's own clipped
+ * insideKm/insideHoursEst via `creditedMunicipalityName`. A single-municipality
+ * report is the one-member case of the same shape (exactly one row per
+ * traversing patrol, `creditedMunicipalityName` equal to that municipality's
+ * name).
  */
 export interface TraversingPatrolRow {
   patrolId: string;
@@ -334,9 +349,13 @@ export interface TraversingPatrolRow {
   /** The patrol's own attributed (origin) municipality name — "Unattributed"
    *  when the patrol has no municipalityId on record. */
   startMunicipalityName: string;
-  /** Clipped track length inside the report's municipality, in kilometers. */
+  /** The member municipality this row's clipped coverage is credited to —
+   *  always populated, including in the single-municipality case (that
+   *  municipality's own name). */
+  creditedMunicipalityName: string;
+  /** Clipped track length inside `creditedMunicipalityName`, in kilometers. */
   insideKm: number;
-  /** Pro-rated hours inside the report's municipality. */
+  /** Pro-rated hours inside `creditedMunicipalityName`. */
   insideHoursEst: number;
 }
 
@@ -348,11 +367,15 @@ export interface TraversingPatrolsSubtotal {
 
 /**
  * Appended-page dataset (Part B) — populated ONLY when the report's
- * `includeTraversing` param is true AND the report is scoped to exactly one
- * municipality (a province/regional report skips this — see
- * `buildTraversingPatrols`'s doc comment for the follow-up note).
- * `undefined` in every other case so a later report-page worker can render
- * "no traversing-patrols page" simply by checking for `undefined`.
+ * `includeTraversing` param is true AND the report resolves to at least one
+ * member municipality (a single `municipalityId` OR a province rollup both
+ * qualify; a fully regional "All Municipalities" report — neither filter set
+ * — does not). `undefined` in every other case so a later report-page worker
+ * can render "no traversing-patrols page" simply by checking for `undefined`.
+ * Subtotals (`foot`/`seaborne`/`total`) sum across EVERY member's rows, so
+ * `total` reconciles with the province-wide traversing coverage total
+ * (`sumTraversingCoverageAcross` in `traversing-coverage.ts`, same per-track
+ * clip logic).
  */
 export interface TraversingPatrolsData {
   rows: TraversingPatrolRow[];
@@ -484,11 +507,14 @@ export interface ReportMapReportData {
    */
   eventTypeColumns: Record<string, string[]>;
   /**
-   * Traversing-patrols appended-page dataset (2026-07-16) — see
-   * `TraversingPatrolsData`. `undefined` when `includeTraversing` is off, or
-   * the report is not scoped to exactly one municipality (province/regional
-   * scope) — a later report-page worker renders the page only when this is
-   * defined.
+   * Traversing-patrols appended-page dataset (2026-07-16; province rollup
+   * 2026-07-16 W3) — see `TraversingPatrolsData`. `undefined` when
+   * `includeTraversing` is off, or the report resolves to zero member
+   * municipalities (a fully regional "All Municipalities" report — neither
+   * `municipalityId` nor `province` set) — a later report-page worker
+   * renders the page only when this is defined. Populated for BOTH a
+   * single-municipality report and a province rollup (one row per
+   * (patrol, credited member) — see `TraversingPatrolRow`).
    */
   traversingPatrols?: TraversingPatrolsData | undefined;
   charts: {
@@ -548,10 +574,11 @@ interface ParsedReportMapParams {
    */
   includeChildren?: boolean;
   /**
-   * Traversing-patrols toggle (2026-07-16): when true AND the report is
-   * scoped to exactly one municipality (`municipalityId` set — a province
-   * rollup does not qualify), `traversingPatrols` is populated with patrols
-   * that pass THROUGH this municipality without being attributed to it. See
+   * Traversing-patrols toggle (2026-07-16; province rollup 2026-07-16 W3):
+   * when true AND the report resolves to at least one member municipality
+   * (`municipalityId` set, OR `province` set resolving to one-or-more
+   * municipalities), `traversingPatrols` is populated with patrols that pass
+   * THROUGH a member municipality without being attributed to it. See
    * `ReportMapReportData.traversingPatrols` for the full owner-locked
    * semantics.
    */
@@ -702,58 +729,60 @@ function dayKey(d: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-// ─── Traversing patrols builder (Part B, 2026-07-16) ─────────────────────────
-
-/** [minLon, minLat, maxLon, maxLat], or null when no coordinate was found. */
-function bboxFromLonLatPairs(
-  pairs: [number, number][],
-): [number, number, number, number] | null {
-  if (pairs.length === 0) return null;
-  let minLon = Number.POSITIVE_INFINITY;
-  let minLat = Number.POSITIVE_INFINITY;
-  let maxLon = Number.NEGATIVE_INFINITY;
-  let maxLat = Number.NEGATIVE_INFINITY;
-  for (const [lon, lat] of pairs) {
-    if (lon < minLon) minLon = lon;
-    if (lon > maxLon) maxLon = lon;
-    if (lat < minLat) minLat = lat;
-    if (lat > maxLat) maxLat = lat;
-  }
-  return [minLon, minLat, maxLon, maxLat];
-}
-
-function bboxesOverlap(
-  a: [number, number, number, number],
-  b: [number, number, number, number],
-): boolean {
-  return a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
-}
+// ─── Traversing patrols builder (Part B, 2026-07-16; province rollup 2026-07-16 W3) ──
 
 /**
- * Builds the `traversingPatrols` appended-page dataset: every in-window
- * patrol that TRAVERSES `municipalityId` without being attributed to it
- * (`patrol.municipalityId !== municipalityId`), with its clipped in-boundary
- * distance/hours + Foot/Seaborne/Total subtotals (mirrors the coverage-report
- * subtotal shape). Bbox-prefiltered against the municipality's own bbox
- * before the real `clipTrackToMunicipality` turf clip.
+ * Builds the `traversingPatrols` appended-page dataset across a SET of member
+ * municipalities (`memberIds` — a single-municipality report passes a
+ * one-element array; a province rollup passes every municipality resolved by
+ * `resolveMunicipalityScope`). For each in-window patrol track and each
+ * member, delegates to the shared `clipTrackAcrossMembers` primitive
+ * (`traversing-coverage.ts`) called with a ONE-MEMBER set — this reuses the
+ * exact same per-member exclusion (skip only that member if it's the
+ * patrol's own origin — never a blanket `notIn` over every member) and
+ * bbox-prefiltered `clipTrackToMunicipality` turf clip that the province-wide
+ * coverage total (`sumTraversingCoverageAcross`) uses, so a track that
+ * traverses two non-origin members of the same province yields two rows
+ * here (one per member) whose combined insideKm/insideHoursEst match what
+ * `sumTraversingCoverageAcross` sums for that same track.
  *
  * Owner-locked semantics: a traversing patrol's COVERAGE is credited here,
  * its COUNT stays with its own `startMunicipalityName` — this dataset never
  * feeds `charts.patrolList.total` or any other count.
- *
- * NOTE (follow-up): province/multi-municipality scope is intentionally out
- * of scope for traversing — callers only invoke this for a single resolved
- * `municipalityId`.
  */
 async function buildTraversingPatrols(
   tenantId: string,
   params: { from?: Date | undefined; to?: Date | undefined },
-  municipalityId: string,
-  muniGeometry: { boundaryGeojson: unknown; waterGeojson: unknown },
+  memberIds: string[],
 ): Promise<TraversingPatrolsData> {
-  const muniBbox = bboxFromLonLatPairs(
-    geometryCoordinates(muniGeometry.waterGeojson ?? muniGeometry.boundaryGeojson),
-  );
+  const initSubtotal = (): TraversingPatrolsSubtotal => ({
+    count: 0,
+    insideKm: 0,
+    insideHoursEst: 0,
+  });
+  const emptyResult = (): TraversingPatrolsData => ({
+    rows: [],
+    foot: initSubtotal(),
+    seaborne: initSubtotal(),
+    total: initSubtotal(),
+  });
+
+  if (memberIds.length === 0) return emptyResult();
+
+  const muniRows = await prisma.municipality.findMany({
+    where: { id: { in: memberIds } },
+    select: { id: true, name: true, boundaryGeojson: true, waterGeojson: true },
+  });
+  if (muniRows.length === 0) return emptyResult();
+
+  const members: (TraversingMember & { name: string })[] = muniRows.map((m) => ({
+    id: m.id,
+    name: m.name,
+    landGeojson: m.boundaryGeojson,
+    waterGeojson: m.waterGeojson,
+    bbox:
+      bboxOfGeojson(m.waterGeojson ?? m.boundaryGeojson) ?? bboxOfGeojson(m.boundaryGeojson),
+  }));
 
   const startTime: { gte?: Date; lte?: Date } = {};
   if (params.from !== undefined) startTime.gte = params.from;
@@ -769,7 +798,6 @@ async function buildTraversingPatrols(
         ...(startTime.gte !== undefined || startTime.lte !== undefined
           ? { startTime }
           : {}),
-        municipalityId: { not: municipalityId },
       },
     },
     select: {
@@ -779,6 +807,7 @@ async function buildTraversingPatrols(
           id: true,
           title: true,
           patrolType: true,
+          municipalityId: true,
           totalHours: true,
           computedDurationHours: true,
           computedDistanceKm: true,
@@ -791,37 +820,35 @@ async function buildTraversingPatrols(
 
   const rows: TraversingPatrolRow[] = [];
   for (const row of trackRows) {
-    if (muniBbox !== null) {
-      const trackBbox = bboxFromLonLatPairs(geometryCoordinates(row.trackGeojson));
-      if (trackBbox !== null && !bboxesOverlap(trackBbox, muniBbox)) continue;
+    const startMunicipalityName = row.patrol.municipality?.name ?? "Unattributed";
+    const patrolMeta = {
+      originMunicipalityId: row.patrol.municipalityId,
+      computedDurationHours: row.patrol.computedDurationHours,
+      totalHours: row.patrol.totalHours,
+      computedDistanceKm: row.patrol.computedDistanceKm,
+      totalDistanceKm: row.patrol.totalDistanceKm,
+    };
+
+    for (const member of members) {
+      // Per-member exclusion via a one-member call: `clipTrackAcrossMembers`
+      // itself skips `member` only when it equals THIS patrol's own origin —
+      // a track originating in member A that also crosses member B still
+      // produces a credited row for B.
+      const clip = clipTrackAcrossMembers(row.trackGeojson, [member], patrolMeta);
+      if (!clip.traversesNonOrigin) continue;
+
+      rows.push({
+        patrolId: row.patrol.id,
+        title: row.patrol.title,
+        patrolType: row.patrol.patrolType,
+        startMunicipalityName,
+        creditedMunicipalityName: member.name,
+        insideKm: clip.insideKm,
+        insideHoursEst: clip.insideHoursEst,
+      });
     }
-    const totalHours =
-      row.patrol.computedDurationHours ?? row.patrol.totalHours ?? 0;
-    const clip = clipTrackToMunicipality(
-      row.trackGeojson,
-      {
-        landGeojson: muniGeometry.boundaryGeojson,
-        waterGeojson: muniGeometry.waterGeojson ?? undefined,
-      },
-      totalHours,
-      row.patrol.computedDistanceKm ?? row.patrol.totalDistanceKm ?? null,
-    );
-    if (!clip.traverses) continue;
-    rows.push({
-      patrolId: row.patrol.id,
-      title: row.patrol.title,
-      patrolType: row.patrol.patrolType,
-      startMunicipalityName: row.patrol.municipality?.name ?? "Unattributed",
-      insideKm: clip.insideKm,
-      insideHoursEst: clip.insideHoursEst,
-    });
   }
 
-  const initSubtotal = (): TraversingPatrolsSubtotal => ({
-    count: 0,
-    insideKm: 0,
-    insideHoursEst: 0,
-  });
   const foot = initSubtotal();
   const seaborne = initSubtotal();
   for (const r of rows) {
@@ -1126,20 +1153,18 @@ export async function getReportMapReportData(
   const isRegionReport =
     params.municipalityId === undefined && params.province !== undefined;
 
-  // Traversing-patrols appended-page dataset (Part B, 2026-07-16): only when
-  // the toggle is on AND the report is scoped to exactly one municipality
-  // with recorded geometry — a province/regional report leaves this
-  // `undefined` so the report-page worker omits the page entirely.
+  // Traversing-patrols appended-page dataset (Part B, 2026-07-16; province
+  // rollup 2026-07-16 W3): fires whenever the toggle is on AND the report
+  // resolves to at least one member municipality — `municipalityIds` was
+  // already resolved once above (a specific municipalityId, OR every
+  // municipality in a province). A fully regional "All Municipalities"
+  // report (neither filter set) leaves `municipalityIds` `undefined`, so
+  // this stays `undefined` too and the report-page worker omits the page.
   const traversingPatrols: TraversingPatrolsData | undefined =
     params.includeTraversing === true &&
-    params.municipalityId !== undefined &&
-    municipalityGeometry !== null
-      ? await buildTraversingPatrols(
-          tenant.id,
-          { from: params.from, to: params.to },
-          params.municipalityId,
-          municipalityGeometry,
-        )
+    municipalityIds !== undefined &&
+    municipalityIds.length > 0
+      ? await buildTraversingPatrols(tenant.id, { from: params.from, to: params.to }, municipalityIds)
       : undefined;
 
   // Partner logo default fallback: the editor form promises "leave empty to
