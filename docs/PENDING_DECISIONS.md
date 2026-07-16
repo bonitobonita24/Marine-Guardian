@@ -4,7 +4,7 @@
 
 ## 2026-07-15 — Autonomous build queue (one-at-a-time)
 
-**Queue status:** Task 1 ✅ DONE (`839320d`, map doodle) → Task 2 ✅ DONE (`654e176`, Patrol Schedule overhaul) → **Task 3 ✅ DONE (`f055d76`, manual per-patrol municipality override)**. Owner build queue is now **DRAINED** — next un-gated build is the owner-APPROVED "Include traversing patrols" map toggle (see below).
+**Queue status:** Task 1 ✅ DONE (`839320d`, map doodle) → Task 2 ✅ DONE (`654e176`, Patrol Schedule overhaul) → **Task 3 ✅ DONE (`f055d76`, manual per-patrol municipality override)**. Owner build queue is now **DRAINED**. "Include traversing patrols" toggle ✅ DONE 2026-07-16 (`086e8df`, see below). Next un-gated `[HOW]`: province-level traversing (single-municipality only for now).
 
 - ✅ **Task 2 — Patrol Schedule overhaul (commit `654e176`, LOCAL on `feat/app-showcase-page`).** Assignment
   dialog is now spatial + multi-ranger: freehand **map-draw planned track** (single GeoJSON LineString,
@@ -68,13 +68,27 @@
   so those launches read as Calapan, OR accept "start-in-Baco-water = Baco patrol." Attribution fix
   stands either way.
 
-**QUEUED — owner-APPROVED build (scope confirmed this session), deferred to build next:**
-- [ ] **"Include traversing patrols" toggle in MAP CONTROLS** — Command Center + Interactive Report
-  Map. Default OFF = start-attributed patrols only (the clean view). ON = ALSO overlay any patrol whose
-  track **enters the selected municipality's boundary (LAND ∪ WATER)** — foot + seaborne (owner chose
-  land-or-water over water-only). Backend: in-memory turf intersect over in-range candidate tracks
-  (tracks are JSON, not PostGIS) — no schema change; low risk at this scale. Patrols only (events
-  unaffected). Local/dev only under the deploy HARD HOLD.
+**✅ DONE 2026-07-16 (commit `086e8df`, LOCAL on `feat/app-showcase-page`) — "Include traversing patrols" toggle + coverage clipping + report page:**
+- ✅ **"Include traversing patrols" toggle** in the shared Command Center / Interactive Report Map controls
+  (shadcn `Switch`, disabled until a single municipality is selected). Default OFF = start-attributed
+  patrols only. ON = fold in patrols whose track enters the selected municipality's LAND ∪ WATER boundary
+  (in-memory turf, no schema change). Patrols only.
+- ✅ **Owner-refined semantics (count-out / coverage-in):** a patrol is COUNTED once, at its ORIGIN
+  municipality only — traversing patrols do NOT bump the selected municipality's count. Their CLIPPED
+  inside-municipality DISTANCE + (estimated, pro-rated) TIME ARE credited to every municipality they
+  traverse. Verified live (Baco: count stayed 3; coverage card `+1.2 km · +0h 04m est.`).
+- ✅ **De-jitter guard:** inside-distance is scaled by each patrol's CLEAN computed/total distance (bounded,
+  jitter-free), and patrols with NO clean distance (unprocessed/corrupt 1000+km GPS tracks) are EXCLUDED.
+  This fixed a real data-quality finding (Baco aggregate 180.9km→1.2km, implied pace 564km/h→~18km/h).
+  ⚠ Time-inside is ESTIMATED (tracks carry no per-point timestamps) — owner accepted.
+- ✅ **Report:** appended "Patrols Traversing <Municipality>" page in the Report-Map export (Started-In
+  origin municipality, distance/time inside, Foot/Seaborne/Total subtotals). Rendered PDF verified.
+- Files: `packages/shared/.../coverage-clip/clip-track-to-municipality.ts` (+tests, keystone) + `map.ts`
+  `patrolTracks.inRange` + `reportMap.ts` summary + `get-report-map-report-data.ts` + `report-map-report.tsx`
+  + `report-filter-{bar,context}.tsx` + `InteractiveMap.tsx` + `generate-printable-button.tsx`.
+  Gate: tsc 0, lint 0/0, shared 249 + web 1888 tests. Deploy HARD HOLD (LOCAL only, unpushed).
+- **FOLLOW-UP (next session, un-gated `[HOW]`):** province/multi-municipality traversing is NOT yet wired
+  (single-municipality only — documented `// NOTE:` in map.ts + reportMap.ts). Optional enhancement.
 
 ## 2026-07-10 — 3-tier tenant RBAC + tenant cleanup (session save / handover)
 
