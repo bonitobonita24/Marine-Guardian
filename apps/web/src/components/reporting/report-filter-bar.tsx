@@ -70,12 +70,14 @@ export function ReportFilterBar({
     municipalityId,
     province,
     includeChildren,
+    includeTraversing,
     protectedZoneId,
     terrain,
     setRange,
     setMunicipalityId,
     setProvince,
     setIncludeChildren,
+    setIncludeTraversing,
     setProtectedZoneId,
     setTerrain,
   } = useReportFilter();
@@ -386,6 +388,39 @@ export function ReportFilterBar({
           />
         </div>
       )}
+
+      {/* Include traversing patrols — folds in patrols that merely pass through
+          (but did not START in) the selected municipality. Only meaningful
+          for a SPECIFIC municipality (backend traversing computation is
+          single-municipality only) — disabled + hinted, not hidden, when a
+          province rollup or "all municipalities" is active, so the control's
+          presence doesn't jump around while its target is unavailable. */}
+      <div className={fieldClass}>
+        <Label
+          htmlFor="report-include-traversing"
+          className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+        >
+          Include traversing patrols
+        </Label>
+        <Switch
+          id="report-include-traversing"
+          data-testid="report-include-traversing"
+          checked={includeTraversing}
+          disabled={municipalityId === null}
+          onCheckedChange={setIncludeTraversing}
+          aria-label="Include traversing patrols — fold in patrols that pass through this municipality without starting here"
+        />
+        {municipalityId === null && (
+          <span
+            className={cn(
+              "text-[10px] text-muted-foreground",
+              stacked ? "" : "ml-1",
+            )}
+          >
+            Select a municipality to enable
+          </span>
+        )}
+      </div>
 
       {/* MPA scope — narrow events/patrols to a single protected zone (Apo Reef,
           Harka Piloto), scoped to the selected municipality. Hidden entirely

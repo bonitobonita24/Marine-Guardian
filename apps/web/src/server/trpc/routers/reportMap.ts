@@ -24,6 +24,7 @@ import { tenantProcedure } from "../middleware/tenant";
 import { matrixProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
 import { isInlineSafeImageAsset } from "@marine-guardian/shared/lib/asset-mime";
+import { clipTrackToMunicipality } from "@marine-guardian/shared/lib/coverage-clip";
 import { SERIOUS_EVENT_PATTERNS } from "@/components/map/eventMarkerStyle";
 import { pointsFromTrackGeojson } from "./map";
 import { buildEventsPatrolsSeries, dayKeyToLabel } from "./time-series-bucketing";
@@ -60,10 +61,150 @@ const reportFilterInput = z
     // into the report — typically offshore MPA rows with no exclusive
     // municipalityId. No-op when no municipality scope is set.
     includeChildren: z.boolean().optional(),
+    // Traversing-patrols toggle (2026-07-16): when true AND the report is
+    // scoped to exactly one municipality (`municipalityId` set — a province
+    // rollup does NOT qualify), the `summary` KPI totals additionally fold in
+    // the clipped in-boundary distance/hours of patrols that physically pass
+    // THROUGH this municipality without being attributed to it (attributed
+    // elsewhere, or unattributed). Patrol COUNT stays attributed-only — see
+    // `summary`'s doc comment for the full owner-locked semantics. No-op
+    // (ignored) for a province/multi-municipality scope — a follow-up.
+    includeTraversing: z.boolean().optional(),
   })
   .strict();
 
 type ReportFilterInput = z.infer<typeof reportFilterInput>;
+
+/** Cheap [minLon, minLat, maxLon, maxLat] bbox over an arbitrary GeoJSON
+ *  value (FeatureCollection / Feature / bare geometry, Polygon/MultiPolygon/
+ *  LineString/MultiLineString/Point/MultiPoint) — used ONLY to bbox-prefilter
+ *  candidate patrol tracks against a municipality's territory before paying
+ *  for the real `clipTrackToMunicipality` turf intersection. Returns null
+ *  when no numeric coordinate pair was found. Coordinates are [lon, lat]
+ *  (GeoJSON order). Local + private — mirrors the (also-local) coordinate
+ *  walkers in coverage-clip and get-report-map-report-data.ts; not worth a
+ *  shared export for a bbox-only prefilter. */
+function bboxOf(geojson: unknown): [number, number, number, number] | null {
+  let minLon = Number.POSITIVE_INFINITY;
+  let minLat = Number.POSITIVE_INFINITY;
+  let maxLon = Number.NEGATIVE_INFINITY;
+  let maxLat = Number.NEGATIVE_INFINITY;
+  const walkCoords = (node: unknown): void => {
+    if (!Array.isArray(node)) return;
+    if (node.length >= 2 && typeof node[0] === "number" && typeof node[1] === "number") {
+      const [lon, lat] = node as [number, number];
+      if (lon < minLon) minLon = lon;
+      if (lon > maxLon) maxLon = lon;
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+      return;
+    }
+    for (const child of node) walkCoords(child);
+  };
+  const visit = (node: unknown): void => {
+    if (typeof node !== "object" || node === null) return;
+    const n = node as {
+      coordinates?: unknown;
+      features?: unknown;
+      geometry?: unknown;
+      geometries?: unknown;
+    };
+    if (n.coordinates !== undefined) walkCoords(n.coordinates);
+    if (Array.isArray(n.features)) for (const f of n.features) visit(f);
+    if (n.geometry !== undefined) visit(n.geometry);
+    if (Array.isArray(n.geometries)) for (const g of n.geometries) visit(g);
+  };
+  visit(geojson);
+  return Number.isFinite(minLon) ? [minLon, minLat, maxLon, maxLat] : null;
+}
+
+/** True when two [minLon, minLat, maxLon, maxLat] bboxes overlap (or touch). */
+function bboxesOverlap(
+  a: [number, number, number, number],
+  b: [number, number, number, number],
+): boolean {
+  return a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
+}
+
+/**
+ * Sums the clipped in-boundary distance (km) and pro-rated hours of every
+ * in-window patrol track that TRAVERSES municipality `municipalityId` without
+ * being attributed to it (`patrol.municipalityId !== municipalityId` — this
+ * covers both "attributed to a neighboring municipality" and "unattributed").
+ * Bbox-prefiltered against the municipality's own bbox before the real
+ * `clipTrackToMunicipality` turf clip, so unrelated-region tracks are skipped
+ * cheaply. Returns `{ km: 0, hours: 0 }` when the municipality has no
+ * recorded geometry (nothing to clip against).
+ *
+ * Owner-locked semantics (2026-07-16): this NEVER adds to the patrol COUNT —
+ * only to the distance/hours coverage totals. See `summary`'s doc comment.
+ */
+async function sumTraversingCoverage(
+  tenantId: string,
+  input: ReportFilterInput,
+  municipalityId: string,
+): Promise<{ km: number; hours: number }> {
+  const muni = await prisma.municipality.findUnique({
+    where: { id: municipalityId },
+    select: { boundaryGeojson: true, waterGeojson: true },
+  });
+  if (muni === null) return { km: 0, hours: 0 };
+
+  const muniBbox =
+    bboxOf(muni.waterGeojson ?? muni.boundaryGeojson) ?? bboxOf(muni.boundaryGeojson);
+
+  const startTime: { gte?: Date; lte?: Date } = {};
+  if (input.from) startTime.gte = input.from;
+  if (input.to) startTime.lte = input.to;
+
+  const trackRows = await prisma.patrolTrack.findMany({
+    where: {
+      tenantId,
+      patrol: {
+        tenantId,
+        isDeleted: false,
+        isTestPatrol: false,
+        ...(startTime.gte !== undefined || startTime.lte !== undefined
+          ? { startTime }
+          : {}),
+        municipalityId: { not: municipalityId },
+      },
+    },
+    select: {
+      trackGeojson: true,
+      patrol: {
+        select: {
+          totalHours: true,
+          computedDurationHours: true,
+          computedDistanceKm: true,
+          totalDistanceKm: true,
+        },
+      },
+    },
+  });
+
+  let km = 0;
+  let hours = 0;
+  for (const row of trackRows) {
+    if (muniBbox !== null) {
+      const trackBbox = bboxOf(row.trackGeojson);
+      if (trackBbox !== null && !bboxesOverlap(trackBbox, muniBbox)) continue;
+    }
+    const totalHours = row.patrol.computedDurationHours ?? row.patrol.totalHours ?? 0;
+    const clip = clipTrackToMunicipality(
+      row.trackGeojson,
+      { landGeojson: muni.boundaryGeojson, waterGeojson: muni.waterGeojson ?? undefined },
+      totalHours,
+      row.patrol.computedDistanceKm ?? row.patrol.totalDistanceKm ?? null,
+    );
+    if (clip.traverses) {
+      km += clip.insideKm;
+      hours += clip.insideHoursEst;
+    }
+  }
+
+  return { km, hours };
+}
 
 /**
  * Event where-clause shared by every report aggregation: tenant-scoped, Skylight
@@ -365,6 +506,22 @@ function dayKey(d: Date): string {
 }
 
 export const reportMapRouter = router({
+  /**
+   * KPI totals for the Report Map summary tiles. `totalPatrols` is (and always
+   * has been) ATTRIBUTED-only — a patrol counts once, at its origin
+   * municipality — and that never changes.
+   *
+   * `totalDistanceKm` / `totalHours` are the attributed patrols' coalesced
+   * (computed-preferred, ER-fallback) distance/hours sum. When
+   * `includeTraversing` is true AND the report is scoped to exactly ONE
+   * municipality (`municipalityId` set — a province rollup does not qualify,
+   * see `sumTraversingCoverage`'s doc), these two totals ALSO fold in the
+   * clipped in-boundary distance/hours of patrols that traverse this
+   * municipality without being attributed to it — owner-locked semantics
+   * (2026-07-16): a traversing patrol's COVERAGE counts toward every
+   * municipality it crosses, but the patrol itself is COUNTED only at its
+   * origin. `totalPatrols` is therefore left untouched by the toggle.
+   */
   summary: matrixProcedure(tenantProcedure, "exports", "view")
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
@@ -374,7 +531,8 @@ export const reportMapRouter = router({
           ? await resolveChildZoneIds(ctx.tenantId, municipalityIds)
           : undefined;
       const baseEvent = eventWhere(ctx.tenantId, input, municipalityIds, childZoneIds);
-      const [totalEvents, lawEnforcementEvents, monitoringEvents, totalPatrols] =
+      const basePatrolWhere = patrolWhere(ctx.tenantId, input, municipalityIds, childZoneIds);
+      const [totalEvents, lawEnforcementEvents, monitoringEvents, totalPatrols, attributedPatrolTotals] =
         await Promise.all([
           prisma.event.count({ where: baseEvent }),
           prisma.event.count({
@@ -383,16 +541,49 @@ export const reportMapRouter = router({
           prisma.event.count({
             where: { ...baseEvent, eventType: { category: MONITORING_CATEGORY } },
           }),
-          prisma.patrol.count({
-            where: patrolWhere(ctx.tenantId, input, municipalityIds, childZoneIds),
+          prisma.patrol.count({ where: basePatrolWhere }),
+          // Distance/hours totals — a second, narrow read (count() cannot
+          // aggregate the computed-preferred/ER-fallback coalesce below), same
+          // where clause as the count above.
+          prisma.patrol.findMany({
+            where: basePatrolWhere,
+            select: {
+              totalDistanceKm: true,
+              computedDistanceKm: true,
+              totalHours: true,
+              computedDurationHours: true,
+            },
           }),
         ]);
+
+      let totalDistanceKm = 0;
+      let totalHours = 0;
+      for (const p of attributedPatrolTotals) {
+        totalDistanceKm += p.computedDistanceKm ?? p.totalDistanceKm ?? 0;
+        totalHours += p.computedDurationHours ?? p.totalHours ?? 0;
+      }
+
+      // Traversing-patrols fold-in — single-municipality scope only (province
+      // / multi-municipality rollups keep the attributed-only totals; a
+      // multi-boundary traversing clip is a follow-up, see reportFilterInput
+      // doc comment).
+      if (input.includeTraversing === true && input.municipalityId !== undefined) {
+        const traversing = await sumTraversingCoverage(
+          ctx.tenantId,
+          input,
+          input.municipalityId,
+        );
+        totalDistanceKm += traversing.km;
+        totalHours += traversing.hours;
+      }
 
       return {
         totalEvents,
         totalPatrols,
         lawEnforcementEvents,
         monitoringEvents,
+        totalDistanceKm,
+        totalHours,
       };
     }),
 

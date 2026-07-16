@@ -48,6 +48,14 @@ export type ReportFilter = {
    * selection.
    */
   includeChildren: boolean;
+  /**
+   * When a specific municipality is selected, also include patrols that
+   * merely TRAVERSE (pass through, without starting in) that municipality.
+   * Default false. Meaningless (and always cleared) outside a
+   * specific-municipality selection — backend traversing computation is
+   * single-municipality only.
+   */
+  includeTraversing: boolean;
   /** Active MPA (protected-zone) scope filter; null = all zones. */
   protectedZoneId: string | null;
   /**
@@ -64,6 +72,8 @@ export type ReportFilter = {
   setProvince: (next: string | null) => void;
   /** Set (or clear) whether child boundaries are folded into the scope. */
   setIncludeChildren: (next: boolean) => void;
+  /** Set (or clear) whether traversing patrols are folded into the scope. */
+  setIncludeTraversing: (next: boolean) => void;
   /** Set (or clear, with null) the active MPA scope. */
   setProtectedZoneId: (next: string | null) => void;
   /** Set (or clear, with null) the active terrain filter. */
@@ -81,6 +91,8 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
   const [municipalityId, setMunicipalityIdState] = useState<string | null>(null);
   const [province, setProvinceState] = useState<string | null>(null);
   const [includeChildren, setIncludeChildrenState] = useState<boolean>(false);
+  const [includeTraversing, setIncludeTraversingState] =
+    useState<boolean>(false);
   const [protectedZoneId, setProtectedZoneIdState] = useState<string | null>(
     null,
   );
@@ -93,21 +105,33 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
 
   const setMunicipalityId = useCallback((next: string | null) => {
     setMunicipalityIdState(next);
-    // Clearing back to "all municipalities" hides the include-children
-    // toggle — never let a stale ON silently keep applying once hidden.
-    if (next === null) setIncludeChildrenState(false);
+    // Clearing back to "all municipalities" hides the include-children /
+    // include-traversing toggles — never let a stale ON silently keep
+    // applying once hidden.
+    if (next === null) {
+      setIncludeChildrenState(false);
+      setIncludeTraversingState(false);
+    }
   }, []);
 
   const setProvince = useCallback((next: string | null) => {
     setProvinceState(next);
     // A province rollup is mutually exclusive with a specific-municipality
-    // selection (see handleProvinceChange) — the include-children toggle is
-    // only meaningful for a specific municipality, so clear it here too.
-    if (next !== null) setIncludeChildrenState(false);
+    // selection (see handleProvinceChange) — the include-children /
+    // include-traversing toggles are only meaningful for a specific
+    // municipality, so clear them here too.
+    if (next !== null) {
+      setIncludeChildrenState(false);
+      setIncludeTraversingState(false);
+    }
   }, []);
 
   const setIncludeChildren = useCallback((next: boolean) => {
     setIncludeChildrenState(next);
+  }, []);
+
+  const setIncludeTraversing = useCallback((next: boolean) => {
+    setIncludeTraversingState(next);
   }, []);
 
   const setProtectedZoneId = useCallback((next: string | null) => {
@@ -125,6 +149,7 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
     setMunicipalityIdState(null);
     setProvinceState(null);
     setIncludeChildrenState(false);
+    setIncludeTraversingState(false);
     setProtectedZoneIdState(null);
     setTerrainState(null);
   }, []);
@@ -136,12 +161,14 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
       municipalityId,
       province,
       includeChildren,
+      includeTraversing,
       protectedZoneId,
       terrain,
       setRange,
       setMunicipalityId,
       setProvince,
       setIncludeChildren,
+      setIncludeTraversing,
       setProtectedZoneId,
       setTerrain,
       resetRange,
@@ -152,12 +179,14 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
       municipalityId,
       province,
       includeChildren,
+      includeTraversing,
       protectedZoneId,
       terrain,
       setRange,
       setMunicipalityId,
       setProvince,
       setIncludeChildren,
+      setIncludeTraversing,
       setProtectedZoneId,
       setTerrain,
       resetRange,

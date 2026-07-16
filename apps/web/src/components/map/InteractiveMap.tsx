@@ -57,6 +57,18 @@ import { AlertTriangle, Flag, FlagTriangleRight, Pencil } from "lucide-react";
 const DEFAULT_CENTER: [number, number] = [121.5, 13.0];
 const DEFAULT_ZOOM = 6;
 
+/** "Xh YYm" duration string for the traversing-coverage summary line, or "—"
+ *  when the figure is unavailable. Mirrors formatPatrolHours in
+ *  patrol-list-by-range-card.tsx (kept local — this is a shared/, not app/,
+ *  component). */
+function formatCoverageHours(hours: number): string {
+  if (!Number.isFinite(hours)) return "—";
+  const totalMin = Math.round(hours * 60);
+  const hr = Math.floor(totalMin / 60);
+  const min = totalMin % 60;
+  return `${String(hr)}h ${String(min).padStart(2, "0")}m`;
+}
+
 // Event pins stay small when zoomed out; the small image-preview thumbnail
 // (for events that have a photo) only appears once zoomed in past this level.
 const PIN_PREVIEW_ZOOM = 11.5;
@@ -166,6 +178,15 @@ type InteractiveMapProps = {
    *  that municipality's child protected zones (MPA/hotspot/custom) are
    *  folded in alongside the municipality's own directly-attributed rows. */
   includeChildren?: boolean;
+  /** Optional "include traversing patrols" toggle (Interactive Report Map).
+   *  When true (and the report is scoped to a single municipality, in
+   *  `inRange` track mode), patrols that merely TRAVERSE that municipality
+   *  (pass through without starting there) are folded into the returned
+   *  track set alongside the municipality's directly-attributed
+   *  ("started here") patrols — each returned track carries `attributed` /
+   *  `traversing` / `insideKm` / `insideHoursEst` so the caller can tell
+   *  them apart and render the clipped coverage. */
+  includeTraversing?: boolean;
   /**
    * Patrol-track overlay source (2026-06-27):
    *   "active"  (default) — most-recent patrols' tracks, live (Command Center /
@@ -259,6 +280,7 @@ export function InteractiveMap({
   protectedZoneId,
   province,
   includeChildren,
+  includeTraversing,
   trackMode = "active",
   displayMode: initialDisplayMode = "dots",
   defaultEventLayers,
@@ -332,6 +354,7 @@ export function InteractiveMap({
       ...(protectedZoneId !== undefined ? { protectedZoneId } : {}),
       ...(province !== undefined ? { province } : {}),
       ...(includeChildren !== undefined ? { includeChildren } : {}),
+      ...(includeTraversing !== undefined ? { includeTraversing } : {}),
     },
     { enabled: useInRangeTracks },
   );
@@ -404,6 +427,34 @@ export function InteractiveMap({
       ),
     [tracksData, showTracks, trackVisibility],
   );
+
+  // Traversing coverage (2026-07-16): when includeTraversing is on, sum the
+  // clipped in-municipality distance/time of every returned track flagged
+  // `traversing` (passes THROUGH the selected municipality without starting
+  // there). Summed over ALL returned tracks (not just toggle-visible ones —
+  // this is a coverage total, independent of which patrol-type lines are
+  // currently shown), and deliberately excluded from the existing
+  // "started here" / attributed patrol count elsewhere on the page — a
+  // traversing patrol is coverage, not a patrol counted as based here.
+  const traversingCoverage = useMemo(() => {
+    // Only the `inRange` query's response carries attributed/traversing/
+    // insideKm/insideHoursEst — read directly from it (not the merged
+    // `tracksData`, whose type unions with the `active` query's plain shape
+    // and would lose these fields).
+    if (includeTraversing !== true || !useInRangeTracks) return null;
+    const tracks = inRangeTracksQuery.data?.tracks ?? [];
+    let km = 0;
+    let hours = 0;
+    let count = 0;
+    for (const t of tracks) {
+      if (!t.traversing) continue;
+      km += t.insideKm;
+      hours += t.insideHoursEst;
+      count += 1;
+    }
+    if (count === 0) return null;
+    return { km, hours, count };
+  }, [includeTraversing, useInRangeTracks, inRangeTracksQuery.data]);
 
   // Selected-patrol track isolation (2026-07-03): while a patrol is selected
   // via the CONTROLLED prop (Report Map list / track click), the all-tracks
@@ -760,6 +811,21 @@ export function InteractiveMap({
                 }
               : {})}
           />
+          {/* Traversing coverage summary (2026-07-16) — shown only while
+              includeTraversing is on AND at least one traversing track was
+              returned. Deliberately separate from the "started here" patrol
+              count elsewhere on the page: this is COVERAGE (clipped
+              distance/time of patrols passing through, not based in, the
+              selected municipality), never folded into a patrol count. */}
+          {traversingCoverage !== null && (
+            <div
+              data-testid="traversing-coverage-summary"
+              className="mt-2 rounded-md border border-border bg-card/95 px-2.5 py-1.5 text-[10px] text-muted-foreground shadow-sm backdrop-blur"
+            >
+              Traversing coverage: +{traversingCoverage.km.toFixed(1)} km ·{" "}
+              +{formatCoverageHours(traversingCoverage.hours)} hrs (est.)
+            </div>
+          )}
         </div>
       )}
       {/* Upper-right floating overlay (Report Map: selected-patrol detail

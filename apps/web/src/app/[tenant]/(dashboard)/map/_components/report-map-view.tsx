@@ -75,8 +75,16 @@ function rangeLabelWithYear(from: Date, to: Date): string {
 }
 
 function ReportMapInner() {
-  const { from, to, municipalityId, protectedZoneId, terrain, province, includeChildren } =
-    useReportFilter();
+  const {
+    from,
+    to,
+    municipalityId,
+    protectedZoneId,
+    terrain,
+    province,
+    includeChildren,
+    includeTraversing,
+  } = useReportFilter();
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
   // "Locate on map" from the High Priority Events list: fly the map to the
@@ -103,6 +111,7 @@ function ReportMapInner() {
     ...(terrain !== null ? { terrain } : {}),
     ...(province !== null ? { province } : {}),
     ...(includeChildren ? { includeChildren } : {}),
+    ...(includeTraversing ? { includeTraversing } : {}),
   };
 
   // eventBreakdownWithCoords (not the lean eventBreakdown) — the Report Map
@@ -306,6 +315,7 @@ function ReportMapInner() {
           {...(protectedZoneId !== null ? { protectedZoneId } : {})}
           {...(province !== null ? { province } : {})}
           {...(includeChildren ? { includeChildren } : {})}
+          {...(includeTraversing ? { includeTraversing } : {})}
           trackMode="inRange"
           defaultEventLayers={{ lawEnforcement: true, monitoring: true }}
           hidePatrolSelector

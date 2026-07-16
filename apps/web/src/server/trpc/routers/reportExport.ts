@@ -67,6 +67,12 @@ interface ReportExportParams {
    * municipalityName (which is derived from municipalityId/province only).
    */
   includeChildren?: boolean;
+  /**
+   * Optional "include traversing patrols" toggle — carried through verbatim
+   * from paramsJson; does not affect the summary municipalityName (which is
+   * derived from municipalityId/province only).
+   */
+  includeTraversing?: boolean;
   protectedZoneId?: string;
   areaBoundaryId?: string;
   from?: string;

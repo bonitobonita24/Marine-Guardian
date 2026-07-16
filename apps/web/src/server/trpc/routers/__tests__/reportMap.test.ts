@@ -74,6 +74,7 @@ describe("reportMap.summary", () => {
       .mockResolvedValueOnce(12 as any)
       .mockResolvedValueOnce(25 as any);
     vi.mocked(prisma.patrol.count).mockResolvedValue(7 as any);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([]);
 
     const from = new Date("2026-06-01");
     const to = new Date("2026-06-27");
@@ -85,6 +86,8 @@ describe("reportMap.summary", () => {
       totalPatrols: 7,
       lawEnforcementEvents: 12,
       monitoringEvents: 25,
+      totalDistanceKm: 0,
+      totalHours: 0,
     });
 
     const totalEventsWhere = vi.mocked(prisma.event.count).mock.calls[0]?.[0]?.where;
@@ -111,6 +114,7 @@ describe("reportMap.summary", () => {
   it("omits range + municipality from where clauses when not provided", async () => {
     vi.mocked(prisma.event.count).mockResolvedValue(0 as any);
     vi.mocked(prisma.patrol.count).mockResolvedValue(0 as any);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([]);
 
     const caller = createCaller(makeCtx());
     await caller.summary({});
@@ -210,6 +214,7 @@ describe("reportMap province rollup filter", () => {
     ] as any);
     vi.mocked(prisma.event.count).mockResolvedValue(0 as any);
     vi.mocked(prisma.patrol.count).mockResolvedValue(0 as any);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([]);
 
     const caller = createCaller(makeCtx());
     await caller.summary({ province: "Palawan" });
@@ -290,6 +295,7 @@ describe("reportMap includeChildren (Phase 4B — include child boundaries)", ()
     ] as any);
     vi.mocked(prisma.event.count).mockResolvedValue(0 as any);
     vi.mocked(prisma.patrol.count).mockResolvedValue(0 as any);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([]);
 
     const caller = createCaller(makeCtx());
     await caller.summary({ municipalityId: "muni-1", includeChildren: true });

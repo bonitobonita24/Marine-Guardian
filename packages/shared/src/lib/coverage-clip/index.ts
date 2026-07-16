@@ -4,6 +4,11 @@
 
 export { clipTrackToBoundary } from "./clip-track-to-boundary";
 export type { ClipResult } from "./clip-track-to-boundary";
+export { clipTrackToMunicipality } from "./clip-track-to-municipality";
+export type {
+  MunicipalityGeometry,
+  TrackMunicipalityClip,
+} from "./clip-track-to-municipality";
 export { computeCoverageHours } from "./compute-coverage-hours";
 export type { CoverageHoursResult } from "./compute-coverage-hours";
 export { accumulateCoverageByBoundary } from "./accumulate-coverage-by-boundary";

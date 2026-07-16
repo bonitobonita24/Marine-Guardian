@@ -80,6 +80,7 @@ import type {
   ReportMapEventDetail,
   ReportMapExportMode,
   ReportMapReportData,
+  TraversingPatrolsData,
 } from "@/server/report-map-report/get-report-map-report-data";
 import { colorForEventType } from "@/lib/event-type-color";
 import {
@@ -174,6 +175,7 @@ const REPORT_MAP_SECTION_TITLES = {
   patrolList: "Patrol Tracks",
   patrolHeatmap: "Patrol Tracks Heatmap",
   eventsOverTime: "Events Over Time",
+  traversingPatrols: "Traversing Patrols",
 } as const;
 
 interface HeaderProps {
@@ -513,6 +515,75 @@ function fmtDateTimeLocal2(d: Date | null): string {
   return d === null ? "—" : fmtDateTimeLocal(d);
 }
 
+// ─── Traversing patrols — appended page (2026-07-16) ──────────────────────────
+// Renders `data.traversingPatrols` (see get-report-map-report-data.ts) as its
+// own dedicated portrait list page, ONLY when the dataset is present and has
+// at least one row — otherwise the whole page is omitted (see `hasTraversing`
+// in the main component below). Mirrors FullPatrolTable's table structure/
+// styling; reuses fmtPatrolType/fmtDistKm/fmtHours already defined above so
+// the numbers read identically to every other patrol figure in this report.
+
+interface TraversingPatrolsTableProps {
+  data: TraversingPatrolsData;
+  caption: string;
+}
+
+function TraversingPatrolsTable({ data, caption }: TraversingPatrolsTableProps) {
+  if (data.rows.length === 0) return null;
+  return (
+    <table className="report-table full-table traversing-table">
+      <caption className="sr-only">{caption}</caption>
+      <thead>
+        <tr>
+          <th scope="col">Patrol</th>
+          <th scope="col">Type</th>
+          <th scope="col">Started In</th>
+          <th scope="col">Distance Inside</th>
+          <th scope="col">Time Inside (est.)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {data.rows.map((r) => (
+          <tr key={r.patrolId}>
+            <td>{r.title ?? r.patrolId.slice(0, 8)}</td>
+            <td>{fmtPatrolType(r.patrolType)}</td>
+            <td>{r.startMunicipalityName}</td>
+            <td>{fmtDistKm(r.insideKm)}</td>
+            <td>{fmtHours(r.insideHoursEst)}</td>
+          </tr>
+        ))}
+      </tbody>
+      <tfoot>
+        <tr>
+          <th scope="row">
+            Foot Subtotal ({data.foot.count.toLocaleString()})
+          </th>
+          <td>—</td>
+          <td>—</td>
+          <td>{fmtDistKm(data.foot.insideKm)}</td>
+          <td>{fmtHours(data.foot.insideHoursEst)}</td>
+        </tr>
+        <tr>
+          <th scope="row">
+            Seaborne Subtotal ({data.seaborne.count.toLocaleString()})
+          </th>
+          <td>—</td>
+          <td>—</td>
+          <td>{fmtDistKm(data.seaborne.insideKm)}</td>
+          <td>{fmtHours(data.seaborne.insideHoursEst)}</td>
+        </tr>
+        <tr className="total-row">
+          <th scope="row">Total ({data.total.count.toLocaleString()})</th>
+          <td>—</td>
+          <td>—</td>
+          <td>{fmtDistKm(data.total.insideKm)}</td>
+          <td>{fmtHours(data.total.insideHoursEst)}</td>
+        </tr>
+      </tfoot>
+    </table>
+  );
+}
+
 // ─── WCAG map text-alternative (table with caption + scope) ───────────────────
 
 interface MapAltTableProps {
@@ -660,6 +731,15 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
   const { showCharts, showLists, mapIslandCount, totalPages, listPageOffset } =
     resolveReportMapExportSections(data.exportMode);
 
+  // Traversing-patrols appended page (2026-07-16) — only rendered when the
+  // loader populated the dataset AND it has at least one row (see
+  // get-report-map-report-data.ts's `traversingPatrols` doc). Adds exactly
+  // one page at the very END of the document, after every other section, so
+  // it never disturbs the existing chart/list page numbering above it.
+  const hasTraversing =
+    data.traversingPatrols !== undefined && data.traversingPatrols.rows.length > 0;
+  const totalPagesFinal = totalPages + (hasTraversing ? 1 : 0);
+
   const headerProps: HeaderProps = {
     municipalLogoDataUri: data.template.municipalLogoDataUri,
     partnerLogoDataUri: data.template.partnerLogoDataUri,
@@ -671,7 +751,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
   const footerBase = {
     footerNotes: data.template.footerNotes,
     generatedAt,
-    totalPages,
+    totalPages: totalPagesFinal,
   };
 
   // Adapt ReportMapEventBreakdownRow → EventTypeBreakdownRow for EventBreakdownChart.
@@ -942,6 +1022,20 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
     .patrol-subheading { font-size: 11px; font-weight: 600; color: #374151; margin: 8px 0 3px; }
     .patrol-tracks-block, .patrol-heatmap-block { position: relative; width: 100%; height: 235px; margin-top: 6px; }
     .patrol-tracks-block figure, .patrol-heatmap-block figure { width: 100%; height: 100%; }
+    /* Traversing Patrols appended page (2026-07-16) — subtotal/total rows
+       styled like coverage-report.tsx's tfoot (bold + top border), with the
+       Total row bumped to a heavier border/weight (mirrors
+       .total-patrols-table tfoot) so it reads as the grand total. */
+    p.traversing-note { font-size: 10px; color: #6b7280; margin: 4px 0 10px; font-style: italic; }
+    table.report-table.traversing-table tfoot th,
+    table.report-table.traversing-table tfoot td {
+      border-top: 2px solid #d1d5db; font-weight: 600;
+      background: #f3f4f6 !important; color: #111 !important;
+    }
+    table.report-table.traversing-table tfoot tr.total-row th,
+    table.report-table.traversing-table tfoot tr.total-row td {
+      border-top: 2px solid #111; font-weight: 700;
+    }
   `;
 
   return (
@@ -1468,6 +1562,41 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
             eventTypeColumns={data.eventTypeColumns}
           />
           <PageFooter {...footerBase} pageNum={listPageOffset + 4} />
+        </section>
+        )}
+
+        {/* ── Traversing Patrols — appended page (2026-07-16) ─────────────
+            Portrait list page, always the LAST page of the document — only
+            rendered when data.traversingPatrols has at least one row (see
+            hasTraversing above). Independent of showCharts/showLists: a
+            traversing patrol's coverage is a report-level appendix, not
+            part of either export-mode group. */}
+        {hasTraversing && data.traversingPatrols !== undefined && (
+        <section
+          className="report-section-list"
+          data-testid="section-traversing-patrols"
+        >
+          <PageHeader
+            {...headerProps}
+            reportTitle={REPORT_MAP_SECTION_TITLES.traversingPatrols}
+          />
+          <h2 className="section-heading">
+            Patrols Traversing {data.municipalityName ?? "This Municipality"}
+            <span className="total-badge">
+              {data.traversingPatrols.total.count.toLocaleString()}
+            </span>
+          </h2>
+          <p className="traversing-note">
+            These patrols started in another municipality and are counted
+            there, not here. Distance and time shown are only the portion
+            inside this municipality; time is estimated (proportional to
+            distance).
+          </p>
+          <TraversingPatrolsTable
+            data={data.traversingPatrols}
+            caption={`Patrols traversing ${data.municipalityName ?? "this municipality"}`}
+          />
+          <PageFooter {...footerBase} pageNum={totalPagesFinal} />
         </section>
         )}
 
