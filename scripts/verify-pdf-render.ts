@@ -148,9 +148,10 @@ async function main(): Promise<void> {
     `[verify-pdf-render] tenantId=${tenantId} reportType=${reportTypeArg} paperSize=${paperSizeArg} timeout=${timeoutMs}ms`,
   );
 
-  // Resolve a real super_admin userId (worker validates requestedByUserId FK)
+  // Resolve a real tenant-owner userId (worker validates requestedByUserId FK).
+  // NOTE: role literal is "tenant_superadmin" post 3-tier-RBAC rename (was "super_admin").
   const superAdmin = await platformPrisma.user.findFirst({
-    where: { role: "super_admin", isActive: true },
+    where: { role: "tenant_superadmin", isActive: true },
     select: { id: true },
   });
   if (!superAdmin) {
