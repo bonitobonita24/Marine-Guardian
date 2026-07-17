@@ -287,7 +287,11 @@ Step 4 — .cline/tasks/ — 8 separate task files (NEW V14 — one per Phase 4 
                 DO NOT hardcode any password here. DO NOT invent a password. Read it from CREDENTIALS.md.
                 Command to generate (run in terminal — never guess): openssl rand -base64 32 | tr -d '\n' | head -c 22
                 bcrypt hash the plaintext value before writing to seed script — never store plaintext in code.
-      role: super_admin (or highest role declared in PRODUCT.md Roles section)
+      role: for a TENANT-BASED app (V32.25 Tenant RBAC Standard · Rule 34) this account is the
+            tenant owner → role tenant_superadmin (exactly ONE per tenant, DB-enforced). The seed
+            also defaults tenant_manager (universal platform account, tenant_id null) + tenant_admin
+            (delegated). For a non-tenant app: highest role declared in PRODUCT.md Roles section.
+            See .ai_prompt/rbac.md + templates.md seed/.env cred-key templates.
       email: webmaster@${APP_SLUG}.local (or ask human for real email)
     This account exists in ALL environments (dev, staging, prod).
     The plaintext password is stored ONLY in CREDENTIALS.md under "First Admin Account".

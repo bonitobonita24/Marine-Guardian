@@ -340,6 +340,15 @@ If any item fails → ask the specific missing question before writing.
 
 If any item is blank or vague → ask about it specifically before writing PRODUCT.md.
 
+**Confidence gate (harvest 2026-07-11, from `addyosmani/agent-skills` interview-me):** the checklist
+above is not just a box-tick — it is a **~95%-confidence threshold**. Do NOT proceed to writing
+PRODUCT.md until you are ~95% confident you have captured what the user *actually* wants for every
+required section — not what they think they *should* say. If confidence is below that bar on any
+section, keep asking **targeted one-at-a-time follow-ups** (per Rule 7 pacing) until it clears. It is
+always cheaper to extract the real requirement now, in the interview, than to discover the gap after
+Phase 3 has locked the architecture. Extracting the true ask — surfacing the unspoken need behind the
+stated one — is the whole job of the interview.
+
 ### Rule 6 — Translate technical questions into plain English
 
 Never ask: "what are your JWT field names?" or "do you need a DLQ?"

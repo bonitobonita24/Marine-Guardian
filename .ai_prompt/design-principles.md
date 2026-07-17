@@ -95,6 +95,28 @@ description: Library-agnostic UI/UX design-principles reference. Read on-demand 
 - Collapse column grids aggressively on mobile — most 3–4 column grids become 1–2 at 360px.
 - Use container queries when a component must adapt to its own size, not the viewport.
 
+**Content container & responsive gutter (structural DEFAULT — never full-bleed dense content):**
+
+Readable / dense content (admin panels, dashboards, forms, data tables, settings, reading columns) must **never bleed to the raw viewport edge with no side gutter**, and must **never touch the screen edge on any breakpoint — mobile included**. Wrap the page content region in a centered container that does TWO co-equal things:
+
+1. **Mobile-first safe gutter (always present, never 0).** A comfortable minimum horizontal inset at the smallest screens that scales up per breakpoint — content never touches the phone's edges. The standard responsive gutter scale, mobile-first: `px-4` (~16px, the minimum safe gutter, ALWAYS present) → `sm:px-6` (~24px) → `lg:px-8` (~32px).
+2. **Max-width cap.** Content centers and stops growing at ~1280px so wide monitors get side gutters too instead of a full-bleed sheet: `mx-auto max-w-7xl`.
+
+Default (Tailwind): `mx-auto max-w-7xl px-4 sm:px-6 lg:px-8`. At a 1600px viewport this yields ~160px gutters each side; at 360px it still holds a 16px inset per edge. A full-width bar (top nav, app header, section background) may still span the viewport — apply the container to the *content inside* it, not the bar. **Rationale:** full-bleed dense content on wide monitors has no visual frame or measure and reads as unfinished; zero horizontal padding on a phone crams content against the glass — a centered max-width container plus an always-present responsive gutter gives a comfortable measure and a finished frame at every size.
+
+**Exemption — intentionally immersive / full-bleed surfaces stay edge-to-edge.** This caps READABLE content, NOT everything. Do not apply it to surfaces deliberately designed to fill the viewport: kiosk screens, wall / big-display screens, full-bleed hero / marketing sections, maps and canvases, or any surface PRODUCT.md / DESIGN.md calls out as edge-to-edge.
+
+INHERIT-not-REPLACE: `max-w-7xl` (~1280px) is the structural default; if docs/DESIGN.md sets a different content measure, the design system's value wins. (Global companion: `~/.claude/rules/design-defaults.md` Entry 1 — same default, applied to ANY UI at any seat.)
+
+**Layout archetype — pick the shell by what the app IS (structural DEFAULT):**
+
+The whole page shell follows the product's nature; there are TWO archetypes:
+
+1. **Marketing / brand website or webapp → FULL-WIDTH.** Landing pages, brand sites, product-marketing and campaign pages use a full-bleed / full-width immersive layout — hero bands and sections may span the entire viewport edge-to-edge on purpose. (Still honors the container/gutter default above for the *readable copy inside* a full-bleed band.)
+2. **General-purpose / purpose-driven app → PERSISTENT LEFT-SIDEBAR APP-SHELL.** Dashboards, admin panels, tools, back-office, consoles — any functional/purpose-driven app — put primary navigation in an ALWAYS-AVAILABLE left sidebar (collapsible via a hamburger/rail toggle, off-canvas on mobile) with the dynamic content in the large right area. This is the DEFAULT for any multi-section functional app: do NOT scatter primary nav across a top header-tab strip. Mobile-friendliness is intrinsic (the sidebar collapses to an off-canvas sheet so content gets full width on small screens). A single-purpose focused-work console (operator / serve / point-of-work screen) may run the sidebar in a minimal collapsed-by-default **icon-rail** so the worker keeps maximum working area — nav stays available but never dominates. **Framework build:** use the shadcn/ui `sidebar` component (our only UI system) — `SidebarProvider` + `Sidebar` (collapsible) + `SidebarTrigger` (hamburger) + `SidebarInset` for content; content inside the inset still uses the container/gutter default above.
+
+**Exemption — immersive / edge-to-edge, NO app-shell:** kiosk screens, wall / big-display screens, and public marketing / landing / auth pages. Those are archetype 1 or intentionally immersive — do not force a sidebar app-shell onto them. INHERIT-not-REPLACE: docs/DESIGN.md / PRODUCT.md may override the archetype (or specifics) for a given surface and wins. (Global companion: `~/.claude/rules/design-defaults.md` Entry 2 — same archetype rule at any seat.)
+
 **Agent rules — DO:**
 - Use spacing to group before using borders — whitespace is cheaper and cleaner.
 - Keep all spacing values on the 4-point grid; never use arbitrary pixel values.
@@ -340,9 +362,9 @@ DESIGN.md decides how each LOOKS; this contract decides which must EXIST. WCAG 2
 
 ---
 
-## Pillar 8 — Anti-AI-Slop (the seven cardinal sins)
+## Pillar 8 — Anti-AI-Slop (cardinal sins + extended tells)
 
-Concrete tells that separate "shipped by a designer" from "default LLM output." Surfaced by `scripts/lint-design.sh` (D1–D7), which runs `--report-only` at the design phases (3.3 / Parts 5-6 / Phase 5) — advisory, for agent self-correction, not a hard block.
+Concrete tells that separate "shipped by a designer" from "default LLM output." Surfaced by `scripts/lint-design.sh` (D1–D8 P0 + P1a–P1i advisory), which runs `--report-only` at the design phases (3.3 / Parts 5-6 / Phase 5) — advisory, for agent self-correction, not a hard block.
 
 1. Default Tailwind indigo/violet as accent — use `var(--accent)`.
 2. Two-stop purple/blue/cyan "trust" gradient on the hero — flat surface + type beats it.
@@ -351,11 +373,22 @@ Concrete tells that separate "shipped by a designer" from "default LLM output." 
 5. Rounded card + coloured left-border (the "AI dashboard tile") — drop one.
 6. Invented metrics ("10× faster", "99.9% uptime") — real source or labelled placeholder.
 7. Filler copy (lorem ipsum, "feature one/two/three") — solve emptiness with composition.
+8. Gradient / clip-to-text fill on headings or metrics — use a solid `var(--*)` colour.
 
 **Add soul without breaking rules:** one deliberate accent moment, real content, an authored type hierarchy, asymmetry where the grid earns it. (Guidance — not auto-checked.)
 
+**Extended slop tells (judgment — reviewer-flagged, not all auto-checked):**
+
+- *Visual:* nested cards (flatten with spacing/dividers); cream/beige default surface (fine only if a deliberate DESIGN.md choice — never auto-failed); dark-mode glowing box-shadows; hairline border paired with a wide diffuse shadow (commit to one); icon-tile stacked above a heading (the universal AI feature-card — try side-by-side); side-tab/border accent on a rounded card.
+- *Type:* single font for the whole page (pair a display + body face); overused face (Inter/Geist/Plus Jakarta/Space Grotesk/Fraunces); flat type hierarchy (aim ≥1.25 step ratio); oversized full-sentence hero headline.
+- *Motion:* layout-property animation (animate transform/opacity — see motion.md); bounce/elastic easing.
+- *Copy:* marketing buzzwords; em-dash overuse (>2 in body copy); aphoristic manufactured-contrast cadence ("Not a feature. A platform."); theater-framing ("X is just theater"); numbered section markers (01/02/03) and repeated tracked eyebrow kickers as editorial scaffolding.
+- *Token drift:* font / colour / border-radius used outside `docs/DESIGN.md` — route through the token system or make it an intentional DESIGN.md addition (this is the **ui-rules.md R12 / design-back-port** surface, INHERIT-not-REPLACE).
+
+(Harvested concept-only from Pythoughts-labs/designer-skill's 44-rule detector, MIT. Several need a browser/DOM/contrast engine the static bash gate can't run — they live here as agent + `/design-review` guidance.)
+
 **Testable checks:**
-- [ ] `bash scripts/lint-design.sh --report-only <ui-dir>` reviewed; no unresolved D1–D7 sins.
+- [ ] `bash scripts/lint-design.sh --report-only <ui-dir>` reviewed; no unresolved D1–D8 sins.
 
 ---
 
@@ -379,6 +412,7 @@ All items are binary pass/fail. Fails block Phase 5 close.
 - [ ] All spacing values on the 4-point grid (multiples of 4px).
 - [ ] Three spacing tiers visibly distinct: tight / default / loose.
 - [ ] Layout tested at 360px viewport — no overflow, columns collapse correctly.
+- [ ] No cards-inside-cards nesting for visual depth — use spacing, dividers, type instead.
 
 ### Typography
 - [ ] All body text ≥ 16px; all secondary/supporting text ≥ 14px.
@@ -386,6 +420,7 @@ All items are binary pass/fail. Fails block Phase 5 close.
 - [ ] One h1 per page; heading levels sequential, no skipped levels.
 - [ ] Prose containers have `max-width` limiting line length to ≤ 75ch.
 - [ ] Fluid headings use `clamp()` — no bare `vw` for font sizes.
+- [ ] No justified body text (rivers of white) — `text-align:left`.
 
 ### Color
 - [ ] All normal text/background pairs ≥ 4.5:1 contrast.
@@ -396,6 +431,7 @@ All items are binary pass/fail. Fails block Phase 5 close.
 ### Interaction & Controls
 - [ ] All controls define ≥ 5 states (default / hover / focus / active / disabled).
 - [ ] Async actions have loading states; error states name the problem and offer a next step.
+- [ ] Tooltips/menus/popovers not clipped by an `overflow:hidden` ancestor.
 - [ ] Doherty threshold: any async action responding ≥ 400ms shows a loading/progress state.
 - [ ] Empty states explain why and offer an action.
 - [ ] Touch targets ≥ 44 × 44px with ≥ 8px between adjacent targets.

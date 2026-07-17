@@ -58,6 +58,17 @@ if ! echo "${response_text}" | grep -qiE "${done_pattern}"; then
   exit 0
 fi
 
+# ── 2b. Scope the gate to FRAMEWORK PHASE/BUILD work only ─────────────────────
+#   The Verifiable-Done gate (Rule 32 / V32.8) is meant for phase/build done-claims
+#   that SHOULD be recorded in STATE.md — not for ops/chat/deploy/credential sessions
+#   that merely happen to say "done" or "✅". Require a framework-work keyword so the
+#   gate stops nagging on non-phase sessions while still enforcing real phase closes.
+phase_context='(phase [0-9]|part [0-9]|batch|scaffold|feature update|feature rollback|migration|acceptance|contract|evidence|STATE\.md)'
+if ! echo "${response_text}" | grep -qiE "${phase_context}"; then
+  # Done-word but no phase/build context → ops/chat session, not evidence-gated.
+  exit 0
+fi
+
 # ── 3. Check STATE.md for a done-claim with an empty evidence block ───────────
 #   A populated evidence block MUST have a non-empty captured_output value.
 #   We look for the pattern:

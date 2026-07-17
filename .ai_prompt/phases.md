@@ -35,9 +35,9 @@ not TODO comments. The completeness check before committing enforces this.
 
 ```
 TOKEN BUDGET REFERENCE (applies to ALL phases):
-  CLAUDE.md (auto-loaded, only file):  ~3K
-  .ai_prompt/phases.md (this file):    ~40K  (read on demand — current phase section only)
-  .ai_prompt/memory-governance.md:     ~6K   (read on demand — at every phase pre-flight)
+  CLAUDE.md (auto-loaded, only file):  ~6.3K
+  .ai_prompt/phases.md (this file):    ~43K  (read on demand — current phase section only)
+  .ai_prompt/memory-governance.md:     ~10K  (read on demand — at every phase pre-flight)
   Each PRODUCT.md section:            ~2-4K  (full file = 20-40K — NEVER read all at once)
   Each existing source file read:     ~1-3K
   9 governance docs (all):            ~10-15K
@@ -52,6 +52,7 @@ TOKEN BUDGET REFERENCE (applies to ALL phases):
    - `Read .ai_prompt/phases.md` → then find your current phase section below
    - `Read .ai_prompt/memory-governance.md` → then run the phase hooks (§1 PRE + §2 POST + §4 MODEL)
 0a. **REGISTRY WORK-START CONSULT (V32.8 — Rule 32):** Before writing any file, consult `LESSONS_REGISTRY.md` for fingerprints matching this phase's target surface. If a matching entry has a `standing_check` → run it now. Skip if `LESSONS_REGISTRY.md` does not yet exist.
+0b. **CONSTITUTION-CHECK GATE (V32.23 — pre-flight, every build phase):** before executing a planned task, confirm it does not VIOLATE any of the 34 Rules or the L1-L6 security model (esp. Rule 1 PRODUCT.md-as-source-of-truth, L3 RBAC, L5 AuditLog, L6 Prisma guardrails). If a rule would be violated: STOP — resolve it as **[HOW]** if technical (decide and proceed as the execution owner), or escalate as **[WHAT]** if it's a product/scope tradeoff (record in `PENDING_DECISIONS.md`, keep advancing un-gated work, re-surface until answered). Record the gate verdict in the phase pre-flight output (a single collapsed line — `✅ constitution-check: clear` — on a clean pass; the specific rule/level + resolution path when a conflict was found and resolved). This is the app-build companion to the `Master_Prompt.md` Sync Impact Report: the Sync Impact Report verifies FRAMEWORK edits propagate to every dependent file; the Constitution-Check gate verifies APP-BUILD tasks comply with the framework's own rules before code is written.
 1. **Estimate scope** — how many files will you read + create + modify?
 2. **Estimate token cost** — use the reference table above
 3. **If >12 files OR >80K tokens → SPLIT before starting:**
@@ -623,6 +624,8 @@ See `Planning_Assistant.md` — Phase 2.8 section (trigger logic, Step-by-Step, 
 
 Note (Phase 2.8 — design principles): When docs/DESIGN.md / ui-rules.md are silent on a pattern, component state, or a11y approach, **Read .ai_prompt/design-principles.md** — principles win for structural decisions; the design system wins for token values.
 
+**MODEL HOOK (V32.24 — Spec Expert Panel gate, Phase 2.8 + Phase 3):** before Phase 2.8 hands off (and again before Phase 3 spec-lock, see the matching hook at the Phase 3 Output Contract below), the PM (Opus) dispatches 5 expert-lens Sonnet subagents IN PARALLEL against `docs/PRODUCT.md` (+ `docs/DESIGN.md`/`docs/MOCKUP.jsx` at this Phase 2.8 pass) — `secure-code-guardian` (security/authz/data-privacy), `architecture-designer` (structure/scalability/coupling), `api-designer` (API surface/contracts/versioning), `test-master` (testability/coverage/acceptance criteria), `database-optimizer` (schema/indexing/tenancy). The PM synthesizes the 5 findings lists, dedups overlapping findings, prioritizes (Critical/High/Medium), and feeds every finding into the Flow-Back / LIVING-SPEC reconcile (Rule 1 Spec-Persistence Model, Scenario 40's 5-step loop — BEHAVIOR findings become a proposed `docs/PRODUCT.md` edit for the human to apply per Rule 1; STRATEGY findings go to `docs/DECISIONS_LOG.md`; TASK-BREAKDOWN findings go to `docs/IMPLEMENTATION_MAP.md`). See Prompt 3.24 / Scenario 41 for the full dispatch pattern. **Gate-closure:** Phase 2.8 CANNOT close while any CRITICAL Spec-Expert-Panel finding is unresolved. Emit a single collapsed line on a clean pass — `✅ spec-expert-panel: clear` — or `⛔ spec-expert-panel: N Critical findings unresolved` when blocked. This is an ADDITIVE gate alongside the existing V32.5.1 `/design-review` gate-closure above — both must clear. This is a MODEL HOOK, not a new `memory-governance.md §3` phase hook — the Phase Hooks count stays 18.
+
 ### PHASE 3 INTERACTION
 Zero. Phase 3 in Claude Code proceeds based on PRODUCT.md + inputs.yml regardless
 of whether Phase 2.8 ran, passed, or was skipped. The mockup is ephemeral — used
@@ -1040,6 +1043,20 @@ Generate:
    AUTH_SECRET=your-48-char-auth-secret-here
    NEXTAUTH_URL=http://localhost:${APP_PORT}
 
+   # TENANT RBAC seed credentials (V32.25 · Rule 34 — tenant-based apps only)
+   # The seed reads these; passwords are NEVER hardcoded in seed.ts. Real values come from
+   # the vault (Server-Setups/secrets/universal-login-credentials.enc.yaml), NOT this repo.
+   #   tenant_manager    → TENANTADMIN_PASSWORD  (universal platform account, tenant_id null)
+   #   tenant_superadmin → WEBMASTER_PASSWORD    (tenant owner — exactly ONE per tenant)
+   #   tenant_admin      → ADMIN_PASSWORD        (delegated admin)
+   # ⚠ COMPOSE FOOTGUN: a bcrypt hash / password with a literal `$` in a compose-consumed .env
+   #   must double the dollar sign (`$$`) or Compose treats it as variable interpolation.
+   TENANTADMIN_PASSWORD=your-tenant-manager-password-here
+   WEBMASTER_PASSWORD=your-tenant-superadmin-password-here
+   ADMIN_PASSWORD=your-tenant-admin-password-here
+   # Weak predictable dev accounts (admin@mail.com/user@mail.com) — set true ONLY in .env.dev
+   SEED_DEV_ACCOUNTS=false
+
    SMTP_HOST=localhost
    SMTP_PORT=1025
    SMTP_FROM=noreply@yourdomain.com
@@ -1085,12 +1102,16 @@ Generate:
    |----------|------------------------------|
    | Username | webmaster                    |
    | Password | [22-char generated — stored in CREDENTIALS.md under "First Admin Account"]         |
-   | Role     | super_admin / administrator  |
+   | Role     | tenant_superadmin (tenant-based apps · Rule 34) — the tenant owner. See rbac.md |
    | URL      | http://localhost:[APP_PORT]/login |
 
    ⚠ This is the first login to the app itself — not a service credential.
    Change this password immediately after first successful login in production.
    This account is seeded by pnpm db:seed and exists in all environments.
+   For tenant-based apps (V32.25 Tenant RBAC Standard) the seed defaults 3 canonical accounts per env —
+   tenant_manager (universal platform account, tenant_id null) · tenant_superadmin (this owner account) ·
+   tenant_admin (delegated) — passwords ALWAYS from env (.env.{env}), values from the vault
+   (Server-Setups/secrets/universal-login-credentials.enc.yaml). See .ai_prompt/rbac.md Part D + templates.md.
 
    ---
 
@@ -1458,9 +1479,12 @@ Generate:
 7. Deliver ZIP + `MANIFEST.txt`
 8. Append to `docs/CHANGELOG_AI.md` with `Agent: CLAUDE_CODE`
 
+**MODEL HOOK (V32.24 — Spec Expert Panel gate, Phase 3 pre-lock):** before spec files generate and the architecture locks, run the Spec Expert Panel from Prompt 3.24 / Scenario 41 (same 5-lens dispatch as the Phase 2.8 hook above — `secure-code-guardian`, `architecture-designer`, `api-designer`, `test-master`, `database-optimizer` — this time scoped to `docs/PRODUCT.md` only, no DESIGN.md/MOCKUP.jsx). PM synthesizes, dedups, prioritizes, and feeds findings into the Flow-Back / LIVING-SPEC reconcile before proceeding. **Gate-closure:** Phase 3 CANNOT LOCK (spec files must not generate) while any CRITICAL finding is unresolved. Emit `✅ spec-expert-panel: clear` or `⛔ spec-expert-panel: N Critical findings unresolved` — add this line to the Phase 3 Output Contract checklist below. MODEL HOOK, not a new phase hook — Phase Hooks count stays 18.
+
 ─────────────────────────────────────────────────────────
 PHASE 3 OUTPUT CONTRACT — MANDATORY
 Before reporting complete, verify ALL of these:
+□ spec-expert-panel: clear (Prompt 3.24 / Scenario 41 — zero unresolved CRITICAL findings)
 □ inputs.yml exists at project root with all sections (ports.dev, git, docker, vibe_test, models)
 □ inputs.schema.json exists at project root
 □ .env.dev, .env.staging, .env.prod all exist and contain no placeholder values
@@ -1685,6 +1709,9 @@ TASK TYPES (each is one atomic unit of work):
   ROUTER:     Build tRPC router for [Module] → router file + input validators
   SERVICE:    Build business logic for [Module] → service files (if complex logic)
   UI_LAYOUT:  Build app shell → layout, sidebar, header, footer, theme provider
+              (sidebar-archetype apps: SidebarFooter MUST render the version tag +
+              "Developed by Powerbyte IT Solutions" white-label link — V32.26, see
+              GATE-CLOSURE below + ~/.claude/rules/design-defaults.md Entry 3)
   UI_MODULE:  Build all pages for [Module] → list, detail, create, edit pages
   UI_SHARED:  Build shared components → DataTable, forms, modals, filters
   JOBS:       Build BullMQ workers for [queue list]
@@ -1902,6 +1929,12 @@ Parts 5-6 cannot close — and Part 7 MUST NOT begin — until ALL of these hold
 □ registry done-claim: LESSONS_REGISTRY.md scanned for surface-relevant fingerprints; check
   output captured into STATE.md {contract, check_command, captured_output} — empty field =
   structurally malformed claim
+□ sidebar-footer white-label (V32.26): the app-shell SidebarFooter renders the muted app
+  version tag `v{X.Y.Z}` (versioning-standard.md; `-rc.N` on staging, clean on prod) AND the
+  "Developed by Powerbyte IT Solutions" white-label link — whole label is one <a> opening a
+  NEW TAB to https://www.powerbyteitsolutions.com/ with target="_blank" rel="noopener noreferrer"
+  — per ~/.claude/rules/design-defaults.md Entry 3 (non-sidebar archetypes: marks placed per
+  that rule's page-footer / about-panel fallback slots)
 IF ANY item fails → Parts 5-6 = INCOMPLETE → resolve before Part 7 (background jobs) begins
 ```
 
@@ -1913,6 +1946,7 @@ Note: shadcn/studio Pro (V32.11) — at Parts 5-6 the design is FROZEN (Phase 3.
 Note (Phase 4 Parts 5-6 — design principles): When docs/DESIGN.md / ui-rules.md are silent on a pattern, component state, or a11y approach, **Read .ai_prompt/design-principles.md** — principles win for structural decisions; the design system wins for token values.
 Note (Phase 4 Parts 5-6 — motion): When wiring motion/interaction and docs/DESIGN.md / ui-rules.md are silent on a motion/easing/duration/reduced-motion pattern, **Read .ai_prompt/motion.md** (ui-rules.md Rule 14). Motion (motion.dev) prescribed lib (LazyMotion/mini); mandatory `useReducedMotion()` guard on every animation, paired with the accessibility-agents WCAG gate (R13); `transform`/`opacity` only. A guardless animation FAILS the gov/LGU Phase 5 accessibility gate.
 Note (Phase 4 Parts 5-6 — anti-slop): After wiring and regression review, run `bash scripts/lint-design.sh --report-only apps/web/src` (V32.17 — regression pass for D1–D7 sins introduced during production wiring; advisory, never blocks Parts 5-6 gate).
+Note (Phase 4 Parts 5-6 — sidebar footer white-label, V32.26): Confirm the SidebarFooter version tag + "Developed by Powerbyte IT Solutions" link (new tab) are present per **Read `~/.claude/rules/design-defaults.md` Entry 3** — this is a GATE-CLOSURE item above, not optional polish; INHERIT-not-REPLACE if docs/DESIGN.md relocates/restyles either mark.
 
 ### Phase 4 Part 7 (Docker + infrastructure) — conditional
 
@@ -2327,6 +2361,25 @@ Each web app in inputs.yml apps list gets:
       return next({ ctx });
     });
   ```
+
+  **MODEL HOOK (V32.25 — Tenant RBAC Standard, DEFAULT for tenant-based apps · Rule 34):** when the app is
+  tenant-based (PRODUCT.md Roles section populated / `tenancy.mode: multi`), the `UserRole` enum ships the
+  **3-tier fixed backbone** at the top — `tenant_manager` (platform, `tenant_id` NULL) · `tenant_superadmin`
+  (tenant owner, exactly ONE per tenant) · `tenant_admin` (delegated; all features EXCEPT Billing +
+  User Management) — with the app's domain roles below. The initial migration MUST include the partial-unique
+  index `CREATE UNIQUE INDEX one_tenant_superadmin_per_tenant ON users (tenant_id) WHERE role='tenant_superadmin'
+  AND tenant_id IS NOT NULL`. `userManagementProcedure` = `tenant_manager` + `tenant_superadmin` ONLY. Scaffold
+  the **succession procedures** (`platformUser.updateRole` break-glass reassign + owner-transfer done as a
+  mediated promote-then-demote inside one transaction so the one-owner index never trips) **and their tests**
+  as part of the auth scaffold. Also scaffold the **custom-role matrix stub** (Feature Registry + `CustomRole` +
+  `role_permissions` with the STRICT `view/write/update/delete` CRUD split, deny-by-default) + a
+  `matrixProcedure(feature, action)` factory wired identically at tRPC + route middleware + sidebar nav.
+  Full DESIGN + schema + enforcement + role-builder UI + guardrails: **Read `.ai_prompt/rbac.md`**. For an
+  EXISTING app, the data-preserving retrofit (ALTER TYPE … RENAME VALUE) is **Scenario 42** — never DROP/CREATE
+  the enum. (Custom-role matrix is authored as framework DESIGN; implemented per-app at scaffold/next-touch
+  under the deploy HARD HOLD.)
+
+  **MODEL HOOK — Event Delivery / Notifications (conditional, V32.28):** If `docs/PRODUCT.md` declares a multi-channel notification / event-delivery need, `Read .ai_prompt/notifications.md` and scaffold the Tier-1 pipeline (Valkey Streams + BullMQ) with the 6 mandatory additions (schema/versioning, tenant isolation, preferences, idempotency-at-ingestion, per-provider rate limits, PII routing). Default locked stack otherwise unchanged; NATS JetStream is an opt-in Tier-2 graduation (templates.md). See Scenario 43.
 
 - `src/server/trpc/context.ts` — base tRPC context:
   ```ts
@@ -3813,6 +3866,8 @@ Edit PRODUCT.md → trigger Phase 7 → agents implement everything and keep gov
 > **MODEL HOOK (V32.8 — New-Surface Mockup-First + Registry Consult, Phase 7):** **(a) New-surface rule (Rule 31):** If this Feature Update introduces a NEW UI surface (new page, new modal, new significant component not present in `prototype/` or `docs/MOCKUP.jsx`), a DESIGN/mockup update MUST happen FIRST — before any implementation code is written. Update `docs/MOCKUP.jsx` (annotate/expand — never regenerate from scratch, Rule 1) to include the new surface, run `design:validate` → `design:build` to recompile tokens, re-capture the affected baseline snapshot, then transcribe to production code. Ad-hoc UI invention (building a screen that has no corresponding mockup entry) is NOT permitted. **(b) Registry consult (Rule 32):** Before executing the Feature Update body, consult `LESSONS_REGISTRY.md` for fingerprints matching this update's target surface. **(c) Registry done-claim:** On Feature Update completion, scan `LESSONS_REGISTRY.md` for surface-relevant fingerprints; capture acceptance-check output into STATE.md `{contract, check_command, captured_output}` before claiming done. **(d) Failure handling:** On any build/test/gate failure during this Feature Update: fingerprint it → scan registry → if a standing check should have caught it, STRENGTHEN that check; if novel, flag as a promotion candidate in STATE.md.
 >
 > **MODEL HOOK (V32.9 — Hook 18 Compliance Gap-Surfacing, Phase 7):** When this Feature Update touches any data-touching surface (new Prisma model, new tRPC router, new auth flow, new file-upload endpoint, new integration that transmits personal data), run the Hook 18 compliance gap scan (defined in `memory-governance.md §3`) BEFORE writing implementation code. Read `.ai_prompt/privacy.md` and check: □ Lawful basis declared for any new personal-data field? □ DSR endpoints updated for any new entity holding personal data? □ Retention fields present on new personal-data tables? □ Third-party integrations listed in PRODUCT.md §7 with DPA placeholder? Surface each gap as 🔴 before proceeding. If the Feature Update does NOT touch data-touching surfaces (UI-only change, config tweak, copy edit), skip Hook 18 and log "Hook 18 — not triggered (non-data surface)" in STATE.md.
+>
+> **MODEL HOOK (V32.21 — Cross-Artifact Gap-Check, Phase 7 pre-flight):** before executing the Feature Update body, Opus runs `bash scripts/spec-gap-check.sh --report-only` and surfaces its output at the TOP of phase output under the heading **"🔍 Cross-Artifact Gaps"** — the report cross-references `docs/PRODUCT.md` ↔ `inputs.yml` ↔ the Prisma schema ↔ `docs/IMPLEMENTATION_MAP.md` ↔ `docs/STATE.md` for the four deterministic desync classes (DRIFT / UNBUILT / PHASE-REALITY MISMATCH / DERIVATION DRIFT — see `spec-gap-check.sh` header). **Non-blocking, surface-and-inform only — this NEVER gates phase closure**, exactly like the V32.5.5 and V32.7.3 back-port checks it complements (spec back-port surfaces DECISIONS_LOG↔PRODUCT.md gaps; design back-port surfaces theme-token drift; this hook surfaces the wider 5-artifact set). On a clean run (no gaps) emit a single collapsed line — `✅ no cross-artifact gaps` — not the full report. This is NOT a new `memory-governance.md §3` injection point — the Phase Hooks count stays 18; it is a MODEL HOOK addition to the same Phase 7 pre-flight cluster as the V32.5.5 / V32.7.3 / V32.9 hooks above.
 
 **Trigger:**
 - Via Claude Code: say "Feature Update" — it hydrates the 9 governance docs automatically (V32.3: large docs via Scout, small docs direct)

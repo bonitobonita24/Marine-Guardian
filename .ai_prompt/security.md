@@ -36,6 +36,12 @@ If any requirement conflicts with a feature, security wins.
 13. NEVER return tenantId in API response objects to the client.
     Use Prisma select or omit to exclude tenantId from all query results sent to the frontend.
     tenantId is an internal isolation key — the client never needs it and should never see it.
+14. NEVER redirect to a client-supplied URL without validating against a same-origin/approved-path
+    allowlist. Reject protocol-relative URLs (//evil.com) and absolute external URLs on any
+    returnTo/next/redirect param — this is the Open Redirect vulnerability class.
+15. NEVER call child_process.exec, eval(), new Function(), or a shell with unsanitized/user-derived
+    input. If shelling out is unavoidable, use execFile()/argv-array form (never string-concatenated
+    shell), validate/allowlist all arguments, and run least-privilege/sandboxed.
 ```
 
 **INPUT VALIDATION — enforce on every tRPC procedure:**
@@ -61,6 +67,11 @@ If any requirement conflicts with a feature, security wins.
 2. Handle race conditions with optimistic locking or SELECT FOR UPDATE:
    → Inventory decrements: read quantity → check > 0 → decrement in transaction → retry on conflict.
    → Billing/credits: same pattern. Never decrement without a transactional guard.
+   → GENERALIZED RULE — applies to ANY single-use or limited resource, not just inventory/billing:
+     coupon/promo redemption, invite-link consumption, password-reset-token use, limited-stock
+     purchase. A check-then-act on a limited/single-use resource MUST use a DB-level guard (a unique
+     index, or a conditional UPDATE ... WHERE qty > 0 / used_at IS NULL) — NEVER an app-level
+     read-then-write, which is a TOCTOU race under concurrent requests.
 3. ALL writes enforce ownership + tenant constraints — L6 auto-injects, but verify manually on sensitive ops.
 4. Define unique constraints in Prisma schema wherever business logic requires uniqueness.
 5. ALL foreign key relationships enforced — no orphaned records allowed.
@@ -171,6 +182,18 @@ If any requirement conflicts with a feature, security wins.
    → Apply request timeout (≤10 seconds) and response size limit (≤5 MB).
    → Strip credentials from redirects — do not follow redirects to internal networks.
 
+**CLOUD CREDENTIAL SAFETY — enforce for any app-runtime AWS/R2/MinIO integration:**
+```
+1. App AWS/R2/MinIO IAM keys are scoped to the specific bucket + minimum actions required
+   (GetObject/PutObject/DeleteObject on the app's own bucket). NEVER s3:*, NEVER account-wide keys
+   in the app runtime — broad admin-level keys are CI/ops break-glass only, never shipped to the app.
+2. Prefer a container/task IAM role over long-lived static access keys in staging/production.
+   Static keys, when unavoidable, are rotated on the same cadence as other production secrets.
+3. Bucket policy denies public listing (no s3:ListBucket for anonymous/public principals).
+4. Presigned URLs are short-TTL (minutes, not days) and scoped to exactly one object key — never a
+   presigned URL that grants access to an entire prefix or bucket.
+```
+
 **Auth DEFAULTS — do not override these Auth.js v5 secure defaults:**
 ```
 1. Session cookies: HttpOnly=true, Secure=true (production), SameSite=lax. Do NOT change these.
@@ -186,6 +209,23 @@ If any requirement conflicts with a feature, security wins.
      session.securityVersion against the DB value — if stale → force sign-out.
    → NEVER allow a session with stale role/tenant data to persist — the user must re-authenticate.
    → This covers: role escalation/de-escalation, tenant removal, account suspension, password change.
+7. JWT algorithm pinning: NEVER accept alg:none, and NEVER allow RS256↔HS256 algorithm confusion.
+   → Auth.js JWT strategy MUST pin the signing algorithm server-side and reject any token whose
+     header claims a different alg than the one configured.
+   → AUTH_SECRET / JWT signing secret MUST be ≥32 bytes of high-entropy data, generated (e.g.
+     `openssl rand -base64 32`), never a user-chosen or low-entropy string.
+```
+
+**OAUTH/SSO SAFETY — enforce on every OAuth/SSO login flow:**
+```
+1. PKCE (S256) is mandatory on every OAuth authorization-code flow — never the plain method, never
+   omitted even for confidential clients.
+2. redirect_uri is validated against an exact-match allowlist — no wildcard, no prefix/substring match.
+3. state is CSRF-bound (tied to the initiating browser session) and single-use — reject a replayed
+   or missing state parameter.
+4. Tokens (authorization code, access token, id token) are NEVER placed in a URL query string beyond
+   the initial authorization-code redirect — no token forwarding via query params afterward.
+5. The authorization code is single-use and short-TTL — a replayed code MUST be rejected.
 ```
 
 **CSRF PROTECTION — framework posture (NEW V28):**
@@ -368,6 +408,19 @@ Testing: https://developers.cloudflare.com/turnstile/troubleshooting/testing/
 CSP: https://developers.cloudflare.com/turnstile/reference/content-security-policy/
 ```
 
+**MOBILE APP SAFETY — CONDITIONAL (only when PRODUCT.md §9 declares native mobile / Expo):**
+```
+1. Certificate pinning on all API calls from the mobile app — reject connections presenting a
+   certificate outside the pinned set, mitigating MITM via a rogue or compromised CA.
+2. No sensitive data (auth tokens, PII) stored unencrypted in AsyncStorage or WatermelonDB — use
+   SecureStore / Keychain-backed encryption (expo-secure-store or platform Keychain/Keystore).
+3. Deep-link handlers validate and allowlist the incoming link BEFORE taking any privileged action —
+   never trust a deep-link parameter to drive auth, navigation-to-privileged-screen, or data mutation
+   without re-validating server-side.
+4. Biometric unlock (Face ID / fingerprint) is a LOCAL-UX convenience gate only — it NEVER substitutes
+   for server-side session authentication. The server session/token is the source of truth.
+```
+
 **SECURE PRODUCTION DEFAULTS — verify before any deployment:**
 ```
 1. Prisma Studio: NEVER exposed in staging or production. Dev only.
@@ -383,6 +436,10 @@ CSP: https://developers.cloudflare.com/turnstile/reference/content-security-poli
    → Use a tiered middleware approach. The rate limiter generated in Phase 4 Part 5 already
      has `rateLimiters.auth`, `.api`, `.public`, `.upload` tiers — ensure ALL tRPC procedures
      use the appropriate tier, not just auth endpoints.
+8. Request smuggling: at the Traefik+Next.js edge, Content-Length/Transfer-Encoding has a single
+   source of truth — never hand-roll HTTP request parsing in a Route Handler.
+9. Clickjacking: `X-Frame-Options: DENY` (or CSP `frame-ancestors 'none'`) on all pages except
+   explicitly embeddable widgets. Pair the two headers — never rely on X-Frame-Options alone.
 ```
 
 **SOFTWARE SUPPLY-CHAIN SAFETY — OWASP Top 10:2025 A03 (NEW V32.9):**
@@ -447,6 +504,52 @@ privacy.md owns: PH Data Privacy Act (RA 10173 / NPC) lawful basis + consent + t
 rights as app features (DSR endpoint contract) + breach notification (NPC + subjects within 72h) +
 ISO/IEC 27701 organizing model. It maps L1–L6 ↔ ISO 27701 / ASVS and points back here for the
 technical controls. Read privacy.md whenever a phase touches personal data or for any gov/LGU client.
+```
+
+**L3 — TENANT RBAC STANDARD (Rule 34, V32.25) — the fleet-wide role backbone the L3 layer builds on:**
+```
+Full authority: `.ai_prompt/rbac.md` (Rule 34). Read it for ANY auth/RBAC/user-management/role-builder
+work, or when PRODUCT.md's Roles & Permissions section is populated. This EXTENDS L3 — it does not
+replace L1 tenant scoping, L5 AuditLog, or L6 Prisma guardrails, which stay always-active underneath.
+
+3 FIXED SYSTEM TIERS (same three top roles in every multi-tenant app):
+  tenant_manager     — PLATFORM operator, tenant_id = NULL (not bound to one tenant), break-glass
+                       cross-tenant owner reassignment (audited). Multiple allowed.
+  tenant_superadmin  — the TENANT OWNER. EXACTLY ONE per tenant (DB-enforced). SOLE holder of
+                       Billing + User-Management for its tenant.
+  tenant_admin       — top in-tenant admin BELOW the owner; broad admin but NEVER Billing/User-Mgmt.
+                       This is the CEILING every custom role must stay at or below.
+  App domain roles keep their own names BELOW tenant_admin (never force-renamed) and map onto the
+  Supervisor / Operator / Contributor / Viewer capability presets.
+
+PROVEN MECHANICS — prescribed, do NOT invent divergent DDL:
+  • Rename role enums with `ALTER TYPE … RENAME VALUE` (data-preserving) — NEVER DROP/CREATE
+    (DROP/CREATE wipes every existing user's role).
+  • Enforce one owner per tenant with a PARTIAL unique index (not a plain unique constraint):
+      CREATE UNIQUE INDEX one_tenant_superadmin_per_tenant ON users (tenant_id)
+        WHERE role = 'tenant_superadmin' AND tenant_id IS NOT NULL;
+    The WHERE clause is load-bearing — it leaves platform tenant_manager rows (tenant_id=NULL)
+    unconstrained so multiple platform managers remain allowed.
+  • Succession is MANDATORY, both directions, and ships with tests: (1) platform break-glass reassign
+    (audited); (2) mediated owner-transfer (promote-then-demote / transactional swap so the
+    partial-unique index is never violated mid-transfer).
+
+MATRIX-DRIVEN ENFORCEMENT for tenant_admin-and-below (the 3 top tiers stay fixed system roles):
+  Custom roles are tenant-scoped and built from a feature registry × a `role_permissions` STRICT-CRUD
+  matrix (view / write=create-only / update=edit-only / delete as SEPARATE columns). A single
+  `hasPermission(role, feature, action)` resolver enforces the matrix IDENTICALLY at THREE surfaces —
+  tRPC procedures (a matrixProcedure factory), route middleware (deny-by-default), and sidebar nav
+  (menu filtered by `view`). Roles are ALWAYS server-derived, NEVER client-trusted (AGENT PROHIBITION #1).
+
+GUARDRAILS (never violated):
+  • Custom roles are tenant-scoped and capped at ≤ tenant_admin — a custom role can NEVER exceed the
+    in-tenant admin ceiling.
+  • Custom roles are NEVER granted Billing or User-Management (exclusive to tenant_superadmin).
+  • Only tenant_superadmin (and platform tenant_manager) may create, edit, or assign custom roles.
+  • Per-env seeded default accounts come from the Server-Setups vault
+    (universal-login-credentials.enc.yaml — nested role×env; values vault-only; passwords from env via
+    bcryptjs, never hardcoded/argv; dev creds gated on SEED_DEV_ACCOUNTS). Reference the vault; never
+    paste values into a repo.
 ```
 
 **AI / LLM / MCP SECURITY — enforce on any feature that calls an LLM, exposes a tool, or runs an agent (NEW V32.18):**
@@ -552,6 +655,10 @@ other injection classes the bundle's web-app skills verify — confirm each is c
 5. CORS + host-header — no wildcard CORS in prod (already in SECURE PRODUCTION DEFAULTS); validate/pin
    the Host header where it drives links or cache keys. (skills: testing-cors-misconfiguration,
    testing-for-host-header-injection)
+6. Prototype pollution — reject user-controlled __proto__, constructor, or prototype keys anywhere an
+   object is built from untrusted input. No unguarded deep-merge or lodash.merge on untrusted input.
+   Extend the Zod `.strict()` posture (INPUT VALIDATION item 2) to any manual object-merge utility —
+   a deep-merge helper is an injection surface just like an unvalidated Zod schema.
 ```
 
 **ADVERSARIAL VERIFICATION — red-team the build before launch (NEW V32.18):**
@@ -584,7 +691,7 @@ PRIORITY  SOURCE                  ENFORCED BY
 ────────  ──────────────────────  ───────────────────────────────────
 1         Safety constraints      All agents — never expose credentials,
                                   never delete without confirm, never harm data
-2         CLAUDE.md rules         This file — all 33 rules
+2         CLAUDE.md rules         This file — all 34 rules
 3         Active phase rules      Numbered steps of the current phase
 4         docs/PRODUCT.md         Feature intent — what to build
 5         docs/DECISIONS_LOG.md   Locked decisions — never re-decide

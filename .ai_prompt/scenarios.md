@@ -1,4 +1,4 @@
-# Spec-Driven Platform V31 — Scenarios 1-39
+# Spec-Driven Platform V31 — Scenarios 1-40
 
 > Loaded contextually when user triggers a named scenario.
 > Read ONLY the scenario matching the user's request.
@@ -2207,6 +2207,212 @@ VERIFICATION:
   - Conductor route: memory topic file exists and contains a machine-executable check.
   - No duplicate entries in the registry for the same check.
 ```
+
+---
+
+### SCENARIO 40 — Brownfield spec evolution: the Flow-Back 5-step reconcile loop (NEW V32.21)
+```
+CONTEXT:
+  A discovery lands closest to the code (a bugfix, a live-data quirk, an ops finding)
+  rather than in docs/PRODUCT.md. This is the Flow-Back pattern named in Rule 1's
+  Spec-Persistence Model addendum (Master_Prompt.md) — the artifact nearest the work
+  gets edited first, and the rest of the spec set is reconciled back up to it. Left
+  un-reconciled, the artifact set (PRODUCT.md / inputs.yml / Prisma schema /
+  IMPLEMENTATION_MAP.md / STATE.md) silently diverges and the next Feature Update or
+  Phase 8 batch builds against a stale picture of reality.
+
+WHEN TO USE:
+  - A hotfix or ops-driven change was made directly to code/config, not via PRODUCT.md.
+  - A brownfield adoption reveals behavior that no spec artifact documents.
+  - `spec-gap-check.sh` (Prompt 2.9 / phases.md Phase 7 pre-flight MODEL HOOK) reports
+    a DRIFT, UNBUILT, PHASE/REALITY MISMATCH, or DERIVATION DRIFT finding.
+
+THE 5-STEP RECONCILE LOOP:
+  1. CAPTURE the discovery in the closest artifact.
+     Write down what was actually found/changed in the artifact nearest the work —
+     usually the code itself, a migration, or a config file. Do not wait for a
+     "proper" spec update first; capture it where it happened.
+
+  2. CLASSIFY the discovery.
+     Ask: is this a BEHAVIOR change (what the app does — belongs in PRODUCT.md),
+     a STRATEGY change (an architecture/tech decision — belongs in DECISIONS_LOG.md),
+     a TASK-BREAKDOWN change (what's built vs pending — belongs in
+     IMPLEMENTATION_MAP.md), or CODE-ONLY (an internal refactor with no external
+     spec implication — no other artifact needs updating)? The classification
+     determines which artifacts in step 3 actually need touching.
+
+  3. UPDATE any other artifacts that now disagree.
+     Given the classification from step 2, propagate the discovery upward:
+       BEHAVIOR      → docs/PRODUCT.md (human-owned — Rule 1; the agent proposes the
+                        exact edit, the human applies it)
+       STRATEGY      → docs/DECISIONS_LOG.md (agent-owned — log the decision)
+       TASK-BREAKDOWN → docs/IMPLEMENTATION_MAP.md (agent-owned — rewrite current state)
+       CODE-ONLY     → no propagation needed; stop here.
+     inputs.yml / inputs.schema.json / the Prisma schema are DISPOSABLE DERIVATIONS
+     (Living-Spec model) — regenerate them from the updated PRODUCT.md rather than
+     hand-patching them to match the code.
+
+  4. RUN THE CROSS-ARTIFACT GAP-CHECK.
+     Run `bash scripts/spec-gap-check.sh --report-only` (also available as
+     Prompt 2.9 — Validate Spec Consistency, which now includes this run) to confirm
+     the artifact set agrees: PRODUCT.md ↔ inputs.yml ↔ Prisma schema ↔
+     IMPLEMENTATION_MAP.md ↔ STATE.md. Non-blocking — it surfaces remaining gaps,
+     it does not gate this scenario.
+
+  5. RESUME only once the artifact set is trustworthy.
+     If step 4 still reports findings that step 3 should have closed, repeat steps
+     2-4 before resuming the interrupted Feature Update / Phase 8 batch / bootstrap.
+     A clean (or explicitly-accepted, logged) gap report means the next session can
+     trust PRODUCT.md, IMPLEMENTATION_MAP.md, and STATE.md again.
+
+VERIFICATION:
+  - The classifying artifact (PRODUCT.md / DECISIONS_LOG.md / IMPLEMENTATION_MAP.md)
+    reflects the discovery.
+  - `bash scripts/spec-gap-check.sh --report-only` output no longer lists the
+    specific finding that triggered this scenario (or the human has explicitly
+    accepted and logged the remaining divergence).
+  - CHANGELOG_AI.md records the reconcile with agent attribution (Rule 15).
+```
+
+---
+
+### SCENARIO 41 — Spec Expert Panel review before spec-lock (NEW V32.24)
+```
+CONTEXT:
+  docs/PRODUCT.md (and at Phase 2.8, docs/DESIGN.md / docs/MOCKUP.jsx) is about to
+  cross a hard boundary — the design handing off to Claude Code's designer-skills
+  bundle (Phase 2.8), or the spec locking into inputs.yml / the Prisma schema
+  (Phase 3). A single generalist read of PRODUCT.md at this point misses
+  domain-specific gaps a narrow expert lens would catch — a missing tenancy index,
+  an unversioned API surface, an RBAC hole, a flow with no acceptance criteria.
+
+WHEN TO USE:
+  - Phase 2.8 design pre-handoff, before the mockup baseline is treated as final.
+  - Phase 3 pre-lock, before spec files (inputs.yml / Prisma schema) generate.
+  - Any time PRODUCT.md changed materially and you want a structured multi-lens
+    review before committing to the next phase (optional at other times; MANDATORY
+    at the two gates above — see Prompt 3.24).
+
+THE 5-EXPERT PANEL (dispatched in parallel as ephemeral Sonnet subagents, PM =
+Opus synthesizes):
+  1. secure-code-guardian  → security, authz depth, data-privacy/compliance gaps
+  2. architecture-designer → system structure, scalability, coupling, module
+                              boundaries
+  3. api-designer          → API surface, contracts, versioning, integration seams
+  4. test-master           → testability, coverage gaps, edge cases, acceptance
+                              criteria
+  5. database-optimizer    → schema/data-model, indexing, query/access patterns,
+                              tenancy
+
+STEPS:
+  1. PM dispatches all 5 expert-lens subagents in parallel, each scoped to
+     docs/PRODUCT.md (+ DESIGN.md/MOCKUP.jsx at Phase 2.8) and its one skill lens.
+  2. PM synthesizes the 5 findings lists into one, dedups overlapping findings
+     across lenses, and prioritizes (Critical / High / Medium).
+  3. PM feeds every finding into the Flow-Back / LIVING-SPEC reconcile (Rule 1
+     Spec-Persistence Model, Scenario 40's 5-step loop) — classify each finding
+     (BEHAVIOR → PRODUCT.md edit proposal, STRATEGY → DECISIONS_LOG.md,
+     TASK-BREAKDOWN → IMPLEMENTATION_MAP.md) and propose the exact edit; the human
+     applies PRODUCT.md changes per Rule 1.
+  4. Resolve every CRITICAL finding before the gate closes. High/Medium findings
+     are recorded (DECISIONS_LOG.md or IMPLEMENTATION_MAP.md as classified) but do
+     not block.
+
+THE GATE (phases.md MODEL HOOK, Phase 2.8 + Phase 3):
+  Phase 2.8 design handoff and Phase 3 spec-lock CANNOT close while any CRITICAL
+  Spec-Expert-Panel finding is unresolved. A clean run emits a single collapsed
+  line — `✅ spec-expert-panel: clear`. An unresolved-Critical run blocks with
+  `⛔ spec-expert-panel: N Critical findings unresolved`.
+
+VERIFICATION:
+  - All 5 expert lenses returned findings (or an explicit "no findings" per lens).
+  - Merged, deduped, prioritized findings list exists (visible in phase output).
+  - Zero unresolved CRITICAL findings at gate-check time — each was either
+    resolved (PRODUCT.md/DECISIONS_LOG.md/IMPLEMENTATION_MAP.md updated) or the
+    human explicitly accepted + logged the risk.
+  - CHANGELOG_AI.md records the panel run + verdict (Rule 15).
+```
+
+---
+
+### SCENARIO 42 — Retrofit the Tenant-RBAC 3-tier backbone onto an existing tenant-based app (NEW V32.25)
+```
+CONTEXT:
+  An existing tenant-based app has ad-hoc admin roles (e.g. super_admin / site_admin /
+  administrator) and needs to adopt the fleet-standard 3-tier backbone
+  (tenant_manager / tenant_superadmin / tenant_admin) WITHOUT losing any user's role
+  and WITHOUT downtime. Proven on Marine-Guardian branch feat/tenant-rbac-3tier (2026-07-10).
+  Authority: Rule 34 + .ai_prompt/rbac.md. DESIGN reference for the enforcement mechanics.
+
+WHEN TO USE:
+  - "retrofit the 3-tier RBAC into <app>" / "adopt the tenant RBAC standard" / "set up
+    tenant_manager/superadmin/admin" on any app that already has a UserRole enum + users.
+  - The custom-role MATRIX layer (rbac.md Part B) is a SEPARATE, later, gated pass — this
+    scenario delivers the BACKBONE only (what MG shipped).
+
+⚠ HARD HOLD: every step below lands as LOCAL commits + a DEV-DB apply only. Staging / prod /
+   demo promotion are separate, explicit, owner-gated words (see step 8).
+
+STEPS (dev-first):
+  1. Branch feat/tenant-rbac-3tier.
+  2. Normalize FIRST — before the unique index exists, demote any extra owners so there is
+     ≤ 1 tenant_superadmin-elect per tenant (extras → tenant_admin). Retire/deactivate stale
+     placeholder accounts. (If two rows would both become tenant_superadmin, the index in step 3
+     rejects the migration.)
+  3. Migration (data-preserving — NEVER DROP/CREATE the enum):
+       ALTER TYPE "UserRole" RENAME VALUE '<old_top>'    TO 'tenant_manager';
+       ALTER TYPE "UserRole" RENAME VALUE '<old_owner>'  TO 'tenant_superadmin';
+       ALTER TYPE "UserRole" RENAME VALUE '<old_admin>'  TO 'tenant_admin';
+       CREATE UNIQUE INDEX "one_tenant_superadmin_per_tenant"
+         ON users (tenant_id) WHERE role = 'tenant_superadmin' AND tenant_id IS NOT NULL;
+     RENAME VALUE preserves every existing row's (renamed) role automatically — no data
+     migration. Domain roles (coordinator/operator/viewer) are UNCHANGED. The partial-unique
+     index enforces one owner per tenant; the platform tenant_manager (tenant_id NULL) is exempt.
+  4. Rename code literals across rbac.ts / middleware.ts / sidebar.tsx / seed / tests. Widen
+     user-management: userManagementProcedure = tenant_manager + tenant_superadmin ONLY
+     (tenant_admin deliberately excluded); /users + /settings route + nav gate to those two.
+  5. Add succession procedures + tests: platform break-glass reassign (platformUser.updateRole —
+     reassigns a tenant's owner, audited L5, NOT_FOUND on a bad tenant) AND owner transfer
+     (promote another + demote self, mediated promote-then-demote inside ONE transaction so the
+     one-owner index is never violated mid-swap). Both directions covered by unit tests.
+  6. Seed the 3 canonical accounts per env — passwords ALWAYS from env (.env.{env}), never
+     hardcoded; values from the vault (Server-Setups/secrets/universal-login-credentials.enc.yaml).
+     tenant_manager = universal platform account (tenant_id null); tenant_superadmin + tenant_admin
+     attached to the primary tenant. Seed comment forbids a 2nd tenant_superadmin anywhere
+     (including the SEED_DEV_ACCOUNTS block). Apply to the DEV DB.
+  7. Full gate + Visual QA on DEV. Back-port the decision to docs/PRODUCT.md (Roles & Permissions)
+     + docs/DECISIONS_LOG.md. LOCAL only.
+  8. Promotion (each a separate owner word, never auto):
+     - STAGING: ship image → migration runs (renames enum on staging) → apply creds → validate via
+       the staging data-first gate (~/.claude/rules/staging-refresh-gate.md).
+     - PROD: promote the verified image → migration → apply creds → health-verify. Back up first.
+     - DEMO: promote → migration → apply creds (owner account; no tenant_admin) → NEVER reseed.
+
+VERIFICATION:
+  - Every pre-existing user kept its (renamed) role (spot-check counts before/after).
+  - `\d+ users` shows the partial-unique index; a 2nd tenant_superadmin insert on a tenant is rejected.
+  - userManagementProcedure rejects tenant_admin; accepts tenant_manager + tenant_superadmin.
+  - Succession tests green (reassign + owner-transfer, both directions).
+  - PRODUCT.md Roles & Permissions + DECISIONS_LOG.md updated.
+  - No staging/prod/demo change without an explicit owner word.
+```
+
+---
+
+### Scenario 43 — Add Multi-Channel Event Delivery / Notifications
+
+**Trigger:** `docs/PRODUCT.md` declares a multi-channel notification / event-delivery need (email + push + SMS + webhook + in-app, event-driven side-effects across services, a notification center).
+
+**Read first:** `.ai_prompt/notifications.md` (deliverable #30 — the full pattern + FOSS tier ladder).
+
+**Procedure (dev-first, LOCAL-only, HARD HOLD):**
+1. Confirm the need + channels in PRODUCT.md; record the channel list + any provider/SLA decision in `docs/DECISIONS_LOG.md` (SMS provider + real-time-in-app are owner `[WHAT]` calls).
+2. **Tier 1 by default** — Valkey Streams (durable log) + BullMQ (processing/routing/retry/DLQ/rate-limit). Do NOT stand up Kafka/NATS unless the documented graduation threshold is met.
+3. Define events as **Zod contracts** (schema registry) with `schema_version`; stamp `{event_id, tenant_id, type, schema_version, actor, ts, correlation_id}` at emit; idempotency at ingestion.
+4. Build the pipeline: ingestion (`emitEvent()` + tenant-scoped auth + validate) → Valkey Stream → BullMQ processor (route by event × tenant × preferences, dedup, retry, DLQ) → per-channel delivery queues (adapter + per-provider rate-limit) → L5 AuditLog + Telegram alert on DLQ growth.
+5. **Enforce the 6 additions** — schema/versioning, tenant isolation (never cross-tenant), preference center, idempotency-at-ingestion, per-provider rate limits, PII routing (`privacy.md`).
+6. **Phased:** MVP (email + in-app + DLQ + audit) → expand channels + preferences → (only if needed) graduate Valkey → NATS JetStream at the documented threshold.
+7. DEV gate: schema-validated, tenant-isolated, idempotent, DLQ + replay verified on real data. Staging/prod/demo promotion each require the owner's explicit word (deploy discipline).
 
 ---
 

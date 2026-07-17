@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# lint-design.sh — Powerbyte fleet design anti-slop gate (V32.17, deliverable #26)
+# lint-design.sh — Powerbyte fleet design anti-slop gate (V32.19, deliverable #26)
 #
 # Static "AI-slop" linter for emitted UI. Catches the 7 cardinal sins that mark
 # default-LLM output BEFORE a design phase closes. Mirrors lint-deploy.sh (#20):
@@ -10,6 +10,8 @@
 # Origin: the "seven cardinal sins" from nexu-io/open-design craft/anti-ai-slop.md
 # (Apache-2.0), itself adapted from referodesign/refero_skill (MIT). Tightened to
 # the Spec-Driven stack (shadcn/ui + Tailwind + var(--*) tokens from docs/DESIGN.md).
+# V32.19 extends the catalogue with tells harvested (concept-only) from
+# Pythoughts-labs/designer-skill (MIT).
 #
 # Usage:
 #   bash scripts/lint-design.sh [TARGET_DIR]     # defaults to apps/web/src (or .)
@@ -28,9 +30,18 @@
 #   D5  AI dashboard tile                  (rounded card + coloured left-border accent)
 #   D6  Invented metrics                   ("10× faster", "99.9% uptime", "3× more")
 #   D7  Filler copy                        (lorem ipsum, "feature one/two/three", placeholder)
+#   D8  Gradient / clip-to-text fill       (bg-clip-text+text-transparent / background-clip:text)
 #
 # P1 guidance (reported as warnings, never fail) — statically detectable subset:
 #   P1a ALL-CAPS without letter-spacing    (text-transform:uppercase / uppercase class w/o tracking)
+#   P1b Italic serif display headline      (italic + Fraunces/Playfair/Recoleta/Newsreader)
+#   P1c Marketing buzzwords                (streamline/empower/supercharge/world-class/enterprise-grade/…)
+#   P1d Repeating-gradient stripes         (repeating-linear/radial/conic-gradient surface decoration)
+#   P1e Layout-property transition         (transition on width/height/margin/padding → see motion.md transform+opacity rule)
+#   P1f Bounce / elastic easing            (cubic-bezier overshoot / ease-*-back / spring bounce)
+#   P1g Justified body text                (text-align:justify / text-justify — rivers of white)
+#   P1h Image hover transform              (<img> hover:scale-/hover:rotate-)
+#   P1i Crushed / negative letter-spacing  (tracking-tighter / letter-spacing:-0.0x)
 # Behavioural craft rules (five-states, animation timing) are NOT grep-checkable —
 # they live in design-principles.md / motion.md as agent+reviewer guidance.
 # =============================================================================
@@ -121,12 +132,48 @@ H="$(scan '[0-9]+(\.[0-9]+)?\s*(×|x)\s*(faster|more|better|productive)|99\.9+%\
 H="$(scan 'lorem ipsum|feature (one|two|three)\b|placeholder text|sample content|your (headline|text) here')"
 [ -n "$H" ] && report P0 D7 "Filler copy — an empty section is a composition problem, not a words-invention problem." "$H"
 
+# ── D8 — Gradient / clip-to-text fill ────────────────────────────────────────
+H="$(scan 'bg-clip-text[^"]*text-transparent|text-transparent[^"]*bg-clip-text|(-webkit-)?background-clip:\s*text')"
+[ -n "$H" ] && report P0 D8 "Gradient/clip-to-text fill — a decorative AI tell on headings & metrics; use a solid var(--*) colour." "$H"
+
 # ── P1a — ALL CAPS without letter-spacing (two-pass; ERE has no lookahead) ───
 # Pass 1: lines that set uppercase (CSS text-transform OR camelCase JSX OR a `uppercase` class).
 # Pass 2: drop any that also carry tracking on the same line.
 H="$(scan 'text-transform:\s*uppercase|textTransform:\s*["'"'"']uppercase|class(Name)?="[^"]*\buppercase\b' \
      | grep -viE 'letter-spacing|tracking-')"
 [ -n "$H" ] && report P1 P1a "ALL-CAPS without tracking — uppercase needs 0.06–0.1em letter-spacing (see design-principles.md Pillar 4)." "$H"
+
+# ── P1b — Italic serif display headline ──────────────────────────────────────
+H="$(scan '\bitalic\b[^"]*\b(Fraunces|Playfair|Recoleta|Newsreader)\b|\b(Fraunces|Playfair|Recoleta|Newsreader)\b[^"]*\bitalic\b')"
+[ -n "$H" ] && report P1 P1b "Italic serif display headline — a universal AI hero tell; choose an intentional display face (per docs/DESIGN.md)." "$H"
+
+# ── P1c — Marketing buzzwords ────────────────────────────────────────────────
+H="$(scan '\b(streamline|empower|supercharge|world-class|enterprise-grade|next-generation|cutting-edge|seamlessly|game-chang|revolutioniz)\b')"
+[ -n "$H" ] && report P1 P1c "Marketing buzzword — generic SaaS filler; say the specific thing the product does." "$H"
+
+# ── P1d — Repeating-gradient stripes ─────────────────────────────────────────
+H="$(scan 'repeating-(linear|radial|conic)-gradient')"
+[ -n "$H" ] && report P1 P1d "Repeating-gradient stripes as surface decoration — a generated-UI signature; prefer a deliberate texture or plain surface." "$H"
+
+# ── P1e — Layout-property transition (motion.md: animate transform/opacity only) ──
+H="$(scan 'transition(-property)?:\s*[^;{]*(width|height|margin|padding|top|left|right|bottom)\b|transition-\[(width|height|margin|padding|top|left|right|bottom)')"
+[ -n "$H" ] && report P1 P1e "Animating a layout property (width/height/margin/padding) — causes layout thrash; animate transform/opacity (see motion.md)." "$H"
+
+# ── P1f — Bounce / elastic easing ────────────────────────────────────────────
+H="$(scan 'cubic-bezier\([^)]*,-?[0-9]*\.?[0-9]+\s*,[^)]*-[0-9]|ease-[a-z-]*back\b|\b(easeInOutBack|backOut|elastic|bounce)\b[^a-z]')"
+[ -n "$H" ] && report P1 P1f "Bounce / elastic easing — dated & tacky; real objects decelerate smoothly (ease-out-quart/quint/expo)." "$H"
+
+# ── P1g — Justified body text ────────────────────────────────────────────────
+H="$(scan 'text-align:\s*justify|\btext-justify\b')"
+[ -n "$H" ] && report P1 P1g "Justified text without hyphenation — rivers of white; use text-align:left for body." "$H"
+
+# ── P1h — Image hover transform ──────────────────────────────────────────────
+H="$(scan '<img[^>]*\bhover:(scale|rotate)-|<img[^>]*\bgroup-hover:(scale|rotate)-')"
+[ -n "$H" ] && report P1 P1h "Image scale/rotate on hover — a generated-UI signature; let imagery sit still or use a subtler interaction." "$H"
+
+# ── P1i — Crushed / negative letter-spacing ──────────────────────────────────
+H="$(scan '\btracking-tighter\b|letter-spacing:\s*-0?\.0[3-9]|letter-spacing:\s*-[1-9]')"
+[ -n "$H" ] && report P1 P1i "Crushed/negative letter-spacing — costs legibility; tighten display type optically, not destructively." "$H"
 
 # ============================================================================
 # Summary  (mirrors lint-deploy.sh)

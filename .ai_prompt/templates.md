@@ -524,7 +524,7 @@ Infrastructure is split into **separate compose files per service group**.
 ```
 deploy/compose/[env]/
   docker-compose.db.yml       — PostgreSQL + PgBouncer      → Amazon RDS
-  docker-compose.storage.yml  — MinIO (S3-compatible)       → Amazon S3 / Cloudflare R2 (opt-in)
+  docker-compose.storage.yml  — MinIO (S3-compatible)       → Telegram (default, persistent media) · Amazon S3 / Cloudflare R2 (opt-in)
   docker-compose.cache.yml    — Valkey (cache + BullMQ)     → Amazon ElastiCache
   docker-compose.infra.yml    — MailHog dev / SMTP relay    → Amazon SES
   docker-compose.app.yml      — Next.js app(s) + worker(s)  → ECS / EC2
@@ -536,10 +536,49 @@ All other compose files reference it as `external: true`.
 
 ---
 
-### OPT-IN: Cloudflare R2 for staging/prod object storage (V32.16 — NOT the default)
+### DEFAULT: Telegram for persistent media — dev + staging + prod; demo = MinIO (V32.27 — owner-set 2026-07-16)
 
-**Default storage stays MinIO** (dev + staging + prod). Cloudflare R2 is an S3-wire-compatible,
-zero-egress alternative you MAY opt into per app for staging/prod once you accept the budget caveat
+**Telegram is the default backend for all PERSISTENT media** (images/files/docs) on **dev, staging,
+and prod**. **MinIO is RETAINED** — not removed — as the fallback for throwaway/temp/index/scratch
+files (and stays wired locally in dev). **Demo is the ONE environment that stays on MinIO** by default
+(a small fixed showcase dataset that won't grow). Reason: the file bytes are free on Telegram.
+This supersedes the older MinIO-everywhere default (V32.16) fleet-wide. Global rule of record:
+`~/.claude/rules/media-storage-default.md`. First reference implementation: FRMS (all four envs proven).
+
+**Target matrix (every new app inherits this):**
+
+| Env | Default backend |
+|---|---|
+| Local dev | **Telegram** — on its own **DEDICATED private channel** (same bot, separate channel) so dummy dev uploads never pollute the shared staging/prod channel |
+| Staging | **Telegram** (shared staging/prod channel — so prod→staging data-first refreshes render photos; see `staging-refresh-gate.md`) |
+| Production | **Telegram** |
+| Demo (`*-demo`) | **MinIO** (curated fixed dataset; never auto-cut-over) |
+
+**Mechanism (`STORAGE_BACKEND` — the switch is one env var):** the app's `packages/storage/`
+`StorageAdapter` supports both S3/MinIO and Telegram; the active backend is chosen by
+**`STORAGE_BACKEND`** (`telegram` | `s3` | `minio`, default `minio`). Telegram needs
+`TELEGRAM_BOT_TOKEN` + `TELEGRAM_DEFAULT_CHANNEL_ID` (a private channel the bot admins). A
+`media_objects` ledger row maps each stored key → its Telegram message/file id so reads resolve via
+the app-layer `/api/media` proxy route. Per-env `.env` sets `STORAGE_BACKEND=telegram` + the two
+Telegram vars; credentials live ONLY in `Server-Setups/<Server>/secrets/<app>-<env>-app.enc.env`
+(SOPS+age) — never in the app repo. For gov/LGU PII apps, Telegram is an owner-accepted TEMPORARY
+measure until funded object storage (pair with `.ai_prompt/privacy.md` Rule 33).
+
+> ⚠️ **SCAFFOLD-CODE DELIVERABLE — PENDING (owner-gated).** The Telegram code path — the
+> `StorageAdapter` (S3 **+** Telegram), the `/api/media` proxy route, the `media_objects` migration,
+> and the `STORAGE_BACKEND`/`TELEGRAM_*` env wiring — is **proven in FRMS but NOT yet ported into the
+> framework scaffold deliverables** (`packages/storage/`, Phase-4 templates). Until that port lands, a
+> newly-scaffolded app ships MinIO-only and must adopt the Telegram adapter from FRMS by hand to
+> realize this default. This doc records the DEFAULT DECISION; the deliverable port is a separate,
+> owner-gated framework build (tracked as a follow-up).
+
+---
+
+### OPT-IN: Cloudflare R2 for staging/prod object storage (V32.16 — a further S3 opt-in beneath the Telegram default)
+
+Telegram (above) is the default for persistent media. **R2 remains available** as an S3-wire-compatible,
+zero-egress opt-in for surfaces Telegram is unsuitable for (very large files, non-private public assets,
+throughput needs) — you MAY opt into it per app for staging/prod once you accept the budget caveat
 below. The storage layer is provider-agnostic (`STORAGE_*` env + `packages/storage/` wrapper), so
 switching is a one-edit change — **no code changes**.
 
@@ -574,6 +613,18 @@ switching is a one-edit change — **no code changes**.
    storage is now external R2). Dev keeps MinIO via its own `docker-compose.storage.yml`.
 4. Phase 0 still mints MinIO keys for dev; staging/prod no longer need generated MinIO keys.
 5. AWS S3 is the same kind of swap — repoint the identical `STORAGE_*` vars.
+
+### OPT-IN: NATS JetStream (Event-Delivery Tier-2 graduation — V32.28)
+The default event-delivery streaming layer is **Valkey Streams + BullMQ** (already in the stack; see `.ai_prompt/notifications.md`). Graduate to **NATS JetStream** (Apache-2.0, single Go binary) ONLY at the documented threshold (sustained high throughput / many consumer groups / replay-retention straining Valkey). Compose service:
+```yaml
+  nats:
+    image: nats:2-alpine
+    command: ["-js", "-sd", "/data"]   # enable JetStream + durable store dir
+    volumes: [ "nats-data:/data" ]
+    ports: [ "4222:4222" ]             # internal only; do NOT expose publicly
+    restart: unless-stopped
+```
+Env: `NATS_URL=nats://nats:4222`. Auth secrets (if enabled) → Server-Setups SOPS, never in-repo. Kafka/Redpanda are NOT used (Redpanda=BSL; both heavy) — reserve for hypothetical massive-scale.
 
 ```yaml
 networks:
@@ -950,6 +1001,53 @@ L4 — Pool limits     Per-tenant connection limits via PgBouncer
 L5 — Audit           Immutable AuditLog on every mutation
 L6 — Guardrails      Prisma extension ($allOperations) auto-injects tenantId on every query
 ```
+
+#### 7F — Tenant RBAC 3-tier seed default (V32.25 · Rule 34 — DEFAULT for tenant-based apps)
+
+Every tenant-based app seeds the fixed 3-tier backbone. Full DESIGN/schema/enforcement:
+**`.ai_prompt/rbac.md`**. Retrofit for an existing app: **Scenario 42**.
+
+`UserRole` enum (3 fixed tiers on top; app domain roles below) + the one-owner partial-unique index:
+```prisma
+enum UserRole { tenant_manager  tenant_superadmin  tenant_admin  /* + app domain roles */ }
+```
+```sql
+CREATE UNIQUE INDEX "one_tenant_superadmin_per_tenant"
+  ON users (tenant_id) WHERE role = 'tenant_superadmin' AND tenant_id IS NOT NULL;
+```
+
+Seed (`seed.ts`) — 3 canonical accounts per env, passwords ALWAYS from env, NEVER hardcoded:
+```ts
+// Values come from the vault (Server-Setups/secrets/universal-login-credentials.enc.yaml) → .env.{env}.
+const tenantAdminHash = await bcrypt.hash(requireEnv("TENANTADMIN_PASSWORD"), BCRYPT_ROUNDS);
+const webmasterHash   = await bcrypt.hash(requireEnv("WEBMASTER_PASSWORD"),   BCRYPT_ROUNDS);
+const adminHash       = await bcrypt.hash(requireEnv("ADMIN_PASSWORD"),       BCRYPT_ROUNDS);
+
+// tenant_manager — platform, tenant_id NULL (the one-owner index does not apply).
+await prisma.user.upsert({ where: { email: "tenantadmin@powerbyteitsolutions.com" },
+  update: { passwordHash: tenantAdminHash },
+  create: { email: "tenantadmin@powerbyteitsolutions.com", passwordHash: tenantAdminHash,
+            fullName: "Tenant Admin", role: "tenant_manager", isActive: true, tenantId: null } });
+
+// tenant_superadmin — the tenant OWNER. Exactly ONE per tenant (enforced by the partial-unique
+// index above). DO NOT seed a second tenant_superadmin for this tenant anywhere (incl. the
+// SEED_DEV_ACCOUNTS block) — a weak dev admin@mail.com must be tenant_admin, not tenant_superadmin.
+await prisma.user.upsert({ where: { email: "webmaster@localhost.com" },
+  update: { passwordHash: webmasterHash },
+  create: { email: "webmaster@localhost.com", passwordHash: webmasterHash,
+            fullName: "Webmaster", role: "tenant_superadmin", isActive: true, tenantId: tenant.id } });
+
+// tenant_admin — delegated; all features EXCEPT Billing + User Management.
+await prisma.user.upsert({ where: { email: "admin@admin.com" },
+  update: { passwordHash: adminHash },
+  create: { email: "admin@admin.com", passwordHash: adminHash,
+            fullName: "Admin", role: "tenant_admin", isActive: true, tenantId: tenant.id } });
+```
+- Per-env emails differ (dev/staging-prod/demo) — see `.ai_prompt/rbac.md` Part D; the demo env has NO
+  tenant_admin. `.env.{env}` carries `TENANTADMIN_PASSWORD` / `WEBMASTER_PASSWORD` / `ADMIN_PASSWORD` +
+  `SEED_DEV_ACCOUNTS` (true ONLY in `.env.dev`). Compose footgun: `$` in a hash → `$$` in a compose-consumed .env.
+- Succession (platform break-glass reassign + owner-transfer as a mediated promote-then-demote in one
+  transaction) + tests are part of the auth scaffold (phases.md Phase 4 Part 3 MODEL HOOK).
 
 ### Rule 8 — WSL2 native is the only supported dev environment (V25)
 

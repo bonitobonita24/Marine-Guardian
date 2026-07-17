@@ -199,6 +199,8 @@ dispatch_ratio:
 
 > **V32 note:** STATE.md is the ONE file Opus is permitted to write directly (the checkpoint exception to R1). All other writes — including governance docs — must be dispatched to Sonnet.
 
+> **`sync-context.sh` (V32.20)** — Immediately after rewriting STATE.md, run `bash scripts/sync-context.sh` to refresh the `AIEF:MANAGED` region in the project's CLAUDE.md (Phase / Locked stack / Last done / Next / Blockers / Recent CHANGELOG). The regenerator is idempotent — it is a pure function of docs/STATE.md + DECISIONS_LOG.md/PRODUCT.md + CHANGELOG_AI.md, and no-ops (no write, no mtime change) if the rendered block is unchanged. This does not add a new phase hook or change the 18-hook count — it is a mechanical tail step of the existing Smart Checkpoint POST action (see §3 Hook Text below).
+
 > **`dispatch_ratio` (V32.2)** — Append the dispatch-ratio block per §4 R9 (sonnet_writes / opus_writes, target ≥ 3.0, status PASS/WARN/FAIL). FAIL triggers a `lessons.md` entry. See §4 R9 (Dispatch Ratio Metric) — every checkpoint MUST include the `dispatch_ratio` block.
 
 > **`evidence` (V32.8 Rule 32) — REQUIRED on every done-claim.** A checkpoint that claims "done", "fixed", or "no work left" MUST carry the evidence block below. A checkpoint without a populated evidence block is a **structurally malformed artifact** — it is not a valid done-claim.
@@ -275,7 +277,9 @@ You do not need to read this section during execution — it documents where the
 ```
 ⚠ MEMORY GOVERNANCE (memory-governance.md):
   PRE:   Run Tiered Decomposition (§1) — `wc -l` all files in scope, ≤ 500 lines per Sonnet task.
-  POST:  Run Smart Checkpoint (§2) if any files were created or modified.
+  POST:  Run Smart Checkpoint (§2) if any files were created or modified. After STATE.md is
+         rewritten, run `bash scripts/sync-context.sh` to refresh CLAUDE.md's AIEF:MANAGED region
+         (V32.20 — idempotent, no-op if unchanged).
   MODEL: ZERO OPUS EXECUTION (V32.3). Opus's only allowed actions in this session are: read context, plan, decompose, review Sonnet output, write STATE.md checkpoint. ALL other file writes (code, configs, governance docs, tests) MUST be dispatched via Agent(model: "sonnet") per §4. Before each dispatch: run `wc -l` on every file in scope; total ≤ 500 lines per Sonnet task; files > 300 lines need explicit line ranges. Allow-list governance docs > 200 lines MUST also go through Scout-Sonnet with the Governance Extraction Schema (§4) — direct Opus read of a > 200-line allow-list doc counts as `opus_writes` for `dispatch_ratio`. NO exceptions. NO "last resort." NO Opus executor escalation. If you find yourself about to call Edit/Write on a non-allow-list project file, STOP and dispatch.
 ```
 
@@ -763,6 +767,21 @@ If you are experiencing thrashing RIGHT NOW in a Phase 7/8 project:
 - **Memory is cumulative** — each session adds to the baseline. After 2-3 sessions, memory contains enough context that governance docs become verification-only (spot-check, not full-read).
 - **Tiered Decomposition uses current state** — it counts lines in files as they exist now, via `wc -l`. A 200-file project gets the same protection as a 20-file project.
 - **Opus→Sonnet works at any scale** — the more context a project has, the more valuable Opus becomes as the planning layer. Mature projects benefit the most.
+
+### Flow-Back reconcile loop (V32.21)
+
+When a discovery lands in the code/config/ops layer instead of `docs/PRODUCT.md` first —
+the common brownfield/mid-project pattern — use the **Flow-Back** path named in
+Master_Prompt.md Rule 1's Spec-Persistence Model addendum: capture the discovery in the
+closest artifact, then reconcile the rest of the spec set back up to it. The full 5-step
+procedure (capture → classify → update disagreeing artifacts → run the cross-artifact
+gap-check → resume) is **Scenario 40** in `scenarios.md`. The gap-check itself is
+`scripts/spec-gap-check.sh` (deliverable #28, also reachable as Prompt 2.9 — Validate
+Spec Consistency) — a read-only, non-blocking scan of `docs/PRODUCT.md` ↔ `inputs.yml`
+↔ the Prisma schema ↔ `docs/IMPLEMENTATION_MAP.md` ↔ `docs/STATE.md`. Use it any time
+Mid-Project Adoption (above) or a Feature Update reveals that the artifact set may have
+drifted from reality — it is the cheap check that tells you whether Step 3 above
+("Apply governance to your next task") is starting from a trustworthy baseline.
 
 ---
 

@@ -69,6 +69,24 @@ Rule 14 (Motion & Micro-interactions) was added in V32.14 — Motion (motion.dev
    Agents use the shadcn MCP server to search blocks by description.
    Blocks gallery: https://ui.shadcn.com/blocks
    Registry directory (community): https://ui.shadcn.com/docs/directory
+   CONTENT CONTAINER DEFAULT (never full-bleed dense content): wrap readable/dense page
+   content (admin, dashboards, forms, tables, settings, reading columns) in a centered
+   max-width container WITH an always-present responsive gutter — mobile-first, never 0 on
+   any breakpoint: `mx-auto max-w-7xl px-4 sm:px-6 lg:px-8` (safe gutter 16→24→32px + a
+   ~1280px cap so wide monitors also get side gutters). A full-width bar may still span the
+   viewport — apply the container to the content inside it. EXEMPT (stay edge-to-edge):
+   kiosk / wall-display / full-bleed hero-marketing / maps-canvas / any surface a spec
+   calls immersive. INHERIT-not-REPLACE — docs/DESIGN.md may set a different measure and
+   wins. Full detail: design-principles.md Pillar 3 "Content container & responsive gutter".
+   LAYOUT ARCHETYPE DEFAULT (pick the shell by app type): a marketing / brand site or webapp =
+   FULL-WIDTH (full-bleed immersive hero bands); a general-purpose / purpose-driven app
+   (dashboard, admin, tool, back-office, console) = PERSISTENT LEFT-SIDEBAR APP-SHELL — build it
+   with the shadcn/ui `sidebar` (`SidebarProvider` + collapsible `Sidebar` + `SidebarTrigger`
+   hamburger + `SidebarInset`): always-available left nav (off-canvas on mobile, icon-rail for
+   focused work screens) + large right content area. Do NOT scatter primary nav across a top
+   header-tab strip for a multi-section functional app. EXEMPT (immersive, no app-shell):
+   kiosk / wall-display / public marketing-landing-auth. INHERIT-not-REPLACE — docs/DESIGN.md
+   may override per surface. Full detail: design-principles.md Pillar 3 "Layout archetype".
 
 9. Icons: lucide-react (already a shadcn/ui dependency). NEVER import heroicons,
    react-icons, font-awesome, or phosphor-icons alongside lucide.
@@ -257,6 +275,31 @@ letting a block's own tokens override `docs/DESIGN.md`. Consulted at work-start 
 **Optional / non-default component sources:**
   shadcn/studio FREE (shadcnstudio.com GitHub, MIT) — the free block set; optional supplement to the sanctioned Pro generator above.
   shadcn.io — community registry with a Pro paid tier; free-tier boundaries unclear. Not a default.
+
+**Tenant RBAC UI (V32.25 — pointer, NOT a new numbered rule; UI rules stay 14).**
+Two RBAC surfaces have a fixed shadcn/ui shape (authority: `.ai_prompt/rbac.md` + Rule 34):
+  - **Role-builder** (tenant_superadmin-only): a shadcn **checklist matrix** — features (from the app's
+    Feature Registry) down the side, the 4 permissions **View · Write · Update · Delete** across the top,
+    a checkbox per cell. Build with Data Table + Checkbox + Form (React Hook Form + Zod). Pair the read cue
+    with `accessibility-agents` (WCAG 2.2 AA — hard gate for gov/LGU).
+  - **Sidebar nav** for `tenant_admin`-and-below **renders + enforces FROM the `role_permissions` matrix**
+    (data-driven `hasPermission(feature,'view')` filter), NEVER a hardcoded enum switch. The 3 fixed system
+    tiers (tenant_manager / tenant_superadmin / tenant_admin) short-circuit to full access.
+
+**Sidebar-Footer Version + White-Label Standard (V32.26 — pointer, NOT a new numbered rule; UI rules stay 14).**
+Every app-shell `SidebarFooter` (the left-sidebar app-shell — see Rule 8 LAYOUT ARCHETYPE DEFAULT above),
+placed just below the profile/user block, MUST render two small muted marks (authority:
+`~/.claude/rules/design-defaults.md` Entry 3):
+  - **Version tag** `v{X.Y.Z}` (`text-xs text-muted-foreground`) — sourced from the release
+    version/`package.json`, formatted per the versioning standard (`~/.claude/rules/versioning-standard.md`):
+    `-rc.N` suffix on staging, clean number on prod.
+  - **White-label credit** — the whole "Developed by Powerbyte IT Solutions" string is ONE clickable
+    link opening a **new tab** to `https://www.powerbyteitsolutions.com/`
+    (`target="_blank" rel="noopener noreferrer"` — required, opener-hijack + referrer-leak guard).
+Non-sidebar archetypes (marketing full-width / immersive-kiosk) place the marks per the same global
+rule's fallback slots (page-footer fine print / an about-settings panel). INHERIT-not-REPLACE —
+docs/DESIGN.md may relocate/restyle either mark and it wins. This is a Phase 4 Parts 5-6 output-contract
++ gate-closure item (see phases.md), not a new numbered UI rule.
 
 ---
 

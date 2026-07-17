@@ -1790,12 +1790,23 @@ and aligned with what's already built:
 5. Cross-check Tenancy Model vs DB schema pattern declared in DECISIONS_LOG.md.
 6. Compare PRODUCT.md vs IMPLEMENTATION_MAP.md — flag any PRODUCT.md items that
    IMPLEMENTATION_MAP says are complete but whose code no longer exists on main.
+7. Run `bash scripts/spec-gap-check.sh --report-only` (V32.21) — the cross-artifact
+   gap-check that enumerates the same 5-way surface mechanically: PRODUCT.md ↔
+   inputs.yml ↔ the Prisma schema ↔ IMPLEMENTATION_MAP.md ↔ STATE.md. Fold its
+   GAP_REPORT findings (DRIFT / UNBUILT / PHASE-REALITY MISMATCH / DERIVATION DRIFT)
+   into the CONSISTENCY REPORT below.
 
 Output a CONSISTENCY REPORT with PASS/FAIL per check. Do not modify any file.
 Report only. If FAIL: suggest exact PRODUCT.md edit needed.
 ```
 
 **What happens:** Agent verifies spec coherence before committing to a feature build. Catches the kind of ambiguity that causes Phase 4 to halt mid-scaffold. Think of this as "Phase 2.7 stress-test, on-demand."
+
+**V32.21 — Spec-Persistence Model pointer:** this prompt is the on-demand check for the
+LIVING-SPEC model named in Master_Prompt.md Rule 1 (PRODUCT.md is the contract; inputs.yml /
+Prisma schema / IMPLEMENTATION_MAP.md are disposable derivations regenerated from it). If a
+discovery landed in code/config before PRODUCT.md, use the **Flow-Back** reconcile loop
+instead — see **Scenario 40** in `scenarios.md`.
 
 ---
 
@@ -1959,7 +1970,7 @@ and line numbers.
 ```
 Attach `Security_Checklist.md` + relevant code files.
 
-**What happens:** Agent runs all 114 items across 16 sections (Authentication, RBAC, Multi-tenant isolation L1–L6, Input validation, Database safety, File uploads, Queue/cache, Production errors, Security headers, Webhooks, Secrets, Production defaults, Phase 5 baseline, Compliance & Data Privacy, AI/LLM/MCP Security, API Authorization & Injection Family). Fix all FAILs before merging or deploying.
+**What happens:** Agent runs all 147 items across 21 sections (Authentication, RBAC, Multi-tenant isolation L1–L6, Input validation, Database safety, File uploads, Queue/cache, Production errors, Security headers, Webhooks, Secrets, Production defaults, Phase 5 baseline, Compliance & Data Privacy, AI/LLM/MCP Security, API Authorization & Injection Family, Auth-Token/OAuth, Command/Code-Execution, Cloud-Credential, Mobile-conditional, Tenant RBAC & Custom Roles). Fix all FAILs before merging or deploying.
 
 ---
 
@@ -2646,6 +2657,56 @@ Restart Claude Code. Resume MANUALLY per **3.23.C**.
 > ⚠ **The `~/clean-slate-backup-*.tar.gz` snapshot is your insurance.** Keep it until Phase 6.5 passes cleanly. Then `rm` it if you want.
 
 > ⚠ **Phase 3.3 is a HARD GATE (V32.6).** Do not let Claude skip it or fold it into Phase 4. The Orqafy lesson: scaffolding before behavior is validated produces integration bugs that are expensive to find later. Client sign-off in `docs/DECISIONS_LOG.md` is the explicit gate-close signal.
+
+---
+
+## 3.24 — Spec Expert Panel Review (NEW ✨ V32.24)
+
+**Where:** Claude Code (Opus 4.8 as PM, dispatching Sonnet ephemeral subagents)
+**When:** Phase 2.8 (design pre-handoff, before Claude Code's designer-skills bundle inherits the mockup) and Phase 3 pre-lock (before spec files generate and the architecture locks)
+
+```
+Run the Spec Expert Panel against the current docs/PRODUCT.md (and docs/DESIGN.md /
+docs/MOCKUP.jsx if this is the Phase 2.8 pass).
+
+Dispatch these 5 expert-lens reviewers IN PARALLEL as ephemeral subagents, each
+loading ONE skill as its review lens and returning prioritized findings
+(Critical / High / Medium) scoped to that lens only:
+
+  1. secure-code-guardian  → security, authz depth, data-privacy/compliance gaps
+  2. architecture-designer → system structure, scalability, coupling, module boundaries
+  3. api-designer          → API surface, contracts, versioning, integration seams
+  4. test-master           → testability, coverage gaps, edge cases, acceptance criteria
+  5. database-optimizer    → schema/data-model, indexing, query/access patterns, tenancy
+
+Each subagent reads ONLY docs/PRODUCT.md (+ DESIGN.md/MOCKUP.jsx at Phase 2.8) — no
+code execution, review-only. Each returns its findings as a flat prioritized list.
+
+PM (Opus) then:
+  1. SYNTHESIZES all 5 findings lists into one.
+  2. DEDUPS overlapping findings (e.g. a tenancy gap flagged by both
+     architecture-designer and database-optimizer collapses to one entry, tagged
+     with both lenses).
+  3. PRIORITIZES the merged list (Critical first, then High, then Medium).
+  4. FEEDS every finding into the Flow-Back / LIVING-SPEC reconcile
+     (Rule 1 Spec-Persistence Model, Scenario 40's 5-step loop): each finding is
+     classified (BEHAVIOR → docs/PRODUCT.md edit proposal, STRATEGY →
+     docs/DECISIONS_LOG.md, TASK-BREAKDOWN → docs/IMPLEMENTATION_MAP.md) and
+     PRODUCT.md stays the human-owned Rule-1 source of truth — the agent proposes
+     the exact edit, the human applies it.
+
+GATE: Report the verdict as one collapsed line —
+  ✅ spec-expert-panel: clear (no Critical findings)
+  or
+  ⛔ spec-expert-panel: N Critical findings unresolved — [list]
+The spec CANNOT LOCK (Phase 3) and the design CANNOT HAND OFF (Phase 2.8) while
+any CRITICAL finding is unresolved. High/Medium findings are recorded but do not
+gate.
+```
+
+> 💡 **Why 5 lenses, not 1 generalist review?** Each installed skill is already a narrow, well-tested expert lens (secure-code-guardian ships with its own OWASP-aligned checklist; database-optimizer with its own indexing/tenancy heuristics, etc.) — running them in parallel as ephemeral subagents costs one round-trip, not five sequential ones, and each stays laser-scoped instead of one generalist trying to hold five domains in its head at once. This mirrors the framework's PM → Architect → Worker dispatch model: the PM (Opus) never executes the review itself, it dispatches and synthesizes.
+
+> ⚙ **Gate placement.** Phase 2.8 already has a designer-skills gate-closure rule (V32.5.1 — `/design-review` must return green). The Spec Expert Panel gate is a SEPARATE, additive gate at the same phase boundary — one covers visual/design-system compliance, this one covers security/architecture/API/test/data-model soundness of the underlying spec. Both must clear before Phase 2.8 hands off. At Phase 3, this is the FIRST gate of its kind — nothing previously blocked spec-file generation on a structured multi-lens review.
 
 ---
 

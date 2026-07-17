@@ -1,6 +1,6 @@
-# Spec-Driven Platform V32.18 — Cross-AI Audit Prompt (for ChatGPT)
+# Spec-Driven Platform V32.21 — Cross-AI Audit Prompt (for ChatGPT)
 
-> **Purpose:** Hand this prompt to ChatGPT along with the 26 V32.18 framework files. ChatGPT independently audits V32.18 to verify the framework remains internally consistent across all canonical files. Items 1-7 below are historical V31-era audit goals (still verified as baseline); V32 / V32.1 / V32.2 / V32.3 / V32.4 / V32.4.1 / V32.5 / V32.5.1 / V32.5.2 / V32.5.3 / V32.5.4 / V32.5.5 / V32.6 / V32.6.1 / V32.7 / V32.7.1 / V32.7.2 / V32.7.3 / V32.7.4 / V32.7.5 / V32.8 / V32.8.1 / V32.9 / V32.10 / V32.11 / V32.12 / V32.13 / V32.14 / V32.16 / V32.17 / V32.18 verification items live in **Section K (K.1-K.78)** with the V32.18 verified counts block (V32.5.3 bumps Prompts 60→61 and NEW 37→38; V32.5.4 / V32.5.5 / V32.6 / V32.6.1 / V32.7 / V32.7.1 / V32.7.3 / V32.7.4 are no-count-change patches; deliverable files changed twice: 17→19 at V32.7.2 and 19→20 at V32.7.5; **V32.8 bumps Rules 30→32, Scenarios 35→39, UI Rules 11→12, Phase Hooks 14→17, Bootstrap Steps 19→20, memory-gov sections 5→6, deliverable files 20→22**; **V32.8.1 is a docs-only patch — zero count change**; **V32.9 bumps Rules 32→33, UI Rules 12→13, Phase Hooks 17→18, deliverables 22→23, Security Checklist 84→98 items / 13→14 sections, PRODUCT.md 11→12 sections, PA Rules 11→12**; **V32.10 is a zero-count-change templates-only patch — no rule/scenario/prompt/deliverable/file added**; **V32.11 bumps MCP servers 4→5 — adds shadcn/studio Pro as the framework's default design generator (user-global MCP, phase-routed /cui /iui /rui /ftc); no rule/scenario/prompt/deliverable/file added**; **V32.12 bumps deliverable files 23→24 — adds design-principles.md on-demand reference to .ai_prompt/; no rule/scenario/prompt/phase-hook/MCP count change**; **V32.13 is a zero-count-change deploy-mechanism patch — adds the CI→Docker Hub→Komodo-API auto-deploy pipeline as Phase-6 scaffold templates (templates.md Rule 5c + phases.md); the app-side workflow + helper are NOT new deliverables, so deliverable files stay 24 and no rule/scenario/prompt/phase-hook/MCP count changes**; **V32.14 bumps UI Rules 13→14 and deliverable files 24→25 — adds motion.md on-demand reference to .ai_prompt/ + ui-rules.md Rule 14 "Motion & Micro-interactions"; no rule/scenario/prompt/phase-hook/MCP count change**; **V32.16 is a zero-count storage-default patch — MinIO stays the staging/prod default; Cloudflare R2 demoted to budget-gated OPT-IN (V32.15 reverted before rollout); ZERO count change vs V32.14**; **V32.17 bumps deliverable files 25→26 — adds scripts/lint-design.sh design anti-slop gate (D1–D7 seven cardinal sins + P1a advisory warning); no rule/scenario/prompt/phase-hook/MCP count change**; **V32.18 bumps Security Checklist 98→114 items / 14→16 sections — adds §15 AI/LLM/MCP Security + §16 API Authorization & Injection Family (harvested from the curated Anthropic-Cybersecurity-Skills bundle; OWASP LLM/API Top 10 + MITRE ATLAS mapped); no rule/scenario/prompt/deliverable/MCP count change**):
+> **Purpose:** Hand this prompt to ChatGPT along with the 28 V32.22 framework files. ChatGPT independently audits V32.22 to verify the framework remains internally consistent across all canonical files. Items 1-7 below are historical V31-era audit goals (still verified as baseline); V32 / V32.1 / V32.2 / V32.3 / V32.4 / V32.4.1 / V32.5 / V32.5.1 / V32.5.2 / V32.5.3 / V32.5.4 / V32.5.5 / V32.6 / V32.6.1 / V32.7 / V32.7.1 / V32.7.2 / V32.7.3 / V32.7.4 / V32.7.5 / V32.8 / V32.8.1 / V32.9 / V32.10 / V32.11 / V32.12 / V32.13 / V32.14 / V32.16 / V32.17 / V32.18 / V32.19 / V32.20 / V32.21 / V32.22 verification items live in **Section K (K.1-K.82)** with the V32.22 verified counts block (V32.5.3 bumps Prompts 60→61 and NEW 37→38; V32.5.4 / V32.5.5 / V32.6 / V32.6.1 / V32.7 / V32.7.1 / V32.7.3 / V32.7.4 are no-count-change patches; deliverable files changed twice: 17→19 at V32.7.2 and 19→20 at V32.7.5; **V32.8 bumps Rules 30→32, Scenarios 35→39, UI Rules 11→12, Phase Hooks 14→17, Bootstrap Steps 19→20, memory-gov sections 5→6, deliverable files 20→22**; **V32.8.1 is a docs-only patch — zero count change**; **V32.9 bumps Rules 32→33, UI Rules 12→13, Phase Hooks 17→18, deliverables 22→23, Security Checklist 84→98 items / 13→14 sections, PRODUCT.md 11→12 sections, PA Rules 11→12**; **V32.10 is a zero-count-change templates-only patch — no rule/scenario/prompt/deliverable/file added**; **V32.11 bumps MCP servers 4→5 — adds shadcn/studio Pro as the framework's default design generator (user-global MCP, phase-routed /cui /iui /rui /ftc); no rule/scenario/prompt/deliverable/file added**; **V32.12 bumps deliverable files 23→24 — adds design-principles.md on-demand reference to .ai_prompt/; no rule/scenario/prompt/phase-hook/MCP count change**; **V32.13 is a zero-count-change deploy-mechanism patch — adds the CI→Docker Hub→Komodo-API auto-deploy pipeline as Phase-6 scaffold templates (templates.md Rule 5c + phases.md); the app-side workflow + helper are NOT new deliverables, so deliverable files stay 24 and no rule/scenario/prompt/phase-hook/MCP count changes**; **V32.14 bumps UI Rules 13→14 and deliverable files 24→25 — adds motion.md on-demand reference to .ai_prompt/ + ui-rules.md Rule 14 "Motion & Micro-interactions"; no rule/scenario/prompt/phase-hook/MCP count change**; **V32.16 is a zero-count storage-default patch — MinIO stays the staging/prod default; Cloudflare R2 demoted to budget-gated OPT-IN (V32.15 reverted before rollout); ZERO count change vs V32.14**; **V32.17 bumps deliverable files 25→26 — adds scripts/lint-design.sh design anti-slop gate (D1–D7 seven cardinal sins + P1a advisory warning); no rule/scenario/prompt/phase-hook/MCP count change**; **V32.18 bumps Security Checklist 98→114 items / 14→16 sections — adds §15 AI/LLM/MCP Security + §16 API Authorization & Injection Family (harvested from the curated Anthropic-Cybersecurity-Skills bundle; OWASP LLM/API Top 10 + MITRE ATLAS mapped); no rule/scenario/prompt/deliverable/MCP count change**; **V32.20 bumps deliverable files 26→27 — adds scripts/sync-context.sh, an idempotent regenerator for the AIEF:MANAGED region in CLAUDE.md; no rule/scenario/prompt/phase-hook/MCP count change**; **V32.21 bumps deliverable files 27→28 and Scenarios 39→40 — adds scripts/spec-gap-check.sh (advisory cross-artifact gap-check) + a named Spec-Persistence Model addendum to Rule 1 (Flow-Forward / LIVING-SPEC default / Flow-Back) + Scenario 40 (Flow-Back 5-step reconcile loop); no rule/prompt/phase-hook/MCP count change**; **V32.22 bumps Security Checklist 114→135 items / 16→20 sections — adds SECTION 17 Auth-Token/OAuth, SECTION 18 Command/Code-Execution, SECTION 19 Cloud-Credential, SECTION 20 Mobile-conditional (Claude-Red offense→defense harvest; security.md gains 10 new hardening blocks); no rule/scenario/prompt/deliverable/phase-hook/MCP count change**):
 > 1. Phase 2.8 (Clickable Mockup Review — added V31) is correctly documented
 > 2. Cline deprecation (in-place V31 update) is consistent across all files
 > 3. Historical V30 changelog references are preserved
@@ -9,7 +9,7 @@
 > 6. No regressions introduced during the updates
 > 7. Post-lock additive patches: Phase 3.5, Phase 4+8 anti-thrashing, Skill Installer, Prompt 4.13, attribution cleanup, prompt count 55 (V31 era — V32.5.3 current: **61 prompts (38 NEW ✨)**, **35 scenarios**, **19 bootstrap steps**, **9 V32 Dispatch Rules (R1-R9) + V32.3 R6 size qualifier (allow-list >200 lines via Scout with Governance Extraction Schema)**)
 >
-> **How to interpret counts:** The **V32.18 verified counts block** (around line 87 below) is authoritative for current totals. Historical changelog entries and items 1-7 above may reference older totals reflecting their version-at-time-of-writing (e.g., 55 prompts, 34 scenarios, 18 bootstrap steps for V31 lock; 30 rules / 35 scenarios / 14 phase hooks for V32.7.5; 32 rules / 22 deliverables / 17 phase hooks for V32.8.1; 23 deliverables for V32.11; 13 UI rules / 24 deliverables for V32.13; 14 UI rules / 25 deliverables for V32.14) — those are correct for their version and **MUST NOT be treated as current**. (V32.15 — R2 as staging/prod storage default — was reverted before rollout; V32.16 keeps MinIO default + R2 as a budget-gated opt-in, ZERO count change vs V32.14; V32.17 bumps deliverable files 25→26 — scripts/lint-design.sh #26 added.) When a count appears without a V32.18 annotation, cross-check against the verified counts block before reporting.
+> **How to interpret counts:** The **V32.21 verified counts block** (around line 87 below) is authoritative for current totals. Historical changelog entries and items 1-7 above may reference older totals reflecting their version-at-time-of-writing (e.g., 55 prompts, 34 scenarios, 18 bootstrap steps for V31 lock; 30 rules / 35 scenarios / 14 phase hooks for V32.7.5; 32 rules / 22 deliverables / 17 phase hooks for V32.8.1; 23 deliverables for V32.11; 13 UI rules / 24 deliverables for V32.13; 14 UI rules / 25 deliverables for V32.14) — those are correct for their version and **MUST NOT be treated as current**. (V32.15 — R2 as staging/prod storage default — was reverted before rollout; V32.16 keeps MinIO default + R2 as a budget-gated opt-in, ZERO count change vs V32.14; V32.17 bumps deliverable files 25→26 — scripts/lint-design.sh #26 added.) When a count appears without a V32.18 annotation, cross-check against the verified counts block before reporting.
 >
 > **Use case:** Run this after every major framework update to catch mistakes Claude missed.
 >
@@ -84,14 +84,14 @@ Bonito's user preference: keep Cline extension installed in VS Code as emergency
 - Post-lock patches add Phase 3.5 as a NEW phase (between Phase 3 and Phase 4) and anti-thrashing rules to Phase 4 and Phase 8. These are in phases.md and Master_Prompt.md. They do NOT change the framework rule count, scenario count, or bootstrap step count.
 - Post-lock patches add a **Context Budget — Global Principle** to CLAUDE_compact.md and Master_Prompt.md. This is a Sonnet 4.6 model-aware task sizing principle (200K window, 120K practical, ≤80K SAFE zone, 12-file threshold). It governs how ALL work is scoped — not a new rule, but a non-negotiable behavioral principle.
 
-### V32.18 verified counts (must match in every file that quotes them)
+### V32.22 verified counts (must match in every file that quotes them)
 
 ```
-33 Rules · 39 Scenarios · 20 Bootstrap Steps · 8 Phase 4 Parts
+33 Rules · 40 Scenarios · 20 Bootstrap Steps · 8 Phase 4 Parts
 9 Phase 5 Commands · 16 Phase 6.5 Categories · 16 Secure Code Gen sub-sections
-14 UI Component Rules · 114 Security Checklist items (16 sections)
+14 UI Component Rules · 135 Security Checklist items (20 sections)
 61 Prompts (38 NEW ✨) in Prompt_References.md and Prompt_References.html
-26 deliverable files (19 in .ai_prompt/ + deploy.sh at project root + spec-executor.md → .claude/agents/ + settings.json → .claude/settings.json + lint-deploy.sh → scripts/lint-deploy.sh + design-stop-hook.sh → scripts/ + LESSONS_REGISTRY.md → .ai_prompt/ + privacy.md → .ai_prompt/ + design-principles.md → .ai_prompt/ + motion.md → .ai_prompt/ + lint-design.sh → scripts/lint-design.sh) · 5 MCP servers (3 wired + 1 user-global + 1 plugin) · Node v22 · pnpm@10
+28 deliverable files (19 in .ai_prompt/ + deploy.sh at project root + spec-executor.md → .claude/agents/ + settings.json → .claude/settings.json + lint-deploy.sh → scripts/lint-deploy.sh + design-stop-hook.sh → scripts/ + LESSONS_REGISTRY.md → .ai_prompt/ + privacy.md → .ai_prompt/ + design-principles.md → .ai_prompt/ + motion.md → .ai_prompt/ + lint-design.sh → scripts/lint-design.sh + sync-context.sh → scripts/sync-context.sh + spec-gap-check.sh → scripts/spec-gap-check.sh) · 5 MCP servers (3 wired + 1 user-global + 1 plugin) · Node v22 · pnpm@10
 Phase count: 8 main phases + 2.5 + 2.6 + 2.7 + 2.8 (V31) + 3.3 (V32.6) + 3.5 (POST-LOCK) + 6.5
 6 agents (Claude Code primary: Opus 4.6 Architect + Sonnet 4.6 Executor · Cline ⚠ DEPRECATED · Copilot · SpecStory · SocratiCode · code-review-graph)
 9 governance docs (unchanged)
@@ -126,6 +126,8 @@ Count diffs vs V32.6.1 → V32.7: **counts unchanged (deploy-location change onl
 Count diffs vs V32.7.1 → V32.7.2: **deliverable files 17 → 19** (added `spec-executor.md` → `.claude/agents/` and `settings.json` → jq-merged into `.claude/settings.json`); all other canonical counts unchanged (30 Rules · 35 Scenarios · 19 Bootstrap Steps · 61 Prompts (38 NEW ✨) · 11 UI Rules · 9 V32 Dispatch Rules · 14 Phase Hooks). V32.7.2 adds a custom Sonnet executor subagent (`spec-executor.md`, frontmatter `tools: Read,Write,Edit,Bash,Grep,Glob` + `model: sonnet` + `mcpServers: []`) and a `settings.json` with skill-listing context caps (`skillListingBudgetFraction: 0.01` + `maxSkillDescriptionChars: 1024`); framework executor dispatch (R1/R5/R7) now targets `Agent(subagent_type: "spec-executor")` with `Agent(model: "sonnet")` fallback. K.47 added (V32.7.2 verification). **NOTE: V32.7.2 re-bumped version markers V32.7.1 → V32.7.2 and the deliverable count 17 → 19 — supersedes K.45/K.46 count references.**
 
 Count diffs vs V32.16 → V32.17: **deliverable files 25 → 26** (lint-design.sh → scripts/lint-design.sh); all other canonical counts unchanged. V32.17 adds the **Design Anti-Slop Gate**: scripts/lint-design.sh #26 (D1–D7 seven cardinal sins + P1a advisory; --report-only at design phases); design-principles.md (#24) gains Pillar 8 Anti-AI-Slop + letter-spacing table + five-state render contract. Idea source: nexu-io/open-design craft/ axis (Apache-2.0). Counts: 33 Rules · 39 Scenarios · 20 Bootstrap Steps · 61 Prompts (38 NEW ✨) · 14 UI Rules · 9 V32 Dispatch Rules · 18 Phase Hooks · **26 deliverable files** · 5 MCP servers. K.77 added (V32.17 verification).
+
+Count diffs vs V32.18 → V32.19: **all canonical counts unchanged** (deliverable files stay 26; no new file added — extends existing #24 + #26). V32.19 adds the **Anti-Slop Gate Expansion**: lint-design.sh #26 gains D8 gradient/clip-to-text fill (P0 cardinal sins 7→8) + P1b–P1i advisory checks (italic-serif display headline, marketing buzzwords, repeating-gradient stripes, layout-property transition, bounce/elastic easing, justified body text, image hover-transform, crushed/negative letter-spacing); design-principles.md #24 Pillar 8 broadens to a full extended-tells catalogue (visual/type/motion/copy/token-drift). Designer-skill MIT harvest (Pythoughts-labs, concept-only). Posture UNCHANGED: advisory --report-only at all design phases, only P0 gates in --strict. Counts: 33 Rules · 39 Scenarios · 20 Bootstrap Steps · 61 Prompts (38 NEW ✨) · 14 UI Rules · 9 V32 Dispatch Rules · 18 Phase Hooks · **26 deliverable files** · 5 MCP servers · 114 Security Checklist items / 16 sections — all unchanged. K.79 added (V32.19 verification).
 
 Count diffs vs V32.13 → V32.14: **UI Component Rules 13 → 14; deliverable files 24 → 25** (motion.md → .ai_prompt/, so .ai_prompt/ files 18 → 19); all other canonical counts unchanged. V32.14 adds the **Motion Layer**: a new on-demand deliverable `.ai_prompt/motion.md` (#25) — library-agnostic UI/UX motion principles (when/when-not to animate, easing-by-intent ease-out entrances / ease-in-out moves / no linear, duration budgets, the `transform`+`opacity`-only performance rule, `prefers-reduced-motion` first-class + WCAG SC 2.3.3, spring-vs-tween, gesture interruptibility, CSS-vs-JS, Motion+Tailwind appendix) — and a new `ui-rules.md` **Rule 14 "Motion & Micro-interactions"** (Motion (motion.dev) the only prescribed React animation lib via LazyMotion/mini ~4.6KB; mandatory `useReducedMotion()` guard ties R13 WCAG gate; `transform`/`opacity` only; GSAP opt-in on a PRODUCT.md marketing/scroll signal with `@gsap/react` + `gsap.matchMedia()` guard; Three.js/R3F parked for 3D-flagged apps only). Read at design phases 3.3 / Parts 5-6 / Phase 7 when docs/DESIGN.md / ui-rules.md are silent on a motion/timing/reduced-motion pattern. INHERIT-not-REPLACE over docs/DESIGN.md motion tokens. Motion principles informed by Emil Kowalski's "Animations on the Web" (animations.dev) + the MIT-licensed emilkowalski/skills + vercel-labs/open-agents skill files (restated in the framework's own words). Wired: `deploy.sh` GROUP 8 copy + `sync-to-project.sh` whitelist (24→25) + `ui-rules.md` Rule 14 + cross-ref + `phases.md` MODEL HOOK cues + `src/data/libraries.js` GSAP/Magic UI specDrivenFit notes + project + repo CLAUDE.md + documentation-hub.html. Counts: 33 Rules · 39 Scenarios · 20 Bootstrap Steps · 61 Prompts (38 NEW ✨) · **14 UI Rules** · 9 V32 Dispatch Rules · 18 Phase Hooks · **25 deliverable files** · 5 MCP servers. K.75 added (V32.14 verification).
 
@@ -1911,6 +1913,121 @@ Verify each is present in the specified locations.
              · 14 UI Rules · 18 Phase Hooks · 5 MCP servers).
        FAIL if any current-tense surface still reads 98 items / 14 sections, if §15 or §16 is missing,
        or if the bundle was counted as a new deliverable.
+
+□ K.79 (V32.19) — The Anti-Slop Gate Expansion (lint-design.sh D8 + P1b–P1i + design-principles.md
+       Pillar 8 extended tells) is present and the deliverable count remains **26** in ALL current-tense
+       surfaces. Verify:
+         (a) `specdrivenprompt/lint-design.sh` contains a D8 check (`bg-clip-text`+`text-transparent` /
+             `background-clip:text` regex) that `report P0 D8` — gradient/clip-to-text fill as a
+             cardinal sin (P0). The P0 cardinal sin count is now D1–D8 (eight sins).
+         (b) `specdrivenprompt/lint-design.sh` contains eight new P1 advisory checks labelled P1b
+             through P1i: italic-serif display headline (Fraunces/Playfair/Recoleta/Newsreader + italic),
+             marketing buzzwords (streamline/empower/supercharge/world-class/enterprise-grade/…),
+             repeating-gradient stripes, layout-property transition (width/height/margin/padding),
+             bounce/elastic easing (cubic-bezier overshoot / ease-*-back), justified body text,
+             image hover-transform (`<img>` hover:scale-/hover:rotate-), crushed/negative
+             letter-spacing (tracking-tighter / letter-spacing:-0.0x).
+         (c) The header comment block in `lint-design.sh` lists D8 in the "P0 sins checked" section
+             and P1b–P1i in the "P1 guidance" section, and carries the V32.19 attribution sentence
+             referencing Pythoughts-labs/designer-skill (MIT).
+         (d) `specdrivenprompt/design-principles.md` Pillar 8 heading reads "cardinal sins + extended
+             tells" (not "the seven cardinal sins"), the numbered list has 8 items (item 8 = gradient/
+             clip-to-text fill), and the file contains an "Extended slop tells" subsection covering
+             visual/type/motion/copy/token-drift tells with the MIT attribution note.
+         (e) The Pillar 8 testable-checks line reads "no unresolved D1–D8 sins" (not D1–D7).
+         (f) The **V32.19 verified counts block** + Master_Prompt.md + Framework_Feature_Index.md +
+             CLAUDE_compact.md + repo CLAUDE.md all still read **26 deliverable files** — no count
+             changed.
+         (g) `bash -n specdrivenprompt/lint-design.sh` exits 0 (no bash syntax errors).
+       FAIL if D8 is missing from lint-design.sh, if any of P1b–P1i is absent, if Pillar 8 still
+       reads "seven cardinal sins" in current-tense text, if deliverable count changed from 26, or
+       if the attribution sentence for Pythoughts-labs/designer-skill is missing.
+
+☐ K.80 (V32.20) — Managed-Context Region + scripts/sync-context.sh (deliverable #27)
+   VERIFY: (a) `specdrivenprompt/sync-context.sh` exists and is executable (`test -x`).
+       (b) `bash -n specdrivenprompt/sync-context.sh` exits 0 (no bash syntax errors).
+       (c) A marker-delimited `<!-- AIEF:MANAGED START -->` … `<!-- AIEF:MANAGED END -->` block is
+           present in `CLAUDE_compact.md` under a `## CURRENT PROJECT STATE (auto-managed)` heading.
+       (d) `deploy.sh` GROUP 10 copies `sync-context.sh` to target `scripts/sync-context.sh` with
+           overwrite-with-backup + chmod +x, and the header manifest + SUMMARY echo block both list it.
+       (e) Running the script twice against an unchanged `docs/STATE.md` / `docs/CHANGELOG_AI.md` /
+           `docs/DECISIONS_LOG.md` produces byte-identical output on the second run (idempotent —
+           no write, no mtime change) and `--check` exits 0.
+       (f) `--file /etc/hosts` (absolute) and `--file ../x` (traversal) both refuse to write (nonzero
+           exit, no file created outside the project root).
+       (g) `memory-governance.md` §2 Target 1 + §3 Hook Text POST both instruct running
+           `bash scripts/sync-context.sh` after every STATE.md rewrite, and the 18 Phase Hooks count
+           is unchanged (this is a tail step of the existing Smart Checkpoint POST hook, not a new hook).
+       (h) The **V32.20 verified counts block** + Master_Prompt.md + Framework_Feature_Index.md +
+           CLAUDE_compact.md + repo CLAUDE.md all read **27 deliverable files** — no other count changed.
+   FAIL if sync-context.sh is missing, non-executable, or has a bash syntax error; if the
+   AIEF:MANAGED markers are absent from CLAUDE_compact.md; if deploy.sh does not copy/chmod it;
+   if a second run is not byte-identical to the first; if path hardening does not refuse an
+   absolute path or `..` traversal; or if the deliverable count is not 27 everywhere it's quoted.
+
+☐ K.81 (V32.21) — Spec-Persistence Taxonomy + Cross-Artifact Gap-Check (deliverable #28, Scenario 40)
+   VERIFY: (a) `Master_Prompt.md` Rule 1 contains a "Spec-Persistence Model" addendum naming
+       Flow-Forward / LIVING-SPEC (AIEF default) / Flow-Back, and states no new rule number was added
+       (Rules stay 33 everywhere).
+       (b) `specdrivenprompt/spec-gap-check.sh` exists and is executable (`test -x`); `bash -n` exits 0;
+       shellcheck reports zero warnings.
+       (c) Running `--report-only` twice against an unchanged artifact set produces byte-identical
+       output and creates/modifies zero files (idempotent, read-only).
+       (d) Running `--check` against a deliberately-desynced scratch repo (PRODUCT.md ↔ Prisma schema ↔
+       IMPLEMENTATION_MAP.md ↔ STATE.md ↔ inputs.yml mismatch) exits 3; a clean repo exits 0.
+       (e) `--file /etc/hosts` (absolute) and `--file ../x` (traversal) both refuse to write (nonzero
+       exit, no file created outside the project root).
+       (f) `deploy.sh` GROUP 11 copies `spec-gap-check.sh` to target `scripts/spec-gap-check.sh` with
+       overwrite-with-backup + chmod +x, and the header manifest + SUMMARY echo block both list it as
+       deliverable #28; the "28-file total deliverable set" line is present.
+       (g) `phases.md` Phase 7 pre-flight carries a V32.21 MODEL HOOK that runs
+       `bash scripts/spec-gap-check.sh --report-only`, surfaces "🔍 Cross-Artifact Gaps", states it is
+       non-blocking, and states it is NOT a new `memory-governance.md` §3 injection point (Phase Hooks
+       count stays 18 everywhere).
+       (h) `scenarios.md` contains "SCENARIO 40 — Brownfield spec evolution: the Flow-Back 5-step
+       reconcile loop" with the 5 numbered steps (capture / classify / update / gap-check / resume);
+       the file header reads "Scenarios 1-40".
+       (i) `memory-governance.md` §5 contains a "Flow-Back reconcile loop" subsection pointing to
+       Scenario 40 + `spec-gap-check.sh`; the section count stays 6 (no new §7).
+       (j) Prompt 2.9 in `Prompt_References.md` AND `Prompt_References.html` both reference running
+       `spec-gap-check.sh --report-only` and enumerate the 5-way surface; the prompt is still numbered
+       2.9 (Prompts stay 61, no renumbering).
+       (k) The **V32.21 verified counts block** + `Master_Prompt.md` + `Framework_Feature_Index.md` +
+       `CLAUDE_compact.md` + repo `CLAUDE.md` + `CLAUDE_framework_repo.md` all read **28 deliverable
+       files** and **40 Scenarios** — Rules (33), Prompts (61), UI Rules (14), and Phase Hooks (18) are
+       unchanged everywhere.
+   FAIL if spec-gap-check.sh is missing, non-executable, has a bash syntax error, or is not
+   shellcheck-clean; if a second `--report-only` run is not byte-identical or writes any file; if
+   `--check` does not exit 3 on a desynced repo; if path hardening does not refuse an absolute path or
+   `..` traversal; if deploy.sh does not copy/chmod it; if the Phase 7 MODEL HOOK is missing or
+   mis-described as a new phase hook; if Scenario 40 or the memory-governance.md §5 subsection is
+   absent; if Prompt 2.9 was renumbered instead of extended; or if 28 deliverables / 40 scenarios is
+   not the count everywhere it's quoted (with Rules/Prompts/UI-Rules/Phase-Hooks unchanged).
+
+☐ K.82 (V32.22) — Attack-Informed Security Hardening (Claude-Red harvest — Security Checklist 135 items / 20 sections)
+   VERIFY: (a) `security.md` contains 10 new hardening blocks tagged NEW V32.22: JWT algorithm-pinning
+       (reject `alg: none`, pin `HS256`/`RS256`), OAuth/SSO safety (state-parameter CSRF binding, PKCE,
+       redirect_uri allow-list), open-redirect prevention, RCE/command-injection prohibition, race/TOCTOU
+       generalization, prototype-pollution guard, cloud-credential safety, mobile-app safety (conditional
+       on PRODUCT.md native-mobile flag), a request-smuggling note, and clickjacking (`X-Frame-Options`/
+       `frame-ancestors`).
+       (b) `Security_Checklist.md` has SECTION 17 — AUTH TOKEN & OAUTH SECURITY, SECTION 18 — COMMAND /
+       CODE EXECUTION SAFETY, SECTION 19 — CLOUD CREDENTIAL SAFETY (S3/R2/MinIO), and SECTION 20 —
+       MOBILE APP SAFETY (CONDITIONAL — native mobile only); its header/HOW-TO-USE reads **135
+       verification items across 20 sections**.
+       (c) `Security_Checklist.md` has 135 items across 20 sections incl. §17-§20 in ALL current-tense
+       surfaces — `Master_Prompt.md` (the current V32.22 changelog entry), `Framework_Feature_Index.md`
+       (the V32.22 table row + footer), `CLAUDE_compact.md` (line-13 running version string),
+       `Prompt_References.md`/`.html` (Prompt 3.5 Post-Generation Security Checklist), repo `CLAUDE.md`,
+       `CLAUDE_framework_repo.md`, `public/documentation-hub.html`, and `deploy.sh`'s summary echo.
+       (d) No other canonical count changed (33 Rules · 40 Scenarios · 61 Prompts · 28 deliverables ·
+       14 UI Rules · 18 Phase Hooks · 5 MCP servers · 20 Bootstrap Steps).
+       (e) Frozen historical count references are undisturbed — e.g. K.65/K.78's "114 items / 16
+       sections" (describing the V32.9/V32.18 state at the time) and the V32.19 "Count diffs" narrative
+       line are NOT rewritten; only current-tense canonical-count surfaces changed.
+   FAIL if any current-tense surface still reads 114 items / 16 sections, if §17-§20 are missing or
+   misnumbered, or if a frozen historical changelog/K-item line describing a past version's state was
+   altered.
 
 ---
 

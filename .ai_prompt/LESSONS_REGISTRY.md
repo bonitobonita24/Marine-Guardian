@@ -147,10 +147,55 @@ _Promoted: 2026-06-25_
 | **fingerprint** | `framework.sync-tooling.whitelist-lags-new-deliverable` |
 | **machine_signature** | `grep -c '' <(comm -23 <(ls specdrivenprompt/ | sort) <(printf '%s\n' "${AI_PROMPT_FILES[@]}" deploy.sh | sort))` > 0 — a deliverable exists in source + is referenced by deploy.sh but is absent from sync-to-project.sh's AI_PROMPT_FILES whitelist |
 | **scope** | `framework` |
-| **failure** | RECURRING: `sync-to-project.sh`'s hardcoded `AI_PROMPT_FILES` whitelist lags when a new deliverable is added to the framework. `deploy.sh` (Group N) copies the file from `.ai_prompt/<file>` → its final home, but if `sync-to-project.sh` never STAGED it into `.ai_prompt/`, the deploy step silently no-ops and the app misses the deliverable. Hit 2026-06-18 (V32.7.2–V32.8 deliverables missing) and AGAIN 2026-06-30 (V32.17 `lint-design.sh` #26 missing → an FRMS V32.14→V32.18 sync would have shipped V32.18 security but no design anti-slop gate). The dry-run "files → .ai_prompt/" count and the "All N whitelisted files present" string also drift. |
+| **failure** | RECURRING: `sync-to-project.sh`'s hardcoded `AI_PROMPT_FILES` whitelist lags when a new deliverable is added to the framework. `deploy.sh` (Group N) copies the file from `.ai_prompt/<file>` → its final home, but if `sync-to-project.sh` never STAGED it into `.ai_prompt/`, the deploy step silently no-ops and the app misses the deliverable. Hit 2026-06-18 (V32.7.2–V32.8 deliverables missing) and AGAIN 2026-06-30 (V32.17 `lint-design.sh` #26 missing → an FRMS V32.14→V32.18 sync would have shipped V32.18 security but no design anti-slop gate) and a THIRD time 2026-07-08 (`sync-context.sh` #27 (V32.20) + `spec-gap-check.sh` #28 (V32.21) BOTH absent → a CueLane V32.18→V32.24 sync bumped the version but `deploy.sh` Group 10 tried to place `sync-context.sh` and no-op'd because it was never staged). THREE recurrences = the standing check is being skipped when deliverables land; treat adding to the whitelist as a NON-OPTIONAL step of shipping any `.ai_prompt/`-staged deliverable, and consider replacing the hardcoded array with a globbed/derived list so it cannot lag. The dry-run "files → .ai_prompt/" count and the "All N whitelisted files present" string also drift (was 26, now 28). |
 | **standing_check** | When adding ANY new deliverable that deploys via `.ai_prompt/` staging, in the SAME change add its filename to `sync-to-project.sh` `AI_PROMPT_FILES` (or `ROOT_FILES`) AND bump the "All N whitelisted files present" message. Before any `prep-sync`/`register-to-aief` sync: run `bash sync-to-project.sh <APP> --dry-run` and confirm the staged-file list matches the current deliverable count (26 as of V32.18) — cross-check against `deploy.sh`'s GROUP copies. A deploy.sh Group that references `$AI_PROMPT/<file>` with no matching whitelist entry = the bug. |
 | **check_location** | `sync-to-project.sh` `AI_PROMPT_FILES` array + the Gate-2 "All N whitelisted" message + `deploy.sh` GROUP copy blocks |
 
 _Promoted: 2026-06-30_
+
+---
+
+## framework.auth.l6-guarded-prisma-in-authorize
+
+| Field | Value |
+|---|---|
+| **fingerprint** | `framework.auth.l6-guarded-prisma-in-authorize` |
+| **machine_signature** | Auth.js v5 `CallbackRouteError` whose cause is `Error: [L6 tenant-guard] No tenant context active. Wrap the call in withTenantContext(tenantId, fn).` — thrown from a credentials-provider `authorize()`; surfaces to the user as a generic "Invalid credentials". |
+| **scope** | `framework` |
+| **failure** | The framework's L6 Prisma guardrail (`tenantGuardExtension` via AsyncLocalStorage) requires every tenant-scoped query to run inside `withTenantContext()`. But Auth.js `authorize()` runs BEFORE any session/tenant context exists (login is what establishes it), so a tenant/username login that queries `prisma.tenant`/`prisma.user` via the L6-guarded client throws and every such login fails. Env-based providers (platform super-admin) never touch Prisma, so the bug stays LATENT until tenant login is exercised — Phase 5 validation that only tests super-admin login will pass while tenant login is silently broken. Hit on CueLane 2026-07-08 (Phase-4 scaffold shipped it; surfaced at Phase-7 first real login). |
+| **standing_check** | Any Prisma call on a pre-session/bootstrap path — a credentials `authorize()`, edge/middleware pre-auth resolution, or tenant-provisioning bootstrap — MUST use the UNGUARDED client (`prismaRaw`, the pre-`$extends` `PrismaClient`), NOT the L6-guarded `prisma`. Keep the query manually scoped (`where: { tenantId: resolvedTenant.id }`) so isolation is preserved. `withTenantContext()` cannot wrap the tenant-resolution query itself (you resolve tenant-by-slug before you have its id), so `prismaRaw` is the correct tool. Phase 5 validation MUST exercise BOTH a super-admin login AND a tenant/username login end-to-end, not just super-admin. |
+| **check_location** | `apps/web/src/server/auth/config.ts` credentials `authorize()` — grep `prisma\.` (a guarded `prisma.` rather than `prismaRaw.` inside authorize is the bug); Phase 5 validation login E2E; `security.md` L6 section |
+
+_Promoted: 2026-07-08_
+
+---
+
+## framework.deploy.compose-envfile-bcrypt-dollar-interpolation
+
+| Field | Value |
+|---|---|
+| **fingerprint** | `framework.deploy.compose-envfile-bcrypt-dollar-interpolation` |
+| **machine_signature** | `docker exec <app> printenv SUPER_ADMIN_PASSWORD_HASH \| wc -c` returns far short of ~60 (e.g. 6: `$2a$10`), while the same key in the gitignored `.env.*` is a full 60-char `$2a$10$…` hash. Credentials login fails ("Invalid credentials") though the file hash is correct. |
+| **scope** | `framework` |
+| **failure** | Docker Compose INTERPOLATES `env_file` values. A bcrypt hash `$2a$10$<salt><digest>` contains `$`-sequences; compose expands `$2a`,`$10`,`$<salt…>` as (undefined) variables and drops them, so the container receives a TRUNCATED/mangled hash and every credential login against it fails. NON-DETERMINISTIC: a hash survives only when the char right after a `$` cannot start a variable name (e.g. `$/`, `$.`), so a previously-seeded hash can work by luck while a freshly-generated one silently breaks — making it look like a password mismatch rather than an escaping bug. Hit on CueLane 2026-07-10 re-seeding `SUPER_ADMIN_PASSWORD_HASH`. |
+| **standing_check** | Any bcrypt/argon secret written into a `.env.*` that is consumed by docker-compose `env_file:` MUST `$$`-escape every `$` (compose unescapes `$$`→`$`). Seeders/deploy templates that emit a hash into `.env` should `$$`-escape by default. ALWAYS verify at the container, not just the file: `docker exec <app> printenv <HASH_KEY> \| wc -c` ≈ 60 AND `bcryptjs.compareSync(password, <container-hash>)===true`. Comparing the in-file value vs the in-container `printenv` value is the direct tell (differ ⇒ interpolation ate the `$`). |
+| **check_location** | `deploy/compose/*/docker-compose.app.yml` (`env_file:` services) + `.env.*` `*_PASSWORD_HASH` keys + any seeder that writes a bcrypt hash into an env file consumed by compose |
+
+_Promoted: 2026-07-10_
+
+---
+
+## framework.rbac.tenant-3tier-and-custom-role-matrix
+
+| Field | Value |
+|---|---|
+| **fingerprint** | `framework.rbac.tenant-3tier-and-custom-role-matrix` |
+| **machine_signature** | (AI-judged: a tenant app whose `UserRole` was DROP/CREATE-renamed; a `tenant_superadmin` uniqueness enforced by a NON-partial index (breaks the tenant_id-NULL platform manager) or not at all; a custom role that grants Billing/User-Management or exceeds the tenant_admin ceiling; RBAC enforced from client-supplied role/permission or from a hardcoded enum switch instead of the matrix) |
+| **scope** | `framework` |
+| **failure** | Ad-hoc per-app RBAC diverges from the fleet standard and repeats avoidable defects: (1) renaming a tenant role enum via DROP/CREATE loses every existing user's role; (2) a non-partial unique index on `(tenant_id) WHERE role='tenant_superadmin'` either blocks the platform `tenant_manager` (tenant_id NULL) or, if omitted, lets two owners exist per tenant; (3) an owner-transfer done as a naive double-write trips the one-owner index mid-swap; (4) a custom sub-role silently granted Billing or User Management, or enforcement read from client input / a hardcoded nav switch, escalates privilege. Codified 2026-07-10 with the V32.25 Tenant RBAC Standard (MG `feat/tenant-rbac-3tier` reference impl). |
+| **standing_check** | At work-start before any auth/RBAC/user-management/role-builder task AND at done-claim: (a) any tenant-role rename uses `ALTER TYPE … RENAME VALUE` (data-preserving), NEVER DROP/CREATE; (b) exactly one owner per tenant is enforced by a PARTIAL unique index `unique(tenant_id) WHERE role='tenant_superadmin' AND tenant_id IS NOT NULL` (platform tenant_manager exempt); (c) succession (platform reassign + owner transfer) is mediated **promote-then-demote inside one transaction** so the index is never violated; (d) custom roles are tenant-scoped, strictly ≤ the tenant_admin ceiling, and NEVER grant Billing or User Management; (e) enforcement is matrix-driven **deny-by-default** at tRPC + route middleware + sidebar nav, derived from the session — never from client input or a hardcoded enum. |
+| **check_location** | `.ai_prompt/rbac.md` (Parts A–C) + `scenarios.md` Scenario 42 + `phases.md` Phase 4 Part 3 seed/RBAC MODEL HOOK + `security.md` L3 RBAC block + `Security_Checklist.md` §21 |
+
+_Promoted: 2026-07-10_
 
 ---
