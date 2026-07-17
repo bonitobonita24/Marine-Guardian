@@ -43,7 +43,7 @@ for (const line of fs.readFileSync(envPath, "utf8").split("\n")) {
   if (eqIdx === -1) continue;
   const key = trimmed.slice(0, eqIdx).trim();
   const val = trimmed.slice(eqIdx + 1).trim();
-  if (key && !process.env[key]) process.env[key] = val;
+  if (key.length > 0 && process.env[key] === undefined) process.env[key] = val;
 }
 
 // ── 2. CLI args ──────────────────────────────────────────────────────────────
@@ -74,7 +74,7 @@ async function main(): Promise<void> {
     console.error(`${P} FAIL: province "${province}" resolved to 0 municipalities`);
     process.exit(1);
   }
-  console.log(`${P} resolved ${memberIds.length} member municipalities`);
+  console.log(`${P} resolved ${String(memberIds.length)} member municipalities`);
 
   // ── MAP-OVERLAY path: the exact primitive reportMap.summary folds in ──
   // All-time window (undefined from/to) so both sides see identical data.
@@ -120,8 +120,8 @@ async function main(): Promise<void> {
   }
   console.log(
     `${P} REPORT   (traversingPatrols.total): insideKm=${fmt(tp.total.insideKm)} ` +
-      `insideHoursEst=${fmt(tp.total.insideHoursEst)} rows=${tp.rows.length} ` +
-      `(foot=${tp.foot.count} seaborne=${tp.seaborne.count})`,
+      `insideHoursEst=${fmt(tp.total.insideHoursEst)} rows=${String(tp.rows.length)} ` +
+      `(foot=${String(tp.foot.count)} seaborne=${String(tp.seaborne.count)})`,
   );
 
   // ── Reconcile ──
@@ -131,7 +131,7 @@ async function main(): Promise<void> {
   const kmOk = dKm <= EPS;
   const hoursOk = dHours <= EPS;
 
-  console.log(`${P} Δkm=${fmt(dKm)} Δhours=${fmt(dHours)} (eps=${EPS})`);
+  console.log(`${P} Δkm=${fmt(dKm)} Δhours=${fmt(dHours)} (eps=${String(EPS)})`);
 
   // Guard against a vacuous pass (both zero would "reconcile" but prove nothing).
   if (overlay.km === 0 && tp.total.insideKm === 0) {
@@ -145,12 +145,14 @@ async function main(): Promise<void> {
     console.log(`${P} ✅ PASS: overlay total == report summary total on real dev data`);
     process.exit(0);
   } else {
-    console.error(`${P} ❌ FAIL: overlay total and report summary total DIVERGE (kmOk=${kmOk} hoursOk=${hoursOk})`);
+    console.error(
+      `${P} ❌ FAIL: overlay total and report summary total DIVERGE (kmOk=${String(kmOk)} hoursOk=${String(hoursOk)})`,
+    );
     process.exit(1);
   }
 }
 
-main().catch((err) => {
+main().catch((err: unknown) => {
   console.error(`${P} FATAL:`, err);
   process.exit(1);
 });

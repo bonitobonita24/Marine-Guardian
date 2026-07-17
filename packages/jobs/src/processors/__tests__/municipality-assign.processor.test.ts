@@ -170,7 +170,7 @@ describe("processMunicipalityAssign — patrol Layer-1 START-point attribution",
     expect(result.municipalityId).toBe("muni-A");
     expect(mockedFirstTrackPoint).not.toHaveBeenCalled();
     expect(pp.patrol.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ municipalityId: "muni-A" }) }),
+      expect.objectContaining({ data: expect.objectContaining({ municipalityId: "muni-A" }) as object }),
     );
   });
 
@@ -201,7 +201,7 @@ describe("processMunicipalityAssign — patrol Layer-1 START-point attribution",
     expect(result.municipalityId).toBe("muni-A");
     expect(mockedFirstTrackPoint).toHaveBeenCalledWith(trackGeojson);
     expect(pp.patrol.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ municipalityId: "muni-A" }) }),
+      expect.objectContaining({ data: expect.objectContaining({ municipalityId: "muni-A" }) as object }),
     );
   });
 });
@@ -236,7 +236,7 @@ describe("processMunicipalityAssign — patrol manual-override anti-clobber", ()
     const result = await processMunicipalityAssign(makeJob({ entity: "patrol", id: "patrol-manual-1" }));
 
     expect(pp.patrol.update).toHaveBeenCalledTimes(1);
-    const callArgs = pp.patrol.update.mock.calls[0]![0];
+    const callArgs = (pp.patrol.update.mock.calls[0]?.[0] ?? {}) as { data: Record<string, unknown> };
     expect(callArgs.data).not.toHaveProperty("municipalityId");
     expect(callArgs.data).not.toHaveProperty("municipalityAssignedAt");
     expect(callArgs.data).toHaveProperty("terrain");
@@ -263,7 +263,7 @@ describe("processMunicipalityAssign — patrol manual-override anti-clobber", ()
 
     const result = await processMunicipalityAssign(makeJob({ entity: "patrol", id: "patrol-auto-1" }));
 
-    const callArgs = pp.patrol.update.mock.calls[0]![0];
+    const callArgs = (pp.patrol.update.mock.calls[0]?.[0] ?? {}) as { data: Record<string, unknown> };
     expect(callArgs.data).toHaveProperty("municipalityId", "muni-auto-computed");
     expect(callArgs.data).toHaveProperty("municipalityAssignedAt");
     expect(result.municipalityId).toBe("muni-auto-computed");

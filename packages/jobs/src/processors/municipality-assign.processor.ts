@@ -163,7 +163,7 @@ export async function processMunicipalityAssign(
   // Update patrol row (Layer 1) — anti-clobber: a manually-overridden
   // municipalityId is never overwritten by auto attribution. Terrain +
   // covered-zones are geometry-derived and always refresh regardless.
-  const manualOverride = patrol.municipalityManual === true;
+  const manualOverride = patrol.municipalityManual;
   await platformPrisma.patrol.update({
     where: { id },
     data: manualOverride

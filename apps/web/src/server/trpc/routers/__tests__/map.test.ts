@@ -853,15 +853,15 @@ describe("map.patrolTracks.inRange includeTraversing (province rollup, W6)", () 
     // (province lookup — where.province set), once by the includeTraversing
     // branch's own geometry lookup (where.id.in set).
     vi.mocked(prisma.municipality.findMany).mockImplementation(
-      (args?: { where?: { province?: unknown; id?: { in?: string[] } } }) => {
+      ((args?: { where?: { province?: unknown; id?: { in?: string[] } } }) => {
         if (args?.where?.province !== undefined) {
-          return Promise.resolve([{ id: "muni-a" }, { id: "muni-b" }] as any);
+          return Promise.resolve([{ id: "muni-a" }, { id: "muni-b" }]);
         }
         return Promise.resolve([
           { id: "muni-a", boundaryGeojson: TRAVERSING_SQUARE_A, waterGeojson: null },
           { id: "muni-b", boundaryGeojson: TRAVERSING_SQUARE_B, waterGeojson: null },
-        ] as any);
-      },
+        ]);
+      }) as unknown as typeof prisma.municipality.findMany,
     );
     vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([
       {
@@ -900,15 +900,15 @@ describe("map.patrolTracks.inRange includeTraversing (province rollup, W6)", () 
 
   it("excludes a track whose patrol is neither attributed to nor traversing any scope member", async () => {
     vi.mocked(prisma.municipality.findMany).mockImplementation(
-      (args?: { where?: { province?: unknown; id?: { in?: string[] } } }) => {
+      ((args?: { where?: { province?: unknown; id?: { in?: string[] } } }) => {
         if (args?.where?.province !== undefined) {
-          return Promise.resolve([{ id: "muni-a" }, { id: "muni-b" }] as any);
+          return Promise.resolve([{ id: "muni-a" }, { id: "muni-b" }]);
         }
         return Promise.resolve([
           { id: "muni-a", boundaryGeojson: TRAVERSING_SQUARE_A, waterGeojson: null },
           { id: "muni-b", boundaryGeojson: TRAVERSING_SQUARE_B, waterGeojson: null },
-        ] as any);
-      },
+        ]);
+      }) as unknown as typeof prisma.municipality.findMany,
     );
     vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([
       {

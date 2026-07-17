@@ -1098,22 +1098,22 @@ describe("getReportMapReportData", () => {
     // geometry lookup (where.id.in set, full geometry select) — distinguish
     // by the where-clause shape.
     vi.mocked(prisma.municipality.findMany).mockImplementation(
-      (args?: { where?: { province?: unknown; id?: { in?: string[] } } }) => {
+      ((args?: { where?: { province?: unknown; id?: { in?: string[] } } }) => {
         if (args?.where?.province !== undefined) {
-          return Promise.resolve([{ id: "muni_pg" }, { id: "muni_sj" }] as never);
+          return Promise.resolve([{ id: "muni_pg" }, { id: "muni_sj" }]);
         }
         return Promise.resolve([
           { id: "muni_pg", name: "Puerto Galera", boundaryGeojson: TRAVERSING_SQUARE_A, waterGeojson: null },
           { id: "muni_sj", name: "San Jose", boundaryGeojson: TRAVERSING_SQUARE_B, waterGeojson: null },
-        ] as never);
-      },
+        ]);
+      }) as unknown as typeof prisma.municipality.findMany,
     );
 
     // patrolTrack.findMany is shared by the main track-polyline query
     // (select WITHOUT municipalityId) and buildTraversingPatrols (select
     // WITH municipalityId) — distinguish by the select shape.
     vi.mocked(prisma.patrolTrack.findMany).mockImplementation(
-      (args?: { select?: { patrol?: { select?: Record<string, unknown> } } }) => {
+      ((args?: { select?: { patrol?: { select?: Record<string, unknown> } } }) => {
         const patrolSelect = args?.select?.patrol?.select ?? {};
         if ("municipalityId" in patrolSelect) {
           return Promise.resolve([
@@ -1131,10 +1131,10 @@ describe("getReportMapReportData", () => {
                 municipality: { name: "Puerto Galera" },
               },
             },
-          ] as never);
+          ]);
         }
-        return Promise.resolve([] as never);
-      },
+        return Promise.resolve([]);
+      }) as unknown as typeof prisma.patrolTrack.findMany,
     );
     vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
 

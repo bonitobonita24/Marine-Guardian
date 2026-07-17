@@ -833,15 +833,17 @@ describe("reportMap.summary includeTraversing (W6 coverage — single-muni + pro
     // resolveMunicipalityScope (province lookup — where.province set), once
     // by sumTraversingCoverageAcross (geometry lookup — where.id.in set).
     // Distinguish by the where-clause shape.
-    vi.mocked(prisma.municipality.findMany).mockImplementation((args: any) => {
+    vi.mocked(prisma.municipality.findMany).mockImplementation(((args?: {
+      where?: { province?: unknown; id?: { in?: string[] } };
+    }) => {
       if (args?.where?.province !== undefined) {
-        return Promise.resolve([{ id: "muni-a" }, { id: "muni-b" }] as any);
+        return Promise.resolve([{ id: "muni-a" }, { id: "muni-b" }]);
       }
       return Promise.resolve([
         { id: "muni-a", boundaryGeojson: TRAVERSING_SQUARE_A, waterGeojson: null },
         { id: "muni-b", boundaryGeojson: TRAVERSING_SQUARE_B, waterGeojson: null },
-      ] as any);
-    });
+      ]);
+    }) as unknown as typeof prisma.municipality.findMany);
     vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([
       {
         trackGeojson: TRAVERSING_CROSSING_TRACK,
@@ -871,15 +873,17 @@ describe("reportMap.summary includeTraversing (W6 coverage — single-muni + pro
       vi.mocked(prisma.event.count).mockResolvedValue(0 as any);
       vi.mocked(prisma.patrol.count).mockResolvedValue(9 as any);
       vi.mocked(prisma.patrol.findMany).mockResolvedValue([]);
-      vi.mocked(prisma.municipality.findMany).mockImplementation((args: any) => {
+      vi.mocked(prisma.municipality.findMany).mockImplementation(((args?: {
+        where?: { province?: unknown; id?: { in?: string[] } };
+      }) => {
         if (args?.where?.province !== undefined) {
-          return Promise.resolve([{ id: "muni-a" }, { id: "muni-b" }] as any);
+          return Promise.resolve([{ id: "muni-a" }, { id: "muni-b" }]);
         }
         return Promise.resolve([
           { id: "muni-a", boundaryGeojson: TRAVERSING_SQUARE_A, waterGeojson: null },
           { id: "muni-b", boundaryGeojson: TRAVERSING_SQUARE_B, waterGeojson: null },
-        ] as any);
-      });
+        ]);
+      }) as unknown as typeof prisma.municipality.findMany);
       vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([
         {
           trackGeojson: TRAVERSING_CROSSING_TRACK,
