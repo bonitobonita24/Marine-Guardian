@@ -23,10 +23,11 @@ image `a08c700` (health 200, `/showcase` 200). CI 6/6 green. Detail in project m
 - [ ] **(W2) PROD promotion of `a08c700`.** Staging is green and `/docs` verified. Same image is
   prod-ready. Separate explicit manual step (`deploy/compose/` push-to-production) + the W1-prod seed;
   NOT done — awaits owner word.
-- [ ] **(W3) Push the LOCAL commits.** MG `feat/app-showcase-page` is **3 ahead** of `origin/main`:
-  `5346cfb` (staging-gate hardening) + `4ed1cea` (docs) + `6690616` (db:seed:cms runner) — all
-  LOCAL/UNPUSHED. Also AIEF `main` (6 ahead, template `94dc905`) + FRMS `main` (3 ahead, `c870edf`).
-  Await owner push word per repo.
+- [x] **(W3) Push the LOCAL commits — DONE (owner-approved, 2026-07-18).** MG `feat/app-showcase-page`
+  pushed to `origin/feat/app-showcase-page` (new remote branch, PR-ready — a *feature* branch, so no
+  deploy). FRMS `main` pushed (`269c0ba..c870edf`; CI is build+push only, staging-gate = no auto-deploy).
+  AIEF `main` was already synced (`94dc905` already on origin). All three repos now `behind 0 / ahead 0`.
+  Note: MG feat pushed as a branch does NOT touch `origin/main` (still `a08c700`) → no MG staging deploy.
 
 ## 2026-07-15 — Autonomous build queue (one-at-a-time)
 
