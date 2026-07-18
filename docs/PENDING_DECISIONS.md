@@ -9,17 +9,24 @@ overhaul + doodle + attribution + framework sync) was merged to `main` and valid
 image `a08c700` (health 200, `/showcase` 200). CI 6/6 green. Detail in project memory
 `project_marine_guardian_app_showcase_staging_ship_0718`.
 
-- [ ] **(W1) CMS content-seeding strategy for staging/prod.** `/docs` returns 404 on staging (and will
-  on prod): the `cms_doc_pages` / `cms_showcase_fields` / `cms_media` tables exist (migrations applied)
-  but are EMPTY — staging mirrors PROD data and prod predates the CMS feature. Dev was seeded via
-  `seed-from-content`. DECIDE: seed-from-repo-content as part of promotion, OR author live via the
-  in-app CMS editor. `/showcase` already renders (literal fallbacks); only `/docs` is blocked. **Prod
-  `/docs` will 404 until this is resolved.**
-- [ ] **(W2) PROD promotion of `a08c700`.** Staging is green → the same image is prod-ready EXCEPT confirm
-  W1 first. Separate explicit manual step (`deploy/compose/` push-to-production); NOT done.
-- [ ] **(W3) Push the LOCAL gate-hardening commits.** Staging-gate robustness fix (ephemeral tunnel port +
-  fail-loud migrate gate) landed LOCAL/UNPUSHED: MG `feat/app-showcase-page` `5346cfb`, AIEF `main`
-  (6 ahead, template `94dc905`), FRMS `main` (3 ahead, `c870edf`). Await owner push word per repo.
+- [x] **(W1) CMS content-seeding strategy — DECIDED: seed-from-repo (owner, 2026-07-18).** Root cause:
+  `/docs` is DB-backed with NO repo fallback → 404 when `cms_doc_pages` empty; `/showcase` HAS a
+  `data.ts` literal fallback so it 200s regardless. Content already exists (55 committed MDX pages +
+  idempotent `seedCms()`). Added standalone **`db:seed:cms` runner** (`packages/db/prisma/seed-cms-only.ts`,
+  commit `6690616` LOCAL) — seedCms ONLY, no muni/tenant/user/dev-account seeding; **FIRST-POPULATE
+  tool** (do NOT re-run against an env with live in-app CMS edits). **STAGING seeded** → 55 doc pages
+  (all published) + 80 showcase fields; `/docs` + nested pages verified **200** with real content.
+  Ongoing model: repo-seed first-populate, then the in-app CMS editor is the source of truth per env.
+- [ ] **(W1-prod / part of W2) Seed prod CMS on promotion.** Prod `cms_doc_pages` still empty → prod
+  `/docs` 404s until seeded. Run `pnpm --filter @marine-guardian/db db:seed:cms` against PROD (via the
+  ephemeral-port tunnel) as a STEP of the W2 promotion. Same first-populate-only rule.
+- [ ] **(W2) PROD promotion of `a08c700`.** Staging is green and `/docs` verified. Same image is
+  prod-ready. Separate explicit manual step (`deploy/compose/` push-to-production) + the W1-prod seed;
+  NOT done — awaits owner word.
+- [ ] **(W3) Push the LOCAL commits.** MG `feat/app-showcase-page` is **3 ahead** of `origin/main`:
+  `5346cfb` (staging-gate hardening) + `4ed1cea` (docs) + `6690616` (db:seed:cms runner) — all
+  LOCAL/UNPUSHED. Also AIEF `main` (6 ahead, template `94dc905`) + FRMS `main` (3 ahead, `c870edf`).
+  Await owner push word per repo.
 
 ## 2026-07-15 — Autonomous build queue (one-at-a-time)
 
