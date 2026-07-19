@@ -110,6 +110,7 @@ function buildData(exportMode: ReportMapReportData["exportMode"]): ReportMapRepo
     municipalityBounds: null,
     municipalityName: "All Municipalities",
     isRegionReport: false,
+    scopeTitleOverride: null,
     exportMode,
     eventTypeColumns: {},
     charts: {

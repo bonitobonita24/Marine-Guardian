@@ -485,6 +485,17 @@ export interface ReportMapReportData {
    */
   isRegionReport: boolean;
   /**
+   * PROTECTED-ZONE SCOPE TITLE (2026-07-20, owner report): the ProtectedZone's
+   * OWN name when the report is scoped to a specific zone (`filter.protectedZoneId`
+   * set) — e.g. a park/MPA like "Apo Reef Park". When set, the print header
+   * renders THIS name (unprefixed, no "LGU ") as the title instead of the
+   * parent municipality (a zone carries BOTH its own id AND its parent
+   * municipalityId, so without this the header wrongly printed the containing
+   * municipality — "Sablayan"). Null when no zone is scoped (the header keeps
+   * its municipality/region behavior).
+   */
+  scopeTitleOverride: string | null;
+  /**
    * Export-mode split (2026-07-13, PDF-export scoping): controls which
    * section groups `report-map-report.tsx` renders —
    *   "combined" (default) — every chart/map section AND every full-list
@@ -1148,6 +1159,25 @@ export async function getReportMapReportData(
       ? (municipalityGeometry?.name ?? null)
       : (params.province ?? "All Municipalities");
 
+  // Protected-zone scope title (2026-07-20, owner report "Apo Reef Park report
+  // titled Sablayan"): when the report is scoped to a specific ProtectedZone
+  // (a park/MPA/special-area boundary), the header title must be the ZONE's own
+  // name — not its parent municipality. A zone-scoped filter carries BOTH the
+  // zone id AND the parent municipalityId (the filter bar only enables the zone
+  // picker after a municipality is chosen), so municipalityName above resolves
+  // to the parent ("Sablayan"); this override supplies the zone's own name
+  // ("Apo Reef Park") which report-map-report.tsx prefers for the header.
+  // Tenant-scoped lookup (mirrors reportExport.list's zone-name resolution).
+  const scopeTitleOverride: string | null =
+    params.protectedZoneId !== undefined
+      ? ((
+          await prisma.protectedZone.findFirst({
+            where: { id: params.protectedZoneId, tenantId: tenant.id },
+            select: { name: true },
+          })
+        )?.name ?? null)
+      : null;
+
   // Region mode (2026-07-13): scoped to a whole province, no specific
   // municipality selected. See ReportMapReportData.isRegionReport doc.
   const isRegionReport =
@@ -1433,6 +1463,7 @@ export async function getReportMapReportData(
     municipalityBounds,
     municipalityName,
     isRegionReport,
+    scopeTitleOverride,
     exportMode: params.exportMode ?? "combined",
     eventTypeColumns,
     traversingPatrols,

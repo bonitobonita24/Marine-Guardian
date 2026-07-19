@@ -16,7 +16,7 @@ vi.mock("@marine-guardian/db", () => ({
     municipality: { findUnique: vi.fn(), findMany: vi.fn() },
     // findMany used by resolveChildZoneIds (Phase 4B "include children"
     // toggle) — real implementation, reads through this mocked client.
-    protectedZone: { findMany: vi.fn() },
+    protectedZone: { findMany: vi.fn(), findFirst: vi.fn() },
   },
 }));
 
@@ -136,6 +136,7 @@ function setupHappyPath() {
   vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
   vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([] as never);
   vi.mocked(prisma.municipality.findUnique).mockResolvedValue(null);
+  vi.mocked(prisma.protectedZone.findFirst).mockResolvedValue(null);
   vi.mocked(getImageBytes).mockResolvedValue(Buffer.from("fake-png-data"));
 }
 
@@ -905,6 +906,75 @@ describe("getReportMapReportData", () => {
     // Region mode (2026-07-13): a specific municipalityId wins over
     // province — this is NOT a region report.
     expect(result.isRegionReport).toBe(false);
+  });
+
+  it("scopeTitleOverride uses the ProtectedZone's own name when a zone is scoped (owner 2026-07-20 — Apo Reef Park not Sablayan)", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValue(TENANT_ROW as never);
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValue({
+      ...EXPORT_ROW,
+      paramsJson: {
+        ...EXPORT_ROW.paramsJson,
+        // A zone-scoped report carries BOTH the parent municipality AND the zone.
+        municipalityId: "muni_sablayan",
+        protectedZoneId: "pz_apo_reef",
+      },
+    } as never);
+    vi.mocked(prisma.reportTemplate.findFirst).mockResolvedValue(TEMPLATE_ROW as never);
+    vi.mocked(buildEventBreakdownWithCoords).mockResolvedValue(EMPTY_BREAKDOWN);
+    vi.mocked(prisma.event.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([] as never);
+    // Parent municipality resolves to "Sablayan" — the OLD (wrong) header title.
+    vi.mocked(prisma.municipality.findUnique).mockResolvedValue({
+      name: "Sablayan",
+      boundaryGeojson: null,
+      waterGeojson: null,
+    } as never);
+    // The scoped zone's own name.
+    vi.mocked(prisma.protectedZone.findFirst).mockResolvedValue({
+      name: "Apo Reef Park",
+    } as never);
+    vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
+
+    const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(result).not.toBeNull();
+    if (!result) return;
+
+    // The zone lookup is tenant-scoped by the scoped zone id.
+    expect(
+      vi.mocked(prisma.protectedZone.findFirst).mock.calls[0]?.[0]?.where,
+    ).toMatchObject({ id: "pz_apo_reef", tenantId: TENANT_ROW.id });
+    // The header now prefers the zone's own name…
+    expect(result.scopeTitleOverride).toBe("Apo Reef Park");
+    // …while municipalityName still resolves to the parent (unchanged), so the
+    // header override — not this field — is what fixes the printed title.
+    expect(result.municipalityName).toBe("Sablayan");
+  });
+
+  it("scopeTitleOverride is null when no protected zone is scoped", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValue(TENANT_ROW as never);
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValue({
+      ...EXPORT_ROW,
+      paramsJson: { ...EXPORT_ROW.paramsJson, municipalityId: "muni_a" },
+    } as never);
+    vi.mocked(prisma.reportTemplate.findFirst).mockResolvedValue(TEMPLATE_ROW as never);
+    vi.mocked(buildEventBreakdownWithCoords).mockResolvedValue(EMPTY_BREAKDOWN);
+    vi.mocked(prisma.event.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.municipality.findUnique).mockResolvedValue({
+      name: "Puerto Galera",
+      boundaryGeojson: null,
+      waterGeojson: null,
+    } as never);
+    vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
+
+    const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(result).not.toBeNull();
+    if (!result) return;
+    expect(result.scopeTitleOverride).toBeNull();
+    // No zone → the zone lookup is never issued.
+    expect(prisma.protectedZone.findFirst).not.toHaveBeenCalled();
   });
 
   it("parses province from paramsJson and drops empty-string province", () => {
