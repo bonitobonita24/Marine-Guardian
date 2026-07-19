@@ -393,7 +393,11 @@ export async function getEventHighlightsReportData(
     if (photoCount === 0) continue;
 
     // Must have a human narrative (actionTaken and/or remarks-like text).
-    const actionTaken = e.actionTaken?.trim() || null;
+    const trimmedAction = e.actionTaken?.trim();
+    const actionTaken =
+      trimmedAction !== undefined && trimmedAction.length > 0
+        ? trimmedAction
+        : null;
     const remarks = extractRemarks(e);
     if (actionTaken === null && remarks === null) continue;
 
