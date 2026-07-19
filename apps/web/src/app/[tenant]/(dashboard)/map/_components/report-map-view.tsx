@@ -361,7 +361,7 @@ function ReportMapInner() {
           />
         </div>
       ) : (
-        <div className="grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4 xl:min-h-[11rem] xl:[&>*]:h-full">
+        <div className="grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5 xl:min-h-[22rem] xl:[&>*]:h-full">
           <BreakdownBars
             title="Law Enforcement and Apprehensions"
             titleIcon={ShieldAlert}
@@ -419,17 +419,13 @@ function ReportMapInner() {
             onSelect={selectPatrolClearingEventType}
             totalCount={summary.data?.totalPatrols}
           />
-        </div>
-      )}
-      </div>
-      {/* end above-the-fold block */}
-
-      {/* Events Over Time — BELOW the fold (scroll to see). Full-width + taller
-          so the trend reads clearly; intentionally NOT part of the map+analytics
-          full-screen view (owner request 2026-06-30). */}
-      {!showEmptyState && (
-        <div className="shrink-0 space-y-2 pt-2">
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+          {/* 5th tile (owner request 2026-07-20) — a single column stacking the
+              two trend charts: Events vs Patrols Over Time on top, Municipality
+              (Region) Coverage below. The 4 tiles above are compressed to fit
+              (grid-cols-5) and the row height is raised (xl:min-h-[22rem]) so
+              both stacked charts read clearly. They previously sat in a
+              full-width below-fold row (now removed). */}
+          <div className="flex h-full min-h-0 flex-col gap-2">
             <EventsOverTimeChart
               data={eventsOverTime.data ?? []}
               isLoading={eventsOverTime.isLoading}
@@ -444,9 +440,17 @@ function ReportMapInner() {
               groupByProvince={municipalityId === null}
             />
           </div>
-          <div className="flex justify-end">
-            <GeneratePrintableButton />
-          </div>
+        </div>
+      )}
+      </div>
+      {/* end above-the-fold block */}
+
+      {/* Generate Printable — BELOW the fold (scroll to see). The Events Over
+          Time + Municipality Coverage charts that used to live here moved into
+          the 5th tile of the row above (owner request 2026-07-20). */}
+      {!showEmptyState && (
+        <div className="flex shrink-0 justify-end pt-2">
+          <GeneratePrintableButton />
         </div>
       )}
 
