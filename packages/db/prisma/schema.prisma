@@ -144,6 +144,7 @@ enum ReportType {
   rangers
   patrol_filtered
   report_map
+  event_highlights
 }
 
 enum PaperSize {
