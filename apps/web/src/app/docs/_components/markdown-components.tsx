@@ -22,7 +22,7 @@ export const docsMarkdownComponents: Components = {
   h2: ({ className, node: _node, ...props }) => (
     <h2
       className={cn(
-        "mt-12 scroll-m-20 border-b border-border pb-2 text-2xl font-semibold tracking-tight text-foreground first:mt-0",
+        "mt-10 scroll-m-20 border-b border-border pb-2 text-3xl font-semibold tracking-tight text-foreground first:mt-0",
         className,
       )}
       {...props}
@@ -30,18 +30,24 @@ export const docsMarkdownComponents: Components = {
   ),
   h3: ({ className, node: _node, ...props }) => (
     <h3
-      className={cn("mt-8 scroll-m-20 text-xl font-semibold tracking-tight text-foreground", className)}
+      className={cn("mt-8 scroll-m-20 text-2xl font-semibold tracking-tight text-foreground", className)}
+      {...props}
+    />
+  ),
+  h4: ({ className, node: _node, ...props }) => (
+    <h4
+      className={cn("mt-6 scroll-m-20 text-lg font-semibold tracking-tight text-foreground", className)}
       {...props}
     />
   ),
   p: ({ className, node: _node, ...props }) => (
-    <p className={cn("text-lg leading-8 text-foreground [&:not(:first-child)]:mt-6", className)} {...props} />
+    <p className={cn("text-base leading-7 text-foreground [&:not(:first-child)]:mt-6", className)} {...props} />
   ),
   ul: ({ className, node: _node, ...props }) => (
-    <ul className={cn("my-6 ml-6 list-disc text-lg leading-8 text-foreground [&>li]:mt-2", className)} {...props} />
+    <ul className={cn("my-6 ml-6 list-disc text-base leading-7 text-foreground [&>li]:mt-2", className)} {...props} />
   ),
   ol: ({ className, node: _node, ...props }) => (
-    <ol className={cn("my-6 ml-6 list-decimal text-lg leading-8 text-foreground [&>li]:mt-2", className)} {...props} />
+    <ol className={cn("my-6 ml-6 list-decimal text-base leading-7 text-foreground [&>li]:mt-2", className)} {...props} />
   ),
   a: ({ href, className, children, node: _node }) => {
     const target = href ?? "#";
