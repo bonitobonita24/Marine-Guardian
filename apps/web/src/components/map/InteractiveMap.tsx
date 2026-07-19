@@ -13,6 +13,7 @@ import {
   Map,
   MapControls,
   MapMarker,
+  MapPopup,
   MapRoute,
   MarkerContent,
   MarkerTooltip,
@@ -225,6 +226,10 @@ type InteractiveMapProps = {
    *  Events list "locate" button). `key` bumps on every click so re-clicking the
    *  same event re-triggers the flyTo. Null = no focus requested. */
   focusLocation?: { lon: number; lat: number; key: number } | null;
+  /** Geo-anchored MapPopup summary card (Command Center "Events This Month"
+   *  panel row click, Q3 2026-07-19). Rendered inside the map's `<Map>` at
+   *  the given coordinates; `content` supplies the popup body. null = none. */
+  detailPopup?: { lon: number; lat: number; content: ReactNode } | null;
   /** Controlled patrol selection — when provided (not undefined), the map
    *  renders this patrol's track instead of the internal PatrolSelector state.
    *  Used by the Report Map "Patrols in range" list so clicking a row draws
@@ -290,6 +295,7 @@ export function InteractiveMap({
   controlsPlacement = "bar",
   filterSlot,
   focusLocation,
+  detailPopup,
   selectedPatrolId: controlledSelectedPatrolId,
   topRightSlot,
   onPatrolTrackClick,
@@ -1208,6 +1214,16 @@ export function InteractiveMap({
             </MapMarker>
           );
         })}
+        {detailPopup != null && (
+          <MapPopup
+            key={`${String(detailPopup.lon)},${String(detailPopup.lat)}`}
+            longitude={detailPopup.lon}
+            latitude={detailPopup.lat}
+            closeButton
+          >
+            {detailPopup.content}
+          </MapPopup>
+        )}
       </Map>
 
         {hidePatrolSelector !== true && (

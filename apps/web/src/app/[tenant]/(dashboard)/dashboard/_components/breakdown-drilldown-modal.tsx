@@ -70,7 +70,7 @@ export function BreakdownDrilldownModal({
             <ul className="divide-y divide-border">
               {items.map((ev) => (
                 <li key={ev.id} className="flex flex-col gap-0.5 py-2 text-sm">
-                  <span className="font-medium">{ev.title ?? "Untitled event"}</span>
+                  <span className="font-medium">{ev.title ?? ev.eventType?.display ?? "Untitled event"}</span>
                   <span className="text-xs text-muted-foreground">
                     {ev.areaName ?? "—"}
                     {" · "}

@@ -350,6 +350,20 @@ describe("dashboard — WAR ROOM date range (goal items 3-4, 2026-06-25)", () =>
     expect(call.where.patrol).toEqual({ is: { state: "open", isDeleted: false } });
     expect(call.where.reportedAt).toEqual({ gte: FROM, lte: TO });
   });
+
+  it("kpis excludes Skylight events from eventsThisMonth AND eventsLastMonth (owner 2026-07-20)", async () => {
+    // event.count is invoked in Promise.all array order: [0]=activeEvents,
+    // [1]=eventsThisMonth, [2]=eventsLastMonth. Both month counts must carry the
+    // Skylight NOT clause so the tile matches its Skylight-excluded panel.
+    await createCaller(makeCtx()).kpis({ dateFrom: FROM, dateTo: TO });
+    const skylightNot = {
+      NOT: { eventType: { display: { contains: "skylight", mode: "insensitive" } } },
+    };
+    const thisMonth = mockPrisma.event.count.mock.calls[1]?.[0] as { where: unknown };
+    const lastMonth = mockPrisma.event.count.mock.calls[2]?.[0] as { where: unknown };
+    expect(thisMonth.where).toMatchObject(skylightNot);
+    expect(lastMonth.where).toMatchObject(skylightNot);
+  });
 });
 
 // ── WAR ROOM KPI sparklines (Command Center redesign, sub-batch B) ──
