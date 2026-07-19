@@ -186,6 +186,12 @@ interface HeaderProps {
   /** Region mode (2026-07-13): true when the report is scoped to a whole
    *  province — see ReportMapReportData.isRegionReport. */
   regionMode: boolean;
+  /** Protected-zone scope title (2026-07-20): the selected zone's OWN name
+   *  (e.g. "Apo Reef Park") when the report is scoped to a ProtectedZone.
+   *  When set (and not regionMode), it becomes the header title unprefixed
+   *  (no "LGU "), overriding the parent-municipality name. Null otherwise.
+   *  See ReportMapReportData.scopeTitleOverride. */
+  scopeTitleOverride: string | null;
 }
 
 /** Wraps the shared <ReportHeader> — every report-map-report page passes
@@ -200,6 +206,7 @@ function PageHeader({
   municipalityName,
   period,
   regionMode,
+  scopeTitleOverride,
   reportTitle,
 }: HeaderProps & { reportTitle: string }) {
   const reportHeaderProps: ComponentProps<typeof ReportHeader> = regionMode
@@ -212,14 +219,29 @@ function PageHeader({
         dateRange: period,
         ...(municipalityName !== null ? { mainTitle: municipalityName } : {}),
       }
-    : {
-        municipalLogoUrl: municipalLogoDataUri,
-        partnerLogoUrl: partnerLogoDataUri,
-        municipalityName,
-        regionMode: false,
-        reportTitle,
-        dateRange: period,
-      };
+    : scopeTitleOverride !== null
+      ? {
+          // Protected-zone scope (2026-07-20): render the zone's OWN name as
+          // the title, unprefixed (municipalityName null → no "LGU " prefix in
+          // <ReportHeader>), while keeping the municipal/partner logos since a
+          // zone still sits within an LGU. Fixes "Apo Reef Park" printing as
+          // its parent municipality "Sablayan".
+          municipalLogoUrl: municipalLogoDataUri,
+          partnerLogoUrl: partnerLogoDataUri,
+          municipalityName: null,
+          mainTitle: scopeTitleOverride,
+          regionMode: false,
+          reportTitle,
+          dateRange: period,
+        }
+      : {
+          municipalLogoUrl: municipalLogoDataUri,
+          partnerLogoUrl: partnerLogoDataUri,
+          municipalityName,
+          regionMode: false,
+          reportTitle,
+          dateRange: period,
+        };
   return <ReportHeader {...reportHeaderProps} />;
 }
 
@@ -751,6 +773,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
     municipalityName: data.municipalityName,
     period,
     regionMode: data.isRegionReport,
+    scopeTitleOverride: data.scopeTitleOverride,
   };
 
   const footerBase = {
