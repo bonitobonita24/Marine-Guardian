@@ -31,6 +31,7 @@ import { PatrolEditDialog } from "./_components/patrol-edit-dialog";
 import { BreakdownDrilldownModal } from "./_components/breakdown-drilldown-modal";
 import { KpiDrilldownModal } from "./_components/kpi-drilldown-modal";
 import { RangersOnDutyDrilldownModal } from "./_components/rangers-on-duty-drilldown-modal";
+import { EventsThisMonthPanel } from "./_components/events-this-month-panel";
 import type { KpiDrilldown } from "./_components/kpi-strip";
 import { AlertDetailModal } from "./_components/alert-detail-modal";
 import { EventDetailModal } from "@/components/events/event-detail-modal";
@@ -466,6 +467,21 @@ function DashboardContent() {
               : {})}
             onPatrolTrackClick={selectMapPatrolById}
             onBackgroundClick={clearMapPatrolSelection}
+            /* Q3 — Events This Month floating panel replaces the center
+               KpiDrilldownModal for this one tile (see kpi-drilldown-modal.tsx).
+               onSelectEvent is a temporary no-op; a later task wires
+               fly-to + detail popup. */
+            topRightSlot={
+              selectedKpi?.kind === "eventsThisMonth" ? (
+                <EventsThisMonthPanel
+                  dateTo={rangeIso.dateTo}
+                  onClose={() => {
+                    setSelectedKpi(null);
+                  }}
+                  onSelectEvent={() => {}}
+                />
+              ) : undefined
+            }
             /* Q2 — Ranger Roster row click flies the map to that ranger's
                last-known position (matched by name → subject coordinate). */
             focusLocation={rangerFocus}

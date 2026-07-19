@@ -80,7 +80,7 @@ describe("KpiDrilldownModal — event title fallback", () => {
     stubs.eventListData = { items: [titlelessEvent] };
     render(
       <KpiDrilldownModal
-        drilldown={{ kind: "eventsThisMonth" }}
+        drilldown={{ kind: "activeEvents" }}
         dateFrom="2026-06-01T00:00:00.000Z"
         dateTo="2026-06-30T23:59:59.999Z"
         onClose={vi.fn()}
@@ -94,7 +94,7 @@ describe("KpiDrilldownModal — event title fallback", () => {
     stubs.eventListData = { items: [titledEvent] };
     render(
       <KpiDrilldownModal
-        drilldown={{ kind: "eventsThisMonth" }}
+        drilldown={{ kind: "activeEvents" }}
         dateFrom="2026-06-01T00:00:00.000Z"
         dateTo="2026-06-30T23:59:59.999Z"
         onClose={vi.fn()}
