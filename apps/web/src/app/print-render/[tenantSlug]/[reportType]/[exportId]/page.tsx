@@ -26,9 +26,11 @@ import { notFound } from "next/navigation";
 import { getCoverageReportData } from "@/server/coverage-report/get-coverage-report-data";
 import { getPerAreaReportData } from "@/server/per-area-report/get-per-area-report-data";
 import { getReportMapReportData } from "@/server/report-map-report/get-report-map-report-data";
+import { getEventHighlightsReportData } from "@/server/event-highlights-report/get-event-highlights-report-data";
 import { CoverageReport } from "./coverage-report";
 import { PerAreaReport } from "./per-area-report";
 import { ReportMapReport } from "./report-map-report";
+import { EventHighlightsReport } from "./event-highlights-report";
 
 interface PrintPageProps {
   params: Promise<{
@@ -42,6 +44,7 @@ const VALID_REPORT_TYPES = new Set([
   "coverage",
   "area",
   "report_map",
+  "event_highlights",
   "ad-hoc-events",
   "ad-hoc-patrols",
 ]);
@@ -65,6 +68,12 @@ export default async function PrintPage({ params }: PrintPageProps) {
     const data = await getReportMapReportData(tenantSlug, exportId);
     if (data === null) notFound();
     return <ReportMapReport data={data} />;
+  }
+
+  if (reportType === "event_highlights") {
+    const data = await getEventHighlightsReportData(tenantSlug, exportId);
+    if (data === null) notFound();
+    return <EventHighlightsReport data={data} />;
   }
 
   const generatedAt = new Date().toISOString();
