@@ -54,15 +54,17 @@ const RESIZABLE_IMAGE_TYPES = new Set([
   "image/webp",
 ]);
 
-// `?w=` clamp range. Below 16 is pointless (near-invisible); above 400 there's
-// no realistic print-report use case for this proxy, so junk/huge values are
-// ignored rather than honoured.
+// `?w=` clamp range. Below 16 is pointless (near-invisible). The ceiling was
+// raised 400 → 1600 (2026-07-20) for the Event Highlights print report, whose
+// A4 photo collage embeds large images (`?w=1400`); a full-A4 photo needs far
+// more than the old 400px thumbnail ceiling. 1600 comfortably covers A4-at-print
+// width while still rejecting junk/absurd values.
 const MIN_RESIZE_WIDTH = 16;
-const MAX_RESIZE_WIDTH = 400;
+const MAX_RESIZE_WIDTH = 1600;
 
 /**
  * Parse + clamp the `?w=` query param. Returns null when absent, non-numeric,
- * or out of the sane [16, 400] range — callers then skip resizing entirely
+ * or out of the sane [16, 1600] range — callers then skip resizing entirely
  * (original behavior preserved).
  */
 function parseRequestedWidth(searchParams: URLSearchParams): number | null {

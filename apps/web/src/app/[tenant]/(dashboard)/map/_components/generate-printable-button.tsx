@@ -52,6 +52,10 @@ export function GeneratePrintableButton() {
   const [open, setOpen] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [splitFiles, setSplitFiles] = useState(false);
+  // Event Highlights (2026-07-20): opt-in extra export — an A4 photo collage of
+  // the scope's events that have photos AND filled-in narrative. Queued
+  // alongside the standard report_map export, sharing the same scope params.
+  const [highlights, setHighlights] = useState(false);
   const [feedback, setFeedback] = useState<
     | { kind: "success"; exportId: string; count: number }
     | { kind: "error"; message: string }
@@ -161,32 +165,54 @@ export function GeneratePrintableButton() {
           ...(includeTraversing ? { includeTraversing } : {}),
         };
 
-    try {
-      if (!splitFiles) {
-        // Single-file path: no exportMode key — the server defaults
-        // paramsJson.exportMode to "combined".
-        const data = await create.mutateAsync({
+    // Build the list of exports to queue. The standard report_map export is
+    // either one combined file or the charts+lists split; the Event Highlights
+    // photo collage (event_highlights) is an optional extra sharing the same
+    // scope. All are fired together via mutateAsync + Promise.allSettled — each
+    // returns an independent promise, so the confirmation resolves only after
+    // ALL complete (avoids the single-observer callback race, 2026-07-13).
+    const payloads: {
+      reportType: "report_map" | "event_highlights";
+      paperSize: "A4";
+      paramsJson: Record<string, unknown>;
+    }[] = [];
+    if (splitFiles) {
+      for (const exportMode of ["charts", "lists"] as const) {
+        payloads.push({
           reportType: "report_map",
           paperSize: "A4",
-          paramsJson: baseParams,
+          paramsJson: { ...baseParams, exportMode },
         });
+      }
+    } else {
+      // No exportMode key — the server defaults paramsJson.exportMode to
+      // "combined".
+      payloads.push({
+        reportType: "report_map",
+        paperSize: "A4",
+        paramsJson: baseParams,
+      });
+    }
+    if (highlights) {
+      payloads.push({
+        reportType: "event_highlights",
+        paperSize: "A4",
+        paramsJson: baseParams,
+      });
+    }
+
+    try {
+      if (payloads.length === 1) {
+        const only = payloads[0];
+        if (only === undefined) return;
+        const data = await create.mutateAsync(only);
         clearRequestTimeout();
         setFeedback({ kind: "success", exportId: data.id, count: 1 });
         return;
       }
 
-      // Split path: fire two exports (charts-only + lists-only) sharing the
-      // same scope. mutateAsync returns an independent promise per call, so
-      // Promise.allSettled reliably resolves after BOTH complete — avoiding
-      // the single-observer callback race that dropped the confirmation.
       const results = await Promise.allSettled(
-        (["charts", "lists"] as const).map((exportMode) =>
-          create.mutateAsync({
-            reportType: "report_map",
-            paperSize: "A4",
-            paramsJson: { ...baseParams, exportMode },
-          }),
-        ),
+        payloads.map((p) => create.mutateAsync(p)),
       );
       clearRequestTimeout();
       const rejected = results.find(
@@ -201,7 +227,7 @@ export function GeneratePrintableButton() {
               : "Failed to queue one of the report exports. Please try again.",
         });
       } else {
-        setFeedback({ kind: "success", exportId: "split", count: 2 });
+        setFeedback({ kind: "success", exportId: "multi", count: payloads.length });
       }
     } catch (err) {
       clearRequestTimeout();
@@ -221,6 +247,7 @@ export function GeneratePrintableButton() {
     setFeedback(null);
     setSelectedTemplateId("");
     setSplitFiles(false);
+    setHighlights(false);
     create.reset();
   }
 
@@ -270,8 +297,8 @@ export function GeneratePrintableButton() {
 
         {feedback?.kind === "success" ? (
           <p className="text-sm text-emerald-600 dark:text-emerald-400">
-            {feedback.count === 2
-              ? "2 report exports queued (Summary & Charts + Detailed Event Lists)."
+            {feedback.count > 1
+              ? `${String(feedback.count)} report exports queued.`
               : `Export queued (id: ${feedback.exportId}).`}{" "}
             <Link
               href={tenantHref(tenant, "/exports")}
@@ -343,6 +370,29 @@ export function GeneratePrintableButton() {
                   className="text-xs text-muted-foreground"
                 >
                   Creates two downloadable files instead of one.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <Checkbox
+                id="event-highlights"
+                data-testid="event-highlights-checkbox"
+                checked={highlights}
+                onCheckedChange={(checked) => { setHighlights(checked === true); }}
+                aria-describedby="event-highlights-hint"
+                className="mt-0.5"
+              />
+              <div className="grid gap-0.5 leading-none">
+                <Label htmlFor="event-highlights" className="cursor-pointer">
+                  Also generate Event Highlights (photo collage)
+                </Label>
+                <p
+                  id="event-highlights-hint"
+                  className="text-xs text-muted-foreground"
+                >
+                  A separate A4 report featuring large photos of the scope&apos;s
+                  events that have images and filled-in details.
                 </p>
               </div>
             </div>
