@@ -18,6 +18,10 @@ interface StubEvent {
   eventType: { display: string; category: string } | null;
   locationLat: number | null;
   locationLon: number | null;
+  areaName: string | null;
+  offenderName: string | null;
+  vesselName: string | null;
+  state: string;
 }
 
 const { stubs } = vi.hoisted(() => {
@@ -49,6 +53,10 @@ const titlelessEventWithCoords: StubEvent = {
   eventType: { display: "Illegal Fishing", category: "Law Enforcement" },
   locationLat: 13.1,
   locationLon: 121.2,
+  areaName: "Baco Bay",
+  offenderName: null,
+  vesselName: null,
+  state: "under_review",
 };
 
 const eventWithoutCoords: StubEvent = {
@@ -58,6 +66,10 @@ const eventWithoutCoords: StubEvent = {
   eventType: { display: "Illegal Fishing", category: "Law Enforcement" },
   locationLat: null,
   locationLon: null,
+  areaName: null,
+  offenderName: null,
+  vesselName: null,
+  state: "under_review",
 };
 
 beforeEach(() => {
@@ -82,7 +94,7 @@ describe("EventsThisMonthPanel", () => {
     expect(screen.queryByText("Untitled event")).toBeNull();
   });
 
-  it("renders a row with coordinates as clickable and calls onSelectEvent with id/lat/lon", () => {
+  it("renders a row with coordinates as clickable and calls onSelectEvent with the full summary payload", () => {
     stubs.eventListData = { items: [titlelessEventWithCoords] };
     const onSelectEvent = vi.fn();
     render(
@@ -98,6 +110,13 @@ describe("EventsThisMonthPanel", () => {
       id: "e-1",
       lat: 13.1,
       lon: 121.2,
+      displayTitle: "Illegal Fishing",
+      eventTypeDisplay: "Illegal Fishing",
+      reportedAt: null,
+      areaName: "Baco Bay",
+      offenderName: null,
+      vesselName: null,
+      state: "under_review",
     });
   });
 

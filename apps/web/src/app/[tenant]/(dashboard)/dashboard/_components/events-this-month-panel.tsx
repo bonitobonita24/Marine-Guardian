@@ -12,16 +12,30 @@ import { trpc } from "@/lib/trpc/client";
  * KPI tile — see kpi-drilldown-modal.tsx (that modal no longer opens for
  * this kind).
  *
- * Row click → `onSelectEvent` is wired by the caller. In this task page.tsx
- * passes a temporary no-op; a later task wires fly-to + detail popup.
+ * Row click → `onSelectEvent` is wired by the caller (page.tsx) to fly the
+ * Command Center map to the event's coordinates and open a geo-anchored
+ * MapPopup summary card (event-summary-card.tsx).
  */
+export interface SelectedMonthEvent {
+  id: string;
+  lat: number;
+  lon: number;
+  displayTitle: string;
+  eventTypeDisplay: string | null;
+  reportedAt: string | Date | null;
+  areaName: string | null;
+  offenderName: string | null;
+  vesselName: string | null;
+  state: string;
+}
+
 export interface EventsThisMonthPanelProps {
   /** ISO date string — the upper bound of the month (e.g. the active War
    * Room range's `dateTo`). The lower bound (`monthStart`) is derived from
    * this exactly as kpi-drilldown-modal.tsx computes it for eventsThisMonth. */
   dateTo: string;
   onClose: () => void;
-  onSelectEvent: (row: { id: string; lat: number; lon: number }) => void;
+  onSelectEvent: (row: SelectedMonthEvent) => void;
 }
 
 export function EventsThisMonthPanel({
@@ -101,7 +115,18 @@ export function EventsThisMonthPanel({
                     type="button"
                     className="flex w-full flex-col gap-0.5 py-2 text-left transition-colors hover:bg-accent"
                     onClick={() => {
-                      onSelectEvent({ id: ev.id, lat, lon });
+                      onSelectEvent({
+                        id: ev.id,
+                        lat,
+                        lon,
+                        displayTitle,
+                        eventTypeDisplay: ev.eventType?.display ?? null,
+                        reportedAt: ev.reportedAt,
+                        areaName: ev.areaName,
+                        offenderName: ev.offenderName,
+                        vesselName: ev.vesselName,
+                        state: ev.state,
+                      });
                     }}
                   >
                     <span className="font-medium">{displayTitle}</span>
