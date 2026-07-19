@@ -303,6 +303,10 @@ export function InteractiveMap({
   // the map's events unless the operator toggles this on (TrackLegend "Show
   // Skylight events" switch, wired below).
   const [showSkylight, setShowSkylight] = useState(false);
+  // Event photo-preview thumbnails (image markers, zoomed-in). Default ON —
+  // when the operator toggles this off (TrackLegend "Photo thumbnails"
+  // switch), every event collapses to its plain icon-chip marker.
+  const [showThumbnails, setShowThumbnails] = useState(true);
   const subjectsQuery = trpc.map.subjects.list.useQuery();
   const eventsQuery = trpc.map.events.list.useQuery({
     ...(dateFrom !== undefined ? { from: dateFrom } : {}),
@@ -755,6 +759,8 @@ export function InteractiveMap({
           onShowBoundariesChange={setShowBoundaries}
           showSkylight={showSkylight}
           onShowSkylightChange={setShowSkylight}
+          showThumbnails={showThumbnails}
+          onShowThumbnailsChange={setShowThumbnails}
           {...(useInRangeTracks
             ? {
                 displayMode,
@@ -793,6 +799,8 @@ export function InteractiveMap({
             onShowBoundariesChange={setShowBoundaries}
             showSkylight={showSkylight}
             onShowSkylightChange={setShowSkylight}
+            showThumbnails={showThumbnails}
+            onShowThumbnailsChange={setShowThumbnails}
             {...(eventTypesQuery.data !== undefined
               ? { eventTypesByCategory: eventTypesQuery.data }
               : {})}
@@ -1101,10 +1109,11 @@ export function InteractiveMap({
             (serious ? eventPrioritySizePx(event.priority) + 6 : eventPrioritySizePx(event.priority)) *
               zoomScale,
           );
-          // Image preview only once zoomed in past the threshold AND the event
-          // actually has an image asset.
+          // Image preview only when thumbnails are enabled (TrackLegend "Photo
+          // thumbnails" switch, default on) AND zoomed in past the threshold
+          // AND the event actually has an image asset.
           const firstImage =
-            zoom >= PIN_PREVIEW_ZOOM
+            showThumbnails && zoom >= PIN_PREVIEW_ZOOM
               ? event.assets.find((a) => isImageAsset(a.mimeType, a.filename))
               : undefined;
           const clickable = onEventClick !== undefined;

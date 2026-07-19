@@ -102,6 +102,11 @@ type TrackLegendProps = {
    *  both orientations when provided (Interactive Report Map). */
   showSkylight?: boolean;
   onShowSkylightChange?: (next: boolean) => void;
+  /** Event photo-preview thumbnails (image markers, zoomed-in). Default ON —
+   *  when off, every event collapses to its plain icon-chip marker. Rendered on
+   *  both orientations when provided. */
+  showThumbnails?: boolean;
+  onShowThumbnailsChange?: (next: boolean) => void;
   /** "vertical" stacked card (overlay) or "horizontal" toolbar row (above map). */
   orientation?: "vertical" | "horizontal";
   /** Floating vertical card only: slot rendered at the top (e.g. date +
@@ -183,6 +188,8 @@ export function TrackLegend({
   onShowBoundariesChange,
   showSkylight,
   onShowSkylightChange,
+  showThumbnails,
+  onShowThumbnailsChange,
   orientation = "vertical",
   header,
   title,
@@ -356,6 +363,31 @@ export function TrackLegend({
             </div>
           </>
         )}
+
+        {/* Event photo-preview thumbnails (image markers, zoomed-in). Default
+            ON — off collapses every event to its plain icon-chip marker. */}
+        {showThumbnails !== undefined && onShowThumbnailsChange !== undefined && (
+          <>
+            <div
+              className="hidden h-5 w-px bg-border sm:block"
+              aria-hidden="true"
+            />
+            <div className="flex min-h-9 items-center gap-2">
+              <Label
+                htmlFor="show-thumbnails"
+                className="cursor-pointer font-medium"
+              >
+                Photo thumbnails
+              </Label>
+              <Switch
+                id="show-thumbnails"
+                checked={showThumbnails}
+                onCheckedChange={onShowThumbnailsChange}
+                aria-label="Show event photo thumbnails on the map"
+              />
+            </div>
+          </>
+        )}
       </section>
     );
   }
@@ -382,6 +414,8 @@ export function TrackLegend({
     onShowBoundariesChange={onShowBoundariesChange}
     showSkylight={showSkylight}
     onShowSkylightChange={onShowSkylightChange}
+    showThumbnails={showThumbnails}
+    onShowThumbnailsChange={onShowThumbnailsChange}
     header={header}
     title={title}
     collapsible={collapsible}
@@ -418,6 +452,8 @@ function VerticalTrackLegend({
   onShowBoundariesChange,
   showSkylight,
   onShowSkylightChange,
+  showThumbnails,
+  onShowThumbnailsChange,
   header,
   title,
   collapsible,
@@ -444,6 +480,8 @@ function VerticalTrackLegend({
   onShowBoundariesChange: ((next: boolean) => void) | undefined;
   showSkylight: boolean | undefined;
   onShowSkylightChange: ((next: boolean) => void) | undefined;
+  showThumbnails: boolean | undefined;
+  onShowThumbnailsChange: ((next: boolean) => void) | undefined;
   header: ReactNode;
   title: string | undefined;
   collapsible: boolean | undefined;
@@ -638,6 +676,28 @@ function VerticalTrackLegend({
                   checked={showSkylight}
                   onCheckedChange={onShowSkylightChange}
                   aria-label="Show Skylight events on the map"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Event photo-preview thumbnails (image markers, zoomed-in).
+              Default ON — off collapses every event to its plain icon-chip
+              marker. */}
+          {showThumbnails !== undefined && onShowThumbnailsChange !== undefined && (
+            <div className="border-t pt-0.5">
+              <div className="flex min-h-7 items-center justify-between gap-2">
+                <Label
+                  htmlFor="show-thumbnails"
+                  className="cursor-pointer font-medium"
+                >
+                  Photo thumbnails
+                </Label>
+                <Switch
+                  id="show-thumbnails"
+                  checked={showThumbnails}
+                  onCheckedChange={onShowThumbnailsChange}
+                  aria-label="Show event photo thumbnails on the map"
                 />
               </div>
             </div>
