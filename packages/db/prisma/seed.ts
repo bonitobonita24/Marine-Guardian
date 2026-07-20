@@ -216,32 +216,16 @@ async function main() {
     eventTypeIdByValue.set(et.value, row.id);
   }
 
-  const existingArea = await prisma.patrolArea.findFirst({
-    where: { tenantId: tenant.id, name: "Demo Patrol Zone Alpha" },
-  });
-
-  const patrolArea = existingArea ?? await prisma.patrolArea.create({
-    data: {
-      tenantId: tenant.id,
-      name: "Demo Patrol Zone Alpha",
-      patrolType: "seaborne",
-      polygonGeojson: {
-        type: "Polygon",
-        coordinates: [
-          [
-            [121.24, 13.44],
-            [121.27, 13.44],
-            [121.27, 13.47],
-            [121.24, 13.47],
-            [121.24, 13.44],
-          ],
-        ],
-      },
-      colorHex: "#3B82F6",
-      isActive: true,
-      createdBy: siteAdmin.id,
-    },
-  });
+  // NOTE: this seed deliberately creates NO demo PatrolArea.
+  //
+  // It used to find-or-create "Demo Patrol Zone Alpha" — a small square polygon
+  // that rendered as a stray blue box on the live map. Real patrol areas are
+  // operator-drawn or derived from uploaded boundaries, so a synthetic one is
+  // not demo data, it is map noise that reappears on every seed run.
+  //
+  // PatrolSchedule.patrolAreaId is nullable (onDelete: SetNull), so the demo
+  // schedules below are seeded unattached. Do not reintroduce a demo area here;
+  // seed-no-demo-patrol-area.test.ts guards this.
 
   const daysAgo = (n: number) => new Date(now.getTime() - n * 86400000);
 
@@ -355,13 +339,13 @@ async function main() {
 
   for (const s of scheduleDefs) {
     const existing = await prisma.patrolSchedule.findFirst({
-      where: { tenantId: tenant.id, patrolAreaId: patrolArea.id, rangerName: s.ranger.name, scheduledStart: s.start },
+      where: { tenantId: tenant.id, rangerName: s.ranger.name, scheduledStart: s.start },
     });
     if (!existing) {
       await prisma.patrolSchedule.create({
         data: {
           tenantId: tenant.id,
-          patrolAreaId: patrolArea.id,
+          patrolAreaId: null,
           rangerUserId: null,
           rangerName: s.ranger.name,
           scheduledStart: s.start,
@@ -558,7 +542,7 @@ async function main() {
   console.log(`  Webmaster:      webmaster@localhost.com (tenant_superadmin)`);
   console.log(`  Admin:          admin@admin.com (tenant_admin)`);
   console.log(`  Event Types:    ${eventTypes.length}`);
-  console.log(`  Patrol Area:    ${patrolArea.name}`);
+  console.log(`  Patrol Area:    (none — demo patrol area intentionally not seeded)`);
   console.log(`  Subjects:       ${rangers.length}`);
   console.log(`  Area Boundaries: 2`);
   console.log(`  Patrols:        4`);

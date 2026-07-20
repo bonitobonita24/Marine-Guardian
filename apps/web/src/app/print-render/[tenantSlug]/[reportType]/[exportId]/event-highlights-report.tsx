@@ -116,9 +116,12 @@ function escapeHtmlAttr(s: string): string {
 interface EventHighlightBlockProps {
   block: EventHighlightsEventBlock;
   timeZone: string;
+  /** True for the first block in the document — suppresses the "full" layout's
+   *  forced page break so content starts on page 1 (see .hl-block-first). */
+  isFirst: boolean;
 }
 
-function EventHighlightBlock({ block, timeZone }: EventHighlightBlockProps) {
+function EventHighlightBlock({ block, timeZone, isFirst }: EventHighlightBlockProps) {
   const metaParts: string[] = [];
   if (block.typeDisplay.length > 0) metaParts.push(block.typeDisplay);
   const formattedDate = fmtEventDate(block.reportedAt, timeZone);
@@ -157,7 +160,10 @@ function EventHighlightBlock({ block, timeZone }: EventHighlightBlockProps) {
     .join("");
 
   return (
-    <div className={`hl-block hl-block-${block.layout}`} data-testid="event-highlight-block">
+    <div
+      className={`hl-block hl-block-${block.layout}${isFirst ? " hl-block-first" : ""}`}
+      data-testid="event-highlight-block"
+    >
       <div className={photoGridClass} dangerouslySetInnerHTML={{ __html: photosHtml }} />
       <div className="hl-caption">
         <h2 className="hl-title">{block.title}</h2>
@@ -248,7 +254,21 @@ export function EventHighlightsReport({ data }: EventHighlightsReportProps) {
       break-before: page; page-break-before: always;
       min-height: 250mm;
     }
-    .hl-block:first-child.hl-block-full { break-before: auto; page-break-before: auto; }
+    /* The FIRST block must never force a break — otherwise page 1 renders as
+       a near-empty cover carrying only the report header.
+
+       ⚠ This guard was previously scoped by a :first-child qualifier on the
+       block element, which NEVER
+       matched: ReportHeader renders a <header class="pr-header"> as the first
+       child of .hl-report-body, so the first .hl-block is the SECOND child and
+       :first-child is false for it. A leading "full" block (>2 photos)
+       therefore kept its "break-before: page" and pushed all content to page
+       2. The first block is now marked explicitly in JSX (hl-block-first)
+       instead of being inferred from DOM position, so the guard cannot
+       silently break again if another element is added above the blocks.
+       Same specificity as .hl-block-full (0,1,0) — must stay AFTER it in
+       source order to win. */
+    .hl-block-first { break-before: auto; page-break-before: auto; }
     .hl-photo-grid { display: grid; gap: 6px; margin-bottom: 8px; }
     .hl-photo-grid-half { grid-template-columns: repeat(2, 1fr); }
     .hl-photo-grid-full { grid-template-columns: repeat(3, 1fr); }
@@ -297,8 +317,13 @@ export function EventHighlightsReport({ data }: EventHighlightsReportProps) {
           {data.blocks.length === 0 ? (
             <div className="hl-empty-page">No event highlights in the selected scope.</div>
           ) : (
-            data.blocks.map((block) => (
-              <EventHighlightBlock key={block.id} block={block} timeZone={data.tenant.timezone} />
+            data.blocks.map((block, index) => (
+              <EventHighlightBlock
+                key={block.id}
+                block={block}
+                timeZone={data.tenant.timezone}
+                isFirst={index === 0}
+              />
             ))
           )}
           <footer className="hl-footer" role="contentinfo">

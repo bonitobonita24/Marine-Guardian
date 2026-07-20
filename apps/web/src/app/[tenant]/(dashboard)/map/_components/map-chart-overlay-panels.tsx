@@ -35,6 +35,24 @@ import { Switch } from "@/components/ui/switch";
  *
  * The chart nodes are passed through untouched (same data, same props) — this
  * component only supplies the overlay chrome and the show/hide state.
+ *
+ * SHORT-VIEWPORT READABILITY (owner decision 2026-07-20)
+ * -----------------------------------------------------
+ * This column is capped at `max-h-[calc(100%-1.5rem)]` of the MAP PANE, not the
+ * window. Measured at 1280x600: map pane 286px -> column 262px, while the two
+ * panels were 201px and 185px (scrollHeight 497px) — only one chart visible at
+ * a time, its legend clipped, "Region Coverage" entirely below the fold. The
+ * owner chose SHRINKING the charts over scrolling, so the fix lives in the
+ * charts' own `compact` variant rather than in a new mechanism here: below an
+ * 800px-tall viewport the compact charts drop to a 4.5rem body and shed
+ * non-essential chrome (see @/components/reporting/compact-chart-density).
+ *
+ * Honest limit: that makes ONE open chart fully readable at 1280x600 (toggle
+ * card ~90px + gap + ~131px panel = ~229px of 262px) — previously even a single
+ * open chart was clipped. BOTH open still does not fit; two panels would have
+ * to be ~78px each, which is less than a card's own chrome, so shrinking that
+ * far would trade a scroll for two illegible charts. Opening the second chart
+ * therefore still scrolls, but each panel is complete once scrolled to.
  */
 
 export type MapChartOverlayItem = {

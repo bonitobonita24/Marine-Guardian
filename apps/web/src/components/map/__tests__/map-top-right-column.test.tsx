@@ -6,6 +6,24 @@
 // collision resolution: ONE right-anchored stacking column, pinned content
 // first, transient content BELOW it, neither replacing nor overlapping the
 // other, and neither clipped off-screen.
+//
+// ---------------------------------------------------------------------------
+// TOMBSTONE: `map-bottom-right-clearance.test.ts` (deleted 2026-07-20)
+// ---------------------------------------------------------------------------
+// A sibling suite used to live beside this one asserting that THIS column's
+// right inset stayed >= the inward reach of the map's bottom-right zoom /
+// doodle control cluster (hence `right-11`, 44px, clearing a 42px reach).
+//
+// That cluster no longer sits in the map's bottom-right corner. On the
+// Interactive Report Map it now renders beside the upper-LEFT "MAP CONTROLS"
+// card (CONTROL_CLUSTER_BESIDE_MAP_CONTROLS in InteractiveMap.tsx), so the
+// collision it guarded cannot occur and the inset reverted to `right-3`.
+//
+// The suite was DELETED rather than adjusted: every assertion in it encoded a
+// horizontal-clearance constraint that is now dead, and a test that pins a
+// removed workaround only blocks the correct layout. Do NOT resurrect it — if
+// the controls are ever moved BACK into the map's bottom-right corner, write a
+// fresh guard against the geometry that exists at that time.
 
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
@@ -68,20 +86,22 @@ describe("MapTopRightColumn", () => {
     render(<MapTopRightColumn pinned={<div />} transient={<div />} />);
 
     const column = screen.getByTestId("map-top-right-column");
-    // Top-aligned with the left controls column's `left-3 top-3`, but inset
-    // further from the right edge (`right-11` = 44px) to clear the map's
-    // bottom-right control cluster — see the control-clearance suite.
+    // Top-aligned with the left controls column's `left-3 top-3`, and flush at
+    // the same 12px gutter on the right (`right-3`). It was briefly `right-11`
+    // to clear the map's old bottom-right control cluster; that cluster moved,
+    // so the workaround is gone — see the tombstone at the top of this file.
     // `lg:` on the top because below that breakpoint the column is
     // bottom-anchored — see the narrow-viewport suite below.
-    expect(column.className).toContain("right-11");
+    expect(column.className).toContain("right-3");
+    expect(column.className).not.toContain("right-11");
     expect(column.className).toContain("lg:top-3");
     // Right-anchored, so the w-60 pinned panel and w-72 transient panel share a
     // flush right edge (intended).
     expect(column.className).toContain("items-end");
     // Clamped to the map height with its own scroller; clamped on narrow
-    // viewports so it never covers the whole map. FULL height: the
-    // bottom-right control clearance is horizontal (`right-11`), so it costs
-    // no height — see the control-clearance suite below.
+    // viewports so it never covers the whole map. FULL height — an early
+    // attempt at the (now-removed) control collision reserved a 144px vertical
+    // band here and left the chart panels unreadable at 1280x600. Never again.
     expect(column.className).toContain("max-h-[calc(100%-1.5rem)]");
     expect(column.className).toContain("overflow-y-auto");
     expect(column.className).toContain("lg:max-w-[calc(100%-1.5rem)]");
@@ -116,9 +136,8 @@ describe("MapTopRightColumn", () => {
       render(<MapTopRightColumn transient={<div />} />);
 
       const column = screen.getByTestId("map-top-right-column");
-      // Base (narrow) anchor is the BOTTOM edge, at the full-height `bottom-3`
-      // — clearance from the map's bottom-right controls is horizontal, not
-      // vertical (see the control-clearance suite below)...
+      // Base (narrow) anchor is the BOTTOM edge, at the full-height
+      // `bottom-3` — no vertical reserve (see the tombstone above)...
       expect(column.className).toContain("bottom-3");
       // ...and it reverts to the approved top alignment from lg upward.
       expect(column.className).toContain("lg:bottom-auto");

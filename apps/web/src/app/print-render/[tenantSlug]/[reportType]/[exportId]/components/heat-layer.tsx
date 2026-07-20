@@ -29,6 +29,7 @@ import L from "leaflet";
 import "leaflet.heat";
 import { useMap } from "react-leaflet";
 import type { HeatLatLng } from "@marine-guardian/shared/lib/heatmap-sample";
+import { registerHeatLayer, unregisterHeatLayer } from "./heat-paint-registry";
 
 export type HeatLayerVariant =
   | "events"
@@ -182,8 +183,16 @@ export function HeatLayer({
 
     const layer = L.heatLayer(points, options);
     layer.addTo(map);
+    // Publish an explicit repaint handle so MapRenderGate can force this
+    // layer to draw against the FINAL post-framing view — and wait for that
+    // paint — before flipping window.__renderReady. Without this the gate
+    // waited on tile load only and could report ready while the heat canvas
+    // was still being rastered (torn/streaked heatmaps in the PDF; see
+    // heat-paint-registry.ts for the full root cause).
+    registerHeatLayer(map, layer);
 
     return () => {
+      unregisterHeatLayer(map, layer);
       map.removeLayer(layer);
     };
   }, [map, points, variant, color, radius, blur]);

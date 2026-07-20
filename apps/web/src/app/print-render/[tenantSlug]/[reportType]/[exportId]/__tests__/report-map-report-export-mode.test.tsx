@@ -89,7 +89,10 @@ describe("resolveReportMapExportSections", () => {
 
 // ─── ReportMapReport render (RSC-style, react-dom/server) ──────────────────
 
-function buildData(exportMode: ReportMapReportData["exportMode"]): ReportMapReportData {
+function buildData(
+  exportMode: ReportMapReportData["exportMode"],
+  overrides: Partial<ReportMapReportData> = {},
+): ReportMapReportData {
   return {
     tenant: { id: "t1", name: "Mindoro MPA", slug: "mindoro", timezone: "Asia/Manila" },
     filter: {
@@ -141,6 +144,8 @@ function buildData(exportMode: ReportMapReportData["exportMode"]): ReportMapRepo
         foot: { count: 0, hours: 0, km: 0 },
       },
     },
+    // Spread LAST so a caller's override actually wins over the defaults above.
+    ...overrides,
   };
 }
 
@@ -213,5 +218,76 @@ describe("ReportMapReport — exportMode split", () => {
     // List pages renumber from 1 (no chart pages precede them).
     expect(html).toContain("Page 1 of 4");
     expect(html).toContain("Page 4 of 4");
+  });
+
+  // ─── Traversing page scope labels (2026-07-20) ───────────────────────────
+  //
+  // End-to-end wiring check for resolveTraversingScopeLabel: the rendered
+  // heading/caption/body copy must name the SCOPE boundary. Unit coverage of
+  // the resolver itself lives in traversing-scope-label.test.ts.
+
+  const traversingPatrols = {
+    rows: [
+      {
+        patrolId: "p1",
+        title: "Seaborne Patrol 1",
+        patrolType: "seaborne",
+        startMunicipalityName: "Sablayan",
+        creditedMunicipalityName: "Apo Reef Natural Park",
+        insideKm: 4.2,
+        insideHoursEst: 1.5,
+      },
+    ],
+    foot: { count: 0, insideKm: 0, insideHoursEst: 0 },
+    seaborne: { count: 1, insideKm: 4.2, insideHoursEst: 1.5 },
+    total: { count: 1, insideKm: 4.2, insideHoursEst: 1.5 },
+  } satisfies ReportMapReportData["traversingPatrols"];
+
+  it("traversing page names the ZONE (not its parent municipality) at zone scope", () => {
+    const html = renderToStaticMarkup(
+      <ReportMapReport
+        data={buildData("combined", {
+          traversingPatrols,
+          municipalityName: "Sablayan",
+          scopeTitleOverride: "Apo Reef Natural Park",
+        })}
+      />,
+    );
+    expect(sectionTestIds(html)).toContain("section-traversing-patrols");
+    expect(html).toContain("Patrols Traversing Apo Reef Natural Park");
+    expect(html).toContain("Patrols traversing Apo Reef Natural Park");
+    // The reported defect: the parent municipality headlining the page, and
+    // body copy asserting a municipality boundary that isn't the scope.
+    expect(html).not.toContain("Patrols Traversing Sablayan");
+    expect(html).not.toContain("started in another municipality");
+    expect(html).toContain("inside this zone");
+  });
+
+  it("traversing page names the PROVINCE in region mode", () => {
+    const html = renderToStaticMarkup(
+      <ReportMapReport
+        data={buildData("combined", {
+          traversingPatrols,
+          municipalityName: "Occidental Mindoro",
+          isRegionReport: true,
+        })}
+      />,
+    );
+    expect(html).toContain("Patrols Traversing Occidental Mindoro");
+    expect(html).toContain("inside this province");
+    expect(html).not.toContain("started in another municipality");
+  });
+
+  it("traversing page names the MUNICIPALITY at municipality scope", () => {
+    const html = renderToStaticMarkup(
+      <ReportMapReport
+        data={buildData("combined", {
+          traversingPatrols,
+          municipalityName: "Sablayan",
+        })}
+      />,
+    );
+    expect(html).toContain("Patrols Traversing Sablayan");
+    expect(html).toContain("inside this municipality");
   });
 });

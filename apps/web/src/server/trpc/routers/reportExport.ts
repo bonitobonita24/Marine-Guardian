@@ -10,7 +10,11 @@ import {
 } from "@marine-guardian/shared/schemas";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
-import { matrixProcedure, reportGenerateProcedure } from "../middleware/rbac";
+import {
+  adminProcedure,
+  matrixProcedure,
+  reportGenerateProcedure,
+} from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
 import {
   buildPptxExportKey,
@@ -317,12 +321,22 @@ export const reportExportRouter = router({
    * state), then enqueues the pptx-render job. The BullMQ jobId pattern
    * `pptx-render__${id}` collapses double-clicks to one job.
    *
-   * RBAC (Phase 4 S6): WIDENED from adminProcedure to
-   * reportGenerateProcedure — the new in-dialog "Generate PowerPoint"
-   * button is offered to everyone who can generate a report, which per
-   * `create` above includes `viewer`.
+   * RBAC: adminProcedure (tenant_manager + tenant_superadmin +
+   * tenant_admin) — deliberately MORE restrictive than the
+   * reportGenerateProcedure gating `create`, which additionally admits
+   * `viewer`.
+   *
+   * HISTORY — do not re-widen. Phase 4 S6 relaxed this to
+   * reportGenerateProcedure purely so the new in-dialog "Generate
+   * PowerPoint" button would work for every role that can generate a PDF
+   * (including viewer). That was a permissions WIDENING introduced to
+   * satisfy a UI convenience, and the owner reverted it (2026-07-20). The
+   * correct fix for "the button errors for non-admins" is to HIDE the
+   * button (export-progress-row.tsx `canGeneratePptx`), not to lower this
+   * gate. THIS procedure is the real authorisation boundary; the client-side
+   * hide is UX only and is not trusted.
    */
-  renderPptx: matrixProcedure(reportGenerateProcedure, "exports", "write")
+  renderPptx: matrixProcedure(adminProcedure, "exports", "write")
     .input(renderPptxReportExportInputSchema)
     .mutation(async ({ ctx, input }) => {
       const existing = await prisma.reportExport.findFirst({

@@ -139,6 +139,16 @@ export function ReportFilterBar({
   const showIncludeChildrenToggle =
     (municipalityId !== null || province !== null) && scopeHasChildBoundaries;
 
+  // Scope-accurate switch label (2026-07-20 fix). The label was hard-coded to
+  // "this municipality's" and stayed that way after province scope was
+  // enabled, where the toggle actually folds in the PROVINCE's zones. A
+  // specific municipality still wins over the province (selecting a
+  // municipality narrows the scope), matching visibleZones above.
+  const includeChildrenAriaLabel =
+    municipalityId !== null
+      ? "Include child boundaries — fold in this municipality's MPAs, hotspots & custom zones"
+      : "Include child boundaries — fold in this province's MPAs, hotspots & custom zones";
+
   // Rule 3(b) — at a SPECIFIC municipality the MPA/zone dropdown is gated on
   // the "Include child boundaries" toggle being ON (you opt into the children
   // before you can narrow to one of them). The province-rollup and
@@ -428,7 +438,7 @@ export function ReportFilterBar({
             data-testid="report-include-children"
             checked={includeChildren}
             onCheckedChange={setIncludeChildren}
-            aria-label="Include child boundaries — fold in this municipality's MPAs, hotspots & custom zones"
+            aria-label={includeChildrenAriaLabel}
           />
         </div>
       )}

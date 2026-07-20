@@ -104,6 +104,7 @@ import {
 import { PatrolTotalsTable } from "./components/patrol-type-bar-chart";
 import { PrintMultiSeriesChart } from "./components/print-multi-series-chart";
 import { PrintTimeSeriesChart } from "./components/print-time-series-chart";
+import { resolveTraversingScopeLabel } from "./traversing-scope-label";
 
 // ─── Layout resolution ────────────────────────────────────────────────────────
 
@@ -767,6 +768,17 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
   const hasTraversing =
     data.traversingPatrols !== undefined && data.traversingPatrols.rows.length > 0;
   const totalPagesFinal = totalPages + (hasTraversing ? 1 : 0);
+
+  // Scope-aware traversing labels (2026-07-20): the heading/caption/body copy
+  // must name the boundary the report is actually scoped to — the ZONE when
+  // zone-scoped, the province in region mode, the municipality otherwise —
+  // so they agree with the table's per-scope distance column. Reuses the same
+  // resolved scope the header consumes (see resolveTraversingScopeLabel).
+  const traversingScope = resolveTraversingScopeLabel({
+    scopeTitleOverride: data.scopeTitleOverride,
+    isRegionReport: data.isRegionReport,
+    municipalityName: data.municipalityName,
+  });
 
   const headerProps: HeaderProps = {
     municipalLogoDataUri: data.template.municipalLogoDataUri,
@@ -1605,20 +1617,15 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
             reportTitle={REPORT_MAP_SECTION_TITLES.traversingPatrols}
           />
           <h2 className="section-heading">
-            Patrols Traversing {data.municipalityName ?? "This Municipality"}
+            {traversingScope.heading}
             <span className="total-badge">
               {data.traversingPatrols.total.count.toLocaleString()}
             </span>
           </h2>
-          <p className="traversing-note">
-            These patrols started in another municipality and are counted
-            there, not here. Distance and time shown are only the portion
-            inside this municipality; time is estimated (proportional to
-            distance).
-          </p>
+          <p className="traversing-note">{traversingScope.note}</p>
           <TraversingPatrolsTable
             data={data.traversingPatrols}
-            caption={`Patrols traversing ${data.municipalityName ?? "this municipality"}`}
+            caption={traversingScope.caption}
           />
           <PageFooter {...footerBase} pageNum={totalPagesFinal} />
         </section>

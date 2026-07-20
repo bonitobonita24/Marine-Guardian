@@ -137,7 +137,7 @@ describe("ExportProgressRow", () => {
   it("renders a spinner and NO Download button while queued", () => {
     stubs.poll = pollRow("queued");
     const { getByTestId, queryByTestId } = render(
-      <ExportProgressRow exportId="exp-1" label="Report" />,
+      <ExportProgressRow exportId="exp-1" label="Report" canGeneratePptx />,
     );
 
     expect(getByTestId("export-progress-spinner-exp-1")).toBeTruthy();
@@ -148,7 +148,7 @@ describe("ExportProgressRow", () => {
   it("renders a spinner while rendering", () => {
     stubs.poll = pollRow("rendering");
     const { getByTestId, queryByTestId } = render(
-      <ExportProgressRow exportId="exp-1" label="Report" />,
+      <ExportProgressRow exportId="exp-1" label="Report" canGeneratePptx />,
     );
     expect(getByTestId("export-progress-spinner-exp-1")).toBeTruthy();
     expect(queryByTestId("export-download-exp-1")).toBeNull();
@@ -157,7 +157,7 @@ describe("ExportProgressRow", () => {
   it("renders the label so simultaneous rows are distinguishable", () => {
     stubs.poll = pollRow("queued");
     const { getByText } = render(
-      <ExportProgressRow exportId="exp-1" label="Report (charts)" />,
+      <ExportProgressRow exportId="exp-1" label="Report (charts)" canGeneratePptx />,
     );
     expect(getByText("Report (charts)")).toBeTruthy();
   });
@@ -166,7 +166,7 @@ describe("ExportProgressRow", () => {
     stubs.poll = pollRow("ready");
     stubs.downloadUrl = "/api/exports/reports/exp-1/download";
     const { getByTestId, queryByTestId } = render(
-      <ExportProgressRow exportId="exp-1" label="Report" />,
+      <ExportProgressRow exportId="exp-1" label="Report" canGeneratePptx />,
     );
 
     const link = getByTestId("export-download-exp-1");
@@ -178,12 +178,12 @@ describe("ExportProgressRow", () => {
 
   it("only enables the download query once the status is ready", () => {
     stubs.poll = pollRow("rendering");
-    render(<ExportProgressRow exportId="exp-1" label="Report" />);
+    render(<ExportProgressRow exportId="exp-1" label="Report" canGeneratePptx />);
     expect(captured.downloadOptions?.enabled).toBe(false);
 
     cleanup();
     stubs.poll = pollRow("ready");
-    render(<ExportProgressRow exportId="exp-1" label="Report" />);
+    render(<ExportProgressRow exportId="exp-1" label="Report" canGeneratePptx />);
     expect(captured.downloadOptions?.enabled).toBe(true);
   });
 
@@ -191,7 +191,7 @@ describe("ExportProgressRow", () => {
     stubs.poll = pollRow("ready");
     stubs.downloadUrl = "/api/exports/reports/exp-1/download";
     const { getByTestId } = render(
-      <ExportProgressRow exportId="exp-1" label="Report" />,
+      <ExportProgressRow exportId="exp-1" label="Report" canGeneratePptx />,
     );
     expect(getByTestId("export-render-pptx-exp-1").textContent).toContain(
       "Generate PowerPoint",
@@ -202,7 +202,7 @@ describe("ExportProgressRow", () => {
     stubs.poll = pollRow("ready");
     stubs.downloadUrl = "/api/exports/reports/exp-1/download";
     const { getByTestId, queryByTestId } = render(
-      <ExportProgressRow exportId="exp-1" label="Report" />,
+      <ExportProgressRow exportId="exp-1" label="Report" canGeneratePptx />,
     );
 
     fireEvent.click(getByTestId("export-render-pptx-exp-1"));
@@ -218,7 +218,7 @@ describe("ExportProgressRow", () => {
     stubs.poll = pollRow("ready");
     stubs.downloadUrl = "/api/exports/reports/exp-1/download";
     const { getByTestId } = render(
-      <ExportProgressRow exportId="exp-1" label="Report" />,
+      <ExportProgressRow exportId="exp-1" label="Report" canGeneratePptx />,
     );
     expect(captured.pptxPollOptions?.enabled).toBe(false);
 
@@ -238,7 +238,7 @@ describe("ExportProgressRow", () => {
     stubs.pptxDownloadUrl = "/api/exports/reports/exp-1/pptx";
 
     const { getByTestId, queryByTestId } = render(
-      <ExportProgressRow exportId="exp-1" label="Report" />,
+      <ExportProgressRow exportId="exp-1" label="Report" canGeneratePptx />,
     );
 
     const pdfLink = getByTestId("export-download-exp-1");
@@ -255,7 +255,7 @@ describe("ExportProgressRow", () => {
   it("renders the generic message from the poll query on a failed row", () => {
     stubs.poll = pollRow("failed", "Report generation failed. Please try again.");
     const { getByTestId, queryByTestId } = render(
-      <ExportProgressRow exportId="exp-1" label="Report" />,
+      <ExportProgressRow exportId="exp-1" label="Report" canGeneratePptx />,
     );
 
     expect(getByTestId("export-error-exp-1").textContent).toBe(
@@ -268,7 +268,7 @@ describe("ExportProgressRow", () => {
   it("falls back to a generic message when a failed row has a null errorMessage", () => {
     stubs.poll = pollRow("failed", null);
     const { getByTestId } = render(
-      <ExportProgressRow exportId="exp-1" label="Report" />,
+      <ExportProgressRow exportId="exp-1" label="Report" canGeneratePptx />,
     );
     expect(getByTestId("export-error-exp-1").textContent).toBe(
       EXPORT_ROW_FAILURE_FALLBACK,
@@ -285,7 +285,7 @@ describe("ExportProgressRow", () => {
       pptxErrorMessage: "Report generation failed. Please try again.",
     };
     const { getByTestId } = render(
-      <ExportProgressRow exportId="exp-1" label="Report" />,
+      <ExportProgressRow exportId="exp-1" label="Report" canGeneratePptx />,
     );
     expect(getByTestId("export-render-pptx-exp-1").textContent).toContain(
       "Retry PowerPoint",
@@ -297,7 +297,7 @@ describe("ExportProgressRow", () => {
 
   it("polls at the interval while non-terminal and STOPS (false) once ready or failed", () => {
     stubs.poll = pollRow("queued");
-    render(<ExportProgressRow exportId="exp-1" label="Report" />);
+    render(<ExportProgressRow exportId="exp-1" label="Report" canGeneratePptx />);
 
     expect(callRefetchInterval(captured.pollOptions, pollRow("queued"))).toBe(
       EXPORT_POLL_INTERVAL_MS,
@@ -316,7 +316,7 @@ describe("ExportProgressRow", () => {
   it("stops polling the pptx status once it reaches a terminal state", () => {
     stubs.poll = pollRow("ready");
     stubs.downloadUrl = "/api/exports/reports/exp-1/download";
-    render(<ExportProgressRow exportId="exp-1" label="Report" />);
+    render(<ExportProgressRow exportId="exp-1" label="Report" canGeneratePptx />);
 
     const pptx = (s: ExportStatus | null): PptxPollData => ({
       id: "exp-1",
@@ -340,7 +340,7 @@ describe("ExportProgressRow", () => {
     stubs.poll = pollRow("ready");
     stubs.downloadUrl = "/api/exports/reports/exp-1/download";
     const { container } = render(
-      <ExportProgressRow exportId="exp-1" label="Report" />,
+      <ExportProgressRow exportId="exp-1" label="Report" canGeneratePptx />,
     );
     const live = container.querySelector('[aria-live="polite"]');
     expect(live).toBeTruthy();
@@ -350,10 +350,95 @@ describe("ExportProgressRow", () => {
   it("marks the pending spinner aria-busy", () => {
     stubs.poll = pollRow("rendering");
     const { getByTestId } = render(
-      <ExportProgressRow exportId="exp-1" label="Report" />,
+      <ExportProgressRow exportId="exp-1" label="Report" canGeneratePptx />,
     );
     expect(
       getByTestId("export-progress-spinner-exp-1").getAttribute("aria-busy"),
     ).toBe("true");
+  });
+
+  // PPTX is admin-only (2026-07-20 revert of the Phase 4 S6 widening).
+  // reportExport.renderPptx runs adminProcedure; a non-admin must therefore see
+  // NO PowerPoint affordance at all rather than one that 403s. These assert the
+  // UX half of that — the server procedure is the actual boundary and is
+  // covered in the reportExport router test.
+  describe("canGeneratePptx=false (non-admin)", () => {
+    it("renders Download but NO Generate PowerPoint button on a ready row", () => {
+      stubs.poll = pollRow("ready");
+      stubs.downloadUrl = "/api/exports/reports/exp-1/download";
+      const { getByTestId, queryByTestId } = render(
+        <ExportProgressRow
+          exportId="exp-1"
+          label="Report"
+          canGeneratePptx={false}
+        />,
+      );
+
+      expect(getByTestId("export-download-exp-1")).toBeTruthy();
+      expect(queryByTestId("export-render-pptx-exp-1")).toBeNull();
+    });
+
+    it("renders no PPTX download link even if a pptx is somehow ready", () => {
+      stubs.poll = pollRow("ready");
+      stubs.downloadUrl = "/api/exports/reports/exp-1/download";
+      stubs.pptxPoll = {
+        id: "exp-1",
+        pptxStatus: "ready",
+        pptxFileSizeBytes: 1234,
+        pptxErrorMessage: null,
+      };
+      stubs.pptxDownloadUrl = "/api/exports/reports/exp-1/download-pptx";
+      const { queryByTestId } = render(
+        <ExportProgressRow
+          exportId="exp-1"
+          label="Report"
+          canGeneratePptx={false}
+        />,
+      );
+
+      expect(queryByTestId("export-download-pptx-exp-1")).toBeNull();
+      expect(queryByTestId("export-render-pptx-exp-1")).toBeNull();
+    });
+
+    it("never enables the pptx poll or pptx download queries", () => {
+      stubs.poll = pollRow("ready");
+      stubs.downloadUrl = "/api/exports/reports/exp-1/download";
+      stubs.pptxPoll = {
+        id: "exp-1",
+        pptxStatus: "ready",
+        pptxFileSizeBytes: null,
+        pptxErrorMessage: null,
+      };
+      render(
+        <ExportProgressRow
+          exportId="exp-1"
+          label="Report"
+          canGeneratePptx={false}
+        />,
+      );
+
+      expect(captured.pptxPollOptions?.enabled).toBe(false);
+      expect(captured.pptxDownloadOptions?.enabled).toBe(false);
+    });
+
+    it("hides a pptx failure message (nothing PPTX-related is surfaced)", () => {
+      stubs.poll = pollRow("ready");
+      stubs.downloadUrl = "/api/exports/reports/exp-1/download";
+      stubs.pptxPoll = {
+        id: "exp-1",
+        pptxStatus: "failed",
+        pptxFileSizeBytes: null,
+        pptxErrorMessage: "boom",
+      };
+      const { queryByTestId } = render(
+        <ExportProgressRow
+          exportId="exp-1"
+          label="Report"
+          canGeneratePptx={false}
+        />,
+      );
+
+      expect(queryByTestId("export-pptx-error-exp-1")).toBeNull();
+    });
   });
 });

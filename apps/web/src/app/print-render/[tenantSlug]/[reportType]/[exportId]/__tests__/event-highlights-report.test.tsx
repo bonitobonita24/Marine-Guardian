@@ -92,8 +92,10 @@ describe("EventHighlightsReport", () => {
       <EventHighlightsReport data={buildData({ blocks: [halfBlock, fullBlock], totalQualifying: 2 })} />,
     );
 
-    // Class names per the component source: `hl-block hl-block-${layout}`.
-    expect(html).toContain('class="hl-block hl-block-half"');
+    // Class names per the component source: `hl-block hl-block-${layout}`,
+    // plus `hl-block-first` on the leading block only (see the first-page
+    // break tests below). The layout→class mapping is the invariant here.
+    expect(html).toContain('class="hl-block hl-block-half hl-block-first"');
     expect(html).toContain('class="hl-block hl-block-full"');
     // Both event-highlight-block testids present.
     expect(html.match(/data-testid="event-highlight-block"/g)).toHaveLength(2);
@@ -209,6 +211,57 @@ describe("EventHighlightsReport", () => {
     // ...but contributes no <img> and therefore nothing to the sentinel.
     expect(html).not.toContain('class="hl-photo"');
     expect(html).toContain("window.__renderReady = true;");
+  });
+
+  // ─── First-page break (near-empty cover page) ───────────────────────────
+  //
+  // Reported defect: page 1 rendered with only the header (64 chars, 4 logo
+  // images) and all content pushed to page 2+. Cause: `.hl-block-full` sets
+  // `break-before: page`, and the guard `.hl-block:first-child.hl-block-full`
+  // never matched because <ReportHeader> is the first child of
+  // .hl-report-body — the first block is the SECOND child.
+
+  it("marks the first block hl-block-first so it cannot force a leading page break", () => {
+    const html = renderToStaticMarkup(
+      <EventHighlightsReport
+        data={buildData({
+          blocks: [
+            block({ id: "e1", photoAssetIds: ["a1", "a2", "a3"], photoCount: 3, layout: "full" }),
+            block({ id: "e2", photoAssetIds: ["b1", "b2", "b3"], photoCount: 3, layout: "full" }),
+          ],
+        })}
+      />,
+    );
+    const classes = [...html.matchAll(/class="(hl-block[^"]*)"/g)].map((m) => m[1]);
+    expect(classes).toHaveLength(2);
+    // First block carries the suppressor; the second keeps its page break.
+    expect(classes[0]).toContain("hl-block-first");
+    expect(classes[1]).not.toContain("hl-block-first");
+    // Both still carry the "full" layout class — the fix must not change layout.
+    expect(classes[0]).toContain("hl-block-full");
+    expect(classes[1]).toContain("hl-block-full");
+  });
+
+  it("applies hl-block-first regardless of the first block's layout", () => {
+    const html = renderToStaticMarkup(
+      <EventHighlightsReport data={buildData({ blocks: [block({ layout: "half" })] })} />,
+    );
+    expect(html).toContain("hl-block hl-block-half hl-block-first");
+  });
+
+  it("defines .hl-block-first AFTER .hl-block-full so it wins on equal specificity", () => {
+    const html = renderToStaticMarkup(
+      <EventHighlightsReport data={buildData({ blocks: [block({ layout: "full" })] })} />,
+    );
+    // Both selectors are (0,1,0); source order is the only tiebreak, so a
+    // reorder would silently restore the empty cover page.
+    const fullIdx = html.indexOf(".hl-block-full {");
+    const firstIdx = html.indexOf(".hl-block-first {");
+    expect(fullIdx).toBeGreaterThan(-1);
+    expect(firstIdx).toBeGreaterThan(fullIdx);
+    expect(html).toContain(".hl-block-first { break-before: auto; page-break-before: auto; }");
+    // The dead :first-child guard must not come back.
+    expect(html).not.toContain(".hl-block:first-child");
   });
 
   // ─── Hydration safety (React #418) ──────────────────────────────────────

@@ -719,6 +719,20 @@ function MarkerLabel({
 type MapControlsProps = {
   /** Position of the controls on the map (default: "bottom-right") */
   position?: "top-left" | "top-right" | "bottom-left" | "bottom-right";
+  /**
+   * Fully REPLACES the `position` preset's inset classes for this map only.
+   *
+   * The four presets are corner anchors; a consumer that needs the cluster
+   * parked somewhere else (e.g. beside its own floating panel) supplies the
+   * inset classes itself. This is a replacement rather than a `className`
+   * override because mixing a preset's `right-N` with an override's `left-N`
+   * puts BOTH insets on the element (tailwind-merge treats `left-*` and
+   * `right-*` as independent groups) and stretches the cluster across the map.
+   *
+   * Omit it and the `position` preset applies exactly as before — every
+   * existing consumer is unaffected.
+   */
+  positionClassName?: string;
   /** Show zoom in/out buttons (default: true) */
   showZoom?: boolean;
   /** Show compass button to reset bearing (default: false) */
@@ -780,6 +794,7 @@ function ControlButton({
 
 function MapControls({
   position = "bottom-right",
+  positionClassName,
   showZoom = true,
   showCompass = false,
   showLocate = false,
@@ -841,7 +856,11 @@ function MapControls({
     <div
       className={cn(
         "absolute z-10 flex flex-col gap-1.5",
-        positionClasses[position],
+        // `positionClassName` REPLACES the corner preset (see the prop doc);
+        // it is never merged with it.
+        positionClassName !== undefined && positionClassName !== ""
+          ? positionClassName
+          : positionClasses[position],
         className,
       )}
     >

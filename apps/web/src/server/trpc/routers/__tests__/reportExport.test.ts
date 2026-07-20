@@ -647,49 +647,49 @@ describe("reportExport.renderPptx (on-demand PowerPoint render)", () => {
     expect(vi.mocked(enqueuePptxRender)).not.toHaveBeenCalled();
   });
 
-  it("rejects renderPptx when role is operator (still below reportGenerateProcedure)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["operator"]));
+  // RBAC (2026-07-20) — REVERTED to adminProcedure. Phase 4 S6 had widened
+  // this to reportGenerateProcedure so the in-dialog "Generate PowerPoint"
+  // button would work for viewer/field_coordinator; the owner reverted that
+  // widening. The two tests that previously asserted viewer and
+  // field_coordinator were ALLOWED are inverted below — they encoded the
+  // widening itself, which is exactly the behaviour being removed. The UI now
+  // hides the button for these roles (canGeneratePptx), but THIS procedure is
+  // the authorisation boundary and must reject them regardless of the client.
+  it.each([["operator"], ["viewer"], ["field_coordinator"]])(
+    "rejects renderPptx for %s (adminProcedure — below the admin tier)",
+    async (role) => {
+      const caller = createCaller(makeCtx(TENANT_ID, [role]));
 
-    await expect(caller.renderPptx({ id: "re-1" })).rejects.toThrow(TRPCError);
-    expect(vi.mocked(prisma.reportExport.findFirst)).not.toHaveBeenCalled();
-    expect(vi.mocked(enqueuePptxRender)).not.toHaveBeenCalled();
-  });
+      await expect(caller.renderPptx({ id: "re-1" })).rejects.toThrow(TRPCError);
+      // Rejected at the door: no row lookup, no job enqueued.
+      expect(vi.mocked(prisma.reportExport.findFirst)).not.toHaveBeenCalled();
+      expect(vi.mocked(enqueuePptxRender)).not.toHaveBeenCalled();
+    },
+  );
 
-  // Phase 4 S6 — DELIBERATE WIDENING from adminProcedure to
-  // reportGenerateProcedure: the in-dialog "Generate PowerPoint" button is
-  // offered to everyone who can generate a report, which includes viewer.
-  it("allows renderPptx for a viewer (RBAC widened with the in-dialog PowerPoint button)", async () => {
-    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
-      id: "re-viewer-pptx",
-      status: "ready",
-    } as never);
-    vi.mocked(prisma.reportExport.update).mockResolvedValue({
-      id: "re-viewer-pptx",
-      pptxStatus: "queued",
-    } as never);
+  it.each([["tenant_manager"], ["tenant_superadmin"], ["tenant_admin"]])(
+    "allows renderPptx for %s (the adminProcedure tier)",
+    async (role) => {
+      vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
+        id: "re-admin-pptx",
+        status: "ready",
+      } as never);
+      vi.mocked(prisma.reportExport.update).mockResolvedValue({
+        id: "re-admin-pptx",
+        pptxStatus: "queued",
+      } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["viewer"]));
-    const result = await caller.renderPptx({ id: "re-viewer-pptx" });
+      const caller = createCaller(makeCtx(TENANT_ID, [role]));
+      const result = await caller.renderPptx({ id: "re-admin-pptx" });
 
-    expect(result.id).toBe("re-viewer-pptx");
-    expect(vi.mocked(enqueuePptxRender)).toHaveBeenCalledTimes(1);
-  });
+      expect(result.id).toBe("re-admin-pptx");
+      expect(vi.mocked(enqueuePptxRender)).toHaveBeenCalledTimes(1);
+    },
+  );
 
-  it("allows renderPptx for a field_coordinator", async () => {
-    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
-      id: "re-fc-pptx",
-      status: "ready",
-    } as never);
-    vi.mocked(prisma.reportExport.update).mockResolvedValue({
-      id: "re-fc-pptx",
-      pptxStatus: "queued",
-    } as never);
-
-    const caller = createCaller(makeCtx(TENANT_ID, ["field_coordinator"]));
-    await expect(
-      caller.renderPptx({ id: "re-fc-pptx" }),
-    ).resolves.toEqual(partial({ id: "re-fc-pptx" }));
-  });
+  // NOTE: create() stays on reportGenerateProcedure — this revert is scoped to
+  // renderPptx only. The viewer-can-create coverage lives in the `create`
+  // describe above and is deliberately left untouched.
 
   // The old precondition (PDF status must be "ready" AND telegramFileId
   // non-null) is DEAD: the pptx worker renders from live report data, and
@@ -704,7 +704,7 @@ describe("reportExport.renderPptx (on-demand PowerPoint render)", () => {
       pptxStatus: "queued",
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["field_coordinator"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_admin"]));
     const result = await caller.renderPptx({ id: "re-pdf-failed" });
 
     expect(result.id).toBe("re-pdf-failed");
@@ -725,7 +725,7 @@ describe("reportExport.renderPptx (on-demand PowerPoint render)", () => {
       pptxStatus: "queued",
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["field_coordinator"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_admin"]));
     await expect(
       caller.renderPptx({ id: "re-pdf-queued" }),
     ).resolves.toEqual(partial({ id: "re-pdf-queued" }));
@@ -741,7 +741,7 @@ describe("reportExport.renderPptx (on-demand PowerPoint render)", () => {
       pptxStatus: "queued",
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["field_coordinator"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_admin"]));
     await caller.renderPptx({ id: "re-ready-1" });
 
     expect(vi.mocked(prisma.reportExport.update)).toHaveBeenCalledWith({

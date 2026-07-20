@@ -63,6 +63,43 @@ import { AlertTriangle, Flag, FlagTriangleRight, Pencil } from "lucide-react";
 const DEFAULT_CENTER: [number, number] = [121.5, 13.0];
 const DEFAULT_ZOOM = 6;
 
+/* ---------------------------------------------------------------------------
+ * ZOOM / DOODLE CLUSTER PLACEMENT — floating ("Interactive Report Map") mode
+ * ---------------------------------------------------------------------------
+ * Owner request 2026-07-20: park the zoom + doodle controls immediately to the
+ * RIGHT of the "MAP CONTROLS" card, top-aligned with it, with a small gap —
+ * and INDEPENDENT of it, so they do not move when MAP CONTROLS collapses.
+ * Independence is why these are absolute insets on the MAP rather than DOM
+ * children of the card: the card's own height/collapse state cannot reach them.
+ *
+ * DERIVATION (do not hardcode a bare pixel number — recompute from these):
+ *   MAP CONTROLS column  = `left-3` (0.75rem) + `w-48` (12rem) below `lg`
+ *                                             + `w-60` (15rem) at `lg` and up
+ *   gap                  = 0.75rem (12px), matching the card's own left inset
+ *
+ *   below lg : 0.75 + 12 + 0.75 = 13.5rem (216px)
+ *   lg and up: 0.75 + 15 + 0.75 = 16.5rem (264px)
+ *
+ * The responsive step is load-bearing: MAP CONTROLS narrows by 3rem below
+ * `lg`, so a single fixed offset would leave a ~60px hole there. Both values
+ * are derived from the SAME width classes on the column literal below — if
+ * that column's width changes, change these together.
+ */
+const CONTROL_CLUSTER_BESIDE_MAP_CONTROLS =
+  "top-3 left-[13.5rem] lg:left-[16.5rem]";
+
+/**
+ * The doodle toggle stacks directly beneath the zoom group, in the same
+ * column, matching the cluster's own `gap-1.5`:
+ *   top-3 (0.75rem) + zoom ControlGroup height + 0.375rem gap
+ *   zoom group = two `size-8` (2rem) buttons + the group's 1px top/bottom
+ *                border + the 1px divider between them ≈ 4.1875rem
+ *   0.75 + 4.1875 + 0.375 = 5.3125rem
+ * Rounded to `top-[5.3125rem]`. Same left offsets as the cluster.
+ */
+const DOODLE_TOGGLE_BESIDE_MAP_CONTROLS =
+  "top-[5.3125rem] left-[13.5rem] lg:left-[16.5rem]";
+
 /** "Xh YYm" duration string for the traversing-coverage summary line, or "—"
  *  when the figure is unavailable. Mirrors formatPatrolHours in
  *  patrol-list-by-range-card.tsx (kept local — this is a shared/, not app/,
@@ -912,15 +949,31 @@ export function InteractiveMap({
           setZoom((prev) => (Math.abs(prev - vp.zoom) >= 0.25 ? vp.zoom : prev));
         }}
       >
-        <MapControls />
+        <MapControls
+          {...(floating
+            ? { positionClassName: CONTROL_CLUSTER_BESIDE_MAP_CONTROLS }
+            : {})}
+        />
 
         {/* Doodle mode toggle — alongside the existing zoom/compass controls
             (both z-10). Only rendered when the caller opts a surface in via
             `doodleSurface` (Command Center / Report Map); other consumers of
             this shared component (e.g. the Rangers-on-Duty drilldown map)
-            never render it. */}
+            never render it.
+
+            In `floating` mode it joins the relocated cluster: same left
+            offset, stacked directly under the zoom group (see
+            DOODLE_TOGGLE_BESIDE_MAP_CONTROLS). In bar mode it keeps its
+            original bottom-right slot. */}
         {doodleSurface !== undefined && (
-          <div className="absolute z-10 bottom-24 right-2 border-border bg-background flex flex-col overflow-hidden rounded-md border shadow-sm">
+          <div
+            className={cn(
+              "border-border bg-background absolute z-10 flex flex-col overflow-hidden rounded-md border shadow-sm",
+              floating
+                ? DOODLE_TOGGLE_BESIDE_MAP_CONTROLS
+                : "bottom-24 right-2",
+            )}
+          >
             <button
               type="button"
               onClick={doodle.toggleActive}

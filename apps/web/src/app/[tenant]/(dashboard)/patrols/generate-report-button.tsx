@@ -97,6 +97,13 @@ export function GenerateReportButton() {
     roles.includes("tenant_superadmin") ||
     roles.includes("field_coordinator") ||
     roles.includes("tenant_admin");
+  // PPTX is admin-only (2026-07-20): reportExport.renderPptx runs
+  // adminProcedure, which does NOT include field_coordinator. Hiding the
+  // button is UX only — the tRPC procedure is the authorisation boundary.
+  const canGeneratePptx =
+    roles.includes("tenant_manager") ||
+    roles.includes("tenant_superadmin") ||
+    roles.includes("tenant_admin");
 
   // 6.2d — area-list fetch is gated on dialog open to avoid burning a trpc
   // call on every Patrols page load. List is filtered to enabled areas
@@ -296,7 +303,11 @@ export function GenerateReportButton() {
 
         {feedback?.kind === "success" ? (
           <div className="space-y-2" data-testid="export-progress-rows">
-            <ExportProgressRow exportId={feedback.exportId} label="Report" />
+            <ExportProgressRow
+              exportId={feedback.exportId}
+              label="Report"
+              canGeneratePptx={canGeneratePptx}
+            />
           </div>
         ) : (
           <div className="space-y-4">

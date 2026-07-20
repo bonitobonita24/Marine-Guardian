@@ -20,13 +20,15 @@
 // off to an /exports page (S8 deletes it). After create resolves, the dialog
 // STAYS OPEN and renders one ExportProgressRow per queued file; each row
 // polls itself and swaps its spinner for a Download button, with an on-demand
-// "Generate PowerPoint" beside it. Closing the dialog purges the files.
+// "Generate PowerPoint" beside it (ADMIN ONLY — see canGeneratePptx below).
+// Closing the dialog purges the files.
 //
 // Everything ABOVE the create call is unchanged: the template/region picker,
 // the split-files and Event Highlights checkboxes, and the baseParams/payload
 // construction that can produce 1-3 exports.
 
 import { useEffect, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -42,6 +44,7 @@ import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc/client";
 import { useReportFilter } from "@/components/reporting/report-filter-context";
 import { ExportProgressRow } from "./export-progress-row";
+import { pickDefaultTemplateId } from "./select-default-template";
 
 /** One generated file being tracked in-dialog. */
 interface ExportRowEntry {
@@ -49,7 +52,61 @@ interface ExportRowEntry {
   label: string;
 }
 
+/** Mirrors the ReportExportStatus enum (kept local, as ExportProgressRow does). */
+export type ExportRowStatus = "queued" | "rendering" | "ready" | "failed";
+
+/**
+ * Screen-reader summary for the dialog's polite live region.
+ *
+ * 2026-07-20 fix: this region used to hard-code "N report files are
+ * generating." for as long as any row existed, so assistive tech kept
+ * announcing "generating" long after the visible UI had swapped in Download
+ * buttons. The text now tracks the ACTUAL aggregate state of the rows.
+ *
+ * Pure + exported so the wording is unit-testable without rendering the
+ * dialog. Returns "" for an empty list so the region announces nothing before
+ * any export exists.
+ */
+export function describeExportProgress(
+  statuses: readonly ExportRowStatus[],
+): string {
+  if (statuses.length === 0) return "";
+
+  const ready = statuses.filter((s) => s === "ready").length;
+  const failed = statuses.filter((s) => s === "failed").length;
+  const generating = statuses.length - ready - failed;
+
+  const files = (n: number): string =>
+    `${String(n)} report ${n === 1 ? "file" : "files"}`;
+
+  const parts: string[] = [];
+  if (generating > 0) {
+    parts.push(`${files(generating)} ${generating === 1 ? "is" : "are"} generating.`);
+  }
+  if (ready > 0) {
+    parts.push(`${files(ready)} ${ready === 1 ? "is" : "are"} ready to download.`);
+  }
+  if (failed > 0) {
+    parts.push(`${files(failed)} ${failed === 1 ? "has" : "have"} failed.`);
+  }
+  return parts.join(" ");
+}
+
 export function GeneratePrintableButton() {
+  const { data: session } = useSession();
+  // PPTX is admin-only (2026-07-20 revert of the Phase 4 S6 widening):
+  // reportExport.renderPptx runs adminProcedure, so only these three roles may
+  // call it. Mirrors the roles.includes(...) session pattern already used by
+  // rebuild-button.tsx / generate-report-button.tsx rather than inventing a
+  // new client-side permission mechanism.
+  //
+  // Hiding the button is UX ONLY — the tRPC procedure is the real boundary.
+  const roles = session?.user.roles ?? [];
+  const canGeneratePptx =
+    roles.includes("tenant_manager") ||
+    roles.includes("tenant_superadmin") ||
+    roles.includes("tenant_admin");
+
   const {
     from,
     to,
@@ -88,6 +145,12 @@ export function GeneratePrintableButton() {
   const municipalities = trpc.municipality.list.useQuery(undefined, {
     enabled: open,
   });
+  // Protected zones are fetched for the DEFAULT-SELECTION logic only (they are
+  // not offered as dropdown options): resolving the scoped zone's name, and
+  // classifying templates as place-specific vs generic.
+  const protectedZones = trpc.municipality.protectedZones.useQuery(undefined, {
+    enabled: open,
+  });
   const provinceNames = (() => {
     const seen = new Set<string>();
     const names: string[] = [];
@@ -101,21 +164,75 @@ export function GeneratePrintableButton() {
   })();
   const REGION_PREFIX = "region:";
 
-  // Default-select the isDefault template (or first) on first dialog open.
-  // Reset on close so re-open re-runs this selection.
+  // Default-select a template on first dialog open, DERIVED FROM THE CURRENT
+  // SCOPE (2026-07-20 fix). Previously this blindly took the tenant's isDefault
+  // template, which mis-branded an all-municipalities report with the default
+  // template's (Apo Reef Park) logos. pickDefaultTemplateId now prefers a
+  // template matching the active scope, and otherwise a generic (non
+  // place-specific) one — see select-default-template.ts.
+  //
+  // Runs ONCE per open (initializedRef): after it fires, a manual dropdown
+  // choice is never overwritten, so the user's override always wins. Reset on
+  // close so re-opening re-derives from whatever the scope is by then.
+  //
+  // Gated on all three queries having settled — municipalities and zones supply
+  // the scope NAMES and the known-place list, so initializing before they load
+  // would classify every template as generic and pick the wrong default.
   useEffect(() => {
     if (!open) {
       initializedRef.current = false;
       return;
     }
-    if (!templates.data || initializedRef.current) return;
-    const items = templates.data.items;
-    const defaultTpl = items.find((t) => t.isDefault) ?? items[0];
-    if (defaultTpl) {
-      setSelectedTemplateId(defaultTpl.id);
+    if (initializedRef.current) return;
+    if (!templates.data) return;
+    if (municipalities.isLoading || protectedZones.isLoading) return;
+
+    const municipalityRows = municipalities.data ?? [];
+    const zoneRows = protectedZones.data ?? [];
+
+    const scopedMunicipality =
+      municipalityId !== null
+        ? municipalityRows.find((m) => m.id === municipalityId)
+        : undefined;
+    const scopedZone =
+      protectedZoneId !== null
+        ? zoneRows.find((z) => z.id === protectedZoneId)
+        : undefined;
+
+    const knownPlaceNames = [
+      ...municipalityRows.map((m) => m.name),
+      ...zoneRows.map((z) => z.name),
+      ...provinceNames,
+    ];
+
+    const nextId = pickDefaultTemplateId(
+      templates.data.items,
+      {
+        zoneName: scopedZone?.name ?? null,
+        municipalityName: scopedMunicipality?.name ?? null,
+        provinceName: province,
+      },
+      knownPlaceNames,
+    );
+
+    if (nextId !== null) {
+      setSelectedTemplateId(nextId);
       initializedRef.current = true;
     }
-  }, [open, templates.data]);
+    // provinceNames is derived from municipalities.data on every render, so it
+    // is intentionally NOT a dependency — municipalities.data covers it (a new
+    // array identity each render would otherwise re-run this effect forever).
+  }, [
+    open,
+    templates.data,
+    municipalities.data,
+    municipalities.isLoading,
+    protectedZones.data,
+    protectedZones.isLoading,
+    municipalityId,
+    protectedZoneId,
+    province,
+  ]);
 
   // No hook-level onSuccess/onError: feedback is set explicitly in
   // handleConfirm via mutateAsync so the split path (two concurrent creates)
@@ -282,6 +399,21 @@ export function GeneratePrintableButton() {
   }
 
   const hasRows = rows.length > 0;
+
+  // Aggregate row state for the dialog's live region (2026-07-20 fix — the
+  // region used to say "generating" forever). These reuse the SAME query keys
+  // ExportProgressRow polls with, so TanStack Query serves them from the one
+  // shared cache entry per export: no extra network traffic and no second
+  // polling loop — this observer just reads whatever the row's poll last
+  // wrote. Announcing is the only thing done with it; the visible per-row UI
+  // remains owned by ExportProgressRow.
+  const pollQueries = trpc.useQueries((t) =>
+    rows.map((row) => t.reportExport.pollStatus({ id: row.id })),
+  );
+  const rowStatuses: ExportRowStatus[] = pollQueries.map(
+    (q) => q.data?.status ?? "queued",
+  );
+  const progressAnnouncement = describeExportProgress(rowStatuses);
   const confirmDisabled = create.isPending || selectedTemplateId === "";
 
   return (
@@ -323,10 +455,14 @@ export function GeneratePrintableButton() {
             4.1.3). Errors use role="alert" (assertive) below — keep them out
             of this polite region to avoid double-announcement. Per-file state
             transitions are announced by each ExportProgressRow's own region. */}
-        <div aria-live="polite" aria-atomic="true" className="sr-only">
+        <div
+          aria-live="polite"
+          aria-atomic="true"
+          className="sr-only"
+          data-testid="export-progress-live-region"
+        >
           {create.isPending && "Queuing report export…"}
-          {hasRows &&
-            `${String(rows.length)} report ${rows.length === 1 ? "file is" : "files are"} generating.`}
+          {progressAnnouncement}
         </div>
 
         {hasRows ? (
@@ -336,6 +472,7 @@ export function GeneratePrintableButton() {
                 key={row.id}
                 exportId={row.id}
                 label={row.label}
+                canGeneratePptx={canGeneratePptx}
               />
             ))}
           </div>
@@ -349,6 +486,7 @@ export function GeneratePrintableButton() {
                 value={selectedTemplateId}
                 onChange={(e) => { setSelectedTemplateId(e.target.value); }}
                 aria-label="Report template"
+                aria-describedby="report-template-hint"
                 className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
               >
                 {templates.isLoading ? (
@@ -380,6 +518,18 @@ export function GeneratePrintableButton() {
                   </>
                 )}
               </select>
+              {/* The dropdown is BRANDING ONLY — it selects logos, title and
+                  layout. It does NOT scope the report; scope comes solely from
+                  the map filters. Users reasonably assume otherwise, so say it
+                  plainly (kept to one line). */}
+              <p
+                id="report-template-hint"
+                className="text-xs text-muted-foreground"
+                data-testid="report-template-hint"
+              >
+                Branding only — logos, title and layout. The report&apos;s scope
+                comes from the map filters.
+              </p>
             </div>
 
             <div className="flex items-start gap-2">

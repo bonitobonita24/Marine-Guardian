@@ -105,13 +105,23 @@ vi.mock("@/lib/trpc/client", () => ({
     municipalityCoverage: {
       municipalityCoverage: { useQuery: () => ({ data: [], isLoading: false }) },
     },
-    municipality: { list: { useQuery: () => ({ data: [], isLoading: false }) } },
+    municipality: {
+      list: { useQuery: () => ({ data: [], isLoading: false }) },
+      // Queried by GeneratePrintableButton for its scope-aware template
+      // default (2026-07-20); this suite asserts layout only.
+      protectedZones: { useQuery: () => ({ data: [], isLoading: false }) },
+    },
     reportTemplate: { list: { useQuery: () => emptyQuery } },
     reportExport: {
       create: { useMutation: () => ({ isPending: false, reset: vi.fn() }) },
       // Phase 4 S7/S8 — the dialog fires a best-effort purge on close.
       purge: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
     },
+    // GeneratePrintableButton's live region reads row statuses via
+    // trpc.useQueries (2026-07-20). No rows exist in this layout-only suite,
+    // so the callback maps over an empty array; the stub just has to exist.
+    useQueries: (cb: (t: unknown) => unknown[]) =>
+      cb({ reportExport: { pollStatus: () => ({ data: undefined }) } }),
   },
 }));
 

@@ -10,7 +10,7 @@
  */
 
 import "leaflet/dist/leaflet.css";
-import { useCallback, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import type { Map as LeafletMap, TileLayer as LeafletTileLayer } from "leaflet";
 import { MapContainer, TileLayer } from "react-leaflet";
 import type { HeatLatLng } from "@marine-guardian/shared/lib/heatmap-sample";
@@ -135,17 +135,34 @@ export function EventHeatmapMap({
   const tileLayerRef = useRef<LeafletTileLayer>(null);
 
   // Group points by their sub-type legend colour → one HeatLayer per hue.
-  const groups = new Map<string, HeatLatLng[]>();
-  for (const p of points) {
-    const key = p.color ?? NEUTRAL_HEAT_COLOR;
-    const arr = groups.get(key);
-    const tuple: HeatLatLng = [p.lat, p.lon, HEAT_WEIGHT];
-    if (arr) arr.push(tuple);
-    else groups.set(key, [tuple]);
-  }
-  const colorGroups = [...groups.entries()];
+  //
+  // MEMOISED (2026-07-20, part of the torn-heatmap fix): this used to be
+  // rebuilt inline on every render, handing each <HeatLayer> a brand-new
+  // `points` array identity. HeatLayer's effect depends on `points`, so every
+  // re-render removed and re-added every L.heatLayer — meaning a re-render
+  // that landed after MapRenderGate had already flipped __renderReady would
+  // blank and repaint the heat canvas with nothing left waiting on it. Stable
+  // identities keep the layers mounted for the life of the island.
+  const colorGroups = useMemo(() => {
+    const groups = new Map<string, HeatLatLng[]>();
+    for (const p of points) {
+      const key = p.color ?? NEUTRAL_HEAT_COLOR;
+      const arr = groups.get(key);
+      const tuple: HeatLatLng = [p.lat, p.lon, HEAT_WEIGHT];
+      if (arr) arr.push(tuple);
+      else groups.set(key, [tuple]);
+    }
+    return [...groups.entries()];
+  }, [points]);
 
-  const framingBounds = pointsBounds(points) ?? municipalityBounds;
+  // Memoised for the same reason: `applyFraming` closes over this, and
+  // MapRenderGate's effect lists `applyFraming` in its deps — an unstable
+  // identity re-ran the entire invalidateSize/framing/tile-listener sequence
+  // on every render.
+  const framingBounds = useMemo(
+    () => pointsBounds(points) ?? municipalityBounds,
+    [points, municipalityBounds],
+  );
 
   const applyFraming = useCallback(
     (map: LeafletMap) => {

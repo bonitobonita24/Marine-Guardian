@@ -55,9 +55,24 @@ export interface ExportProgressRowProps {
   exportId: string;
   /** Human label distinguishing simultaneous rows, e.g. "Report (charts)". */
   label: string;
+  /**
+   * Whether the current session may call reportExport.renderPptx, which is
+   * gated server-side by adminProcedure (tenant_manager / tenant_superadmin /
+   * tenant_admin). When false the entire PowerPoint cluster — Generate,
+   * spinner, Download PowerPoint, error — is not rendered at all, so a
+   * non-admin never sees a PPTX affordance that would only 403.
+   *
+   * This is UX ONLY. The authorisation boundary is the tRPC procedure; this
+   * prop must never be treated as the security control.
+   */
+  canGeneratePptx: boolean;
 }
 
-export function ExportProgressRow({ exportId, label }: ExportProgressRowProps) {
+export function ExportProgressRow({
+  exportId,
+  label,
+  canGeneratePptx,
+}: ExportProgressRowProps) {
   // The PPTX poll must not run before the user asks for one: pptxStatus is
   // null until renderPptx is called, and null is not terminal, so an
   // unconditional poll would spin at 3s forever on every row.
@@ -86,7 +101,7 @@ export function ExportProgressRow({ exportId, label }: ExportProgressRowProps) {
   const pptxPoll = trpc.reportExport.pollPptxStatus.useQuery(
     { id: exportId },
     {
-      enabled: pptxRequested,
+      enabled: canGeneratePptx && pptxRequested,
       refetchInterval: (query) =>
         isTerminal(query.state.data?.pptxStatus)
           ? false
@@ -97,7 +112,7 @@ export function ExportProgressRow({ exportId, label }: ExportProgressRowProps) {
 
   const pptxDownload = trpc.reportExport.getPptxDownloadUrl.useQuery(
     { id: exportId },
-    { enabled: pptxStatus === "ready" },
+    { enabled: canGeneratePptx && pptxStatus === "ready" },
   );
   const pptxUrl: string | null = pptxDownload.data?.downloadUrl ?? null;
 
@@ -160,7 +175,7 @@ export function ExportProgressRow({ exportId, label }: ExportProgressRowProps) {
               </a>
             </Button>
 
-            {pptxStatus === "ready" ? (
+            {!canGeneratePptx ? null : pptxStatus === "ready" ? (
               <Button
                 size="sm"
                 variant="outline"
@@ -197,7 +212,7 @@ export function ExportProgressRow({ exportId, label }: ExportProgressRowProps) {
               </Button>
             )}
 
-            {pptxStatus === "failed" && (
+            {canGeneratePptx && pptxStatus === "failed" && (
               <span
                 className="text-xs text-destructive"
                 data-testid={`export-pptx-error-${exportId}`}

@@ -22,6 +22,12 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  COMPACT_CARD_SHORT_CLASS,
+  COMPACT_CHART_BODY_CLASS,
+  COMPACT_HIDE_WHEN_SHORT_CLASS,
+  COMPACT_LEGEND_SHORT_CLASS,
+} from "./compact-chart-density";
 
 export interface EventsOverTimeDatum {
   /** Sortable bucket key: `yyyy-MM-dd` (day/week-start) or `yyyy-MM` (month). */
@@ -56,7 +62,12 @@ export function EventsOverTimeChart({
   isLoading: boolean;
   /** Active report range label (e.g. "May 28 – Jun 27"). */
   rangeLabel: string;
-  /** Half-height chart for dense surfaces (Interactive Report Map). */
+  /**
+   * Half-height chart for dense surfaces (Interactive Report Map). On SHORT
+   * viewports (<800px tall) the compact variant shrinks further and drops
+   * non-essential chrome so the whole panel fits the map's overlay column —
+   * see ./compact-chart-density.ts for the measurements behind the threshold.
+   */
   compact?: boolean;
 }) {
   const total = data.reduce((s, d) => s + d.count, 0);
@@ -65,7 +76,9 @@ export function EventsOverTimeChart({
   return (
     <Card
       aria-labelledby={HEADING_ID}
-      className="min-w-0 flex-1 gap-2 border-border py-3"
+      className={`min-w-0 flex-1 gap-2 border-border py-3 ${
+        compact ? COMPACT_CARD_SHORT_CLASS : ""
+      }`}
     >
       <CardHeader className="px-3 pb-0 pt-0">
         <div className="flex items-center justify-between">
@@ -75,7 +88,11 @@ export function EventsOverTimeChart({
           >
             Events vs Patrols Over Time
           </h3>
-          <span className="text-xs font-semibold tabular-nums text-muted-foreground">
+          <span
+            className={`text-xs font-semibold tabular-nums text-muted-foreground ${
+              compact ? COMPACT_HIDE_WHEN_SHORT_CLASS : ""
+            }`}
+          >
             {rangeLabel}
           </span>
         </div>
@@ -90,7 +107,9 @@ export function EventsOverTimeChart({
           <>
             <ChartContainer
               config={CHART_CONFIG}
-              className={`${compact ? "h-[7.5rem]" : "h-[15rem]"} w-full`}
+              className={`${
+                compact ? COMPACT_CHART_BODY_CLASS : "h-[15rem]"
+              } w-full`}
             >
               <LineChart
                 accessibilityLayer
@@ -135,7 +154,13 @@ export function EventsOverTimeChart({
               </LineChart>
             </ChartContainer>
 
-            <div className="mt-1 flex items-center gap-3">
+            {/* Legend row — KEPT at every size: it carries the Events/Patrols
+                totals, which are data, not chrome. */}
+            <div
+              className={`mt-1 flex items-center gap-3 ${
+                compact ? COMPACT_LEGEND_SHORT_CLASS : ""
+              }`}
+            >
               <div className="flex items-center gap-1.5">
                 <span
                   className="inline-block h-2 w-3 rounded-sm"

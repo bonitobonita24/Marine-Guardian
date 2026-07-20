@@ -76,53 +76,30 @@ import type { ReactNode } from "react";
  * is the pre-regression value verbatim — behaviour at >= 1024px is unchanged.
  *
  * ---------------------------------------------------------------------------
- * BOTTOM-RIGHT CONTROL CLEARANCE (regression fix 2026-07-20, third pass)
+ * RIGHT INSET — history (workaround REVERTED 2026-07-20, fourth pass)
  * ---------------------------------------------------------------------------
- * ⚠ DO NOT "simplify" `right-11` back to `right-3`. That offset is
- * load-bearing — it is what keeps this column off the map's bottom-right
- * zoom/doodle control cluster.
+ * This column was briefly held at `right-11` (44px) instead of `right-3`. That
+ * was a CLEARANCE WORKAROUND, not a design choice: the map's zoom + doodle
+ * control cluster used to live in the map's lower-RIGHT corner at z-10, below
+ * this column's z-20, and a tall/open panel here swallowed their clicks
+ * (hit-testing follows paint order, so raising z-index would only have made
+ * the controls visible-but-dead). The cluster reached 42px in from the right
+ * edge, so the column was pushed to the next Tailwind step that cleared it.
  *
- * The map owns a second overlay stack in its lower-RIGHT corner, at z-10 —
- * BELOW this column's z-20. Raising z-index would NOT fix anything: the
- * controls would stay visible but remain unclickable, because hit-testing
- * follows paint order. The only real fix is to not occupy those pixels.
+ * The cluster has since MOVED: in floating mode it now sits beside the
+ * upper-LEFT "MAP CONTROLS" card (see CONTROL_CLUSTER_BESIDE_MAP_CONTROLS in
+ * InteractiveMap.tsx). Nothing occupies the map's bottom-right corner any
+ * more, the collision is structurally gone, and the inset is back to `right-3`
+ * — flush with the left column's 12px gutter, which is what it should always
+ * have been.
  *
- * Measured in-browser (768x1024, transient panel open, pre-fix): the panel box
- * spanned x 507-731 / y 576.5-727 while the zoom cluster sat at x 701-735 /
- * y 633-699 and the doodle toggle at y 609-643 — a 30px horizontal by 66px
- * vertical overlap, with `elementFromPoint` returning the PANEL at all three
- * button centres. The same collision existed at >= lg whenever the CHARTS
- * panel was toggled on and made the column tall enough to reach down (30x66 at
- * 1024x800; 0 with charts off).
- *
- * The overlap is only 30px WIDE, so it is cheaper to separate the two
- * HORIZONTALLY than vertically. The clearance is DERIVED from the cluster's
- * own classes, not guessed:
- *
- *   zoom cluster   `ui/map.tsx` positionClasses["bottom-right"] = `right-2`
- *                  (8px) + one ControlGroup of `size-8` (32px) buttons plus
- *                  the group's 1px left/right border = 34px wide
- *                  -> it reaches 8 + 34 = 42px in from the map's right edge.
- *   doodle toggle  `InteractiveMap.tsx` `right-2` (8px), same 34px-wide box
- *                  -> the same 42px reach.
- *
- * 42px is therefore the leftmost pixel the cluster can ever reach. The
- * smallest Tailwind step that clears it is `right-11` = 2.75rem = 44px,
- * leaving a 2px horizontal clearance band. Because that separation is
- * horizontal it is breakpoint-independent BY CONSTRUCTION: it holds below lg
- * (column bottom-anchored, growing upward) and at >= lg (top-anchored, growing
- * downward) alike, at every viewport, no matter how tall the column's content
- * gets. Nothing about the column's HEIGHT participates in the fix, which is
- * why `bottom-3` + `max-h-[calc(100%-1.5rem)]` are back to their full-height
- * values — the earlier `bottom-36` / `max-h-[calc(100%-9.75rem)]` variant
- * solved this horizontal collision vertically and cost 144px of column height,
- * enough that at 1280x600 the column was 130px tall while the chart panels are
- * 185px and 201px, i.e. NEITHER chart was fully readable at any scroll offset.
- *
- * ACCEPTED VISUAL TRADEOFF: the panels now sit ~44px in from the map's right
- * edge instead of flush at 12px, so the right gutter is visibly wider than the
- * left column's 12px. That asymmetry is the price of full-height, fully
- * readable charts, and it was judged the better trade.
+ * Height was never part of that workaround (the separation was horizontal), so
+ * `bottom-3` + `max-h-[calc(100%-1.5rem)]` stay at their full-height values.
+ * An even earlier attempt DID solve it vertically (`bottom-36` /
+ * `max-h-[calc(100%-9.75rem)]`) and cost 144px of column height — at 1280x600
+ * the column was 130px tall against 185px/201px chart panels, so neither chart
+ * was fully readable at any scroll offset. Do not reintroduce a vertical
+ * reserve here.
  */
 export function MapTopRightColumn({
   pinned,
@@ -135,11 +112,10 @@ export function MapTopRightColumn({
   return (
     <div
       data-testid="map-top-right-column"
-      // `right-11` (44px) clears the 42px inward reach of the map's z-10
-      // bottom-right zoom/doodle cluster — see the "BOTTOM-RIGHT CONTROL
-      // CLEARANCE" block above for the derivation. The clearance is
-      // horizontal, so the height is unconstrained by it.
-      className="absolute bottom-3 right-11 z-20 flex max-h-[calc(100%-1.5rem)] max-w-[70%] flex-col items-end gap-2 overflow-y-auto lg:bottom-auto lg:top-3 lg:max-w-[calc(100%-1.5rem)]"
+      // `right-3` mirrors the left column's 12px gutter. (It was temporarily
+      // `right-11` to clear the old bottom-right control cluster — see the
+      // "RIGHT INSET — history" block above; that cluster has moved.)
+      className="absolute bottom-3 right-3 z-20 flex max-h-[calc(100%-1.5rem)] max-w-[70%] flex-col items-end gap-2 overflow-y-auto lg:bottom-auto lg:top-3 lg:max-w-[calc(100%-1.5rem)]"
     >
       {pinned != null && (
         <div

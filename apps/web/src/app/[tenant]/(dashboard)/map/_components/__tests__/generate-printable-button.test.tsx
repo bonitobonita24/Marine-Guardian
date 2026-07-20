@@ -14,10 +14,32 @@ type Role =
   | "tenant_superadmin"
   | "field_coordinator"
   | "operator"
-  | "viewer";
+  | "viewer"
+  | "tenant_admin";
 
+// `scope` drives the mocked report-filter-context so the template-default
+// tests (2026-07-20) can move the report's scope between renders. `templates`
+// is mutable for the same reason.
 const { stubs } = vi.hoisted(() => {
-  const s: { roles: Role[] } = { roles: ["field_coordinator"] };
+  const s: {
+    roles: Role[];
+    scope: {
+      municipalityId: string | null;
+      protectedZoneId: string | null;
+      province: string | null;
+    };
+    templates: { id: string; name: string; isDefault: boolean }[];
+    /** exportId → polled status, driving the dialog's live region. */
+    rowStatuses: Record<string, string>;
+  } = {
+    rowStatuses: {},
+    roles: ["field_coordinator"],
+    scope: { municipalityId: null, protectedZoneId: null, province: null },
+    templates: [
+      { id: "tpl-1", name: "Calapan Municipal", isDefault: true },
+      { id: "tpl-2", name: "Baco Municipal", isDefault: false },
+    ],
+  };
   return { stubs: s };
 });
 
@@ -54,11 +76,20 @@ vi.mock("../export-progress-row", () => ({
   ExportProgressRow: ({
     exportId,
     label,
+    canGeneratePptx,
   }: {
     exportId: string;
     label: string;
+    canGeneratePptx: boolean;
   }) => (
-    <div data-testid={`stub-row-${exportId}`} data-label={label}>
+    <div
+      data-testid={`stub-row-${exportId}`}
+      data-label={label}
+      // Surfaced so the dialog's role→PPTX-visibility wiring is assertable
+      // here; the rendering of the button itself is covered in
+      // export-progress-row.test.tsx.
+      data-can-generate-pptx={canGeneratePptx ? "true" : "false"}
+    >
       {label}
     </div>
   ),
@@ -89,9 +120,9 @@ vi.mock("@/components/reporting/report-filter-context", () => ({
   useReportFilter: () => ({
     from: new Date("2026-05-01T00:00:00Z"),
     to: new Date("2026-05-31T00:00:00Z"),
-    municipalityId: null,
-    protectedZoneId: null,
-    province: null,
+    municipalityId: stubs.scope.municipalityId,
+    protectedZoneId: stubs.scope.protectedZoneId,
+    province: stubs.scope.province,
     includeChildren: false,
   }),
 }));
@@ -114,16 +145,25 @@ vi.mock("@/lib/trpc/client", () => ({
           isLoading: false,
         }),
       },
+      // Zones are queried for the scope-aware template default only — they are
+      // not rendered as dropdown options.
+      protectedZones: {
+        useQuery: () => ({
+          data: [
+            {
+              id: "z1",
+              name: "Apo Reef Natural Park",
+              parentMunicipalityId: "m3",
+            },
+          ],
+          isLoading: false,
+        }),
+      },
     },
     reportTemplate: {
       list: {
         useQuery: () => ({
-          data: {
-            items: [
-              { id: "tpl-1", name: "Calapan Municipal", isDefault: true },
-              { id: "tpl-2", name: "Baco Municipal", isDefault: false },
-            ],
-          },
+          data: { items: stubs.templates },
           isLoading: false,
         }),
       },
@@ -145,10 +185,48 @@ vi.mock("@/lib/trpc/client", () => ({
         useMutation: () => ({ mutate: purgeSpy, isPending: false }),
       },
     },
+    // The dialog's live region reads the SAME pollStatus query keys the rows
+    // poll with, via trpc.useQueries. Mocked as a plain callback over a stub
+    // proxy so a test can drive each export's status through
+    // `stubs.rowStatuses` and assert what gets announced.
+    useQueries: (
+      cb: (t: {
+        reportExport: {
+          pollStatus: (input: { id: string }) => {
+            data: { status: string } | undefined;
+          };
+        };
+      }) => unknown[],
+    ) =>
+      cb({
+        reportExport: {
+          pollStatus: ({ id }: { id: string }) => ({
+            data: { status: stubs.rowStatuses[id] ?? "queued" },
+          }),
+        },
+      }),
   },
 }));
 
-import { GeneratePrintableButton } from "../generate-printable-button";
+import {
+  GeneratePrintableButton,
+  describeExportProgress,
+} from "../generate-printable-button";
+
+// Scope + templates are mutable stubs shared by every describe below; reset
+// them globally so a scope-specific test cannot leak into an unrelated one.
+beforeEach(() => {
+  stubs.rowStatuses = {};
+  stubs.scope = {
+    municipalityId: null,
+    protectedZoneId: null,
+    province: null,
+  };
+  stubs.templates = [
+    { id: "tpl-1", name: "Calapan Municipal", isDefault: true },
+    { id: "tpl-2", name: "Baco Municipal", isDefault: false },
+  ];
+});
 
 describe("GeneratePrintableButton — role visibility (2026-07-06)", () => {
   beforeEach(() => {
@@ -492,5 +570,243 @@ describe("GeneratePrintableButton — in-dialog progress rows (S7)", () => {
 
     expect(purgeSpy).toHaveBeenCalledTimes(1);
     expect(queryByTestId("export-progress-rows")).toBeNull();
+  });
+});
+
+// PPTX visibility (2026-07-20) — reportExport.renderPptx was reverted from
+// reportGenerateProcedure back to adminProcedure. Generating the PDF stays
+// open to viewer+; the PowerPoint affordance is admin-only, so the dialog must
+// pass canGeneratePptx=false for every non-admin role and true for the three
+// roles adminProcedure admits. The server procedure is the real boundary —
+// these only assert that a non-admin is never shown a button that would 403.
+describe("GeneratePrintableButton — PPTX is admin-only (2026-07-20)", () => {
+  beforeEach(() => {
+    mutateSpy.mockClear();
+    purgeSpy.mockClear();
+    createState.seq = 0;
+    createState.failNext = 0;
+  });
+  afterEach(() => {
+    cleanup();
+  });
+
+  async function generateAndReadFlag(): Promise<string | null> {
+    const { getByTestId } = render(<GeneratePrintableButton />);
+    fireEvent.click(getByTestId("generate-printable-report-button"));
+    fireEvent.change(getByTestId("report-template-select"), {
+      target: { value: "tpl-2" },
+    });
+    fireEvent.click(getByTestId("generate-printable-confirm"));
+    await waitFor(() => {
+      expect(getByTestId("stub-row-export-1")).toBeTruthy();
+    });
+    return getByTestId("stub-row-export-1").getAttribute(
+      "data-can-generate-pptx",
+    );
+  }
+
+  const adminRoles: Role[] = [
+    "tenant_manager",
+    "tenant_superadmin",
+    "tenant_admin",
+  ];
+  for (const role of adminRoles) {
+    it(`passes canGeneratePptx=true for ${role}`, async () => {
+      stubs.roles = [role];
+      expect(await generateAndReadFlag()).toBe("true");
+    });
+  }
+
+  const nonAdminRoles: Role[] = ["field_coordinator", "operator", "viewer"];
+  for (const role of nonAdminRoles) {
+    it(`passes canGeneratePptx=false for ${role}`, async () => {
+      stubs.roles = [role];
+      expect(await generateAndReadFlag()).toBe("false");
+    });
+  }
+
+  it("still lets a viewer generate the PDF itself (create is unchanged)", async () => {
+    stubs.roles = ["viewer"];
+    await generateAndReadFlag();
+    expect(mutateSpy).toHaveBeenCalled();
+  });
+});
+
+// ── Scope-aware template default (2026-07-20) ────────────────────────────────
+// Confirmed browser defect: an all-municipalities report rendered as "LGU All
+// Municipalities" while carrying the Apo Reef Park logo, because the dropdown
+// stayed defaulted to the tenant's isDefault ("Apo Reef Park") template. The
+// dropdown is BRANDING ONLY — it never scopes the report — so its default must
+// follow the scope the map filters have already set.
+describe("GeneratePrintableButton — template default follows the scope (2026-07-20)", () => {
+  beforeEach(() => {
+    stubs.roles = ["field_coordinator"];
+  });
+  afterEach(() => {
+    cleanup();
+  });
+
+  function openDialog() {
+    const utils = render(<GeneratePrintableButton />);
+    fireEvent.click(utils.getByTestId("generate-printable-report-button"));
+    return utils;
+  }
+
+  it("defaults to the matching template when a municipality is scoped", async () => {
+    stubs.scope.municipalityId = "m2"; // Baco
+    const { getByTestId } = openDialog();
+    await waitFor(() => {
+      expect(
+        (getByTestId("report-template-select") as HTMLSelectElement).value,
+      ).toBe("tpl-2");
+    });
+  });
+
+  it("defaults to the zone's template when a protected zone is scoped", async () => {
+    stubs.templates = [
+      { id: "tpl-lgu", name: "LGU All Municipalities", isDefault: true },
+      { id: "tpl-apo", name: "Apo Reef Park", isDefault: false },
+    ];
+    stubs.scope.protectedZoneId = "z1"; // Apo Reef Natural Park
+    const { getByTestId } = openDialog();
+    await waitFor(() => {
+      expect(
+        (getByTestId("report-template-select") as HTMLSelectElement).value,
+      ).toBe("tpl-apo");
+    });
+  });
+
+  it("does NOT default to a place-specific template for an all-municipalities report", async () => {
+    // The exact reported configuration: the tenant default is scope-specific.
+    stubs.templates = [
+      { id: "tpl-apo", name: "Apo Reef Park", isDefault: true },
+      { id: "tpl-lgu", name: "LGU All Municipalities", isDefault: false },
+    ];
+    const { getByTestId } = openDialog();
+    await waitFor(() => {
+      expect(
+        (getByTestId("report-template-select") as HTMLSelectElement).value,
+      ).toBe("tpl-lgu");
+    });
+  });
+
+  it("keeps a manual override even though a scope default exists", async () => {
+    stubs.scope.municipalityId = "m2"; // would default to tpl-2
+    const { getByTestId } = openDialog();
+    const select = getByTestId("report-template-select") as HTMLSelectElement;
+    await waitFor(() => {
+      expect(select.value).toBe("tpl-2");
+    });
+
+    fireEvent.change(select, { target: { value: "tpl-1" } });
+    expect(select.value).toBe("tpl-1");
+
+    // The default-selection effect must not re-fire and clobber the choice.
+    await waitFor(() => {
+      expect(select.value).toBe("tpl-1");
+    });
+  });
+
+  it("states that the template is branding only, not a scope control", () => {
+    const { getByTestId } = openDialog();
+    const hint = getByTestId("report-template-hint");
+    expect(hint.textContent).toContain("Branding only");
+    expect(hint.textContent).toContain("map filters");
+    // Wired to the select for assistive tech (WCAG 3.3.2).
+    expect(
+      getByTestId("report-template-select").getAttribute("aria-describedby"),
+    ).toBe("report-template-hint");
+  });
+});
+
+// 2026-07-20 browser-QA defect: the dialog's sr-only live region hard-coded
+// "N report files are generating." for as long as any row existed, so screen
+// readers kept saying "generating" after the Download buttons had appeared.
+describe("describeExportProgress (dialog live region wording)", () => {
+  it("announces nothing when there are no rows", () => {
+    expect(describeExportProgress([])).toBe("");
+  });
+
+  it("announces generating while rows are queued/rendering", () => {
+    expect(describeExportProgress(["queued"])).toBe(
+      "1 report file is generating.",
+    );
+    expect(describeExportProgress(["queued", "rendering"])).toBe(
+      "2 report files are generating.",
+    );
+  });
+
+  it("announces READY once the renders finish — the reported defect", () => {
+    expect(describeExportProgress(["ready"])).toBe(
+      "1 report file is ready to download.",
+    );
+    expect(describeExportProgress(["ready", "ready"])).toBe(
+      "2 report files are ready to download.",
+    );
+  });
+
+  it("announces failures", () => {
+    expect(describeExportProgress(["failed"])).toBe("1 report file has failed.");
+    expect(describeExportProgress(["failed", "failed"])).toBe(
+      "2 report files have failed.",
+    );
+  });
+
+  it("describes a mixed batch without claiming everything is still generating", () => {
+    expect(describeExportProgress(["ready", "rendering", "failed"])).toBe(
+      "1 report file is generating. 1 report file is ready to download. 1 report file has failed.",
+    );
+  });
+});
+
+describe("GeneratePrintableButton — live region tracks real row state", () => {
+  beforeEach(() => {
+    stubs.roles = ["field_coordinator"];
+    mutateSpy.mockClear();
+    createState.seq = 0;
+    createState.failNext = 0;
+  });
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("says 'ready to download' — not 'generating' — once the exports are ready", async () => {
+    // Both exports created by the split path report ready.
+    stubs.rowStatuses = { "export-1": "ready", "export-2": "ready" };
+
+    const { getByTestId } = render(<GeneratePrintableButton />);
+    fireEvent.click(getByTestId("generate-printable-report-button"));
+    fireEvent.change(getByTestId("report-template-select"), {
+      target: { value: "tpl-2" },
+    });
+    fireEvent.click(getByTestId("split-files-checkbox"));
+    fireEvent.click(getByTestId("generate-printable-confirm"));
+
+    await waitFor(() => {
+      expect(getByTestId("export-progress-rows")).toBeTruthy();
+    });
+
+    const region = getByTestId("export-progress-live-region");
+    expect(region.textContent).toBe("2 report files are ready to download.");
+    expect(region.textContent).not.toContain("generating");
+  });
+
+  it("still says generating while the exports are in flight", async () => {
+    stubs.rowStatuses = { "export-1": "rendering" };
+
+    const { getByTestId } = render(<GeneratePrintableButton />);
+    fireEvent.click(getByTestId("generate-printable-report-button"));
+    fireEvent.change(getByTestId("report-template-select"), {
+      target: { value: "tpl-2" },
+    });
+    fireEvent.click(getByTestId("generate-printable-confirm"));
+
+    await waitFor(() => {
+      expect(getByTestId("export-progress-rows")).toBeTruthy();
+    });
+
+    expect(getByTestId("export-progress-live-region").textContent).toBe(
+      "1 report file is generating.",
+    );
   });
 });

@@ -472,3 +472,41 @@ describe("ReportFilterBar", () => {
     expect(screen.getByText("Puerto Princesa")).toBeTruthy();
   });
 });
+
+// 2026-07-20 browser-QA defect: the "Include child boundaries" switch's
+// aria-label was hard-coded to "this municipality's MPAs…" and kept saying
+// that at PROVINCE scope, where the toggle folds in the province's zones.
+describe("ReportFilterBar — include-children aria-label follows the scope", () => {
+  it("says 'this municipality's' when a specific municipality is selected", async () => {
+    stubs.protectedZones = [
+      { id: "z-1", name: "Zone One", slug: "zone-one", category: "mpa", parentMunicipalityId: "m-1" },
+    ];
+    renderBar();
+
+    await openAndPick("report-municipality", "Calapan City"); // m-1
+
+    const toggle = await screen.findByTestId("report-include-children");
+    expect(toggle.getAttribute("aria-label")).toBe(
+      "Include child boundaries — fold in this municipality's MPAs, hotspots & custom zones",
+    );
+  });
+
+  it("says 'this province's' at province scope (municipality still 'all')", async () => {
+    // Zone parented to m-1 (Calapan City, Oriental Mindoro) so the province
+    // rollup provably has child boundaries and the toggle renders.
+    stubs.protectedZones = [
+      { id: "z-1", name: "Zone One", slug: "zone-one", category: "mpa", parentMunicipalityId: "m-1" },
+    ];
+    renderBar();
+
+    await openAndPick("report-province", "Oriental Mindoro");
+    expect(screen.getByTestId("probe").getAttribute("data-municipality")).toBe(
+      "null",
+    );
+
+    const toggle = await screen.findByTestId("report-include-children");
+    expect(toggle.getAttribute("aria-label")).toBe(
+      "Include child boundaries — fold in this province's MPAs, hotspots & custom zones",
+    );
+  });
+});
