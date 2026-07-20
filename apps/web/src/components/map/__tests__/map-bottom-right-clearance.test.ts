@@ -1,5 +1,5 @@
 // Regression guard: the map's right-hand overlay column must NEVER overlap the
-// map's bottom-right zoom / doodle control cluster (fix 2026-07-20, 2nd pass).
+// map's bottom-right zoom / doodle control cluster (fix 2026-07-20, 3rd pass).
 //
 // Confirmed in-browser before the fix, at 768x1024 with a transient panel open:
 // the panel spanned x 507-731 / y 576.5-727 while the zoom cluster sat at
@@ -11,16 +11,22 @@
 //
 // Raising z-index is NOT a fix here: the controls are z-10 and the column is
 // z-20, so lifting the column further would keep the controls painted but
-// still swallow their clicks. The fix reserves VERTICAL SPACE instead, and
-// this test is what keeps that reservation honest.
+// still swallow their clicks.
+//
+// The separation is HORIZONTAL. The overlap was only 30px wide, so moving the
+// column left past the cluster's inward reach removes the collision outright
+// and costs no column height — unlike the first attempt, which reserved a
+// 144px vertical band and left the column too short to show either chart panel
+// (130px tall vs 185px/201px charts at 1280x600). This test is what keeps the
+// horizontal reservation honest.
 //
 // Why a source-level test: the controls live inside InteractiveMap / the map
 // primitive, neither of which can render in jsdom (maplibre-gl needs WebGL),
 // and jsdom evaluates no Tailwind CSS and runs no layout engine — so computed
 // geometry is unavailable in this environment. Instead this DERIVES the
-// required clearance from the control cluster's own position classes and
-// asserts the column reserves at least that much. Move the controls and this
-// test recomputes and fails, which is exactly the coupling that was missing.
+// required clearance from the control cluster's own position AND size classes
+// and asserts the column clears it. Move or resize the controls and this test
+// recomputes and fails, which is exactly the coupling that must not be lost.
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -35,22 +41,25 @@ const interactiveMap = read("..", "InteractiveMap.tsx");
 const topRightColumn = read("..", "MapTopRightColumn.tsx");
 
 /** Tailwind v3 spacing scale: 1 unit = 0.25rem = 4px. */
-const REM_PX = 16;
 const unitToPx = (units: number) => units * 4;
 
 /**
- * Heights of the two control stacks, from their own markup:
- *  - the zoom ControlGroup is two `size-8` (32px) ControlButtons inside a
- *    1px-bordered rounded box -> 32*2 + 2 = 66px (matches the measured 633-699)
- *  - the doodle toggle is one `size-8` button in the same 1px-bordered box
- *    -> 32 + 2 = 34px (matches the measured 609-643)
+ * Width of a control box, from the ControlButton's own `size-N` class plus the
+ * 1px left/right border of the rounded group that wraps it. Parsed rather than
+ * hardcoded so shrinking/growing the buttons recomputes the required clearance.
+ * (34px matches the measured zoom cluster at x 701-735.)
  */
-const ZOOM_GROUP_H = 32 * 2 + 2;
-const DOODLE_GROUP_H = 32 + 2;
+const controlBoxWidthPx = (() => {
+  const m = mapPrimitive.match(/"flex size-(\d+) items-center justify-center/);
+  if (m?.[1] === undefined) {
+    throw new Error("Could not locate the ControlButton `size-N` in ui/map.tsx");
+  }
+  return unitToPx(Number(m[1])) + 2;
+})();
 
-/** `bottom-N` offset of the map primitive's default bottom-right controls. */
-const zoomBottomPx = (() => {
-  const m = mapPrimitive.match(/"bottom-right":\s*"bottom-(\d+)\s+right-\d+"/);
+/** `right-N` offset of the map primitive's default bottom-right controls. */
+const zoomRightPx = (() => {
+  const m = mapPrimitive.match(/"bottom-right":\s*"bottom-\d+\s+right-(\d+)"/);
   if (m?.[1] === undefined) {
     throw new Error(
       'Could not locate positionClasses["bottom-right"] in ui/map.tsx',
@@ -59,9 +68,9 @@ const zoomBottomPx = (() => {
   return unitToPx(Number(m[1]));
 })();
 
-/** `bottom-N` offset of InteractiveMap's doodle toggle. */
-const doodleBottomPx = (() => {
-  const m = interactiveMap.match(/"absolute z-10 bottom-(\d+) right-\d+ /);
+/** `right-N` offset of InteractiveMap's doodle toggle. */
+const doodleRightPx = (() => {
+  const m = interactiveMap.match(/"absolute z-10 bottom-\d+ right-(\d+) /);
   if (m?.[1] === undefined) {
     throw new Error(
       "Could not locate the doodle toggle's position classes in InteractiveMap.tsx",
@@ -71,13 +80,13 @@ const doodleBottomPx = (() => {
 })();
 
 /**
- * The topmost pixel the bottom-right cluster can reach, measured up from the
- * map's bottom edge. The doodle toggle is conditional (`doodleSurface`), so the
- * worst case is the taller of the two reaches.
+ * The leftmost pixel the bottom-right cluster can reach, measured in from the
+ * map's RIGHT edge. The doodle toggle is conditional (`doodleSurface`), so the
+ * worst case is the greater of the two reaches.
  */
-const clusterTopPx = Math.max(
-  zoomBottomPx + ZOOM_GROUP_H,
-  doodleBottomPx + DOODLE_GROUP_H,
+const clusterReachPx = Math.max(
+  zoomRightPx + controlBoxWidthPx,
+  doodleRightPx + controlBoxWidthPx,
 );
 
 /** The overlay column's own className literal. */
@@ -91,69 +100,64 @@ const columnClass = (() => {
   return m[0];
 })();
 
-const columnBottomPx = (() => {
-  const m = columnClass.match(/(?:^|\s)bottom-(\d+)(?:\s|")/);
+/** The column's unprefixed `right-N` inset, in px. */
+const columnRightPx = (() => {
+  const m = columnClass.match(/(?:^|\s)right-(\d+)(?:\s|")/);
   if (m?.[1] === undefined) {
-    throw new Error("MapTopRightColumn no longer declares a `bottom-N` anchor");
+    throw new Error("MapTopRightColumn no longer declares a `right-N` inset");
   }
   return unitToPx(Number(m[1]));
 })();
-
-/** The `max-h-[calc(100%-Xrem)]` reserve, in px. */
-const maxHReservePx = (() => {
-  const m = columnClass.match(/max-h-\[calc\(100%-([\d.]+)rem\)\]/);
-  if (m?.[1] === undefined) {
-    throw new Error("MapTopRightColumn no longer declares a max-h calc clamp");
-  }
-  return Number(m[1]) * REM_PX;
-})();
-
-/** `top-3` — the column's top inset at >= lg, and its top gap below lg. */
-const TOP_INSET_PX = unitToPx(3);
 
 describe("map right-hand overlay column vs bottom-right controls", () => {
   it("derives the control cluster's reach from the controls' own classes", () => {
     // Guards the derivation itself: if these drift, every number below is
     // recomputed rather than silently stale.
-    expect(zoomBottomPx).toBe(40); // bottom-10
-    expect(doodleBottomPx).toBe(96); // bottom-24
-    expect(clusterTopPx).toBe(130); // max(40+66, 96+34)
+    expect(controlBoxWidthPx).toBe(34); // size-8 (32px) + 1px borders
+    expect(zoomRightPx).toBe(8); // right-2
+    expect(doodleRightPx).toBe(8); // right-2
+    expect(clusterReachPx).toBe(42); // 8 + 34
   });
 
-  it("bottom-anchors BELOW lg above the cluster's topmost pixel", () => {
-    // This is the case browser QA confirmed broken at 768x1024 and 393x852:
-    // the column was `bottom-3` (12px), far inside the 130px cluster band.
-    expect(columnBottomPx).toBeGreaterThanOrEqual(clusterTopPx);
-    expect(columnBottomPx).toBe(144); // bottom-36 = 9rem
-  });
-
-  it("caps its height so it cannot reach the cluster at >= lg either", () => {
-    // The >= lg case: top-anchored at `top-3`, the column grows DOWNWARD, so
-    // only a max-height can stop a charts-ON column from reaching the
-    // controls. Its lowest possible edge is top inset + max height.
-    const lowestEdgeFromBottom = maxHReservePx - TOP_INSET_PX;
-    expect(lowestEdgeFromBottom).toBeGreaterThanOrEqual(clusterTopPx);
-    expect(maxHReservePx).toBe(156); // 9.75rem = top-3 (12) + 144 reserve
-  });
-
-  it("reserves the SAME band in both anchoring modes", () => {
-    // One unprefixed clamp covers both breakpoints because they are mirror
-    // images — below lg it bounds the upward growth, at >= lg the downward
-    // growth. Keeping them equal is what makes the fix breakpoint-independent.
-    expect(maxHReservePx - TOP_INSET_PX).toBe(columnBottomPx);
+  it("insets the column past the cluster's inward reach", () => {
+    // This is the case browser QA confirmed broken: the column was `right-3`
+    // (12px), i.e. 30px INSIDE the cluster's 42px reach.
+    expect(columnRightPx).toBeGreaterThanOrEqual(clusterReachPx);
+    expect(columnRightPx).toBe(44); // right-11 = 2.75rem
   });
 
   it("keeps a non-zero clearance band between the column and the controls", () => {
-    // Not merely touching: there is real space between them at every viewport.
-    expect(columnBottomPx - clusterTopPx).toBeGreaterThan(0);
-    expect(columnBottomPx - clusterTopPx).toBe(14);
+    // Not merely touching: there is real space between them.
+    expect(columnRightPx - clusterReachPx).toBeGreaterThan(0);
+    expect(columnRightPx - clusterReachPx).toBe(2);
+  });
+
+  it("holds in BOTH anchoring modes at every viewport", () => {
+    // The separation is horizontal and the `right-N` inset is unprefixed, so
+    // it applies identically below lg (bottom-anchored, growing upward) and at
+    // >= lg (top-anchored, growing downward). Neither anchor may introduce a
+    // breakpoint-specific right inset that could undo it.
+    expect(columnClass).toContain("right-11");
+    expect(columnClass).not.toMatch(/lg:right-\d/);
+    expect(columnClass).toContain("lg:bottom-auto");
+  });
+
+  it("does NOT pay for the clearance with column height", () => {
+    // The earlier fix reserved a 144px vertical band (`bottom-36` +
+    // `max-h-[calc(100%-9.75rem)]`), which left the column too short to show
+    // either chart panel at 1280x600. Height is restored to full; if someone
+    // re-introduces a vertical reserve, this fails.
+    expect(columnClass).toContain("bottom-3");
+    expect(columnClass).not.toContain("bottom-36");
+    expect(columnClass).toContain("max-h-[calc(100%-1.5rem)]");
+    expect(columnClass).not.toContain("9.75rem");
   });
 
   it("does not try to win the collision with z-index", () => {
     // The controls are z-10 and this column z-20. Painting above them was
     // never the problem — hit-testing was. If someone "fixes" a future
-    // regression by raising z-index instead of reserving space, the controls
-    // go back to being visible-but-dead, so pin the layering as-is.
+    // regression by raising z-index instead of moving out of the way, the
+    // controls go back to being visible-but-dead, so pin the layering as-is.
     expect(columnClass).toContain("z-20");
     expect(interactiveMap).toContain("absolute z-10 bottom-24 right-2");
     expect(mapPrimitive).toContain('"absolute z-10 flex flex-col gap-1.5"');
@@ -161,9 +165,7 @@ describe("map right-hand overlay column vs bottom-right controls", () => {
 
   it("leaves the approved >= lg top alignment untouched", () => {
     // Browser QA signed off CHARTS top-aligned with MAP CONTROLS at 0px delta.
-    // The clearance work must not move the top edge — only bound the height.
+    // The clearance work must not move the top edge — only the right inset.
     expect(columnClass).toContain("lg:top-3");
-    expect(columnClass).toContain("lg:bottom-auto");
-    expect(columnClass).toContain("right-3");
   });
 });

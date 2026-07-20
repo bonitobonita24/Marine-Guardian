@@ -68,18 +68,21 @@ describe("MapTopRightColumn", () => {
     render(<MapTopRightColumn pinned={<div />} transient={<div />} />);
 
     const column = screen.getByTestId("map-top-right-column");
-    // Mirrors the left controls column's `left-3 top-3` at `right-3 top-3`.
-    // `lg:` because below that breakpoint the column is bottom-anchored — see
-    // the narrow-viewport suite below.
-    expect(column.className).toContain("right-3");
+    // Top-aligned with the left controls column's `left-3 top-3`, but inset
+    // further from the right edge (`right-11` = 44px) to clear the map's
+    // bottom-right control cluster — see the control-clearance suite.
+    // `lg:` on the top because below that breakpoint the column is
+    // bottom-anchored — see the narrow-viewport suite below.
+    expect(column.className).toContain("right-11");
     expect(column.className).toContain("lg:top-3");
     // Right-anchored, so the w-60 pinned panel and w-72 transient panel share a
     // flush right edge (intended).
     expect(column.className).toContain("items-end");
     // Clamped to the map height with its own scroller; clamped on narrow
-    // viewports so it never covers the whole map. The clamp reserves the
-    // bottom-right control band — see the control-clearance suite below.
-    expect(column.className).toContain("max-h-[calc(100%-9.75rem)]");
+    // viewports so it never covers the whole map. FULL height: the
+    // bottom-right control clearance is horizontal (`right-11`), so it costs
+    // no height — see the control-clearance suite below.
+    expect(column.className).toContain("max-h-[calc(100%-1.5rem)]");
     expect(column.className).toContain("overflow-y-auto");
     expect(column.className).toContain("lg:max-w-[calc(100%-1.5rem)]");
   });
@@ -113,9 +116,10 @@ describe("MapTopRightColumn", () => {
       render(<MapTopRightColumn transient={<div />} />);
 
       const column = screen.getByTestId("map-top-right-column");
-      // Base (narrow) anchor is the BOTTOM edge, held clear of the map's
-      // bottom-right controls (see the control-clearance suite below)...
-      expect(column.className).toContain("bottom-36");
+      // Base (narrow) anchor is the BOTTOM edge, at the full-height `bottom-3`
+      // — clearance from the map's bottom-right controls is horizontal, not
+      // vertical (see the control-clearance suite below)...
+      expect(column.className).toContain("bottom-3");
       // ...and it reverts to the approved top alignment from lg upward.
       expect(column.className).toContain("lg:bottom-auto");
       expect(column.className).toContain("lg:top-3");
