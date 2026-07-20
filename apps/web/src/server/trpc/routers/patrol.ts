@@ -7,6 +7,7 @@ import { prisma, writeAuditLog } from "@marine-guardian/db";
 import { Prisma } from "@marine-guardian/db";
 import type { PrismaClient } from "@marine-guardian/db";
 import { enqueuePatrolTrackMaterialize, enqueueMunicipalityAssign } from "@marine-guardian/jobs";
+import { attributionMethodFilter, attributionWhere } from "../../attribution-filter";
 
 /**
  * The set of patrol fields that are locally editable.
@@ -37,6 +38,13 @@ export const patrolListFilters = z.object({
   // entry point to that workflow. Defaults false — existing behaviour unchanged.
   // Mirrors event.list's `unattributedOnly` (same work queue, sibling surface).
   unattributedOnly: z.boolean().default(false),
+  // Attribution-review filter — the SECOND half of the manual-attribution
+  // workflow. `unattributedOnly` above finds rows with NO municipality;
+  // this finds rows that DO have one but whose value was a heuristic guess
+  // (see server/attribution-filter.ts for the full rationale). The two are
+  // complementary and mutually exclusive by construction: a row cannot be
+  // both un-attributed and heuristically attributed.
+  attributionMethod: attributionMethodFilter.optional(),
 });
 
 export const patrolRouter = router({
@@ -60,6 +68,14 @@ export const patrolRouter = router({
           // Manual-attribution work queue — narrow to patrols with no
           // municipality. Composes with every filter above (all are ANDed).
           ...(input.unattributedOnly ? { municipalityId: null } : {}),
+          // Attribution-review filter. ANDs with every filter above.
+          //
+          // ⚠ If a raw-SQL path is ever added to patrol.list (event.list has
+          // one), this filter MUST be mirrored into it via
+          // `attributionRawCondition` or it silently stops applying on that
+          // path. That is exactly the trap event.list's dual implementation
+          // carries; patrol.list has a single path today.
+          ...attributionWhere(input.attributionMethod),
         },
         take: input.limit + 1,
         ...(input.cursor !== undefined ? { cursor: { id: input.cursor } } : {}),
@@ -368,6 +384,19 @@ export const patrolRouter = router({
             municipalityId: input.municipalityId,
             municipalityManual: true,
             municipalityAssignedAt: new Date(),
+            // Re-stamp the PROVENANCE to match reality. Without this the row
+            // keeps whatever the automatic pass wrote — so a patrol a human
+            // just corrected still reports `nearest` with a stale distance,
+            // still renders a "Nearest 21.1 km" badge next to the officer's own
+            // value, and (worst) still matches the needs-review filter FOREVER.
+            // Reviewed rows would never leave the work queue, which defeats the
+            // entire review workflow.
+            municipalityAttributionMethod: "manual",
+            // The distance and the near-tie flag described the AUTOMATIC guess.
+            // They say nothing about a human's decision, so they are cleared
+            // rather than left to describe a value that no longer exists.
+            municipalityDistanceKm: null,
+            municipalityAttributionAmbiguous: false,
           },
         });
 
@@ -379,7 +408,11 @@ export const patrolRouter = router({
           entityId: input.id,
           changesJson: {
             before: { municipalityId: existing.municipalityId, municipalityManual: existing.municipalityManual },
-            after: { municipalityId: input.municipalityId, municipalityManual: true },
+            after: {
+              municipalityId: input.municipalityId,
+              municipalityManual: true,
+              municipalityAttributionMethod: "manual",
+            },
           },
           ipAddress: ctx.ip,
           severity: "info",

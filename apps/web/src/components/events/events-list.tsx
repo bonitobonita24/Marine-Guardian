@@ -23,6 +23,12 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import {
+  AttributionBadge,
+  attributionTitle,
+  ATTRIBUTION_FILTER_OPTIONS,
+  type AttributionFilterValue,
+} from "@/components/attribution/attribution-badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
@@ -197,6 +203,10 @@ type Filters = {
   // Surfaces only events with no municipality assigned — the manual
   // attribution work queue (see event.ts `unattributedOnly`).
   unattributedOnly: boolean;
+  // Attribution-review filter — finds events that DO have a municipality but
+  // whose value was a heuristic guess. "" = no filter. Complements
+  // `unattributedOnly`, which by definition excludes every attributed row.
+  attributionMethod: AttributionFilterValue;
   sort:            SortValue;
 };
 
@@ -209,6 +219,7 @@ const DEFAULT_FILTERS: Filters = {
   dateTo:          "",
   includeSkylight: false,
   unattributedOnly: false,
+  attributionMethod: "",
   sort:            DEFAULT_SORT,
 };
 
@@ -325,6 +336,11 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
     ...(filters.dateTo   !== "" ? { dateTo: endOfDayIso(filters.dateTo) } : {}),
     includeSkylight: filters.includeSkylight,
     unattributedOnly: filters.unattributedOnly,
+    // "" is the no-filter sentinel and is omitted entirely, so an unfiltered
+    // call sends exactly the same input shape it did before this filter existed.
+    ...(filters.attributionMethod !== ""
+      ? { attributionMethod: filters.attributionMethod }
+      : {}),
     sortBy,
     sortDir,
   };
@@ -606,8 +622,33 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
           </Label>
         </div>
 
+        {/* Attribution-review filter — companion to the toggle above. That one
+            finds events with NO municipality; this finds events that HAVE one
+            whose value was a heuristic guess (nearest / near-tie), which the
+            unattributed filter excludes by definition. Native <select> to match
+            the state/category/sort controls on this same bar. Option list is
+            shared with the patrols table so the two screens stay identical. */}
+        <select
+          data-testid="attribution-method-filter"
+          aria-label="Filter by how the municipality was attributed"
+          value={filters.attributionMethod}
+          onChange={(e) => {
+            setFilter(
+              "attributionMethod",
+              e.target.value as AttributionFilterValue,
+            );
+          }}
+          className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+        >
+          {ATTRIBUTION_FILTER_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+
         {/* Clear filters */}
-        {(filters.state !== "" || filters.category !== "" || filters.typeDisplays.length > 0 || filters.search !== "" || filters.dateFrom !== "" || filters.dateTo !== "" || filters.includeSkylight || filters.unattributedOnly || filters.sort !== DEFAULT_SORT) && (
+        {(filters.state !== "" || filters.category !== "" || filters.typeDisplays.length > 0 || filters.search !== "" || filters.dateFrom !== "" || filters.dateTo !== "" || filters.includeSkylight || filters.unattributedOnly || filters.attributionMethod !== "" || filters.sort !== DEFAULT_SORT) && (
           <Button
             variant="ghost"
             size="sm"
@@ -854,6 +895,34 @@ function EventRow({
               <time dateTime={new Date(event.reportedAt).toISOString()}>
                 {new Date(event.reportedAt).toLocaleDateString()}
               </time>
+            </>
+          )}
+          {/* Municipality + attribution provenance. The municipality name is
+              shown alongside the badge because "Nearest — 3.2 km" is not
+              reviewable on its own: the officer has to see WHICH municipality
+              the heuristic landed on to judge whether it is wrong. Rendered
+              only when a municipality exists — un-attributed events are the
+              `unattributedOnly` filter's territory, and repeating
+              "Unattributed" on every such row would just add noise. */}
+          {event.municipality !== null && (
+            <>
+              <span aria-hidden="true" className="h-3 w-px bg-border" />
+              <span
+                className="inline-flex items-center gap-1.5"
+                title={attributionTitle(
+                  event.municipalityAttributionMethod,
+                  event.municipalityDistanceKm,
+                  event.municipalityAttributionAmbiguous,
+                )}
+              >
+                <span>{event.municipality.name}</span>
+                <AttributionBadge
+                  method={event.municipalityAttributionMethod}
+                  distanceKm={event.municipalityDistanceKm}
+                  ambiguous={event.municipalityAttributionAmbiguous}
+                  rowId={event.id}
+                />
+              </span>
             </>
           )}
         </div>

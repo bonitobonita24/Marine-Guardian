@@ -2230,3 +2230,209 @@ describe("event.resolveAllEvents", () => {
     expect(call?.[0]?.where?.tenantId).toBe("other-tenant");
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// event.list — attribution-review filter (DUAL PATH)
+//
+// The backfill (96f7ff4) attributed 76 events by `nearest`, 7 of them flagged
+// `municipalityAttributionAmbiguous` (near-ties resolved as coin-flips). All 76
+// have a NON-NULL municipality_id, so `unattributedOnly` excludes them BY
+// DEFINITION — this filter is the only way to reach them.
+//
+// ⚠ event.list has TWO implementations (Prisma + $queryRaw when a search term
+// is present). EVERY assertion below is made against BOTH, because a filter
+// wired into only one silently stops working the moment a user types in the
+// search box.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("event.list — attributionMethod filter (both paths)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("does NOT constrain attribution when omitted (Prisma path)", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({});
+
+    const where = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where;
+    expect(where?.municipalityAttributionMethod).toBeUndefined();
+    expect(where?.OR).toBeUndefined();
+  });
+
+  it("does NOT constrain attribution when omitted (raw/search path)", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ search: "vessel" });
+
+    // NB: assert on the PREDICATE forms, not the bare column name — the column
+    // is now always present in the SELECT list (it feeds the badges), so a
+    // bare `not.toContain("e.municipality_attribution_method")` would fail for
+    // the wrong reason and hide a real regression.
+    const sql = rawSqlText();
+    expect(sql).not.toContain("e.municipality_attribution_method = ");
+    expect(sql).not.toContain("e.municipality_attribution_method IN (");
+    expect(sql).not.toContain("e.municipality_attribution_ambiguous = true");
+  });
+
+  it.each(["containment", "nearest", "manual", "title_hint"] as const)(
+    "narrows to exactly the %s method (Prisma path)",
+    async (method) => {
+      vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+      const caller = createCaller(makeCtx());
+      await caller.list({ attributionMethod: method });
+
+      const where = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where;
+      expect(where?.municipalityAttributionMethod).toBe(method);
+      expect(where?.OR).toBeUndefined();
+    },
+  );
+
+  it.each(["containment", "nearest", "manual", "title_hint"] as const)(
+    "narrows to exactly the %s method (raw/search path)",
+    async (method) => {
+      vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+
+      const caller = createCaller(makeCtx());
+      await caller.list({ search: "vessel", attributionMethod: method });
+
+      expect(rawSqlText()).toContain("e.municipality_attribution_method = ");
+      // The enum value travels as a BOUND PARAMETER, never concatenated.
+      expect(rawSqlValues()).toContain(method);
+      // An exact-method query must not also widen via the needs-review OR.
+      expect(rawSqlText()).not.toContain("municipality_attribution_ambiguous = true");
+    },
+  );
+
+  it("returns the UNION of heuristic methods and ambiguous rows for needs_review (Prisma path)", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ attributionMethod: "needs_review" });
+
+    const where = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where;
+    expect(where?.OR).toEqual([
+      { municipalityAttributionMethod: { in: ["title_hint", "nearest"] } },
+      { municipalityAttributionAmbiguous: true },
+    ]);
+    expect(where?.municipalityAttributionMethod).toBeUndefined();
+  });
+
+  it("returns the UNION of heuristic methods and ambiguous rows for needs_review (raw/search path)", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ search: "vessel", attributionMethod: "needs_review" });
+
+    const sql = rawSqlText();
+    expect(sql).toContain("e.municipality_attribution_method IN (");
+    expect(sql).toContain("OR e.municipality_attribution_ambiguous = true");
+    // Both heuristic methods bound as parameters; neither trusted method is.
+    expect(rawSqlValues()).toContain("title_hint");
+    expect(rawSqlValues()).toContain("nearest");
+    expect(rawSqlValues()).not.toContain("containment");
+    expect(rawSqlValues()).not.toContain("manual");
+  });
+
+  it("applies the SAME filter with and without a search term (two-path parity)", async () => {
+    // This is the regression guard the file header warns about: the identical
+    // user intent must reach the database identically on both paths.
+    const caller = createCaller(makeCtx());
+
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+    await caller.list({ attributionMethod: "needs_review" });
+    const where = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where;
+
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+    await caller.list({ search: "vessel", attributionMethod: "needs_review" });
+    const sql = rawSqlText();
+
+    // Prisma path expresses the union as an OR of two clauses…
+    expect(where?.OR).toHaveLength(2);
+    // …and the raw path as the semantically identical SQL disjunction.
+    expect(sql).toContain("e.municipality_attribution_method IN (");
+    expect(sql).toContain("OR e.municipality_attribution_ambiguous = true");
+  });
+
+  it("composes with every pre-existing filter on BOTH paths", async () => {
+    const common = {
+      state: "active" as const,
+      category: "law-enforcement-and-apprehensions",
+      typeDisplays: ["Compressor Fishing"],
+      dateFrom: "2026-01-01",
+      dateTo: "2026-06-30",
+      includeSkylight: false,
+      attributionMethod: "nearest" as const,
+    };
+
+    // Path A — no search.
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+    const caller = createCaller(makeCtx());
+    await caller.list(common);
+
+    const where = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where;
+    expect(where?.state).toBe("active");
+    expect(where?.reportedAt).toBeDefined();
+    expect(where?.NOT).toBeDefined();
+    expect(where?.municipalityAttributionMethod).toBe("nearest");
+
+    // Path B — identical filters plus a search term.
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+    await caller.list({ ...common, search: "vessel" });
+
+    const sql = rawSqlText();
+    expect(sql).toContain("e.state = ");
+    expect(sql).toContain("et.category ILIKE");
+    expect(sql).toContain("e.reported_at >=");
+    expect(sql).toContain("NOT ILIKE '%skylight%'");
+    expect(sql).toContain("e.municipality_attribution_method = ");
+  });
+
+  it("composes with unattributedOnly on both paths (mutually exclusive by design)", async () => {
+    const caller = createCaller(makeCtx());
+
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+    await caller.list({ unattributedOnly: true, attributionMethod: "nearest" });
+    const where = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where;
+    expect(where?.municipalityId).toBeNull();
+    expect(where?.municipalityAttributionMethod).toBe("nearest");
+
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+    await caller.list({
+      search: "vessel",
+      unattributedOnly: true,
+      attributionMethod: "nearest",
+    });
+    const sql = rawSqlText();
+    expect(sql).toContain("e.municipality_id IS NULL");
+    expect(sql).toContain("e.municipality_attribution_method = ");
+  });
+
+  it("SELECTs the provenance columns on the raw path so badges survive a search", async () => {
+    // Regression guard: the raw path selects an EXPLICIT column list. Before
+    // this filter shipped it omitted the provenance columns entirely, so the
+    // attribution badges would have silently blanked out the moment a user
+    // typed in the search box — while the Prisma path rendered them fine.
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ search: "vessel" });
+
+    const sql = rawSqlText();
+    expect(sql).toContain('e.municipality_attribution_method        AS "municipalityAttributionMethod"');
+    expect(sql).toContain('e.municipality_distance_km               AS "municipalityDistanceKm"');
+    expect(sql).toContain('e.municipality_attribution_ambiguous     AS "municipalityAttributionAmbiguous"');
+    expect(sql).toContain('m.name                                   AS "municipality_name"');
+  });
+
+  it("rejects a method that is not a real enum value", async () => {
+    const caller = createCaller(makeCtx());
+    await expect(
+      // @ts-expect-error — deliberately invalid input; Zod must reject it.
+      caller.list({ attributionMethod: "vibes" }),
+    ).rejects.toThrow();
+  });
+});

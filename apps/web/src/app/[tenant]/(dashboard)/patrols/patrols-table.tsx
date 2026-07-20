@@ -14,6 +14,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
+  AttributionBadge,
+  attributionTitle,
+  ATTRIBUTION_FILTER_OPTIONS,
+  type AttributionFilterValue,
+} from "@/components/attribution/attribution-badge";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -86,6 +92,11 @@ export function PatrolsTable() {
   // Manual-attribution work queue — narrows to patrols with no municipality so
   // an officer can find them and assign one via the Override dialog below.
   const [unattributedOnly, setUnattributedOnly] = useState(false);
+  // Attribution-review filter. "" means no filter (all attributions), matching
+  // the other native <select> filters on this bar. See
+  // server/attribution-filter.ts for what each option selects.
+  const [attributionMethod, setAttributionMethod] =
+    useState<AttributionFilterValue>("");
   const [cursor, setCursor] = useState<string | undefined>(undefined);
 
   const [accumulated, setAccumulated] = useState<PatrolListItem[]>([]);
@@ -119,7 +130,7 @@ export function PatrolsTable() {
   useEffect(() => {
     setAccumulated([]);
     setCursor(undefined);
-  }, [stateFilter, typeFilter, includeTest, includeDeleted, unattributedOnly]);
+  }, [stateFilter, typeFilter, includeTest, includeDeleted, unattributedOnly, attributionMethod]);
 
   const listQuery = trpc.patrol.list.useQuery({
     limit: 50,
@@ -129,6 +140,9 @@ export function PatrolsTable() {
     includeTest,
     includeDeleted,
     unattributedOnly,
+    // "" is the no-filter sentinel and is omitted entirely, so an unfiltered
+    // call sends exactly the same input shape it did before this filter existed.
+    ...(attributionMethod !== "" ? { attributionMethod } : {}),
   });
 
   // After a delete or restore, reset to the first page and refetch so the
@@ -235,6 +249,30 @@ export function PatrolsTable() {
           />
           Unattributed only
         </label>
+        {/* Attribution-review filter — the companion to "Unattributed only".
+            That checkbox finds rows with NO municipality; this finds rows that
+            HAVE one whose value was a heuristic guess (title-hint / nearest /
+            near-tie), which the unattributed filter excludes by definition.
+            Same permission rationale as above: a view-level narrowing of data
+            the list already shows, so it is gated by "patrols:view". */}
+        <label className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground">Attribution</span>
+          <select
+            data-testid="attribution-method-filter"
+            aria-label="Filter by how the municipality was attributed"
+            value={attributionMethod}
+            onChange={(e) => {
+              setAttributionMethod(e.target.value as AttributionFilterValue);
+            }}
+            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+          >
+            {ATTRIBUTION_FILTER_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
         {canManage && (
           <label className="flex items-center gap-2 text-sm">
             <input
@@ -312,13 +350,39 @@ export function PatrolsTable() {
                     <TableCell className="capitalize">{p.patrolType}</TableCell>
                     <TableCell className="capitalize">{p.state}</TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
+                      <div
+                        className="flex flex-wrap items-center gap-2"
+                        title={attributionTitle(
+                          p.municipalityAttributionMethod,
+                          p.municipalityDistanceKm,
+                          p.municipalityAttributionAmbiguous,
+                        )}
+                      >
                         <span>
                           {p.municipality?.name ?? (
                             <span className="text-muted-foreground">Unattributed</span>
                           )}
                         </span>
-                        {p.municipalityManual && (
+                        {/* Provenance — WHY this municipality was chosen. Shared
+                            with the events list so both screens read alike. */}
+                        <AttributionBadge
+                          method={p.municipalityAttributionMethod}
+                          distanceKm={p.municipalityDistanceKm}
+                          ambiguous={p.municipalityAttributionAmbiguous}
+                          rowId={p.id}
+                        />
+                        {/* Legacy anti-clobber flag. Since an override now
+                            re-stamps the provenance to `manual`, this badge and
+                            the provenance badge above would render "Manual"
+                            TWICE on any newly-overridden row — so it is drawn
+                            only when it still carries information the
+                            provenance badge does not.
+                            That is the case for rows overridden BEFORE the
+                            re-stamp fix: they carry municipalityManual=true
+                            while their method still reads `nearest`/
+                            `title_hint`, and the lock is worth showing. */}
+                        {p.municipalityManual &&
+                          p.municipalityAttributionMethod !== "manual" && (
                           <Badge
                             variant="outline"
                             data-testid={`manual-badge-${p.id}`}

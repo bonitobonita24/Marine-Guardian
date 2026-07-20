@@ -85,6 +85,7 @@ import { prisma } from "@marine-guardian/db";
 import { enqueuePatrolTrackMaterialize, enqueueMunicipalityAssign } from "@marine-guardian/jobs";
 import { createCallerFactory } from "../../trpc";
 import { patrolRouter } from "../patrol";
+import { HEURISTIC_METHODS } from "../../../attribution-filter";
 
 function partial<T>(obj: T): T {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1188,5 +1189,193 @@ describe("patrol.setTimeOverride", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
     expect(vi.mocked(prisma.patrol.update)).not.toHaveBeenCalled();
     expect(vi.mocked(prisma.auditLog.create)).not.toHaveBeenCalled();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// patrol.list — attribution-review filter
+//
+// The one-time backfill (96f7ff4) attributed 281 patrols by `title_hint` and 51
+// by `nearest`. Every one of those rows has a NON-NULL municipality_id, so the
+// pre-existing `unattributedOnly` filter (municipality_id IS NULL) excludes
+// them BY DEFINITION — they were unreachable in the UI until this filter.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("patrol.list — attributionMethod filter", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("does NOT constrain attribution when the filter is omitted", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({});
+
+    const where = vi.mocked(prisma.patrol.findMany).mock.calls[0]?.[0]?.where;
+    expect(where?.municipalityAttributionMethod).toBeUndefined();
+    expect(where?.OR).toBeUndefined();
+  });
+
+  it.each(["containment", "nearest", "manual", "title_hint"] as const)(
+    "narrows to exactly the %s method",
+    async (method) => {
+      vi.mocked(prisma.patrol.findMany).mockResolvedValue([]);
+
+      const caller = createCaller(makeCtx());
+      await caller.list({ attributionMethod: method });
+
+      const where = vi.mocked(prisma.patrol.findMany).mock.calls[0]?.[0]?.where;
+      expect(where?.municipalityAttributionMethod).toBe(method);
+      // An exact-method query must NOT also widen via the needs-review OR.
+      expect(where?.OR).toBeUndefined();
+    },
+  );
+
+  it("returns the UNION of the heuristic methods and ambiguous rows for needs_review", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ attributionMethod: "needs_review" });
+
+    const where = vi.mocked(prisma.patrol.findMany).mock.calls[0]?.[0]?.where;
+    expect(where?.OR).toEqual([
+      { municipalityAttributionMethod: { in: ["title_hint", "nearest"] } },
+      { municipalityAttributionAmbiguous: true },
+    ]);
+    // needs_review is an alias for a SET of methods — it must never be sent to
+    // Prisma as an enum literal (there is no such column value).
+    expect(where?.municipalityAttributionMethod).toBeUndefined();
+  });
+
+  it("EXCLUDES containment and manual from needs_review", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ attributionMethod: "needs_review" });
+
+    const where = vi.mocked(prisma.patrol.findMany).mock.calls[0]?.[0]?.where;
+    const methodClause = where?.OR?.[0] as
+      | { municipalityAttributionMethod: { in: string[] } }
+      | undefined;
+    expect(methodClause?.municipalityAttributionMethod.in).not.toContain("containment");
+    expect(methodClause?.municipalityAttributionMethod.in).not.toContain("manual");
+  });
+
+  it("composes with state / type / includeTest / includeDeleted / unattributedOnly", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({
+      state: "done",
+      patrolType: "seaborne",
+      includeTest: false,
+      includeDeleted: false,
+      unattributedOnly: true,
+      attributionMethod: "nearest",
+    });
+
+    const where = vi.mocked(prisma.patrol.findMany).mock.calls[0]?.[0]?.where;
+    // Every pre-existing filter survives alongside the new one (all ANDed).
+    expect(where?.state).toBe("done");
+    expect(where?.patrolType).toBe("seaborne");
+    expect(where?.isTestPatrol).toBe(false);
+    expect(where?.isDeleted).toBe(false);
+    expect(where?.municipalityId).toBeNull();
+    expect(where?.municipalityAttributionMethod).toBe("nearest");
+  });
+
+  it("rejects a method that is not a real enum value", async () => {
+    const caller = createCaller(makeCtx());
+    await expect(
+      // @ts-expect-error — deliberately invalid input; Zod must reject it.
+      caller.list({ attributionMethod: "vibes" }),
+    ).rejects.toThrow();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// patrol.setMunicipalityOverride — provenance re-stamping
+//
+// Regression guard for a defect found during browser verification of the
+// attribution-review filter: overriding a municipality updated the VALUE but
+// left the PROVENANCE columns describing the automatic guess it replaced. A
+// corrected patrol therefore rendered "Baco — Nearest 21.1 km — Manual" (self-
+// contradictory) and kept matching the needs-review filter forever, so rows a
+// human had already reviewed never left the work queue.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("patrol.setMunicipalityOverride — attribution provenance", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValue({
+      id: "pat-1",
+      municipalityId: "muni-old",
+      municipalityManual: false,
+    } as never);
+    vi.mocked(prisma.patrol.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
+
+  it("re-stamps the method to `manual` and clears the automatic-guess metadata", async () => {
+    vi.mocked(prisma.municipality.findFirst).mockResolvedValue({ id: "muni-1" } as never);
+
+    const caller = createCaller(makeCtx());
+    await caller.setMunicipalityOverride({ id: "pat-1", municipalityId: "muni-1" });
+
+    const data = vi.mocked(prisma.patrol.update).mock.calls[0]?.[0]?.data;
+    expect(data).toMatchObject({
+      municipalityId: "muni-1",
+      municipalityManual: true,
+      municipalityAttributionMethod: "manual",
+      // The distance and near-tie flag described the guess that was just
+      // replaced — they must not survive to describe a human's decision.
+      municipalityDistanceKm: null,
+      municipalityAttributionAmbiguous: false,
+    });
+  });
+
+  it("drops the overridden row OUT of the needs-review queue", async () => {
+    // The whole point of the re-stamp: `manual` is deliberately excluded from
+    // the needs_review union, so a reviewed row stops matching it.
+    vi.mocked(prisma.municipality.findFirst).mockResolvedValue({ id: "muni-1" } as never);
+
+    const caller = createCaller(makeCtx());
+    await caller.setMunicipalityOverride({ id: "pat-1", municipalityId: "muni-1" });
+
+    const data = vi.mocked(prisma.patrol.update).mock.calls[0]?.[0]?.data as {
+      municipalityAttributionMethod: string;
+      municipalityAttributionAmbiguous: boolean;
+    };
+    expect(HEURISTIC_METHODS).not.toContain(data.municipalityAttributionMethod);
+    expect(data.municipalityAttributionAmbiguous).toBe(false);
+  });
+
+  it("records the new provenance in the audit log", async () => {
+    vi.mocked(prisma.municipality.findFirst).mockResolvedValue({ id: "muni-1" } as never);
+
+    const caller = createCaller(makeCtx());
+    await caller.setMunicipalityOverride({ id: "pat-1", municipalityId: "muni-1" });
+
+    const auditData = vi.mocked(prisma.auditLog.create).mock.calls[0]?.[0]
+      ?.data as unknown as {
+      changesJson: { after: Record<string, unknown> };
+    };
+    expect(auditData.changesJson.after).toMatchObject({
+      municipalityAttributionMethod: "manual",
+    });
+  });
+
+  it("leaves provenance to the re-assign processor when the override is CLEARED", async () => {
+    // Clearing does not null the columns out: municipalityId survives until the
+    // enqueued municipality-assign job re-derives it, and that processor
+    // re-stamps method/distance/ambiguous itself. Nulling them here would open
+    // a window where a row has a municipality but claims no attribution method.
+    const caller = createCaller(makeCtx());
+    await caller.setMunicipalityOverride({ id: "pat-1", municipalityId: null });
+
+    const data = vi.mocked(prisma.patrol.update).mock.calls[0]?.[0]?.data;
+    expect(data).toEqual({ municipalityManual: false });
+    expect(vi.mocked(enqueueMunicipalityAssign)).toHaveBeenCalled();
   });
 });

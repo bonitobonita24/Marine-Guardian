@@ -7,6 +7,11 @@ import { prisma, decrypt, writeAuditLog } from "@marine-guardian/db";
 import { Prisma } from "@marine-guardian/db";
 import type { PrismaClient } from "@marine-guardian/db";
 import { pushEventUpdateToEarthRanger } from "../../lib/earthranger-push";
+import {
+  attributionMethodFilter,
+  attributionRawCondition,
+  attributionWhere,
+} from "../../attribution-filter";
 
 /**
  * The set of event fields that are locally editable.
@@ -152,6 +157,16 @@ export const eventListFilters = z.object({
   // without it there is no way to enumerate the records needing attention.
   // Default false preserves existing behaviour exactly.
   unattributedOnly: z.boolean().default(false),
+  // Attribution-review filter — the SECOND half of the manual-attribution
+  // workflow. `unattributedOnly` above finds events with NO municipality;
+  // this finds events that DO have one but whose value was a heuristic guess
+  // (see server/attribution-filter.ts for the full rationale). The two are
+  // complementary and mutually exclusive by construction.
+  //
+  // ⚠ DUAL PATH: this filter is implemented in BOTH `listViaRawSql` and the
+  // Prisma path below, via the shared helpers in server/attribution-filter.ts.
+  // The regression tests run it WITH and WITHOUT a search term for that reason.
+  attributionMethod: attributionMethodFilter.optional(),
 });
 
 /**
@@ -188,6 +203,21 @@ interface RawEventRow {
   updatedAt: Date;
   eventType_display: string | null;
   eventType_category: string | null;
+  // Municipality + attribution provenance. The Prisma path returns these
+  // automatically (it selects all Event scalars and includes the relation);
+  // the raw path must select them EXPLICITLY or the attribution badges and the
+  // municipality name silently vanish the moment a user types in the search
+  // box — the exact dual-path failure this file's header warns about.
+  municipalityId: string | null;
+  municipalityAttributionMethod:
+    | "containment"
+    | "nearest"
+    | "manual"
+    | "title_hint"
+    | null;
+  municipalityDistanceKm: number | null;
+  municipalityAttributionAmbiguous: boolean;
+  municipality_name: string | null;
 }
 
 /**
@@ -294,6 +324,13 @@ async function listViaRawSql(
   if (input.unattributedOnly) {
     conditions.push(Prisma.sql`e.municipality_id IS NULL`);
   }
+  // Attribution-review filter — raw-path twin of the `attributionWhere(...)`
+  // spread on the Prisma path. Kept in the shared helper so the two cannot
+  // drift apart silently.
+  const attributionCondition = attributionRawCondition(input.attributionMethod);
+  if (attributionCondition !== undefined) {
+    conditions.push(attributionCondition);
+  }
   if (dateFromParsed !== undefined) {
     conditions.push(Prisma.sql`e.reported_at >= ${dateFromParsed}`);
   }
@@ -398,7 +435,12 @@ async function listViaRawSql(
       e.created_at                AS "createdAt",
       e.updated_at                AS "updatedAt",
       et.display                  AS "eventType_display",
-      et.category                 AS "eventType_category"
+      et.category                 AS "eventType_category",
+      e.municipality_id                        AS "municipalityId",
+      e.municipality_attribution_method        AS "municipalityAttributionMethod",
+      e.municipality_distance_km               AS "municipalityDistanceKm",
+      e.municipality_attribution_ambiguous     AS "municipalityAttributionAmbiguous",
+      m.name                                   AS "municipality_name"
     FROM events e
     LEFT JOIN event_types et ON et.id = e.event_type_id
     LEFT JOIN municipalities m ON m.id = e.municipality_id
@@ -441,6 +483,17 @@ async function listViaRawSql(
     eventType:
       r.eventType_display !== null || r.eventType_category !== null
         ? { display: r.eventType_display, category: r.eventType_category }
+        : null,
+    // Municipality + provenance — re-nested to the SAME shape the Prisma path
+    // produces (`municipality: { id, name } | null` plus flat scalars), so the
+    // row renderer cannot tell the two paths apart.
+    municipalityId: r.municipalityId,
+    municipalityAttributionMethod: r.municipalityAttributionMethod,
+    municipalityDistanceKm: r.municipalityDistanceKm,
+    municipalityAttributionAmbiguous: r.municipalityAttributionAmbiguous,
+    municipality:
+      r.municipalityId !== null
+        ? { id: r.municipalityId, name: r.municipality_name }
         : null,
   }));
 
@@ -526,6 +579,9 @@ export const eventRouter = router({
           // Unattributed-only — mirrors `e.municipality_id IS NULL` in
           // listViaRawSql. Surfaces the manual-attribution work queue.
           ...(input.unattributedOnly ? { municipalityId: null } : {}),
+          // Attribution-review filter — Prisma-path twin of the
+          // `attributionRawCondition(...)` push in listViaRawSql.
+          ...attributionWhere(input.attributionMethod),
           // date range on reportedAt (monthly-accomplishment view)
           ...(dateFromParsed !== undefined || dateToParsed !== undefined
             ? {
@@ -558,7 +614,14 @@ export const eventRouter = router({
         // Default (desc) reproduces the historical `orderBy: { createdAt:
         // "desc" }` exactly.
         orderBy: [{ createdAt: input.sortDir }, { id: input.sortDir }],
-        include: { eventType: { select: { display: true, category: true } } },
+        include: {
+          eventType: { select: { display: true, category: true } },
+          // Included so the attribution-review UI can show WHICH municipality a
+          // heuristic guess landed on — "Nearest, 3.2 km" is not reviewable
+          // without the name. Mirrors `m.name AS "municipality_name"` on the
+          // raw path.
+          municipality: { select: { id: true, name: true } },
+        },
       });
       let nextCursor: string | undefined;
       if (items.length > input.limit) {
