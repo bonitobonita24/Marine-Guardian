@@ -2,6 +2,78 @@
 
 > Un-gated work continues regardless; these items are re-surfaced each session until resolved.
 
+---
+
+## 🔴 2026-07-20 (late) — SESSION HANDOFF · `preview/session-0720` @ `96fa629`
+
+**STATE: 35 commits local, NONE pushed. HARD HOLD holds — no push/merge/deploy without the owner's explicit word.**
+All work below is verified on dev only.
+
+### ▶ FIRST TASK NEXT SESSION (owner-directed)
+**Run a FULL double-check re-verification of everything built this session.** Rebuild dev app **and worker** off
+this branch first (no source bind-mount). Then re-verify every item in "Shipped this session" below against the
+real runtime — not unit tests, not agent self-reports.
+
+> ⚠ **METHOD REQUIREMENT, learned the hard way this session:** verify intermittent defects with **repeated runs,
+> not single passes.** React #418 was declared fixed THREE times off single page loads; an 8-run check measured it
+> at **37.5%** — a one-shot check passes ~2 times in 3. Same for the heatmap tear (was ~1-in-3, now 5/5 clean).
+> Any nondeterministic symptom needs N≥5 before it may be called fixed.
+
+### 🔴 OPEN OWNER DECISIONS
+- [ ] **Staging deploy of 35 local commits.** Nothing shipped all session. Use the data-first staging refresh gate.
+- [ ] **PPTX is a Chromium re-render** (~78s, produced a **91 MB** file), not native slides. Native = multi-week. Accept?
+- [ ] **DSR export history goes near-always empty** — rows live ~30 min under the TTL. RA 10173 compliance surface.
+- [ ] **Which environments to clear** of old Telegram-era reports (janitor only reaches MinIO) — staging/prod/demo.
+- [ ] **Demo Patrol Zone Alpha** removed from `seed.ts` + dev row; staging/prod/demo NOT touched. Which to clear?
+
+### 🐞 KNOWN-OPEN DEFECT
+- [ ] **React #418 on `report_map` print page — INTERMITTENT ~37.5%** (8-run measurement). Clean on
+  `event_highlights` (0/8). Hydration mismatch React recovers from; PDF output correct in all samples.
+  **Do not re-verify with a single load.**
+
+### ⚠ ACCEPTED DEBT (owner-accepted, real, revisit before staging)
+- **Cross-municipality leak reopened** by deleting the render-time track clip (owner chose whole tracks).
+  Real fix is dominant-track attribution, not a render-time clip. Not yet done.
+- **`params_json` stores `2025-12-31T16:00:00Z` for a 2026-01-01 range** (UTC). The filename formatter now
+  compensates; anything else reading that field directly will hit the same off-by-one.
+- **No combined single PDF** — the report checklist yields separate files; ticking Summary+Detailed gives two.
+- `MapTopRightColumn` + the MAP CONTROLS left column still carry ad-hoc `z-20` literals outside `MAP_LAYER`.
+
+### 🔗 EXTERNAL / PRE-EXISTING BLOCKERS (unchanged)
+- [ ] ER/DAS token minting (owner in ER-admin UI) → SOPS vault → `set-er-connection.ts` per env.
+- [ ] Slice-6 field-value backfill execution (`--dry-run` first).
+- [ ] Older items still open: RBAC per-env deploy · `feat/canonical-seed-credentials` merge ·
+      Skylight "18 vs 23" · Banggai/Pecca tenants · area-attribution backfill.
+- [ ] Deferred by owner to the "user-facing apps" discussion: dashboard sidebar never collapses
+      (`sidebar.tsx` hard `w-44`, no `SidebarProvider`) — phone width only, not CC/map screens.
+
+### ✅ SHIPPED THIS SESSION (all LOCAL, all dev-verified unless noted)
+| Area | Commit |
+|---|---|
+| 5 report defects (zone header, map framing, chart labels, EH 20MB, generic error) | `04383c0` |
+| Charts → toggleable floating panels; Generate Printable to header | `255bb25` |
+| CHARTS panel top-right + switches | `7b7e9e1` |
+| Overlay collision below lg | `a7edbb9` → `8fd8530` → `201b586` (horizontal clearance) |
+| Ephemeral MinIO exports + TTL janitor; React #418 (partial); Null Island | `3503e5b` |
+| Boundary hierarchy scope, whole tracks, zone-level traversing | `f5c6058` |
+| Map controls relocated, scroll affordance, print fixes, seed cleanup | `9ec3804` |
+| Report-type checklist (Summary / Detailed / Event Highlights) | `e58982c` |
+| 5 browser-confirmed failures + toggle alignment + filename dates | `914014a` |
+| Zone full-patrol-credit toggle (opt-in, zone scope only) | `96fa629` |
+
+**Verified working in a browser:** ephemeral purge (rows→0, MinIO prefix gone) · janitor sweep (observed live,
+`rowsDeleted=1 objectsDeleted=2`) · checklist + measured speedup (6.3s vs 9.5s, 25-page section absent) ·
+heatmap 5/5 clean · doodle controls clickable + drawing intact · toggle alignment (13 toggles, `cyDelta: 0`) ·
+EH page 1 now 217 chars/12 images · track framing all four edges 0px · filenames `..._2026-01-01_...` ·
+control relocation (12px gap, 0px top delta) · blue square gone.
+
+**NOT yet browser-verified:** the zone full-patrol-credit toggle (`96fa629`) — gate green, but no runtime check.
+Verify with a DB cross-check: count patrols whose track intersects Apo Reef independently, confirm the report's
+count equals THAT and not Sablayan's 361; repeat on **Harka Piloto** (different parent municipality — proves it
+isn't resolving via the parent); and confirm toggle-OFF numbers are byte-identical.
+
+---
+
 ## 2026-07-15 — Autonomous build queue (one-at-a-time)
 
 **Queue status:** Task 1 ✅ DONE (`839320d`, map doodle) → Task 2 ✅ DONE (`654e176`, Patrol Schedule overhaul) → **Task 3 ✅ DONE (`f055d76`, manual per-patrol municipality override)**. Owner build queue is now **DRAINED**. "Include traversing patrols" toggle ✅ DONE 2026-07-16 (`086e8df`, see below). Next un-gated `[HOW]`: province-level traversing (single-municipality only for now).
