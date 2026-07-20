@@ -21,9 +21,12 @@ vi.mock("@marine-guardian/storage", () => ({
 import { prisma } from "@marine-guardian/db";
 import { getImageBytes } from "@marine-guardian/storage";
 import {
+  applyTotalPhotoBudget,
   extractRemarks,
   getEventHighlightsReportData,
+  MAX_TOTAL_PHOTOS,
 } from "../get-event-highlights-report-data";
+import type { EventHighlightsEventBlock } from "../get-event-highlights-report-data";
 import { BLUE_ALLIANCE_DEFAULT_LOGO_DATA_URI } from "@/server/report-map-report/assets/blue-alliance-default-logo";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────
@@ -420,5 +423,126 @@ describe("getEventHighlightsReportData", () => {
     expect(result).not.toBeNull();
     if (!result) return;
     expect(result.template.partnerLogoDataUri).toBe(BLUE_ALLIANCE_DEFAULT_LOGO_DATA_URI);
+  });
+});
+
+// ─── applyTotalPhotoBudget (pure helper) ───────────────────────────────────
+
+/** Minimal block fixture — only `photoAssetIds`/`photoCount` matter here. */
+function budgetBlock(id: string, photos: number): EventHighlightsEventBlock {
+  return {
+    id,
+    title: `Event ${id}`,
+    typeDisplay: "Illegal Fishing",
+    reportedAt: new Date("2026-05-10T08:00:00.000Z"),
+    municipalityName: "Puerto Galera",
+    areaName: null,
+    lat: null,
+    lon: null,
+    reportedByName: null,
+    actionTaken: "Patrol dispatched.",
+    remarks: null,
+    photoAssetIds: Array.from({ length: photos }, (_, i) => `${id}_a${String(i)}`),
+    photoCount: photos,
+    layout: photos <= 2 ? "half" : "full",
+  };
+}
+
+describe("applyTotalPhotoBudget", () => {
+  it("re-derives layout from the surviving photo count on a truncated block", () => {
+    // b1 eats 6 of the 7-photo budget; b2 is starved down to 1 photo and must
+    // drop from "full" to "half" so it does not force a near-empty full page.
+    const result = applyTotalPhotoBudget([budgetBlock("b1", 6), budgetBlock("b2", 8)], 7);
+
+    expect(result.blocks[0]?.layout).toBe("full");
+    expect(result.blocks[1]?.photoAssetIds).toHaveLength(1);
+    expect(result.blocks[1]?.layout).toBe("half");
+    // photoCount stays PRE-cap — it drives the "N photos available" text.
+    expect(result.blocks[1]?.photoCount).toBe(8);
+  });
+
+  it("keeps layout 'full' when a truncated block still holds more than 2 photos", () => {
+    const result = applyTotalPhotoBudget([budgetBlock("b1", 2), budgetBlock("b2", 8)], 6);
+
+    expect(result.blocks[1]?.photoAssetIds).toHaveLength(4);
+    expect(result.blocks[1]?.layout).toBe("full");
+  });
+
+  it("is a no-op when the total is at or under budget", () => {
+    const blocks = [budgetBlock("b1", 8), budgetBlock("b2", 4)];
+    const result = applyTotalPhotoBudget(blocks, 120);
+
+    expect(result.photoBudgetReached).toBe(false);
+    expect(result.photosShown).toBe(12);
+    expect(result.photosAvailable).toBe(12);
+    // Identical array reference — nothing was copied or truncated.
+    expect(result.blocks).toBe(blocks);
+    expect(result.blocks[0]?.photoAssetIds).toHaveLength(8);
+    expect(result.blocks[1]?.photoAssetIds).toHaveLength(4);
+  });
+
+  it("is a no-op when the total exactly equals the budget (boundary)", () => {
+    const result = applyTotalPhotoBudget([budgetBlock("b1", 5), budgetBlock("b2", 5)], 10);
+    expect(result.photoBudgetReached).toBe(false);
+    expect(result.photosShown).toBe(10);
+  });
+
+  it("truncates across multiple blocks, walking them in order", () => {
+    // 8 + 8 + 8 = 24 photos available, budget 10 → 8 + 2 + 0.
+    const blocks = [budgetBlock("b1", 8), budgetBlock("b2", 8), budgetBlock("b3", 8)];
+    const result = applyTotalPhotoBudget(blocks, 10);
+
+    expect(result.photoBudgetReached).toBe(true);
+    expect(result.photosAvailable).toBe(24);
+    expect(result.photosShown).toBe(10);
+    expect(result.blocks.map((b) => b.photoAssetIds.length)).toEqual([8, 2, 0]);
+    // The surviving ids are the leading ones, in their original order.
+    expect(result.blocks[1]?.photoAssetIds).toEqual(["b2_a0", "b2_a1"]);
+  });
+
+  it("keeps a budget-starved block (zero photos) instead of dropping it", () => {
+    const result = applyTotalPhotoBudget([budgetBlock("b1", 4), budgetBlock("b2", 4)], 4);
+
+    expect(result.blocks).toHaveLength(2);
+    const starved = result.blocks[1];
+    expect(starved?.id).toBe("b2");
+    expect(starved?.photoAssetIds).toEqual([]);
+    // Text content survives untouched — the narrative is the point of the report.
+    expect(starved?.actionTaken).toBe("Patrol dispatched.");
+    expect(starved?.title).toBe("Event b2");
+  });
+
+  it("leaves the pre-cap photoCount intact so the UI can still say 'N photos available'", () => {
+    const result = applyTotalPhotoBudget([budgetBlock("b1", 8), budgetBlock("b2", 8)], 8);
+
+    expect(result.blocks[1]?.photoAssetIds).toHaveLength(0);
+    // photoCount is the PRE-cap count and must NOT be rewritten to 0.
+    expect(result.blocks[0]?.photoCount).toBe(8);
+    expect(result.blocks[1]?.photoCount).toBe(8);
+    // layout, unlike photoCount, DOES follow the surviving photos — a block
+    // starved to zero must not keep a "full" hint and render an empty page.
+    expect(result.blocks[1]?.layout).toBe("half");
+  });
+
+  it("handles an empty block list", () => {
+    const result = applyTotalPhotoBudget([], 120);
+    expect(result.blocks).toEqual([]);
+    expect(result.photosShown).toBe(0);
+    expect(result.photosAvailable).toBe(0);
+    expect(result.photoBudgetReached).toBe(false);
+  });
+
+  it("defaults to MAX_TOTAL_PHOTOS, which is below the 25×8 per-block ceiling", () => {
+    expect(MAX_TOTAL_PHOTOS).toBe(120);
+    // 25 blocks × 8 photos = the 200-photo worst case that blew the renderer.
+    const blocks = Array.from({ length: 25 }, (_, i) => budgetBlock(`b${String(i)}`, 8));
+    const result = applyTotalPhotoBudget(blocks);
+
+    expect(result.photosAvailable).toBe(200);
+    expect(result.photosShown).toBe(MAX_TOTAL_PHOTOS);
+    expect(result.photoBudgetReached).toBe(true);
+    expect(result.blocks).toHaveLength(25);
+    const rendered = result.blocks.reduce((n, b) => n + b.photoAssetIds.length, 0);
+    expect(rendered).toBe(MAX_TOTAL_PHOTOS);
   });
 });

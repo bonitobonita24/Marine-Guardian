@@ -112,7 +112,14 @@ function EventHighlightBlock({ block, timeZone }: EventHighlightBlockProps) {
     .map((assetId) => {
       const src = `/api/assets/${escapeHtmlAttr(assetId)}?w=1400`;
       const alt = escapeHtmlAttr(`Photo: ${block.title}`);
-      return `<img class="hl-photo" src="${src}" alt="${alt}" loading="eager" onload="window.__hlPhotoLoaded()" onerror="window.__hlPhotoLoaded()" />`;
+      // NOTE: ends with `>` — NOT the XHTML-style ` />`. `<img>` is a void
+      // element, so the HTML parser drops the self-closing slash; the DOM
+      // then re-serializes this node WITHOUT it. React hydration compares
+      // `dangerouslySetInnerHTML.__html` against the live `element.innerHTML`,
+      // so a trailing ` />` here never round-trips and mismatches on every
+      // single photo grid (React #418). Keeping the markup byte-identical to
+      // what the parser produces makes hydration a no-op.
+      return `<img class="hl-photo" src="${src}" alt="${alt}" loading="eager" onload="window.__hlPhotoLoaded()" onerror="window.__hlPhotoLoaded()">`;
     })
     .join("");
 
@@ -234,9 +241,12 @@ export function EventHighlightsReport({ data }: EventHighlightsReportProps) {
     <html lang="en">
       <head>
         <meta charSet="utf-8" />
-        <title>
-          {data.tenant.name} — Event Highlights — {dateRange}
-        </title>
+        {/* Single template-string child — NOT `{a} — text — {b}`. React
+            requires <title> children to collapse to ONE string: the browser
+            parses title content as raw text and merges adjacent text nodes,
+            so a multi-child <title> hydrates against a single Text node and
+            throws the "hydration failed" error (React #418). */}
+        <title>{`${data.tenant.name} — Event Highlights — ${dateRange}`}</title>
         <style>{css}</style>
         {/* Render-ready sentinel: mirrors report-map-report.tsx's map-island
             counter, but counts photo <img> loads (each photo's inline
@@ -266,6 +276,9 @@ export function EventHighlightsReport({ data }: EventHighlightsReportProps) {
           <footer className="hl-footer" role="contentinfo">
             <div className="hl-footer-notes">
               Showing {data.blocks.length} of {data.totalQualifying} qualifying events
+              {data.photoBudgetReached
+                ? ` · Showing ${String(data.photosShown)} of ${String(data.photosAvailable)} photos — photo budget reached`
+                : ""}
               {data.template.footerNotes !== null ? ` · ${data.template.footerNotes}` : ""}
             </div>
             <div className="hl-footer-meta">Generated {generatedAt}</div>
