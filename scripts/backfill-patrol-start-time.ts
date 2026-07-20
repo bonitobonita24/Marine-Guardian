@@ -33,10 +33,33 @@
  *   re-asserts that predicate.  Safe to re-run; a second run reports zero
  *   candidates for anything the first run wrote.
  *
- * PROVENANCE
- *   There is currently NO column that distinguishes a derived start_time from
- *   an ER-supplied one, and this script deliberately does NOT add one.
- *   See the "PROVENANCE" note printed at the end of every run.
+ * PROVENANCE — every value this script writes is stamped
+ *   Migration `..._add_time_provenance` added three columns to `patrols`, and
+ *   this script now uses them.  After a live run the three origins of a
+ *   `start_time` are permanently distinguishable:
+ *
+ *     start_time_derived_at | start_time_manual | origin
+ *     ----------------------+-------------------+-------------------------------
+ *     NULL                  | false             | ER-supplied (came from sync)
+ *     <timestamp>           | false             | DERIVED by this script at that
+ *                           |                   | instant, from MIN(segments.actual_start)
+ *     (any)                 | true              | OFFICER-supplied manual entry
+ *
+ *   Every row this script writes gets `start_time_derived_at = now()` in the
+ *   same UPDATE that sets `start_time` — the stamp and the value can never
+ *   drift apart.
+ *
+ * MANUAL WINS — a human correction is never overwritten
+ *   Rows with `start_time_manual = true` are NEVER touched.  An officer's
+ *   correction always beats a derived value.  This is enforced in the SQL
+ *   itself, not merely in application code:
+ *     • the candidate SELECT filters `AND p.start_time_manual = false`;
+ *     • the UPDATE re-asserts `startTimeManual: false` in its WHERE clause,
+ *       so a concurrent write that flips the flag between SELECT and UPDATE
+ *       loses the race safely (the update matches 0 rows and is counted as
+ *       skipped rather than clobbering the human's value).
+ *   The same double-assertion protects `start_time IS NULL` against a
+ *   concurrent ER sync supplying a real value mid-run.
  *
  * Usage:
  *   # dry-run (DEFAULT — no writes, ever, unless --execute is passed)
@@ -147,6 +170,8 @@ async function main(): Promise<void> {
   let candidates = 0;
   let updated = 0;
   let skippedNoSource = 0;
+  /** Rows that lost a race: start_time filled, or start_time_manual flipped, between SELECT and UPDATE. */
+  let skippedRaced = 0;
   const perTenant = new Map<string, { candidates: number; updated: number; skipped: number }>();
 
   // Keyset pagination over patrol id (stable, no OFFSET drift as rows are
@@ -175,6 +200,7 @@ async function main(): Promise<void> {
              ) AS "derivedStart"
       FROM   patrols p
       WHERE  p.start_time IS NULL
+        AND  p.start_time_manual = false
         ${tenantFilter ? `AND p.tenant_id = $1` : ``}
         ${cursor ? `AND p.id > ${tenantFilter ? `$2` : `$1`}` : ``}
       ORDER BY p.id ASC
@@ -211,15 +237,27 @@ async function main(): Promise<void> {
       }
 
       if (!isDryRun) {
-        // The `startTime: null` predicate is re-asserted here so a concurrent
-        // ER sync that filled the value in mid-run wins over our derivation.
+        // Both predicates are re-asserted in the WHERE clause so the guarantees
+        // hold against a concurrent writer, not just against the SELECT we did
+        // a moment ago:
+        //   • `startTime: null`       — a concurrent ER sync that supplied a
+        //                               real start_time mid-run wins over our
+        //                               derivation.
+        //   • `startTimeManual: false` — an officer's manual correction always
+        //                               wins; we never clobber a human value.
+        // A row that fails either predicate matches 0 rows and is counted as
+        // skipped (raced) instead of being overwritten.
+        //
+        // `startTimeDerivedAt` is stamped in the SAME update that sets
+        // `startTime`, so a derived value is always accompanied by its stamp.
         const res = await platformPrisma.patrol.updateMany({
-          where: { id: row.id, startTime: null },
-          data: { startTime: row.derivedStart },
+          where: { id: row.id, startTime: null, startTimeManual: false },
+          data: { startTime: row.derivedStart, startTimeDerivedAt: new Date() },
         });
         if (res.count === 0) {
-          // Raced — ER supplied a real start_time between SELECT and UPDATE.
-          skippedNoSource++;
+          // Raced — ER supplied a real start_time, or an officer flipped
+          // start_time_manual, between our SELECT and this UPDATE.
+          skippedRaced++;
           t.skipped++;
           perTenant.set(row.tenantId, t);
           continue;
@@ -238,6 +276,7 @@ async function main(): Promise<void> {
   console.log(`${TAG} candidates found   : ${candidates}  (patrols with start_time IS NULL)`);
   console.log(`${TAG} ${isDryRun ? "would update      " : "updated           "} : ${updated}  (derived from patrol_segments.actual_start)`);
   console.log(`${TAG} skipped-no-source  : ${skippedNoSource}  (no segment actual_start to derive from)`);
+  console.log(`${TAG} skipped-raced      : ${skippedRaced}  (start_time filled or start_time_manual flipped mid-run)`);
 
   if (perTenant.size > 1) {
     console.log(`${TAG} per-tenant:`);
@@ -248,10 +287,13 @@ async function main(): Promise<void> {
 
   console.log("");
   console.log(
-    `${TAG} PROVENANCE: no column distinguishes a derived start_time from an\n` +
-      `${TAG}             ER-supplied one. This script does NOT add one. After a\n` +
-      `${TAG}             live run the ${updated} derived value(s) are indistinguishable\n` +
-      `${TAG}             from ER data. See the script header.`,
+    `${TAG} PROVENANCE: each of the ${updated} row(s) ${isDryRun ? "would be" : "was"} stamped with\n` +
+      `${TAG}             start_time_derived_at = now(), so a derived start_time stays\n` +
+      `${TAG}             permanently distinguishable from an ER-supplied one\n` +
+      `${TAG}             (start_time_derived_at IS NULL) and from an officer-supplied\n` +
+      `${TAG}             one (start_time_manual = true).\n` +
+      `${TAG} MANUAL WINS: rows with start_time_manual = true are never touched —\n` +
+      `${TAG}             asserted in both the candidate SELECT and the UPDATE WHERE.`,
   );
 
   if (isDryRun) {
