@@ -503,3 +503,177 @@ describe("processMunicipalityAssign — event manual-override anti-clobber", () 
     expect(result.skipReason).toBeUndefined();
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VALUE ⇔ PROVENANCE PAIRING INVARIANT (2026-07-21)
+//
+// The tests above assert the CORRECT method per scenario. This block asserts
+// something weaker but structurally stronger: whatever the processor decides,
+// `municipalityId` and `municipalityAttributionMethod` must always travel in
+// the SAME write. Never one without the other.
+//
+// WHY a separate, shape-level block: dev accumulated 34 events and 1 patrol
+// whose `municipality_id` was set while `municipality_attribution_method` was
+// NULL. There was no second writer and no disagreement about the VALUE —
+// containment reproduced the stored municipality exactly for all 35 rows. The
+// rows were written by a worker image built minutes BEFORE 825cf6c, whose
+// update payload was `{ municipalityId, municipalityAssignedAt, terrain }`
+// with no method key at all. Every per-scenario test above passes against that
+// build for the cases it does not cover; only a payload-SHAPE assertion fails.
+//
+// A row with a municipality but a NULL method is invisible to every
+// method-keyed filter (the officer needs-review queue in 4f41c57) and
+// misrepresents how it was attributed — so the pairing is the contract, and it
+// is pinned here independently of which value is right.
+//
+// The DB-level counterpart is the `*_municipality_attribution_paired` CHECK
+// constraint (migration 20260721020000), which enforces the same invariant
+// against ANY writer — including a stale worker that this test suite never
+// runs against.
+describe("processMunicipalityAssign — municipalityId ⇔ method pairing invariant", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    pp.municipality.findMany.mockResolvedValue([]);
+    pp.protectedZone.findMany.mockResolvedValue([]);
+  });
+
+  /**
+   * Asserts the pairing on a captured update payload.
+   *
+   * Three shapes are legal:
+   *   - neither key present  → anti-clobber branch (manual override, terrain only)
+   *   - both keys present    → auto branch, value and provenance written together
+   * Anything else is drift: a value without provenance, or a provenance claim
+   * without a value.
+   */
+  function expectPaired(data: Record<string, unknown>) {
+    const hasId = Object.prototype.hasOwnProperty.call(data, "municipalityId");
+    const hasMethod = Object.prototype.hasOwnProperty.call(
+      data,
+      "municipalityAttributionMethod",
+    );
+    // Both keys, or neither. `toEqual` on the pair (rather than two separate
+    // assertions) makes the failure message show WHICH side went missing.
+    expect({ writesMunicipalityId: hasId, writesAttributionMethod: hasMethod }).toEqual({
+      writesMunicipalityId: hasId,
+      writesAttributionMethod: hasId,
+    });
+  }
+
+  it("EVENT auto path writes municipalityId and method together when a municipality resolves", async () => {
+    pp.event.findUnique.mockResolvedValueOnce({
+      id: "event-pair-1",
+      tenantId: "tenant-1",
+      locationLat: 13.4,
+      locationLon: 121.2,
+      municipalityId: null,
+      municipalityAttributionMethod: null,
+    });
+    mockedAssignByContainment.mockReturnValue("muni-A");
+
+    await processMunicipalityAssign(makeJob({ entity: "event", id: "event-pair-1" }));
+
+    const data = ((pp.event.update.mock.calls[0]?.[0] ?? {}) as { data: Record<string, unknown> }).data;
+    expectPaired(data);
+    expect(data.municipalityId).toBe("muni-A");
+    expect(data.municipalityAttributionMethod).toBe("containment");
+  });
+
+  it("EVENT auto path writes municipalityId and method together when NOTHING resolves (both null)", async () => {
+    pp.event.findUnique.mockResolvedValueOnce({
+      id: "event-pair-2",
+      tenantId: "tenant-1",
+      locationLat: 5.0,
+      locationLon: 100.0,
+      municipalityId: null,
+      municipalityAttributionMethod: null,
+    });
+    mockedAssignByContainment.mockReturnValue(null);
+
+    await processMunicipalityAssign(makeJob({ entity: "event", id: "event-pair-2" }));
+
+    const data = ((pp.event.update.mock.calls[0]?.[0] ?? {}) as { data: Record<string, unknown> }).data;
+    expectPaired(data);
+    expect(data.municipalityId).toBeNull();
+    expect(data.municipalityAttributionMethod).toBeNull();
+  });
+
+  it("PATROL auto path writes municipalityId and method together when a municipality resolves", async () => {
+    pp.patrol.findUnique.mockResolvedValueOnce({
+      id: "patrol-pair-1",
+      tenantId: "tenant-1",
+      startLocationLat: 13.4,
+      startLocationLon: 121.2,
+      municipalityId: null,
+      municipalityManual: false,
+      track: null,
+    });
+    mockedAssignByContainment.mockReturnValue("muni-A");
+
+    await processMunicipalityAssign(makeJob({ entity: "patrol", id: "patrol-pair-1" }));
+
+    const data = ((pp.patrol.update.mock.calls[0]?.[0] ?? {}) as { data: Record<string, unknown> }).data;
+    expectPaired(data);
+    expect(data.municipalityId).toBe("muni-A");
+    expect(data.municipalityAttributionMethod).toBe("containment");
+  });
+
+  it("PATROL auto path writes municipalityId and method together when NOTHING resolves (both null)", async () => {
+    pp.patrol.findUnique.mockResolvedValueOnce({
+      id: "patrol-pair-2",
+      tenantId: "tenant-1",
+      startLocationLat: 5.0,
+      startLocationLon: 100.0,
+      municipalityId: null,
+      municipalityManual: false,
+      track: null,
+    });
+    mockedAssignByContainment.mockReturnValue(null);
+
+    await processMunicipalityAssign(makeJob({ entity: "patrol", id: "patrol-pair-2" }));
+
+    const data = ((pp.patrol.update.mock.calls[0]?.[0] ?? {}) as { data: Record<string, unknown> }).data;
+    expectPaired(data);
+    expect(data.municipalityId).toBeNull();
+    expect(data.municipalityAttributionMethod).toBeNull();
+  });
+
+  it("anti-clobber branches write NEITHER key (pairing holds by absence, both entities)", async () => {
+    pp.patrol.findUnique.mockResolvedValueOnce({
+      id: "patrol-pair-3",
+      tenantId: "tenant-1",
+      startLocationLat: 13.4,
+      startLocationLon: 121.2,
+      municipalityId: "muni-manual",
+      municipalityManual: true,
+      track: null,
+    });
+    mockedAssignByContainment.mockReturnValue("muni-auto");
+
+    await processMunicipalityAssign(makeJob({ entity: "patrol", id: "patrol-pair-3" }));
+
+    const patrolData = ((pp.patrol.update.mock.calls[0]?.[0] ?? {}) as { data: Record<string, unknown> }).data;
+    expectPaired(patrolData);
+    expect(patrolData).not.toHaveProperty("municipalityId");
+
+    vi.clearAllMocks();
+    pp.municipality.findMany.mockResolvedValue([]);
+    pp.protectedZone.findMany.mockResolvedValue([]);
+
+    pp.event.findUnique.mockResolvedValueOnce({
+      id: "event-pair-3",
+      tenantId: "tenant-1",
+      locationLat: 13.4,
+      locationLon: 121.2,
+      municipalityId: "muni-manual",
+      municipalityAttributionMethod: "manual",
+    });
+    mockedAssignByContainment.mockReturnValue("muni-auto");
+
+    await processMunicipalityAssign(makeJob({ entity: "event", id: "event-pair-3" }));
+
+    const eventData = ((pp.event.update.mock.calls[0]?.[0] ?? {}) as { data: Record<string, unknown> }).data;
+    expectPaired(eventData);
+    expect(eventData).not.toHaveProperty("municipalityId");
+  });
+});
