@@ -21,8 +21,17 @@
 //     coverage-areas.ts TS file) so the processor works inside Docker
 //     containers where the web package is not mounted.
 //   - The patrol path reads startLocationLat/Lon (already set by er-sync
-//     from the segment start coords). If null, the job silently skips to
-//     avoid noise — a patrol with no location cannot be assigned.
+//     from the segment start coords). If null, it falls back to the FIRST
+//     coordinate of the materialised track (firstTrackPoint) — the start point
+//     is the same, only the source differs. A patrol with neither a start
+//     location nor a track row is skipped (no point can be derived); no point
+//     is ever invented for it.
+//   - municipalityAttributionMethod records HOW municipalityId was resolved.
+//     Both start-point sources run through assignMunicipalityByContainment, so
+//     a resolved municipality is always "containment"; an unattributed row
+//     (start outside every boundary) records null, never a false claim. A
+//     manual override keeps its existing method — the anti-clobber guard skips
+//     the whole Layer-1 write.
 
 import type { Job } from "bullmq";
 import { platformPrisma } from "@marine-guardian/db";
@@ -88,10 +97,18 @@ export async function processMunicipalityAssign(
     const zoneIds = assignZonesToPoint(point, zones);
     const terrain = classifyPointTerrain(point, municipalities);
 
-    // Update event row (Layer 1)
+    // Update event row (Layer 1). municipalityAttributionMethod records HOW the
+    // municipality was determined; this path is pure containment, so it is
+    // "containment" on a hit and null when the point falls outside every
+    // boundary (unattributed ⇒ no method to record).
     await platformPrisma.event.update({
       where: { id },
-      data: { municipalityId, municipalityAssignedAt: now, terrain },
+      data: {
+        municipalityId,
+        municipalityAssignedAt: now,
+        municipalityAttributionMethod: municipalityId != null ? "containment" : null,
+        terrain,
+      },
     });
 
     // Upsert junction rows (Layer 2) — idempotent
@@ -161,14 +178,26 @@ export async function processMunicipalityAssign(
     : classifyPointTerrain(point as { lat: number; lon: number }, municipalities);
 
   // Update patrol row (Layer 1) — anti-clobber: a manually-overridden
-  // municipalityId is never overwritten by auto attribution. Terrain +
+  // municipalityId is never overwritten by auto attribution, and neither is its
+  // municipalityAttributionMethod ("manual" must survive). Terrain +
   // covered-zones are geometry-derived and always refresh regardless.
+  //
+  // On the auto path the method is "containment" whenever a municipality was
+  // resolved — this holds for BOTH start-point sources (the recorded
+  // startLocation and the track-first-point fallback), since both feed the same
+  // assignMunicipalityByContainment call. A start outside every boundary stays
+  // unattributed, so the method is null rather than a false "containment" claim.
   const manualOverride = patrol.municipalityManual;
   await platformPrisma.patrol.update({
     where: { id },
     data: manualOverride
       ? { terrain }
-      : { municipalityId, municipalityAssignedAt: now, terrain },
+      : {
+          municipalityId,
+          municipalityAssignedAt: now,
+          municipalityAttributionMethod: municipalityId != null ? "containment" : null,
+          terrain,
+        },
   });
 
   // Upsert junction rows (Layer 2) — idempotent

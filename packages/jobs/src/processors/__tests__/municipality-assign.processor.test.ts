@@ -270,3 +270,135 @@ describe("processMunicipalityAssign — patrol manual-override anti-clobber", ()
     expect(result.skipReason).toBeUndefined();
   });
 });
+
+// Attribution-provenance contract: municipalityAttributionMethod must record
+// HOW municipalityId was resolved. This processor only ever does containment
+// (boundaries-only governing rule — no nearest-guess), so a resolved
+// municipality is "containment" regardless of WHICH start-point source was
+// used, and an unattributed row records null rather than a false claim.
+describe("processMunicipalityAssign — municipalityAttributionMethod provenance", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    pp.municipality.findMany.mockResolvedValue([]);
+    pp.protectedZone.findMany.mockResolvedValue([]);
+  });
+
+  function patrolUpdateData() {
+    return ((pp.patrol.update.mock.calls[0]?.[0] ?? {}) as { data: Record<string, unknown> }).data;
+  }
+
+  it("records containment when the RECORDED start location resolves a municipality", async () => {
+    pp.patrol.findUnique.mockResolvedValueOnce({
+      id: "patrol-prov-1",
+      tenantId: "tenant-1",
+      startLocationLat: 13.4,
+      startLocationLon: 121.2,
+      municipalityId: null,
+      municipalityManual: false,
+      track: null,
+    });
+    mockedAssignByContainment.mockReturnValue("muni-A");
+
+    await processMunicipalityAssign(makeJob({ entity: "patrol", id: "patrol-prov-1" }));
+
+    expect(patrolUpdateData()).toHaveProperty("municipalityAttributionMethod", "containment");
+  });
+
+  it("records containment when the TRACK-FIRST-POINT fallback resolves a municipality (same rule, different source)", async () => {
+    const firstPoint = { lat: 13.9, lon: 121.9 };
+    const trackGeojson = {
+      type: "FeatureCollection",
+      features: [
+        { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [[121.9, 13.9]] } },
+      ],
+    };
+
+    pp.patrol.findUnique.mockResolvedValueOnce({
+      id: "patrol-prov-2",
+      tenantId: "tenant-1",
+      startLocationLat: null,
+      startLocationLon: null,
+      municipalityId: null,
+      municipalityManual: false,
+      track: { trackGeojson },
+    });
+    mockedFirstTrackPoint.mockReturnValue(firstPoint);
+    mockedAssignByContainment.mockReturnValue("muni-A");
+
+    const result = await processMunicipalityAssign(makeJob({ entity: "patrol", id: "patrol-prov-2" }));
+
+    expect(mockedFirstTrackPoint).toHaveBeenCalledWith(trackGeojson);
+    expect(result.municipalityId).toBe("muni-A");
+    expect(patrolUpdateData()).toHaveProperty("municipalityAttributionMethod", "containment");
+  });
+
+  it("records null (not a false 'containment') when the start point falls outside every boundary", async () => {
+    pp.patrol.findUnique.mockResolvedValueOnce({
+      id: "patrol-prov-3",
+      tenantId: "tenant-1",
+      startLocationLat: 5.0,
+      startLocationLon: 100.0,
+      municipalityId: null,
+      municipalityManual: false,
+      track: null,
+    });
+    mockedAssignByContainment.mockReturnValue(null);
+
+    const result = await processMunicipalityAssign(makeJob({ entity: "patrol", id: "patrol-prov-3" }));
+
+    expect(result.municipalityId).toBeNull();
+    expect(patrolUpdateData()).toHaveProperty("municipalityAttributionMethod", null);
+  });
+
+  it("leaves municipalityAttributionMethod untouched for a manual override (anti-clobber covers provenance too)", async () => {
+    pp.patrol.findUnique.mockResolvedValueOnce({
+      id: "patrol-prov-4",
+      tenantId: "tenant-1",
+      startLocationLat: 13.4,
+      startLocationLon: 121.2,
+      municipalityId: "muni-manual-existing",
+      municipalityManual: true,
+      track: null,
+    });
+    mockedAssignByContainment.mockReturnValue("muni-auto-computed");
+
+    await processMunicipalityAssign(makeJob({ entity: "patrol", id: "patrol-prov-4" }));
+
+    expect(patrolUpdateData()).not.toHaveProperty("municipalityAttributionMethod");
+    expect(patrolUpdateData()).not.toHaveProperty("municipalityId");
+  });
+
+  it("skips a patrol with neither a start location nor a track — no point is invented", async () => {
+    pp.patrol.findUnique.mockResolvedValueOnce({
+      id: "patrol-prov-5",
+      tenantId: "tenant-1",
+      startLocationLat: null,
+      startLocationLon: null,
+      municipalityId: null,
+      municipalityManual: false,
+      track: null,
+    });
+
+    const result = await processMunicipalityAssign(makeJob({ entity: "patrol", id: "patrol-prov-5" }));
+
+    expect(result.skipped).toBe(true);
+    expect(result.skipReason).toBe("no_start_location");
+    expect(pp.patrol.update).not.toHaveBeenCalled();
+    expect(mockedAssignByContainment).not.toHaveBeenCalled();
+  });
+
+  it("records containment on the EVENT path when a municipality is resolved", async () => {
+    pp.event.findUnique.mockResolvedValueOnce({
+      id: "event-prov-1",
+      tenantId: "tenant-1",
+      locationLat: 13.4,
+      locationLon: 121.2,
+    });
+    mockedAssignByContainment.mockReturnValue("muni-A");
+
+    await processMunicipalityAssign(makeJob({ entity: "event", id: "event-prov-1" }));
+
+    const data = ((pp.event.update.mock.calls[0]?.[0] ?? {}) as { data: Record<string, unknown> }).data;
+    expect(data).toHaveProperty("municipalityAttributionMethod", "containment");
+  });
+});
