@@ -69,8 +69,10 @@ describe("MapTopRightColumn", () => {
 
     const column = screen.getByTestId("map-top-right-column");
     // Mirrors the left controls column's `left-3 top-3` at `right-3 top-3`.
+    // `lg:` because below that breakpoint the column is bottom-anchored — see
+    // the narrow-viewport suite below.
     expect(column.className).toContain("right-3");
-    expect(column.className).toContain("top-3");
+    expect(column.className).toContain("lg:top-3");
     // Right-anchored, so the w-60 pinned panel and w-72 transient panel share a
     // flush right edge (intended).
     expect(column.className).toContain("items-end");
@@ -78,7 +80,7 @@ describe("MapTopRightColumn", () => {
     // viewports so it never covers the whole map.
     expect(column.className).toContain("max-h-[calc(100%-1.5rem)]");
     expect(column.className).toContain("overflow-y-auto");
-    expect(column.className).toContain("max-w-[calc(100%-1.5rem)]");
+    expect(column.className).toContain("lg:max-w-[calc(100%-1.5rem)]");
   });
 
   it("pins the charts to the Map-controls width and the transient panel to w-72", () => {
@@ -88,7 +90,76 @@ describe("MapTopRightColumn", () => {
       "w-60",
     );
     expect(screen.getByTestId("map-top-right-transient").className).toContain(
-      "w-72",
+      "lg:w-72",
     );
+  });
+
+  // ---------------------------------------------------------------------
+  // Narrow-viewport regression guard (fix 2026-07-20).
+  //
+  // Both this column and the left "Map controls" column were hard `w-60`, so
+  // they collided from ~730px viewport downward — at 393px they sat on
+  // IDENTICAL coordinates and the charts covered the controls card outright.
+  //
+  // jsdom does not evaluate Tailwind's media queries (no CSS is loaded and
+  // there is no layout engine), so these assert the CLASS CONTRACT rather
+  // than computed geometry. The wide-viewport classes are asserted to still
+  // carry the exact pre-regression values, which is the half that was
+  // measured and signed off in a real browser.
+  // ---------------------------------------------------------------------
+  describe("narrow viewports", () => {
+    it("bottom-anchors below lg so it cannot collide with the top-left controls", () => {
+      render(<MapTopRightColumn transient={<div />} />);
+
+      const column = screen.getByTestId("map-top-right-column");
+      // Base (narrow) anchor is the BOTTOM edge...
+      expect(column.className).toContain("bottom-3");
+      // ...and it reverts to the approved top alignment from lg upward.
+      expect(column.className).toContain("lg:bottom-auto");
+      expect(column.className).toContain("lg:top-3");
+      // The unprefixed `top-3` must be gone, or the column would be stretched
+      // between both edges on a phone.
+      expect(column.className).not.toMatch(/(^|\s)top-3(\s|$)/);
+    });
+
+    it("caps its width at 70% of the map below lg so the map stays visible", () => {
+      render(<MapTopRightColumn transient={<div />} />);
+
+      const column = screen.getByTestId("map-top-right-column");
+      expect(column.className).toContain("max-w-[70%]");
+      // The old unprefixed full-bleed clamp is gone below lg.
+      expect(column.className).not.toMatch(
+        /(^|\s)max-w-\[calc\(100%-1\.5rem\)\]/,
+      );
+    });
+
+    it("hides the pinned charts below lg (they are opt-in and unreadable there)", () => {
+      render(<MapTopRightColumn pinned={<div data-testid="charts" />} />);
+
+      const pinned = screen.getByTestId("map-top-right-pinned");
+      // display:none below lg — strictly stronger than `invisible`, so it can
+      // never intercept map pointer events.
+      expect(pinned.className).toContain("hidden");
+      expect(pinned.className).toContain("lg:block");
+    });
+
+    it("keeps the transient panel available below lg (it answers a map tap)", () => {
+      render(<MapTopRightColumn transient={<div data-testid="patrol" />} />);
+
+      // Still mounted and NOT display:none — hiding it would strand the user
+      // after tapping a patrol on a phone.
+      const transient = screen.getByTestId("map-top-right-transient");
+      expect(screen.getByTestId("patrol")).toBeTruthy();
+      expect(transient.className).not.toMatch(/(^|\s)hidden(\s|$)/);
+      // Narrower base width, approved w-72 restored at lg.
+      expect(transient.className).toContain("w-56");
+      expect(transient.className).toContain("lg:w-72");
+    });
+
+    it("still renders nothing when both slots are empty", () => {
+      // The narrow-viewport work must not have introduced an always-on box.
+      render(<MapTopRightColumn />);
+      expect(screen.queryByTestId("map-top-right-column")).toBeNull();
+    });
   });
 });

@@ -797,7 +797,15 @@ export function InteractiveMap({
           collapsible card overlaid on the map's upper-left → the map gets the
           full panel height. */}
       {floating && (
-        <div className="absolute left-3 top-3 z-20 flex max-h-[calc(100%-1.5rem)] w-60 max-w-[calc(100%-1.5rem)] flex-col">
+        /* Responsive width (regression fix 2026-07-20): this column and the
+           upper-RIGHT column were both hard `w-60` (240px), which made them
+           collide from ~730px viewport downward (see MapTopRightColumn for the
+           measured numbers and the full rationale). Below `lg` it steps down to
+           `w-48` and is capped at 60% of the map, so the map stays the dominant
+           surface and the card's own collapse button remains reachable without
+           first dismissing anything. Every `lg:` value is the pre-regression
+           value verbatim — >= 1024px is pixel-identical to before. */
+        <div className="absolute left-3 top-3 z-20 flex max-h-[calc(100%-1.5rem)] w-48 max-w-[60%] flex-col lg:w-60 lg:max-w-[calc(100%-1.5rem)]">
           <TrackLegend
             orientation="vertical"
             collapsible
