@@ -1,0 +1,12 @@
+-- Add `title_hint` to MunicipalityAttributionMethod.
+--
+-- ALTER TYPE ... ADD VALUE is used deliberately: it appends a value while
+-- preserving every existing one and every row that references them. The
+-- DROP/CREATE pattern is FORBIDDEN here — it would discard the provenance
+-- already recorded on attributed patrols and events.
+--
+-- `title_hint` records a value written by the ONE-TIME historical backfill
+-- scripts/backfill-municipality-attribution.ts, where a patrol was attributed
+-- from a whitelisted whole-token hint in its title rather than from geometry.
+-- The live municipality-assign processor never writes this value.
+ALTER TYPE "MunicipalityAttributionMethod" ADD VALUE IF NOT EXISTS 'title_hint';

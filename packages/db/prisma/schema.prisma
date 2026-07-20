@@ -129,6 +129,11 @@ enum BoundarySource {
 enum MunicipalityAttributionMethod {
   containment
   nearest
+  // title_hint — written ONLY by the one-time historical backfill
+  // (scripts/backfill-municipality-attribution.ts) when a patrol was
+  // attributed from a whitelisted whole-token hint in its title. The live
+  // municipality-assign processor never produces this value.
+  title_hint
   manual
 }
 
