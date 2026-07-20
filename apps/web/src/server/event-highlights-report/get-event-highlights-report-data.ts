@@ -160,6 +160,8 @@ export interface TotalPhotoBudgetResult {
  *
  * `photoCount` is deliberately left untouched: it stays the PRE-cap
  * displayable-photo count so the UI can still say "N photos available".
+ * `layout`, by contrast, IS re-derived from the surviving photo count, so a
+ * truncated block never claims a full page it can no longer fill.
  *
  * Pure + exported for unit testing.
  */
@@ -185,7 +187,15 @@ export function applyTotalPhotoBudget(
     // Preserve object identity when nothing was cut — avoids pointless copies
     // for the leading blocks that fit entirely inside the budget.
     if (take === b.photoAssetIds.length) return b;
-    return { ...b, photoAssetIds: b.photoAssetIds.slice(0, take) };
+    // Re-derive the layout hint from the SURVIVING photo count. `photoCount`
+    // stays pre-cap (it drives the "N photos available" text), but a block
+    // starved down to 0-2 photos must not keep a "full" hint or it forces a
+    // fresh 250mm page that renders near-empty.
+    return {
+      ...b,
+      photoAssetIds: b.photoAssetIds.slice(0, take),
+      layout: take <= 2 ? ("half" as const) : ("full" as const),
+    };
   });
 
   return {

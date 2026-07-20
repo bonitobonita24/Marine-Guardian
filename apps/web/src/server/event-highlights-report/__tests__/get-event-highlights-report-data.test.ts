@@ -449,6 +449,25 @@ function budgetBlock(id: string, photos: number): EventHighlightsEventBlock {
 }
 
 describe("applyTotalPhotoBudget", () => {
+  it("re-derives layout from the surviving photo count on a truncated block", () => {
+    // b1 eats 6 of the 7-photo budget; b2 is starved down to 1 photo and must
+    // drop from "full" to "half" so it does not force a near-empty full page.
+    const result = applyTotalPhotoBudget([budgetBlock("b1", 6), budgetBlock("b2", 8)], 7);
+
+    expect(result.blocks[0]?.layout).toBe("full");
+    expect(result.blocks[1]?.photoAssetIds).toHaveLength(1);
+    expect(result.blocks[1]?.layout).toBe("half");
+    // photoCount stays PRE-cap — it drives the "N photos available" text.
+    expect(result.blocks[1]?.photoCount).toBe(8);
+  });
+
+  it("keeps layout 'full' when a truncated block still holds more than 2 photos", () => {
+    const result = applyTotalPhotoBudget([budgetBlock("b1", 2), budgetBlock("b2", 8)], 6);
+
+    expect(result.blocks[1]?.photoAssetIds).toHaveLength(4);
+    expect(result.blocks[1]?.layout).toBe("full");
+  });
+
   it("is a no-op when the total is at or under budget", () => {
     const blocks = [budgetBlock("b1", 8), budgetBlock("b2", 4)];
     const result = applyTotalPhotoBudget(blocks, 120);
@@ -500,8 +519,9 @@ describe("applyTotalPhotoBudget", () => {
     // photoCount is the PRE-cap count and must NOT be rewritten to 0.
     expect(result.blocks[0]?.photoCount).toBe(8);
     expect(result.blocks[1]?.photoCount).toBe(8);
-    // layout is likewise derived from photoCount and stays stable.
-    expect(result.blocks[1]?.layout).toBe("full");
+    // layout, unlike photoCount, DOES follow the surviving photos — a block
+    // starved to zero must not keep a "full" hint and render an empty page.
+    expect(result.blocks[1]?.layout).toBe("half");
   });
 
   it("handles an empty block list", () => {
