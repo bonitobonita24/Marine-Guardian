@@ -1106,3 +1106,333 @@ describe("firstTrackPoint", () => {
     expect(firstTrackPoint({ type: "FeatureCollection", features: [null] })).toBeNull();
   });
 });
+
+// ── Performance optimizations (O1 bbox pre-filter / O3 existence-only water
+// test / O4 early-exit / O5 memoized unwrap / O6 exact-coordinate dedup) —
+// output-equivalence tests. None of these change attribution semantics; each
+// test below proves a specific optimization didn't leak an approximation
+// into a real result.
+
+describe("O1 — bbox pre-filter is an exact short-circuit (on-boundary points still classify)", () => {
+  it("classifies a point exactly ON the bbox's minLon edge as inside (inclusive comparison)", () => {
+    // Calapan fixture's land rectangle starts at lon 121.10 exactly — this
+    // point sits ON that edge, proving the bbox test's `>=`/`<=` (not `>`/`<`)
+    // never wrongly treats an edge point as outside the bbox pre-filter.
+    const result = assignMunicipalityToPoint({ lat: 13.3818, lon: 121.10 }, [calapanMuni]);
+    expect(result).toBe("muni-calapan");
+  });
+
+  it("classifies a point exactly ON the bbox's maxLat edge as inside (inclusive comparison)", () => {
+    const result = assignMunicipalityToPoint({ lat: 13.55, lon: 121.2 }, [calapanMuni]);
+    expect(result).toBe("muni-calapan");
+  });
+
+  it("classifies a point exactly on ALL FOUR corners of the bbox rectangle as inside", () => {
+    const corners: Array<{ lat: number; lon: number }> = [
+      { lat: 13.25, lon: 121.10 },
+      { lat: 13.25, lon: 121.30 },
+      { lat: 13.55, lon: 121.10 },
+      { lat: 13.55, lon: 121.30 },
+    ];
+    for (const corner of corners) {
+      expect(assignMunicipalityToPoint(corner, [calapanMuni])).toBe("muni-calapan");
+    }
+  });
+
+  it("isPointInAnyGeometry: still returns true for a point exactly on the bbox edge", () => {
+    expect(
+      isPointInAnyGeometry({ lat: 13.3818, lon: 121.10 }, [calapanMuni.boundaryGeojson]),
+    ).toBe(true);
+  });
+
+  it("assignZonesToPoint: still returns the zone id for a point exactly on the zone bbox edge", () => {
+    expect(assignZonesToPoint({ lat: 12.6714, lon: 120.40 }, [apoZone])).toContain(
+      "zone-apo-reef",
+    );
+  });
+});
+
+describe("O1 — bbox pre-filter handles MultiPolygon geometry (bare and FeatureCollection-wrapped)", () => {
+  // Two disjoint squares as ONE MultiPolygon boundary — real municipality
+  // boundaries are frequently stored as MultiPolygon (island groups etc.), so
+  // the bbox extractor must span both parts, not just the first.
+  const multiPolyMuni: MunicipalityForAssignment = {
+    id: "muni-multi",
+    slug: "multi",
+    name: "Multi",
+    boundaryGeojson: {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "MultiPolygon",
+            coordinates: [
+              [
+                [
+                  [121.10, 13.25],
+                  [121.20, 13.25],
+                  [121.20, 13.35],
+                  [121.10, 13.35],
+                  [121.10, 13.25],
+                ],
+              ],
+              // Second, disjoint part far to the east — the bbox must extend
+              // to cover it too, or this part's own points would be wrongly
+              // bbox-pre-filtered out.
+              [
+                [
+                  [121.70, 13.45],
+                  [121.80, 13.45],
+                  [121.80, 13.55],
+                  [121.70, 13.55],
+                  [121.70, 13.45],
+                ],
+              ],
+            ],
+          },
+        },
+      ],
+    },
+  };
+
+  it("contains a point inside the FIRST polygon part", () => {
+    expect(assignMunicipalityToPoint({ lat: 13.30, lon: 121.15 }, [multiPolyMuni])).toBe(
+      "muni-multi",
+    );
+  });
+
+  it("contains a point inside the SECOND, disjoint polygon part (proves the bbox spans both parts)", () => {
+    expect(assignMunicipalityToPoint({ lat: 13.50, lon: 121.75 }, [multiPolyMuni])).toBe(
+      "muni-multi",
+    );
+  });
+
+  it("still returns null for a point between the two parts, outside both (and outside 15km buffer)", () => {
+    expect(assignMunicipalityToPoint({ lat: 13.40, lon: 121.45 }, [multiPolyMuni])).toBeNull();
+  });
+
+  it("bare (unwrapped) MultiPolygon geometry — isPointInAnyGeometry still handles it via bbox + PIP", () => {
+    const bareMultiPolygon = {
+      type: "MultiPolygon",
+      coordinates: [
+        [
+          [
+            [121.10, 13.25],
+            [121.20, 13.25],
+            [121.20, 13.35],
+            [121.10, 13.35],
+            [121.10, 13.25],
+          ],
+        ],
+      ],
+    };
+    expect(isPointInAnyGeometry({ lat: 13.30, lon: 121.15 }, [bareMultiPolygon])).toBe(true);
+    expect(isPointInAnyGeometry({ lat: 14.0, lon: 118.0 }, [bareMultiPolygon])).toBe(false);
+  });
+});
+
+describe("O1 — bbox pre-filter handles a bare Feature (not FeatureCollection-wrapped) geometry", () => {
+  it("isPointInAnyGeometry: contains a point inside a bare Feature<Polygon>", () => {
+    const bareFeature = {
+      type: "Feature",
+      properties: {},
+      geometry: {
+        type: "Polygon",
+        coordinates: [
+          [
+            [121.10, 13.25],
+            [121.30, 13.25],
+            [121.30, 13.55],
+            [121.10, 13.55],
+            [121.10, 13.25],
+          ],
+        ],
+      },
+    };
+    expect(isPointInAnyGeometry({ lat: 13.3818, lon: 121.1948 }, [bareFeature])).toBe(true);
+    expect(isPointInAnyGeometry({ lat: 14.0, lon: 118.0 }, [bareFeature])).toBe(false);
+  });
+});
+
+describe("O3 — existence-only water test does not leak into attribution (equidistance tie-break still resolves the winner)", () => {
+  // Same overlapping-water pattern as the module-level equidistance describe
+  // block above, reconstructed locally so this suite is self-contained.
+  const westMuni: MunicipalityForAssignment = {
+    id: "muni-west-o3",
+    slug: "west-o3",
+    name: "West",
+    boundaryGeojson: {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "Polygon",
+            coordinates: [[[121.0, 13.35], [121.1, 13.35], [121.1, 13.45], [121.0, 13.45], [121.0, 13.35]]],
+          },
+        },
+      ],
+    },
+    waterGeojson: {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "Polygon",
+            coordinates: [[[121.0, 13.3], [121.25, 13.3], [121.25, 13.5], [121.0, 13.5], [121.0, 13.3]]],
+          },
+        },
+      ],
+    },
+  };
+  const eastMuni: MunicipalityForAssignment = {
+    id: "muni-east-o3",
+    slug: "east-o3",
+    name: "East",
+    boundaryGeojson: {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "Polygon",
+            coordinates: [[[121.2, 13.35], [121.3, 13.35], [121.3, 13.45], [121.2, 13.45], [121.2, 13.35]]],
+          },
+        },
+      ],
+    },
+    waterGeojson: {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "Polygon",
+            coordinates: [[[121.05, 13.3], [121.3, 13.3], [121.3, 13.5], [121.05, 13.5], [121.05, 13.3]]],
+          },
+        },
+      ],
+    },
+  };
+  const nearEast = { lat: 13.4, lon: 121.18 }; // 0.02 from east coast, 0.08 from west
+  const nearWest = { lat: 13.4, lon: 121.12 }; // 0.02 from west coast, 0.08 from east
+
+  it("assignMunicipalityByContainment still resolves an overlap point to the NEARER coast, in either array order", () => {
+    expect(assignMunicipalityByContainment(nearEast, [westMuni, eastMuni])).toBe("muni-east-o3");
+    expect(assignMunicipalityByContainment(nearEast, [eastMuni, westMuni])).toBe("muni-east-o3");
+    expect(assignMunicipalityByContainment(nearWest, [westMuni, eastMuni])).toBe("muni-west-o3");
+    expect(assignMunicipalityByContainment(nearWest, [eastMuni, westMuni])).toBe("muni-west-o3");
+  });
+
+  it("classifyPointTerrain (which DOES use the existence-only O3 helper) still just returns 'water' for the same overlap points", () => {
+    // classifyPointTerrain never needs to pick a winner — both points are
+    // "water" regardless of which municipality's coast is nearer.
+    expect(classifyPointTerrain(nearEast, [westMuni, eastMuni])).toBe("water");
+    expect(classifyPointTerrain(nearWest, [westMuni, eastMuni])).toBe("water");
+  });
+});
+
+describe("O6 — exact-coordinate dedup does not disturb the dominant-track first-hit tie-break", () => {
+  const calapanContainment: MunicipalityForAssignment = {
+    id: "muni-calapan",
+    slug: "calapan-city",
+    name: "Calapan City",
+    boundaryGeojson: CALAPAN_GEOJSON,
+  };
+  const southContainment: MunicipalityForAssignment = {
+    id: "muni-south",
+    slug: "south",
+    name: "South",
+    boundaryGeojson: {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [121.60, 13.25],
+                [121.80, 13.25],
+                [121.80, 13.55],
+                [121.60, 13.55],
+                [121.60, 13.25],
+              ],
+            ],
+          },
+        },
+      ],
+    },
+  };
+  const featureCollectionFromLineString = (coordinates: Array<[number, number]>) => ({
+    type: "FeatureCollection",
+    features: [
+      { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates } },
+    ],
+  });
+
+  it("tallies EVERY repeated exact-duplicate point occurrence (not just once per distinct coordinate) — a 2-vs-2 tie resolves by earliest first-hit index, Calapan first", () => {
+    // Exact same [lon,lat] pair repeated back-to-back (a stationary vessel) —
+    // the O6 cache must still count both Calapan occurrences AND both South
+    // occurrences, producing a genuine 2-2 tie broken by first-hit order.
+    const track = featureCollectionFromLineString([
+      [121.1948, 13.3818], // Calapan (index 0)
+      [121.1948, 13.3818], // Calapan again, EXACT duplicate (index 1)
+      [121.70, 13.35], // South (index 2)
+      [121.70, 13.35], // South again, EXACT duplicate (index 3)
+    ]);
+    const result = assignMunicipalityToDominantTrackByContainment(track, [
+      calapanContainment,
+      southContainment,
+    ]);
+    expect(result).toBe("muni-calapan");
+  });
+
+  it("same 2-2 tie, but SOUTH's exact-duplicate pair comes first along the track — South wins the tie-break", () => {
+    const track = featureCollectionFromLineString([
+      [121.70, 13.35], // South (index 0)
+      [121.70, 13.35], // South again, EXACT duplicate (index 1)
+      [121.1948, 13.3818], // Calapan (index 2)
+      [121.1948, 13.3818], // Calapan again, EXACT duplicate (index 3)
+    ]);
+    const result = assignMunicipalityToDominantTrackByContainment(track, [
+      calapanContainment,
+      southContainment,
+    ]);
+    expect(result).toBe("muni-south");
+  });
+
+  it("a dedup'd majority still wins outright (not a tie) — 3 exact-duplicate Calapan points outweigh 1 South point", () => {
+    const track = featureCollectionFromLineString([
+      [121.70, 13.35], // South (1 hit)
+      [121.1948, 13.3818], // Calapan
+      [121.1948, 13.3818], // Calapan (exact duplicate)
+      [121.1948, 13.3818], // Calapan (exact duplicate)
+    ]);
+    const result = assignMunicipalityToDominantTrackByContainment(track, [
+      calapanContainment,
+      southContainment,
+    ]);
+    expect(result).toBe("muni-calapan");
+  });
+
+  it("classifyTrackTerrain: exact-duplicate points still tally every occurrence toward the land/water majority vote", () => {
+    // 3 exact-duplicate "water" points vs 1 "land" point — majority is water
+    // even though the water samples collapse to a single cached computation.
+    const track = featureCollectionFromLineString([
+      [121.1948, 13.3818], // land
+      [121.05, 13.4], // water (within 15km buffer)
+      [121.05, 13.4], // water, EXACT duplicate
+      [121.05, 13.4], // water, EXACT duplicate
+    ]);
+    expect(classifyTrackTerrain(track, [calapanContainment])).toBe("water");
+  });
+});
