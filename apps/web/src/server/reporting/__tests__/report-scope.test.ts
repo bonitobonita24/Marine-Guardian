@@ -157,6 +157,74 @@ describe("resolveReportScope — scopeZoneIds", () => {
   });
 });
 
+/**
+ * The full-traversing mode is opt-in and ZONE SCOPE ONLY (owner guardrail).
+ * `resolveReportScope` is the SINGLE enforcement point for that gate, so these
+ * cases pin it here rather than at each downstream consumer.
+ */
+describe("includeTraversingFull zone-scope gate", () => {
+  it("is true only when the flag is set AND a zone is selected", async () => {
+    const scope = await resolveReportScope(TENANT, {
+      municipalityId: "m1",
+      protectedZoneId: "z9",
+      includeTraversingFull: true,
+    });
+    expect(scope.level).toBe("zone");
+    expect(scope.includeTraversingFull).toBe(true);
+  });
+
+  it("is false at municipality scope even when the flag is set", async () => {
+    const scope = await resolveReportScope(TENANT, {
+      municipalityId: "m1",
+      includeTraversingFull: true,
+    });
+    expect(scope.level).toBe("municipality");
+    expect(scope.includeTraversingFull).toBe(false);
+  });
+
+  it("is false at province scope even when the flag is set", async () => {
+    muniFindMany.mockResolvedValue([{ id: "m1" }, { id: "m2" }]);
+    const scope = await resolveReportScope(TENANT, {
+      province: "Mindoro",
+      includeTraversingFull: true,
+    });
+    expect(scope.level).toBe("province");
+    expect(scope.includeTraversingFull).toBe(false);
+  });
+
+  it("is false at tenant scope even when the flag is set", async () => {
+    const scope = await resolveReportScope(TENANT, {
+      includeTraversingFull: true,
+    });
+    expect(scope.level).toBe("tenant");
+    expect(scope.includeTraversingFull).toBe(false);
+  });
+
+  it("defaults to false when the flag is omitted, even with a zone selected", async () => {
+    const scope = await resolveReportScope(TENANT, { protectedZoneId: "z9" });
+    expect(scope.level).toBe("zone");
+    expect(scope.includeTraversingFull).toBe(false);
+  });
+
+  it("is false when the flag is explicitly false with a zone selected", async () => {
+    const scope = await resolveReportScope(TENANT, {
+      protectedZoneId: "z9",
+      includeTraversingFull: false,
+    });
+    expect(scope.includeTraversingFull).toBe(false);
+  });
+
+  it("does not disturb includeTraversing (the two modes are independent flags)", async () => {
+    const scope = await resolveReportScope(TENANT, {
+      protectedZoneId: "z9",
+      includeTraversing: true,
+      includeTraversingFull: true,
+    });
+    expect(scope.includeTraversing).toBe(true);
+    expect(scope.includeTraversingFull).toBe(true);
+  });
+});
+
 describe("buildScopeWhere — deep-equal to today's reportMap where clause", () => {
   it("(a) tenant scope produces the same empty scope clause", async () => {
     const scope = await resolveReportScope(TENANT, {});
@@ -220,6 +288,7 @@ describe("loadScopeGeometries", () => {
     selectedZoneId: "z9",
     scopeZoneIds: ["z9"],
     includeTraversing: false,
+    includeTraversingFull: false,
     includeChildren: false,
   };
 
@@ -300,6 +369,7 @@ describe("loadScopeGeometries", () => {
       selectedZoneId: undefined,
       scopeZoneIds: ["z1"],
       includeTraversing: false,
+      includeTraversingFull: false,
       includeChildren: true,
     });
 

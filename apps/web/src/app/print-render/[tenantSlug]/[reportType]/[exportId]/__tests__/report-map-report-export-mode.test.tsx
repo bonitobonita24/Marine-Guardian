@@ -116,6 +116,9 @@ function buildData(
     isRegionReport: false,
     scopeTitleOverride: null,
     exportMode,
+    // Default traversing mode — this fixture exercises export-mode paging
+    // only; the traversing crediting mode is covered in the loader's tests.
+    traversingMode: "off",
     eventTypeColumns: {},
     charts: {
       lawEnforcement: { key: "law_enforcement", title: "Law Enforcement", total: 0, breakdown: [] },
@@ -289,5 +292,91 @@ describe("ReportMapReport — exportMode split", () => {
     );
     expect(html).toContain("Patrols Traversing Sablayan");
     expect(html).toContain("inside this municipality");
+  });
+
+  // ─── Full-traversing disclosure stamp (2026-07-20) ───────────────────────
+  //
+  // In "full" mode the headline patrol totals intentionally exceed the sum of
+  // the per-patrol rows printed beneath them, and the same patrol is also
+  // counted in its origin municipality's report. The page must say so.
+
+  function stampCount(html: string): number {
+    return html.split('data-testid="traversing-full-stamp"').length - 1;
+  }
+
+  it('renders the stamp on BOTH the totals block and the full-list page in "full" mode', () => {
+    const html = renderToStaticMarkup(
+      <ReportMapReport
+        data={buildData("combined", {
+          traversingPatrols,
+          traversingMode: "full",
+          municipalityName: "Sablayan",
+          scopeTitleOverride: "Apo Reef Natural Park",
+        })}
+      />,
+    );
+    expect(stampCount(html)).toBe(2);
+    expect(html).toContain("Includes full patrols traversing this zone");
+  });
+
+  it('renders NO stamp in "clipped" or "off" mode', () => {
+    for (const mode of ["clipped", "off"] as const) {
+      const html = renderToStaticMarkup(
+        <ReportMapReport
+          data={buildData("combined", {
+            traversingPatrols,
+            traversingMode: mode,
+            municipalityName: "Sablayan",
+            scopeTitleOverride: "Apo Reef Natural Park",
+          })}
+        />,
+      );
+      expect(stampCount(html)).toBe(0);
+      expect(html).not.toContain("Includes full patrols traversing this zone");
+    }
+  });
+
+  it('the traversing page body copy follows the mode ("full" must not claim the patrols are counted elsewhere)', () => {
+    const full = renderToStaticMarkup(
+      <ReportMapReport
+        data={buildData("combined", {
+          traversingPatrols,
+          traversingMode: "full",
+          municipalityName: "Sablayan",
+          scopeTitleOverride: "Apo Reef Natural Park",
+        })}
+      />,
+    );
+    expect(full).toContain("ARE included");
+    expect(full).toContain("must not be added together");
+    expect(full).not.toContain("not here");
+    expect(full).not.toContain("only the portion");
+
+    const clipped = renderToStaticMarkup(
+      <ReportMapReport
+        data={buildData("combined", {
+          traversingPatrols,
+          traversingMode: "clipped",
+          municipalityName: "Sablayan",
+          scopeTitleOverride: "Apo Reef Natural Park",
+        })}
+      />,
+    );
+    expect(clipped).toContain("not here");
+    expect(clipped).not.toContain("ARE included");
+  });
+
+  it('stamp is absent from the "charts" export mode\'s missing full-list page but present on its totals block', () => {
+    const html = renderToStaticMarkup(
+      <ReportMapReport
+        data={buildData("charts", {
+          traversingPatrols,
+          traversingMode: "full",
+          scopeTitleOverride: "Apo Reef Natural Park",
+        })}
+      />,
+    );
+    // Only the Patrol List totals block exists in charts mode.
+    expect(stampCount(html)).toBe(1);
   });
 });

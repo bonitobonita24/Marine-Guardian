@@ -52,8 +52,15 @@ afterEach(() => {
 
 // Read-out probe so we can assert the bar drives the shared context.
 function Probe() {
-  const { from, to, municipalityId, province, includeChildren, protectedZoneId } =
-    useReportFilter();
+  const {
+    from,
+    to,
+    municipalityId,
+    province,
+    includeChildren,
+    includeTraversingFull,
+    protectedZoneId,
+  } = useReportFilter();
   return (
     <div
       data-testid="probe"
@@ -62,6 +69,7 @@ function Probe() {
       data-municipality={municipalityId ?? "null"}
       data-province={province ?? "null"}
       data-include-children={String(includeChildren)}
+      data-include-traversing-full={String(includeTraversingFull)}
       data-zone={protectedZoneId ?? "null"}
     />
   );
@@ -625,5 +633,172 @@ describe("ReportFilterBar — stacked toggle row layout", () => {
     expect(screen.getByTestId("report-include-traversing").id).toBe(
       "report-include-traversing",
     );
+  });
+});
+
+/** "Count full traversing patrols" — the zone-scoped, default-OFF, opt-in
+ *  exception to the count-at-origin rule (2026-07-20 owner request). Every
+ *  test here asserts the CONTEXT STATE as well as the DOM where a hidden-but-
+ *  still-applying toggle would be the real bug. */
+describe("ReportFilterBar — count full traversing patrols (zone scope only)", () => {
+  const ZONES = [
+    {
+      id: "z-1",
+      name: "Zone One",
+      slug: "zone-one",
+      category: "mpa",
+      parentMunicipalityId: "m-1",
+    },
+    {
+      id: "z-2",
+      name: "Zone Two",
+      slug: "zone-two",
+      category: "mpa",
+      parentMunicipalityId: "m-2",
+    },
+  ];
+
+  function fullToggleState(): string | null {
+    return screen
+      .getByTestId("probe")
+      .getAttribute("data-include-traversing-full");
+  }
+
+  /** Get to "a specific zone is selected" from the all-municipalities scope,
+   *  where the zone dropdown is visible without the Rule 3(b) child gate. */
+  async function selectZoneOne() {
+    await openAndPick("report-protected-zone", "Zone One");
+    await waitFor(() => {
+      expect(screen.getByTestId("probe").getAttribute("data-zone")).toBe("z-1");
+    });
+  }
+
+  it("is absent while the zone select is showing but no specific zone is chosen", () => {
+    stubs.protectedZones = ZONES;
+    renderBar();
+    // "All zones" is the default → the select is there, the toggle is not.
+    expect(screen.getByTestId("report-protected-zone")).toBeTruthy();
+    expect(screen.queryByTestId("report-include-traversing-full")).toBeNull();
+  });
+
+  it("is absent when the zone filter itself is hidden", async () => {
+    // Rule 3(b): at a SPECIFIC municipality with "Include child boundaries"
+    // OFF the whole zone block is hidden — the toggle lives inside it.
+    stubs.protectedZones = ZONES;
+    renderBar();
+    await openAndPick("report-municipality", "Calapan City"); // m-1
+    await waitFor(() => {
+      expect(screen.queryByTestId("report-protected-zone")).toBeNull();
+    });
+    expect(screen.queryByTestId("report-include-traversing-full")).toBeNull();
+  });
+
+  it("appears once a specific zone is selected, and defaults to OFF", async () => {
+    stubs.protectedZones = ZONES;
+    renderBar();
+    expect(fullToggleState()).toBe("false");
+
+    await selectZoneOne();
+
+    const toggle = await screen.findByTestId("report-include-traversing-full");
+    expect(toggle).toBeTruthy();
+    // Default OFF — nothing changes for an existing report until someone
+    // deliberately enables it.
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    expect(fullToggleState()).toBe("false");
+  });
+
+  it("renders directly UNDER the MPA Zone select", async () => {
+    stubs.protectedZones = ZONES;
+    renderBar();
+    await selectZoneOne();
+
+    const zoneSelect = screen.getByTestId("report-protected-zone");
+    const toggle = await screen.findByTestId("report-include-traversing-full");
+    expect(
+      zoneSelect.compareDocumentPosition(toggle) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("associates the switch with its label via htmlFor/id", async () => {
+    stubs.protectedZones = ZONES;
+    renderBar();
+    await selectZoneOne();
+
+    const label = screen.getByText("Count full traversing patrols");
+    expect(label.getAttribute("for")).toBe("report-include-traversing-full");
+    expect(screen.getByTestId("report-include-traversing-full").id).toBe(
+      "report-include-traversing-full",
+    );
+  });
+
+  it("drives the shared context when flipped on", async () => {
+    stubs.protectedZones = ZONES;
+    renderBar();
+    await selectZoneOne();
+
+    fireEvent.click(await screen.findByTestId("report-include-traversing-full"));
+    await waitFor(() => {
+      expect(fullToggleState()).toBe("true");
+    });
+  });
+
+  it("is INDEPENDENT of 'Include traversing patrols' (never coupled)", async () => {
+    stubs.protectedZones = ZONES;
+    renderBar();
+    await selectZoneOne();
+
+    fireEvent.click(await screen.findByTestId("report-include-traversing-full"));
+    await waitFor(() => {
+      expect(fullToggleState()).toBe("true");
+    });
+    // The clipped-mode switch is untouched by the full-mode switch.
+    expect(
+      screen
+        .getByTestId("report-include-traversing")
+        .getAttribute("aria-checked"),
+    ).toBe("false");
+  });
+
+  it("selecting 'All zones' resets it to false (state, not just DOM)", async () => {
+    stubs.protectedZones = ZONES;
+    renderBar();
+    await selectZoneOne();
+
+    fireEvent.click(await screen.findByTestId("report-include-traversing-full"));
+    await waitFor(() => {
+      expect(fullToggleState()).toBe("true");
+    });
+
+    // Clearing back to the "all zones" sentinel removes the toggle's target —
+    // a hidden ON must never keep applying.
+    await openAndPick("report-protected-zone", "All zones");
+    await waitFor(() => {
+      expect(screen.getByTestId("probe").getAttribute("data-zone")).toBe("null");
+    });
+    expect(fullToggleState()).toBe("false");
+    expect(screen.queryByTestId("report-include-traversing-full")).toBeNull();
+  });
+
+  it("broadening to 'all municipalities' resets it to false (state, not just DOM)", async () => {
+    stubs.protectedZones = ZONES;
+    renderBar();
+    await selectZoneOne();
+
+    fireEvent.click(await screen.findByTestId("report-include-traversing-full"));
+    await waitFor(() => {
+      expect(fullToggleState()).toBe("true");
+    });
+
+    // Pick a municipality, then broaden back to "All municipalities".
+    await openAndPick("report-municipality", "Calapan City");
+    await openAndPick("report-municipality", "All municipalities");
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("probe").getAttribute("data-municipality"),
+      ).toBe("null");
+    });
+    expect(fullToggleState()).toBe("false");
   });
 });

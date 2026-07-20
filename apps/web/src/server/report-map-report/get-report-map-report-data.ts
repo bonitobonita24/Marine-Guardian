@@ -52,7 +52,13 @@ import {
   type MemberContainment,
   type TraversingMember,
   type TraversingPatrolMeta,
+  type TraversingWindow,
 } from "../reporting/traversing-coverage";
+import {
+  collectFullTraversingPatrols,
+  type FullTraversingPatrolRow,
+  type FullTraversingResult,
+} from "../reporting/full-traversing-coverage";
 import {
   buildSingleCountSeries,
   dayKeyToLabel,
@@ -330,6 +336,35 @@ export function buildPatrolTypeTotals(
   return totals;
 }
 
+/**
+ * Fold FULL-traversing patrols into the per-type totals (seaborne vs foot),
+ * returning a NEW totals object (pure — never mutates its input).
+ *
+ * Mirrors `buildPatrolTypeTotals`' conventions exactly: each row adds +1 to
+ * its type's count and its FULL km/hours, and rows whose `patrolType` is
+ * neither "seaborne" nor "foot" are IGNORED (this chart only covers the two
+ * known types). Only ever called in `traversingMode === "full"`; the rows
+ * handed in are already deduped and already exclude every patrol present in
+ * `patrolBreakdown`, so a patrol can never land in a bucket twice.
+ */
+export function applyFullTraversingToTypeTotals(
+  base: { seaborne: PatrolTypeTotal; foot: PatrolTypeTotal },
+  rows: readonly FullTraversingPatrolRow[],
+): { seaborne: PatrolTypeTotal; foot: PatrolTypeTotal } {
+  const totals = {
+    seaborne: { ...base.seaborne },
+    foot: { ...base.foot },
+  };
+  for (const r of rows) {
+    if (r.patrolType !== "seaborne" && r.patrolType !== "foot") continue;
+    const bucket = totals[r.patrolType];
+    bucket.count += 1;
+    bucket.hours += r.fullHours;
+    bucket.km += r.fullKm;
+  }
+  return totals;
+}
+
 // ─── Traversing patrols (appended page, 2026-07-16) ──────────────────────────
 
 /**
@@ -392,6 +427,24 @@ export interface TraversingPatrolsData {
   seaborne: TraversingPatrolsSubtotal;
   total: TraversingPatrolsSubtotal;
 }
+
+/**
+ * Which traversing-crediting mode this report was rendered in — the SINGLE
+ * contract between this loader and the print page. The page must render from
+ * THIS field and must never re-derive the mode from the raw params or the
+ * scope level (duplicating the gate is how it drifts out of sync).
+ *
+ *   "off"     — no traversing dataset at all.
+ *   "clipped" — DEFAULT. Traversing patrols contribute only their clipped
+ *               inside-boundary portion, on their own appended page. The
+ *               headline `patrolTotals` still equals the sum of the printed
+ *               patrol rows.
+ *   "full"    — opt-in, ZONE SCOPE ONLY. Traversing patrols are COUNTED and
+ *               contribute their FULL distance/time to `patrolTotals`, which
+ *               therefore DELIBERATELY exceeds the sum of the printed rows.
+ *               The page MUST carry a visible stamp saying so.
+ */
+export type ReportMapTraversingMode = "off" | "clipped" | "full";
 
 export interface PatrolListChartData {
   key: "patrol_list";
@@ -537,6 +590,15 @@ export interface ReportMapReportData {
    * (patrol, credited member) — see `TraversingPatrolRow`).
    */
   traversingPatrols?: TraversingPatrolsData | undefined;
+  /**
+   * Which traversing-crediting mode produced this payload (2026-07-20) — see
+   * `ReportMapTraversingMode`. This is the ONLY thing the print page reads to
+   * decide (a) whether to render the traversing page, (b) what that page's
+   * title/copy says, and (c) whether to stamp the totals block with
+   * "Includes full patrols traversing this zone". Always present, so the page
+   * never has to re-derive the mode from params or scope level.
+   */
+  traversingMode: ReportMapTraversingMode;
   charts: {
     lawEnforcement: LawEnforcementChartData;
     monitoring: MonitoringChartData;
@@ -604,6 +666,13 @@ interface ParsedReportMapParams {
    */
   includeTraversing?: boolean;
   /**
+   * Full-traversing toggle (2026-07-20) — opt-in, ZONE SCOPE ONLY, default
+   * off. Semantics and the zone-scope-only gate are defined ONCE on
+   * `ReportScope.includeTraversingFull` (see `server/reporting/report-scope.ts`);
+   * this field only carries the raw request flag to `resolveReportScope`.
+   */
+  includeTraversingFull?: boolean;
+  /**
    * Only set when `paramsJson.exportMode` is a recognised
    * `ReportMapExportMode` string. Absent (undefined) for every other input
    * — callers apply the "combined" default themselves (see
@@ -642,6 +711,9 @@ export function parseReportMapParams(paramsJson: unknown): ParsedReportMapParams
   }
   if (typeof p.includeTraversing === "boolean") {
     out.includeTraversing = p.includeTraversing;
+  }
+  if (typeof p.includeTraversingFull === "boolean") {
+    out.includeTraversingFull = p.includeTraversingFull;
   }
   if (
     typeof p.exportMode === "string" &&
@@ -949,6 +1021,94 @@ async function buildTraversingPatrols(
   return { rows, foot, seaborne, total };
 }
 
+/**
+ * Renders the FULL-traversing result as the appended-page dataset, so the
+ * existing "Patrols Traversing X" page can print either mode without knowing
+ * which one it got.
+ *
+ * The one structural difference from `buildTraversingPatrols`: `insideKm` /
+ * `insideHoursEst` carry the patrol's FULL figures rather than the clipped
+ * inside-boundary portion, because in this mode the whole patrol is credited
+ * to the zone. The field NAMES are reused deliberately — the page's table
+ * renders the same columns; slice 5's stamp/copy is what tells the reader the
+ * numbers mean "whole patrol" here.
+ *
+ * ⚠ Called ONLY when `traversingMode === "full"`. It and
+ * `buildTraversingPatrols` are mutually exclusive; running both would credit
+ * the same patrols twice.
+ */
+async function buildFullTraversingPatrolsData(
+  tenantId: string,
+  members: ScopeGeometryMember[],
+  rows: readonly FullTraversingPatrolRow[],
+): Promise<TraversingPatrolsData> {
+  const initSubtotal = (): TraversingPatrolsSubtotal => ({
+    count: 0,
+    insideKm: 0,
+    insideHoursEst: 0,
+  });
+
+  // The credited boundary is the SELECTED ZONE (this mode is zone-scope only,
+  // enforced in `resolveReportScope`). Names are resolved the same way
+  // `buildTraversingPatrols` resolves them, per member kind.
+  const municipalityMemberIds = members
+    .filter((m) => m.kind === "municipality")
+    .map((m) => m.id);
+  const zoneMemberIds = members.filter((m) => m.kind === "zone").map((m) => m.id);
+
+  const [muniNameRows, zoneNameRows] = await Promise.all([
+    municipalityMemberIds.length > 0
+      ? prisma.municipality.findMany({
+          where: { id: { in: municipalityMemberIds } },
+          select: { id: true, name: true },
+        })
+      : Promise.resolve([]),
+    zoneMemberIds.length > 0
+      ? prisma.protectedZone.findMany({
+          where: { tenantId, id: { in: zoneMemberIds } },
+          select: { id: true, name: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const nameById = new Map<string, string>();
+  for (const r of muniNameRows) nameById.set(r.id, r.name);
+  for (const r of zoneNameRows) nameById.set(r.id, r.name);
+
+  const firstMember = members[0];
+  const creditedMunicipalityName =
+    firstMember === undefined
+      ? "Unnamed boundary"
+      : (nameById.get(firstMember.id) ?? "Unnamed boundary");
+
+  const mapped: TraversingPatrolRow[] = rows.map((r) => ({
+    patrolId: r.patrolId,
+    title: r.title,
+    patrolType: r.patrolType,
+    startMunicipalityName: r.startMunicipalityName,
+    creditedMunicipalityName,
+    // FULL figures — not the clipped inside-portion. See the doc block above.
+    insideKm: r.fullKm,
+    insideHoursEst: r.fullHours,
+  }));
+
+  const foot = initSubtotal();
+  const seaborne = initSubtotal();
+  for (const r of mapped) {
+    const bucket = r.patrolType === "foot" ? foot : seaborne;
+    bucket.count += 1;
+    bucket.insideKm += r.insideKm;
+    bucket.insideHoursEst += r.insideHoursEst;
+  }
+  const total: TraversingPatrolsSubtotal = {
+    count: foot.count + seaborne.count,
+    insideKm: foot.insideKm + seaborne.insideKm,
+    insideHoursEst: foot.insideHoursEst + seaborne.insideHoursEst,
+  };
+
+  return { rows: mapped, foot, seaborne, total };
+}
+
 // ─── Main loader ──────────────────────────────────────────────────────────────
 
 export async function getReportMapReportData(
@@ -1023,6 +1183,7 @@ export async function getReportMapReportData(
     protectedZoneId: params.protectedZoneId,
     includeChildren: params.includeChildren,
     includeTraversing: params.includeTraversing,
+    includeTraversingFull: params.includeTraversingFull,
   };
 
   // Resolve the report's scope ONCE (2026-07-20 scope/clip divergence fix).
@@ -1288,21 +1449,78 @@ export async function getReportMapReportData(
   // variable, its own payload key and its own page, and never feeds
   // patrolTotals / patrolBreakdown / patrolList.total.
   //
-  // ✅ OWNER DECIDED (2026-07-20) — this is no longer an open question:
-  // traversing coverage STAYS on its own page and is NOT folded into the
-  // headline patrolTotals. Reason: the headline totals must stay
-  // reconcilable with the patrol table printed beneath them (both are
-  // whole-patrol DB columns for patrols that STARTED in scope). Adding
-  // traversing time/distance would make the header stop equalling the sum of
-  // the rows under it. Do not "unify" these two numbers.
-  const traversingPatrols: TraversingPatrolsData | undefined =
-    params.includeTraversing === true && scopeMembers.length > 0
-      ? await buildTraversingPatrols(
+  // ✅ OWNER DECIDED (2026-07-20) — STILL THE DEFAULT, and still true for
+  // CLIPPED mode at EVERY scope: traversing coverage STAYS on its own page
+  // and is NOT folded into the headline patrolTotals. Reason: the headline
+  // totals must stay reconcilable with the patrol table printed beneath them
+  // (both are whole-patrol DB columns for patrols that STARTED in scope).
+  // Adding clipped traversing time/distance would make the header stop
+  // equalling the sum of the rows under it. Do not "unify" those two numbers.
+  //
+  // ⚠ NARROWED (owner, 2026-07-20) — ONE explicit, opt-in, default-OFF
+  // exception: `includeTraversingFull` at ZONE SCOPE ONLY (`traversingMode
+  // === "full"`). Rationale: no patrol can ever START inside a small offshore
+  // MPA — you cannot reach Apo Reef without departing Sablayan — so an
+  // origin-only count reports nearly nothing for such a zone, even though the
+  // transit IS patrol effort spent on it. In THAT mode the headline
+  // DELIBERATELY stops equalling the sum of the rows beneath it: the counted
+  // patrols are credited in full but are NOT added to `patrolBreakdown` (the
+  // printed per-patrol table stays the origin-in-zone list). That divergence
+  // is intended, which is exactly why the rendered page MUST carry a visible
+  // stamp saying the totals include full traversing patrols (slice 5). The
+  // default path above is untouched by any of this.
+  const traversingMode: ReportMapTraversingMode =
+    scope.includeTraversingFull && scopeMembers.length > 0
+      ? "full"
+      : params.includeTraversing === true && scopeMembers.length > 0
+        ? "clipped"
+        : "off";
+
+  // FULL mode's patrol set, computed ONCE and reused by both the headline
+  // fold-in below and the appended page. `undefined` in every other mode.
+  //
+  // EXCLUSION SET = the ids of `patrolRows`, i.e. the exact rows
+  // `patrolFilter` selected and that `patrolBreakdown`/`patrolTotals` are
+  // built from. Deriving it from the already-fetched rows (rather than
+  // re-issuing the same `findMany` with `select: { id: true }`) is what makes
+  // the anti-double-credit guarantee structural: a patrol already counted in
+  // the headline is provably in this set, and `collectFullTraversingPatrols`
+  // skips it. There is no `take` on that query, so the set is complete.
+  // Built under `exactOptionalPropertyTypes` — an explicit `undefined` is not
+  // assignable to `TraversingWindow`'s optional bounds, so omit absent bounds.
+  const traversingWindow: TraversingWindow = {};
+  if (params.from !== undefined) traversingWindow.from = params.from;
+  if (params.to !== undefined) traversingWindow.to = params.to;
+
+  const fullTraversing: FullTraversingResult | undefined =
+    traversingMode === "full"
+      ? await collectFullTraversingPatrols(
           tenant.id,
-          { from: params.from, to: params.to },
+          traversingWindow,
           scopeMembers,
+          new Set(patrolRows.map((p) => p.id)),
         )
       : undefined;
+
+  // STRICTLY MUTUALLY EXCLUSIVE — a traversing patrol contributes EITHER its
+  // clipped inside-zone portion OR its full figures, NEVER both. The two
+  // builders must never both run for one report.
+  let traversingPatrols: TraversingPatrolsData | undefined;
+  if (traversingMode === "full" && fullTraversing !== undefined) {
+    traversingPatrols = await buildFullTraversingPatrolsData(
+      tenant.id,
+      scopeMembers,
+      fullTraversing.rows,
+    );
+  } else if (traversingMode === "clipped") {
+    traversingPatrols = await buildTraversingPatrols(
+      tenant.id,
+      { from: params.from, to: params.to },
+      scopeMembers,
+    );
+  } else {
+    traversingPatrols = undefined;
+  }
 
   // Partner logo default fallback: the editor form promises "leave empty to
   // use Blue Alliance default" (report-template-form.tsx) — honor it here so
@@ -1383,6 +1601,19 @@ export async function getReportMapReportData(
     totalKm: patrolBreakdown.reduce((s, p) => s + (p.distanceKm ?? 0), 0),
   };
 
+  // FULL-TRAVERSING FOLD-IN (2026-07-20, zone scope only, default OFF).
+  // Applied AFTER the base totals are derived from `patrolBreakdown`, so the
+  // default path above is byte-identical to what it always produced. The
+  // folded patrols are deliberately NOT pushed into `patrolBreakdown` — the
+  // printed per-patrol table stays the origin-in-zone list, so `count` here
+  // intentionally exceeds `patrolBreakdown.length`. See the traversingMode
+  // block above; the page carries a visible stamp for exactly this reason.
+  if (fullTraversing !== undefined) {
+    patrolTotals.count += fullTraversing.count;
+    patrolTotals.totalHours += fullTraversing.hours;
+    patrolTotals.totalKm += fullTraversing.km;
+  }
+
   // Bucket patrols by startTime + patrolType. When both range bounds are
   // present, reuse the SAME adaptive month/week/day bucketing (continuous,
   // zero-filled, no truncation) that the /map "Events vs Patrols Over Time"
@@ -1453,7 +1684,14 @@ export async function getReportMapReportData(
     patrolHeatPoints: buildPatrolHeatPoints(tracks),
   };
 
-  const patrolTypeTotals = buildPatrolTypeTotals(patrolBreakdown);
+  // Same fold-in, same ordering rationale: base totals first (unchanged on
+  // the default path), then the full-traversing rows on top when the
+  // zone-scope toggle is on.
+  const basePatrolTypeTotals = buildPatrolTypeTotals(patrolBreakdown);
+  const patrolTypeTotals =
+    fullTraversing !== undefined
+      ? applyFullTraversingToTypeTotals(basePatrolTypeTotals, fullTraversing.rows)
+      : basePatrolTypeTotals;
 
   // ─── Events Over Time chart ───────────────────────────────────────────────
   const overviewPoints: ReportMapEventPoint[] = [];
@@ -1581,6 +1819,7 @@ export async function getReportMapReportData(
     exportMode: params.exportMode ?? "combined",
     eventTypeColumns,
     traversingPatrols,
+    traversingMode,
     charts: {
       lawEnforcement,
       monitoring,

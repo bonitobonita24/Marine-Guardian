@@ -231,6 +231,15 @@ type InteractiveMapProps = {
    *  `traversing` / `insideKm` / `insideHoursEst` so the caller can tell
    *  them apart and render the clipped coverage. */
   includeTraversing?: boolean;
+  /** Optional "count full traversing patrols" toggle (Interactive Report Map,
+   *  ZONE SCOPE ONLY). When true, patrols that merely traverse the selected
+   *  protected zone are still returned, but each such track's
+   *  `insideKm`/`insideHoursEst` carry the patrol's FULL distance/time rather
+   *  than the clipped inside-the-zone portion — superseding, never adding to,
+   *  `includeTraversing`'s clipped crediting (the server enforces the
+   *  exclusivity). The "Traversing coverage" readout therefore sums full
+   *  patrol effort in this mode, agreeing with the KPI tiles and the PDF. */
+  includeTraversingFull?: boolean;
   /**
    * Patrol-track overlay source (2026-06-27):
    *   "active"  (default) — most-recent patrols' tracks, live (Command Center /
@@ -340,6 +349,7 @@ export function InteractiveMap({
   province,
   includeChildren,
   includeTraversing,
+  includeTraversingFull,
   trackMode = "active",
   displayMode: initialDisplayMode = "dots",
   defaultEventLayers,
@@ -420,6 +430,7 @@ export function InteractiveMap({
       ...(province !== undefined ? { province } : {}),
       ...(includeChildren !== undefined ? { includeChildren } : {}),
       ...(includeTraversing !== undefined ? { includeTraversing } : {}),
+      ...(includeTraversingFull !== undefined ? { includeTraversingFull } : {}),
     },
     { enabled: useInRangeTracks },
   );
@@ -506,7 +517,14 @@ export function InteractiveMap({
     // insideKm/insideHoursEst — read directly from it (not the merged
     // `tracksData`, whose type unions with the `active` query's plain shape
     // and would lose these fields).
-    if (includeTraversing !== true || !useInRangeTracks) return null;
+    // Full mode also returns traversing tracks (with FULL distance/time in
+    // insideKm/insideHoursEst), so the readout must not vanish when only the
+    // full-traversing toggle is on.
+    if (
+      (includeTraversing !== true && includeTraversingFull !== true) ||
+      !useInRangeTracks
+    )
+      return null;
     const tracks = inRangeTracksQuery.data?.tracks ?? [];
     let km = 0;
     let hours = 0;
@@ -519,7 +537,12 @@ export function InteractiveMap({
     }
     if (count === 0) return null;
     return { km, hours, count };
-  }, [includeTraversing, useInRangeTracks, inRangeTracksQuery.data]);
+  }, [
+    includeTraversing,
+    includeTraversingFull,
+    useInRangeTracks,
+    inRangeTracksQuery.data,
+  ]);
 
   // Selected-patrol track isolation (2026-07-03): while a patrol is selected
   // via the CONTROLLED prop (Report Map list / track click), the all-tracks

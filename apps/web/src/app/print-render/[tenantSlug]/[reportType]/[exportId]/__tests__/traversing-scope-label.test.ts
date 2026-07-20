@@ -17,6 +17,7 @@ function input(
   overrides: Partial<TraversingScopeLabelInput> = {},
 ): TraversingScopeLabelInput {
   return {
+    mode: "clipped",
     scopeTitleOverride: null,
     isRegionReport: false,
     municipalityName: null,
@@ -133,6 +134,71 @@ describe("resolveTraversingScopeLabel", () => {
       );
       expect(label.name).toBe("Apo Reef Natural Park");
       expect(label.heading).toBe("Patrols Traversing Apo Reef Natural Park");
+    });
+  });
+
+  // ─── mode: clipped vs full (2026-07-20) ─────────────────────────────────
+  //
+  // The full-traversing toggle inverts the meaning of this page: in "clipped"
+  // mode these patrols are counted at their ORIGIN and only their inside-zone
+  // portion is shown; in "full" mode they ARE counted here, in full. Printing
+  // the clipped copy in full mode would be a factually FALSE statement on a
+  // funder-facing report, so the copy must follow the mode.
+  describe("mode", () => {
+    const zone = {
+      scopeTitleOverride: "Apo Reef Natural Park",
+      municipalityName: "Sablayan",
+    } as const;
+
+    it("clipped copy is byte-identical to the pre-toggle wording", () => {
+      const label = resolveTraversingScopeLabel(
+        input({ ...zone, mode: "clipped" }),
+      );
+      expect(label.note).toBe(
+        "These patrols started outside Apo Reef Natural Park and are counted " +
+          "where they started, not here. Distance and time shown are only the " +
+          "portion inside this zone; time is estimated (proportional to distance).",
+      );
+    });
+
+    it("full copy drops the two claims that become false", () => {
+      const label = resolveTraversingScopeLabel(
+        input({ ...zone, mode: "full" }),
+      );
+      expect(label.note).not.toContain("not here");
+      expect(label.note).not.toContain("only the portion");
+    });
+
+    it("full copy states these patrols ARE counted here, in full, and warns against summing reports", () => {
+      const label = resolveTraversingScopeLabel(
+        input({ ...zone, mode: "full" }),
+      );
+      expect(label.note).toContain("Apo Reef Natural Park");
+      expect(label.note).toContain("ARE included");
+      expect(label.note).toContain("full patrol distance and time");
+      expect(label.note).toContain("must not be added together");
+    });
+
+    it("heading and caption are identical in both modes", () => {
+      const clipped = resolveTraversingScopeLabel(
+        input({ ...zone, mode: "clipped" }),
+      );
+      const full = resolveTraversingScopeLabel(input({ ...zone, mode: "full" }));
+      expect(full.heading).toBe(clipped.heading);
+      expect(full.heading).toBe("Patrols Traversing Apo Reef Natural Park");
+      expect(full.caption).toBe(clipped.caption);
+      expect(full.kind).toBe(clipped.kind);
+    });
+
+    it("full copy still uses the resolved scope noun at non-zone scopes", () => {
+      // Full crediting is gated to zone scope upstream (Slice 1), but the
+      // resolver must not silently mislabel if it is ever reached elsewhere.
+      const label = resolveTraversingScopeLabel(
+        input({ mode: "full", municipalityName: "Sablayan" }),
+      );
+      expect(label.note).toContain("started outside Sablayan");
+      expect(label.note).toContain("transit outside this municipality");
+      expect(label.note).not.toContain("not here");
     });
   });
 });

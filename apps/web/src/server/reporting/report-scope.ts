@@ -39,6 +39,7 @@ export interface ReportScopeInput {
   protectedZoneId?: string | undefined;
   includeChildren?: boolean | undefined;
   includeTraversing?: boolean | undefined;
+  includeTraversingFull?: boolean | undefined;
 }
 
 export interface ReportScope {
@@ -56,6 +57,27 @@ export interface ReportScope {
    */
   scopeZoneIds: string[];
   includeTraversing: boolean;
+  /**
+   * Full-traversing mode (owner, 2026-07-20) — opt-in, ZONE SCOPE ONLY.
+   *
+   * When true, a patrol that merely ENTERS the selected zone is COUNTED (+1)
+   * and contributes its FULL distance and FULL time (including transit that
+   * never entered the zone), superseding the inside-portion crediting that
+   * `includeTraversing` applies to those same patrols. Rationale: no patrol
+   * can ever START inside a small offshore MPA (you cannot reach Apo Reef
+   * without departing Sablayan), so an origin-only count reports nearly
+   * nothing for such a zone.
+   *
+   * THIS FIELD IS THE SINGLE ENFORCEMENT POINT for the owner's guardrail that
+   * the mode exists at ZONE SCOPE ONLY. A caller passing
+   * `includeTraversingFull: true` alongside a municipality-, province- or
+   * tenant-level filter gets `false` here.
+   *
+   * Downstream consumers MUST branch on `scope.includeTraversingFull` alone
+   * and MUST NOT re-check the raw input flag or `scope.level` themselves —
+   * duplicating the gate is how it drifts out of sync.
+   */
+  includeTraversingFull: boolean;
   includeChildren: boolean;
 }
 
@@ -95,6 +117,11 @@ export async function resolveReportScope(
     level = "tenant";
   }
 
+  // Computed AFTER `level` on purpose — this is the single zone-scope-only
+  // gate for the full-traversing mode (see ReportScope.includeTraversingFull).
+  const includeTraversingFull =
+    input.includeTraversingFull === true && level === "zone";
+
   return {
     level,
     municipalityIds,
@@ -102,6 +129,7 @@ export async function resolveReportScope(
     selectedZoneId,
     scopeZoneIds: selectedZoneId !== undefined ? [selectedZoneId] : childZoneIds,
     includeTraversing,
+    includeTraversingFull,
     includeChildren,
   };
 }

@@ -774,11 +774,32 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
   // zone-scoped, the province in region mode, the municipality otherwise —
   // so they agree with the table's per-scope distance column. Reuses the same
   // resolved scope the header consumes (see resolveTraversingScopeLabel).
+  //
+  // The crediting MODE is read from the single `data.traversingMode` field the
+  // loader derives (see get-report-map-report-data.ts) — never re-derived here
+  // from params or scope level. In "full" mode the body copy must not claim
+  // these patrols are counted elsewhere and not here, because they ARE counted
+  // here.
+  const isFullTraversing = data.traversingMode === "full";
   const traversingScope = resolveTraversingScopeLabel({
+    mode: isFullTraversing ? "full" : "clipped",
     scopeTitleOverride: data.scopeTitleOverride,
     isRegionReport: data.isRegionReport,
     municipalityName: data.municipalityName,
   });
+
+  // Full-mode disclosure stamp (2026-07-20). In "full" mode the headline patrol
+  // totals deliberately EXCEED the sum of the per-patrol rows printed beneath
+  // them (full-traversing patrols fold into the totals but not into
+  // patrolBreakdown), and the same patrol is also counted in its origin
+  // municipality's report. A reader must never meet two different counts for
+  // the same zone and dates with no explanation on the page, so both the
+  // totals block and the standalone full-list page carry this stamp.
+  const traversingFullStamp = isFullTraversing ? (
+    <p className="traversing-full-stamp" data-testid="traversing-full-stamp">
+      Includes full patrols traversing this zone
+    </p>
+  ) : null;
 
   const headerProps: HeaderProps = {
     municipalLogoDataUri: data.template.municipalLogoDataUri,
@@ -1068,6 +1089,14 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
        Total row bumped to a heavier border/weight (mirrors
        .total-patrols-table tfoot) so it reads as the grand total. */
     p.traversing-note { font-size: 10px; color: #6b7280; margin: 4px 0 10px; font-style: italic; }
+    /* Full-traversing disclosure stamp (2026-07-20) — sibling of
+       .traversing-note, deliberately a notch darker/heavier than that muted
+       italic caption: this is a factual qualifier on the totals a funder
+       reads, so it must be legible in print, never a faint watermark. */
+    p.traversing-full-stamp {
+      font-size: 10px; font-weight: 600; color: #374151;
+      margin: 4px 0 8px; padding-left: 6px; border-left: 2px solid #9ca3af;
+    }
     table.report-table.traversing-table tfoot th,
     table.report-table.traversing-table tfoot td {
       border-top: 2px solid #d1d5db; font-weight: 600;
@@ -1270,6 +1299,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
             seaborne={data.charts.patrolTypeTotals.seaborne}
             foot={data.charts.patrolTypeTotals.foot}
           />
+          {traversingFullStamp}
           {data.charts.patrolList.breakdown.length === 0 ? (
             <p className="empty-note">No patrols in this period.</p>
           ) : (
@@ -1568,6 +1598,10 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
               {data.charts.patrolList.total.toLocaleString()}
             </span>
           </h2>
+          {/* Same stamp as the Patrol List totals block: in full mode these
+              rows do NOT sum to the headline count, so a reader who lands on
+              this page alone still needs the explanation. */}
+          {traversingFullStamp}
           <FullPatrolTable
             patrols={data.charts.patrolList.breakdown}
             caption="Full patrol list"

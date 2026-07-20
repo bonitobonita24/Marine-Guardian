@@ -57,6 +57,30 @@ export type ReportFilter = {
    * municipalities" or the filter is reset.
    */
   includeTraversing: boolean;
+  /**
+   * ZONE SCOPE ONLY. Count every patrol whose track ENTERS the selected
+   * protected zone (+1 each), and credit its FULL patrol distance and FULL
+   * patrol time — including the transit that never entered the zone.
+   *
+   * This SUPERSEDES {@link includeTraversing}'s clipped inside-the-boundary
+   * crediting for those same patrols: a traversing patrol contributes EITHER
+   * its inside-zone portion (this flag off) OR its full distance/time (this
+   * flag on), never both. The server enforces that exclusivity — see
+   * `resolveReportScope`, which is also the single place the zone-scope-only
+   * guardrail is applied.
+   *
+   * Rationale (owner, 2026-07-20): you cannot reach Apo Reef without departing
+   * Sablayan port, so for a small offshore MPA an origin-in-zone-only count
+   * reports almost nothing. The transit IS part of that zone's patrol effort.
+   *
+   * Accepted consequence: the same patrol is then counted in full in BOTH its
+   * origin municipality's report and the zone's report, so the two must never
+   * be summed — which is why the printed report is stamped when this is on.
+   *
+   * Default false. Cleared whenever the zone selection is cleared, the scope
+   * is broadened back to "all municipalities", or the filter is reset.
+   */
+  includeTraversingFull: boolean;
   /** Active MPA (protected-zone) scope filter; null = all zones. */
   protectedZoneId: string | null;
   /**
@@ -75,6 +99,8 @@ export type ReportFilter = {
   setIncludeChildren: (next: boolean) => void;
   /** Set (or clear) whether traversing patrols are folded into the scope. */
   setIncludeTraversing: (next: boolean) => void;
+  /** Set (or clear) whether full-traversing crediting applies at zone scope. */
+  setIncludeTraversingFull: (next: boolean) => void;
   /** Set (or clear, with null) the active MPA scope. */
   setProtectedZoneId: (next: string | null) => void;
   /** Set (or clear, with null) the active terrain filter. */
@@ -94,6 +120,8 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
   const [includeChildren, setIncludeChildrenState] = useState<boolean>(false);
   const [includeTraversing, setIncludeTraversingState] =
     useState<boolean>(false);
+  const [includeTraversingFull, setIncludeTraversingFullState] =
+    useState<boolean>(false);
   const [protectedZoneId, setProtectedZoneIdState] = useState<string | null>(
     null,
   );
@@ -112,6 +140,11 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
     if (next === null) {
       setIncludeChildrenState(false);
       setIncludeTraversingState(false);
+      // Same reason for the zone-scoped full-traversing toggle: broadening to
+      // "all municipalities" also drops the MPA-zone selection it depends on,
+      // so a stale ON would otherwise keep asking the server for a crediting
+      // mode whose target no longer exists.
+      setIncludeTraversingFullState(false);
     }
   }, []);
 
@@ -136,8 +169,21 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
     setIncludeTraversingState(next);
   }, []);
 
+  const setIncludeTraversingFull = useCallback((next: boolean) => {
+    setIncludeTraversingFullState(next);
+  }, []);
+
   const setProtectedZoneId = useCallback((next: string | null) => {
     setProtectedZoneIdState(next);
+    // includeTraversingFull is ZONE-SCOPE ONLY: with no zone selected the bar
+    // hides its switch and the server refuses the flag, so clearing back to
+    // "all zones" must clear it too — never let a hidden toggle keep applying.
+    // (Selecting a DIFFERENT zone deliberately keeps it on: the toggle still
+    // has a valid target, exactly as picking a province keeps includeChildren
+    // / includeTraversing on — see the 2026-07-20 note in setProvince.)
+    if (next === null) {
+      setIncludeTraversingFullState(false);
+    }
   }, []);
 
   const setTerrain = useCallback((next: "land" | "water" | null) => {
@@ -152,6 +198,7 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
     setProvinceState(null);
     setIncludeChildrenState(false);
     setIncludeTraversingState(false);
+    setIncludeTraversingFullState(false);
     setProtectedZoneIdState(null);
     setTerrainState(null);
   }, []);
@@ -164,6 +211,7 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
       province,
       includeChildren,
       includeTraversing,
+      includeTraversingFull,
       protectedZoneId,
       terrain,
       setRange,
@@ -171,6 +219,7 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
       setProvince,
       setIncludeChildren,
       setIncludeTraversing,
+      setIncludeTraversingFull,
       setProtectedZoneId,
       setTerrain,
       resetRange,
@@ -182,6 +231,7 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
       province,
       includeChildren,
       includeTraversing,
+      includeTraversingFull,
       protectedZoneId,
       terrain,
       setRange,
@@ -189,6 +239,7 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
       setProvince,
       setIncludeChildren,
       setIncludeTraversing,
+      setIncludeTraversingFull,
       setProtectedZoneId,
       setTerrain,
       resetRange,

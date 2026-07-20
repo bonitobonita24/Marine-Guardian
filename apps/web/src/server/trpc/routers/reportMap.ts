@@ -37,6 +37,7 @@ import {
   sumTraversingCoverageAcrossMembers,
   type TraversingWindow,
 } from "../../reporting/traversing-coverage";
+import { collectFullTraversingPatrols } from "../../reporting/full-traversing-coverage";
 
 const LAW_CATEGORY = "law-enforcement-and-apprehensions";
 const MONITORING_CATEGORY = "monitoring_patrolling_and_surveillance";
@@ -77,6 +78,13 @@ const reportFilterInput = z
     // `summary`'s doc comment for the full owner-locked semantics. No-op when
     // no municipality scope is resolved at all.
     includeTraversing: z.boolean().optional(),
+    // Full-traversing toggle (2026-07-20) — opt-in, ZONE SCOPE ONLY, default
+    // off. When true AND a protected zone is selected, a patrol that merely
+    // ENTERS the zone is COUNTED (+1) and contributes its FULL distance/time,
+    // superseding `includeTraversing`'s inside-portion crediting for those
+    // same patrols (never both). The zone-scope-only gate lives in
+    // `resolveReportScope` — see `ReportScope.includeTraversingFull`.
+    includeTraversingFull: z.boolean().optional(),
   })
   .strict();
 
@@ -397,6 +405,13 @@ export const reportMapRouter = router({
    *   - municipality/province otherwise → per-member municipality coverage,
    *     as before.
    * `totalPatrols` is left untouched by the toggle at every level.
+   *
+   * THE ONE EXCEPTION (2026-07-20): `includeTraversingFull`, an opt-in
+   * ZONE-SCOPE-ONLY mode, DOES move `totalPatrols` — a patrol that enters the
+   * selected zone is counted +1 and credited its FULL distance/time. It
+   * SUPERSEDES (never adds to) the clipped crediting above for those patrols;
+   * the two are a strict if/else. Default is OFF, so nothing changes for any
+   * existing report.
    */
   summary: matrixProcedure(tenantProcedure, "exports", "view")
     .input(reportFilterInput)
@@ -404,7 +419,13 @@ export const reportMapRouter = router({
       const scope = await resolveReportScope(ctx.tenantId, input);
       const baseEvent = eventWhere(ctx.tenantId, input, scope);
       const basePatrolWhere = patrolWhere(ctx.tenantId, input, scope);
-      const [totalEvents, lawEnforcementEvents, monitoringEvents, totalPatrols, attributedPatrolTotals] =
+      const [
+        totalEvents,
+        lawEnforcementEvents,
+        monitoringEvents,
+        attributedPatrolCount,
+        attributedPatrolTotals,
+      ] =
         await Promise.all([
           prisma.event.count({ where: baseEvent }),
           prisma.event.count({
@@ -428,6 +449,9 @@ export const reportMapRouter = router({
           }),
         ]);
 
+      // `let` because FULL mode (below) is the ONE path allowed to move the
+      // patrol count — see the branch comment for why that is deliberate.
+      let totalPatrols = attributedPatrolCount;
       let totalDistanceKm = 0;
       let totalHours = 0;
       for (const p of attributedPatrolTotals) {
@@ -453,7 +477,55 @@ export const reportMapRouter = router({
       // NOT attempt to de-overlap the member list here. Origin exclusion,
       // including zone-level origins via Patrol.startLocationLat/Lon, is
       // likewise handled in that helper's own patrol read.
-      if (scope.includeTraversing) {
+      //
+      // ⚠ THE TWO BRANCHES BELOW ARE MUTUALLY EXCLUSIVE BY CONSTRUCTION, and
+      // that exclusivity is the single most important property of this whole
+      // feature. A traversing patrol must contribute EITHER its clipped
+      // inside-scope portion (default mode) OR its full distance/time (FULL
+      // mode) — NEVER both. Summing the two double-credits every traversing
+      // patrol. Do not "improve" this into two independent `if`s.
+      if (scope.includeTraversingFull) {
+        // FULL mode — opt-in, ZONE SCOPE ONLY, and already gated to zone level
+        // inside `resolveReportScope` (ReportScope.includeTraversingFull). Do
+        // NOT re-check `scope.level` or the raw input flag here.
+        //
+        // THE COUNT MOVES HERE, BY DESIGN. Everywhere else `totalPatrols` is
+        // strictly count-at-origin (owner Rule 2) and that remains the default.
+        // This branch is the owner's explicit, opt-in exception: no patrol can
+        // START inside a small offshore MPA (you cannot reach Apo Reef without
+        // departing Sablayan), so an origin-only count reports nearly nothing
+        // for such a zone. A patrol that ENTERS the zone is counted +1 and
+        // credited its FULL distance/time, transit legs included.
+        const members = await loadScopeGeometries(ctx.tenantId, scope);
+        if (members.length > 0) {
+          const fullWindow: TraversingWindow = {};
+          if (input.from !== undefined) fullWindow.from = input.from;
+          if (input.to !== undefined) fullWindow.to = input.to;
+
+          // DOUBLE-CREDIT GUARD. The exclusion set is built from the SAME
+          // where-clause that produced `attributedPatrolCount` above, so a
+          // patrol already inside the headline totals can never be added a
+          // second time by the full-traversing pass.
+          const attributedRows = await prisma.patrol.findMany({
+            where: basePatrolWhere,
+            select: { id: true },
+          });
+          const excludePatrolIds = new Set(attributedRows.map((p) => p.id));
+
+          const full = await collectFullTraversingPatrols(
+            ctx.tenantId,
+            fullWindow,
+            members,
+            excludePatrolIds,
+          );
+
+          totalPatrols += full.count;
+          totalDistanceKm += full.km;
+          totalHours += full.hours;
+          // Events remain untouched here exactly as in the clipped branch —
+          // traversing is a patrol-track concept; an event is a point.
+        }
+      } else if (scope.includeTraversing) {
         const members = await loadScopeGeometries(ctx.tenantId, scope);
         if (members.length > 0) {
           const traversingWindow: TraversingWindow = {};

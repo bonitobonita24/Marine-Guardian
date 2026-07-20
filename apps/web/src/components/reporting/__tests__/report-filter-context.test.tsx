@@ -178,6 +178,110 @@ describe("ReportFilterProvider / useReportFilter", () => {
     expect(result.current.includeChildren).toBe(false);
   });
 
+  // includeTraversingFull — the zone-scoped, default-OFF opt-in exception to
+  // the count-at-origin rule (2026-07-20). Its clearing rules are asserted
+  // HERE at the context level, not only through the bar: in the bar the
+  // zone-reset effect fires on a municipality change and would mask a missing
+  // clear in setMunicipalityId, so a bar-only test is not a real signal for it.
+  it("defaults includeTraversingFull to false", () => {
+    const { result } = renderHook(() => useReportFilter(), { wrapper });
+    expect(result.current.includeTraversingFull).toBe(false);
+  });
+
+  it("setIncludeTraversingFull toggles the flag", () => {
+    const { result } = renderHook(() => useReportFilter(), { wrapper });
+
+    act(() => {
+      result.current.setIncludeTraversingFull(true);
+    });
+    expect(result.current.includeTraversingFull).toBe(true);
+
+    act(() => {
+      result.current.setIncludeTraversingFull(false);
+    });
+    expect(result.current.includeTraversingFull).toBe(false);
+  });
+
+  it("setProtectedZoneId(null) clears includeTraversingFull", () => {
+    const { result } = renderHook(() => useReportFilter(), { wrapper });
+
+    act(() => {
+      result.current.setProtectedZoneId("zone-1");
+      result.current.setIncludeTraversingFull(true);
+    });
+    expect(result.current.includeTraversingFull).toBe(true);
+
+    act(() => {
+      result.current.setProtectedZoneId(null);
+    });
+    expect(result.current.includeTraversingFull).toBe(false);
+  });
+
+  it("setProtectedZoneId (to another zone) PRESERVES includeTraversingFull", () => {
+    // Switching zones keeps a valid target for the toggle, so it must survive
+    // — same reasoning as setProvince preserving includeChildren above.
+    const { result } = renderHook(() => useReportFilter(), { wrapper });
+
+    act(() => {
+      result.current.setProtectedZoneId("zone-1");
+      result.current.setIncludeTraversingFull(true);
+    });
+
+    act(() => {
+      result.current.setProtectedZoneId("zone-2");
+    });
+    expect(result.current.includeTraversingFull).toBe(true);
+    expect(result.current.protectedZoneId).toBe("zone-2");
+  });
+
+  it("setMunicipalityId(null) clears includeTraversingFull", () => {
+    const { result } = renderHook(() => useReportFilter(), { wrapper });
+
+    act(() => {
+      result.current.setMunicipalityId("muni-1");
+      result.current.setProtectedZoneId("zone-1");
+      result.current.setIncludeTraversingFull(true);
+    });
+    expect(result.current.includeTraversingFull).toBe(true);
+
+    act(() => {
+      result.current.setMunicipalityId(null);
+    });
+    expect(result.current.includeTraversingFull).toBe(false);
+  });
+
+  it("resetRange also clears includeTraversingFull", () => {
+    const { result } = renderHook(() => useReportFilter(), { wrapper });
+
+    act(() => {
+      result.current.setProtectedZoneId("zone-1");
+      result.current.setIncludeTraversingFull(true);
+    });
+    expect(result.current.includeTraversingFull).toBe(true);
+
+    act(() => {
+      result.current.resetRange();
+    });
+    expect(result.current.includeTraversingFull).toBe(false);
+  });
+
+  it("does NOT clear includeTraversing / includeChildren when toggled", () => {
+    // The two crediting modes are independent controls: the server resolves
+    // which one wins. Flipping full mode must never mutate the clipped flag.
+    const { result } = renderHook(() => useReportFilter(), { wrapper });
+
+    act(() => {
+      result.current.setMunicipalityId("muni-1");
+      result.current.setIncludeChildren(true);
+      result.current.setIncludeTraversing(true);
+      result.current.setIncludeTraversingFull(true);
+    });
+
+    expect(result.current.includeChildren).toBe(true);
+    expect(result.current.includeTraversing).toBe(true);
+    expect(result.current.includeTraversingFull).toBe(true);
+  });
+
   it("throws when used outside the provider", () => {
     expect(() => renderHook(() => useReportFilter())).toThrow(
       /must be used within a ReportFilterProvider/,

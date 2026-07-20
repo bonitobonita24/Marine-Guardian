@@ -35,7 +35,25 @@ export interface TraversingScopeLabel {
   note: string;
 }
 
+/**
+ * Which crediting mode produced the numbers on the traversing page.
+ *
+ * Mirrors `ReportMapReportData.traversingMode` minus its "off" member (the
+ * page does not render at all when traversing is off). REQUIRED — a caller
+ * must not be able to silently inherit the wrong body copy, because the two
+ * modes make OPPOSITE claims about whether these patrols are counted here.
+ */
+export type TraversingScopeMode = "clipped" | "full";
+
 export interface TraversingScopeLabelInput {
+  /**
+   * "clipped" — legacy INCLUDE TRAVERSING PATROLS: the count stays at the
+   * origin boundary and only the inside-boundary portion of distance/time is
+   * credited here.
+   * "full" — zone-scope-only opt-in: the patrol IS counted here and its FULL
+   * distance/time (including transit outside the zone) is credited here.
+   */
+  mode: TraversingScopeMode;
   /**
    * ProtectedZone's own name when the report is zone-scoped, else null.
    * Same field the header uses for its unprefixed zone title.
@@ -98,14 +116,27 @@ export function resolveTraversingScopeLabel(
   const noun = SCOPE_NOUN[kind];
   const displayName = name ?? `this ${noun}`;
 
+  // The two modes make OPPOSITE claims about whether these patrols are
+  // counted on this report, so the copy MUST follow the mode — printing the
+  // clipped wording in full mode would be a factually false statement on a
+  // funder-facing page. Clipped wording is unchanged verbatim.
+  const note =
+    input.mode === "full"
+      ? `These patrols started outside ${displayName} but ARE included in ` +
+        `this report's patrol count, distance and time. The full patrol ` +
+        `distance and time are counted, including transit outside this ` +
+        `${noun}; time is estimated (proportional to distance). Because ` +
+        `these patrols are also counted in their origin municipality's own ` +
+        `report, the two reports must not be added together.`
+      : `These patrols started outside ${displayName} and are counted where ` +
+        `they started, not here. Distance and time shown are only the portion ` +
+        `inside this ${noun}; time is estimated (proportional to distance).`;
+
   return {
     kind,
     name,
     heading: `Patrols Traversing ${name ?? "This Area"}`,
     caption: `Patrols traversing ${displayName}`,
-    note:
-      `These patrols started outside ${displayName} and are counted where ` +
-      `they started, not here. Distance and time shown are only the portion ` +
-      `inside this ${noun}; time is estimated (proportional to distance).`,
+    note,
   };
 }

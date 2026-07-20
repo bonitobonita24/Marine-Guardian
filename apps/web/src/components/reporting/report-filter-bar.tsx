@@ -71,6 +71,7 @@ export function ReportFilterBar({
     province,
     includeChildren,
     includeTraversing,
+    includeTraversingFull,
     protectedZoneId,
     terrain,
     setRange,
@@ -78,6 +79,7 @@ export function ReportFilterBar({
     setProvince,
     setIncludeChildren,
     setIncludeTraversing,
+    setIncludeTraversingFull,
     setProtectedZoneId,
     setTerrain,
   } = useReportFilter();
@@ -537,6 +539,44 @@ export function ReportFilterBar({
               ))}
             </SelectContent>
           </Select>
+
+          {/* Count full traversing patrols (2026-07-20, owner request) — ZONE
+              SCOPE ONLY, and only once a SPECIFIC zone is chosen (not "All
+              zones"), which is why it is nested inside the zone block and
+              additionally gated on `protectedZoneId !== null` rather than
+              rendered disabled: at "All zones" there is no single zone whose
+              transit could be credited, so the control has no target at all.
+              When ON, every patrol whose track enters the zone is COUNTED and
+              contributes its FULL distance/time — superseding (never adding
+              to) the clipped inside-the-boundary crediting of "Include
+              traversing patrols". Deliberately NOT coupled to that switch:
+              the two are independent, and the server resolves the exclusivity.
+              Cleared by the context whenever the zone selection is dropped. */}
+          {protectedZoneId !== null && (
+            <div
+              className={toggleFieldClass}
+              data-testid="report-include-traversing-full-field"
+            >
+              <div className={toggleRowClass}>
+                <Label
+                  htmlFor="report-include-traversing-full"
+                  className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+                >
+                  Count full traversing patrols
+                </Label>
+                <Switch
+                  id="report-include-traversing-full"
+                  data-testid="report-include-traversing-full"
+                  checked={includeTraversingFull}
+                  onCheckedChange={setIncludeTraversingFull}
+                  aria-label="Count full traversing patrols — count patrols that pass through this zone and add their full distance and time, even though they started elsewhere"
+                />
+              </div>
+              <span className={toggleHintClass}>
+                Counts patrols that only pass through — full distance &amp; time
+              </span>
+            </div>
+          )}
         </div>
       )}
 

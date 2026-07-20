@@ -1125,3 +1125,146 @@ describe("map.eventTypes.byCategory", () => {
     expect(wild?.types).toEqual([{ value: "turtles", count: 1 }]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// FULL-traversing mode (2026-07-20) — zone scope only, opt-in, default OFF.
+// ---------------------------------------------------------------------------
+// Reuses the TRAVERSING_SQUARE_A / TRAVERSING_CROSSING_TRACK fixtures above:
+// the track runs x 0.5→1.5 and square A spans x 0→1, so exactly HALF of it
+// lies inside the zone. That 50/50 split is what makes clipped-vs-full
+// distinguishable — clipped credits ~half the patrol's 10 km, full credits
+// all 10.
+const FULL_ZONE_ID = "zone-apo-reef";
+
+/** Zone-scope geometry: `loadScopeGeometries` reads protectedZone by id and
+ *  returns ZONE members only (never the parent municipality) at zone level. */
+function seedFullTraversingZone(): void {
+  vi.mocked(prisma.protectedZone.findMany).mockResolvedValue([
+    { id: FULL_ZONE_ID, name: "Apo Reef Natural Park", boundaryGeojson: TRAVERSING_SQUARE_A },
+  ] as any);
+  // Origin is outside the zone scope, so the scope where-clause selects
+  // nothing — the patrol reaches the zone purely by traversing it, which is
+  // the owner's whole Apo-Reef-from-Sablayan case.
+  vi.mocked(prisma.patrol.findMany).mockResolvedValue([]);
+  vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([
+    {
+      trackGeojson: TRAVERSING_CROSSING_TRACK,
+      patrol: {
+        id: "patrol-transit",
+        title: "Sablayan → Apo Reef transit",
+        patrolType: "seaborne",
+        municipalityId: "muni-sablayan",
+        computedDurationHours: 4,
+        totalHours: null,
+        computedDistanceKm: 10,
+        totalDistanceKm: null,
+        // Start point far outside the zone — origin exclusion at zone level
+        // tests this against the zone polygon in memory.
+        startLocationLat: 9,
+        startLocationLon: 9,
+      },
+    },
+  ] as any);
+}
+
+describe("map.patrolTracks.inRange includeTraversingFull (zone scope)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("still RENDERS traversing tracks when only includeTraversingFull is on", async () => {
+    // The full-mode flag must enter the same traversing branch — otherwise the
+    // zone report shows totals for patrols whose tracks are invisible on the map.
+    seedFullTraversingZone();
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.patrolTracks.inRange({
+      protectedZoneId: FULL_ZONE_ID,
+      includeTraversingFull: true,
+    });
+
+    expect(result.tracks).toHaveLength(1);
+    const [track] = result.tracks;
+    if (!track) throw new Error("expected a full-traversing fixture track");
+    expect(track.patrolId).toBe("patrol-transit");
+    expect(track.traversing).toBe(true);
+    expect(track.attributed).toBe(false);
+  });
+
+  it("reports FULL patrol km/hours on the track, not the clipped inside-zone portion", async () => {
+    // The on-screen "Traversing coverage" box SUMS insideKm/insideHoursEst, so
+    // these must match what the tiles and the PDF credit, or the same zone and
+    // dates show two different numbers in two places.
+    seedFullTraversingZone();
+    const caller = createCaller(makeCtx());
+    const full = await caller.patrolTracks.inRange({
+      protectedZoneId: FULL_ZONE_ID,
+      includeTraversingFull: true,
+    });
+
+    vi.clearAllMocks();
+    seedFullTraversingZone();
+    const clipped = await caller.patrolTracks.inRange({
+      protectedZoneId: FULL_ZONE_ID,
+      includeTraversing: true,
+    });
+
+    const fullTrack = full.tracks[0];
+    const clippedTrack = clipped.tracks[0];
+    if (!fullTrack || !clippedTrack) throw new Error("expected both fixture tracks");
+
+    // FULL: the patrol's whole 10 km / 4 h, transit included.
+    expect(fullTrack.insideKm).toBeCloseTo(10, 5);
+    expect(fullTrack.insideHoursEst).toBeCloseTo(4, 5);
+    // CLIPPED: only the half that lies inside the zone — strictly less, which
+    // is what makes the assertion above meaningful rather than vacuous.
+    expect(clippedTrack.insideKm).toBeGreaterThan(0);
+    expect(clippedTrack.insideKm).toBeLessThan(fullTrack.insideKm);
+  });
+
+  it("GEOMETRY IS UNCHANGED: full mode returns the same unclipped points as clipped mode", async () => {
+    // Full mode changes what a track REPORTS, never its shape.
+    seedFullTraversingZone();
+    const caller = createCaller(makeCtx());
+    const full = await caller.patrolTracks.inRange({
+      protectedZoneId: FULL_ZONE_ID,
+      includeTraversingFull: true,
+    });
+
+    vi.clearAllMocks();
+    seedFullTraversingZone();
+    const clipped = await caller.patrolTracks.inRange({
+      protectedZoneId: FULL_ZONE_ID,
+      includeTraversing: true,
+    });
+
+    expect(full.tracks[0]?.points).toStrictEqual(clipped.tracks[0]?.points);
+    // Both endpoints survive — the track is NOT trimmed to the zone.
+    expect(full.tracks[0]?.points).toHaveLength(2);
+  });
+
+  it("DEFAULT OFF: without either flag the traversing branch is not entered", async () => {
+    seedFullTraversingZone();
+
+    const caller = createCaller(makeCtx());
+    await caller.patrolTracks.inRange({ protectedZoneId: FULL_ZONE_ID });
+
+    // The traversing branch builds its own attributed-id set via patrol.findMany;
+    // the plain path never calls it.
+    expect(vi.mocked(prisma.patrol.findMany)).not.toHaveBeenCalled();
+  });
+
+  it("ZONE SCOPE ONLY: the flag is gated out at municipality scope", async () => {
+    // `resolveReportScope` is the single enforcement point; this asserts the
+    // router honours it rather than re-deriving the gate.
+    seedFullTraversingZone();
+
+    const caller = createCaller(makeCtx());
+    await caller.patrolTracks.inRange({
+      municipalityId: "muni-sablayan",
+      includeTraversingFull: true,
+    });
+
+    expect(vi.mocked(prisma.patrol.findMany)).not.toHaveBeenCalled();
+  });
+});

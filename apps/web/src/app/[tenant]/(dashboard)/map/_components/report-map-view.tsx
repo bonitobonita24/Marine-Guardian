@@ -93,6 +93,7 @@ function ReportMapInner() {
     province,
     includeChildren,
     includeTraversing,
+    includeTraversingFull,
   } = useReportFilter();
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
@@ -121,6 +122,7 @@ function ReportMapInner() {
     ...(province !== null ? { province } : {}),
     ...(includeChildren ? { includeChildren } : {}),
     ...(includeTraversing ? { includeTraversing } : {}),
+    ...(includeTraversingFull ? { includeTraversingFull } : {}),
   };
 
   // eventBreakdownWithCoords (not the lean eventBreakdown) — the Report Map
@@ -328,6 +330,7 @@ function ReportMapInner() {
           {...(province !== null ? { province } : {})}
           {...(includeChildren ? { includeChildren } : {})}
           {...(includeTraversing ? { includeTraversing } : {})}
+          {...(includeTraversingFull ? { includeTraversingFull } : {})}
           trackMode="inRange"
           defaultEventLayers={{ lawEnforcement: true, monitoring: true }}
           hidePatrolSelector

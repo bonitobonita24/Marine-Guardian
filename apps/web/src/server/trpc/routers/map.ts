@@ -95,6 +95,13 @@ const patrolTracksInRangeInput = z
     // only affects which tracks are RENDERED, never any count tile. Defaults
     // to unset/false, which preserves the exact prior behavior.
     includeTraversing: z.boolean().optional(),
+    // Full-traversing toggle (2026-07-20) — opt-in, ZONE SCOPE ONLY, default
+    // off. When true AND a protected zone is selected, a patrol that merely
+    // ENTERS the zone is COUNTED (+1) and contributes its FULL distance/time,
+    // superseding `includeTraversing`'s inside-portion crediting for those
+    // same patrols (never both). The zone-scope-only gate lives in
+    // `resolveReportScope` — see `ReportScope.includeTraversingFull`.
+    includeTraversingFull: z.boolean().optional(),
   })
   .strict();
 
@@ -653,7 +660,11 @@ const patrolTracksRouter = router({
       // GEOMETRY IS UNCHANGED: this endpoint returns FULL, unclipped track
       // points (owner-confirmed correct). This branch changes WHICH tracks come
       // back, never their shape.
-      if (scope.includeTraversing) {
+      // FULL mode (2026-07-20) renders the SAME track set as clipped mode —
+      // it changes only what those tracks REPORT — so it enters this same
+      // branch. `includeTraversingFull` is already gated to zone scope in
+      // `resolveReportScope`; do not re-check the level here.
+      if (scope.includeTraversing || scope.includeTraversingFull) {
         const members = await loadScopeGeometries(ctx.tenantId, scope);
 
         if (members.length > 0) {
@@ -730,16 +741,40 @@ const patrolTracksRouter = router({
             const traversing = result.traversesNonOrigin;
             if (!attributed && !traversing) return [];
 
+            // COVERAGE FIGURES — the ONLY thing full mode changes here.
+            //
+            // The on-screen "Traversing coverage" box in InteractiveMap.tsx
+            // SUMS these two fields across the returned tracks. In full mode
+            // the tiles and the PDF credit each entering patrol its WHOLE
+            // distance/time rather than the clipped inside-zone portion, so
+            // these must carry the full figures too — otherwise the map box
+            // and the tiles show two different numbers for the same zone and
+            // dates, which is exactly the credibility failure this feature is
+            // stamped in the report to avoid.
+            //
+            // SUPERSEDES, NEVER ADDS: full figures REPLACE the clipped ones —
+            // they are never summed with them.
+            //
+            // Same coalescing order as `collectFullTraversingPatrols` and the
+            // `patrolBreakdown` builder, so all three read one source of truth.
+            const insideKm = scope.includeTraversingFull
+              ? (row.patrol.computedDistanceKm ?? row.patrol.totalDistanceKm ?? 0)
+              : result.insideKm;
+            const insideHoursEst = scope.includeTraversingFull
+              ? (row.patrol.computedDurationHours ?? row.patrol.totalHours ?? 0)
+              : result.insideHoursEst;
+
             return [
               {
                 patrolId: row.patrol.id,
                 title: row.patrol.title,
                 patrolType: row.patrol.patrolType,
+                // GEOMETRY IS UNCHANGED in both modes: full, unclipped points.
                 points,
                 attributed,
                 traversing,
-                insideKm: result.insideKm,
-                insideHoursEst: result.insideHoursEst,
+                insideKm,
+                insideHoursEst,
               },
             ];
           });

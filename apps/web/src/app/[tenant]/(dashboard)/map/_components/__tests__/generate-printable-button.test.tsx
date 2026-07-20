@@ -27,6 +27,7 @@ const { stubs } = vi.hoisted(() => {
       municipalityId: string | null;
       protectedZoneId: string | null;
       province: string | null;
+      includeTraversingFull: boolean;
     };
     templates: { id: string; name: string; isDefault: boolean }[];
     /** exportId → polled status, driving the dialog's live region. */
@@ -34,7 +35,12 @@ const { stubs } = vi.hoisted(() => {
   } = {
     rowStatuses: {},
     roles: ["field_coordinator"],
-    scope: { municipalityId: null, protectedZoneId: null, province: null },
+    scope: {
+      municipalityId: null,
+      protectedZoneId: null,
+      province: null,
+      includeTraversingFull: false,
+    },
     templates: [
       { id: "tpl-1", name: "Calapan Municipal", isDefault: true },
       { id: "tpl-2", name: "Baco Municipal", isDefault: false },
@@ -124,6 +130,8 @@ vi.mock("@/components/reporting/report-filter-context", () => ({
     protectedZoneId: stubs.scope.protectedZoneId,
     province: stubs.scope.province,
     includeChildren: false,
+    includeTraversing: false,
+    includeTraversingFull: stubs.scope.includeTraversingFull,
   }),
 }));
 
@@ -221,6 +229,7 @@ beforeEach(() => {
     municipalityId: null,
     protectedZoneId: null,
     province: null,
+    includeTraversingFull: false,
   };
   stubs.templates = [
     { id: "tpl-1", name: "Calapan Municipal", isDefault: true },
@@ -259,6 +268,8 @@ describe("GeneratePrintableButton — role visibility (2026-07-06)", () => {
 describe("GeneratePrintableButton — region report options (2026-07-13)", () => {
   beforeEach(() => {
     stubs.roles = ["field_coordinator"];
+    stubs.scope.protectedZoneId = null;
+    stubs.scope.includeTraversingFull = false;
     mutateSpy.mockClear();
   });
   afterEach(() => {
@@ -325,6 +336,63 @@ describe("GeneratePrintableButton — region report options (2026-07-13)", () =>
       { paramsJson: Record<string, unknown> },
     ];
     expect(payload.paramsJson.templateId).toBe("tpl-2");
+  });
+
+  // includeTraversingFull (2026-07-20) — the zone-scoped full-traversing
+  // crediting flag must reach the generated PDF's params, and ONLY when it is
+  // actually on (guarded spread, same idiom as every other optional scope key).
+  it("OMITS includeTraversingFull from paramsJson when the toggle is off", () => {
+    stubs.scope.protectedZoneId = "zone-1";
+    stubs.scope.includeTraversingFull = false;
+
+    const { getByTestId } = render(<GeneratePrintableButton />);
+    fireEvent.click(getByTestId("generate-printable-report-button"));
+    fireEvent.change(getByTestId("report-template-select"), {
+      target: { value: "tpl-2" },
+    });
+    fireEvent.click(getByTestId("generate-printable-confirm"));
+
+    const [payload] = mutateSpy.mock.calls[0] as [
+      { paramsJson: Record<string, unknown> },
+    ];
+    expect(payload.paramsJson.protectedZoneId).toBe("zone-1");
+    expect(payload.paramsJson).not.toHaveProperty("includeTraversingFull");
+  });
+
+  it("SENDS includeTraversingFull in paramsJson when the toggle is on", () => {
+    stubs.scope.protectedZoneId = "zone-1";
+    stubs.scope.includeTraversingFull = true;
+
+    const { getByTestId } = render(<GeneratePrintableButton />);
+    fireEvent.click(getByTestId("generate-printable-report-button"));
+    fireEvent.change(getByTestId("report-template-select"), {
+      target: { value: "tpl-2" },
+    });
+    fireEvent.click(getByTestId("generate-printable-confirm"));
+
+    const [payload] = mutateSpy.mock.calls[0] as [
+      { paramsJson: Record<string, unknown> },
+    ];
+    expect(payload.paramsJson.includeTraversingFull).toBe(true);
+  });
+
+  it("does NOT send includeTraversingFull on a REGION report (no zone scope)", () => {
+    // Region reports deliberately ignore the live map filter entirely.
+    stubs.scope.protectedZoneId = "zone-1";
+    stubs.scope.includeTraversingFull = true;
+
+    const { getByTestId } = render(<GeneratePrintableButton />);
+    fireEvent.click(getByTestId("generate-printable-report-button"));
+    fireEvent.change(getByTestId("report-template-select"), {
+      target: { value: "region:Palawan" },
+    });
+    fireEvent.click(getByTestId("generate-printable-confirm"));
+
+    const [payload] = mutateSpy.mock.calls[0] as [
+      { paramsJson: Record<string, unknown> },
+    ];
+    expect(payload.paramsJson.province).toBe("Palawan");
+    expect(payload.paramsJson).not.toHaveProperty("includeTraversingFull");
   });
 });
 

@@ -188,6 +188,7 @@ export function GeneratePrintableButton() {
     province,
     includeChildren,
     includeTraversing,
+    includeTraversingFull,
   } = useReportFilter();
   const [open, setOpen] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
@@ -362,6 +363,7 @@ export function GeneratePrintableButton() {
           ...(province !== null ? { province } : {}),
           ...(includeChildren ? { includeChildren } : {}),
           ...(includeTraversing ? { includeTraversing } : {}),
+          ...(includeTraversingFull ? { includeTraversingFull } : {}),
         };
 
     // ONE export per TICKED report type, in checklist order. All share the
