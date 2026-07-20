@@ -4,105 +4,135 @@
 
 ---
 
-## 🔴 2026-07-21 — SESSION HANDOFF · `preview/session-0720` · tip `b6dcbb8`
+## 🔴 2026-07-21 (FINAL) — `main` @ `bb2aa50` · STAGING LIVE · PROD UNTOUCHED
 
-**STATE: all commits LOCAL, NONE pushed. HARD HOLD holds — no push/merge/deploy without the owner's explicit word.**
-Verified on **dev only**. **⚠ Working tree is DIRTY — other agents were still in flight at handoff; uncommitted
-files are unfinished, not shipped.**
+**Merged to `main` and PUSHED. CI built `sha-bb2aa50`. STAGING DEPLOYED AND VERIFIED.
+PRODUCTION UNTOUCHED — still `sha-a08c700`.** One local unpushed commit: **`d7e246e`**
+(staged prod-promotion runbook). HARD HOLD still holds on production.
 
-📄 **Full detail: [`docs/SESSION_HANDOFF_0721.md`](./SESSION_HANDOFF_0721.md)** — commit table, precise data ops,
-in-flight file list, the through-line, env quick-ref. This block is the scannable queue.
-
-### ⭐ #1 NEXT-SESSION TASK (owner-directed) — full re-verification in a real browser
-
-Against a **freshly rebuilt dev app AND worker**. Numbered checklist, not "test everything":
-
-1. **Rebuild app AND worker off the branch, then verify the image shas match.** A stale worker running
-   pre-`825cf6c` code caused a wrong diagnosis this session and is a repeat offender here.
-   **Check the sha before trusting any behavioural result.** (`--progress=plain` to a file, never `| tail`.)
-2. **Attribution backfill reconciles against SQL** — 281 `title_hint` + 51 `nearest` patrols, 76 `nearest`
-   events (7 ambiguous). Match each number exactly.
-3. **Patrol municipality override + anti-clobber guard** survives a real ER sync tick.
-4. **Event municipality override + anti-clobber guard** — ⚠ newly added (`22f2de1`); the event path had **none** before.
-5. **Patrol start/end time override + provenance badges** — Manual / Derived / ER-supplied.
-6. **Four filters cross-checked against SQL counts** — Events unattributed · Patrols unattributed ·
-   Events subcategory+sorting · attribution needs-review **on BOTH screens**.
-7. **Seaborne track parity** — identical feature count with COUNT FULL TRAVERSING PATROLS on **and** off
-   (owner-reported regression, fixed `7386eb3`). **N ≥ 5.**
-8. **Clear-override actually recomputes** (`4e7b1cb`) on **BOTH** entities — assert the **DB delta**, not job status.
-9. **Provenance pairing CHECK constraint holds** — zero rows with id set / method NULL.
-10. **React #418 on `report_map` print page — N ≥ 5 MINIMUM** (measured 37.5% intermittent).
-11. **New BA header logo** at 1440px and 390px.
-12. **New `/showcase` Development Timeline page** — both `TIMELINE_MODE` values, reduced-motion, 3 breakpoints.
-
-> ⚠ **METHOD REQUIREMENT:** intermittent defects need **N≥5 repeated runs**, never a single pass. React #418 was
-> declared fixed THREE times off single loads; an 8-run check measured it at **37.5%**. Rebuild dev app **and
-> worker** off this branch before re-verifying (no source bind-mount).
-
-### 🗂 Data operations performed (not code)
-
-- **Dev:** `start_time` backfill 63 rows · attribution backfill 281+51 patrols / 76 events · provenance repair
-  34 events + 1 patrol.
-- **Staging + Prod:** stalled-cohort re-enqueue — staging 15 attributed, prod 11 attributed; both converged to
-  **4617 attributed / 153 never-processed**. Prod backup at `/root/muni-catchup/backup/`.
-- **Staging ⏳ IN FLIGHT at handoff:** the **173 stale-attribution correction**, draining slowly, **not yet
-  converged**. **Must be confirmed converged before prod runs.**
-- **Prod:** the 173 correction **NOT applied** — gated on staging matching prediction.
+📄 **Full detail: [`docs/SESSION_HANDOFF_0721.md`](./SESSION_HANDOFF_0721.md)** · promotion runbook:
+[`docs/PROD_PROMOTION_READY.md`](./PROD_PROMOTION_READY.md). This block is the scannable queue.
 
 ### 🔴 OPEN OWNER DECISIONS — most important first
 
-- [ ] **1. Production deploy — owner asked for it immediately with no confirmation; it was DEFERRED.**
-  Reasoning: ~**55 commits never on staging** · an **unrehearsed worker-before-migration ordering constraint**
-  (item 2) · **known-open defects** · **owner asleep** and unable to respond if it went wrong. Plan: everything
-  staged up to prod, with prod promotion reduced to **a single command**. **The owner must decide whether to run it.**
+- [ ] **1. PRODUCTION PROMOTION — staged, rehearsed, green. The owner's call to run.**
+  Runbook: `docs/PROD_PROMOTION_READY.md`. It was deferred earlier tonight (nothing was on staging, the
+  ordering was unrehearsed, the owner was asleep) — **those conditions no longer hold**: staging is
+  deployed and verified against prod-shaped data. ⚠ The runbook uses the **rehearsed stop → migrate →
+  start** path = **brief production downtime**. A lower-downtime variant exists but is **NOT what
+  staging exercised** — choosing it means promoting an unrehearsed sequence.
 
-- [ ] **2. ⚠ DEPLOY ORDERING — LOAD-BEARING.** A worker image **≥ `825cf6c` MUST ship BEFORE** migration
-  `20260721020000` (the pairing CHECK) is applied in **any** environment — a pre-`825cf6c` worker writes one half
-  of the pair and that write is now **rejected**. Run `scripts/repair-municipality-attribution-pairing.ts`
-  **per env** before validating the constraint.
-
-- [ ] **3. Water-polygon split-artifact fix — NOT yet done.** **14.0% (~3,052 km²)** of prod's legal 15 km zone
-  unclaimed. Regeneration changes only **9 records directly** but **forces a re-backfill**. *Recommendation:*
-  unfiltered **authoritative** geometry + a separate **filtered display projection** + a **coverage/no-gap
-  invariant** (independent of the existing no-overlap one).
+- [ ] **2. Water-polygon split-artifact fix — still not done, deliberately.** It **reverses the owner's
+  own map-declutter decision** (`13a035f`). **14.0% (~3,052 km²)** of prod's legal zone unclaimed; only
+  **9 records** change directly. *Recommendation:* unfiltered **authoritative** geometry + a separate
+  **filtered display projection** + a **coverage/no-gap invariant**.
   *Lesson:* `geo.derivation.display-declutter-filter-mutilates-source-of-truth`.
 
-- [ ] **4. The full-traversing toggle now moves NO numbers** — identical counts on/off at every scope tested.
-  The `96f7ff4` backfill appears to have closed the gap it existed to fill. It may be **inert**:
-  **keep, rework, or remove?**
+- [ ] **3. The full-traversing toggle moves NO numbers at any scope.** The attribution backfill closed
+  the gap it existed to fill. **Keep, rework, or remove?**
 
-- [ ] **5. Timeline date presentation** — phase labels by default; February-anchored variant behind one constant:
-  `apps/web/src/app/showcase/timeline/_components/timeline-data.ts:41` →
-  `export const TIMELINE_MODE: "phases" | "dates-feb" = "phases";`
+- [ ] **4. `/showcase/timeline` date presentation.** `TIMELINE_MODE` at
+  `apps/web/src/app/showcase/timeline/_components/timeline-data.ts:41`, default `"phases"`. The
+  `"dates-feb"` variant presents a start **earlier than the 2026-04-30 first commit**.
 
-- [ ] **6. Carried forward:** exports ignore the new filters on both screens · hardcoded `SUBCATEGORY_GROUPS` ·
-  `municipalityAttributionMethod` sweep · Patrols-unattributed filter permission level · PPTX 91 MB ·
-  DSR export TTL · environments to clear of Telegram-era reports · demo Patrol Zone Alpha · ER/DAS token minting ·
-  Slice-6 field-value backfill execution.
+- [ ] **5. Carried forward:** exports ignore the new filters on both screens · hardcoded
+  `SUBCATEGORY_GROUPS` · `robots.ts` now **fail-closed site-wide** · pre-existing **234px header
+  overflow at 390px** · ER/DAS token minting · Slice-6 field-value backfill execution · PPTX **91 MB** ·
+  DSR export TTL · demo Patrol Zone Alpha.
 
-### 🐞 Known-open defects
+### ⭐ #1 NEXT-SESSION TASK (owner-directed) — full re-verification, dev **and STAGING**
 
-- **React #418**, `report_map` print page, **~37.5% intermittent** (clean on `event_highlights`). **N ≥ 5 only.**
-- **Traversing-coverage readout jumped +175.4 km → +4452.2 km** after the seaborne fix — correct per design, but
-  sits oddly beside a count the toggle doesn't move (decision 4).
+Staging is now live, so verification runs against **both** — and their behaviour must **match**.
 
-### 🧭 THE THROUGH-LINE — the most transferable thing from tonight
+**Method requirements (non-negotiable):**
+- **Confirm app AND worker image shas before trusting any behavioural result** (staging: both must be
+  `sha-bb2aa50`; dev: freshly built off `main`, no source bind-mount). `--progress=plain` to a file,
+  **never `| tail`**.
+- **Do NOT run parallel Playwright agents** — concurrent browser agents corrupted evidence **twice**
+  overnight. Run serially, or make a **URL assertion before every capture** mandatory.
+- **N ≥ 5** on anything intermittent (**N ≥ 8** for React #418).
 
-Every real bug found tonight was **invisible to the check that should have caught it**: the queue reported
-success on work it never did · the seaborne regression passed every count assertion while the map drew nothing ·
-provenance drift came from a stale worker the test suite never runs against · the geometry equivalence proof
-destroyed its own evidence through a `| tail`. **Standing rules now in force:**
-**assert DB deltas not job status · verify image shas before trusting behaviour · N≥5 on anything intermittent ·
-never pipe a long-running verification through `tail`.**
+1. Rebuild dev app **and** worker off `main`; verify both shas.
+2. Attribution backfill reconciles against SQL — 281 `title_hint` + 51 `nearest` patrols, 76 `nearest`
+   events (7 ambiguous). Exact match.
+3. Patrol municipality override + anti-clobber survives a **real ER sync tick**.
+4. Event municipality override + anti-clobber — ⚠ path had **no guard** before `22f2de1`.
+5. Patrol start/end time override + provenance badges — Manual / Derived / ER-supplied.
+6. Four filters cross-checked against SQL counts — Events unattributed · Patrols unattributed ·
+   Events subcategory+sorting · needs-review **on both screens**.
+7. Seaborne track parity (`7386eb3`) — identical count with full-traversing on **and** off. **N ≥ 5.**
+8. Clear-override actually recomputes (`4e7b1cb`) on **both** entities — assert the **DB delta**.
+9. Provenance pairing CHECK holds — zero rows with id set / method NULL.
+10. React #418 on `report_map` — **N ≥ 8**; **validate the detector on a known-positive first**.
+11. BA header logo at 1440px and 390px.
+12. `/showcase/timeline` — both `TIMELINE_MODE` values, reduced-motion, 3 breakpoints.
+13. **Staging behaviour matches dev** — run 2–12 against staging; any divergence is a finding.
 
-### 📚 Lessons logged (all six confirmed in `~/.claude/LESSONS_GLOBAL.md`)
+### ✅ Completed overnight
+
+- **Prod 173-row stale-attribution correction — CONVERGED EXACTLY:** 173/173 at predicted target,
+  **0** unpredicted, **0** manual overrides touched, `attributed_total` **4617 → 4603**, every
+  municipality matching. Staging converged identically beforehand.
+  Backup `/root/muni-catchup/backup/prod_patrols_20260720_191322.sql` (5,016 rows).
+- **Merged to `main` + pushed** — **57 commits** (49 non-merge), spanning both the 07-20 reports/map
+  session and the 07-21 attribution session. CI built `sha-bb2aa50`.
+- **Staging deployed + verified** — all 6 gate steps green, **four** migrations applied against
+  prod-shaped data, `prisma migrate status` **asserted** up to date (not inferred from health 200),
+  zero unpaired provenance rows, filters/logo/`/showcase/timeline` live, app + worker both `sha-bb2aa50`.
+- **Production untouched** — `sha-a08c700`, provenance columns absent.
+
+> **FOUR migrations, not three:** `20260720000100_add_report_type_event_highlights` (pending from 07-20) ·
+> `20260721000000` provenance columns · `20260721010000` title_hint enum · `20260721020000` pairing CHECK.
+>
+> **Figure correction:** Dumaran 271 / Roxas 368 / Baco 51 / 4603 are **PATROL** counts. **EVENT** counts
+> are Dumaran **325** / Roxas **330** / Baco **21** / **5109**.
+>
+> **Repo convention:** this repo uses **real merge commits (`--no-ff`)**, not squash — `main`'s history
+> preserves granular commits. This **contradicts Rule 23**; the actual convention wins.
+
+### ⚠ A live defect found and fixed in the staging gate itself (`bb2aa50`)
+
+The gate opened its SSH tunnel with `-L 5433:localhost:5433` — **local == remote `DB_PORT`**.
+`ferrybook_dev_db` listens on 5433 on this machine, so the run would have bound nothing, pointed
+`migrate deploy` at **ferrybook's dev database**, and **still printed "✅ HEALTHY — safe to promote to
+production."** Patched with: **ephemeral local port** (scans 45500–45560) · **tunnel-listening
+verification that aborts** · **`prisma migrate status` hard gate before `up -d`** · **`ENCRYPTION_KEY`
+read from the stack `.env`** instead of `docker exec` on a stopped container.
+**That last one had been silently dead** — the ER-token re-key **never ran on any previous refresh**;
+it reported `re-keyed=1` for the first time this run.
+
+### 🐞 React #418 — REVISED (supersedes the prior entry)
+
+**NOT reproducible on `report_map`: 0/40** across four conditions, with the detector **validated at 8/8**
+on a known-positive. The 37.5% figure was likely `/showcase` failures misattributed to `report_map` via a
+shared Playwright browser. **A REAL bug was found and fixed on `/showcase`** (100% failure under
+reduced-motion → `af78193`, **10/10 → 0/10**, requiring **four** branching components, not just
+`reveal.tsx`). Remaining unobserved suspect on `report_map`: `map-islands-client.tsx` dynamic islands —
+**deliberately NOT changed**.
+
+### 🧭 THE THROUGH-LINE
+
+Every real bug found was **invisible to the check that should have caught it**: the queue reported success
+on work it never did · the seaborne regression passed every count assertion while the map drew nothing ·
+provenance drift came from a stale worker the tests never run against · the geometry proof destroyed its
+own evidence through a `| tail` · **the staging gate would have certified a promotable staging while
+migrating the wrong database** · **the ER-token re-key had been silently dead on every previous refresh** ·
+**the React #418 measurement itself was the bug** (concurrent browser agents misattributed the page).
+
+**Standing rules now in force:** assert **DB deltas not job status** · **verify image shas** before
+trusting behaviour · **N≥5** on anything intermittent (**N≥8** for #418) · **never pipe a long
+verification through `tail`** · **validate the detector on a known-positive before trusting a 0/N** ·
+**never bind a tunnel's local port equal to the remote port** · **no concurrent browser agents**.
+
+### 📚 Lessons logged (`~/.claude/LESSONS_GLOBAL.md`)
 
 `bullmq.deterministic-jobid.retained-completed-job-silently-drops-readd` ·
 `bullmq.lockduration.cpu-bound-processor-defeats-lock-renewal` ·
 `db.paired-columns.stale-worker-writes-one-of-the-pair` ·
 `geo.derivation.display-declutter-filter-mutilates-source-of-truth` ·
 `prisma.updateMany.not-predicate-excludes-null-rows` ·
-`regex.word-boundary.ascii-class-splits-unicode-tokens`
+`regex.word-boundary.ascii-class-splits-unicode-tokens` ·
+`deploy.staging-gate.tunnel-port-collision-swallows-migrate-failure`
 
 ---
 
