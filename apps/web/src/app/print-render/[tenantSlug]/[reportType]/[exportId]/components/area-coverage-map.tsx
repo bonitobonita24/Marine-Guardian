@@ -24,6 +24,7 @@ import type {
   CoverageReportArea,
   CoverageReportPatrolRow,
 } from "@/server/coverage-report/get-coverage-report-data";
+import { filterValidLatLonPairs } from "@/lib/map-coordinates";
 import { MapRenderGate } from "./map-render-gate";
 
 interface AreaCoverageMapProps {
@@ -112,8 +113,14 @@ export function AreaCoverageMap({
       for (const t of tracks) {
         points.push(...t);
       }
-      if (points.length < 2) return;
-      map.fitBounds(points, { padding: [16, 16] });
+      // MAP GEOMETRY ONLY — drop (0,0)/non-finite/out-of-domain vertices before
+      // fitting. The polygons and track polylines above still render from the
+      // unfiltered data, and no coverage figure changes. Fewer than 2 usable
+      // vertices → keep the initial center/zoom instead of fitting an empty or
+      // degenerate box.
+      const boundsPoints = filterValidLatLonPairs(points);
+      if (boundsPoints.length < 2) return;
+      map.fitBounds(boundsPoints, { padding: [16, 16] });
     },
     [areas, tracks],
   );

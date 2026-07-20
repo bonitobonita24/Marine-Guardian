@@ -6,8 +6,12 @@
 // audit. Hidden from operator sessions client-side; server enforces via
 // coordinatorProcedure.
 //
-// On success, surfaces a link to /exports where the user can poll status +
-// download the result once ready.
+// Phase 4 S8 — the /exports page is DELETED. This dialog used to hand off to
+// it ("View in Exports"); that route no longer exists, so the dialog now keeps
+// the user in place and renders an ExportProgressRow for the created export —
+// the same treatment S7 gave the /map "Generate Printable Report" dialog. The
+// row owns the whole lifecycle (spinner → Download → Generate PowerPoint →
+// Download PowerPoint) and closing the dialog fires a best-effort purge.
 //
 // 6.2d — Per Area Report payload wiring. When reportType === "area", the
 // dialog reveals area selector + startDate + endDate inputs. paramsJson is
@@ -23,7 +27,6 @@
 // parseCoverageParams in get-coverage-report-data.ts.
 
 import { useRef, useState } from "react";
-import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,8 +40,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc/client";
-import { useTenantSlug } from "@/lib/routing/use-tenant-slug";
-import { tenantHref } from "@/lib/routing/tenant-href";
+import { ExportProgressRow } from "@/app/[tenant]/(dashboard)/map/_components/export-progress-row";
 import {
   PLATFORM_ADMIN_EMPTY_TENANT_MESSAGE,
   useIsPlatformAdminWithoutTenant,
@@ -70,7 +72,6 @@ const PAPER_SIZE_OPTIONS: { value: PaperSize; label: string }[] = [
 ];
 
 export function GenerateReportButton() {
-  const tenant = useTenantSlug();
   const { data: session } = useSession();
   const isPlatformAdminWithoutTenant = useIsPlatformAdminWithoutTenant();
   const [open, setOpen] = useState(false);
@@ -114,6 +115,9 @@ export function GenerateReportButton() {
       setFeedback({ kind: "error", message: err.message });
     },
   });
+
+  // Best-effort cleanup fired on dialog close. See handleClose.
+  const purge = trpc.reportExport.purge.useMutation();
 
   // BUG-1 FIX: useRef MUST be called unconditionally before any early return.
   // Previously this was placed after `if (!canGenerate) return null`, which
@@ -191,6 +195,25 @@ export function GenerateReportButton() {
 
   function handleClose() {
     clearRequestTimeout();
+
+    // BEST-EFFORT ONLY — this is an optimisation, NOT the retention
+    // mechanism. The server-side `export-janitor` TTL sweep is the AUTHORITY
+    // for deleting these ephemeral files and remains mandatory: a crashed
+    // tab, a closed laptop, or a dropped connection never reaches this
+    // handler, so a purge that never fires must still be safe. Deliberately
+    // fire-and-forget — not awaited, never blocks the close, and its failure
+    // is swallowed (reportExport.purge is non-throwing by design so this call
+    // site can stay dumb).
+    if (feedback?.kind === "success") {
+      const purgeId = feedback.exportId;
+      try {
+        purge.mutate({ ids: [purgeId] });
+      } catch {
+        // Intentionally swallowed. Closing the dialog must never fail because
+        // cleanup did — the janitor sweep still collects the file.
+      }
+    }
+
     setOpen(false);
     setFeedback(null);
     setReportType("coverage");
@@ -265,23 +288,16 @@ export function GenerateReportButton() {
         <DialogHeader>
           <DialogTitle>Generate Report</DialogTitle>
           <DialogDescription>
-            Queues an asynchronous PDF render. You can track progress and
-            download the result from the Exports page once ready.
+            Queues an asynchronous PDF render. Progress appears below — keep
+            this dialog open and download the file once it is ready. Generated
+            files are temporary and are cleaned up after you close this dialog.
           </DialogDescription>
         </DialogHeader>
 
         {feedback?.kind === "success" ? (
-          <p className="text-sm text-emerald-600 dark:text-emerald-400">
-            Export queued (id: {feedback.exportId}).{" "}
-            <Link
-              href={tenantHref(tenant, "/exports")}
-              className="underline underline-offset-4"
-              data-testid="generate-report-go-to-exports"
-            >
-              View in Exports
-            </Link>
-            .
-          </p>
+          <div className="space-y-2" data-testid="export-progress-rows">
+            <ExportProgressRow exportId={feedback.exportId} label="Report" />
+          </div>
         ) : (
           <div className="space-y-4">
             <div className="space-y-1.5">
@@ -437,6 +453,7 @@ export function GenerateReportButton() {
         <DialogFooter>
           <Button
             variant="ghost"
+            data-testid="generate-report-dismiss"
             onClick={handleClose}
             disabled={create.isPending}
           >

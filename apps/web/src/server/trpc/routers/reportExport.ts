@@ -1,21 +1,22 @@
 import { TRPCError } from "@trpc/server";
 import {
-  cancelReportExportInputSchema,
   createReportExportInputSchema,
-  deleteReportExportInputSchema,
   getPptxReportExportDownloadUrlInputSchema,
-  getReportExportByIdInputSchema,
   getReportExportDownloadUrlInputSchema,
-  listReportExportsInputSchema,
   pollPptxReportExportStatusInputSchema,
   pollReportExportStatusInputSchema,
+  purgeReportExportsInputSchema,
   renderPptxReportExportInputSchema,
-  retryReportExportInputSchema,
 } from "@marine-guardian/shared/schemas";
 import { router } from "../trpc";
 import { tenantProcedure } from "../middleware/tenant";
-import { adminProcedure, matrixProcedure, reportGenerateProcedure } from "../middleware/rbac";
+import { matrixProcedure, reportGenerateProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
+import {
+  buildPptxExportKey,
+  deleteObject,
+  getExportsBucketName,
+} from "@marine-guardian/storage";
 import {
   cancelPdfRender,
   enqueuePdfRender,
@@ -23,207 +24,74 @@ import {
 } from "@marine-guardian/jobs";
 
 /**
- * ReportExport router — async PDF export tracker per v2 PRODUCT.md §505-506.
+ * ReportExport router — ephemeral report export tracker.
  *
  * Lifecycle: create (status=queued) → BullMQ pdf-render worker picks up →
- * status=rendering → status=ready (with filePath) OR failed.
+ * status=rendering → status=ready (with filePath = a MinIO object key) OR
+ * failed. A PPTX is rendered on demand from the same report data (NOT
+ * converted from the PDF) and its object key is DERIVED via
+ * buildPptxExportKey — it is stored in no column.
  *
- * Scope of this scaffold (Sub-batch 4.1c):
- *   - create  : inserts a queued row only. Does NOT enqueue BullMQ job —
- *               that wiring is intentionally deferred to a future batch.
- *   - getDownloadUrl : returns the download URL when status=ready; null
- *               otherwise. Does NOT serve the file — the download endpoint
- *               (per spec §506: /[tenant]/exports/{id}/download) is future
- *               batch work.
+ * Storage model (Phase 4 S1-S5): exports live in MinIO, not Telegram.
+ * `telegramFileId` / `pptxTelegramFileId` are legacy columns and are now
+ * always written null.
  *
- * RBAC: report.export is coordinator+ (spec §410), with one narrow
- * exception — `create` also allows `viewer` (2026-07-06, reportGenerateProcedure)
- * so a viewer can generate a printable report from the Interactive Report
- * Map; every other procedure here is unchanged and is either
- * reportGenerateProcedure/adminProcedure or tenantProcedure (read-only
- * access for any tenant user to see their own exports).
+ * Retention: exports are EPHEMERAL. The `export-janitor` BullMQ repeatable
+ * job is the AUTHORITY for deletion — it sweeps rows older than
+ * EXPORT_TTL_MS and removes their objects. The `purge` mutation below is a
+ * best-effort immediate cleanup the UI fires on dialog close; it is an
+ * optimisation, never a replacement for the TTL sweep.
+ *
+ * Client-facing error text: the raw `errorMessage` / `pptxErrorMessage`
+ * columns carry renderer internals (file paths, stack fragments) and MUST
+ * NOT reach the client. Every client-facing procedure returns
+ * GENERIC_EXPORT_ERROR instead, and console.errors the real value so
+ * operators keep their diagnostics server-side.
+ *
+ * RBAC: report generation is coordinator+ PLUS `viewer`
+ * (reportGenerateProcedure) — a viewer may produce a printable report of
+ * what it can already see. Read procedures are tenantProcedure.
  */
-/**
- * paramsJson field shapes actually written by the various report-generating
- * UIs (generate-report-button.tsx + generate-printable-button.tsx). Not
- * every reportType populates every field — see the per-type comments at
- * each write site. All fields are optional here because paramsJson is an
- * untyped Json column; this is a best-effort read shape for the Exports
- * page summary, not a validated contract.
- */
-interface ReportExportParams {
-  templateId?: string;
-  municipalityId?: string;
-  /**
-   * Optional province rollup filter (2026-07-09) — carried through verbatim
-   * from paramsJson (untyped Json column) so a queued province-scoped
-   * report_map export's summary can reflect province scope even though no
-   * specific municipalityId was set.
-   */
-  province?: string;
-  /**
-   * Optional "include child boundaries" toggle (Phase 4B, 2026-07-09) —
-   * carried through verbatim from paramsJson; does not affect the summary
-   * municipalityName (which is derived from municipalityId/province only).
-   */
-  includeChildren?: boolean;
-  /**
-   * Optional "include traversing patrols" toggle — carried through verbatim
-   * from paramsJson; does not affect the summary municipalityName (which is
-   * derived from municipalityId/province only).
-   */
-  includeTraversing?: boolean;
-  protectedZoneId?: string;
-  areaBoundaryId?: string;
-  from?: string;
-  to?: string;
-  startDate?: string;
-  endDate?: string;
-  year?: number;
-  month?: number;
-}
 
-function extractParams(paramsJson: unknown): ReportExportParams {
-  if (paramsJson === null || typeof paramsJson !== "object") return {};
-  return paramsJson;
+/**
+ * The ONLY error string any client-facing export procedure may return.
+ * The real column value is logged server-side, never serialised to the
+ * browser — internal file paths were previously visible in the network
+ * payload (verified with a canary).
+ */
+const GENERIC_EXPORT_ERROR = "Report generation failed. Please try again.";
+
+/**
+ * Logs the real, internal error text for an export row and returns the
+ * generic client-facing replacement. `null` in → `null` out, so a healthy
+ * row still reports "no error".
+ */
+function redactExportError(
+  exportId: string,
+  field: "errorMessage" | "pptxErrorMessage",
+  raw: string | null,
+): string | null {
+  if (raw === null) return null;
+  console.error(
+    `[reportExport] export ${exportId} ${field} (not sent to client):`,
+    raw,
+  );
+  return GENERIC_EXPORT_ERROR;
 }
 
 export const reportExportRouter = router({
-  list: matrixProcedure(tenantProcedure, "exports", "view")
-    .input(listReportExportsInputSchema)
-    .query(async ({ ctx, input }) => {
-      const items = await prisma.reportExport.findMany({
-        where: {
-          tenantId: ctx.tenantId,
-          ...(input.status !== undefined ? { status: input.status } : {}),
-          ...(input.reportType !== undefined
-            ? { reportType: input.reportType }
-            : {}),
-        },
-        take: input.limit + 1,
-        ...(input.cursor !== undefined ? { cursor: { id: input.cursor } } : {}),
-        orderBy: { createdAt: "desc" },
-        // telegramFileId is a server-side storage locator (Telegram Bot API
-        // file_id) — never exposed to the client. Downloads go through the
-        // Route Handler, which resolves it server-side.
-        omit: { telegramFileId: true, pptxTelegramFileId: true },
-        include: {
-          requestedBy: { select: { id: true, fullName: true } },
-        },
-      });
-      let nextCursor: string | undefined;
-      if (items.length > input.limit) {
-        const next = items.pop();
-        nextCursor = next?.id;
-      }
-
-      // Report Summary column (so a user sees what they already generated
-      // before re-generating the same thing): paramsJson only carries IDs
-      // (municipalityId, protectedZoneId, templateId, areaBoundaryId) — batch
-      // resolve them to names for this page of rows only. Tenant-scoped on
-      // every lookup so a row can never leak a cross-tenant name even if a
-      // paramsJson id were ever malformed/spoofed.
-      const municipalityIds = new Set<string>();
-      const protectedZoneIds = new Set<string>();
-      const templateIds = new Set<string>();
-      const areaBoundaryIds = new Set<string>();
-      for (const item of items) {
-        const p = extractParams(item.paramsJson);
-        if (p.municipalityId !== undefined) municipalityIds.add(p.municipalityId);
-        if (p.protectedZoneId !== undefined) protectedZoneIds.add(p.protectedZoneId);
-        if (p.templateId !== undefined) templateIds.add(p.templateId);
-        if (p.areaBoundaryId !== undefined) areaBoundaryIds.add(p.areaBoundaryId);
-      }
-
-      const [municipalities, protectedZones, templates, areaBoundaries] =
-        await Promise.all([
-          municipalityIds.size > 0
-            ? prisma.municipality.findMany({
-                where: { tenantId: ctx.tenantId, id: { in: [...municipalityIds] } },
-                select: { id: true, name: true },
-              })
-            : Promise.resolve([]),
-          protectedZoneIds.size > 0
-            ? prisma.protectedZone.findMany({
-                where: { tenantId: ctx.tenantId, id: { in: [...protectedZoneIds] } },
-                select: { id: true, name: true },
-              })
-            : Promise.resolve([]),
-          templateIds.size > 0
-            ? prisma.reportTemplate.findMany({
-                where: { tenantId: ctx.tenantId, id: { in: [...templateIds] } },
-                select: { id: true, name: true },
-              })
-            : Promise.resolve([]),
-          areaBoundaryIds.size > 0
-            ? prisma.areaBoundary.findMany({
-                where: { tenantId: ctx.tenantId, id: { in: [...areaBoundaryIds] } },
-                select: { id: true, name: true },
-              })
-            : Promise.resolve([]),
-        ]);
-
-      const municipalityNameById = new Map(municipalities.map((m) => [m.id, m.name]));
-      const protectedZoneNameById = new Map(protectedZones.map((z) => [z.id, z.name]));
-      const templateNameById = new Map(templates.map((t) => [t.id, t.name]));
-      const areaNameById = new Map(areaBoundaries.map((a) => [a.id, a.name]));
-
-      const itemsWithSummary = items.map((item) => {
-        const p = extractParams(item.paramsJson);
-        return {
-          ...item,
-          reportSummary: {
-            municipalityName:
-              p.municipalityId !== undefined
-                ? municipalityNameById.get(p.municipalityId) ?? null
-                : (p.province ?? null),
-            protectedZoneName:
-              p.protectedZoneId !== undefined
-                ? protectedZoneNameById.get(p.protectedZoneId) ?? null
-                : null,
-            templateName:
-              p.templateId !== undefined
-                ? templateNameById.get(p.templateId) ?? null
-                : null,
-            areaName:
-              p.areaBoundaryId !== undefined
-                ? areaNameById.get(p.areaBoundaryId) ?? null
-                : null,
-            from: p.from ?? p.startDate ?? null,
-            to: p.to ?? p.endDate ?? null,
-            period:
-              p.year !== undefined && p.month !== undefined
-                ? { year: p.year, month: p.month }
-                : null,
-          },
-        };
-      });
-
-      return { items: itemsWithSummary, nextCursor };
-    }),
-
-  getById: matrixProcedure(tenantProcedure, "exports", "view")
-    .input(getReportExportByIdInputSchema)
-    .query(async ({ ctx, input }) => {
-      return prisma.reportExport.findFirst({
-        where: { id: input.id, tenantId: ctx.tenantId },
-        // Same posture as list: telegramFileId stays server-side.
-        omit: { telegramFileId: true, pptxTelegramFileId: true },
-        include: {
-          requestedBy: { select: { id: true, fullName: true } },
-        },
-      });
-    }),
-
   /**
    * pollStatus — lightweight read for the UI to poll while waiting for a
-   * render to complete. Returns just the status + completedAt + errorMessage
-   * to keep the payload small.
+   * render to complete.
+   *
+   * `errorMessage` is a boolean-ish signal only: null when the row has no
+   * error, otherwise GENERIC_EXPORT_ERROR. The raw column value is logged
+   * server-side (see redactExportError) and never serialised.
    */
   pollStatus: matrixProcedure(tenantProcedure, "exports", "view")
     .input(pollReportExportStatusInputSchema)
     .query(async ({ ctx, input }) => {
-      return prisma.reportExport.findFirst({
+      const row = await prisma.reportExport.findFirst({
         where: { id: input.id, tenantId: ctx.tenantId },
         select: {
           id: true,
@@ -233,28 +101,29 @@ export const reportExportRouter = router({
           fileSizeBytes: true,
         },
       });
+      if (!row) return null;
+      return {
+        id: row.id,
+        status: row.status,
+        completedAt: row.completedAt,
+        fileSizeBytes: row.fileSizeBytes,
+        errorMessage: redactExportError(row.id, "errorMessage", row.errorMessage),
+      };
     }),
 
   /**
    * create — inserts a queued ReportExport row, enqueues the BullMQ
-   * pdf-render job, and writes the EXPORT_REQUESTED AuditLog. Wired in
-   * 5.3b — closes the loop from v2 PRODUCT.md L505-506 (4.1c scaffolded
-   * the row insert; 5.3b fires the producer side of the pipeline).
+   * pdf-render job, and writes the EXPORT_REQUESTED AuditLog.
    *
    * Order of operations: prisma.create → enqueuePdfRender → auditLog.create.
    * Each step's failure mode is independent: a row exists with status=queued
-   * even if the enqueue or audit log fails, and the 5.3d admin "Retry"
-   * button can re-enqueue from the stuck-queued state if needed (jobId
-   * `pdf-render__${exportId}` dedupes the second enqueue to one BullMQ
-   * job). Same pattern as patrol.rebuildTracks + areaBoundary.rebuild —
-   * sequential awaits rather than $transaction wrap because BullMQ writes
-   * to Valkey (outside Postgres) and a $transaction cannot span both.
+   * even if the enqueue or audit log fails. Sequential awaits rather than a
+   * $transaction wrap because BullMQ writes to Valkey (outside Postgres) and
+   * a $transaction cannot span both.
    *
    * RBAC (2026-07-06): `reportGenerateProcedure` = coordinator+ PLUS
-   * `viewer`. Viewer is allowed here ONLY because report generation is an
-   * owner-approved, read-oriented "produce a PDF of what I can already see"
-   * action — it stays excluded from every other mutation in this router
-   * (retry/cancel/delete/renderPptx remain adminProcedure).
+   * `viewer` — report generation is an owner-approved, read-oriented
+   * "produce a PDF of what I can already see" action.
    */
   create: matrixProcedure(reportGenerateProcedure, "exports", "write")
     .input(createReportExportInputSchema)
@@ -273,10 +142,9 @@ export const reportExportRouter = router({
 
       // Enqueue is best-effort and must never hang or fail the request. The
       // row already exists with status=queued; if Valkey/BullMQ is unreachable
-      // the bounded enqueue rejects quickly (see enqueuePdfRender), we log it,
-      // and the 5.3d admin "Retry" button re-enqueues from the queued state.
-      // Previously an unreachable Valkey made queue.add hang forever, which is
-      // what produced the 524 timeout on the Generate Report button.
+      // the bounded enqueue rejects quickly (see enqueuePdfRender) and we log
+      // it. Previously an unreachable Valkey made queue.add hang forever,
+      // which is what produced the 524 timeout on the Generate Report button.
       try {
         await enqueuePdfRender({
           exportId: created.id,
@@ -285,7 +153,7 @@ export const reportExportRouter = router({
         });
       } catch (err) {
         console.error(
-          `[reportExport.create] enqueue failed for export ${created.id}; row remains queued and can be retried:`,
+          `[reportExport.create] enqueue failed for export ${created.id}; row remains queued:`,
           err,
         );
       }
@@ -309,17 +177,15 @@ export const reportExportRouter = router({
 
   /**
    * getDownloadUrl — returns the download URL when the export is ready.
-   * Returns null when status is not "ready" (still queued, rendering, or
-   * failed).
+   * Returns null when the row is not ready, or is ready but carries no
+   * stored object key (nothing to serve — e.g. already purged).
    *
    * Returns NOT_FOUND when the row does not exist for this tenant — never
    * leaks existence cross-tenant.
    *
-   * 5.3c — URL shape changed from `/${tenantId}/exports/${id}/download`
-   * (v2 spec §506) to `/api/exports/reports/${id}/download`. The Route
-   * Handler enforces tenant scope server-side via session.tenantId, so
-   * the URL no longer needs to carry tenantId. Cleaner posture: no public
-   * URL identifies the tenant a row belongs to.
+   * The Route Handler enforces tenant scope server-side via session.tenantId,
+   * so the URL does not carry tenantId: no public URL identifies the tenant
+   * a row belongs to.
    */
   getDownloadUrl: matrixProcedure(tenantProcedure, "exports", "view")
     .input(getReportExportDownloadUrlInputSchema)
@@ -330,19 +196,14 @@ export const reportExportRouter = router({
           id: true,
           status: true,
           filePath: true,
-          telegramFileId: true,
         },
       });
       if (!row) {
         throw new TRPCError({ code: "NOT_FOUND" });
       }
-      // Downloadable when ready AND at least one storage location exists —
-      // Telegram (primary since Phase 4 S1) or MinIO (legacy/fallback).
-      // telegramFileId itself is never returned to the client.
-      if (
-        row.status !== "ready" ||
-        (row.telegramFileId === null && row.filePath === null)
-      ) {
+      // filePath is the MinIO object key. It is a server-side storage
+      // locator and is never returned to the client.
+      if (row.status !== "ready" || row.filePath === null) {
         return { downloadUrl: null as string | null, status: row.status };
       }
       return {
@@ -352,192 +213,124 @@ export const reportExportRouter = router({
     }),
 
   /**
-   * retry — admin re-enqueues a previously-failed (or stuck-queued) export.
+   * purge — best-effort immediate cleanup of exports the user just
+   * generated, fired by the Generate Printable Report dialog on close.
    *
-   * Resets the row state: status=queued, nullifies filePath/fileSizeBytes/
-   * errorMessage/completedAt. Then re-fires the pdf-render job. The BullMQ
-   * jobId pattern `pdf-render__${exportId}` dedupes the second enqueue to
-   * one job if a stale job is still in flight (5.3b precedent).
+   * ⚠ This is an OPTIMISATION, NOT the retention mechanism. The
+   * `export-janitor` repeatable job's TTL sweep is the AUTHORITY for
+   * deletion and remains mandatory: a crashed tab, a closed laptop, or a
+   * dropped connection never fires this mutation, so purge existing does
+   * not make the janitor optional.
    *
-   * RBAC: adminProcedure (super_admin + site_admin). Tenant scope enforced
-   * via findFirst {id, tenantId} — returns NOT_FOUND for cross-tenant rows
-   * (never leaks existence). Pattern mirrors patrol.rebuildTracks (5.2c)
-   * and areaBoundary.rebuild (5.1e): sequential awaits (not $transaction)
-   * because BullMQ writes to Valkey outside the Postgres transaction
-   * scope.
+   * NEVER THROWS by design. The client fires it during dialog teardown,
+   * where an error is both useless (nothing to retry into) and invisible
+   * (the dialog is already gone). Every step is individually try/caught and
+   * the sweep continues; the janitor is the backstop for anything missed.
+   *
+   * Unknown and cross-tenant ids are silently skipped — no NOT_FOUND. That
+   * would leak row existence AND would make an ordinary double-close look
+   * like a failure.
+   *
+   * Tenant scope is enforced server-side on every id (findFirst with
+   * ctx.tenantId), so ids from a hostile client can never reach another
+   * tenant's row.
    */
-  retry: matrixProcedure(adminProcedure, "exports", "update")
-    .input(retryReportExportInputSchema)
+  purge: matrixProcedure(reportGenerateProcedure, "exports", "write")
+    .input(purgeReportExportsInputSchema)
     .mutation(async ({ ctx, input }) => {
-      const existing = await prisma.reportExport.findFirst({
-        where: { id: input.id, tenantId: ctx.tenantId },
-        select: { id: true },
-      });
-      if (!existing) {
-        throw new TRPCError({ code: "NOT_FOUND" });
+      const bucket = getExportsBucketName();
+      let purged = 0;
+
+      for (const id of input.ids) {
+        try {
+          const row = await prisma.reportExport.findFirst({
+            where: { id, tenantId: ctx.tenantId },
+            select: { id: true, tenantId: true, filePath: true, createdAt: true },
+          });
+          if (!row) continue;
+
+          // Drop any still-pending BullMQ job so the worker does not
+          // resurrect an object under a row we are about to delete.
+          try {
+            await cancelPdfRender(row.id);
+          } catch (err) {
+            console.warn(`[reportExport.purge] cancelPdfRender failed for ${row.id}:`, err);
+          }
+
+          const keys: string[] = [];
+          if (row.filePath !== null && row.filePath !== "") {
+            keys.push(row.filePath);
+          }
+          // The PPTX key is DERIVED, never stored, and embeds the UTC
+          // year/month of the moment the worker uploaded it. A row created
+          // just before UTC midnight on the last day of a month has its
+          // object under the NEXT month's prefix, so probe both candidates
+          // (deduped — mid-month they collapse to one). deleteObject
+          // swallows a 404, so the extra probe is a cheap no-op.
+          const pptxKeys = new Set<string>([
+            buildPptxExportKey(row.tenantId, row.id, row.createdAt),
+            buildPptxExportKey(
+              row.tenantId,
+              row.id,
+              new Date(row.createdAt.getTime() + 24 * 60 * 60 * 1000),
+            ),
+          ]);
+          keys.push(...pptxKeys);
+
+          for (const key of keys) {
+            try {
+              await deleteObject({ bucket, key });
+            } catch (err) {
+              console.warn(`[reportExport.purge] deleteObject failed for ${key}:`, err);
+            }
+          }
+
+          try {
+            await prisma.reportExport.deleteMany({
+              where: { id: row.id, tenantId: ctx.tenantId },
+            });
+            purged += 1;
+          } catch (err) {
+            console.warn(`[reportExport.purge] row delete failed for ${row.id}:`, err);
+          }
+        } catch (err) {
+          console.warn(`[reportExport.purge] skipping ${id} after an unexpected error:`, err);
+        }
       }
 
-      const updated = await prisma.reportExport.update({
-        where: { id: existing.id },
-        omit: { telegramFileId: true, pptxTelegramFileId: true },
-        data: {
-          status: "queued",
-          filePath: null,
-          telegramFileId: null,
-          fileSizeBytes: null,
-          errorMessage: null,
-          completedAt: null,
-        },
-      });
-
-      await enqueuePdfRender({
-        exportId: existing.id,
-        tenantId: ctx.tenantId,
-        userId: ctx.userId,
-      });
-
-      await prisma.auditLog.create({
-        data: {
-          action: "EXPORT_RETRY",
-          userId: ctx.userId,
-          tenantId: ctx.tenantId,
-          entityType: "ReportExport",
-          entityId: existing.id,
-          changesJson: {},
-        },
-      });
-
-      return updated;
+      return { purged };
     }),
 
   /**
-   * cancel — admin stops a pending (queued/rendering) export, giving a
-   * stuck-"Queued" (or unwanted "Rendering") row an escape hatch. Best-effort
-   * removes the underlying BullMQ job via cancelPdfRender (jobId
-   * `pdf-render__${id}`) — a job the worker already has ACTIVE/locked cannot
-   * be force-removed, so cancelPdfRender is a no-op in that case (see its
-   * doc comment). Regardless of queue-removal outcome, the row is always
-   * flipped to the terminal state so the UI stops treating it as in-flight.
+   * renderPptx — on-demand "Generate PowerPoint" for a report export.
    *
-   * There is no "cancelled" value on ReportExportStatus — reusing "failed"
-   * with an explicit errorMessage avoids an enum migration (per spec).
-   *
-   * RBAC: adminProcedure (super_admin + site_admin), same posture as retry.
-   * Tenant scope enforced via findFirst {id, tenantId} — NOT_FOUND for
-   * cross-tenant rows (never leaks existence).
-   */
-  cancel: matrixProcedure(adminProcedure, "exports", "update")
-    .input(cancelReportExportInputSchema)
-    .mutation(async ({ ctx, input }) => {
-      const existing = await prisma.reportExport.findFirst({
-        where: { id: input.id, tenantId: ctx.tenantId },
-        select: { id: true, status: true },
-      });
-      if (!existing) {
-        throw new TRPCError({ code: "NOT_FOUND" });
-      }
-
-      // Best-effort queue cleanup first (never throws) — see cancelPdfRender
-      // doc comment for the active-job caveat.
-      await cancelPdfRender(existing.id);
-
-      const updated = await prisma.reportExport.update({
-        where: { id: existing.id },
-        omit: { telegramFileId: true, pptxTelegramFileId: true },
-        data: {
-          status: "failed",
-          errorMessage: "Cancelled by user",
-          completedAt: new Date(),
-        },
-      });
-
-      await prisma.auditLog.create({
-        data: {
-          action: "EXPORT_CANCELLED",
-          userId: ctx.userId,
-          tenantId: ctx.tenantId,
-          entityType: "ReportExport",
-          entityId: existing.id,
-          changesJson: { previousStatus: existing.status },
-        },
-      });
-
-      return updated;
-    }),
-
-  /**
-   * delete — admin permanently removes a terminal (ready/failed) export
-   * row. Also best-effort clears any lingering BullMQ job for the id via
-   * cancelPdfRender, so a delete fully cleans up even if the row was left
-   * in a stuck queued/rendering state before being deleted directly.
-   *
-   * RBAC: adminProcedure (super_admin + site_admin). Tenant scope enforced
-   * via findFirst {id, tenantId} — NOT_FOUND for cross-tenant rows (never
-   * leaks existence), same posture as retry/cancel.
-   */
-  delete: matrixProcedure(adminProcedure, "exports", "delete")
-    .input(deleteReportExportInputSchema)
-    .mutation(async ({ ctx, input }) => {
-      const existing = await prisma.reportExport.findFirst({
-        where: { id: input.id, tenantId: ctx.tenantId },
-        select: { id: true, status: true },
-      });
-      if (!existing) {
-        throw new TRPCError({ code: "NOT_FOUND" });
-      }
-
-      await cancelPdfRender(existing.id);
-
-      await prisma.reportExport.delete({ where: { id: existing.id } });
-
-      await prisma.auditLog.create({
-        data: {
-          action: "EXPORT_DELETED",
-          userId: ctx.userId,
-          tenantId: ctx.tenantId,
-          entityType: "ReportExport",
-          entityId: existing.id,
-          changesJson: { previousStatus: existing.status },
-        },
-      });
-
-      return { id: existing.id };
-    }),
-
-  /**
-   * renderPptx — on-demand "Render to PowerPoint" for an already-`ready`
-   * PDF export. NEVER auto-fired — strictly a user-initiated conversion of
-   * an existing report PDF into a .pptx (one slide per PDF page). Requires
-   * the row's PDF status to already be "ready"; a queued/rendering/failed
-   * PDF cannot be converted (the row has no finished PDF to convert yet).
+   * Since Phase 4 S3 the pptx worker renders from the live report data (the
+   * same print-render page the PDF uses), NOT by converting the finished
+   * PDF. So a PPTX no longer depends on the PDF having succeeded, and the
+   * old `status === "ready" && telegramFileId !== null` precondition is
+   * gone — with Telegram removed, telegramFileId is always null and that
+   * guard would have rejected every request. Only row existence is required
+   * (the row carries paramsJson).
    *
    * Resets pptxStatus=queued + clears prior pptx fields (a re-request after
-   * a completed/failed prior PPTX render must actually re-run, not surface
-   * stale state), then enqueues the pptx-render job. Same jobId-dedupe
-   * posture as reportExport.create/retry — the BullMQ jobId pattern
+   * a completed/failed prior render must actually re-run, not surface stale
+   * state), then enqueues the pptx-render job. The BullMQ jobId pattern
    * `pptx-render__${id}` collapses double-clicks to one job.
    *
-   * RBAC: adminProcedure (super_admin + site_admin) — more restrictive
-   * than the coordinatorProcedure gating the original PDF `create`, since
-   * PPTX rendering is an additional, optional, admin-triggered conversion
-   * rather than the primary report-generation flow.
+   * RBAC (Phase 4 S6): WIDENED from adminProcedure to
+   * reportGenerateProcedure — the new in-dialog "Generate PowerPoint"
+   * button is offered to everyone who can generate a report, which per
+   * `create` above includes `viewer`.
    */
-  renderPptx: matrixProcedure(adminProcedure, "exports", "write")
+  renderPptx: matrixProcedure(reportGenerateProcedure, "exports", "write")
     .input(renderPptxReportExportInputSchema)
     .mutation(async ({ ctx, input }) => {
       const existing = await prisma.reportExport.findFirst({
         where: { id: input.id, tenantId: ctx.tenantId },
-        select: { id: true, status: true, telegramFileId: true },
+        select: { id: true, status: true },
       });
       if (!existing) {
         throw new TRPCError({ code: "NOT_FOUND" });
-      }
-      if (existing.status !== "ready" || existing.telegramFileId === null) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message:
-            "Cannot render PowerPoint until the PDF report has finished generating.",
-        });
       }
 
       const updated = await prisma.reportExport.update({
@@ -545,6 +338,7 @@ export const reportExportRouter = router({
         omit: { telegramFileId: true, pptxTelegramFileId: true },
         data: {
           pptxStatus: "queued",
+          // Legacy column — always null since Phase 4 S3.
           pptxTelegramFileId: null,
           pptxFileSizeBytes: null,
           pptxErrorMessage: null,
@@ -573,12 +367,14 @@ export const reportExportRouter = router({
 
   /**
    * pollPptxStatus — lightweight read for the UI to poll while waiting for
-   * an on-demand PPTX render to complete. Mirrors pollStatus.
+   * an on-demand PPTX render to complete. Mirrors pollStatus, including its
+   * error-redaction posture: the raw pptxErrorMessage never reaches the
+   * client.
    */
   pollPptxStatus: matrixProcedure(tenantProcedure, "exports", "view")
     .input(pollPptxReportExportStatusInputSchema)
     .query(async ({ ctx, input }) => {
-      return prisma.reportExport.findFirst({
+      const row = await prisma.reportExport.findFirst({
         where: { id: input.id, tenantId: ctx.tenantId },
         select: {
           id: true,
@@ -587,13 +383,25 @@ export const reportExportRouter = router({
           pptxFileSizeBytes: true,
         },
       });
+      if (!row) return null;
+      return {
+        id: row.id,
+        pptxStatus: row.pptxStatus,
+        pptxFileSizeBytes: row.pptxFileSizeBytes,
+        pptxErrorMessage: redactExportError(
+          row.id,
+          "pptxErrorMessage",
+          row.pptxErrorMessage,
+        ),
+      };
     }),
 
   /**
    * getPptxDownloadUrl — returns the PPTX download URL once pptxStatus is
-   * "ready". Mirrors getDownloadUrl's NOT_FOUND-on-cross-tenant posture —
-   * never leaks existence. telegramFileId itself is never returned to the
-   * client.
+   * "ready". There is no pptx key column to check — the object key is
+   * DERIVED by the Route Handler — so pptxStatus is the only row-level
+   * gate. Mirrors getDownloadUrl's NOT_FOUND-on-cross-tenant posture:
+   * never leaks existence.
    */
   getPptxDownloadUrl: matrixProcedure(tenantProcedure, "exports", "view")
     .input(getPptxReportExportDownloadUrlInputSchema)
@@ -603,13 +411,12 @@ export const reportExportRouter = router({
         select: {
           id: true,
           pptxStatus: true,
-          pptxTelegramFileId: true,
         },
       });
       if (!row) {
         throw new TRPCError({ code: "NOT_FOUND" });
       }
-      if (row.pptxStatus !== "ready" || row.pptxTelegramFileId === null) {
+      if (row.pptxStatus !== "ready") {
         return {
           downloadUrl: null as string | null,
           pptxStatus: row.pptxStatus,

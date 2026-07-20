@@ -30,6 +30,7 @@ import type {
   ReportMapBounds,
   ReportMapTrackRow,
 } from "@/server/report-map-report/get-report-map-report-data";
+import { filterValidLatLonPairs } from "@/lib/map-coordinates";
 import { boundsToView } from "./bounds-view";
 import { MapRenderGate } from "./map-render-gate";
 
@@ -93,8 +94,16 @@ export function PatrolTracksMap({
           points.push([pt.lat, pt.lon]);
         }
       }
-      if (points.length < 2) return;
-      map.fitBounds(points, { padding: [16, 16], animate: false });
+      // MAP GEOMETRY ONLY — drop (0,0)/non-finite/out-of-domain vertices before
+      // fitting. A single Null-Island vertex on one track would stretch the
+      // camera from West Africa to Mindoro. The polylines above still draw from
+      // the unfiltered `renderableTracks`, and every patrol total is untouched.
+      const boundsPoints = filterValidLatLonPairs(points);
+      // Fewer than 2 usable vertices → leave the initial view (municipality
+      // bounds, else the whole-region default) in place rather than fitting to
+      // a degenerate/empty box.
+      if (boundsPoints.length < 2) return;
+      map.fitBounds(boundsPoints, { padding: [16, 16], animate: false });
     },
     [renderableTracks, municipalityBounds],
   );

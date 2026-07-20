@@ -41,7 +41,9 @@ import {
   DeleteObjectCommand,
   HeadBucketCommand,
   CreateBucketCommand,
+  ListObjectsV2Command,
   NoSuchBucket,
+  NoSuchKey,
 } from "@aws-sdk/client-s3";
 
 import {
@@ -51,10 +53,15 @@ import {
   assertBucketExists,
   getExportsBucketName,
   buildExportKey,
+  buildPptxExportKey,
   buildLogoKey,
   uploadImage,
   getImageReadStream,
   getImageBytes,
+  uploadObject,
+  getObjectBytes,
+  deleteObject,
+  listExpiredObjectKeys,
   __resetClientForTesting,
 } from "../index";
 
@@ -387,6 +394,284 @@ describe("packages/storage", () => {
       });
 
       expect(result).toEqual(Buffer.concat([chunk1, chunk2]));
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Generic ephemeral-object surface (report exports on a ~30 min MinIO TTL).
+  // -------------------------------------------------------------------------
+
+  describe("buildPptxExportKey", () => {
+    it("produces ${tenantId}/${YYYY}/${MM}/${exportId}.pptx key shape", () => {
+      const at = new Date(Date.UTC(2026, 2, 7)); // 2026-03-07 UTC
+      expect(buildPptxExportKey("tenant-abc", "exp-123", at)).toBe(
+        "tenant-abc/2026/03/exp-123.pptx",
+      );
+    });
+
+    it("zero-pads single-digit months", () => {
+      const at = new Date(Date.UTC(2026, 0, 1)); // 2026-01-01 UTC
+      expect(buildPptxExportKey("t1", "e1", at)).toBe("t1/2026/01/e1.pptx");
+    });
+
+    it("shares the tenant/year/month prefix with buildExportKey", () => {
+      const at = new Date(Date.UTC(2026, 4, 9));
+      const pdf = buildExportKey("t1", "e1", at);
+      const pptx = buildPptxExportKey("t1", "e1", at);
+      expect(pdf.replace(/\.pdf$/, "")).toBe(pptx.replace(/\.pptx$/, ""));
+    });
+  });
+
+  describe("uploadObject", () => {
+    it("passes the given ContentType through to PutObjectCommand", async () => {
+      mockSend.mockResolvedValueOnce({});
+      const body = Buffer.from("PK fake pptx");
+      const pptxType =
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+
+      const result = await uploadObject({
+        bucket: "marine-guardian-test-exports",
+        key: "tenant-1/2026/05/export-1.pptx",
+        body,
+        contentType: pptxType,
+      });
+
+      expect(mockSend).toHaveBeenCalledTimes(1);
+      const cmd = mockSend.mock.calls[0]?.[0] as PutObjectCommand;
+      expect(cmd).toBeInstanceOf(PutObjectCommand);
+      expect(cmd.input.Bucket).toBe("marine-guardian-test-exports");
+      expect(cmd.input.Key).toBe("tenant-1/2026/05/export-1.pptx");
+      expect(cmd.input.Body).toBe(body);
+      expect(cmd.input.ContentType).toBe(pptxType);
+      expect(cmd.input.ContentLength).toBe(body.length);
+      expect(result.key).toBe("tenant-1/2026/05/export-1.pptx");
+    });
+  });
+
+  describe("getObjectBytes", () => {
+    it("returns a Buffer on success", async () => {
+      const bytes = Buffer.from([0x25, 0x50, 0x44, 0x46]);
+      mockSend.mockResolvedValueOnce({ Body: Readable.from([bytes]) });
+
+      const result = await getObjectBytes({
+        bucket: "marine-guardian-test-exports",
+        key: "tenant-1/2026/05/export-1.pdf",
+      });
+
+      expect(result).toBeInstanceOf(Buffer);
+      expect(result).toEqual(bytes);
+      const cmd = mockSend.mock.calls[0]?.[0] as GetObjectCommand;
+      expect(cmd).toBeInstanceOf(GetObjectCommand);
+      expect(cmd.input.Key).toBe("tenant-1/2026/05/export-1.pdf");
+    });
+
+    it("returns null (not throws) on a NoSuchKey error — powers a clean 410 Gone", async () => {
+      mockSend.mockRejectedValueOnce(
+        new NoSuchKey({ $metadata: {}, message: "" }),
+      );
+
+      await expect(
+        getObjectBytes({
+          bucket: "marine-guardian-test-exports",
+          key: "tenant-1/2026/05/purged.pdf",
+        }),
+      ).resolves.toBeNull();
+    });
+
+    it("returns null on a bare 404 $metadata error (MinIO style)", async () => {
+      mockSend.mockRejectedValueOnce(
+        Object.assign(new Error("Not Found"), {
+          $metadata: { httpStatusCode: 404 },
+          name: "SomeOtherName",
+        }),
+      );
+
+      await expect(
+        getObjectBytes({
+          bucket: "marine-guardian-test-exports",
+          key: "tenant-1/2026/05/purged.pdf",
+        }),
+      ).resolves.toBeNull();
+    });
+
+    it("rethrows a non-404 error (a real storage failure must not read as purged)", async () => {
+      mockSend.mockRejectedValueOnce(
+        Object.assign(new Error("Access Denied"), {
+          $metadata: { httpStatusCode: 403 },
+          name: "AccessDenied",
+        }),
+      );
+
+      await expect(
+        getObjectBytes({
+          bucket: "marine-guardian-test-exports",
+          key: "tenant-1/2026/05/export-1.pdf",
+        }),
+      ).rejects.toThrow(/Access Denied/);
+    });
+
+    it("throws when the response has no Body at all (defensive)", async () => {
+      mockSend.mockResolvedValueOnce({});
+      await expect(
+        getObjectBytes({
+          bucket: "marine-guardian-test-exports",
+          key: "tenant-1/2026/05/no-body.pdf",
+        }),
+      ).rejects.toThrow(/no body/i);
+    });
+  });
+
+  describe("deleteObject", () => {
+    it("sends a DeleteObjectCommand with bucket+key", async () => {
+      mockSend.mockResolvedValueOnce({});
+      await deleteObject({
+        bucket: "marine-guardian-test-exports",
+        key: "tenant-1/2026/05/export-1.pptx",
+      });
+      const cmd = mockSend.mock.calls[0]?.[0] as DeleteObjectCommand;
+      expect(cmd).toBeInstanceOf(DeleteObjectCommand);
+      expect(cmd.input.Bucket).toBe("marine-guardian-test-exports");
+      expect(cmd.input.Key).toBe("tenant-1/2026/05/export-1.pptx");
+    });
+
+    it("swallows a 404 so a concurrent janitor sweep cannot fail", async () => {
+      mockSend.mockRejectedValueOnce(
+        Object.assign(new Error("Not Found"), {
+          $metadata: { httpStatusCode: 404 },
+          name: "NoSuchKey",
+        }),
+      );
+
+      await expect(
+        deleteObject({
+          bucket: "marine-guardian-test-exports",
+          key: "tenant-1/2026/05/already-gone.pdf",
+        }),
+      ).resolves.toBeUndefined();
+    });
+
+    it("rethrows a non-404 error", async () => {
+      mockSend.mockRejectedValueOnce(
+        Object.assign(new Error("Access Denied"), {
+          $metadata: { httpStatusCode: 403 },
+          name: "AccessDenied",
+        }),
+      );
+
+      await expect(
+        deleteObject({
+          bucket: "marine-guardian-test-exports",
+          key: "tenant-1/2026/05/export-1.pdf",
+        }),
+      ).rejects.toThrow(/Access Denied/);
+    });
+  });
+
+  describe("listExpiredObjectKeys", () => {
+    const cutoff = new Date(Date.UTC(2026, 6, 20, 12, 0, 0));
+
+    it("returns only keys whose LastModified is strictly older than olderThan", async () => {
+      mockSend.mockResolvedValueOnce({
+        Contents: [
+          { Key: "old-1.pdf", LastModified: new Date(Date.UTC(2026, 6, 20, 11, 0, 0)) },
+          { Key: "fresh.pdf", LastModified: new Date(Date.UTC(2026, 6, 20, 11, 59, 59)) },
+          { Key: "boundary.pdf", LastModified: cutoff },
+          { Key: "newer.pdf", LastModified: new Date(Date.UTC(2026, 6, 20, 13, 0, 0)) },
+        ],
+        IsTruncated: false,
+      });
+
+      const keys = await listExpiredObjectKeys({
+        bucket: "marine-guardian-test-exports",
+        prefix: "tenant-1/",
+        olderThan: cutoff,
+      });
+
+      // boundary.pdf is exactly at the cutoff — "strictly older" excludes it.
+      expect(keys).toEqual(["old-1.pdf", "fresh.pdf"]);
+
+      const cmd = mockSend.mock.calls[0]?.[0] as ListObjectsV2Command;
+      expect(cmd).toBeInstanceOf(ListObjectsV2Command);
+      expect(cmd.input.Bucket).toBe("marine-guardian-test-exports");
+      expect(cmd.input.Prefix).toBe("tenant-1/");
+    });
+
+    it("skips entries with an undefined LastModified (never guess at age)", async () => {
+      mockSend.mockResolvedValueOnce({
+        Contents: [
+          { Key: "unknown-age.pdf" },
+          { Key: "old.pdf", LastModified: new Date(Date.UTC(2026, 6, 19)) },
+        ],
+        IsTruncated: false,
+      });
+
+      const keys = await listExpiredObjectKeys({
+        bucket: "marine-guardian-test-exports",
+        olderThan: cutoff,
+      });
+
+      expect(keys).toEqual(["old.pdf"]);
+      expect(keys).not.toContain("unknown-age.pdf");
+    });
+
+    it("follows a ContinuationToken across two pages", async () => {
+      mockSend.mockResolvedValueOnce({
+        Contents: [
+          { Key: "page1-old.pdf", LastModified: new Date(Date.UTC(2026, 6, 18)) },
+        ],
+        IsTruncated: true,
+        NextContinuationToken: "token-2",
+      });
+      mockSend.mockResolvedValueOnce({
+        Contents: [
+          { Key: "page2-old.pdf", LastModified: new Date(Date.UTC(2026, 6, 19)) },
+        ],
+        IsTruncated: false,
+      });
+
+      const keys = await listExpiredObjectKeys({
+        bucket: "marine-guardian-test-exports",
+        olderThan: cutoff,
+      });
+
+      expect(keys).toEqual(["page1-old.pdf", "page2-old.pdf"]);
+      expect(mockSend).toHaveBeenCalledTimes(2);
+      const first = mockSend.mock.calls[0]?.[0] as ListObjectsV2Command;
+      const second = mockSend.mock.calls[1]?.[0] as ListObjectsV2Command;
+      expect(first.input.ContinuationToken).toBeUndefined();
+      expect(second.input.ContinuationToken).toBe("token-2");
+    });
+
+    it("stops collecting once limit keys are reached and does not fetch more pages", async () => {
+      mockSend.mockResolvedValueOnce({
+        Contents: [
+          { Key: "a.pdf", LastModified: new Date(Date.UTC(2026, 6, 18)) },
+          { Key: "b.pdf", LastModified: new Date(Date.UTC(2026, 6, 18)) },
+          { Key: "c.pdf", LastModified: new Date(Date.UTC(2026, 6, 18)) },
+        ],
+        IsTruncated: true,
+        NextContinuationToken: "token-2",
+      });
+
+      const keys = await listExpiredObjectKeys({
+        bucket: "marine-guardian-test-exports",
+        olderThan: cutoff,
+        limit: 2,
+      });
+
+      expect(keys).toEqual(["a.pdf", "b.pdf"]);
+      expect(mockSend).toHaveBeenCalledTimes(1);
+    });
+
+    it("returns an empty array when the bucket page is empty", async () => {
+      mockSend.mockResolvedValueOnce({ IsTruncated: false });
+
+      const keys = await listExpiredObjectKeys({
+        bucket: "marine-guardian-test-exports",
+        olderThan: cutoff,
+      });
+
+      expect(keys).toEqual([]);
     });
   });
 });

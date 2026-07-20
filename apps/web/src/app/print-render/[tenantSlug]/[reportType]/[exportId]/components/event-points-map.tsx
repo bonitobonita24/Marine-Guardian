@@ -24,6 +24,7 @@ import type {
   ReportMapBounds,
   ReportMapEventPoint,
 } from "@/server/report-map-report/get-report-map-report-data";
+import { filterValidMapPoints } from "@/lib/map-coordinates";
 import { boundsToView } from "./bounds-view";
 import { MapRenderGate } from "./map-render-gate";
 
@@ -101,17 +102,36 @@ type EventPointWithColor = ReportMapEventPoint & { color?: string };
  * span (min absolute pad so a lone point still frames sensibly). This focuses
  * the map on the actual event markers instead of the whole municipality water
  * polygon — the owner's "zoom in to what matters, not the full boundary" ask.
+ *
+ * Coordinates that cannot legitimately contribute to a bounds box — (0,0)
+ * "Null Island", non-finite values, out-of-WGS84-domain values — are dropped
+ * FIRST (see lib/map-coordinates.ts). Without this, four (0,0) event rows in
+ * the dev DB stretched the box from the Gulf of Guinea to Mindoro and pushed
+ * every real marker off the printed map.
+ *
+ * This affects MAP GEOMETRY ONLY. The excluded events remain in the report's
+ * counts, breakdown rows, lists and tables — the caller passes the full,
+ * unfiltered `points` array to the marker/heat layers and to every total.
+ *
+ * Returns null when NO point survives, so the caller falls back to the
+ * municipality bounds and then to the default whole-region view rather than
+ * producing NaN or an empty box.
  */
 export function pointsBounds(
   points: { lat: number; lon: number }[],
 ): ReportMapBounds | null {
-  const first = points[0];
+  const boundsPoints = filterValidMapPoints(
+    points,
+    (p) => p.lat,
+    (p) => p.lon,
+  );
+  const first = boundsPoints[0];
   if (first === undefined) return null;
   let south = first.lat;
   let north = first.lat;
   let west = first.lon;
   let east = first.lon;
-  for (const p of points) {
+  for (const p of boundsPoints) {
     south = Math.min(south, p.lat);
     north = Math.max(north, p.lat);
     west = Math.min(west, p.lon);

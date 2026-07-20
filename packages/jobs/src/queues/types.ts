@@ -148,6 +148,37 @@ export interface MunicipalityAssignJobPayload extends BaseJobPayload {
   id: string;
 }
 
+/**
+ * Export-janitor job payload — PLATFORM-WIDE ephemeral-export sweeper.
+ *
+ * Unlike every other payload in this file, this job is NOT tenant-scoped:
+ * one run sweeps expired ReportExport rows and orphaned export objects
+ * ACROSS ALL TENANTS. It is therefore deliberately kept OUT of the
+ * `validateTenantContext` path (see workers/base-worker.ts) — that helper
+ * exists to reject a job whose tenant context is missing, and here there
+ * genuinely is none to miss.
+ *
+ * BaseJobPayload still forces `tenantId`/`userId` (createWorker constrains
+ * `T extends BaseJobPayload`), so both are narrowed to LITERAL SENTINEL
+ * markers rather than real ids. Narrowing (not removing) keeps the payload
+ * structurally assignable to BaseJobPayload while making it a type error to
+ * pass a real tenant id — which would misleadingly suggest the sweep is
+ * scoped.
+ *
+ * jobId pattern: a single FIXED `export-janitor__recurring` (double
+ * underscore — BullMQ rejects `:` in jobIds), so re-registering the
+ * repeatable on every worker boot is idempotent.
+ */
+export interface ExportJanitorJobPayload extends BaseJobPayload {
+  tenantId: typeof EXPORT_JANITOR_PLATFORM_SENTINEL;
+  userId: typeof EXPORT_JANITOR_SYSTEM_SENTINEL;
+}
+
+/** Sentinel standing in for "all tenants" — never a real Tenant.id. */
+export const EXPORT_JANITOR_PLATFORM_SENTINEL = "__platform__";
+/** Sentinel standing in for "no human actor" — never a real User.id. */
+export const EXPORT_JANITOR_SYSTEM_SENTINEL = "__system__";
+
 export type JobPayloadMap = {
   "er-sync": ErSyncJobPayload;
   alerts: AlertJobPayload;
@@ -159,6 +190,7 @@ export type JobPayloadMap = {
   "pptx-render": PptxRenderJobPayload;
   "sync-needed-rescan": SyncNeededRescanJobPayload;
   "municipality-assign": MunicipalityAssignJobPayload;
+  "export-janitor": ExportJanitorJobPayload;
 };
 
 export type QueueName = keyof JobPayloadMap;
@@ -174,4 +206,5 @@ export const QUEUE_NAMES = {
   PPTX_RENDER: "pptx-render",
   SYNC_NEEDED_RESCAN: "sync-needed-rescan",
   MUNICIPALITY_ASSIGN: "municipality-assign",
+  EXPORT_JANITOR: "export-janitor",
 } as const satisfies Record<string, QueueName>;

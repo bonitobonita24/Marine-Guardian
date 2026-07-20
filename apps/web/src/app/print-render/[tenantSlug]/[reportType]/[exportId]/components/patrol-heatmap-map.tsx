@@ -29,6 +29,7 @@ import type { Map as LeafletMap, TileLayer as LeafletTileLayer } from "leaflet";
 import { MapContainer, TileLayer } from "react-leaflet";
 import type { HeatLatLng } from "@marine-guardian/shared/lib/heatmap-sample";
 import type { ReportMapBounds } from "@/server/report-map-report/get-report-map-report-data";
+import { filterValidLatLonPairs } from "@/lib/map-coordinates";
 import { boundsToView } from "./bounds-view";
 import { HeatLayer } from "./heat-layer";
 import { MapRenderGate } from "./map-render-gate";
@@ -78,8 +79,13 @@ export function PatrolHeatmapMap({
         map.setView(center, zoom, { animate: false });
         return;
       }
-      if (allPoints.length < 2) return;
-      const latLngs = allPoints.map(
+      // MAP GEOMETRY ONLY — drop (0,0)/non-finite/out-of-domain heat points
+      // before fitting; the HeatLayers above still receive every point and no
+      // patrol count changes. Fewer than 2 usable points → keep the initial
+      // view rather than fit a degenerate box.
+      const boundsPoints = filterValidLatLonPairs(allPoints);
+      if (boundsPoints.length < 2) return;
+      const latLngs = boundsPoints.map(
         ([lat, lon]) => [lat, lon] as [number, number],
       );
       map.fitBounds(latLngs, { padding: [16, 16], animate: false });

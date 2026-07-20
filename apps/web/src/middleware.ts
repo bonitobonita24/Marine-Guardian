@@ -96,9 +96,13 @@ const publicPaths = [
 const TENANT_LOGIN_RE = /^\/[^/]+\/login\/?$/;
 
 // viewer role — strictly read-only, scoped to Command Center (/dashboard) +
-// Interactive Report Map (/map) + Exports (/exports) + Profile (/profile).
+// Interactive Report Map (/map) + Doodles (/doodles) + Profile (/profile).
+// The /exports PAGE was removed (Phase 4 S8): generated reports are ephemeral
+// and downloaded from inside the /map dialog, so there is no page to allow.
+// This list gates PAGE routes only — /api/exports/* is unaffected, because the
+// `isApiPath` branch above returns before this check ever runs.
 // Checked against the slug-stripped path (see stripSlug).
-const VIEWER_ALLOWED_PREFIXES = ["/dashboard", "/map", "/exports", "/doodles", "/profile"];
+const VIEWER_ALLOWED_PREFIXES = ["/dashboard", "/map", "/doodles", "/profile"];
 
 function isViewerAllowedPath(pathname: string): boolean {
   return VIEWER_ALLOWED_PREFIXES.some(

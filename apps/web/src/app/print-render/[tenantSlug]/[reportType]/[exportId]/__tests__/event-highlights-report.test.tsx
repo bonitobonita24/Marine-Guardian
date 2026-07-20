@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
+import { expectNoDocumentScaffold } from "./assert-no-document-scaffold";
 
 import { EventHighlightsReport, PHOTO_REQUEST_WIDTH } from "../event-highlights-report";
 import type {
@@ -69,6 +70,16 @@ function buildData(overrides: Partial<EventHighlightsReportData> = {}): EventHig
 // ─── Tests ────────────────────────────────────────────────────────────────
 
 describe("EventHighlightsReport", () => {
+  // React #418 regression guard (2026-07-20) — browser QA confirmed this page
+  // threw a hydration mismatch. Cause: the component emitted its own
+  // <html><head><body> nested inside the app root layout's document, which the
+  // HTML parser discards. See components/print-document-shell.tsx.
+  it("emits NO nested <html>/<head>/<body> document scaffold (React #418)", () => {
+    expectNoDocumentScaffold(
+      renderToStaticMarkup(<EventHighlightsReport data={buildData()} />),
+    );
+  });
+
   it("renders both a half block (2 photos) and a full block (3+ photos) with the correct layout classes", () => {
     const halfBlock = block({ id: "e_half", photoAssetIds: ["a1", "a2"], photoCount: 2, layout: "half" });
     const fullBlock = block({

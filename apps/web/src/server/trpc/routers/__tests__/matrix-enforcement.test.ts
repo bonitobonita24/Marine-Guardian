@@ -126,10 +126,15 @@ describe("matrix enforcement — fixed enum roles pass through unaffected (enum 
 });
 
 describe("matrix enforcement — hard-clamp on an unexposed action", () => {
-  it("rejects reportExport.delete for a custom role even if a stray row grants delete=true", async () => {
-    // "exports" only exposes ["view"] in the feature registry — "delete" is
+  it("rejects reportExport.purge for a custom role even if a stray row grants write=true", async () => {
+    // "exports" only exposes ["view"] in the feature registry — "write" is
     // never a valid action for this feature, so hasPermission hard-clamps
     // to false regardless of what the row says.
+    //
+    // Retargeted from the deleted reportExport.delete procedure (Phase 4 S6).
+    // `purge` is gated matrixProcedure(..., "exports", "write"), which
+    // reproduces the identical unexposed-action hard-clamp this test exists
+    // to pin — the assertion is about the clamp, not about which procedure.
     vi.mocked(prisma.rolePermission.findUnique).mockResolvedValue({
       tenantId: TENANT_ID,
       customRoleId: "cr-1",
@@ -141,7 +146,7 @@ describe("matrix enforcement — hard-clamp on an unexposed action", () => {
     } as never);
 
     const caller = createReportExportCaller(makeCtx(["tenant_admin"], "cr-1"));
-    await expect(caller.delete({ id: "re-1" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.purge({ ids: ["re-1"] })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
 

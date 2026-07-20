@@ -30,17 +30,6 @@ export const reportExportSchema = z.object({
   completedAt: z.coerce.date().nullable(),
 });
 
-export const listReportExportsInputSchema = z.object({
-  cursor: z.string().optional(),
-  limit: z.number().int().min(1).max(200).default(50),
-  status: reportExportStatusSchema.optional(),
-  reportType: reportTypeSchema.optional(),
-});
-
-export const getReportExportByIdInputSchema = z.object({
-  id: z.string(),
-});
-
 // For report-map exports, paramsJson carries { templateId, from, to, municipalityId, protectedZoneId }.
 export const createReportExportInputSchema = z.object({
   reportType: reportTypeSchema,
@@ -57,38 +46,26 @@ export const getReportExportDownloadUrlInputSchema = z.object({
 });
 
 /**
- * Retry input — admin re-enqueues a previously-failed (or stuck-queued)
- * export. Resets status to "queued" and re-fires the pdf-render job.
- * Tenant scope enforced server-side via session.tenantId.
+ * Purge input — best-effort immediate cleanup of the exports a user just
+ * generated, fired by the Generate Printable Report dialog on close. The
+ * export-janitor TTL sweep remains the AUTHORITY for deletion; this is an
+ * optimisation on top of it.
+ *
+ * Bounded to 20 ids: one dialog session can only produce a handful of
+ * exports, and an unbounded array would let a hostile client turn one
+ * request into an arbitrarily long storage-delete loop.
+ *
+ * Tenant scope enforced server-side via session.tenantId — ids that are
+ * unknown or belong to another tenant are silently skipped.
  */
-export const retryReportExportInputSchema = z.object({
-  id: z.string(),
+export const purgeReportExportsInputSchema = z.object({
+  ids: z.array(z.string()).min(1).max(20),
 });
 
 /**
- * Delete input — admin removes a terminal (ready/failed) export row.
- * Tenant scope enforced server-side via session.tenantId.
- */
-export const deleteReportExportInputSchema = z.object({
-  id: z.string(),
-});
-
-/**
- * Cancel input — admin stops a pending (queued/rendering) export. There is
- * no dedicated "cancelled" status value on ReportExportStatus; cancel
- * reuses "failed" with errorMessage="Cancelled by user" rather than adding
- * an enum value / migration. Tenant scope enforced server-side via
- * session.tenantId.
- */
-export const cancelReportExportInputSchema = z.object({
-  id: z.string(),
-});
-
-/**
- * renderPptx input — admin triggers on-demand PDF→PowerPoint rendering for
- * an already-`ready` export. Never auto-fired; strictly a user-initiated
- * conversion of an existing report PDF. Tenant scope enforced server-side
- * via session.tenantId.
+ * renderPptx input — triggers an on-demand PowerPoint render of a report
+ * export. Never auto-fired; strictly user-initiated. Tenant scope enforced
+ * server-side via session.tenantId.
  */
 export const renderPptxReportExportInputSchema = z.object({
   id: z.string(),

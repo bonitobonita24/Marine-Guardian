@@ -14,13 +14,19 @@
 // page — reportExport.create runs reportGenerateProcedure, which allows
 // viewer in addition to coordinator+ (owner-approved, read-oriented "produce
 // a PDF of what I can already see" action). The button is therefore no
-// longer hidden for viewer sessions; a viewer can generate, and retrieve the
-// result on /exports (reportExport.list/getById/getDownloadUrl are all
-// tenantProcedure — any authenticated tenant user, including viewer, can
-// already read them).
+// longer hidden for viewer sessions.
+//
+// Phase 4 S7 (2026-07-20) — IN-DIALOG DELIVERY. Generating no longer hands
+// off to an /exports page (S8 deletes it). After create resolves, the dialog
+// STAYS OPEN and renders one ExportProgressRow per queued file; each row
+// polls itself and swaps its spinner for a Download button, with an on-demand
+// "Generate PowerPoint" beside it. Closing the dialog purges the files.
+//
+// Everything ABOVE the create call is unchanged: the template/region picker,
+// the split-files and Event Highlights checkboxes, and the baseParams/payload
+// construction that can produce 1-3 exports.
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -35,11 +41,15 @@ import {
 import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc/client";
 import { useReportFilter } from "@/components/reporting/report-filter-context";
-import { useTenantSlug } from "@/lib/routing/use-tenant-slug";
-import { tenantHref } from "@/lib/routing/tenant-href";
+import { ExportProgressRow } from "./export-progress-row";
+
+/** One generated file being tracked in-dialog. */
+interface ExportRowEntry {
+  id: string;
+  label: string;
+}
 
 export function GeneratePrintableButton() {
-  const tenant = useTenantSlug();
   const {
     from,
     to,
@@ -56,11 +66,9 @@ export function GeneratePrintableButton() {
   // the scope's events that have photos AND filled-in narrative. Queued
   // alongside the standard report_map export, sharing the same scope params.
   const [highlights, setHighlights] = useState(false);
-  const [feedback, setFeedback] = useState<
-    | { kind: "success"; exportId: string; count: number }
-    | { kind: "error"; message: string }
-    | null
-  >(null);
+  // Rows appear once create resolves and are the dialog's post-Generate view.
+  const [rows, setRows] = useState<ExportRowEntry[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initializedRef = useRef(false);
   const REQUEST_TIMEOUT_MS = 15000;
@@ -117,6 +125,9 @@ export function GeneratePrintableButton() {
   // even though both exports were created (2026-07-13 fix).
   const create = trpc.reportExport.create.useMutation();
 
+  // Best-effort cleanup fired on dialog close. See handleClose.
+  const purge = trpc.reportExport.purge.useMutation();
+
   function clearRequestTimeout() {
     if (timeoutRef.current !== null) {
       clearTimeout(timeoutRef.current);
@@ -129,15 +140,13 @@ export function GeneratePrintableButton() {
   useEffect(() => clearRequestTimeout, []);
 
   async function handleConfirm() {
-    setFeedback(null);
+    setErrorMessage(null);
     clearRequestTimeout();
     timeoutRef.current = setTimeout(() => {
       if (create.isPending) {
-        setFeedback({
-          kind: "error",
-          message:
-            "The report service is taking too long to respond. Please try again in a moment.",
-        });
+        setErrorMessage(
+          "The report service is taking too long to respond. Please try again in a moment.",
+        );
       }
     }, REQUEST_TIMEOUT_MS);
 
@@ -171,7 +180,11 @@ export function GeneratePrintableButton() {
     // scope. All are fired together via mutateAsync + Promise.allSettled — each
     // returns an independent promise, so the confirmation resolves only after
     // ALL complete (avoids the single-observer callback race, 2026-07-13).
+    //
+    // `label` is carried alongside each payload so the resulting in-dialog row
+    // is identifiable when up to three render simultaneously (S7).
     const payloads: {
+      label: string;
       reportType: "report_map" | "event_highlights";
       paperSize: "A4";
       paramsJson: Record<string, unknown>;
@@ -179,6 +192,10 @@ export function GeneratePrintableButton() {
     if (splitFiles) {
       for (const exportMode of ["charts", "lists"] as const) {
         payloads.push({
+          label:
+            exportMode === "charts"
+              ? "Report (charts)"
+              : "Report (detailed lists)",
           reportType: "report_map",
           paperSize: "A4",
           paramsJson: { ...baseParams, exportMode },
@@ -188,6 +205,7 @@ export function GeneratePrintableButton() {
       // No exportMode key — the server defaults paramsJson.exportMode to
       // "combined".
       payloads.push({
+        label: "Report",
         reportType: "report_map",
         paperSize: "A4",
         paramsJson: baseParams,
@@ -195,62 +213,75 @@ export function GeneratePrintableButton() {
     }
     if (highlights) {
       payloads.push({
+        label: "Event Highlights",
         reportType: "event_highlights",
         paperSize: "A4",
         paramsJson: baseParams,
       });
     }
 
-    try {
-      if (payloads.length === 1) {
-        const only = payloads[0];
-        if (only === undefined) return;
-        const data = await create.mutateAsync(only);
-        clearRequestTimeout();
-        setFeedback({ kind: "success", exportId: data.id, count: 1 });
-        return;
-      }
+    // allSettled (not all) so a partial failure still surfaces the exports
+    // that DID queue — discarding a successful sibling would strand a file
+    // the user can no longer reach now that /exports is gone.
+    const results = await Promise.allSettled(
+      payloads.map(({ label, ...payload }) =>
+        create.mutateAsync(payload).then((data) => ({ id: data.id, label })),
+      ),
+    );
+    clearRequestTimeout();
 
-      const results = await Promise.allSettled(
-        payloads.map((p) => create.mutateAsync(p)),
-      );
-      clearRequestTimeout();
-      const rejected = results.find(
-        (r): r is PromiseRejectedResult => r.status === "rejected",
-      );
-      if (rejected) {
-        setFeedback({
-          kind: "error",
-          message:
-            rejected.reason instanceof Error
-              ? rejected.reason.message
-              : "Failed to queue one of the report exports. Please try again.",
-        });
+    const created: ExportRowEntry[] = [];
+    let rejectedCount = 0;
+    for (const result of results) {
+      if (result.status === "fulfilled") {
+        created.push(result.value);
       } else {
-        setFeedback({ kind: "success", exportId: "multi", count: payloads.length });
+        rejectedCount += 1;
       }
-    } catch (err) {
-      clearRequestTimeout();
-      setFeedback({
-        kind: "error",
-        message:
-          err instanceof Error
-            ? err.message
-            : "Failed to queue the report export. Please try again.",
-      });
+    }
+
+    setRows(created);
+    if (rejectedCount > 0) {
+      // Generic text only — a create rejection can carry server detail we do
+      // not want rendered, matching the poll queries' redaction posture.
+      setErrorMessage(
+        created.length > 0
+          ? `${String(rejectedCount)} of ${String(results.length)} reports could not be queued. Please try again.`
+          : "Failed to queue the report export. Please try again.",
+      );
     }
   }
 
   function handleClose() {
     clearRequestTimeout();
+
+    // BEST-EFFORT ONLY — this is an optimisation, NOT the retention
+    // mechanism. The server-side `export-janitor` TTL sweep is the AUTHORITY
+    // for deleting these ephemeral files and remains mandatory: a crashed
+    // tab, a closed laptop, or a dropped connection never reaches this
+    // handler, so a purge that never fires must still be safe. Deliberately
+    // fire-and-forget — not awaited, never blocks the close, and its failure
+    // is swallowed (reportExport.purge is non-throwing by design so this call
+    // site can stay dumb).
+    if (rows.length > 0) {
+      try {
+        purge.mutate({ ids: rows.map((r) => r.id) });
+      } catch {
+        // Intentionally swallowed. Closing the dialog must never fail because
+        // cleanup did — the janitor sweep still collects the files.
+      }
+    }
+
     setOpen(false);
-    setFeedback(null);
+    setRows([]);
+    setErrorMessage(null);
     setSelectedTemplateId("");
     setSplitFiles(false);
     setHighlights(false);
     create.reset();
   }
 
+  const hasRows = rows.length > 0;
   const confirmDisabled = create.isPending || selectedTemplateId === "";
 
   return (
@@ -281,34 +312,33 @@ export function GeneratePrintableButton() {
         <DialogHeader>
           <DialogTitle>Generate Printable Report</DialogTitle>
           <DialogDescription>
-            Queues an asynchronous PDF render of the current map view. You can
-            track progress and download the result from the Exports page once
-            ready.
+            Renders a PDF of the current map view. Each file appears below and
+            becomes downloadable as soon as it is ready — keep this dialog open
+            until you have downloaded what you need, as closing it deletes the
+            generated files.
           </DialogDescription>
         </DialogHeader>
 
         {/* Screen-reader live region for non-error status announcements (WCAG
             4.1.3). Errors use role="alert" (assertive) below — keep them out
-            of this polite region to avoid double-announcement. */}
+            of this polite region to avoid double-announcement. Per-file state
+            transitions are announced by each ExportProgressRow's own region. */}
         <div aria-live="polite" aria-atomic="true" className="sr-only">
           {create.isPending && "Queuing report export…"}
-          {feedback?.kind === "success" && "Report export queued successfully."}
+          {hasRows &&
+            `${String(rows.length)} report ${rows.length === 1 ? "file is" : "files are"} generating.`}
         </div>
 
-        {feedback?.kind === "success" ? (
-          <p className="text-sm text-emerald-600 dark:text-emerald-400">
-            {feedback.count > 1
-              ? `${String(feedback.count)} report exports queued.`
-              : `Export queued (id: ${feedback.exportId}).`}{" "}
-            <Link
-              href={tenantHref(tenant, "/exports")}
-              className="underline underline-offset-4"
-              data-testid="generate-printable-go-to-exports"
-            >
-              View in Exports
-            </Link>
-            .
-          </p>
+        {hasRows ? (
+          <div className="space-y-2" data-testid="export-progress-rows">
+            {rows.map((row) => (
+              <ExportProgressRow
+                key={row.id}
+                exportId={row.id}
+                label={row.label}
+              />
+            ))}
+          </div>
         ) : (
           <div className="space-y-4">
             <div className="space-y-1.5">
@@ -399,9 +429,13 @@ export function GeneratePrintableButton() {
           </div>
         )}
 
-        {feedback?.kind === "error" && (
-          <p className="text-sm text-destructive" role="alert">
-            {feedback.message}
+        {errorMessage !== null && (
+          <p
+            className="text-sm text-destructive"
+            role="alert"
+            data-testid="generate-printable-error"
+          >
+            {errorMessage}
           </p>
         )}
 
@@ -410,10 +444,11 @@ export function GeneratePrintableButton() {
             variant="ghost"
             onClick={handleClose}
             disabled={create.isPending}
+            data-testid="generate-printable-close"
           >
-            {feedback?.kind === "success" ? "Close" : "Cancel"}
+            {hasRows ? "Close" : "Cancel"}
           </Button>
-          {feedback?.kind !== "success" && (
+          {!hasRows && (
             <Button
               data-testid="generate-printable-confirm"
               onClick={() => void handleConfirm()}

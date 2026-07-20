@@ -56,6 +56,7 @@ import { BLUE_ALLIANCE_DEFAULT_LOGO_DATA_URI } from "@/server/report-map-report/
 import { buildGlobalEventTypeColumns } from "@/server/report-map-report/event-type-grouping";
 import { isPointInAnyGeometry } from "@marine-guardian/shared/lib/municipality-assignment";
 import type { HeatLatLng } from "@marine-guardian/shared/lib/heatmap-sample";
+import { isValidMapCoordinate } from "@/lib/map-coordinates";
 
 // ─── Shared point shape ──────────────────────────────────────────────────────
 
@@ -707,6 +708,15 @@ function geometryCoordinates(geometry: unknown): [number, number][] {
  * MultiPolygon, loosely typed as stored in Prisma Json columns) into a single
  * lat/lon bounding box. Returns null when no well-formed coordinate was
  * found in any input geometry — callers fall back to the data-point fit.
+ *
+ * Vertices that cannot legitimately frame a camera — (0,0) "Null Island",
+ * non-finite, outside the WGS84 domain — are skipped (see
+ * lib/map-coordinates.ts). A boundary upload with such a vertex would otherwise
+ * blow the municipality box open to a hemisphere. This is MAP GEOMETRY ONLY:
+ * the boundary row itself is untouched and still drives municipality
+ * attribution, coverage math and every count in the report. When NO vertex
+ * survives this returns null, and the caller falls back to the data-point fit
+ * and ultimately the default view.
  */
 export function unionGeometryBounds(
   ...geometries: unknown[]
@@ -719,6 +729,7 @@ export function unionGeometryBounds(
 
   for (const geometry of geometries) {
     for (const [lon, lat] of geometryCoordinates(geometry)) {
+      if (!isValidMapCoordinate(lat, lon)) continue;
       found = true;
       if (lat < south) south = lat;
       if (lat > north) north = lat;

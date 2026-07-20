@@ -9,7 +9,9 @@ import { startAreaRederiveWorker } from "./workers/area-rederive.worker";
 import { startPatrolTrackMaterializeWorker } from "./workers/patrol-track-materialize.worker";
 import { startPdfRenderWorker } from "./workers/pdf-render.worker";
 import { startPptxRenderWorker } from "./workers/pptx-render.worker";
+import { startExportJanitorWorker } from "./workers/export-janitor.worker";
 import { scheduleRecurringErSync, removeRecurringErSync } from "./queues/er-sync.queue";
+import { scheduleRecurringExportJanitor } from "./queues/export-janitor.queue";
 import { platformPrisma } from "@marine-guardian/db";
 
 console.log("[worker] Starting Marine Guardian workers...");
@@ -48,6 +50,15 @@ const workers = [
   // export) — never fired automatically alongside pdf-render. Concurrency
   // + limiter live inside the factory (see workers/pptx-render.worker.ts).
   startPptxRenderWorker(),
+  // export-janitor — THE DELETION AUTHORITY for ephemeral report exports.
+  // Report exports are disposable; the export dialog purges them on close, but
+  // that is best-effort only and never runs when a tab crashes, the machine
+  // sleeps, or the connection drops — which would orphan objects forever.
+  // This server-side TTL sweep (every 5 minutes, ~30 min lifetime) is what
+  // actually guarantees they go away, plus a bucket sweep for objects that
+  // outlived their row. Concurrency=1 — serial housekeeping. See
+  // processors/export-janitor.processor.ts.
+  startExportJanitorWorker(),
 ];
 
 // Log the ACTUALLY-registered queues (each BullMQ Worker exposes .name = its
@@ -115,6 +126,10 @@ async function bootstrapRecurringErSync(): Promise<void> {
 }
 
 void bootstrapRecurringErSync();
+
+// Register the export-janitor repeatable. Fixed jobId
+// (`export-janitor__recurring`) makes this idempotent across worker reboots.
+void scheduleRecurringExportJanitor();
 
 async function shutdown(): Promise<void> {
   console.log("[worker] Shutting down gracefully...");

@@ -91,6 +91,7 @@ import {
 } from "@/server/report-map-report/event-type-grouping";
 import { EventBreakdownChart } from "./components/event-breakdown-chart";
 import { ReportHeader, reportHeaderStyles } from "./components/report-header";
+import { PrintDocumentShell } from "./components/print-document-shell";
 import { RowHeightSync } from "./components/row-height-sync";
 // Leaflet islands are loaded dynamically (ssr:false) via the client wrapper to
 // prevent window-is-not-defined during Next.js server-side bundle evaluation.
@@ -1067,38 +1068,33 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
   `;
 
   return (
-    <html lang="en">
-      <head>
-        <meta charSet="utf-8" />
-        <title>
-          {data.tenant.name} — {data.template.reportTitle} — {period}
-        </title>
-        <style>{css}</style>
-        {/* Initialise the multi-map render-ready counter before any island
-            mounts. mapIslandCount = 7 in "combined"/"charts" export mode: 3
-            EventPointsMap (Law Enf, Monitoring, Events Over Time) + 1
-            PatrolTracksMap + 1 PatrolHeatmapMap + 2 EventHeatmapMap (Law Enf
-            + Monitoring category-page heatmaps) — verified by counting every
-            <EventPointsMap>/<PatrolTracksMap>/<PatrolHeatmapMap>/
-            <EventHeatmapMap> JSX usage in the (showCharts-gated) sections
-            below. Each MapReadySignal decrements the counter; window.__
-            renderReady is only set once it reaches zero.
-            "lists" export mode omits every chart section, so
-            mapIslandCount is 0 — nothing would ever decrement a
-            __renderPending counter, so window.__renderReady is flipped
-            directly instead (the pdf-renderer's 8s waitForFunction fallback
-            would otherwise idle the full timeout on every list-only
-            export — see deploy/pdf-renderer/src/server.js). */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html:
-              mapIslandCount > 0
-                ? `window.__renderPending = ${String(mapIslandCount)};`
-                : "window.__renderReady = true;",
-          }}
-        />
-      </head>
-      <body>
+    /* No <html>/<head>/<body> here — this page renders inside the app root
+       layout's document. Emitting a nested document was the React #418
+       hydration-mismatch root cause; see components/print-document-shell.tsx. */
+    <PrintDocumentShell
+      title={`${data.tenant.name} — ${data.template.reportTitle} — ${period}`}
+      css={css}
+      /* Initialise the multi-map render-ready counter before any island
+         mounts. mapIslandCount = 7 in "combined"/"charts" export mode: 3
+         EventPointsMap (Law Enf, Monitoring, Events Over Time) + 1
+         PatrolTracksMap + 1 PatrolHeatmapMap + 2 EventHeatmapMap (Law Enf
+         + Monitoring category-page heatmaps) — verified by counting every
+         <EventPointsMap>/<PatrolTracksMap>/<PatrolHeatmapMap>/
+         <EventHeatmapMap> JSX usage in the (showCharts-gated) sections
+         below. Each MapReadySignal decrements the counter; window.__
+         renderReady is only set once it reaches zero.
+         "lists" export mode omits every chart section, so
+         mapIslandCount is 0 — nothing would ever decrement a
+         __renderPending counter, so window.__renderReady is flipped
+         directly instead (the pdf-renderer's 8s waitForFunction fallback
+         would otherwise idle the full timeout on every list-only
+         export — see deploy/pdf-renderer/src/server.js). */
+      gateScript={
+        mapIslandCount > 0
+          ? `window.__renderPending = ${String(mapIslandCount)};`
+          : "window.__renderReady = true;"
+      }
+    >
 
         {/* ── Section 1: Law Enforcement ────────────────────────────────── */}
         {/* Chart+map section — omitted entirely in "lists" export mode
@@ -1638,7 +1634,6 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
             pages so rows line up (owner report 2026-07-06). Client island;
             runs after layout, before the map islands flip __renderReady. */}
         <RowHeightSync />
-      </body>
-    </html>
+    </PrintDocumentShell>
   );
 }

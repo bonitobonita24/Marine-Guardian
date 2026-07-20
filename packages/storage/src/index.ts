@@ -22,6 +22,14 @@
 //   getImageReadStream   — open a download stream for logo image bytes
 //   getImageBytes        — collect the full image into a Buffer (for print body)
 //
+// Ephemeral export objects (report exports moved off permanently-stored
+// Telegram documents onto short-TTL MinIO objects):
+//   buildPptxExportKey     — key shape for .pptx exports (mirrors buildExportKey)
+//   uploadObject           — content-type-generic PutObject
+//   getObjectBytes         — GetObject → Buffer, or null when the object is gone
+//   deleteObject           — idempotent DeleteObject (never throws on 404)
+//   listExpiredObjectKeys  — ListObjectsV2 sweep by LastModified (janitor)
+//
 // Bucket convention (locked in DECISIONS_LOG §142):
 //   marine-guardian-${env}-exports  where env ∈ {dev, staging, prod}
 // APP_ENV follows the NODE_ENV-mirroring convention (development | staging |
@@ -34,6 +42,7 @@
 // Adding a new APP_ENV value? Extend APP_ENV_TO_BUCKET_ENV below.
 // Key shapes (locked):
 //   PDF:   ${tenantId}/${YYYY}/${MM}/${exportId}.pdf
+//   PPTX:  ${tenantId}/${YYYY}/${MM}/${exportId}.pptx
 //   Logo:  logos/${tenantId}/${templateId}.${ext}
 //   Per-tenant prefix gives us natural IAM scoping when we move to AWS S3.
 //
@@ -48,7 +57,9 @@ import {
   DeleteObjectCommand,
   HeadBucketCommand,
   CreateBucketCommand,
+  ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
+import type { ListObjectsV2CommandOutput } from "@aws-sdk/client-s3";
 import type { Readable } from "node:stream";
 
 export interface UploadPdfInput {
@@ -181,6 +192,22 @@ export function buildExportKey(
   const year = String(at.getUTCFullYear());
   const month = String(at.getUTCMonth() + 1).padStart(2, "0");
   return `${tenantId}/${year}/${month}/${exportId}.pdf`;
+}
+
+/**
+ * Key shape for .pptx exports — deliberately symmetrical with buildExportKey
+ * (same tenant/year/month prefix, different extension) so a single prefix
+ * sweep in the janitor covers both export formats for a tenant.
+ * Shape: ${tenantId}/${YYYY}/${MM}/${exportId}.pptx
+ */
+export function buildPptxExportKey(
+  tenantId: string,
+  exportId: string,
+  at: Date,
+): string {
+  const year = String(at.getUTCFullYear());
+  const month = String(at.getUTCMonth() + 1).padStart(2, "0");
+  return `${tenantId}/${year}/${month}/${exportId}.pptx`;
 }
 
 /**
@@ -338,6 +365,194 @@ export async function assertBucketExists(bucket: string): Promise<void> {
     if (!isNotFoundError(err)) throw err;
   }
   await client.send(new CreateBucketCommand({ Bucket: bucket }));
+}
+
+// ---------------------------------------------------------------------------
+// Generic ephemeral-object surface.
+//
+// Report exports are now EPHEMERAL objects (~30 min server-side TTL) rather
+// than permanently-stored documents. The pdf-render / pptx-render workers
+// write via uploadObject, the download route reads via getObjectBytes, and a
+// janitor sweeps with listExpiredObjectKeys + deleteObject.
+//
+// The null-on-missing contract of getObjectBytes is load-bearing: it lets the
+// download route answer a clean 410 Gone for an already-purged export instead
+// of surfacing a 500.
+// ---------------------------------------------------------------------------
+
+export interface UploadObjectInput {
+  bucket: string;
+  key: string;
+  body: Buffer;
+  contentType: string;
+}
+
+export interface UploadObjectResult {
+  key: string;
+}
+
+export interface ObjectRefInput {
+  bucket: string;
+  key: string;
+}
+
+export interface ListExpiredObjectKeysInput {
+  bucket: string;
+  prefix?: string;
+  /** Objects with LastModified strictly older than this are returned. */
+  olderThan: Date;
+  /** Maximum number of keys to collect before stopping. Default 1000. */
+  limit?: number;
+}
+
+/** Default cap on a single janitor sweep — one ListObjectsV2 page worth. */
+const DEFAULT_LIST_LIMIT = 1000;
+
+/**
+ * Object-level 404 detection. Distinct from isNotFoundError (which is about
+ * BUCKETS): S3/MinIO signal a missing object with NoSuchKey, while HeadObject
+ * style paths surface a bare NotFound. Some MinIO responses carry neither
+ * name and only a 404 $metadata.httpStatusCode, so all three are accepted.
+ */
+function isObjectNotFoundError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const s3err = err as unknown as S3LikeError;
+  if (s3err.$metadata?.httpStatusCode === 404) return true;
+  if (s3err.name === "NoSuchKey" || s3err.name === "NotFound") return true;
+  return false;
+}
+
+/**
+ * Content-type-generic PutObject. uploadPdf hardcodes application/pdf; this
+ * takes the type as a parameter so non-PDF exports (e.g. .pptx) can be stored
+ * through the same path. uploadPdf is intentionally left untouched.
+ */
+export async function uploadObject(
+  input: UploadObjectInput,
+): Promise<UploadObjectResult> {
+  const client = getClient();
+  await client.send(
+    new PutObjectCommand({
+      Bucket: input.bucket,
+      Key: input.key,
+      Body: input.body,
+      ContentType: input.contentType,
+      ContentLength: input.body.length,
+    }),
+  );
+  return { key: input.key };
+}
+
+/**
+ * GetObject collected into a full Buffer.
+ *
+ * Returns null — never throws — when the object does not exist, so callers can
+ * distinguish "already purged by the TTL janitor" (410 Gone) from a genuine
+ * storage failure (500). Every non-404 error rethrows.
+ */
+export async function getObjectBytes(
+  input: ObjectRefInput,
+): Promise<Buffer | null> {
+  const client = getClient();
+  let body: unknown;
+  try {
+    const response = await client.send(
+      new GetObjectCommand({
+        Bucket: input.bucket,
+        Key: input.key,
+      }),
+    );
+    body = response.Body;
+  } catch (err) {
+    if (isObjectNotFoundError(err)) return null;
+    throw err;
+  }
+
+  if (body === undefined || body === null) {
+    throw new Error(
+      `getObjectBytes: no body returned for s3://${input.bucket}/${input.key}`,
+    );
+  }
+
+  // The SDK types Body as a union; in Node.js runtime it is always a Readable.
+  const stream = body as Readable;
+  return new Promise<Buffer>((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    stream.on("data", (chunk: Buffer) => chunks.push(chunk));
+    stream.on("end", () => {
+      resolve(Buffer.concat(chunks));
+    });
+    stream.on("error", reject);
+  });
+}
+
+/**
+ * Generically-named DeleteObject. S3/MinIO DeleteObject is already idempotent,
+ * but a 404 is swallowed defensively so the janitor never fails a sweep on an
+ * object another process purged first. deletePdf is kept as-is for existing
+ * callers.
+ */
+export async function deleteObject(input: ObjectRefInput): Promise<void> {
+  const client = getClient();
+  try {
+    await client.send(
+      new DeleteObjectCommand({
+        Bucket: input.bucket,
+        Key: input.key,
+      }),
+    );
+  } catch (err) {
+    if (isObjectNotFoundError(err)) return;
+    throw err;
+  }
+}
+
+/**
+ * Keys of objects whose LastModified is STRICTLY older than `olderThan`.
+ * Backs the janitor's orphan sweep.
+ *
+ * Paginates via ContinuationToken and stops as soon as `limit` keys have been
+ * collected. Entries with an undefined LastModified are SKIPPED rather than
+ * guessed at — deleting an object of unknown age would be unsafe.
+ */
+export async function listExpiredObjectKeys(
+  input: ListExpiredObjectKeysInput,
+): Promise<string[]> {
+  const client = getClient();
+  const limit = input.limit ?? DEFAULT_LIST_LIMIT;
+  const cutoff = input.olderThan.getTime();
+  const expired: string[] = [];
+
+  if (limit <= 0) return expired;
+
+  let continuationToken: string | undefined = undefined;
+
+  do {
+    const response: ListObjectsV2CommandOutput = await client.send(
+      new ListObjectsV2Command({
+        Bucket: input.bucket,
+        Prefix: input.prefix,
+        ContinuationToken: continuationToken,
+      }),
+    );
+
+    const contents = response.Contents ?? [];
+    for (const item of contents) {
+      const key = item.Key;
+      const lastModified = item.LastModified;
+      if (key === undefined || key === "") continue;
+      // Unknown age → skip. Never guess.
+      if (lastModified === undefined) continue;
+      if (lastModified.getTime() >= cutoff) continue;
+      expired.push(key);
+      if (expired.length >= limit) return expired;
+    }
+
+    continuationToken =
+      response.IsTruncated === true ? response.NextContinuationToken : undefined;
+  } while (continuationToken !== undefined);
+
+  return expired;
 }
 
 // R2 photo cache (24h-TTL read-through cache for Telegram event photos).

@@ -1,23 +1,31 @@
 // Non-tRPC: manual auth required (security.md L11).
 //
-// Streams a finished ReportExport PDF. Phase 8 Batch 5 Sub-batch 5.3c
-// completed the consumer side of the pdf-render pipeline (v2 PRODUCT.md
-// §505-506); Phase 4 S2 made Telegram the STRICT-ONLY store — there is no
-// server-side/MinIO copy at any point:
+// Streams a finished ReportExport PDF. The store is MinIO (Phase 4 S4 —
+// the ephemeral-exports migration): the pdf-render worker PUTs the rendered
+// PDF into the exports bucket and writes the object key into
+// `ReportExport.filePath`. Telegram is NO LONGER involved in report exports
+// (`telegramFileId` is always null on newly written rows); the Telegram
+// helper module remains live only for ER photo assets served by /api/assets.
 //
-//   tRPC reportExport.create (5.3b) → BullMQ pdf-render worker (5.3b) →
-//   Puppeteer service (5.3a) → Telegram sendDocument (sole store) →
-//   row.status=ready →
+//   tRPC reportExport.create → BullMQ pdf-render worker →
+//   Puppeteer service → MinIO putObject (sole store) →
+//   row.status=ready, row.filePath=<object key> →
 //   tRPC reportExport.getDownloadUrl returns `/api/exports/reports/{id}/download` →
-//   THIS ROUTE HANDLER streams the file with a download Content-Disposition.
+//   THIS ROUTE HANDLER streams the object with a download Content-Disposition.
 //
-// Telegram-only read: every ready row is fetched from Telegram via
-// fetchTelegramFileBytes (bounded 429 retry inside). Any Telegram failure
-// (down, rate-limited beyond retries, >20MB getFile cap) becomes a clean
-// 502 — same posture as /api/assets/[id]. telegramFileId is NEVER exposed
-// to the client; it only selects the server-side fetch path. Legacy rows
-// written before this contract (telegramFileId null) now 404 — there is
-// no MinIO fallback path.
+// Ephemerality — the 410 case. Report exports are deliberately short-lived:
+// they are purged when the export dialog is closed and by a TTL janitor
+// sweep, either of which can land WHILE a download is in flight. So a ready
+// row whose object has already been swept is a normal, expected outcome and
+// gets its own status:
+//   - 404 → the ROW is missing, cross-tenant, or not ready. Reserved for
+//           "you have no business with this id".
+//   - 410 → the row is ready but the OBJECT is gone (getObjectBytes returned
+//           null). The file existed and was legitimately downloadable; it has
+//           since been purged. Kept distinct from 404 on purpose — collapsing
+//           the two would make the deletion race undiagnosable in production.
+//   - 502 → an unexpected storage failure (getObjectBytes threw). A real bug
+//           or an outage, never a benign purge.
 //
 // Security posture (per security.md):
 //   - Manual auth via requireRouteAuth (tRPC bypassed — no middleware chain).
@@ -37,9 +45,9 @@ import { TRPCError } from "@trpc/server";
 
 import { prisma } from "@marine-guardian/db";
 import {
-  getTelegramBotToken,
-  fetchTelegramFileBytes,
-} from "@marine-guardian/jobs/lib/telegram-storage";
+  getExportsBucketName,
+  getObjectBytes,
+} from "@marine-guardian/storage";
 import {
   requireRouteAuth,
   RouteAuthError,
@@ -61,10 +69,10 @@ export async function GET(
   _req: NextRequest,
   { params }: RouteParams,
 ): Promise<NextResponse | Response> {
-  // `?disposition=inline` serves the same Telegram-streamed bytes for in-browser
-  // viewing (Content-Disposition: inline) instead of forcing a download. The
-  // file is never stored server-side either way — this only flips the header and
-  // the audit action. Any other value (or absent) keeps the default attachment.
+  // `?disposition=inline` serves the same bytes for in-browser viewing
+  // (Content-Disposition: inline) instead of forcing a download. This only
+  // flips the header and the audit action; the byte source is identical.
+  // Any other value (or absent) keeps the default attachment.
   const inline =
     _req.nextUrl.searchParams.get("disposition") === "inline";
   let ctx;
@@ -95,7 +103,7 @@ export async function GET(
       id: true,
       tenantId: true,
       status: true,
-      telegramFileId: true,
+      filePath: true,
       fileSizeBytes: true,
       reportType: true,
       completedAt: true,
@@ -104,23 +112,24 @@ export async function GET(
 
   // 404 on missing OR cross-tenant. NEVER 403 — confirming existence to a
   // non-owning caller leaks tenant occupancy.
-  if (!row) {
+  if (row === null) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   // 404 on non-ready rows. Owning caller polls status via the tRPC
   // pollStatus endpoint; this download path is strictly for finished PDFs.
-  // A ready row must carry a telegramFileId — Telegram is the sole store,
-  // so a row without one (e.g. a legacy pre-Telegram-only row) has no
-  // retrievable file.
-  if (row.status !== "ready" || row.telegramFileId === null) {
+  // A ready row must carry a filePath (the MinIO object key) — a row without
+  // one has no retrievable object at all, which is a different condition from
+  // "the object was purged" (410) and is treated as not-found.
+  if (row.status !== "ready" || row.filePath === null) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   // Write the EXPORT_DOWNLOAD AuditLog BEFORE streaming begins so a network
   // interruption mid-stream still leaves a record of who attempted the
   // download. Action name parallels EXPORT_REQUESTED written by
-  // reportExport.create (5.3b).
+  // reportExport.create. This is an L5 data-egress control — it stays even
+  // though generated reports carry no metadata table of their own.
   await prisma.auditLog.create({
     data: {
       action: inline ? "EXPORT_VIEW" : "EXPORT_DOWNLOAD",
@@ -146,20 +155,19 @@ export async function GET(
     "Cache-Control": "no-store",
   });
 
-  // Telegram-only read: the ready-row gate above guarantees telegramFileId
-  // is non-null here. Any failure (token unset, Telegram down, 429 beyond
-  // retries, >20MB getFile cap) maps to a clean 502 — never an unhandled
-  // 500, and never a fall-through to a server-side copy (there isn't one).
-  let bytes: ArrayBuffer;
+  // Read the object key straight off the row — never recompute it from
+  // createdAt. The worker derives the key at UPLOAD time, so a row created
+  // at 23:59 on the last day of a month lands under the NEXT month's prefix;
+  // only the stored filePath is authoritative.
+  let bytes: Buffer | null;
   try {
-    const botToken = getTelegramBotToken();
-    ({ bytes } = await fetchTelegramFileBytes({
-      botToken,
-      fileId: row.telegramFileId,
-    }));
+    bytes = await getObjectBytes({
+      bucket: getExportsBucketName(),
+      key: row.filePath,
+    });
   } catch (err) {
     console.error(
-      `[exports/download] Telegram fetch failed for export ${row.id}:`,
+      `[exports/download] storage read failed for export ${row.id}:`,
       err instanceof Error ? err.message : err,
     );
     return NextResponse.json(
@@ -167,6 +175,18 @@ export async function GET(
       { status: 502 },
     );
   }
+
+  // 410 GONE — the row still says ready but the object has been swept
+  // (dialog close or TTL janitor). Deliberately NOT a 404 (which means "no
+  // such row for you") and NOT a 500 (nothing failed). The client shows the
+  // regenerate prompt.
+  if (bytes === null) {
+    return NextResponse.json(
+      { error: "This report has expired. Generate it again." },
+      { status: 410 },
+    );
+  }
+
   headers.set("Content-Length", String(bytes.byteLength));
-  return new Response(bytes, { status: 200, headers });
+  return new Response(new Uint8Array(bytes), { status: 200, headers });
 }

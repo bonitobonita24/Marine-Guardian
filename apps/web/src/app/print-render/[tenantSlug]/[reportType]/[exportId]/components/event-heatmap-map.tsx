@@ -18,6 +18,7 @@ import type {
   ReportMapBounds,
   ReportMapEventPoint,
 } from "@/server/report-map-report/get-report-map-report-data";
+import { filterValidMapPoints } from "@/lib/map-coordinates";
 import { boundsToView } from "./bounds-view";
 import { HeatLayer } from "./heat-layer";
 import { MapRenderGate } from "./map-render-gate";
@@ -58,17 +59,31 @@ const HEATMAP_INSET_PX = framingInsetPx(HEATMAP_WIDTH_PX, HEATMAP_HEIGHT_PX);
 const DEFAULT_CENTER: [number, number] = [13.0, 121.0];
 const DEFAULT_ZOOM = 9;
 
-/** Tight padded bbox around the located points (mirrors EventPointsMap). */
+/**
+ * Tight padded bbox around the located points (mirrors EventPointsMap).
+ *
+ * Bounds-unsafe coordinates — (0,0) "Null Island", non-finite, out-of-domain —
+ * are dropped before the box is built (see lib/map-coordinates.ts). MAP
+ * GEOMETRY ONLY: the excluded events still count everywhere else in the report,
+ * and this island still receives the full point set for its heat layers.
+ * Returns null when nothing survives, so the caller falls back to the
+ * municipality bounds and then the default view instead of producing NaN.
+ */
 function pointsBounds(
   points: { lat: number; lon: number }[],
 ): ReportMapBounds | null {
-  const first = points[0];
+  const boundsPoints = filterValidMapPoints(
+    points,
+    (p) => p.lat,
+    (p) => p.lon,
+  );
+  const first = boundsPoints[0];
   if (first === undefined) return null;
   let south = first.lat;
   let north = first.lat;
   let west = first.lon;
   let east = first.lon;
-  for (const p of points) {
+  for (const p of boundsPoints) {
     south = Math.min(south, p.lat);
     north = Math.max(north, p.lat);
     west = Math.min(west, p.lon);

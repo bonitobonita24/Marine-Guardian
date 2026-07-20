@@ -107,7 +107,11 @@ vi.mock("@/lib/trpc/client", () => ({
     },
     municipality: { list: { useQuery: () => ({ data: [], isLoading: false }) } },
     reportTemplate: { list: { useQuery: () => emptyQuery } },
-    reportExport: { create: { useMutation: () => ({ isPending: false, reset: vi.fn() }) } },
+    reportExport: {
+      create: { useMutation: () => ({ isPending: false, reset: vi.fn() }) },
+      // Phase 4 S7/S8 — the dialog fires a best-effort purge on close.
+      purge: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
+    },
   },
 }));
 

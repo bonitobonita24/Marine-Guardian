@@ -20,6 +20,7 @@ import type {
   EventHighlightsReportData,
 } from "@/server/event-highlights-report/get-event-highlights-report-data";
 import { ReportHeader, reportHeaderStyles } from "./components/report-header";
+import { PrintDocumentShell } from "./components/print-document-shell";
 
 /**
  * Width (px) requested from /api/assets for every collage photo.
@@ -270,33 +271,28 @@ export function EventHighlightsReport({ data }: EventHighlightsReportProps) {
   `;
 
   return (
-    <html lang="en">
-      <head>
-        <meta charSet="utf-8" />
-        {/* Single template-string child — NOT `{a} — text — {b}`. React
-            requires <title> children to collapse to ONE string: the browser
-            parses title content as raw text and merges adjacent text nodes,
-            so a multi-child <title> hydrates against a single Text node and
-            throws the "hydration failed" error (React #418). */}
-        <title>{`${data.tenant.name} — Event Highlights — ${dateRange}`}</title>
-        <style>{css}</style>
-        {/* Render-ready sentinel: mirrors report-map-report.tsx's map-island
-            counter, but counts photo <img> loads (each photo's inline
-            onload/onerror HTML attribute — see EventHighlightBlock —
-            invokes window.__hlPhotoLoaded()). Zero-photo fallback flips
-            window.__renderReady directly (nothing would ever decrement a
-            __renderPending counter otherwise). */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html:
-              totalPhotoImages > 0
-                ? `window.__renderPending = ${String(totalPhotoImages)}; window.__hlPhotoLoaded = function() { window.__renderPending -= 1; if (window.__renderPending <= 0) { window.__renderReady = true; } };`
-                : "window.__renderReady = true;",
-          }}
-        />
-      </head>
-      <body>
-        <div className="hl-report-body">
+    /* No <html>/<head>/<body> here — this page renders inside the app root
+       layout's document. Emitting a nested document was the React #418
+       hydration-mismatch root cause; see components/print-document-shell.tsx.
+
+       Single template-string title child — NOT `{a} — text — {b}`. React
+       requires <title> children to collapse to ONE string. */
+    <PrintDocumentShell
+      title={`${data.tenant.name} — Event Highlights — ${dateRange}`}
+      css={css}
+      /* Render-ready sentinel: mirrors report-map-report.tsx's map-island
+         counter, but counts photo <img> loads (each photo's inline
+         onload/onerror HTML attribute — see EventHighlightBlock — invokes
+         window.__hlPhotoLoaded()). Zero-photo fallback flips
+         window.__renderReady directly (nothing would ever decrement a
+         __renderPending counter otherwise). */
+      gateScript={
+        totalPhotoImages > 0
+          ? `window.__renderPending = ${String(totalPhotoImages)}; window.__hlPhotoLoaded = function() { window.__renderPending -= 1; if (window.__renderPending <= 0) { window.__renderReady = true; } };`
+          : "window.__renderReady = true;"
+      }
+    >
+      <div className="hl-report-body">
           <ReportHeader {...reportHeaderProps} />
           {data.blocks.length === 0 ? (
             <div className="hl-empty-page">No event highlights in the selected scope.</div>
@@ -316,7 +312,6 @@ export function EventHighlightsReport({ data }: EventHighlightsReportProps) {
             <div className="hl-footer-meta">Generated {generatedAt}</div>
           </footer>
         </div>
-      </body>
-    </html>
+    </PrintDocumentShell>
   );
 }

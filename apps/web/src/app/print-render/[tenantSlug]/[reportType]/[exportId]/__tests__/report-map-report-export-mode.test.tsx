@@ -20,6 +20,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
+import { expectNoDocumentScaffold } from "./assert-no-document-scaffold";
 
 vi.mock("../components/event-breakdown-chart", () => ({
   EventBreakdownChart: () => null,
@@ -148,6 +149,18 @@ function sectionTestIds(html: string): string[] {
 }
 
 describe("ReportMapReport — exportMode split", () => {
+  // React #418 regression guard (2026-07-20) — browser QA confirmed this page
+  // threw a hydration mismatch. Cause: the component emitted its own
+  // <html><head><body> nested inside the app root layout's document, which the
+  // HTML parser discards. See components/print-document-shell.tsx.
+  it("emits NO nested <html>/<head>/<body> document scaffold (React #418)", () => {
+    for (const mode of ["combined", "charts", "lists"] as const) {
+      expectNoDocumentScaffold(
+        renderToStaticMarkup(<ReportMapReport data={buildData(mode)} />),
+      );
+    }
+  });
+
   it("combined (default): renders ALL 8 sections (4 chart + 4 list), seeds __renderPending=7", () => {
     const html = renderToStaticMarkup(<ReportMapReport data={buildData("combined")} />);
     expect(sectionTestIds(html)).toEqual([

@@ -29,6 +29,7 @@ import { Page1EventAndPatrolSummary } from "./page-1-event-and-patrol-summary";
 import { Page2Heatmaps } from "./page-2-heatmaps";
 import { Page3FuelConsumption } from "./page-3-fuel-consumption";
 import { ReportHeader, reportHeaderStyles } from "./components/report-header";
+import { PrintDocumentShell } from "./components/print-document-shell";
 
 interface PerAreaReportProps {
   data: PerAreaReportData;
@@ -60,14 +61,12 @@ export function PerAreaReport({ data }: PerAreaReportProps) {
   const paperCss = PAPER_SIZE_CSS[data.paperSize];
 
   return (
-    <html lang="en">
-      <head>
-        <meta charSet="utf-8" />
-        <title>
-          {data.tenant.name} — Per Area Report — {data.area.name} —{" "}
-          {data.dateRange.label}
-        </title>
-        <style>{`
+    /* No <html>/<head>/<body> here — this page renders inside the app root
+       layout's document. Emitting a nested document was the React #418
+       hydration-mismatch root cause; see components/print-document-shell.tsx. */
+    <PrintDocumentShell
+      title={`${data.tenant.name} — Per Area Report — ${data.area.name} — ${data.dateRange.label}`}
+      css={`
           /* Shadcn chart-token palette (R9, 2026-07-06) — same injection as
              report-map-report.tsx / coverage-report.tsx: EventBreakdownChart
              (Page 1) references hsl(var(--chart-1))/hsl(var(--chart-2)) so
@@ -94,9 +93,8 @@ export function PerAreaReport({ data }: PerAreaReportProps) {
             color: #0f766e; background: #ecfeff; border: 1px solid #a5f3fc;
             border-radius: 2px; text-transform: uppercase; letter-spacing: 0.04em;
           }
-        `}</style>
-      </head>
-      <body>
+        `}
+    >
         <ReportHeader
           municipalityName={data.area.name}
           reportTitle="Area Coverage"
@@ -151,7 +149,6 @@ export function PerAreaReport({ data }: PerAreaReportProps) {
           src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
           style={{ position: "absolute", width: 1, height: 1, left: -9999 }}
         />
-      </body>
-    </html>
+    </PrintDocumentShell>
   );
 }

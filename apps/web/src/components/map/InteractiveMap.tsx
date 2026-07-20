@@ -20,6 +20,10 @@ import {
   type MapRef,
 } from "@/components/ui/map";
 import { trpc } from "@/lib/trpc/client";
+import {
+  filterValidLonLatPairs,
+  isValidMapCoordinate,
+} from "@/lib/map-coordinates";
 import { cn } from "@/lib/utils";
 import { MapPolygon } from "./MapPolygon";
 import { MapTopRightColumn } from "./MapTopRightColumn";
@@ -626,8 +630,16 @@ export function InteractiveMap({
   // (dep: [trackCoordinates]) re-ran on EVERY render and snapped the camera
   // back to the track extent — making the map feel "zoom-locked" whenever a
   // patrol was selected (owner bug 2026-07-06).
+  // MAP GEOMETRY ONLY — (0,0)/non-finite/out-of-domain vertices are dropped so
+  // one bad track point can't stretch the fly-to extent across the planet. The
+  // rendered track layer draws from the query data directly and is unaffected.
   const trackCoordinates = useMemo<[number, number][]>(
-    () => (patrolTracksQuery.data?.points ?? []).map((p) => [p.lon, p.lat]),
+    () =>
+      filterValidLonLatPairs(
+        (patrolTracksQuery.data?.points ?? []).map(
+          (p) => [p.lon, p.lat] as [number, number],
+        ),
+      ),
     [patrolTracksQuery.data],
   );
 
@@ -647,6 +659,14 @@ export function InteractiveMap({
   const didFitInitialRef = useRef(false);
 
   // All point coordinates from the loaded data, used to auto-fit the viewport.
+  //
+  // MAP GEOMETRY ONLY: coordinates that cannot legitimately frame a camera —
+  // (0,0) "Null Island", non-finite, outside the WGS84 domain — are excluded
+  // here (see lib/map-coordinates.ts). Four (0,0) event rows exist in the dev
+  // DB; including them stretched the auto-fit from West Africa to Mindoro and
+  // left the real cluster an unreadable speck. The events themselves are NOT
+  // filtered: they still appear in `events`, in every count, list and card on
+  // this page, and in the marker layer below.
   const dataCoordinates = useMemo<[number, number][]>(() => {
     const coords: [number, number][] = [];
     if (hideSubjects !== true) {
@@ -658,7 +678,7 @@ export function InteractiveMap({
         coords.push([e.locationLon, e.locationLat]);
       }
     }
-    return coords;
+    return filterValidLonLatPairs(coords);
   }, [subjects, events, hideSubjects]);
 
   // Auto-fit the map to the data bounds once features have loaded, so the
@@ -713,10 +733,17 @@ export function InteractiveMap({
     let extended = false;
     for (const b of matching) {
       for (const [lon, lat] of geometryCoordinates(b.geometryGeojson)) {
+        // MAP GEOMETRY ONLY — skip (0,0)/non-finite/out-of-domain vertices so a
+        // malformed boundary upload can't blow this municipality's frame open
+        // to a hemisphere. The boundary itself still renders and still drives
+        // attribution and coverage math.
+        if (!isValidMapCoordinate(lat, lon)) continue;
         bounds.extend([lon, lat]);
         extended = true;
       }
     }
+    // No usable vertex → leave the current view alone rather than fitting an
+    // empty LngLatBounds (which throws in maplibre).
     if (!extended) return;
     map.fitBounds(bounds, { padding: 60, maxZoom: 13, duration: 800 });
   }, [municipalityId, officialBoundaries]);

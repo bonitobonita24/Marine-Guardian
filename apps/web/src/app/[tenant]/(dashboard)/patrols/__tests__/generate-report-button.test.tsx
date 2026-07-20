@@ -17,6 +17,8 @@ const { stubs } = vi.hoisted(() => {
     createMutate: ReturnType<typeof vi.fn<(input: unknown) => void>>;
     createReset: ReturnType<typeof vi.fn<() => void>>;
     createIsPending: boolean;
+    // Phase 4 S8 — best-effort purge fired on dialog close.
+    purgeMutate: ReturnType<typeof vi.fn<(input: { ids: string[] }) => void>>;
     // 6.2d — area-list mock state. Default: 2 enabled areas. Tests may
     // override before render to assert the empty / loading branches.
     areaListItems: AreaListItem[];
@@ -27,6 +29,7 @@ const { stubs } = vi.hoisted(() => {
     createMutate: vi.fn<(input: unknown) => void>(),
     createReset: vi.fn<() => void>(),
     createIsPending: false,
+    purgeMutate: vi.fn<(input: { ids: string[] }) => void>(),
     areaListItems: [
       { id: "ab-coral-sanctuary", name: "Coral Sanctuary" },
       { id: "ab-mangrove-bay", name: "Mangrove Bay" },
@@ -36,7 +39,9 @@ const { stubs } = vi.hoisted(() => {
   return { stubs: s };
 });
 
-// Path-based tenancy: the /exports link reads the tenant slug via useParams.
+// Path-based tenancy: components under this tree read the tenant slug via
+// useParams. (The dialog itself no longer builds a tenant link — the /exports
+// hand-off was removed in Phase 4 S8 — but the mock keeps the tree renderable.)
 vi.mock("next/navigation", () => ({
   useParams: () => ({ tenant: "demo-site" }),
 }));
@@ -72,6 +77,25 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+// Phase 4 S8 — the dialog now renders the shared ExportProgressRow instead of
+// linking to the deleted /exports page. Stubbed here so these tests pin THIS
+// dialog's contract (a row is rendered for the created id); the row's own
+// lifecycle is covered by its dedicated test file under map/_components.
+vi.mock(
+  "@/app/[tenant]/(dashboard)/map/_components/export-progress-row",
+  () => ({
+    ExportProgressRow: ({
+      exportId,
+      label,
+    }: {
+      exportId: string;
+      label: string;
+    }) => (
+      <div data-testid={`export-progress-row-${exportId}`}>{label}</div>
+    ),
+  }),
+);
+
 vi.mock("@/lib/trpc/client", () => ({
   trpc: {
     reportExport: {
@@ -86,6 +110,13 @@ vi.mock("@/lib/trpc/client", () => ({
           },
           reset: stubs.createReset,
           isPending: stubs.createIsPending,
+        }),
+      },
+      // Phase 4 S8 — fired fire-and-forget on dialog close.
+      purge: {
+        useMutation: () => ({
+          mutate: stubs.purgeMutate,
+          isPending: false,
         }),
       },
     },
@@ -120,6 +151,7 @@ describe("GenerateReportButton (5.3d + 6.2d)", () => {
     stubs.tenantId = "t1";
     stubs.createMutate.mockClear();
     stubs.createReset.mockClear();
+    stubs.purgeMutate.mockReset();
     stubs.createIsPending = false;
     stubs.areaListItems = [
       { id: "ab-coral-sanctuary", name: "Coral Sanctuary" },
@@ -193,15 +225,70 @@ describe("GenerateReportButton (5.3d + 6.2d)", () => {
     expect(queryByTestId("area-report-fields")).toBeTruthy();
   });
 
-  it("after success: surfaces a link to /exports for the user to track the export", () => {
+  // Phase 4 S8 — the /exports page is deleted; the dialog stays open and
+  // renders the progress row in place.
+  it("after success: stays open and renders an in-dialog progress row (no /exports link)", () => {
+    stubs.roles = ["field_coordinator"];
+    const { getByTestId, queryByTestId } = render(<GenerateReportButton />);
+
+    fireEvent.click(getByTestId("generate-report-button"));
+    fireEvent.click(getByTestId("generate-report-confirm"));
+
+    expect(getByTestId("export-progress-row-re-new-1")).toBeTruthy();
+    expect(queryByTestId("generate-report-go-to-exports")).toBeNull();
+  });
+
+  it("after success: renders no anchor pointing at the deleted /exports route", () => {
+    stubs.roles = ["field_coordinator"];
+    const { getByTestId, baseElement } = render(<GenerateReportButton />);
+
+    fireEvent.click(getByTestId("generate-report-button"));
+    fireEvent.click(getByTestId("generate-report-confirm"));
+
+    const hrefs = Array.from(baseElement.querySelectorAll("a")).map((a) =>
+      a.getAttribute("href"),
+    );
+    expect(hrefs.filter((h) => h !== null && h.includes("/exports"))).toEqual(
+      [],
+    );
+  });
+
+  it("closing after a successful create purges the generated export", () => {
     stubs.roles = ["field_coordinator"];
     const { getByTestId } = render(<GenerateReportButton />);
 
     fireEvent.click(getByTestId("generate-report-button"));
     fireEvent.click(getByTestId("generate-report-confirm"));
+    fireEvent.click(getByTestId("generate-report-dismiss"));
 
-    const link = getByTestId("generate-report-go-to-exports");
-    expect(link.getAttribute("href")).toBe("/demo-site/exports");
+    expect(stubs.purgeMutate).toHaveBeenCalledTimes(1);
+    expect(stubs.purgeMutate).toHaveBeenCalledWith({ ids: ["re-new-1"] });
+  });
+
+  it("closing WITHOUT a successful create does not purge", () => {
+    stubs.roles = ["field_coordinator"];
+    const { getByTestId } = render(<GenerateReportButton />);
+
+    fireEvent.click(getByTestId("generate-report-button"));
+    fireEvent.click(getByTestId("generate-report-dismiss"));
+
+    expect(stubs.purgeMutate).not.toHaveBeenCalled();
+  });
+
+  it("closing still works when purge throws synchronously", () => {
+    stubs.roles = ["field_coordinator"];
+    stubs.purgeMutate.mockImplementationOnce(() => {
+      throw new Error("network down");
+    });
+    const { getByTestId, queryByTestId } = render(<GenerateReportButton />);
+
+    fireEvent.click(getByTestId("generate-report-button"));
+    fireEvent.click(getByTestId("generate-report-confirm"));
+    expect(() => {
+      fireEvent.click(getByTestId("generate-report-dismiss"));
+    }).not.toThrow();
+
+    expect(queryByTestId("export-progress-row-re-new-1")).toBeNull();
   });
 
   // 6.2d — Per Area Report paramsJson wiring.

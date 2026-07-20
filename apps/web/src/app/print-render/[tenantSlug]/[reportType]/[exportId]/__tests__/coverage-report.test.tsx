@@ -5,6 +5,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
+import { expectNoDocumentScaffold } from "./assert-no-document-scaffold";
 import { getMonthlyPeriod } from "@marine-guardian/shared/lib/coverage-period";
 
 // Page 2 + Page 3 client islands depend on a real browser (Leaflet + Recharts).
@@ -49,6 +50,15 @@ function buildData(
 }
 
 describe("CoverageReport (Page 1 — Patrol Index)", () => {
+  // React #418 regression guard (2026-07-20) — the nested-document defect was
+  // shared by every print-render template, not just the two pages browser QA
+  // happened to exercise. See components/print-document-shell.tsx.
+  it("emits NO nested <html>/<head>/<body> document scaffold (React #418)", () => {
+    expectNoDocumentScaffold(
+      renderToStaticMarkup(<CoverageReport data={buildData()} />),
+    );
+  });
+
   it("renders the header with tenant name, report title, date range, generated timestamp, paper size", () => {
     const html = renderToStaticMarkup(<CoverageReport data={buildData()} />);
     // Shared print-render header (2026-07-06 redesign) — big fixed brand
