@@ -688,34 +688,77 @@ const patrolTracksRouter = router({
             candidatePatrolWhere.startTime = startTime;
           }
 
-          const candidateRows = await prisma.patrolTrack.findMany({
-            where: {
-              tenantId: ctx.tenantId,
-              patrol: candidatePatrolWhere,
-            },
-            take: ACTIVE_TRACKS_PATROL_CAP,
-            orderBy: { until: "desc" },
-            select: {
-              trackGeojson: true,
-              patrol: {
-                select: {
-                  id: true,
-                  title: true,
-                  patrolType: true,
-                  municipalityId: true,
-                  computedDurationHours: true,
-                  totalHours: true,
-                  computedDistanceKm: true,
-                  totalDistanceKm: true,
-                  // Origin exclusion at ZONE level: a Patrol has no origin-zone
-                  // column, so the start point is tested against each zone
-                  // member's polygon in memory (resolveOriginMemberIds).
-                  startLocationLat: true,
-                  startLocationLon: true,
-                },
+          // ⚠ THE CANDIDATE SET IS A UNION OF TWO CAPPED READS, AND IT MUST
+          // STAY THAT WAY. (regression fix, 2026-07-20)
+          //
+          // THE BUG: this used to be ONE tenant-wide read capped at
+          // ACTIVE_TRACKS_PATROL_CAP. A tenant-wide "most recent N tracks"
+          // window is not a superset of "the N most recent tracks IN SCOPE" —
+          // it is a different window entirely. On a small offshore zone the
+          // two barely intersect: in dev, Apo Reef has 199 tracks (114 foot /
+          // 85 seaborne) but only 9 of them (8 foot / 1 seaborne) fall inside
+          // the 50 most recent of the tenant's 4,138 tracks. Turning the
+          // full-traversing toggle ON therefore routed the render through this
+          // branch and made nearly every seaborne track vanish from the map —
+          // silent truncation, not a filter the user asked for.
+          //
+          // THE INVARIANT this restores: the ATTRIBUTED (in-scope) tracks
+          // rendered here are exactly the ones the non-traversing path at the
+          // bottom of this procedure renders, because the first read below is
+          // that same query. Traversing candidates are then ADDED on top.
+          // Geometry and scope stay identical between toggle states; only the
+          // reported figures move. Never collapse these back into one read.
+          const trackSelect = {
+            id: true,
+            trackGeojson: true,
+            patrol: {
+              select: {
+                id: true,
+                title: true,
+                patrolType: true,
+                municipalityId: true,
+                computedDurationHours: true,
+                totalHours: true,
+                computedDistanceKm: true,
+                totalDistanceKm: true,
+                // Origin exclusion at ZONE level: a Patrol has no origin-zone
+                // column, so the start point is tested against each zone
+                // member's polygon in memory (resolveOriginMemberIds).
+                startLocationLat: true,
+                startLocationLon: true,
               },
             },
-          });
+          } as const;
+
+          const [scopedRows, traversingCandidateRows] = await Promise.all([
+            // (1) IN-SCOPE tracks — same where-clause + cap + ordering as the
+            // non-traversing path, so the attributed half cannot be truncated
+            // away by unrelated tenant-wide activity.
+            prisma.patrolTrack.findMany({
+              where: { tenantId: ctx.tenantId, patrol: patrolWhere },
+              take: ACTIVE_TRACKS_PATROL_CAP,
+              orderBy: { until: "desc" },
+              select: trackSelect,
+            }),
+            // (2) TRAVERSING candidates — deliberately broad, because "passes
+            // through somewhere it is not attributed to" cannot be expressed
+            // as a scope where-clause. Still capped; this half is best-effort
+            // by design and only ever ADDS tracks.
+            prisma.patrolTrack.findMany({
+              where: { tenantId: ctx.tenantId, patrol: candidatePatrolWhere },
+              take: ACTIVE_TRACKS_PATROL_CAP,
+              orderBy: { until: "desc" },
+              select: trackSelect,
+            }),
+          ]);
+
+          // Dedupe by TRACK row id (a patrol may own several track rows, and
+          // the two reads overlap whenever an in-scope track is also recent).
+          const candidateRows = [
+            ...new Map(
+              [...scopedRows, ...traversingCandidateRows].map((r) => [r.id, r]),
+            ).values(),
+          ];
 
           const traversingTracks = candidateRows.flatMap((row) => {
             const points = pointsFromTrackGeojson(row.trackGeojson);

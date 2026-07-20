@@ -1254,6 +1254,108 @@ describe("map.patrolTracks.inRange includeTraversingFull (zone scope)", () => {
     expect(vi.mocked(prisma.patrol.findMany)).not.toHaveBeenCalled();
   });
 
+  // -------------------------------------------------------------------------
+  // REGRESSION (owner-reported 2026-07-20): turning the full-traversing toggle
+  // ON made every seaborne track vanish from the Interactive Report Map.
+  //
+  // Cause: the traversing branch fetched candidates with ONE tenant-wide read
+  // capped at ACTIVE_TRACKS_PATROL_CAP. "The N most recent tracks in the whole
+  // tenant" is a different window from "the N most recent tracks in scope", so
+  // in-scope tracks that are not tenant-recent were silently truncated away.
+  // Real dev data: Apo Reef has 199 tracks (85 seaborne) but only 9 (1
+  // seaborne) fall inside the tenant's 50 most recent of 4,138.
+  //
+  // The fixture below models exactly that: a seaborne patrol that IS in scope
+  // but is NOT in the tenant-wide recent window. Before the fix, the flag
+  // being ON dropped it; the counts must now be equal in both modes.
+  // -------------------------------------------------------------------------
+  it("SEABORNE PARITY: an in-scope seaborne track outside the tenant-recent window renders with the flag ON and OFF", async () => {
+    const seedTruncationCase = (): void => {
+      vi.mocked(prisma.protectedZone.findMany).mockResolvedValue([
+        {
+          id: FULL_ZONE_ID,
+          name: "Apo Reef Natural Park",
+          boundaryGeojson: TRAVERSING_SQUARE_A,
+        },
+      ] as any);
+      // The seaborne patrol IS attributed to the zone (it is in the scope
+      // where-clause result), which is what makes its disappearance a bug.
+      vi.mocked(prisma.patrol.findMany).mockResolvedValue([
+        { id: "patrol-seaborne-old" },
+      ] as any);
+
+      const seaborneRow = {
+        id: "track-seaborne-old",
+        trackGeojson: TRAVERSING_CROSSING_TRACK,
+        patrol: {
+          id: "patrol-seaborne-old",
+          title: "Apo Reef seaborne (older than the tenant-recent window)",
+          patrolType: "seaborne",
+          municipalityId: "muni-sablayan",
+          computedDurationHours: 4,
+          totalHours: null,
+          computedDistanceKm: 10,
+          totalDistanceKm: null,
+          startLocationLat: 0.5,
+          startLocationLon: 0.5,
+        },
+      };
+      const recentFootRow = {
+        id: "track-foot-recent",
+        trackGeojson: TRAVERSING_CROSSING_TRACK,
+        patrol: {
+          id: "patrol-foot-recent",
+          title: "Recent foot patrol",
+          patrolType: "foot",
+          municipalityId: "muni-sablayan",
+          computedDurationHours: 1,
+          totalHours: null,
+          computedDistanceKm: 2,
+          totalDistanceKm: null,
+          startLocationLat: 9,
+          startLocationLon: 9,
+        },
+      };
+
+      // THE TRUNCATION: the broad tenant-wide candidate read (no scope keys in
+      // `where.patrol`) returns ONLY the recent foot track — the seaborne one
+      // has fallen off the cap. The scoped read (which carries the zone's
+      // `coveredZones` clause) still has it.
+      vi.mocked(prisma.patrolTrack.findMany).mockImplementation(((args: {
+        where?: { patrol?: { coveredZones?: unknown } };
+      }) =>
+        Promise.resolve(
+          args.where?.patrol?.coveredZones !== undefined
+            ? [seaborneRow]
+            : [recentFootRow],
+        )) as unknown as typeof prisma.patrolTrack.findMany);
+    };
+
+    const countSeaborne = (tracks: { patrolType: string }[]): number =>
+      tracks.filter((t) => t.patrolType === "seaborne").length;
+
+    seedTruncationCase();
+    const caller = createCaller(makeCtx());
+    const off = await caller.patrolTracks.inRange({
+      protectedZoneId: FULL_ZONE_ID,
+    });
+
+    vi.clearAllMocks();
+    seedTruncationCase();
+    const on = await caller.patrolTracks.inRange({
+      protectedZoneId: FULL_ZONE_ID,
+      includeTraversingFull: true,
+    });
+
+    // The assertion that would have caught the regression.
+    expect(countSeaborne(on.tracks)).toBe(countSeaborne(off.tracks));
+    // …and non-vacuously: the seaborne track is actually present in both.
+    expect(countSeaborne(off.tracks)).toBe(1);
+    expect(on.tracks.some((t) => t.patrolId === "patrol-seaborne-old")).toBe(
+      true,
+    );
+  });
+
   it("ZONE SCOPE ONLY: the flag is gated out at municipality scope", async () => {
     // `resolveReportScope` is the single enforcement point; this asserts the
     // router honours it rather than re-deriving the gate.
