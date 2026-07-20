@@ -33,6 +33,8 @@ const {
   mockRateLimitCheck: vi.fn(),
   mockPrisma: {
     reportExport: { findFirst: vi.fn() },
+    protectedZone: { findFirst: vi.fn() },
+    municipality: { findFirst: vi.fn() },
     auditLog: { create: vi.fn() },
   },
   mockGetObjectBytes: vi.fn(),
@@ -104,12 +106,25 @@ const READY_ROW = {
   filePath: "tenant-1/2026/07/export-minio.pdf",
   fileSizeBytes: 9,
   reportType: "report_map",
+  // 2026-07-20 report-type checklist: the download name is built from the
+  // row's SCOPE + report type + date range (server/lib/report-export-filename.ts),
+  // so the fixture carries a realistic scoped paramsJson.
+  paramsJson: {
+    protectedZoneId: "zone-1",
+    exportMode: "charts",
+    from: "2026-01-01T00:00:00.000Z",
+    to: "2026-07-20T00:00:00.000Z",
+  },
   completedAt: new Date(Date.UTC(2026, 6, 3)), // 2026-07-03
 };
 
 describe("GET /api/exports/reports/[id]/download", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPrisma.protectedZone.findFirst.mockResolvedValue({
+      name: "Apo Reef Natural Park",
+    });
+    mockPrisma.municipality.findFirst.mockResolvedValue(null);
     mockRequireRouteAuth.mockResolvedValue(VALID_AUTH);
     mockRateLimitCheck.mockReturnValue(undefined);
     mockPrisma.reportExport.findFirst.mockResolvedValue(null);
@@ -209,7 +224,7 @@ describe("GET /api/exports/reports/[id]/download", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("application/pdf");
     expect(res.headers.get("Content-Disposition")).toBe(
-      'attachment; filename="report_map-2026-07-03.pdf"',
+      'attachment; filename="apo-reef-natural-park_summary_2026-01-01_2026-07-20.pdf"',
     );
     // Content-Length reflects the ACTUAL fetched bytes, not row.fileSizeBytes.
     expect(res.headers.get("Content-Length")).toBe("9");
@@ -269,7 +284,7 @@ describe("GET /api/exports/reports/[id]/download", () => {
     expect(res.headers.get("Content-Type")).toBe("application/pdf");
     // inline (not attachment) — the browser renders the PDF instead of saving.
     expect(res.headers.get("Content-Disposition")).toBe(
-      'inline; filename="report_map-2026-07-03.pdf"',
+      'inline; filename="apo-reef-natural-park_summary_2026-01-01_2026-07-20.pdf"',
     );
     expect(mockGetObjectBytes).toHaveBeenCalledTimes(1);
     const auditCall = mockPrisma.auditLog.create.mock.calls[0]?.[0] as {

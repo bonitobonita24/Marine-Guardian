@@ -23,9 +23,29 @@
 // "Generate PowerPoint" beside it (ADMIN ONLY — see canGeneratePptx below).
 // Closing the dialog purges the files.
 //
-// Everything ABOVE the create call is unchanged: the template/region picker,
-// the split-files and Event Highlights checkboxes, and the baseParams/payload
-// construction that can produce 1-3 exports.
+// Everything ABOVE the create call is unchanged: the template/region picker
+// and the baseParams construction.
+//
+// 2026-07-20 — REPORT-TYPE CHECKLIST. The two confusing toggles ("Split charts
+// and detailed lists into separate files" + "Also generate Event Highlights")
+// are replaced by a plain checklist of the three report types the user can
+// actually ask for:
+//
+//   Summary of Events/Activities  → report_map, exportMode "charts"
+//   Detailed Report               → report_map, exportMode "lists"
+//   Event Highlights              → event_highlights
+//
+// One export is queued per TICKED box, and nothing else is rendered — a
+// Summary-only request never renders the (very long) detailed list sections,
+// because exportMode is now ALWAYS explicit. The old unsplit path sent no
+// exportMode at all, which the server defaulted to "combined" and rendered
+// every section; that combined single-file output no longer exists (accepted
+// tradeoff — ticking Summary + Detailed yields TWO files, never one merged
+// PDF).
+//
+// At least one box must be ticked: Generate is disabled while the selection is
+// empty, and the reason is stated in a hint wired to the button via
+// aria-describedby so it is announced, not merely greyed out.
 
 import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
@@ -51,6 +71,59 @@ interface ExportRowEntry {
   id: string;
   label: string;
 }
+
+/**
+ * The three report types the dialog offers, in display order.
+ *
+ * This array IS the checklist: the rendered checkboxes, the default selection
+ * and the queued payloads all derive from it, so adding or renaming a report
+ * type is a one-place edit.
+ *
+ * `exportMode` is what makes the render skip work — see `handleConfirm`.
+ */
+export const REPORT_TYPE_CHOICES = [
+  {
+    key: "summary",
+    label: "Summary of Events/Activities",
+    hint: "Reports with charts summary.",
+    reportType: "report_map",
+    exportMode: "charts",
+  },
+  {
+    key: "detailed",
+    label: "Detailed Report",
+    hint: "The long list of all the events and patrols.",
+    reportType: "report_map",
+    exportMode: "lists",
+  },
+  {
+    key: "event_highlights",
+    label: "Event Highlights",
+    hint: "Important activities/events — an A4 photo collage of the scope's events that have images and filled-in details.",
+    reportType: "event_highlights",
+    exportMode: null,
+  },
+] as const satisfies readonly {
+  key: string;
+  label: string;
+  hint: string;
+  reportType: "report_map" | "event_highlights";
+  exportMode: "charts" | "lists" | null;
+}[];
+
+export type ReportTypeKey = (typeof REPORT_TYPE_CHOICES)[number]["key"];
+
+/**
+ * Default selection — Summary ONLY (the fast, common case).
+ *
+ * Deliberately NOT everything: pre-ticking all three would re-create the slow
+ * "render the whole world" default the checklist exists to remove.
+ */
+export const DEFAULT_REPORT_TYPE_SELECTION: Record<ReportTypeKey, boolean> = {
+  summary: true,
+  detailed: false,
+  event_highlights: false,
+};
 
 /** Mirrors the ReportExportStatus enum (kept local, as ExportProgressRow does). */
 export type ExportRowStatus = "queued" | "rendering" | "ready" | "failed";
@@ -118,11 +191,11 @@ export function GeneratePrintableButton() {
   } = useReportFilter();
   const [open, setOpen] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
-  const [splitFiles, setSplitFiles] = useState(false);
-  // Event Highlights (2026-07-20): opt-in extra export — an A4 photo collage of
-  // the scope's events that have photos AND filled-in narrative. Queued
-  // alongside the standard report_map export, sharing the same scope params.
-  const [highlights, setHighlights] = useState(false);
+  // Which report types are ticked. Defaults to Summary only — see
+  // DEFAULT_REPORT_TYPE_SELECTION.
+  const [selectedTypes, setSelectedTypes] = useState<Record<ReportTypeKey, boolean>>(
+    DEFAULT_REPORT_TYPE_SELECTION,
+  );
   // Rows appear once create resolves and are the dialog's post-Generate view.
   const [rows, setRows] = useState<ExportRowEntry[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -291,12 +364,17 @@ export function GeneratePrintableButton() {
           ...(includeTraversing ? { includeTraversing } : {}),
         };
 
-    // Build the list of exports to queue. The standard report_map export is
-    // either one combined file or the charts+lists split; the Event Highlights
-    // photo collage (event_highlights) is an optional extra sharing the same
-    // scope. All are fired together via mutateAsync + Promise.allSettled — each
-    // returns an independent promise, so the confirmation resolves only after
-    // ALL complete (avoids the single-observer callback race, 2026-07-13).
+    // ONE export per TICKED report type, in checklist order. All share the
+    // same scope params and are fired together via mutateAsync +
+    // Promise.allSettled — each returns an independent promise, so the
+    // confirmation resolves only after ALL complete (avoids the
+    // single-observer callback race, 2026-07-13).
+    //
+    // `exportMode` is ALWAYS sent for report_map (never omitted), which is
+    // what keeps the render honest: "charts" renders only the chart/map
+    // sections and "lists" only the full-list sections
+    // (resolveReportMapExportSections). An unticked type is never queued, so
+    // it is never fetched and never rendered.
     //
     // `label` is carried alongside each payload so the resulting in-dialog row
     // is identifiable when up to three render simultaneously (S7).
@@ -305,36 +383,23 @@ export function GeneratePrintableButton() {
       reportType: "report_map" | "event_highlights";
       paperSize: "A4";
       paramsJson: Record<string, unknown>;
-    }[] = [];
-    if (splitFiles) {
-      for (const exportMode of ["charts", "lists"] as const) {
-        payloads.push({
-          label:
-            exportMode === "charts"
-              ? "Report (charts)"
-              : "Report (detailed lists)",
-          reportType: "report_map",
-          paperSize: "A4",
-          paramsJson: { ...baseParams, exportMode },
-        });
-      }
-    } else {
-      // No exportMode key — the server defaults paramsJson.exportMode to
-      // "combined".
-      payloads.push({
-        label: "Report",
-        reportType: "report_map",
-        paperSize: "A4",
-        paramsJson: baseParams,
-      });
-    }
-    if (highlights) {
-      payloads.push({
-        label: "Event Highlights",
-        reportType: "event_highlights",
-        paperSize: "A4",
-        paramsJson: baseParams,
-      });
+    }[] = REPORT_TYPE_CHOICES.filter((choice) => selectedTypes[choice.key]).map(
+      (choice) => ({
+        label: choice.label,
+        reportType: choice.reportType,
+        paperSize: "A4" as const,
+        paramsJson:
+          choice.exportMode !== null
+            ? { ...baseParams, exportMode: choice.exportMode }
+            : { ...baseParams },
+      }),
+    );
+
+    // Defensive only — the Generate button is disabled with an empty
+    // selection, so this is unreachable from the UI.
+    if (payloads.length === 0) {
+      clearRequestTimeout();
+      return;
     }
 
     // allSettled (not all) so a partial failure still surfaces the exports
@@ -393,8 +458,7 @@ export function GeneratePrintableButton() {
     setRows([]);
     setErrorMessage(null);
     setSelectedTemplateId("");
-    setSplitFiles(false);
-    setHighlights(false);
+    setSelectedTypes(DEFAULT_REPORT_TYPE_SELECTION);
     create.reset();
   }
 
@@ -414,7 +478,16 @@ export function GeneratePrintableButton() {
     (q) => q.data?.status ?? "queued",
   );
   const progressAnnouncement = describeExportProgress(rowStatuses);
-  const confirmDisabled = create.isPending || selectedTemplateId === "";
+  // At least one report type must be ticked (owner requirement 2026-07-20).
+  // The reason is rendered as a visible hint AND wired to the button via
+  // aria-describedby, so the disabled state is announced rather than being a
+  // silent grey button.
+  const selectedTypeCount = REPORT_TYPE_CHOICES.filter(
+    (choice) => selectedTypes[choice.key],
+  ).length;
+  const noTypeSelected = selectedTypeCount === 0;
+  const confirmDisabled =
+    create.isPending || selectedTemplateId === "" || noTypeSelected;
 
   return (
     <Dialog
@@ -532,50 +605,61 @@ export function GeneratePrintableButton() {
               </p>
             </div>
 
-            <div className="flex items-start gap-2">
-              <Checkbox
-                id="split-files"
-                data-testid="split-files-checkbox"
-                checked={splitFiles}
-                onCheckedChange={(checked) => { setSplitFiles(checked === true); }}
-                aria-describedby="split-files-hint"
-                className="mt-0.5"
-              />
-              <div className="grid gap-0.5 leading-none">
-                <Label htmlFor="split-files" className="cursor-pointer">
-                  Split charts and detailed lists into separate files
-                </Label>
+            {/* Report-type checklist (2026-07-20). A real fieldset/legend so
+                assistive tech announces the three checkboxes as one group;
+                each Checkbox keeps native checkbox semantics (Radix renders
+                role="checkbox", Space-toggleable) with its Label bound by
+                htmlFor and its hint bound by aria-describedby. One file is
+                generated per ticked box. */}
+            <fieldset className="space-y-3" data-testid="report-type-checklist">
+              <legend className="text-sm font-medium">
+                What to generate
+              </legend>
+              {REPORT_TYPE_CHOICES.map((choice) => (
+                <div key={choice.key} className="flex items-start gap-2">
+                  <Checkbox
+                    id={`report-type-${choice.key}`}
+                    data-testid={`report-type-${choice.key}-checkbox`}
+                    checked={selectedTypes[choice.key]}
+                    onCheckedChange={(checked) => {
+                      setSelectedTypes((prev) => ({
+                        ...prev,
+                        [choice.key]: checked === true,
+                      }));
+                    }}
+                    aria-describedby={`report-type-${choice.key}-hint`}
+                    className="mt-0.5"
+                  />
+                  <div className="grid gap-0.5 leading-none">
+                    <Label
+                      htmlFor={`report-type-${choice.key}`}
+                      className="cursor-pointer"
+                    >
+                      {choice.label}
+                    </Label>
+                    <p
+                      id={`report-type-${choice.key}-hint`}
+                      className="text-xs text-muted-foreground"
+                    >
+                      {choice.hint}
+                    </p>
+                  </div>
+                </div>
+              ))}
+              {/* Why Generate is disabled — visible AND announced (it is the
+                  button's aria-describedby target below). role="status" so a
+                  screen reader hears it when the last box is unticked. */}
+              {noTypeSelected && (
                 <p
-                  id="split-files-hint"
-                  className="text-xs text-muted-foreground"
+                  id="report-type-empty-hint"
+                  role="status"
+                  className="text-xs text-destructive"
+                  data-testid="report-type-empty-hint"
                 >
-                  Creates two downloadable files instead of one.
+                  Select at least one report to generate.
                 </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-2">
-              <Checkbox
-                id="event-highlights"
-                data-testid="event-highlights-checkbox"
-                checked={highlights}
-                onCheckedChange={(checked) => { setHighlights(checked === true); }}
-                aria-describedby="event-highlights-hint"
-                className="mt-0.5"
-              />
-              <div className="grid gap-0.5 leading-none">
-                <Label htmlFor="event-highlights" className="cursor-pointer">
-                  Also generate Event Highlights (photo collage)
-                </Label>
-                <p
-                  id="event-highlights-hint"
-                  className="text-xs text-muted-foreground"
-                >
-                  A separate A4 report featuring large photos of the scope&apos;s
-                  events that have images and filled-in details.
-                </p>
-              </div>
-            </div>
+              )}
+            </fieldset>
           </div>
         )}
 
@@ -604,6 +688,9 @@ export function GeneratePrintableButton() {
               onClick={() => void handleConfirm()}
               disabled={confirmDisabled}
               aria-busy={create.isPending}
+              aria-describedby={
+                noTypeSelected ? "report-type-empty-hint" : undefined
+              }
             >
               {create.isPending ? "Queuing…" : "Generate"}
             </Button>

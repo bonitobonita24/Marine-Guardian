@@ -1535,8 +1535,17 @@ export async function getReportMapReportData(
   for (const e of breakdown.highPriority.events) eventTypeDisplays.add(e.typeDisplay);
   for (const e of overviewEvents) eventTypeDisplays.add(e.typeDisplay);
 
+  // Skipped entirely in "charts" (Summary) mode: eventTypeColumns feeds ONLY
+  // the per-event-type tables in the full-list sections, and those sections
+  // are not rendered when exportMode is "charts" (see
+  // resolveReportMapExportSections). This all-time query is unbounded by the
+  // report's date filter, so it is the single most expensive query in the
+  // loader — not running it is a real saving on a Summary-only request
+  // (2026-07-20 report-type checklist).
+  const needsEventTypeColumns = (params.exportMode ?? "combined") !== "charts";
+
   let eventTypeColumns: Record<string, string[]> = {};
-  if (eventTypeDisplays.size > 0) {
+  if (needsEventTypeColumns && eventTypeDisplays.size > 0) {
     const globalDetailRows = await prisma.event.findMany({
       where: {
         tenantId: tenant.id,

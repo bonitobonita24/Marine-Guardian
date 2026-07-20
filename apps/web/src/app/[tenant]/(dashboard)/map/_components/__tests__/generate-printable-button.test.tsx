@@ -328,10 +328,11 @@ describe("GeneratePrintableButton — region report options (2026-07-13)", () =>
   });
 });
 
-// "Split into two files" toggle (2026-07-13). Default OFF preserves the
-// existing single-export behavior; ON fires two exports (exportMode:
-// "charts" and "lists") sharing the same scope in one Generate click.
-describe("GeneratePrintableButton — split into two files (2026-07-13)", () => {
+// Report-type CHECKLIST (2026-07-20) — replaces the "Split into two files"
+// toggle and the "Also generate Event Highlights" toggle. One export is queued
+// per ticked box; the default is Summary only; Generate is disabled while
+// nothing is ticked.
+describe("GeneratePrintableButton — report-type checklist (2026-07-20)", () => {
   beforeEach(() => {
     stubs.roles = ["field_coordinator"];
     mutateSpy.mockClear();
@@ -340,84 +341,204 @@ describe("GeneratePrintableButton — split into two files (2026-07-13)", () => 
     cleanup();
   });
 
-  it("renders the split checkbox, default unchecked", () => {
-    const { getByTestId } = render(<GeneratePrintableButton />);
-    fireEvent.click(getByTestId("generate-printable-report-button"));
+  function openWithTemplate() {
+    const utils = render(<GeneratePrintableButton />);
+    fireEvent.click(utils.getByTestId("generate-printable-report-button"));
+    fireEvent.change(utils.getByTestId("report-template-select"), {
+      target: { value: "tpl-2" },
+    });
+    return utils;
+  }
 
-    const checkbox = getByTestId("split-files-checkbox");
-    expect(checkbox).toBeTruthy();
-    expect(checkbox.getAttribute("data-state")).toBe("unchecked");
-    expect(checkbox.getAttribute("aria-checked")).toBe("false");
+  it("renders all three report-type checkboxes with the owner's labels", () => {
+    const { getByTestId } = openWithTemplate();
+
+    expect(getByTestId("report-type-summary-checkbox")).toBeTruthy();
+    expect(getByTestId("report-type-detailed-checkbox")).toBeTruthy();
+    expect(getByTestId("report-type-event_highlights-checkbox")).toBeTruthy();
+
+    const labels = Array.from(
+      getByTestId("report-type-checklist").querySelectorAll("label"),
+    ).map((l) => l.textContent);
+    expect(labels).toEqual([
+      "Summary of Events/Activities",
+      "Detailed Report",
+      "Event Highlights",
+    ]);
   });
 
-  it("split OFF + Generate sends a single export with NO exportMode", () => {
-    const { getByTestId } = render(<GeneratePrintableButton />);
-    fireEvent.click(getByTestId("generate-printable-report-button"));
+  it("no longer renders the old split / also-generate toggles", () => {
+    const { queryByTestId } = openWithTemplate();
+    expect(queryByTestId("split-files-checkbox")).toBeNull();
+    expect(queryByTestId("event-highlights-checkbox")).toBeNull();
+  });
 
-    const select = getByTestId("report-template-select") as HTMLSelectElement;
-    fireEvent.change(select, { target: { value: "tpl-2" } });
+  it("defaults to Summary ONLY — not everything (the fast common case)", () => {
+    const { getByTestId } = openWithTemplate();
 
+    expect(
+      getByTestId("report-type-summary-checkbox").getAttribute("data-state"),
+    ).toBe("checked");
+    expect(
+      getByTestId("report-type-detailed-checkbox").getAttribute("data-state"),
+    ).toBe("unchecked");
+    expect(
+      getByTestId("report-type-event_highlights-checkbox").getAttribute(
+        "data-state",
+      ),
+    ).toBe("unchecked");
+  });
+
+  it("keeps every checkbox keyboard-operable with a bound label and hint", () => {
+    const { getByTestId } = openWithTemplate();
+    const box = getByTestId("report-type-detailed-checkbox");
+
+    // Radix renders a real checkbox role, focusable and Space-toggleable.
+    expect(box.getAttribute("role")).toBe("checkbox");
+    expect(box.getAttribute("aria-checked")).toBe("false");
+    expect(box.getAttribute("aria-describedby")).toBe(
+      "report-type-detailed-hint",
+    );
+    expect(box.id).toBe("report-type-detailed");
+    const label = getByTestId("report-type-checklist").querySelector(
+      'label[for="report-type-detailed"]',
+    );
+    expect(label?.textContent).toBe("Detailed Report");
+  });
+
+  it("Summary only (default) queues ONE export with exportMode 'charts'", () => {
+    const { getByTestId } = openWithTemplate();
     fireEvent.click(getByTestId("generate-printable-confirm"));
 
     expect(mutateSpy).toHaveBeenCalledTimes(1);
     const [payload] = mutateSpy.mock.calls[0] as [
-      { paramsJson: Record<string, unknown> },
+      { reportType: string; paramsJson: Record<string, unknown> },
     ];
+    expect(payload.reportType).toBe("report_map");
+    // ALWAYS explicit — never the old "combined" default that rendered the
+    // detailed sections too.
+    expect(payload.paramsJson.exportMode).toBe("charts");
+  });
+
+  it("Detailed only queues ONE export with exportMode 'lists' — no charts render", () => {
+    const { getByTestId } = openWithTemplate();
+    fireEvent.click(getByTestId("report-type-summary-checkbox"));
+    fireEvent.click(getByTestId("report-type-detailed-checkbox"));
+    fireEvent.click(getByTestId("generate-printable-confirm"));
+
+    expect(mutateSpy).toHaveBeenCalledTimes(1);
+    const [payload] = mutateSpy.mock.calls[0] as [
+      { reportType: string; paramsJson: Record<string, unknown> },
+    ];
+    expect(payload.reportType).toBe("report_map");
+    expect(payload.paramsJson.exportMode).toBe("lists");
+  });
+
+  it("Event Highlights only queues ONE event_highlights export and no report_map", () => {
+    const { getByTestId } = openWithTemplate();
+    fireEvent.click(getByTestId("report-type-summary-checkbox"));
+    fireEvent.click(getByTestId("report-type-event_highlights-checkbox"));
+    fireEvent.click(getByTestId("generate-printable-confirm"));
+
+    expect(mutateSpy).toHaveBeenCalledTimes(1);
+    const [payload] = mutateSpy.mock.calls[0] as [
+      { reportType: string; paramsJson: Record<string, unknown> },
+    ];
+    expect(payload.reportType).toBe("event_highlights");
+    // event_highlights has no section split, so no exportMode is sent.
     expect(payload.paramsJson).not.toHaveProperty("exportMode");
   });
 
-  it("split ON + Generate sends TWO exports: exportMode charts and lists, same scope (template case)", () => {
-    const { getByTestId } = render(<GeneratePrintableButton />);
-    fireEvent.click(getByTestId("generate-printable-report-button"));
-
-    const select = getByTestId("report-template-select") as HTMLSelectElement;
-    fireEvent.change(select, { target: { value: "tpl-2" } });
-    fireEvent.click(getByTestId("split-files-checkbox"));
-
+  it("Summary + Detailed queues TWO exports (charts and lists) sharing one scope", () => {
+    const { getByTestId } = openWithTemplate();
+    fireEvent.click(getByTestId("report-type-detailed-checkbox"));
     fireEvent.click(getByTestId("generate-printable-confirm"));
 
     expect(mutateSpy).toHaveBeenCalledTimes(2);
-    const [firstPayload] = mutateSpy.mock.calls[0] as [
-      { paramsJson: Record<string, unknown> },
-    ];
-    const [secondPayload] = mutateSpy.mock.calls[1] as [
-      { paramsJson: Record<string, unknown> },
-    ];
-    const exportModes = [
-      firstPayload.paramsJson.exportMode,
-      secondPayload.paramsJson.exportMode,
-    ];
-    expect(exportModes.sort()).toEqual(["charts", "lists"]);
-    expect(firstPayload.paramsJson.templateId).toBe("tpl-2");
-    expect(secondPayload.paramsJson.templateId).toBe("tpl-2");
+    const calls = mutateSpy.mock.calls as [
+      { reportType: string; paramsJson: Record<string, unknown> },
+    ][];
+    expect(calls.map((c) => c[0].paramsJson.exportMode)).toEqual([
+      "charts",
+      "lists",
+    ]);
+    expect(calls.every((c) => c[0].paramsJson.templateId === "tpl-2")).toBe(
+      true,
+    );
   });
 
-  it("split ON + Generate sends TWO exports sharing the same scope (region case)", () => {
+  it("all three ticked queues THREE exports in checklist order", () => {
+    const { getByTestId } = openWithTemplate();
+    fireEvent.click(getByTestId("report-type-detailed-checkbox"));
+    fireEvent.click(getByTestId("report-type-event_highlights-checkbox"));
+    fireEvent.click(getByTestId("generate-printable-confirm"));
+
+    expect(mutateSpy).toHaveBeenCalledTimes(3);
+    const calls = mutateSpy.mock.calls as [
+      { reportType: string; paramsJson: Record<string, unknown> },
+    ][];
+    expect(
+      calls.map((c) => [c[0].reportType, c[0].paramsJson.exportMode ?? null]),
+    ).toEqual([
+      ["report_map", "charts"],
+      ["report_map", "lists"],
+      ["event_highlights", null],
+    ]);
+  });
+
+  it("region scope still applies to every ticked report type", () => {
     const { getByTestId } = render(<GeneratePrintableButton />);
     fireEvent.click(getByTestId("generate-printable-report-button"));
-
-    const select = getByTestId("report-template-select") as HTMLSelectElement;
-    fireEvent.change(select, { target: { value: "region:Palawan" } });
-    fireEvent.click(getByTestId("split-files-checkbox"));
-
+    fireEvent.change(getByTestId("report-template-select"), {
+      target: { value: "region:Palawan" },
+    });
+    fireEvent.click(getByTestId("report-type-detailed-checkbox"));
     fireEvent.click(getByTestId("generate-printable-confirm"));
 
     expect(mutateSpy).toHaveBeenCalledTimes(2);
-    const [firstPayload] = mutateSpy.mock.calls[0] as [
+    const calls = mutateSpy.mock.calls as [
       { paramsJson: Record<string, unknown> },
-    ];
-    const [secondPayload] = mutateSpy.mock.calls[1] as [
-      { paramsJson: Record<string, unknown> },
-    ];
-    const exportModes = [
-      firstPayload.paramsJson.exportMode,
-      secondPayload.paramsJson.exportMode,
-    ];
-    expect(exportModes.sort()).toEqual(["charts", "lists"]);
-    expect(firstPayload.paramsJson.province).toBe("Palawan");
-    expect(secondPayload.paramsJson.province).toBe("Palawan");
-    expect(firstPayload.paramsJson).not.toHaveProperty("templateId");
-    expect(secondPayload.paramsJson).not.toHaveProperty("templateId");
+    ][];
+    for (const [payload] of calls) {
+      expect(payload.paramsJson.province).toBe("Palawan");
+      expect(payload.paramsJson).not.toHaveProperty("templateId");
+    }
+  });
+
+  it("disables Generate with an ANNOUNCED reason when nothing is ticked", () => {
+    const { getByTestId } = openWithTemplate();
+    fireEvent.click(getByTestId("report-type-summary-checkbox")); // now none
+
+    const confirm = getByTestId(
+      "generate-printable-confirm",
+    ) as HTMLButtonElement;
+    expect(confirm.disabled).toBe(true);
+
+    // The disabled reason is visible AND wired to the button, so it is
+    // announced rather than being a silent grey button.
+    const hint = getByTestId("report-type-empty-hint");
+    expect(hint.textContent).toContain("at least one");
+    expect(hint.getAttribute("role")).toBe("status");
+    expect(confirm.getAttribute("aria-describedby")).toBe(
+      "report-type-empty-hint",
+    );
+
+    fireEvent.click(confirm);
+    expect(mutateSpy).not.toHaveBeenCalled();
+  });
+
+  it("re-enables Generate as soon as a box is ticked again", () => {
+    const { getByTestId, queryByTestId } = openWithTemplate();
+    fireEvent.click(getByTestId("report-type-summary-checkbox"));
+    expect(
+      (getByTestId("generate-printable-confirm") as HTMLButtonElement).disabled,
+    ).toBe(true);
+
+    fireEvent.click(getByTestId("report-type-event_highlights-checkbox"));
+    expect(
+      (getByTestId("generate-printable-confirm") as HTMLButtonElement).disabled,
+    ).toBe(false);
+    expect(queryByTestId("report-type-empty-hint")).toBeNull();
   });
 });
 
@@ -455,7 +576,7 @@ describe("GeneratePrintableButton — in-dialog progress rows (S7)", () => {
     expect(getByTestId("stub-row-export-1")).toBeTruthy();
     expect(queryByTestId("stub-row-export-2")).toBeNull();
     expect(getByTestId("stub-row-export-1").getAttribute("data-label")).toBe(
-      "Report",
+      "Summary of Events/Activities",
     );
   });
 
@@ -469,14 +590,14 @@ describe("GeneratePrintableButton — in-dialog progress rows (S7)", () => {
     expect(queryByTestId("generate-printable-go-to-exports")).toBeNull();
   });
 
-  it("renders one distinctly-labelled row per created export (split + highlights = 3)", async () => {
+  it("renders one distinctly-labelled row per created export (all three ticked)", async () => {
     const { getByTestId } = render(<GeneratePrintableButton />);
     fireEvent.click(getByTestId("generate-printable-report-button"));
     fireEvent.change(getByTestId("report-template-select"), {
       target: { value: "tpl-2" },
     });
-    fireEvent.click(getByTestId("split-files-checkbox"));
-    fireEvent.click(getByTestId("event-highlights-checkbox"));
+    fireEvent.click(getByTestId("report-type-detailed-checkbox"));
+    fireEvent.click(getByTestId("report-type-event_highlights-checkbox"));
     fireEvent.click(getByTestId("generate-printable-confirm"));
 
     await waitFor(() => {
@@ -486,8 +607,8 @@ describe("GeneratePrintableButton — in-dialog progress rows (S7)", () => {
       getByTestId(`stub-row-export-${String(n)}`).getAttribute("data-label"),
     );
     expect(labels).toEqual([
-      "Report (charts)",
-      "Report (detailed lists)",
+      "Summary of Events/Activities",
+      "Detailed Report",
       "Event Highlights",
     ]);
   });
@@ -510,7 +631,7 @@ describe("GeneratePrintableButton — in-dialog progress rows (S7)", () => {
     fireEvent.change(getByTestId("report-template-select"), {
       target: { value: "tpl-2" },
     });
-    fireEvent.click(getByTestId("split-files-checkbox"));
+    fireEvent.click(getByTestId("report-type-detailed-checkbox"));
     fireEvent.click(getByTestId("generate-printable-confirm"));
 
     await waitFor(() => {
@@ -531,7 +652,7 @@ describe("GeneratePrintableButton — in-dialog progress rows (S7)", () => {
     fireEvent.change(getByTestId("report-template-select"), {
       target: { value: "tpl-2" },
     });
-    fireEvent.click(getByTestId("split-files-checkbox"));
+    fireEvent.click(getByTestId("report-type-detailed-checkbox"));
     fireEvent.click(getByTestId("generate-printable-confirm"));
 
     await waitFor(() => {
@@ -779,7 +900,7 @@ describe("GeneratePrintableButton — live region tracks real row state", () => 
     fireEvent.change(getByTestId("report-template-select"), {
       target: { value: "tpl-2" },
     });
-    fireEvent.click(getByTestId("split-files-checkbox"));
+    fireEvent.click(getByTestId("report-type-detailed-checkbox"));
     fireEvent.click(getByTestId("generate-printable-confirm"));
 
     await waitFor(() => {

@@ -32,6 +32,8 @@ const {
   mockRateLimitCheck: vi.fn(),
   mockPrisma: {
     reportExport: { findFirst: vi.fn() },
+    protectedZone: { findFirst: vi.fn() },
+    municipality: { findFirst: vi.fn() },
     auditLog: { create: vi.fn() },
   },
   mockGetObjectBytes: vi.fn(),
@@ -99,12 +101,25 @@ const READY_ROW = {
   pptxStatus: "ready",
   pptxFileSizeBytes: 7,
   reportType: "report_map",
+  // 2026-07-20 report-type checklist: the download name is built from the
+  // row's SCOPE + report type + date range (server/lib/report-export-filename.ts),
+  // so the fixture carries a realistic scoped paramsJson.
+  paramsJson: {
+    protectedZoneId: "zone-1",
+    exportMode: "charts",
+    from: "2026-01-01T00:00:00.000Z",
+    to: "2026-07-20T00:00:00.000Z",
+  },
   completedAt: new Date(Date.UTC(2026, 6, 3)), // 2026-07-03
 };
 
 describe("GET /api/exports/reports/[id]/pptx", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPrisma.protectedZone.findFirst.mockResolvedValue({
+      name: "Apo Reef Natural Park",
+    });
+    mockPrisma.municipality.findFirst.mockResolvedValue(null);
     mockRequireRouteAuth.mockResolvedValue(VALID_AUTH);
     mockRateLimitCheck.mockReturnValue(undefined);
     mockPrisma.reportExport.findFirst.mockResolvedValue(null);
@@ -202,7 +217,7 @@ describe("GET /api/exports/reports/[id]/pptx", () => {
       "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     );
     expect(res.headers.get("Content-Disposition")).toBe(
-      'attachment; filename="report_map-2026-07-03.pptx"',
+      'attachment; filename="apo-reef-natural-park_summary_2026-01-01_2026-07-20.pptx"',
     );
     expect(res.headers.get("Content-Length")).toBe("7");
     expect(res.headers.get("Cache-Control")).toBe("no-store");

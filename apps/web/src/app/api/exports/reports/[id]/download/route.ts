@@ -53,16 +53,10 @@ import {
   RouteAuthError,
 } from "@/server/lib/route-auth";
 import { rateLimiters } from "@/server/lib/rate-limit";
+import { buildReportExportFilename } from "@/server/lib/report-export-filename";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
-}
-
-function formatYmd(d: Date): string {
-  const year = String(d.getUTCFullYear());
-  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(d.getUTCDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
 }
 
 export async function GET(
@@ -106,6 +100,7 @@ export async function GET(
       filePath: true,
       fileSizeBytes: true,
       reportType: true,
+      paramsJson: true,
       completedAt: true,
     },
   });
@@ -144,10 +139,18 @@ export async function GET(
     },
   });
 
-  // Build a human-friendly download filename. completedAt is non-null for
-  // any ready row (processor sets it alongside status=ready).
-  const completedAt = row.completedAt ?? new Date();
-  const filename = `${row.reportType}-${formatYmd(completedAt)}.pdf`;
+  // Human-friendly download filename: scope + report type + date range
+  // (see server/lib/report-export-filename.ts). A single Generate click can
+  // now produce up to three files, so the name must distinguish them.
+  const filename = await buildReportExportFilename(
+    {
+      tenantId: row.tenantId,
+      reportType: row.reportType,
+      paramsJson: row.paramsJson,
+      completedAt: row.completedAt,
+    },
+    "pdf",
+  );
 
   const headers = new Headers({
     "Content-Type": "application/pdf",
