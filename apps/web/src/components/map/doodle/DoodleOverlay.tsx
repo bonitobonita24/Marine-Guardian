@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { useMap } from "@/components/ui/map";
+import { cn } from "@/lib/utils";
+import { MAP_LAYER } from "../mapLayers";
 import type { DoodleStroke } from "./useDoodle";
 
 type DoodleOverlayProps = {
@@ -21,9 +23,17 @@ type DoodleOverlayProps = {
  * screen pixels on every redraw, so drawings stay pinned to the map on pan
  * and zoom exactly like any other map layer.
  *
- * Sits BELOW the floating MapControls / DoodleToolbar (both z-20) — z-10 —
- * and ABOVE the map's own canvas/markers, matching InteractiveMap's existing
- * floating-overlay z-layer convention.
+ * Sits on the LOWEST floating layer (`MAP_LAYER.doodleCanvas`) — above the
+ * map's own canvas/markers, but strictly BELOW the floating panels
+ * (`MAP_LAYER.panel`) and the interactive control clusters
+ * (`MAP_LAYER.control`). That ordering is what keeps the zoom buttons and the
+ * doodle toggle clickable while this full-bleed canvas is live: the canvas is
+ * `absolute inset-0`, so it covers them, and an equal z-index would let paint
+ * order hand it every click. See `../mapLayers.ts`.
+ *
+ * Pointer events stay ENABLED across the canvas's whole area while `active`,
+ * so drawing works everywhere on the map except under the small controls
+ * stacked above it.
  */
 export function DoodleOverlay({
   active,
@@ -204,7 +214,7 @@ export function DoodleOverlay({
   return (
     <canvas
       ref={canvasRef}
-      className="absolute inset-0 z-10"
+      className={cn("absolute inset-0", MAP_LAYER.doodleCanvas)}
       style={{ pointerEvents: active ? "auto" : "none", touchAction: "none" }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}

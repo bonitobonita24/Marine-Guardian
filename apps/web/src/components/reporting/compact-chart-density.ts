@@ -35,13 +35,46 @@
  *  - Axis tick sizes are NOT reduced below the existing 9px; if a chart cannot
  *    stay legible at 4.5rem the correct answer is fewer rows, not smaller type.
  *
- * HONEST LIMIT: at 1280x600 this makes ONE open chart fully readable without
- * scrolling (toggle card ~90px + gap + ~131px panel = ~229px of the 262px
- * column). BOTH open still cannot fit — two panels would need to be ~78px each,
- * which is less than the card's own chrome. Per the owner decision, one fully
- * readable chart beats two clipped ones; opening the second still scrolls, but
- * each panel is individually complete once scrolled to.
+ * MEASURED GEOMETRY (browser, 1280x600, both charts on — 2026-07-20)
+ * -----------------------------------------------------------------
+ * Reconstructed from the real y-coordinates of the rendered panels:
+ *
+ *   overlay column band   y133..y395   =  262px AVAILABLE
+ *   toggle ("Charts") card                95px
+ *   column gap-2                           8px  (x2 when two panels are open)
+ *   panel                                122px  = 22px header/padding
+ *                                               + 72px chart body (4.5rem)
+ *                                               + 28px legend + padding
+ *
+ *   ONE panel open:   95 + 8 + 122             = 225px  <= 262px  ✅ fits
+ *   TWO panels open:  95 + 8 + 122 + 8 + 122   = 355px  >  262px  ❌ 93px over
+ *
+ * The 355px figure matches the measured content height exactly, so this budget
+ * is ground truth, not an estimate.
+ *
+ * WHY TWO PANELS CANNOT BE MADE TO FIT
+ * ------------------------------------
+ * Solving for the panel height that WOULD fit two:
+ *   95 + 8 + P + 8 + P <= 262  ->  P <= 75.5px
+ * A panel's own chrome is 50px (22 header + 28 legend), leaving a **25px** chart
+ * body. The x-axis tick row alone (9px type + 6px tickMargin) eats ~20px of
+ * that, so ~5px of plot would remain — not a chart. Stripping the legend gets
+ * the body to 41px; stripping the title too gets it to 63px, but then neither
+ * panel says which chart it is or what its totals are. Every variant is worse
+ * than showing one real chart.
+ *
+ * DECISION: the overlay renders **at most one panel at a time** below 800px
+ * tall (MapChartOverlayPanels makes the switches mutually exclusive there via
+ * `useIsShortViewport`). A clipped title strip is never produced. Above 800px
+ * both panels open together exactly as before.
  */
+
+/**
+ * The short-viewport threshold as a JS-readable media query — the single source
+ * of truth shared with the CSS variants above, so the runtime "one panel at a
+ * time" rule and the CSS shrink can never drift apart.
+ */
+export const SHORT_VIEWPORT_MEDIA_QUERY = "(max-height: 799px)";
 
 /** Chart body height for the compact variant, shrinking on short viewports. */
 export const COMPACT_CHART_BODY_CLASS =

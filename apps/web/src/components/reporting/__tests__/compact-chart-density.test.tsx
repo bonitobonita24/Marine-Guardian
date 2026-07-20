@@ -26,6 +26,7 @@ import {
   COMPACT_CHART_BODY_CLASS,
   COMPACT_HIDE_WHEN_SHORT_CLASS,
   COMPACT_LEGEND_SHORT_CLASS,
+  SHORT_VIEWPORT_MEDIA_QUERY,
 } from "../compact-chart-density";
 
 vi.mock("recharts", async () => {
@@ -155,5 +156,69 @@ describe("compact chart density — short viewports", () => {
     );
     expect(label).toBeTruthy();
     expect(label?.className.includes(SHORT_VARIANT)).toBe(false);
+  });
+});
+
+/**
+ * HEIGHT BUDGET PIN — 1280x600 overlay column.
+ *
+ * These numbers are MEASURED in a real browser (2026-07-20), reconstructed from
+ * the rendered panels' y-coordinates; the derived total reproduces the observed
+ * 355px content height exactly. Their job is to fail loudly if someone grows the
+ * compact chart body again, which is what silently re-clipped "Region Coverage"
+ * down to a 7px title strip twice before.
+ */
+describe("short-viewport height budget (1280x600 overlay column)", () => {
+  /** Measured: map pane 286px -> column max-h-[calc(100%-1.5rem)] = 262px. */
+  const AVAILABLE_PX = 262;
+  /** Measured: "Charts" toggle card, incl. border + both switch rows. */
+  const TOGGLE_CARD_PX = 95;
+  /** The column's `gap-2`. */
+  const GAP_PX = 8;
+  /** Measured per panel, excluding the chart body: 22px header + 28px legend. */
+  const PANEL_CHROME_PX = 50;
+  /** Measured cost of the single-panel hint line (text + its gap-1). */
+  const HINT_PX = 16;
+
+  /** Reads the short-viewport body height straight out of the shipped class. */
+  function shortBodyPx(): number {
+    const match = /max-height:799px\)\]:h-\[([\d.]+)rem\]/.exec(
+      COMPACT_CHART_BODY_CLASS,
+    );
+    expect(match).not.toBeNull();
+    return Number(match?.[1]) * 16;
+  }
+
+  const panelPx = (): number => PANEL_CHROME_PX + shortBodyPx();
+
+  it("pins the compact body at 72px, the size the browser measured", () => {
+    expect(shortBodyPx()).toBe(72);
+    expect(panelPx()).toBe(122);
+  });
+
+  it("fits ONE panel (plus the hint) inside the 262px column", () => {
+    const used = TOGGLE_CARD_PX + GAP_PX + panelPx() + HINT_PX;
+    expect(used).toBe(241);
+    expect(used).toBeLessThanOrEqual(AVAILABLE_PX);
+  });
+
+  it("proves TWO panels cannot fit — the reason for the one-at-a-time rule", () => {
+    const used = TOGGLE_CARD_PX + GAP_PX + panelPx() + GAP_PX + panelPx();
+    expect(used).toBe(355); // exactly the height measured in the browser
+    expect(used).toBeGreaterThan(AVAILABLE_PX);
+
+    // Any two-panel layout would need panels this small...
+    const maxPanelForTwo = (AVAILABLE_PX - TOGGLE_CARD_PX - 2 * GAP_PX) / 2;
+    expect(maxPanelForTwo).toBeLessThan(panelPx());
+    // ...leaving a chart body smaller than the x-axis row alone (~20px).
+    expect(maxPanelForTwo - PANEL_CHROME_PX).toBeLessThan(30);
+  });
+
+  it("shares one threshold between the CSS shrink and the runtime rule", () => {
+    // useIsShortViewport() feeds this string to matchMedia; the CSS variants
+    // encode the same 799px. Drift here would let the runtime think there is
+    // room for two panels while the CSS still renders them at full height.
+    expect(SHORT_VIEWPORT_MEDIA_QUERY).toBe("(max-height: 799px)");
+    expect(COMPACT_CHART_BODY_CLASS).toContain("max-height:799px");
   });
 });

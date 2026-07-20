@@ -1,21 +1,35 @@
 // patrol-tracks-framing.test.ts
 //
-// Unit tests for computeTracksFraming — the "frame to the DATA, not just the
-// scope polygon" fix.
+// Unit tests for computeTracksFraming — "frame to the DATA, not just the scope
+// polygon", AND the containment guarantee that fix depended on.
 //
 // CONTEXT: the track clip was deliberately removed (owner decision — whole
 // patrol tracks are drawn, not the portion inside the scope), so tracks
-// routinely extend past the scope polygon. On a ZONE-scoped report the two
-// can be entirely disjoint (Apo Reef spans lon 120.396–120.562 while Sablayan
-// spans 120.622–121.399), and framing on the scope box alone left the tracks
-// running off all four edges of the rendered map.
+// routinely extend past the scope polygon. On a ZONE-scoped report the two can
+// be entirely disjoint (Apo Reef spans lon 120.396–120.562 while Sablayan
+// spans 120.622–121.399).
+//
+// The union fix alone was NOT enough: the union was computed correctly but
+// then converted into a zoom that did not fit the real map box (assumed 360px
+// tall, actually 235px, plus a rounded-UP zoom), so tracks still ran off the
+// bottom edge in a real browser render. The `containment` block below is the
+// regression guard: it asserts against the INVERSE projection that every
+// vertex lands strictly inside the fitted viewport with margin, rather than
+// re-asserting the formula that produced the view.
 
 import { describe, expect, it } from "vitest";
-import { computeTracksFraming } from "../components/patrol-tracks-framing";
-import { boundsToView } from "../components/bounds-view";
+import {
+  computeContainedView,
+  computeTracksFraming,
+  viewportBoundsForView,
+  DATA_UNION_PADDING_PX,
+  SCOPE_ONLY_PADDING_PX,
+} from "../components/patrol-tracks-framing";
 
-const WIDTH_PX = 560;
-const HEIGHT_PX = 360;
+/** The REAL rendered box: `.patrol-tracks-block { height: 235px }` in
+ *  report-map-report.tsx, full-width in an A4 `.report-section`. */
+const WIDTH_PX = 640;
+const HEIGHT_PX = 235;
 
 /** The confirmed real zone bounds from the PM's repro. */
 const APO_REEF_BOUNDS = {
@@ -32,8 +46,228 @@ const SABLAYAN_TRACK: Array<[number, number]> = [
   [12.9, 121.399],
 ];
 
+/** Web-Mercator Y, duplicated here so the assertions do not lean on the
+ *  module's own private projection helper. */
+function mercatorY(latDeg: number): number {
+  return (
+    Math.log(Math.tan(Math.PI / 4 + (latDeg * Math.PI) / 360)) / (2 * Math.PI)
+  );
+}
+
+/**
+ * Assert every point sits strictly inside the viewport the plan produces,
+ * with at least `minMarginPx` of slack on all four edges.
+ */
+function expectAllPointsInsideWithMargin(
+  plan: ReturnType<typeof computeTracksFraming>,
+  points: ReadonlyArray<[number, number]>,
+  widthPx: number,
+  heightPx: number,
+  minMarginPx: number,
+): void {
+  expect(plan.kind).toBe("setView");
+  if (plan.kind !== "setView") return;
+
+  const view = viewportBoundsForView(plan.center, plan.zoom, widthPx, heightPx);
+  // Convert the required pixel margin into degrees at this zoom, per axis.
+  const lonMarginDeg = ((view.east - view.west) * minMarginPx) / widthPx;
+  const latMarginDeg = ((view.north - view.south) * minMarginPx) / heightPx;
+
+  for (const [lat, lon] of points) {
+    expect(lon).toBeGreaterThan(view.west + lonMarginDeg);
+    expect(lon).toBeLessThan(view.east - lonMarginDeg);
+    expect(lat).toBeGreaterThan(view.south + latMarginDeg);
+    expect(lat).toBeLessThan(view.north - latMarginDeg);
+  }
+}
+
 describe("computeTracksFraming", () => {
-  describe("scope with tracks extending beyond it (the reported defect)", () => {
+  describe("containment — every rendered vertex is inside the fitted viewport", () => {
+    it("contains both the scope box and the tracks running outside it", () => {
+      const plan = computeTracksFraming(
+        SABLAYAN_TRACK,
+        APO_REEF_BOUNDS,
+        WIDTH_PX,
+        HEIGHT_PX,
+      );
+      expectAllPointsInsideWithMargin(
+        plan,
+        [
+          ...SABLAYAN_TRACK,
+          [APO_REEF_BOUNDS.south, APO_REEF_BOUNDS.west],
+          [APO_REEF_BOUNDS.north, APO_REEF_BOUNDS.east],
+        ],
+        WIDTH_PX,
+        HEIGHT_PX,
+        DATA_UNION_PADDING_PX,
+      );
+    });
+
+    it("contains a WIDE-ASPECT track bundle in a SHORT map box (the reported defect)", () => {
+      // Sablayan + children + traversing, 2026-01-01..2026-07-17: the western
+      // fan-out to Apo Reef makes the bundle ~1° wide and ~0.6° tall, drawn
+      // into a 640×235 box. Under the old code this fitted to an assumed
+      // 360px-tall box and then ROUNDED the zoom UP — two whole zoom levels
+      // too tight — and the bundle ran off the bottom edge.
+      const scope = { south: 12.62, west: 120.62, north: 13.1, east: 121.4 };
+      const bundle: Array<[number, number]> = [
+        [12.5, 120.396], // Apo Reef, far south-west
+        [12.55, 120.44],
+        [12.72, 120.7],
+        [12.95, 121.0],
+        [13.08, 121.35],
+        [12.52, 121.2], // southern leg — the edge that was clipping
+      ];
+      const plan = computeTracksFraming(bundle, scope, WIDTH_PX, HEIGHT_PX);
+      expectAllPointsInsideWithMargin(
+        plan,
+        [...bundle, [scope.south, scope.west], [scope.north, scope.east]],
+        WIDTH_PX,
+        HEIGHT_PX,
+        DATA_UNION_PADDING_PX,
+      );
+    });
+
+    it("contains the scope box on the scope-only path", () => {
+      const plan = computeTracksFraming(
+        [],
+        APO_REEF_BOUNDS,
+        WIDTH_PX,
+        HEIGHT_PX,
+      );
+      expectAllPointsInsideWithMargin(
+        plan,
+        [
+          [APO_REEF_BOUNDS.south, APO_REEF_BOUNDS.west],
+          [APO_REEF_BOUNDS.north, APO_REEF_BOUNDS.east],
+        ],
+        WIDTH_PX,
+        HEIGHT_PX,
+        SCOPE_ONLY_PADDING_PX,
+      );
+    });
+
+    it("contains the track extent on the no-scope path", () => {
+      const plan = computeTracksFraming(
+        SABLAYAN_TRACK,
+        null,
+        WIDTH_PX,
+        HEIGHT_PX,
+      );
+      expectAllPointsInsideWithMargin(
+        plan,
+        SABLAYAN_TRACK,
+        WIDTH_PX,
+        HEIGHT_PX,
+        DATA_UNION_PADDING_PX,
+      );
+    });
+
+    it("stays contained across a range of box aspect ratios", () => {
+      const scope = { south: 12.4, west: 120.3, north: 13.2, east: 121.5 };
+      const bundle: Array<[number, number]> = [
+        [12.42, 120.32],
+        [13.18, 121.48],
+        [12.6, 121.4],
+      ];
+      for (const [w, h] of [
+        [640, 235],
+        [640, 120],
+        [320, 480],
+        [1000, 200],
+      ] as const) {
+        const plan = computeTracksFraming(bundle, scope, w, h);
+        expectAllPointsInsideWithMargin(
+          plan,
+          bundle,
+          w,
+          h,
+          DATA_UNION_PADDING_PX,
+        );
+      }
+    });
+  });
+
+  describe("regression — the box height must match the rendered CSS box", () => {
+    it("the OLD framing (round + 360px-tall box) does not contain the bundle; the new one does", () => {
+      // Reproduces the exact defect. `oldStyleZoom` is the pre-fix
+      // computation: fit to an assumed 560×360 box and Math.round the zoom.
+      // Rendered into the REAL 640×235 box, that view clips the bundle —
+      // which is what the browser repro measured as 176 track pixels on the
+      // bottom edge.
+      const scope = { south: 12.62, west: 120.62, north: 13.1, east: 121.4 };
+      const bundle: Array<[number, number]> = [
+        [12.5, 120.396],
+        [13.08, 121.35],
+        [12.52, 121.2],
+      ];
+      const union = { south: 12.5, west: 120.396, north: 13.1, east: 121.4 };
+
+      const oldW = 560 - 2 * DATA_UNION_PADDING_PX;
+      const oldH = 360 - 2 * DATA_UNION_PADDING_PX;
+      const lonFraction = (union.east - union.west) / 360;
+      const latFraction = mercatorY(union.north) - mercatorY(union.south);
+      const oldStyleZoom = Math.round(
+        Math.min(
+          Math.log2(oldW / (256 * lonFraction)),
+          Math.log2(oldH / (256 * latFraction)),
+        ),
+      );
+      const oldCenter: [number, number] = [
+        (union.south + union.north) / 2,
+        (union.west + union.east) / 2,
+      ];
+      const oldViewport = viewportBoundsForView(
+        oldCenter,
+        oldStyleZoom,
+        WIDTH_PX,
+        HEIGHT_PX,
+      );
+      // The southern leg falls OUTSIDE the old viewport — off the bottom.
+      expect(oldViewport.south).toBeGreaterThan(12.5);
+
+      // The fixed framing contains all of it.
+      const plan = computeTracksFraming(bundle, scope, WIDTH_PX, HEIGHT_PX);
+      expect(plan.kind).toBe("setView");
+      if (plan.kind !== "setView") return;
+      expect(plan.zoom).toBeLessThan(oldStyleZoom);
+      expectAllPointsInsideWithMargin(
+        plan,
+        bundle,
+        WIDTH_PX,
+        HEIGHT_PX,
+        DATA_UNION_PADDING_PX,
+      );
+    });
+
+    it("never rounds the zoom UP past a fit (floor, not round)", () => {
+      // A span engineered so the exact fit lands just above an integer: a
+      // rounding implementation would return the next zoom up and clip.
+      const bounds = { south: 12.0, west: 120.0, north: 12.0001, east: 120.9 };
+      const view = computeContainedView(bounds, 640, 235, 16);
+      const vp = viewportBoundsForView(view.center, view.zoom, 640, 235);
+      expect(vp.west).toBeLessThan(bounds.west);
+      expect(vp.east).toBeGreaterThan(bounds.east);
+      expect(vp.south).toBeLessThan(bounds.south);
+      expect(vp.north).toBeGreaterThan(bounds.north);
+    });
+
+    it("centres in mercator space, not on the arithmetic mean of latitudes", () => {
+      // Over a tall span the two differ; the mercator centre is the one
+      // Leaflet actually pans to, so the frame is symmetric in PIXELS.
+      const bounds = { south: 5, west: 120, north: 45, east: 121 };
+      const view = computeContainedView(bounds, 640, 235, 0);
+      expect(view.center[0]).not.toBeCloseTo(25, 3);
+      const vp = viewportBoundsForView(view.center, view.zoom, 640, 235);
+      // Equal slack north and south, measured in projected space.
+      expect(mercatorY(bounds.south) - mercatorY(vp.south)).toBeCloseTo(
+        mercatorY(vp.north) - mercatorY(bounds.north),
+        9,
+      );
+    });
+  });
+
+  describe("scope with tracks extending beyond it", () => {
     it("frames the union of the scope box and the track extent", () => {
       const plan = computeTracksFraming(
         SABLAYAN_TRACK,
@@ -41,20 +275,19 @@ describe("computeTracksFraming", () => {
         WIDTH_PX,
         HEIGHT_PX,
       );
-
       expect(plan.kind).toBe("setView");
       if (plan.kind !== "setView") return;
 
       // The union spans lat 12.63→12.9 and lon 120.396→121.399 — the scope's
       // south/west corner and the track's north/east corner.
-      const expected = boundsToView(
+      const expected = computeContainedView(
         { south: 12.63, west: 120.396, north: 12.9, east: 121.399 },
         WIDTH_PX,
         HEIGHT_PX,
-        { paddingPx: 16 },
+        DATA_UNION_PADDING_PX,
       );
-      expect(plan.center[0]).toBeCloseTo(expected.center[0], 6);
-      expect(plan.center[1]).toBeCloseTo(expected.center[1], 6);
+      expect(plan.center[0]).toBeCloseTo(expected.center[0], 9);
+      expect(plan.center[1]).toBeCloseTo(expected.center[1], 9);
       expect(plan.zoom).toBe(expected.zoom);
     });
 
@@ -123,17 +356,25 @@ describe("computeTracksFraming", () => {
     });
   });
 
-  describe("scope with no tracks (must not regress)", () => {
-    it("frames the plain scope box with the historical padding", () => {
-      const plan = computeTracksFraming([], APO_REEF_BOUNDS, WIDTH_PX, HEIGHT_PX);
-      expect(plan.kind).toBe("setView");
-      if (plan.kind !== "setView") return;
-
-      // Byte-identical to the pre-fix behaviour: boundsToView's default
-      // paddingPx (8) over the scope bounds alone.
-      const expected = boundsToView(APO_REEF_BOUNDS, WIDTH_PX, HEIGHT_PX);
-      expect(plan.center).toEqual(expected.center);
-      expect(plan.zoom).toBe(expected.zoom);
+  describe("scope with no tracks", () => {
+    it("frames the plain scope box with the scope-only padding", () => {
+      const plan = computeTracksFraming(
+        [],
+        APO_REEF_BOUNDS,
+        WIDTH_PX,
+        HEIGHT_PX,
+      );
+      const expected = computeContainedView(
+        APO_REEF_BOUNDS,
+        WIDTH_PX,
+        HEIGHT_PX,
+        SCOPE_ONLY_PADDING_PX,
+      );
+      expect(plan).toEqual({
+        kind: "setView",
+        center: expected.center,
+        zoom: expected.zoom,
+      });
     });
 
     it("frames the plain scope box when every track vertex is unusable", () => {
@@ -146,7 +387,12 @@ describe("computeTracksFraming", () => {
         WIDTH_PX,
         HEIGHT_PX,
       );
-      const expected = boundsToView(APO_REEF_BOUNDS, WIDTH_PX, HEIGHT_PX);
+      const expected = computeContainedView(
+        APO_REEF_BOUNDS,
+        WIDTH_PX,
+        HEIGHT_PX,
+        SCOPE_ONLY_PADDING_PX,
+      );
       expect(plan).toEqual({
         kind: "setView",
         center: expected.center,
@@ -154,10 +400,7 @@ describe("computeTracksFraming", () => {
       });
     });
 
-    it("does not change the frame when the tracks sit inside the scope box", () => {
-      // The municipality+children case browser QA confirmed already frames
-      // correctly — its scope bounds span the union already, so the union
-      // must be a no-op and the padding must stay at the historical value.
+    it("does not grow the frame when the tracks sit inside the scope box", () => {
       const insideTrack: Array<[number, number]> = [
         [12.7, 120.45],
         [12.72, 120.5],
@@ -168,7 +411,12 @@ describe("computeTracksFraming", () => {
         WIDTH_PX,
         HEIGHT_PX,
       );
-      const expected = boundsToView(APO_REEF_BOUNDS, WIDTH_PX, HEIGHT_PX);
+      const expected = computeContainedView(
+        APO_REEF_BOUNDS,
+        WIDTH_PX,
+        HEIGHT_PX,
+        SCOPE_ONLY_PADDING_PX,
+      );
       expect(plan).toEqual({
         kind: "setView",
         center: expected.center,
@@ -178,17 +426,23 @@ describe("computeTracksFraming", () => {
   });
 
   describe("no scope", () => {
-    it("returns a fitBounds plan over the usable track vertices", () => {
+    it("frames the usable track vertices with a contained setView", () => {
       const plan = computeTracksFraming(
         SABLAYAN_TRACK,
         null,
         WIDTH_PX,
         HEIGHT_PX,
       );
+      const expected = computeContainedView(
+        { south: 12.83, west: 120.622, north: 12.9, east: 121.399 },
+        WIDTH_PX,
+        HEIGHT_PX,
+        DATA_UNION_PADDING_PX,
+      );
       expect(plan).toEqual({
-        kind: "fitBounds",
-        bounds: SABLAYAN_TRACK,
-        paddingPx: 16,
+        kind: "setView",
+        center: expected.center,
+        zoom: expected.zoom,
       });
     });
 
@@ -201,17 +455,16 @@ describe("computeTracksFraming", () => {
     });
 
     it("drops Null-Island vertices before fitting", () => {
-      const plan = computeTracksFraming(
-        [[0, 0], ...SABLAYAN_TRACK],
-        null,
-        WIDTH_PX,
-        HEIGHT_PX,
+      expect(
+        computeTracksFraming(
+          [[0, 0], ...SABLAYAN_TRACK],
+          null,
+          WIDTH_PX,
+          HEIGHT_PX,
+        ),
+      ).toEqual(
+        computeTracksFraming(SABLAYAN_TRACK, null, WIDTH_PX, HEIGHT_PX),
       );
-      expect(plan).toEqual({
-        kind: "fitBounds",
-        bounds: SABLAYAN_TRACK,
-        paddingPx: 16,
-      });
     });
 
     it("leaves the initial view alone when there are no tracks at all", () => {
@@ -240,9 +493,6 @@ describe("computeTracksFraming", () => {
       expect(Number.isFinite(plan.center[0])).toBe(true);
       expect(Number.isFinite(plan.center[1])).toBe(true);
       expect(Number.isFinite(plan.zoom)).toBe(true);
-      // Union grew north-east to the lone point, so the centre moved off the
-      // scope centre.
-      expect(plan.center[0]).toBeCloseTo((APO_REEF_BOUNDS.south + 13.5) / 2, 6);
       expect(plan.center[1]).toBeCloseTo((APO_REEF_BOUNDS.west + 121.9) / 2, 6);
     });
 
@@ -255,17 +505,13 @@ describe("computeTracksFraming", () => {
       );
       expect(plan.kind).toBe("setView");
       if (plan.kind !== "setView") return;
-      expect(plan.center).toEqual([12.7, 120.5]);
-      // boundsToView clamps the degenerate span to its maxZoom rather than
-      // returning Infinity.
-      expect(Number.isFinite(plan.zoom)).toBe(true);
+      expect(plan.center[0]).toBeCloseTo(12.7, 9);
+      expect(plan.center[1]).toBeCloseTo(120.5, 9);
+      // Clamped to maxZoom rather than returning Infinity.
       expect(plan.zoom).toBe(15);
     });
 
-    it("produces a finite clamped view for a single point and no scope sibling span", () => {
-      // Two identical vertices → a zero-span fitBounds box. Leaflet handles
-      // this itself; we only assert we hand it the points rather than
-      // bailing out, since 2 usable vertices exist.
+    it("produces a finite clamped view for two identical vertices and no scope", () => {
       const plan = computeTracksFraming(
         [
           [12.7, 120.5],
@@ -275,14 +521,10 @@ describe("computeTracksFraming", () => {
         WIDTH_PX,
         HEIGHT_PX,
       );
-      expect(plan).toEqual({
-        kind: "fitBounds",
-        bounds: [
-          [12.7, 120.5],
-          [12.7, 120.5],
-        ],
-        paddingPx: 16,
-      });
+      expect(plan.kind).toBe("setView");
+      if (plan.kind !== "setView") return;
+      expect(plan.zoom).toBe(15);
+      expect(Number.isFinite(plan.center[0])).toBe(true);
     });
   });
 });

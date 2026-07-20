@@ -9,7 +9,9 @@ import {
   reportTypeToken,
   readReportExportParams,
   buildFilenameFromParts,
+  formatYmd,
   DEFAULT_SCOPE_SLUG,
+  REPORT_DISPLAY_UTC_OFFSET_MINUTES,
 } from "../report-export-filename";
 
 describe("slugifyScopeName", () => {
@@ -75,6 +77,52 @@ describe("readReportExportParams", () => {
   });
 });
 
+// ─── UTC+8 calendar-day boundary ─────────────────────────────────────────────
+// Regression cover for the 2026-07-20 "filenames are one day early" defect.
+//
+// The range picker builds each bound in LOCAL time and ships `toISOString()`.
+// At UTC+8 that means the strings below are EXACTLY what a user selecting
+// 2026-01-01 → 2026-07-20 puts in paramsJson. Asserting on those literal
+// instants (rather than on a mocked TZ) keeps the test honest under any
+// machine timezone, including the UTC containers CI runs in.
+const MANILA_MIDNIGHT_2026_01_01 = "2025-12-31T16:00:00.000Z"; // local 00:00:00.000
+const MANILA_ENDOFDAY_2026_07_20 = "2026-07-20T15:59:59.999Z"; // local 23:59:59.999
+
+describe("formatYmd", () => {
+  it("uses the +08 display offset by default", () => {
+    expect(REPORT_DISPLAY_UTC_OFFSET_MINUTES).toBe(480);
+  });
+
+  it("names the day the user picked, not the UTC day, at local midnight", () => {
+    // The whole defect in one assertion: this instant's UTC day is 2025-12-31.
+    expect(formatYmd(new Date(MANILA_MIDNIGHT_2026_01_01))).toBe("2026-01-01");
+  });
+
+  it("does not roll a local end-of-day forward into the next day", () => {
+    expect(formatYmd(new Date(MANILA_ENDOFDAY_2026_07_20))).toBe("2026-07-20");
+  });
+
+  it("holds at both edges of the local day for a date-only (midnight) pick", () => {
+    // A pure date-only selection has no DST to confound it — PH has observed
+    // none since 1978 — so the +08 offset is constant year-round and the
+    // first and last millisecond of a local day must share one calendar date.
+    expect(formatYmd(new Date("2026-06-14T16:00:00.000Z"))).toBe("2026-06-15");
+    expect(formatYmd(new Date("2026-06-15T15:59:59.999Z"))).toBe("2026-06-15");
+    // One millisecond earlier is genuinely the previous local day.
+    expect(formatYmd(new Date("2026-06-14T15:59:59.999Z"))).toBe("2026-06-14");
+  });
+
+  it("crosses a year boundary in the display timezone, not in UTC", () => {
+    expect(formatYmd(new Date("2025-12-31T16:00:00.000Z"))).toBe("2026-01-01");
+  });
+
+  it("honours an explicit offset so a future tenant timezone is one argument", () => {
+    const instant = new Date(MANILA_MIDNIGHT_2026_01_01);
+    expect(formatYmd(instant, 0)).toBe("2025-12-31");
+    expect(formatYmd(instant, 480)).toBe("2026-01-01");
+  });
+});
+
 describe("buildFilenameFromParts", () => {
   const range = {
     from: "2026-01-01T00:00:00.000Z",
@@ -137,6 +185,39 @@ describe("buildFilenameFromParts", () => {
         from: null,
         to: null,
         fallbackDate: new Date("2026-07-21T10:00:00.000Z"),
+        extension: "pdf",
+      }),
+    ).toBe("baco_detailed_2026-07-21.pdf");
+  });
+
+  it("names the range the user picked, for the exact reported defect", () => {
+    // Reported 2026-07-20: a 2026-01-01 → 2026-07-20 report downloaded as
+    // apo-reef-natural-park_summary_2025-12-31_2026-07-20.pdf while the PDF's
+    // own header correctly read "2026-01-01 — 2026-07-20".
+    expect(
+      buildFilenameFromParts({
+        scopeName: "Apo Reef Natural Park",
+        reportType: "report_map",
+        exportMode: "charts",
+        from: MANILA_MIDNIGHT_2026_01_01,
+        to: MANILA_ENDOFDAY_2026_07_20,
+        fallbackDate: new Date("2026-07-21T10:00:00.000Z"),
+        extension: "pdf",
+      }),
+    ).toBe("apo-reef-natural-park_summary_2026-01-01_2026-07-20.pdf");
+  });
+
+  it("applies the same day resolution to the no-range completedAt stamp", () => {
+    // completedAt just before local midnight belongs to the day the user was
+    // looking at, not the UTC day that has not started for them yet.
+    expect(
+      buildFilenameFromParts({
+        scopeName: "Baco",
+        reportType: "report_map",
+        exportMode: "lists",
+        from: null,
+        to: null,
+        fallbackDate: new Date("2026-07-20T16:30:00.000Z"), // local 2026-07-21 00:30
         extension: "pdf",
       }),
     ).toBe("baco_detailed_2026-07-21.pdf");

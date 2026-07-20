@@ -271,6 +271,28 @@ export function ReportFilterBar({
     stacked ? "flex-col items-start gap-0.5" : "items-center gap-1.5",
   );
 
+  /* Switch fields do NOT use `fieldClass`'s stacked `flex-col`. That column
+     layout is correct for a Select (the trigger needs the full width UNDER its
+     label) but wrong for a Switch: it pushed "Include child boundaries" and
+     "Include traversing patrols" onto a second row, diverging from every other
+     toggle in the MAP CONTROLS card. Those rows (TrackLegend's Boundaries /
+     Skylight events / Photo thumbnails) are all label-left, switch-right on ONE
+     row via `flex min-h-7 items-center justify-between gap-2` — mirrored here so
+     the embedded filter header matches the panel it sits in.
+     In `bar` layout the inner row collapses to `display:contents`, leaving the
+     original single-flex-line DOM box behaviour byte-for-byte unchanged. */
+  const toggleFieldClass = cn(
+    "flex",
+    stacked ? "flex-col items-stretch gap-0.5" : "items-center gap-1.5",
+  );
+  const toggleRowClass = stacked
+    ? "flex min-h-7 items-center justify-between gap-2"
+    : "contents";
+  const toggleHintClass = cn(
+    "text-[10px] text-muted-foreground",
+    stacked ? "" : "ml-1",
+  );
+
   return (
     <div
       role="region"
@@ -426,20 +448,22 @@ export function ReportFilterBar({
           by the context whenever the municipality selection is broadened back
           to "all". */}
       {showIncludeChildrenToggle && (
-        <div className={fieldClass}>
-          <Label
-            htmlFor="report-include-children"
-            className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
-          >
-            Include child boundaries
-          </Label>
-          <Switch
-            id="report-include-children"
-            data-testid="report-include-children"
-            checked={includeChildren}
-            onCheckedChange={setIncludeChildren}
-            aria-label={includeChildrenAriaLabel}
-          />
+        <div className={toggleFieldClass} data-testid="report-include-children-field">
+          <div className={toggleRowClass}>
+            <Label
+              htmlFor="report-include-children"
+              className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+            >
+              Include child boundaries
+            </Label>
+            <Switch
+              id="report-include-children"
+              data-testid="report-include-children"
+              checked={includeChildren}
+              onCheckedChange={setIncludeChildren}
+              aria-label={includeChildrenAriaLabel}
+            />
+          </div>
         </div>
       )}
 
@@ -452,38 +476,30 @@ export function ReportFilterBar({
           municipality nor a province is selected ("all municipalities" /
           "all provinces"), so the control's presence doesn't jump around
           while its target is unavailable. */}
-      <div className={fieldClass}>
-        <Label
-          htmlFor="report-include-traversing"
-          className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
-        >
-          Include traversing patrols
-        </Label>
-        <Switch
-          id="report-include-traversing"
-          data-testid="report-include-traversing"
-          checked={includeTraversing}
-          disabled={municipalityId === null && province === null}
-          onCheckedChange={setIncludeTraversing}
-          aria-label="Include traversing patrols — fold in patrols that pass through this municipality or province without starting here"
-        />
-        {municipalityId === null && province === null && (
-          <span
-            className={cn(
-              "text-[10px] text-muted-foreground",
-              stacked ? "" : "ml-1",
-            )}
+      <div className={toggleFieldClass} data-testid="report-include-traversing-field">
+        <div className={toggleRowClass}>
+          <Label
+            htmlFor="report-include-traversing"
+            className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
           >
+            Include traversing patrols
+          </Label>
+          <Switch
+            id="report-include-traversing"
+            data-testid="report-include-traversing"
+            checked={includeTraversing}
+            disabled={municipalityId === null && province === null}
+            onCheckedChange={setIncludeTraversing}
+            aria-label="Include traversing patrols — fold in patrols that pass through this municipality or province without starting here"
+          />
+        </div>
+        {municipalityId === null && province === null && (
+          <span className={toggleHintClass}>
             Select a municipality or province to enable
           </span>
         )}
         {municipalityId === null && province !== null && (
-          <span
-            className={cn(
-              "text-[10px] text-muted-foreground",
-              stacked ? "" : "ml-1",
-            )}
-          >
+          <span className={toggleHintClass}>
             Credits coverage across {province}&apos;s municipalities — patrol
             count stays at origin
           </span>

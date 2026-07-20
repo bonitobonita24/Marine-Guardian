@@ -11,11 +11,42 @@
 // name (associated via <Label htmlFor>, not merely adjacent).
 
 import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
 import {
   MapChartOverlayPanels,
   type MapChartOverlayItem,
 } from "../map-chart-overlay-panels";
+
+/**
+ * Controllable window.matchMedia — jsdom ships none. `matches` is read fresh on
+ * every matchMedia() call, so flipping it and firing the listeners drives the
+ * component's useSyncExternalStore exactly like a real viewport resize.
+ */
+function stubMatchMedia(initialMatches: boolean): (next: boolean) => void {
+  const listeners = new Set<() => void>();
+  let matches = initialMatches;
+  window.matchMedia = (query: string): MediaQueryList =>
+    ({
+      matches,
+      media: query,
+      onchange: null,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      addEventListener: (_type: string, cb: () => void) => {
+        listeners.add(cb);
+      },
+      removeEventListener: (_type: string, cb: () => void) => {
+        listeners.delete(cb);
+      },
+      dispatchEvent: () => false,
+    }) as unknown as MediaQueryList;
+  return (next: boolean) => {
+    matches = next;
+    act(() => {
+      for (const cb of listeners) cb();
+    });
+  };
+}
 
 const items: MapChartOverlayItem[] = [
   {
@@ -151,5 +182,102 @@ describe("MapChartOverlayPanels", () => {
     expect(switchFor("Events vs Patrols").getAttribute("aria-controls")).toBe(
       panel.getAttribute("id"),
     );
+  });
+});
+
+/**
+ * Short viewport (< 800px tall) — the map's overlay column is only 262px there,
+ * which fits ONE 122px panel but not two (355px). The contract is: never clip a
+ * panel to a title strip; show one complete chart instead. See the height budget
+ * in map-chart-overlay-panels.tsx / compact-chart-density.ts.
+ */
+describe("MapChartOverlayPanels — short viewport", () => {
+  afterEach(() => {
+    cleanup();
+    // @ts-expect-error — removing the stub restores bare jsdom (no matchMedia).
+    delete window.matchMedia;
+  });
+
+  it("renders only ONE panel when both switches are turned on", () => {
+    stubMatchMedia(true);
+    renderPanels();
+
+    fireEvent.click(switchFor("Events vs Patrols"));
+    fireEvent.click(switchFor("Region Coverage"));
+
+    // The second chart replaced the first — the first is GONE from the DOM,
+    // not clipped to a bare title strip.
+    expect(screen.getByTestId("chart-coverage")).toBeTruthy();
+    expect(screen.queryByTestId("chart-events")).toBeNull();
+    expect(screen.queryByTestId("map-chart-panel-events-over-time")).toBeNull();
+    expect(screen.getAllByRole("region")).toHaveLength(1);
+  });
+
+  it("syncs the displaced switch back to OFF so the control never lies", () => {
+    stubMatchMedia(true);
+    renderPanels();
+
+    fireEvent.click(switchFor("Events vs Patrols"));
+    expect(switchFor("Events vs Patrols").getAttribute("aria-checked")).toBe(
+      "true",
+    );
+
+    fireEvent.click(switchFor("Region Coverage"));
+    expect(switchFor("Events vs Patrols").getAttribute("aria-checked")).toBe(
+      "false",
+    );
+    expect(switchFor("Region Coverage").getAttribute("aria-checked")).toBe(
+      "true",
+    );
+  });
+
+  it("still allows turning the single open chart off", () => {
+    stubMatchMedia(true);
+    renderPanels();
+
+    fireEvent.click(switchFor("Region Coverage"));
+    fireEvent.click(switchFor("Region Coverage"));
+    expect(screen.queryByTestId("chart-coverage")).toBeNull();
+    expect(screen.queryAllByRole("region")).toHaveLength(0);
+  });
+
+  it("explains the exclusivity, and only when short", () => {
+    stubMatchMedia(true);
+    renderPanels();
+    expect(screen.getByTestId("map-chart-single-panel-hint")).toBeTruthy();
+
+    cleanup();
+    stubMatchMedia(false);
+    renderPanels();
+    expect(screen.queryByTestId("map-chart-single-panel-hint")).toBeNull();
+  });
+
+  it("drops to one panel when a TALL window is resized down to short", () => {
+    const setShort = stubMatchMedia(false);
+    renderPanels();
+
+    // Tall: both open, as verified working — must stay that way.
+    fireEvent.click(switchFor("Events vs Patrols"));
+    fireEvent.click(switchFor("Region Coverage"));
+    expect(screen.getAllByRole("region")).toHaveLength(2);
+
+    setShort(true);
+
+    // Now short: the column would overflow, so it keeps the most recent one.
+    expect(screen.getAllByRole("region")).toHaveLength(1);
+    expect(screen.getByTestId("chart-coverage")).toBeTruthy();
+    expect(screen.queryByTestId("chart-events")).toBeNull();
+  });
+
+  it("leaves TALL viewports free to open both panels (no regression)", () => {
+    stubMatchMedia(false);
+    renderPanels();
+
+    fireEvent.click(switchFor("Events vs Patrols"));
+    fireEvent.click(switchFor("Region Coverage"));
+
+    expect(screen.getByTestId("chart-events")).toBeTruthy();
+    expect(screen.getByTestId("chart-coverage")).toBeTruthy();
+    expect(screen.getAllByRole("region")).toHaveLength(2);
   });
 });

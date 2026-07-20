@@ -259,9 +259,53 @@ describe("EventHighlightsReport", () => {
     const firstIdx = html.indexOf(".hl-block-first {");
     expect(fullIdx).toBeGreaterThan(-1);
     expect(firstIdx).toBeGreaterThan(fullIdx);
-    expect(html).toContain(".hl-block-first { break-before: auto; page-break-before: auto; }");
+    expect(html).toContain(
+      ".hl-block-first { break-before: auto; page-break-before: auto; min-height: 0; }",
+    );
     // The dead :first-child guard must not come back.
     expect(html).not.toContain(".hl-block:first-child");
+  });
+
+  it("gives the first content block no page-break-before", () => {
+    const html = renderToStaticMarkup(
+      <EventHighlightsReport
+        data={buildData({
+          blocks: [
+            block({ id: "e1", photoAssetIds: ["a1", "a2", "a3"], photoCount: 3, layout: "full" }),
+          ],
+        })}
+      />,
+    );
+    // Resolve the cascade the way the print engine does: collect every rule
+    // that matches the first block, in source order, and take the LAST
+    // declaration of each break property. All selectors here are (0,1,0), so
+    // source order is the tiebreak.
+    const firstBlockClasses = [...html.matchAll(/class="(hl-block[^"]*)"/g)]
+      .map((m) => m[1])
+      .at(0);
+    expect(firstBlockClasses).toBe("hl-block hl-block-full hl-block-first");
+
+    const rules = [...html.matchAll(/\.(hl-block[\w-]*)\s*\{([^}]*)\}/g)].filter((m) =>
+      (firstBlockClasses ?? "").split(" ").includes(m[1] ?? ""),
+    );
+    const resolve = (prop: string): string | undefined => {
+      let value: string | undefined;
+      for (const rule of rules) {
+        const decl = new RegExp(`(?:^|;)\\s*${prop}\\s*:\\s*([^;]+)`).exec(rule[2] ?? "");
+        if (decl !== null) value = (decl[1] ?? "").trim();
+      }
+      return value;
+    };
+    // The defect: a leading "full" block kept `break-before: page` (or was
+    // evicted by a 250mm min-height it could not satisfy under the header) and
+    // page 1 rendered as an empty cover.
+    expect(resolve("break-before")).toBe("auto");
+    expect(resolve("page-break-before")).toBe("auto");
+    // …and the 250mm floor must not push it off page 1 either: only ~248mm of
+    // the 273mm A4 content box survives the ~23mm header + 2mm body padding,
+    // and `break-inside: avoid` makes an over-tall block indivisible.
+    expect(resolve("min-height")).toBe("0");
+    expect(resolve("break-inside")).toBe("avoid");
   });
 
   // ─── Hydration safety (React #418) ──────────────────────────────────────

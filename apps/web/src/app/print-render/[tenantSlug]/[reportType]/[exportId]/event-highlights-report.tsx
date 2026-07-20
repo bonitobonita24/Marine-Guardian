@@ -254,21 +254,40 @@ export function EventHighlightsReport({ data }: EventHighlightsReportProps) {
       break-before: page; page-break-before: always;
       min-height: 250mm;
     }
-    /* The FIRST block must never force a break — otherwise page 1 renders as
-       a near-empty cover carrying only the report header.
+    /* The FIRST block must never be pushed off page 1 — otherwise page 1
+       renders as a near-empty cover carrying only the report header.
 
-       ⚠ This guard was previously scoped by a :first-child qualifier on the
-       block element, which NEVER
-       matched: ReportHeader renders a <header class="pr-header"> as the first
-       child of .hl-report-body, so the first .hl-block is the SECOND child and
-       :first-child is false for it. A leading "full" block (>2 photos)
-       therefore kept its "break-before: page" and pushed all content to page
-       2. The first block is now marked explicitly in JSX (hl-block-first)
-       instead of being inferred from DOM position, so the guard cannot
-       silently break again if another element is added above the blocks.
+       TWO independent mechanisms could push it, and BOTH must be neutralised:
+
+       (1) break-before. Previously guarded by a :first-child qualifier on the
+       block element, which NEVER matched: ReportHeader renders a
+       <header class="pr-header"> as the first child of .hl-report-body, so the
+       first .hl-block is the SECOND child. Now marked explicitly in JSX
+       (hl-block-first) instead of being inferred from DOM position.
+
+       (2) min-height + break-inside: avoid — the REAL residual cause of the
+       "content starts on page 2" bug, which survived the (1) fix. A4 portrait
+       geometry, at 96 CSS px/in (1px = 0.2646mm):
+
+           page box            297mm − 2×12mm margin   = 273.0mm
+           .pr-header          66px logo + 8px pad + 2px border + 10px margin
+                               = 86px                  =  22.8mm
+           .hl-report-body     8px padding-top         =   2.1mm
+           ────────────────────────────────────────────────────────
+           space left on page 1                        = 248.1mm
+
+       .hl-block-full asks for min-height: 250mm — 1.9mm MORE than page 1 can
+       offer. With break-inside: avoid, the block is indivisible, does not fit,
+       and the whole thing is moved to page 2, leaving the empty body the owner
+       screenshotted. The 250mm floor exists only to make a "full" block FILL
+       its own page; a first block that shares page 1 with the header has no
+       page to fill, so the floor is dropped for it. Natural height still fits:
+       MAX_PHOTOS_PER_BLOCK is 8 over 3 columns = 3 rows × 72mm + 2 × 6px gap
+       + 8px grid margin + caption ≈ 237mm < 248.1mm.
+
        Same specificity as .hl-block-full (0,1,0) — must stay AFTER it in
        source order to win. */
-    .hl-block-first { break-before: auto; page-break-before: auto; }
+    .hl-block-first { break-before: auto; page-break-before: auto; min-height: 0; }
     .hl-photo-grid { display: grid; gap: 6px; margin-bottom: 8px; }
     .hl-photo-grid-half { grid-template-columns: repeat(2, 1fr); }
     .hl-photo-grid-full { grid-template-columns: repeat(3, 1fr); }

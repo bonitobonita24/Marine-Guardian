@@ -18,9 +18,43 @@
 
 import { prisma } from "@marine-guardian/db";
 
-/** yyyy-mm-dd in UTC. */
-export function formatYmd(d: Date): string {
-  return d.toISOString().slice(0, 10);
+/**
+ * Minutes east of UTC used to decide which CALENDAR DAY an instant falls on.
+ *
+ * +08:00 (Asia/Manila) — the same convention the printed report header uses
+ * (`fmtDate` in app/print-render/.../report-map-report.tsx) and the same one
+ * get-coverage-report-data.ts / get-fuel-consumption.ts assume for v2 launch
+ * tenants. Kept as a named constant, and injectable per call below, so the day
+ * a tenant timezone column reaches this module the change is one argument.
+ */
+export const REPORT_DISPLAY_UTC_OFFSET_MINUTES = 480;
+
+/**
+ * yyyy-mm-dd for the calendar day `d` falls on in the report display timezone.
+ *
+ * 2026-07-20 BUGFIX — this used to be `d.toISOString().slice(0, 10)`, i.e. the
+ * UTC day, which named every export one day EARLY at the FROM end. The range
+ * picker builds `from` as LOCAL midnight (`new Date("2026-01-01T00:00:00")`,
+ * report-filter-bar.tsx) and ships it as `from.toISOString()`, so at UTC+8
+ * "2026-01-01" is stored as `2025-12-31T16:00:00.000Z` — whose UTC day is the
+ * PREVIOUS one. `to` hid the bug: it is built as local 23:59:59.999, which
+ * lands at 15:59Z on the SAME day, so subtracting 8 hours never crossed
+ * midnight backwards. Hence the one-sided symptom
+ * (`..._2025-12-31_2026-07-20.pdf`).
+ *
+ * Shifting the instant forward by the offset and then reading the UTC fields
+ * is exactly what the content header does, so the filename and the header the
+ * user reads inside the PDF can no longer disagree.
+ */
+export function formatYmd(
+  d: Date,
+  offsetMinutes: number = REPORT_DISPLAY_UTC_OFFSET_MINUTES,
+): string {
+  const shifted = new Date(d.getTime() + offsetMinutes * 60_000);
+  const year = String(shifted.getUTCFullYear()).padStart(4, "0");
+  const month = String(shifted.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(shifted.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 /**

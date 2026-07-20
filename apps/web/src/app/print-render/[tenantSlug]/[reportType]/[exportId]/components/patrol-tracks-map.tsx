@@ -35,14 +35,24 @@ import type {
 import { computeTracksFraming } from "./patrol-tracks-framing";
 import { MapRenderGate } from "./map-render-gate";
 
-// Approximate rendered pixel size of this map's box — the patrol-tracks map
-// sits in a right column (narrower than the full-width event/heatmap maps)
-// per report-map-report.tsx's layout. Exact values aren't critical —
-// boundsToView only needs to be close enough that the initial view is
-// already framed on the municipality before applyFraming's post-mount
-// fitBounds refinement runs.
-const TRACKS_MAP_WIDTH_PX = 560;
-const TRACKS_MAP_HEIGHT_PX = 360;
+// Rendered pixel size of this map's box. These are NOT cosmetic: nothing
+// re-frames the camera after computeTracksFraming (MapRenderGate calls
+// applyFraming once and never touches the view again), so an assumed box
+// LARGER than the real one silently over-zooms and the geometry runs off the
+// edge. The 2026-07-20 "tracks run off the bottom" defect was exactly this —
+// the height below read 360 while the real box is 235.
+//
+// HEIGHT — exact. report-map-report.tsx pins the map box:
+//   `.patrol-tracks-block { width: 100%; height: 235px; }` (figure + map both
+//   100%/100% inside it).
+// WIDTH — deliberately conservative. The map is full-width inside
+//   `.report-section` on an A4 page: portrait is 210mm − 24mm @page margin =
+//   186mm ≈ 703px, minus the section's 24px horizontal padding each side
+//   ≈ 655px; a landscape template is wider still. 640 sits just under the
+//   narrowest case, and UNDER-stating the box can only zoom out (extra
+//   margin), never clip.
+const TRACKS_MAP_WIDTH_PX = 640;
+const TRACKS_MAP_HEIGHT_PX = 235;
 
 const DEFAULT_CENTER: [number, number] = [13.0, 121.0];
 const DEFAULT_ZOOM = 9;
@@ -107,13 +117,6 @@ export function PatrolTracksMap({
     (map: LeafletMap) => {
       if (framingPlan.kind === "setView") {
         map.setView(framingPlan.center, framingPlan.zoom, { animate: false });
-        return;
-      }
-      if (framingPlan.kind === "fitBounds") {
-        map.fitBounds(framingPlan.bounds, {
-          padding: [framingPlan.paddingPx, framingPlan.paddingPx],
-          animate: false,
-        });
       }
     },
     [framingPlan],

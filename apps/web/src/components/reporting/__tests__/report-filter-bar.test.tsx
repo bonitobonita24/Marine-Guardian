@@ -510,3 +510,120 @@ describe("ReportFilterBar — include-children aria-label follows the scope", ()
     );
   });
 });
+
+// 2026-07-20 browser-QA defect: in the stacked layout (the filter header
+// embedded in the MAP CONTROLS card) the "Include child boundaries" and
+// "Include traversing patrols" switches rendered BELOW their label, while
+// every other toggle in that card (Boundaries / Skylight events / Photo
+// thumbnails, see TrackLegend) puts the switch to the RIGHT of the label on
+// one row. Cause: both reused `fieldClass`, whose stacked variant is
+// `flex-col` — correct for a Select, wrong for a Switch.
+describe("ReportFilterBar — stacked toggle row layout", () => {
+  /** Label and Switch must share ONE horizontal row: same parent element, and
+   *  that parent is a horizontal flex row with the switch pushed to the end. */
+  function expectLabelSwitchOnOneRow(switchTestId: string, labelText: string) {
+    const toggle = screen.getByTestId(switchTestId);
+    const label = screen.getByText(labelText);
+    const row = toggle.parentElement;
+
+    expect(row).not.toBeNull();
+    // Same row element — not stacked in a column.
+    expect(label.parentElement).toBe(row);
+
+    const cls = row?.className ?? "";
+    expect(cls).toContain("flex");
+    expect(cls).toContain("items-center");
+    expect(cls).toContain("justify-between");
+    expect(cls).not.toContain("flex-col");
+
+    // Label precedes the switch in DOM order (label left, switch right).
+    expect(
+      label.compareDocumentPosition(toggle) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  }
+
+  function renderStacked() {
+    return render(
+      <ReportFilterProvider>
+        <ReportFilterBar layout="stacked" />
+        <Probe />
+      </ReportFilterProvider>,
+    );
+  }
+
+  it("puts the traversing switch on the same row as its label", () => {
+    renderStacked();
+    expectLabelSwitchOnOneRow(
+      "report-include-traversing",
+      "Include traversing patrols",
+    );
+  });
+
+  it("keeps the disabled state + helper hint while the switch sits on the row", () => {
+    renderStacked();
+
+    // No municipality and no province selected → disabled + hinted.
+    const toggle = screen.getByTestId("report-include-traversing");
+    expect(toggle.getAttribute("data-disabled")).not.toBeNull();
+    expect(
+      screen.getByText("Select a municipality or province to enable"),
+    ).toBeTruthy();
+
+    // The hint is a sibling of the ROW (below it), not inside it.
+    const hint = screen.getByText("Select a municipality or province to enable");
+    expect(hint.parentElement).toBe(
+      screen.getByTestId("report-include-traversing-field"),
+    );
+  });
+
+  it("puts the include-children switch on the same row as its label", async () => {
+    stubs.protectedZones = [
+      {
+        id: "z-1",
+        name: "Zone One",
+        slug: "zone-one",
+        category: "mpa",
+        parentMunicipalityId: "m-1",
+      },
+    ];
+    renderStacked();
+
+    await openAndPick("report-municipality", "Calapan City"); // m-1
+    await screen.findByTestId("report-include-children");
+
+    expectLabelSwitchOnOneRow(
+      "report-include-children",
+      "Include child boundaries",
+    );
+  });
+
+  it("preserves the scope-accurate include-children aria-label in stacked layout", async () => {
+    stubs.protectedZones = [
+      {
+        id: "z-1",
+        name: "Zone One",
+        slug: "zone-one",
+        category: "mpa",
+        parentMunicipalityId: "m-1",
+      },
+    ];
+    renderStacked();
+
+    await openAndPick("report-province", "Oriental Mindoro");
+
+    const toggle = await screen.findByTestId("report-include-children");
+    expect(toggle.getAttribute("aria-label")).toBe(
+      "Include child boundaries — fold in this province's MPAs, hotspots & custom zones",
+    );
+  });
+
+  it("associates each switch with its label via htmlFor/id", () => {
+    renderStacked();
+    const label = screen.getByText("Include traversing patrols");
+    expect(label.getAttribute("for")).toBe("report-include-traversing");
+    expect(screen.getByTestId("report-include-traversing").id).toBe(
+      "report-include-traversing",
+    );
+  });
+});

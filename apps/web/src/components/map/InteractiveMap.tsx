@@ -53,6 +53,7 @@ import {
   type EventFilterState,
 } from "./eventMarkerStyle";
 import { isSubjectVisible } from "./subjectVisibility";
+import { MAP_LAYER } from "./mapLayers";
 import { isImageAsset } from "@marine-guardian/shared/lib/asset-mime";
 import { eventTypeIcon } from "@/lib/event-type-icon";
 import { AlertTriangle, Flag, FlagTriangleRight, Pencil } from "lucide-react";
@@ -949,14 +950,22 @@ export function InteractiveMap({
           setZoom((prev) => (Math.abs(prev - vp.zoom) >= 0.25 ? vp.zoom : prev));
         }}
       >
+        {/* `className` is merged LAST inside MapControls (twMerge), so
+            MAP_LAYER.control overrides the primitive's default z-10 and lifts
+            the zoom cluster above the full-bleed doodle canvas. Without this
+            the canvas (painted later, equal z) swallowed every zoom click
+            while doodle mode was on. */}
         <MapControls
+          className={MAP_LAYER.control}
           {...(floating
             ? { positionClassName: CONTROL_CLUSTER_BESIDE_MAP_CONTROLS }
             : {})}
         />
 
         {/* Doodle mode toggle — alongside the existing zoom/compass controls
-            (both z-10). Only rendered when the caller opts a surface in via
+            (both on MAP_LAYER.control, above the doodle canvas so this button
+            can always be used to LEAVE doodle mode). Only rendered when the
+            caller opts a surface in via
             `doodleSurface` (Command Center / Report Map); other consumers of
             this shared component (e.g. the Rangers-on-Duty drilldown map)
             never render it.
@@ -968,7 +977,8 @@ export function InteractiveMap({
         {doodleSurface !== undefined && (
           <div
             className={cn(
-              "border-border bg-background absolute z-10 flex flex-col overflow-hidden rounded-md border shadow-sm",
+              "border-border bg-background absolute flex flex-col overflow-hidden rounded-md border shadow-sm",
+              MAP_LAYER.control,
               floating
                 ? DOODLE_TOGGLE_BESIDE_MAP_CONTROLS
                 : "bottom-24 right-2",
@@ -994,7 +1004,10 @@ export function InteractiveMap({
 
         {/* Doodle drawing surface — a portaled child of the map (see
             DoodleOverlay), pinned to geo coordinates so strokes stay put on
-            pan/zoom. Sits at z-10, below the floating controls (z-20). */}
+            pan/zoom. Full-bleed (`absolute inset-0`), so it MUST stay on the
+            lowest floating layer (MAP_LAYER.doodleCanvas) — the panels
+            (MAP_LAYER.panel) and control clusters (MAP_LAYER.control) sit
+            above it and stay clickable. See mapLayers.ts. */}
         {doodleSurface !== undefined && (
           <DoodleOverlay
             active={doodle.active}

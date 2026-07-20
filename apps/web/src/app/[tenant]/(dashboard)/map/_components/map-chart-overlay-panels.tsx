@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { useIsShortViewport } from "@/components/reporting/use-short-viewport";
 
 /**
  * Floating chart panels overlaid on the Interactive Report Map (owner request
@@ -36,23 +37,33 @@ import { Switch } from "@/components/ui/switch";
  * The chart nodes are passed through untouched (same data, same props) — this
  * component only supplies the overlay chrome and the show/hide state.
  *
- * SHORT-VIEWPORT READABILITY (owner decision 2026-07-20)
- * -----------------------------------------------------
+ * SHORT-VIEWPORT READABILITY — ONE PANEL AT A TIME (2026-07-20)
+ * ------------------------------------------------------------
  * This column is capped at `max-h-[calc(100%-1.5rem)]` of the MAP PANE, not the
- * window. Measured at 1280x600: map pane 286px -> column 262px, while the two
- * panels were 201px and 185px (scrollHeight 497px) — only one chart visible at
- * a time, its legend clipped, "Region Coverage" entirely below the fold. The
- * owner chose SHRINKING the charts over scrolling, so the fix lives in the
- * charts' own `compact` variant rather than in a new mechanism here: below an
- * 800px-tall viewport the compact charts drop to a 4.5rem body and shed
- * non-essential chrome (see @/components/reporting/compact-chart-density).
+ * window, so at 1280x600 it is only 262px tall. Shrinking the charts (the
+ * `compact` variant, see @/components/reporting/compact-chart-density) got a
+ * single panel down to 122px, which fits — but two do not, and the earlier
+ * attempts left "Region Coverage" clipped to a 7px title strip, which reads as
+ * a broken component.
  *
- * Honest limit: that makes ONE open chart fully readable at 1280x600 (toggle
- * card ~90px + gap + ~131px panel = ~229px of 262px) — previously even a single
- * open chart was clipped. BOTH open still does not fit; two panels would have
- * to be ~78px each, which is less than a card's own chrome, so shrinking that
- * far would trade a scroll for two illegible charts. Opening the second chart
- * therefore still scrolls, but each panel is complete once scrolled to.
+ * Measured budget (browser, 1280x600 — reconstructed from the rendered
+ * y-coordinates, and it reproduces the observed 355px content height exactly):
+ *
+ *   available column                       262px
+ *   toggle ("Charts") card                  95px
+ *   gap-2 between column children            8px
+ *   one panel                              122px  (22 header + 72 body + 28 legend)
+ *
+ *   ONE open:  95 + 8 + 122            = 225px  <= 262px  ✅
+ *   TWO open:  95 + 8 + 122 + 8 + 122  = 355px  >  262px  ❌ (93px over)
+ *
+ * Two panels would each have to be <= 75.5px, i.e. a 25px chart body once the
+ * 50px of per-panel chrome is paid — less than the x-axis row alone. There is no
+ * legible two-panel layout at this height, so below 800px tall the switches
+ * become MUTUALLY EXCLUSIVE: turning one chart on turns the other off, and the
+ * off chart is not rendered at all rather than clipped. Above 800px nothing
+ * changes — both panels open together exactly as before (`useIsShortViewport`
+ * returns false, and the server snapshot is false so SSR is unaffected).
  */
 
 export type MapChartOverlayItem = {
@@ -76,14 +87,24 @@ export function MapChartOverlayPanels({
   // useState(false) with no storage).
   const [visibleKeys, setVisibleKeys] = useState<readonly string[]>([]);
 
+  // Below 800px tall there is only room for ONE panel (see the height budget in
+  // the file header). Rather than clip the second one to a title strip, the
+  // switches go mutually exclusive at that size.
+  const isShort = useIsShortViewport();
+
+  // Resizing a tall window down to short can leave two panels open; drop back to
+  // the most recently opened one so the column never overflows mid-resize.
+  useEffect(() => {
+    if (!isShort) return;
+    setVisibleKeys((prev) => (prev.length > 1 ? prev.slice(-1) : prev));
+  }, [isShort]);
+
   const setShown = (key: string, next: boolean) => {
-    setVisibleKeys((prev) =>
-      next
-        ? prev.includes(key)
-          ? prev
-          : [...prev, key]
-        : prev.filter((k) => k !== key),
-    );
+    setVisibleKeys((prev) => {
+      if (!next) return prev.filter((k) => k !== key);
+      if (isShort) return [key]; // exclusive: replaces whatever was open
+      return prev.includes(key) ? prev : [...prev, key];
+    });
   };
 
   return (
@@ -126,6 +147,18 @@ export function MapChartOverlayPanels({
             </div>
           );
         })}
+        {/* Explains why turning on the second chart turns the first off, so the
+            exclusivity reads as deliberate rather than as a lost toggle. Costs
+            ~16px of the column's 37px of slack at 1280x600 (225px -> 241px of
+            262px), so it never reintroduces the overflow it describes. */}
+        {isShort ? (
+          <p
+            data-testid="map-chart-single-panel-hint"
+            className="px-1 text-[10px] leading-tight text-muted-foreground"
+          >
+            One chart at a time on short screens
+          </p>
+        ) : null}
       </div>
 
       {/* Revealed panels. Hidden panels are NOT rendered at all (rather than
