@@ -129,16 +129,40 @@ const MAX_PHOTOS_PER_BLOCK = 8;
 /**
  * Global ceiling on photos rendered across the WHOLE report.
  *
- * The per-block cap alone allowed 25 × 8 = 200 photos. The print renderer
- * eagerly loads every photo <img> and only flips window.__renderReady once
- * all of them have settled; at the observed ~1.3 images/sec that blows the
- * PDF renderer's 120s page.goto budget on wide scopes (e.g. all
- * municipalities × 18 months) and the export fails outright.
+ * TWO independent constraints set this number — it must satisfy both.
  *
- * 120 photos ≈ 90s of image loading at that throughput, leaving headroom
- * inside the renderer budget.
+ * 1. RENDERER TIMEOUT. The per-block cap alone allowed 25 × 8 = 200 photos.
+ *    The print renderer eagerly loads every photo <img> and only flips
+ *    window.__renderReady once all of them have settled; at the observed
+ *    ~1.3 images/sec that blows the PDF renderer's 120s page.goto budget on
+ *    wide scopes (e.g. all municipalities × 18 months) and the export fails
+ *    outright.
+ *
+ * 2. PDF FILE SIZE (the 20 MB delivery ceiling). Photos are effectively
+ *    100% of the PDF's bytes — the only other embedded binary is the bundled
+ *    partner logo (<40 KB) and this report has no map island. So the file
+ *    size is (photo count) × (bytes per photo at the requested width).
+ *
+ * Measured bytes/photo at PHOTO_REQUEST_WIDTH = 900 (14 real ER photos
+ * served through /api/assets, which re-encodes to JPEG q80):
+ *   mean 104,290 B · worst single photo 152,190 B
+ *
+ * At 100 photos:
+ *   typical      100 × 104,290 =  10.4 MB  (48% headroom under 20 MB)
+ *   pathological 100 × 152,190 =  15.2 MB  (still under, with margin)
+ *
+ * For contrast, the configuration that produced the observed 22,004,632-byte
+ * failure was 120 photos at w=1400 (mean 225,580 B → ~27 MB typical).
+ *
+ * 100 photos also stays inside constraint 1: ≈77s of image loading at
+ * ~1.3 images/sec, comfortably below the 120s renderer budget.
+ *
+ * ⚠ This is a COUNT proxy for a BYTE budget. An unusually heavy photo set can
+ * still exceed the estimate; the durable fix is accumulating real byte sizes
+ * during the budget pass. The count cap must stay regardless — constraint 1
+ * is a count constraint, not a byte one.
  */
-export const MAX_TOTAL_PHOTOS = 120;
+export const MAX_TOTAL_PHOTOS = 100;
 
 export interface TotalPhotoBudgetResult {
   /** Same blocks, in the same order, with `photoAssetIds` truncated so the

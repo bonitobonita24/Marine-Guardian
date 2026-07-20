@@ -8,7 +8,7 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { EventHighlightsReport } from "../event-highlights-report";
+import { EventHighlightsReport, PHOTO_REQUEST_WIDTH } from "../event-highlights-report";
 import type {
   EventHighlightsEventBlock,
   EventHighlightsReportData,
@@ -88,12 +88,28 @@ describe("EventHighlightsReport", () => {
     expect(html.match(/data-testid="event-highlight-block"/g)).toHaveLength(2);
   });
 
-  it("renders photo <img> tags with the /api/assets/…?w=1400 src", () => {
+  it("renders photo <img> tags with the /api/assets/…?w= src at PHOTO_REQUEST_WIDTH", () => {
     const html = renderToStaticMarkup(
       <EventHighlightsReport data={buildData({ blocks: [block({ photoAssetIds: ["a1", "a2"] })] })} />,
     );
-    expect(html).toContain('src="/api/assets/a1?w=1400"');
-    expect(html).toContain('src="/api/assets/a2?w=1400"');
+    expect(html).toContain(`src="/api/assets/a1?w=${String(PHOTO_REQUEST_WIDTH)}"`);
+    expect(html).toContain(`src="/api/assets/a2?w=${String(PHOTO_REQUEST_WIDTH)}"`);
+    // No photo may still request the old, heavily-oversampled width.
+    expect(html).not.toContain("?w=1400");
+  });
+
+  it("requests 900px photos — sized to the printed tile, not the source frame", () => {
+    // A4 portrait, 12mm margin → 186mm content; "full" layout is 3 columns
+    // with a 6px gap → 60.9mm × 72mm tiles. object-fit: cover on a 1.783
+    // aspect source covers 72mm × 1.783 = 128.4mm = 5.05in of image width.
+    //   900 / 5.05in = 178 DPI  (above the 150 DPI print floor)
+    //  1400 / 5.05in = 277 DPI  (the oversampling that drove the 22 MB PDF)
+    expect(PHOTO_REQUEST_WIDTH).toBe(900);
+    // /api/assets clamps to [16, 1600] and SKIPS resizing entirely when the
+    // width falls outside it — serving the ~1.2 MB original. Staying in range
+    // is a correctness requirement, not a nicety.
+    expect(PHOTO_REQUEST_WIDTH).toBeGreaterThanOrEqual(16);
+    expect(PHOTO_REQUEST_WIDTH).toBeLessThanOrEqual(1600);
   });
 
   it("renders caption fields (title, Action Taken, Remarks, Reporter) and omits PRIORITY", () => {

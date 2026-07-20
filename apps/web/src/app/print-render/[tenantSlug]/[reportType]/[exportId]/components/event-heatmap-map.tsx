@@ -22,8 +22,39 @@ import { boundsToView } from "./bounds-view";
 import { HeatLayer } from "./heat-layer";
 import { MapRenderGate } from "./map-render-gate";
 
-const HEATMAP_WIDTH_PX = 1010;
-const HEATMAP_HEIGHT_PX = 360;
+// REAL rendered pixel size of the `.cat-map` print box this heatmap occupies.
+// The previous values (1010x360) were stale constants from the superseded
+// LANDSCAPE layout — see the derivation comment in event-points-map.tsx. This
+// island only ever renders inside `.cat-map` (report-map-report.tsx), which is
+// 655x235 under the A4-portrait layout.
+const HEATMAP_WIDTH_PX = 655;
+const HEATMAP_HEIGHT_PX = 235;
+
+/**
+ * Bounds inset per side, in CSS px. Deliberately kept identical to
+ * EventPointsMap's `framingInsetPx` (and duplicated here for the same reason
+ * `pointsBounds` below is duplicated: these two islands are independently
+ * code-split via next/dynamic, so importing across them would drag the points
+ * map's react-leaflet module graph into this chunk for one arithmetic helper).
+ * Both must agree — the heatmap renders directly beneath the points map on a
+ * category page, so any framing mismatch between them reads as a bug.
+ *
+ * 96px == 1.0 inch at print scale (`preferCSSPageSize` maps CSS px at 96dpi),
+ * clamped to 20% of the smaller box dimension so the data always keeps >=60% of
+ * the box. A literal 1-inch inset is impossible in a 235px-tall (2.45in) box —
+ * it would leave 43px of usable height. min(96, floor(235 * 0.2)) = 47px.
+ */
+const TARGET_INSET_PX = 96;
+const MAX_INSET_FRACTION = 0.2;
+
+export function framingInsetPx(widthPx: number, heightPx: number): number {
+  return Math.min(
+    TARGET_INSET_PX,
+    Math.floor(Math.min(widthPx, heightPx) * MAX_INSET_FRACTION),
+  );
+}
+
+const HEATMAP_INSET_PX = framingInsetPx(HEATMAP_WIDTH_PX, HEATMAP_HEIGHT_PX);
 const DEFAULT_CENTER: [number, number] = [13.0, 121.0];
 const DEFAULT_ZOOM = 9;
 
@@ -108,6 +139,7 @@ export function EventHeatmapMap({
         framingBounds,
         HEATMAP_WIDTH_PX,
         HEATMAP_HEIGHT_PX,
+        { paddingPx: HEATMAP_INSET_PX },
       );
       map.setView(center, zoom, { animate: false });
     },
@@ -115,7 +147,9 @@ export function EventHeatmapMap({
   );
 
   const initialView = framingBounds
-    ? boundsToView(framingBounds, HEATMAP_WIDTH_PX, HEATMAP_HEIGHT_PX)
+    ? boundsToView(framingBounds, HEATMAP_WIDTH_PX, HEATMAP_HEIGHT_PX, {
+        paddingPx: HEATMAP_INSET_PX,
+      })
     : { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM };
 
   return (

@@ -27,13 +27,67 @@ import type {
 import { boundsToView } from "./bounds-view";
 import { MapRenderGate } from "./map-render-gate";
 
-// Approximate rendered pixel size of the full-width `.section-map` box these
-// event maps render in (report-map-report.tsx's landscape layout). Exact
-// values aren't critical — boundsToView only needs to be close enough that
-// the initial view is already framed on the municipality before
-// applyFraming's post-mount fitBounds refinement runs.
-const EVENT_MAP_WIDTH_PX = 1010;
-const EVENT_MAP_HEIGHT_PX = 360;
+// REAL rendered pixel size of the print box these event maps occupy, measured
+// from report-map-report.tsx's A4-PORTRAIT layout.
+//
+// The previous values (1010x360) were written for the SUPERSEDED landscape
+// layout and were never updated when the owner pinned this report to portrait
+// (2026-07-12, report-map-report.tsx). Assuming a box ~1.5x taller than the
+// real one made boundsToView pick a zoom a full level too tight, which is why
+// markers sat hard against the crop. Derivation:
+//
+//   @page A4 portrait, margin 12mm -> content 210mm - 24mm = 186mm = 703px @96dpi
+//   .report-section padding 0 24px -> map box width  703 - 48 = 655px
+//   .cat-map     height 235px  (category pages: points map + heatmap, one sheet)
+//   .section-map height 260px  (Events-Over-Time overview map)
+//
+// 655x235 is used for BOTH call sites: it is the smaller (binding) box, so the
+// taller 260px `.section-map` is framed slightly loose rather than clipped.
+export const EVENT_MAP_WIDTH_PX = 655;
+export const EVENT_MAP_HEIGHT_PX = 235;
+
+/**
+ * Target bounds inset per side, in CSS px. `preferCSSPageSize` maps CSS px to
+ * paper at 96dpi, so 96px == exactly 1.0 inch of printed page — the owner's
+ * "inset the markers by about an inch" ask.
+ */
+const TARGET_INSET_PX = 96;
+
+/**
+ * Degeneracy guard: the inset may never consume more than this fraction of the
+ * SMALLER box dimension, so the data always keeps >=60% of the box on both axes.
+ *
+ * This clamp is load-bearing, not defensive decoration. A literal 96px inset on
+ * all four sides is geometrically IMPOSSIBLE in a 235px-tall (2.45in) box: it
+ * would leave 235 - 192 = 43px (0.45in) of usable height, collapsing the data
+ * into a thin central strip over a mostly-empty basemap — and on a single-point
+ * map (bbox = 0.04 deg) it would push the fit toward the minZoom floor. 20% of
+ * 235 = 47px (~0.49in) is the largest inset this box can actually carry.
+ */
+const MAX_INSET_FRACTION = 0.2;
+
+/**
+ * Effective inset for a given box: the 1-inch target, clamped by
+ * MAX_INSET_FRACTION of the smaller dimension.
+ *
+ * For the real 655x235 box this yields min(96, floor(235 * 0.2)) = 47px.
+ * Net effect vs. the previous behaviour (1010x360 box, boundsToView's default
+ * 8px pad) on the binding height axis:
+ *   log2((235 - 2*47) / (360 - 2*8)) = log2(141 / 344) ~= -1.29 zoom levels.
+ * i.e. ~2.4x more visible area — the "1 inch or equivalent zoom-out" the owner
+ * asked for, expressed as the largest inset that does not degenerate the view.
+ */
+export function framingInsetPx(widthPx: number, heightPx: number): number {
+  return Math.min(
+    TARGET_INSET_PX,
+    Math.floor(Math.min(widthPx, heightPx) * MAX_INSET_FRACTION),
+  );
+}
+
+const EVENT_MAP_INSET_PX = framingInsetPx(
+  EVENT_MAP_WIDTH_PX,
+  EVENT_MAP_HEIGHT_PX,
+);
 
 const DEFAULT_CENTER: [number, number] = [13.0, 121.0];
 const DEFAULT_ZOOM = 9;
@@ -48,7 +102,7 @@ type EventPointWithColor = ReportMapEventPoint & { color?: string };
  * the map on the actual event markers instead of the whole municipality water
  * polygon — the owner's "zoom in to what matters, not the full boundary" ask.
  */
-function pointsBounds(
+export function pointsBounds(
   points: { lat: number; lon: number }[],
 ): ReportMapBounds | null {
   const first = points[0];
@@ -105,6 +159,7 @@ export function EventPointsMap({
         framingBounds,
         EVENT_MAP_WIDTH_PX,
         EVENT_MAP_HEIGHT_PX,
+        { paddingPx: EVENT_MAP_INSET_PX },
       );
       map.setView(center, zoom, { animate: false });
     },
@@ -116,7 +171,9 @@ export function EventPointsMap({
   // document (see bounds-view.ts header). Falls back to the whole-region
   // default when nothing to frame.
   const initialView = framingBounds
-    ? boundsToView(framingBounds, EVENT_MAP_WIDTH_PX, EVENT_MAP_HEIGHT_PX)
+    ? boundsToView(framingBounds, EVENT_MAP_WIDTH_PX, EVENT_MAP_HEIGHT_PX, {
+        paddingPx: EVENT_MAP_INSET_PX,
+      })
     : { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM };
 
   return (

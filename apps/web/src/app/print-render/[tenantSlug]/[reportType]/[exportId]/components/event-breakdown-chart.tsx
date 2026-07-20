@@ -87,6 +87,58 @@ function orderVariantFor(variant: EventBreakdownVariant): EventTypeVariant {
   return variant === "lawEnforcement" ? "law_enforcement" : "monitoring";
 }
 
+/** Last-resort label when nothing readable can be resolved for a row. */
+const UNKNOWN_LABEL = "Unknown";
+
+/**
+ * Humanize a raw EarthRanger event-type KEY (`value`) into something a funder
+ * can read: `compressor_fishing` → "Compressor Fishing". Separators (`_`, `-`,
+ * `.`) become spaces, runs collapse, and each word is capitalized. Returns ""
+ * when the key carries no alphanumeric content, so callers can fall through to
+ * the next fallback. Exported for unit testing.
+ */
+export function humanizeEventTypeKey(key: string): string {
+  const cleaned = key
+    .replace(/[_\-.]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (cleaned.length === 0) return "";
+  return cleaned
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+/**
+ * Resolve the human-readable label for one breakdown row, falling through the
+ * available names in order of preference:
+ *
+ *   1. `display` — the ER-provided display name (the normal path).
+ *   2. `value` — the raw ER key, humanized (see {@link humanizeEventTypeKey}).
+ *   3. `fallback` — the canonical label for the slot, when there is one.
+ *   4. `"Unknown"` — the hard floor.
+ *
+ * A bar row must NEVER render a blank label (owner 2026-07-20), so every step
+ * rejects empty/whitespace-only strings rather than passing them through.
+ * Exported for unit testing.
+ */
+export function resolveRowLabel(
+  row: { display?: string | null; value?: string | null } | undefined,
+  fallback: string,
+): string {
+  const display = row?.display;
+  if (typeof display === "string" && display.trim().length > 0) {
+    return display.trim();
+  }
+  const value = row?.value;
+  if (typeof value === "string" && value.trim().length > 0) {
+    const humanized = humanizeEventTypeKey(value);
+    if (humanized.length > 0) return humanized;
+  }
+  const trimmedFallback = fallback.trim();
+  return trimmedFallback.length > 0 ? trimmedFallback : UNKNOWN_LABEL;
+}
+
 /**
  * Build the chart rows in the owner's fixed canonical event-type sequence
  * (shared with the Command Center / Report Map breakdown charts via
@@ -102,9 +154,11 @@ export function buildChartRows(
 ): ChartRow[] {
   const orderVariant = orderVariantFor(variant);
   const category = categoryForVariant(variant);
-  // Index the report's rows by normalized label for tolerant matching.
+  // Index the report's rows by normalized label for tolerant matching. The key
+  // is built from the RESOLVED label, so a row whose `display` is empty still
+  // matches its canonical slot via its humanized raw key.
   const byNorm = new Map<string, EventTypeBreakdownRow>();
-  for (const r of rows) byNorm.set(normalizeTypeLabel(r.display), r);
+  for (const r of rows) byNorm.set(normalizeTypeLabel(resolveRowLabel(r, "")), r);
 
   const result: ChartRow[] = [];
   // 1. EVERY canonical sub-type in its fixed order — INCLUDING zero-count ones
@@ -113,21 +167,27 @@ export function buildChartRows(
   for (const canon of EVENT_TYPE_ORDER[orderVariant]) {
     const key = normalizeTypeLabel(canon);
     const hit = byNorm.get(key);
-    const display = hit?.display ?? canon;
+    // Fall through display → humanized raw key → the canonical label, so a slot
+    // never renders blank even if the ER row lost its display name.
+    const display = resolveRowLabel(hit, canon);
     const count = hit?.count ?? 0;
     result.push({ name: display, count, fill: colorForEventType(display, category) });
     byNorm.delete(key);
   }
   // 2. Any non-canonical bucket left in the data (e.g. the "Others" aggregate)
   //    with a real count, appended by count desc.
+  //    Labels resolve through the same fallback chain (no canonical slot to
+  //    borrow, so the floor is "Unknown"), and the existing tiebreak sorts on
+  //    the RESOLVED label so ordering stays stable and deterministic.
   const extras = [...byNorm.values()]
     .filter((r) => r.count > 0)
-    .sort((a, b) => b.count - a.count || a.display.localeCompare(b.display));
-  for (const r of extras) {
+    .map((r) => ({ row: r, label: resolveRowLabel(r, UNKNOWN_LABEL) }))
+    .sort((a, b) => b.row.count - a.row.count || a.label.localeCompare(b.label));
+  for (const { row: r, label } of extras) {
     result.push({
-      name: r.display,
+      name: label,
       count: r.count,
-      fill: colorForEventType(r.display, category),
+      fill: colorForEventType(label, category),
     });
   }
   return result.slice(0, topN);
@@ -154,7 +214,10 @@ export function BreakdownYAxisTick({
   payload?: { value?: string | number };
   variant: EventBreakdownVariant;
 }) {
-  const label = payload?.value != null ? String(payload.value) : "";
+  // Defence in depth: buildChartRows already guarantees a non-empty `name`, but
+  // the tick must never paint a blank row even if handed one directly.
+  const raw = payload?.value != null ? String(payload.value).trim() : "";
+  const label = raw.length > 0 ? raw : UNKNOWN_LABEL;
   const Icon = eventTypeIcon(label, orderVariantFor(variant));
   // Tint the icon with the sub-type's own accent so it matches its bar + marker.
   const iconColor = colorForEventType(label, categoryForVariant(variant));
@@ -301,6 +364,20 @@ export function EventBreakdownChart({
             width={164}
             tickLine={false}
             axisLine={false}
+            // interval={0} + minTickGap={0} force EVERY category tick to render.
+            // Without them recharts defaults to interval="preserveEnd", whose
+            // greedy spacing walk (CartesianAxis → getTicks → getTicksEnd) drops
+            // ticks that don't clear the previous one by `size/2 + minTickGap`.
+            // `size` is DOM-measured from the first
+            // `.recharts-cartesian-axis-tick-value` element — a class our custom
+            // <foreignObject> tick never carries — so it falls back to the ~16px
+            // document default while our labels are 8.5px. On this short chart
+            // (~180px for 7 categories ≈ 19px/band vs a ~23px demand) that
+            // silently deleted every OTHER label, leaving bars with no name
+            // (owner-reported "blank labels", 2026-07-20). The bars come from
+            // <Bar>, not the axis, which is why only the label vanished.
+            interval={0}
+            minTickGap={0}
             tick={<BreakdownYAxisTick variant={variant} />}
           />
           <Tooltip

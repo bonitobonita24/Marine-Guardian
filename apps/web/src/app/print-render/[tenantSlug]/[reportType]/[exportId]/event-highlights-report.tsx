@@ -21,6 +21,38 @@ import type {
 } from "@/server/event-highlights-report/get-event-highlights-report-data";
 import { ReportHeader, reportHeaderStyles } from "./components/report-header";
 
+/**
+ * Width (px) requested from /api/assets for every collage photo.
+ *
+ * Sized to the PRINTED dimensions, not to the source frame. A4 portrait with
+ * a 12mm margin gives a 186mm content width; the photo grid uses gap: 6px
+ * (≈1.59mm). The binding case is the "full" layout — 3 columns, tiles
+ * 60.9mm × 72mm. Source photos are 16:9-ish (measured 4080×2288, aspect
+ * 1.783) and are drawn with `object-fit: cover`, so the browser scales the
+ * image to cover the tile HEIGHT and crops the width:
+ *
+ *   covered image width = 72mm × 1.783 = 128.4mm = 5.05in
+ *
+ * DPI arithmetic at that printed size:
+ *   w=1400 → 1400 / 5.05in = 277 DPI   (previous value — heavily oversampled)
+ *   w=900  →  900 / 5.05in = 178 DPI   ← chosen
+ *   w=800  →  800 / 5.05in = 158 DPI   (at the 150 DPI print floor)
+ *
+ * The "half" layout is looser — 2 columns, 92.2mm × 55mm tiles, covered width
+ * 55mm × 1.783 = 98.1mm = 3.86in → 900 / 3.86in = 233 DPI.
+ *
+ * 900 lands at 178 DPI on full tiles and 233 DPI on half tiles: inside the
+ * 200–300 DPI target on half tiles, above the 150 DPI floor on full tiles,
+ * and ~2.2× lighter than w=1400 in bytes (measured mean 104,290 B vs
+ * 225,580 B over 14 real ER photos).
+ *
+ * ⚠ Must stay inside the API's [16, 1600] clamp. /api/assets treats an
+ * OUT-OF-RANGE width as "no width" and skips resizing entirely, serving the
+ * ~1.2 MB original — so an out-of-range value here silently inflates the PDF
+ * rather than clamping.
+ */
+export const PHOTO_REQUEST_WIDTH = 900;
+
 // ─── Formatting helpers ─────────────────────────────────────────────────────
 
 function fmtDate(d: Date | undefined): string {
@@ -110,7 +142,7 @@ function EventHighlightBlock({ block, timeZone }: EventHighlightBlockProps) {
   // mechanism as the top-level sentinel <script> tag below.
   const photosHtml = block.photoAssetIds
     .map((assetId) => {
-      const src = `/api/assets/${escapeHtmlAttr(assetId)}?w=1400`;
+      const src = `/api/assets/${escapeHtmlAttr(assetId)}?w=${String(PHOTO_REQUEST_WIDTH)}`;
       const alt = escapeHtmlAttr(`Photo: ${block.title}`);
       // NOTE: ends with `>` — NOT the XHTML-style ` />`. `<img>` is a void
       // element, so the HTML parser drops the self-closing slash; the DOM

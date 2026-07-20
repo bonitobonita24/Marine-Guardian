@@ -222,14 +222,14 @@ function PageHeader({
     : scopeTitleOverride !== null
       ? {
           // Protected-zone scope (2026-07-20): render the zone's OWN name as
-          // the title, unprefixed (municipalityName null → no "LGU " prefix in
-          // <ReportHeader>), while keeping the municipal/partner logos since a
-          // zone still sits within an LGU. Fixes "Apo Reef Park" printing as
-          // its parent municipality "Sablayan".
+          // the title, unprefixed via <ReportHeader>'s `protectedZoneName`
+          // path, while keeping the municipal/partner logos since a zone
+          // still sits within an LGU. Fixes "Apo Reef Park" printing as its
+          // parent municipality "Sablayan". Generic to any zone.
           municipalLogoUrl: municipalLogoDataUri,
           partnerLogoUrl: partnerLogoDataUri,
-          municipalityName: null,
-          mainTitle: scopeTitleOverride,
+          municipalityName,
+          protectedZoneName: scopeTitleOverride,
           regionMode: false,
           reportTitle,
           dateRange: period,

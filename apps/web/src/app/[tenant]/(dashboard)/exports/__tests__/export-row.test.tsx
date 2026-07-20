@@ -163,6 +163,7 @@ import {
   ExportRow,
   buildReportSummaryLabel,
   buildReportSummaryParts,
+  EXPORT_FAILURE_USER_MESSAGE,
 } from "../export-row";
 
 function makeRow(overrides: Partial<ExportRowItem> = {}): ExportRowItem {
@@ -269,14 +270,45 @@ describe("ExportRow (5.3d)", () => {
     }
   });
 
-  it("renders Retry button + error message when status=failed", () => {
+  it("renders Retry button + the generic failure message when status=failed", () => {
     const { queryByTestId } = renderInTable(
       makeRow({ status: "failed", errorMessage: "Puppeteer timeout" }),
     );
 
     expect(queryByTestId("retry-export-button")).toBeTruthy();
-    expect(queryByTestId("export-error-message")?.textContent).toContain(
-      "Puppeteer timeout",
+    expect(queryByTestId("export-error-message")?.textContent).toBe(
+      EXPORT_FAILURE_USER_MESSAGE,
+    );
+  });
+
+  it("does NOT leak a raw internal error into the DOM for a failed export", () => {
+    const rawInternalError =
+      "PDF exceeds Telegram's 20 MB getFile limit (rendered 24117248 bytes) — cannot store this export";
+
+    const { container, queryByTestId } = renderInTable(
+      makeRow({ status: "failed", errorMessage: rawInternalError }),
+    );
+
+    // The user sees exactly the generic message…
+    expect(queryByTestId("export-error-message")?.textContent).toBe(
+      EXPORT_FAILURE_USER_MESSAGE,
+    );
+
+    // …and no fragment of the internal diagnostic reaches the rendered markup,
+    // including attributes such as the `title` tooltip (innerHTML covers both).
+    expect(container.innerHTML).not.toContain(rawInternalError);
+    expect(container.innerHTML).not.toContain("Telegram");
+    expect(container.innerHTML).not.toContain("20 MB");
+    expect(container.innerHTML).not.toContain("24117248");
+  });
+
+  it("still shows the generic failure message when errorMessage is null", () => {
+    const { queryByTestId } = renderInTable(
+      makeRow({ status: "failed", errorMessage: null }),
+    );
+
+    expect(queryByTestId("export-error-message")?.textContent).toBe(
+      EXPORT_FAILURE_USER_MESSAGE,
     );
   });
 

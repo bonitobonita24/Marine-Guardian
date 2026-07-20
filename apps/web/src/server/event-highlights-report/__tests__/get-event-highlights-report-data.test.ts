@@ -533,7 +533,7 @@ describe("applyTotalPhotoBudget", () => {
   });
 
   it("defaults to MAX_TOTAL_PHOTOS, which is below the 25×8 per-block ceiling", () => {
-    expect(MAX_TOTAL_PHOTOS).toBe(120);
+    expect(MAX_TOTAL_PHOTOS).toBe(100);
     // 25 blocks × 8 photos = the 200-photo worst case that blew the renderer.
     const blocks = Array.from({ length: 25 }, (_, i) => budgetBlock(`b${String(i)}`, 8));
     const result = applyTotalPhotoBudget(blocks);
@@ -544,5 +544,20 @@ describe("applyTotalPhotoBudget", () => {
     expect(result.blocks).toHaveLength(25);
     const rendered = result.blocks.reduce((n, b) => n + b.photoAssetIds.length, 0);
     expect(rendered).toBe(MAX_TOTAL_PHOTOS);
+  });
+
+  it("keeps the worst-case photo payload under the 20 MB PDF ceiling", () => {
+    // Bytes/photo measured over 14 real ER photos served through /api/assets
+    // at PHOTO_REQUEST_WIDTH = 900 (JPEG q80). Photos are ~100% of the PDF —
+    // the only other embedded binary is the <40 KB bundled partner logo.
+    const WORST_CASE_BYTES_PER_PHOTO = 152_190;
+    const TYPICAL_BYTES_PER_PHOTO = 104_290;
+    const PDF_CEILING_BYTES = 20 * 1024 * 1024;
+
+    // Guard rail, not a prediction: if MAX_TOTAL_PHOTOS is ever raised past
+    // what the measured worst case affords, this fails before an export does.
+    expect(MAX_TOTAL_PHOTOS * WORST_CASE_BYTES_PER_PHOTO).toBeLessThan(PDF_CEILING_BYTES);
+    // The typical case should not merely pass — it should have real headroom.
+    expect(MAX_TOTAL_PHOTOS * TYPICAL_BYTES_PER_PHOTO).toBeLessThan(PDF_CEILING_BYTES * 0.6);
   });
 });

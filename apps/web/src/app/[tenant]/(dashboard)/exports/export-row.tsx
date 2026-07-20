@@ -46,6 +46,22 @@ type PptxStatus = ExportStatus | null;
  * batch-resolved server-side by reportExport.list. Optional/nullable because
  * not every reportType populates every field (e.g. only report_map carries
  * municipalityId/protectedZoneId; only area carries areaBoundaryId). */
+/**
+ * The ONLY failure text an end user ever sees for a failed export, regardless
+ * of the underlying cause (Telegram size limit, Puppeteer timeout, DB error…).
+ *
+ * The real diagnostic is NOT discarded — it is still:
+ *   • written to the server log on every failed attempt
+ *     (packages/jobs/src/workers/base-worker.ts — worker.on("failed")), and
+ *   • persisted verbatim to ReportExport.errorMessage by the render processors,
+ *     so an admin/developer can still query the true cause from the DB.
+ *
+ * Only the *rendered* string is generalised. Exported so tests and any future
+ * consumer share one definition rather than duplicating the literal.
+ */
+export const EXPORT_FAILURE_USER_MESSAGE =
+  "Cannot process the Report, Please retry or contact Administrator";
+
 export interface ReportExportSummary {
   municipalityName: string | null;
   protectedZoneName: string | null;
@@ -558,15 +574,18 @@ export function ExportRow({ row }: ExportRowProps) {
           )}
           {currentStatus === "failed" && (
             <>
-              {(pollQuery.data?.errorMessage ?? row.errorMessage) !== null && (
-                <span
-                  className="hidden text-xs text-destructive sm:inline"
-                  title={pollQuery.data?.errorMessage ?? row.errorMessage ?? ""}
-                  data-testid="export-error-message"
-                >
-                  {pollQuery.data?.errorMessage ?? row.errorMessage}
-                </span>
-              )}
+              {/* Generic user-facing text only — the raw errorMessage is
+                  deliberately NOT rendered (nor used as the tooltip). It stays
+                  on the row + in the server log for admin/developer triage.
+                  Rendered unconditionally for a failed row so that a row with a
+                  null errorMessage still explains itself to the user. */}
+              <span
+                className="hidden text-xs text-destructive sm:inline"
+                title={EXPORT_FAILURE_USER_MESSAGE}
+                data-testid="export-error-message"
+              >
+                {EXPORT_FAILURE_USER_MESSAGE}
+              </span>
               <RetryButton exportId={row.id} />
               <DeleteButton exportId={row.id} />
             </>
