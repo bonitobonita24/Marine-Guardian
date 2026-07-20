@@ -33,6 +33,14 @@ vi.mock("@/lib/trpc/client", () => ({
       updateState: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
       bulkUpdateState: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
       resolveAllEvents: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
+      setMunicipalityOverride: {
+        useMutation: () => ({ mutate: vi.fn(), isPending: false, error: null }),
+      },
+    },
+    // Municipality options for the override dialog — only queried once the
+    // dialog opens, so an empty list is the correct default for these tests.
+    municipality: {
+      list: { useQuery: () => ({ data: [] }) },
     },
     useUtils: () => ({
       event: {
@@ -41,6 +49,20 @@ vi.mock("@/lib/trpc/client", () => ({
       },
     }),
   },
+}));
+
+// The municipality-override control is role-gated, so EventsList now reads the
+// session. These tests cover the filter bar, not authorization — a signed-in
+// non-admin session keeps them focused (the Override button stays hidden, which
+// is also the correct default for an unprivileged user).
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: {
+      user: { id: "user-1", roles: ["ranger"], tenantId: "tenant-1" },
+      expires: "9999-01-01",
+    },
+    status: "authenticated",
+  }),
 }));
 
 // EventDetailModal pulls in a lot of transitive deps (maps, revisions, etc.)

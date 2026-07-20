@@ -20,6 +20,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
+import { expectNoDocumentScaffold } from "./assert-no-document-scaffold";
 
 vi.mock("../components/event-breakdown-chart", () => ({
   EventBreakdownChart: () => null,
@@ -88,7 +89,10 @@ describe("resolveReportMapExportSections", () => {
 
 // ─── ReportMapReport render (RSC-style, react-dom/server) ──────────────────
 
-function buildData(exportMode: ReportMapReportData["exportMode"]): ReportMapReportData {
+function buildData(
+  exportMode: ReportMapReportData["exportMode"],
+  overrides: Partial<ReportMapReportData> = {},
+): ReportMapReportData {
   return {
     tenant: { id: "t1", name: "Mindoro MPA", slug: "mindoro", timezone: "Asia/Manila" },
     filter: {
@@ -110,7 +114,11 @@ function buildData(exportMode: ReportMapReportData["exportMode"]): ReportMapRepo
     municipalityBounds: null,
     municipalityName: "All Municipalities",
     isRegionReport: false,
+    scopeTitleOverride: null,
     exportMode,
+    // Default traversing mode — this fixture exercises export-mode paging
+    // only; the traversing crediting mode is covered in the loader's tests.
+    traversingMode: "off",
     eventTypeColumns: {},
     charts: {
       lawEnforcement: { key: "law_enforcement", title: "Law Enforcement", total: 0, breakdown: [] },
@@ -139,6 +147,8 @@ function buildData(exportMode: ReportMapReportData["exportMode"]): ReportMapRepo
         foot: { count: 0, hours: 0, km: 0 },
       },
     },
+    // Spread LAST so a caller's override actually wins over the defaults above.
+    ...overrides,
   };
 }
 
@@ -147,6 +157,18 @@ function sectionTestIds(html: string): string[] {
 }
 
 describe("ReportMapReport — exportMode split", () => {
+  // React #418 regression guard (2026-07-20) — browser QA confirmed this page
+  // threw a hydration mismatch. Cause: the component emitted its own
+  // <html><head><body> nested inside the app root layout's document, which the
+  // HTML parser discards. See components/print-document-shell.tsx.
+  it("emits NO nested <html>/<head>/<body> document scaffold (React #418)", () => {
+    for (const mode of ["combined", "charts", "lists"] as const) {
+      expectNoDocumentScaffold(
+        renderToStaticMarkup(<ReportMapReport data={buildData(mode)} />),
+      );
+    }
+  });
+
   it("combined (default): renders ALL 8 sections (4 chart + 4 list), seeds __renderPending=7", () => {
     const html = renderToStaticMarkup(<ReportMapReport data={buildData("combined")} />);
     expect(sectionTestIds(html)).toEqual([
@@ -199,5 +221,162 @@ describe("ReportMapReport — exportMode split", () => {
     // List pages renumber from 1 (no chart pages precede them).
     expect(html).toContain("Page 1 of 4");
     expect(html).toContain("Page 4 of 4");
+  });
+
+  // ─── Traversing page scope labels (2026-07-20) ───────────────────────────
+  //
+  // End-to-end wiring check for resolveTraversingScopeLabel: the rendered
+  // heading/caption/body copy must name the SCOPE boundary. Unit coverage of
+  // the resolver itself lives in traversing-scope-label.test.ts.
+
+  const traversingPatrols = {
+    rows: [
+      {
+        patrolId: "p1",
+        title: "Seaborne Patrol 1",
+        patrolType: "seaborne",
+        startMunicipalityName: "Sablayan",
+        creditedMunicipalityName: "Apo Reef Natural Park",
+        insideKm: 4.2,
+        insideHoursEst: 1.5,
+      },
+    ],
+    foot: { count: 0, insideKm: 0, insideHoursEst: 0 },
+    seaborne: { count: 1, insideKm: 4.2, insideHoursEst: 1.5 },
+    total: { count: 1, insideKm: 4.2, insideHoursEst: 1.5 },
+  } satisfies ReportMapReportData["traversingPatrols"];
+
+  it("traversing page names the ZONE (not its parent municipality) at zone scope", () => {
+    const html = renderToStaticMarkup(
+      <ReportMapReport
+        data={buildData("combined", {
+          traversingPatrols,
+          municipalityName: "Sablayan",
+          scopeTitleOverride: "Apo Reef Natural Park",
+        })}
+      />,
+    );
+    expect(sectionTestIds(html)).toContain("section-traversing-patrols");
+    expect(html).toContain("Patrols Traversing Apo Reef Natural Park");
+    expect(html).toContain("Patrols traversing Apo Reef Natural Park");
+    // The reported defect: the parent municipality headlining the page, and
+    // body copy asserting a municipality boundary that isn't the scope.
+    expect(html).not.toContain("Patrols Traversing Sablayan");
+    expect(html).not.toContain("started in another municipality");
+    expect(html).toContain("inside this zone");
+  });
+
+  it("traversing page names the PROVINCE in region mode", () => {
+    const html = renderToStaticMarkup(
+      <ReportMapReport
+        data={buildData("combined", {
+          traversingPatrols,
+          municipalityName: "Occidental Mindoro",
+          isRegionReport: true,
+        })}
+      />,
+    );
+    expect(html).toContain("Patrols Traversing Occidental Mindoro");
+    expect(html).toContain("inside this province");
+    expect(html).not.toContain("started in another municipality");
+  });
+
+  it("traversing page names the MUNICIPALITY at municipality scope", () => {
+    const html = renderToStaticMarkup(
+      <ReportMapReport
+        data={buildData("combined", {
+          traversingPatrols,
+          municipalityName: "Sablayan",
+        })}
+      />,
+    );
+    expect(html).toContain("Patrols Traversing Sablayan");
+    expect(html).toContain("inside this municipality");
+  });
+
+  // ─── Full-traversing disclosure stamp (2026-07-20) ───────────────────────
+  //
+  // In "full" mode the headline patrol totals intentionally exceed the sum of
+  // the per-patrol rows printed beneath them, and the same patrol is also
+  // counted in its origin municipality's report. The page must say so.
+
+  function stampCount(html: string): number {
+    return html.split('data-testid="traversing-full-stamp"').length - 1;
+  }
+
+  it('renders the stamp on BOTH the totals block and the full-list page in "full" mode', () => {
+    const html = renderToStaticMarkup(
+      <ReportMapReport
+        data={buildData("combined", {
+          traversingPatrols,
+          traversingMode: "full",
+          municipalityName: "Sablayan",
+          scopeTitleOverride: "Apo Reef Natural Park",
+        })}
+      />,
+    );
+    expect(stampCount(html)).toBe(2);
+    expect(html).toContain("Includes full patrols traversing this zone");
+  });
+
+  it('renders NO stamp in "clipped" or "off" mode', () => {
+    for (const mode of ["clipped", "off"] as const) {
+      const html = renderToStaticMarkup(
+        <ReportMapReport
+          data={buildData("combined", {
+            traversingPatrols,
+            traversingMode: mode,
+            municipalityName: "Sablayan",
+            scopeTitleOverride: "Apo Reef Natural Park",
+          })}
+        />,
+      );
+      expect(stampCount(html)).toBe(0);
+      expect(html).not.toContain("Includes full patrols traversing this zone");
+    }
+  });
+
+  it('the traversing page body copy follows the mode ("full" must not claim the patrols are counted elsewhere)', () => {
+    const full = renderToStaticMarkup(
+      <ReportMapReport
+        data={buildData("combined", {
+          traversingPatrols,
+          traversingMode: "full",
+          municipalityName: "Sablayan",
+          scopeTitleOverride: "Apo Reef Natural Park",
+        })}
+      />,
+    );
+    expect(full).toContain("ARE included");
+    expect(full).toContain("must not be added together");
+    expect(full).not.toContain("not here");
+    expect(full).not.toContain("only the portion");
+
+    const clipped = renderToStaticMarkup(
+      <ReportMapReport
+        data={buildData("combined", {
+          traversingPatrols,
+          traversingMode: "clipped",
+          municipalityName: "Sablayan",
+          scopeTitleOverride: "Apo Reef Natural Park",
+        })}
+      />,
+    );
+    expect(clipped).toContain("not here");
+    expect(clipped).not.toContain("ARE included");
+  });
+
+  it('stamp is absent from the "charts" export mode\'s missing full-list page but present on its totals block', () => {
+    const html = renderToStaticMarkup(
+      <ReportMapReport
+        data={buildData("charts", {
+          traversingPatrols,
+          traversingMode: "full",
+          scopeTitleOverride: "Apo Reef Natural Park",
+        })}
+      />,
+    );
+    // Only the Patrol List totals block exists in charts mode.
+    expect(stampCount(html)).toBe(1);
   });
 });

@@ -863,6 +863,11 @@ describe("map.patrolTracks.inRange includeTraversing (province rollup, W6)", () 
         ]);
       }) as unknown as typeof prisma.municipality.findMany,
     );
+    // The origin-attributed half of the traversing result is now selected by
+    // the REAL scope where-clause (a patrol.findMany over `patrolWhere`)
+    // rather than a bare `municipalityIds.includes(origin)`. patrol-1's origin
+    // muni-a is in the province scope, so it comes back attributed.
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([{ id: "patrol-1" }] as any);
     vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([
       {
         trackGeojson: TRAVERSING_CROSSING_TRACK,
@@ -910,6 +915,9 @@ describe("map.patrolTracks.inRange includeTraversing (province rollup, W6)", () 
         ]);
       }) as unknown as typeof prisma.municipality.findMany,
     );
+    // Origin muni-far is outside the province scope, so the scope
+    // where-clause selects nothing — the patrol is not attributed.
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([]);
     vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([
       {
         // Far-away track that never touches A or B, and an origin outside
@@ -1115,5 +1123,250 @@ describe("map.eventTypes.byCategory", () => {
     ]);
     const wild = result.monitoring.find((t) => t.id === "t-wild");
     expect(wild?.types).toEqual([{ value: "turtles", count: 1 }]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// FULL-traversing mode (2026-07-20) — zone scope only, opt-in, default OFF.
+// ---------------------------------------------------------------------------
+// Reuses the TRAVERSING_SQUARE_A / TRAVERSING_CROSSING_TRACK fixtures above:
+// the track runs x 0.5→1.5 and square A spans x 0→1, so exactly HALF of it
+// lies inside the zone. That 50/50 split is what makes clipped-vs-full
+// distinguishable — clipped credits ~half the patrol's 10 km, full credits
+// all 10.
+const FULL_ZONE_ID = "zone-apo-reef";
+
+/** Zone-scope geometry: `loadScopeGeometries` reads protectedZone by id and
+ *  returns ZONE members only (never the parent municipality) at zone level. */
+function seedFullTraversingZone(): void {
+  vi.mocked(prisma.protectedZone.findMany).mockResolvedValue([
+    { id: FULL_ZONE_ID, name: "Apo Reef Natural Park", boundaryGeojson: TRAVERSING_SQUARE_A },
+  ] as any);
+  // Origin is outside the zone scope, so the scope where-clause selects
+  // nothing — the patrol reaches the zone purely by traversing it, which is
+  // the owner's whole Apo-Reef-from-Sablayan case.
+  vi.mocked(prisma.patrol.findMany).mockResolvedValue([]);
+  vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([
+    {
+      trackGeojson: TRAVERSING_CROSSING_TRACK,
+      patrol: {
+        id: "patrol-transit",
+        title: "Sablayan → Apo Reef transit",
+        patrolType: "seaborne",
+        municipalityId: "muni-sablayan",
+        computedDurationHours: 4,
+        totalHours: null,
+        computedDistanceKm: 10,
+        totalDistanceKm: null,
+        // Start point far outside the zone — origin exclusion at zone level
+        // tests this against the zone polygon in memory.
+        startLocationLat: 9,
+        startLocationLon: 9,
+      },
+    },
+  ] as any);
+}
+
+describe("map.patrolTracks.inRange includeTraversingFull (zone scope)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("still RENDERS traversing tracks when only includeTraversingFull is on", async () => {
+    // The full-mode flag must enter the same traversing branch — otherwise the
+    // zone report shows totals for patrols whose tracks are invisible on the map.
+    seedFullTraversingZone();
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.patrolTracks.inRange({
+      protectedZoneId: FULL_ZONE_ID,
+      includeTraversingFull: true,
+    });
+
+    expect(result.tracks).toHaveLength(1);
+    const [track] = result.tracks;
+    if (!track) throw new Error("expected a full-traversing fixture track");
+    expect(track.patrolId).toBe("patrol-transit");
+    expect(track.traversing).toBe(true);
+    expect(track.attributed).toBe(false);
+  });
+
+  it("reports FULL patrol km/hours on the track, not the clipped inside-zone portion", async () => {
+    // The on-screen "Traversing coverage" box SUMS insideKm/insideHoursEst, so
+    // these must match what the tiles and the PDF credit, or the same zone and
+    // dates show two different numbers in two places.
+    seedFullTraversingZone();
+    const caller = createCaller(makeCtx());
+    const full = await caller.patrolTracks.inRange({
+      protectedZoneId: FULL_ZONE_ID,
+      includeTraversingFull: true,
+    });
+
+    vi.clearAllMocks();
+    seedFullTraversingZone();
+    const clipped = await caller.patrolTracks.inRange({
+      protectedZoneId: FULL_ZONE_ID,
+      includeTraversing: true,
+    });
+
+    const fullTrack = full.tracks[0];
+    const clippedTrack = clipped.tracks[0];
+    if (!fullTrack || !clippedTrack) throw new Error("expected both fixture tracks");
+
+    // FULL: the patrol's whole 10 km / 4 h, transit included.
+    expect(fullTrack.insideKm).toBeCloseTo(10, 5);
+    expect(fullTrack.insideHoursEst).toBeCloseTo(4, 5);
+    // CLIPPED: only the half that lies inside the zone — strictly less, which
+    // is what makes the assertion above meaningful rather than vacuous.
+    expect(clippedTrack.insideKm).toBeGreaterThan(0);
+    expect(clippedTrack.insideKm).toBeLessThan(fullTrack.insideKm);
+  });
+
+  it("GEOMETRY IS UNCHANGED: full mode returns the same unclipped points as clipped mode", async () => {
+    // Full mode changes what a track REPORTS, never its shape.
+    seedFullTraversingZone();
+    const caller = createCaller(makeCtx());
+    const full = await caller.patrolTracks.inRange({
+      protectedZoneId: FULL_ZONE_ID,
+      includeTraversingFull: true,
+    });
+
+    vi.clearAllMocks();
+    seedFullTraversingZone();
+    const clipped = await caller.patrolTracks.inRange({
+      protectedZoneId: FULL_ZONE_ID,
+      includeTraversing: true,
+    });
+
+    expect(full.tracks[0]?.points).toStrictEqual(clipped.tracks[0]?.points);
+    // Both endpoints survive — the track is NOT trimmed to the zone.
+    expect(full.tracks[0]?.points).toHaveLength(2);
+  });
+
+  it("DEFAULT OFF: without either flag the traversing branch is not entered", async () => {
+    seedFullTraversingZone();
+
+    const caller = createCaller(makeCtx());
+    await caller.patrolTracks.inRange({ protectedZoneId: FULL_ZONE_ID });
+
+    // The traversing branch builds its own attributed-id set via patrol.findMany;
+    // the plain path never calls it.
+    expect(vi.mocked(prisma.patrol.findMany)).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // REGRESSION (owner-reported 2026-07-20): turning the full-traversing toggle
+  // ON made every seaborne track vanish from the Interactive Report Map.
+  //
+  // Cause: the traversing branch fetched candidates with ONE tenant-wide read
+  // capped at ACTIVE_TRACKS_PATROL_CAP. "The N most recent tracks in the whole
+  // tenant" is a different window from "the N most recent tracks in scope", so
+  // in-scope tracks that are not tenant-recent were silently truncated away.
+  // Real dev data: Apo Reef has 199 tracks (85 seaborne) but only 9 (1
+  // seaborne) fall inside the tenant's 50 most recent of 4,138.
+  //
+  // The fixture below models exactly that: a seaborne patrol that IS in scope
+  // but is NOT in the tenant-wide recent window. Before the fix, the flag
+  // being ON dropped it; the counts must now be equal in both modes.
+  // -------------------------------------------------------------------------
+  it("SEABORNE PARITY: an in-scope seaborne track outside the tenant-recent window renders with the flag ON and OFF", async () => {
+    const seedTruncationCase = (): void => {
+      vi.mocked(prisma.protectedZone.findMany).mockResolvedValue([
+        {
+          id: FULL_ZONE_ID,
+          name: "Apo Reef Natural Park",
+          boundaryGeojson: TRAVERSING_SQUARE_A,
+        },
+      ] as any);
+      // The seaborne patrol IS attributed to the zone (it is in the scope
+      // where-clause result), which is what makes its disappearance a bug.
+      vi.mocked(prisma.patrol.findMany).mockResolvedValue([
+        { id: "patrol-seaborne-old" },
+      ] as any);
+
+      const seaborneRow = {
+        id: "track-seaborne-old",
+        trackGeojson: TRAVERSING_CROSSING_TRACK,
+        patrol: {
+          id: "patrol-seaborne-old",
+          title: "Apo Reef seaborne (older than the tenant-recent window)",
+          patrolType: "seaborne",
+          municipalityId: "muni-sablayan",
+          computedDurationHours: 4,
+          totalHours: null,
+          computedDistanceKm: 10,
+          totalDistanceKm: null,
+          startLocationLat: 0.5,
+          startLocationLon: 0.5,
+        },
+      };
+      const recentFootRow = {
+        id: "track-foot-recent",
+        trackGeojson: TRAVERSING_CROSSING_TRACK,
+        patrol: {
+          id: "patrol-foot-recent",
+          title: "Recent foot patrol",
+          patrolType: "foot",
+          municipalityId: "muni-sablayan",
+          computedDurationHours: 1,
+          totalHours: null,
+          computedDistanceKm: 2,
+          totalDistanceKm: null,
+          startLocationLat: 9,
+          startLocationLon: 9,
+        },
+      };
+
+      // THE TRUNCATION: the broad tenant-wide candidate read (no scope keys in
+      // `where.patrol`) returns ONLY the recent foot track — the seaborne one
+      // has fallen off the cap. The scoped read (which carries the zone's
+      // `coveredZones` clause) still has it.
+      vi.mocked(prisma.patrolTrack.findMany).mockImplementation(((args: {
+        where?: { patrol?: { coveredZones?: unknown } };
+      }) =>
+        Promise.resolve(
+          args.where?.patrol?.coveredZones !== undefined
+            ? [seaborneRow]
+            : [recentFootRow],
+        )) as unknown as typeof prisma.patrolTrack.findMany);
+    };
+
+    const countSeaborne = (tracks: { patrolType: string }[]): number =>
+      tracks.filter((t) => t.patrolType === "seaborne").length;
+
+    seedTruncationCase();
+    const caller = createCaller(makeCtx());
+    const off = await caller.patrolTracks.inRange({
+      protectedZoneId: FULL_ZONE_ID,
+    });
+
+    vi.clearAllMocks();
+    seedTruncationCase();
+    const on = await caller.patrolTracks.inRange({
+      protectedZoneId: FULL_ZONE_ID,
+      includeTraversingFull: true,
+    });
+
+    // The assertion that would have caught the regression.
+    expect(countSeaborne(on.tracks)).toBe(countSeaborne(off.tracks));
+    // …and non-vacuously: the seaborne track is actually present in both.
+    expect(countSeaborne(off.tracks)).toBe(1);
+    expect(on.tracks.some((t) => t.patrolId === "patrol-seaborne-old")).toBe(
+      true,
+    );
+  });
+
+  it("ZONE SCOPE ONLY: the flag is gated out at municipality scope", async () => {
+    // `resolveReportScope` is the single enforcement point; this asserts the
+    // router honours it rather than re-deriving the gate.
+    seedFullTraversingZone();
+
+    const caller = createCaller(makeCtx());
+    await caller.patrolTracks.inRange({
+      municipalityId: "muni-sablayan",
+      includeTraversingFull: true,
+    });
+
+    expect(vi.mocked(prisma.patrol.findMany)).not.toHaveBeenCalled();
   });
 });

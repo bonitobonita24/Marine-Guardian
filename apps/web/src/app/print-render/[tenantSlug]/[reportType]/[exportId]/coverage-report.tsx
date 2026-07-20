@@ -23,6 +23,7 @@ import type {
 import { Page2AreaBoundarySummary } from "./page-2-area-boundary-summary";
 import { Page3AreaCovered } from "./page-3-area-covered";
 import { ReportHeader, reportHeaderStyles } from "./components/report-header";
+import { PrintDocumentShell } from "./components/print-document-shell";
 
 interface CoverageReportProps {
   data: CoverageReportData;
@@ -115,13 +116,12 @@ export function CoverageReport({ data }: CoverageReportProps) {
   const paperCss = PAPER_SIZE_CSS[data.paperSize];
 
   return (
-    <html lang="en">
-      <head>
-        <meta charSet="utf-8" />
-        <title>
-          {data.tenant.name} — Patrol Coverage — {data.period.label}
-        </title>
-        <style>{`
+    /* No <html>/<head>/<body> here — this page renders inside the app root
+       layout's document. Emitting a nested document was the React #418
+       hydration-mismatch root cause; see components/print-document-shell.tsx. */
+    <PrintDocumentShell
+      title={`${data.tenant.name} — Patrol Coverage — ${data.period.label}`}
+      css={`
           /* Shadcn chart-token palette (R9, 2026-07-06) — same injection as
              report-map-report.tsx: AreaCoveredChart / PatrolAreaBarChart
              reference hsl(var(--chart-3))/hsl(var(--chart-4)) so this sibling
@@ -138,10 +138,12 @@ export function CoverageReport({ data }: CoverageReportProps) {
           * { box-sizing: border-box; }
           /* P1-D fix: force light background + dark text regardless of app dark-mode globals.css.
              Tailwind's @layer base applies bg-background (≈ #0a0a0a) + text-foreground (≈ #fafafa)
-             to body via the app-wide stylesheet. Since this RSC emits a full <html> document that
-             Next.js still wraps in the app shell (which loads globals.css), those dark tokens would
-             bleed in — leaving odd rows dark-on-dark. Explicit !important overrides ensure this
-             print template is fully theme-independent. */
+             to body via the app-wide stylesheet. This page renders inside the app root layout
+             (which loads globals.css), so those dark tokens would bleed in — leaving odd rows
+             dark-on-dark. Explicit !important overrides ensure this print template is fully
+             theme-independent. NOTE: the body/html selectors here bind to the ROOT layout's
+             elements — that has always been true, since the parser discarded the nested
+             document tags this template used to emit (see components/print-document-shell.tsx). */
           body { font-family: ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif; color: #111 !important; background: #fff !important; margin: 0; padding: 16px 20px; font-size: 11px; line-height: 1.4; }
           /* Shared print-render header (2026-07-06 redesign) — see
              components/report-header.tsx. Replaces the former bespoke
@@ -162,9 +164,8 @@ export function CoverageReport({ data }: CoverageReportProps) {
           table.report-table td.num, table.report-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
           table.report-table tfoot td { font-weight: 600; background: #f3f4f6 !important; color: #111 !important; border-top: 2px solid #d1d5db; }
           .empty-state { text-align: center; padding: 24px; color: #6b7280; font-style: italic; }
-        `}</style>
-      </head>
-      <body>
+        `}
+    >
         <ReportHeader
           municipalityName={data.tenant.name}
           reportTitle="Patrol Coverage"
@@ -321,7 +322,6 @@ export function CoverageReport({ data }: CoverageReportProps) {
           src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
           style={{ position: "absolute", width: 1, height: 1, left: -9999 }}
         />
-      </body>
-    </html>
+    </PrintDocumentShell>
   );
 }

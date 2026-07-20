@@ -71,15 +71,36 @@ describe("middleware — viewer role route gate", () => {
     expect(resNested.status).toBe(200);
   });
 
-  // 2026-07-06: a viewer can generate a printable report from /map
-  // (reportGenerateProcedure) and must be able to reach /exports to
-  // retrieve it — /exports joins the viewer-allowed route set.
-  it("allows a viewer requesting /exports (and nested export sub-paths)", async () => {
+  // Phase 4 S8: the /exports PAGE was deleted. A viewer still generates
+  // printable reports from /map, but downloads them from inside that dialog,
+  // so /exports is no longer a viewer-allowed page route.
+  it("redirects a viewer requesting the removed /exports page", async () => {
     mockAuth.mockResolvedValue(makeSession(["viewer"]));
     const resExports = await middleware(makeRequest("/exports"));
-    expect(resExports.status).toBe(200);
+    expect(resExports.status).toBe(307);
     const resNested = await middleware(makeRequest("/exports/re-1"));
-    expect(resNested.status).toBe(200);
+    expect(resNested.status).toBe(307);
+  });
+
+  // CRITICAL REGRESSION GUARD — removing "/exports" from
+  // VIEWER_ALLOWED_PREFIXES must NOT touch the API. /api/exports/* carries
+  // the five CSV export routes AND the report download routes the /map
+  // dialog depends on; they are served by the `isApiPath` branch, which
+  // returns BEFORE the viewer page gate ever runs.
+  it("still allows a viewer requesting /api/exports/* (CSV + report downloads)", async () => {
+    mockAuth.mockResolvedValue(makeSession(["viewer"]));
+    for (const path of [
+      "/api/exports/events",
+      "/api/exports/patrols",
+      "/api/exports/notifications",
+      "/api/exports/alert-rules",
+      "/api/exports/alert-history",
+      "/api/exports/reports/re-1/download",
+      "/api/exports/reports/re-1/pptx",
+    ]) {
+      const res = await middleware(makeRequest(path));
+      expect(res.status).toBe(200);
+    }
   });
 
   // 2026-07-06: every role, including viewer, gets a self-service Profile

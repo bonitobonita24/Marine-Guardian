@@ -72,6 +72,7 @@ export const reportTypeSchema = z.enum([
   "rangers",
   "patrol_filtered",
   "report_map",
+  "event_highlights",
 ]);
 
 export const paperSizeSchema = z.enum(["A4", "Letter", "Legal"]);

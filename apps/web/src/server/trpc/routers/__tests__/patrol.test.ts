@@ -21,6 +21,10 @@ vi.mock("@marine-guardian/db", () => ({
     municipality: {
       findFirst: vi.fn(),
     },
+    rolePermission: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+    },
     auditLog: {
       create: vi.fn(),
     },
@@ -81,6 +85,7 @@ import { prisma } from "@marine-guardian/db";
 import { enqueuePatrolTrackMaterialize, enqueueMunicipalityAssign } from "@marine-guardian/jobs";
 import { createCallerFactory } from "../../trpc";
 import { patrolRouter } from "../patrol";
+import { HEURISTIC_METHODS } from "../../../attribution-filter";
 
 function partial<T>(obj: T): T {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -95,6 +100,7 @@ const USER_ID = "user-123";
 function makeCtx(
   tenantId: string | null = TENANT_ID,
   roles: string[] = ["ranger"],
+  customRoleId: string | null = null,
 ) {
   return {
     session: {
@@ -103,6 +109,7 @@ function makeCtx(
         tenantId: tenantId as string,
         tenantSlug: "",
         roles,
+        customRoleId,
         email: "test@example.com",
         name: "Test User",
       },
@@ -455,6 +462,99 @@ describe("patrol.list — Phase 7 soft-delete filter (default exclude)", () => {
     await caller.list({ limit: 50, includeDeleted: true });
     const call = vi.mocked(prisma.patrol.findMany).mock.calls[0];
     expect(call?.[0]?.where).not.toHaveProperty("isDeleted");
+    expect(call?.[0]?.where).toMatchObject({ tenantId: TENANT_ID });
+  });
+});
+
+// Manual-attribution work queue — surfaces patrols whose geometry could not be
+// attributed to a municipality (municipality_id IS NULL) so an officer can
+// assign one by hand. Automatic attribution is a ONE-TIME cleanup, so this
+// filter is the permanent entry point to that workflow.
+//
+// NOTE on query paths: unlike event.list — which has BOTH a Prisma path and a
+// hand-written $queryRaw path taken whenever `search` is non-empty — patrol.list
+// has exactly ONE path (prisma.patrol.findMany) and accepts no `search` input at
+// all. There is therefore no second path to mirror this filter into. If a raw
+// search path is ever added to patrol.list, this filter MUST be implemented
+// there too or it will silently stop narrowing the moment someone searches.
+describe("patrol.list — unattributedOnly filter (manual-attribution work queue)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("default behavior — passes no municipalityId constraint (returns all patrols)", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50 });
+    const call = vi.mocked(prisma.patrol.findMany).mock.calls[0];
+    expect(call?.[0]?.where).not.toHaveProperty("municipalityId");
+    expect(call?.[0]?.where).toMatchObject({ tenantId: TENANT_ID });
+  });
+
+  it("unattributedOnly=true — narrows to municipalityId: null", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50, unattributedOnly: true });
+    expect(vi.mocked(prisma.patrol.findMany)).toHaveBeenCalledWith(
+      partial({ where: partial({ tenantId: TENANT_ID, municipalityId: null }) })
+    );
+  });
+
+  it("unattributedOnly=false — explicitly passing false does not narrow", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50, unattributedOnly: false });
+    const call = vi.mocked(prisma.patrol.findMany).mock.calls[0];
+    expect(call?.[0]?.where).not.toHaveProperty("municipalityId");
+  });
+
+  it("composes with state + type + includeTest + includeDeleted (all ANDed)", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    const caller = createCaller(makeCtx());
+    await caller.list({
+      limit: 50,
+      unattributedOnly: true,
+      state: "done",
+      patrolType: "seaborne",
+    });
+    // Defaults (includeTest/includeDeleted false) must still apply alongside it.
+    expect(vi.mocked(prisma.patrol.findMany)).toHaveBeenCalledWith(
+      partial({
+        where: partial({
+          tenantId: TENANT_ID,
+          municipalityId: null,
+          state: "done",
+          patrolType: "seaborne",
+          isTestPatrol: false,
+          isDeleted: false,
+        }),
+      })
+    );
+  });
+
+  it("composes with includeTest/includeDeleted=true — narrows municipality but drops the other two constraints", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    const caller = createCaller(makeCtx());
+    await caller.list({
+      limit: 50,
+      unattributedOnly: true,
+      includeTest: true,
+      includeDeleted: true,
+    });
+    const call = vi.mocked(prisma.patrol.findMany).mock.calls[0];
+    expect(call?.[0]?.where).toMatchObject({
+      tenantId: TENANT_ID,
+      municipalityId: null,
+    });
+    expect(call?.[0]?.where).not.toHaveProperty("isTestPatrol");
+    expect(call?.[0]?.where).not.toHaveProperty("isDeleted");
+  });
+
+  it("stays tenant-scoped — never leaks another tenant's unattributed patrols", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50, unattributedOnly: true });
+    const call = vi.mocked(prisma.patrol.findMany).mock.calls[0];
     expect(call?.[0]?.where).toMatchObject({ tenantId: TENANT_ID });
   });
 });
@@ -926,5 +1026,356 @@ describe("patrol.setMunicipalityOverride", () => {
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(vi.mocked(prisma.patrol.update)).not.toHaveBeenCalled();
     expect(vi.mocked(prisma.auditLog.create)).not.toHaveBeenCalled();
+  });
+});
+
+// ── patrol.setTimeOverride (officer manual start/end time — anti-clobber) ──
+//
+// WHY this exists: the ER mobile app frequently fails to capture the phone's
+// clock, leaving `startTime` NULL on ~190 patrols (189 of them Foot). Only 63
+// are derivable from segments, so for the remaining 127 an officer override is
+// the ONLY way the patrol ever gets a time. The `*Manual` flags these writes
+// set are what stops the next ER sync from reverting them.
+
+describe("patrol.setTimeOverride", () => {
+  const START = new Date("2026-07-01T08:00:00.000Z");
+  const END = new Date("2026-07-01T12:00:00.000Z");
+
+  const existingPatrol = {
+    id: "pat-1",
+    startTime: null,
+    endTime: null,
+    startTimeManual: false,
+    endTimeManual: false,
+    startTimeDerivedAt: null,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValue(existingPatrol as never);
+    vi.mocked(prisma.patrol.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
+
+  it("sets both times — flags both *Manual=true, clears derived stamp, audit logged", async () => {
+    const caller = createCaller(makeCtx());
+    const result = await caller.setTimeOverride({
+      id: "pat-1",
+      startTime: START,
+      endTime: END,
+    });
+
+    expect(result).toEqual({
+      id: "pat-1",
+      startTime: START,
+      endTime: END,
+      startTimeManual: true,
+      endTimeManual: true,
+    });
+    expect(vi.mocked(prisma.patrol.update).mock.calls[0]?.[0]).toMatchObject({
+      where: { id: "pat-1" },
+      data: {
+        startTime: START,
+        endTime: END,
+        startTimeManual: true,
+        endTimeManual: true,
+        startTimeDerivedAt: null,
+      },
+    });
+    expect(vi.mocked(prisma.auditLog.create).mock.calls[0]?.[0]).toMatchObject({
+      data: {
+        action: "SET_PATROL_TIME_OVERRIDE",
+        entityType: "Patrol",
+        entityId: "pat-1",
+      },
+    });
+  });
+
+  it("sets only startTime — endTimeManual stays false and endTime is cleared", async () => {
+    const caller = createCaller(makeCtx());
+    const result = await caller.setTimeOverride({
+      id: "pat-1",
+      startTime: START,
+      endTime: null,
+    });
+
+    expect(result).toMatchObject({ startTimeManual: true, endTimeManual: false });
+    expect(vi.mocked(prisma.patrol.update).mock.calls[0]?.[0]).toMatchObject({
+      data: { startTime: START, endTime: null, startTimeManual: true, endTimeManual: false },
+    });
+  });
+
+  it("clears both times (null, null) — flags drop to false, values nulled, audit logged", async () => {
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValue({
+      id: "pat-1",
+      startTime: START,
+      endTime: END,
+      startTimeManual: true,
+      endTimeManual: true,
+      startTimeDerivedAt: null,
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.setTimeOverride({
+      id: "pat-1",
+      startTime: null,
+      endTime: null,
+    });
+
+    expect(result).toEqual({
+      id: "pat-1",
+      startTime: null,
+      endTime: null,
+      startTimeManual: false,
+      endTimeManual: false,
+    });
+    expect(vi.mocked(prisma.patrol.update).mock.calls[0]?.[0]).toMatchObject({
+      data: {
+        startTime: null,
+        endTime: null,
+        startTimeManual: false,
+        endTimeManual: false,
+        startTimeDerivedAt: null,
+      },
+    });
+    expect(vi.mocked(prisma.auditLog.create).mock.calls[0]?.[0]).toMatchObject({
+      data: { action: "SET_PATROL_TIME_OVERRIDE", entityId: "pat-1" },
+    });
+  });
+
+  it("endTime earlier than startTime — throws BAD_REQUEST, no update, no audit", async () => {
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.setTimeOverride({ id: "pat-1", startTime: END, endTime: START }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(vi.mocked(prisma.patrol.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.auditLog.create)).not.toHaveBeenCalled();
+  });
+
+  it("endTime equal to startTime — accepted (boundary is >=, not >)", async () => {
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.setTimeOverride({ id: "pat-1", startTime: START, endTime: START }),
+    ).resolves.toMatchObject({ startTimeManual: true, endTimeManual: true });
+  });
+
+  it("missing patrol (cross-tenant id) — throws NOT_FOUND, no update, no audit", async () => {
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.setTimeOverride({ id: "pat-missing", startTime: START, endTime: END }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(vi.mocked(prisma.patrol.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.auditLog.create)).not.toHaveBeenCalled();
+  });
+
+  it("scopes the existence check to the caller's tenant (L6)", async () => {
+    const caller = createCaller(makeCtx());
+    await caller.setTimeOverride({ id: "pat-1", startTime: START, endTime: END });
+
+    expect(vi.mocked(prisma.patrol.findFirst).mock.calls[0]?.[0]).toMatchObject({
+      where: { id: "pat-1", tenantId: TENANT_ID },
+    });
+  });
+
+  it("custom-role user without patrols:update — FORBIDDEN, no update, no audit", async () => {
+    // Deny-by-default: no RolePermission row for the custom role => hasPermission false.
+    vi.mocked(prisma.rolePermission.findUnique).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["ranger"], "role-no-update"));
+    await expect(
+      caller.setTimeOverride({ id: "pat-1", startTime: START, endTime: END }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(vi.mocked(prisma.patrol.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.auditLog.create)).not.toHaveBeenCalled();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// patrol.list — attribution-review filter
+//
+// The one-time backfill (96f7ff4) attributed 281 patrols by `title_hint` and 51
+// by `nearest`. Every one of those rows has a NON-NULL municipality_id, so the
+// pre-existing `unattributedOnly` filter (municipality_id IS NULL) excludes
+// them BY DEFINITION — they were unreachable in the UI until this filter.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("patrol.list — attributionMethod filter", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("does NOT constrain attribution when the filter is omitted", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({});
+
+    const where = vi.mocked(prisma.patrol.findMany).mock.calls[0]?.[0]?.where;
+    expect(where?.municipalityAttributionMethod).toBeUndefined();
+    expect(where?.OR).toBeUndefined();
+  });
+
+  it.each(["containment", "nearest", "manual", "title_hint"] as const)(
+    "narrows to exactly the %s method",
+    async (method) => {
+      vi.mocked(prisma.patrol.findMany).mockResolvedValue([]);
+
+      const caller = createCaller(makeCtx());
+      await caller.list({ attributionMethod: method });
+
+      const where = vi.mocked(prisma.patrol.findMany).mock.calls[0]?.[0]?.where;
+      expect(where?.municipalityAttributionMethod).toBe(method);
+      // An exact-method query must NOT also widen via the needs-review OR.
+      expect(where?.OR).toBeUndefined();
+    },
+  );
+
+  it("returns the UNION of the heuristic methods and ambiguous rows for needs_review", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ attributionMethod: "needs_review" });
+
+    const where = vi.mocked(prisma.patrol.findMany).mock.calls[0]?.[0]?.where;
+    expect(where?.OR).toEqual([
+      { municipalityAttributionMethod: { in: ["title_hint", "nearest"] } },
+      { municipalityAttributionAmbiguous: true },
+    ]);
+    // needs_review is an alias for a SET of methods — it must never be sent to
+    // Prisma as an enum literal (there is no such column value).
+    expect(where?.municipalityAttributionMethod).toBeUndefined();
+  });
+
+  it("EXCLUDES containment and manual from needs_review", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ attributionMethod: "needs_review" });
+
+    const where = vi.mocked(prisma.patrol.findMany).mock.calls[0]?.[0]?.where;
+    const methodClause = where?.OR?.[0] as
+      | { municipalityAttributionMethod: { in: string[] } }
+      | undefined;
+    expect(methodClause?.municipalityAttributionMethod.in).not.toContain("containment");
+    expect(methodClause?.municipalityAttributionMethod.in).not.toContain("manual");
+  });
+
+  it("composes with state / type / includeTest / includeDeleted / unattributedOnly", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({
+      state: "done",
+      patrolType: "seaborne",
+      includeTest: false,
+      includeDeleted: false,
+      unattributedOnly: true,
+      attributionMethod: "nearest",
+    });
+
+    const where = vi.mocked(prisma.patrol.findMany).mock.calls[0]?.[0]?.where;
+    // Every pre-existing filter survives alongside the new one (all ANDed).
+    expect(where?.state).toBe("done");
+    expect(where?.patrolType).toBe("seaborne");
+    expect(where?.isTestPatrol).toBe(false);
+    expect(where?.isDeleted).toBe(false);
+    expect(where?.municipalityId).toBeNull();
+    expect(where?.municipalityAttributionMethod).toBe("nearest");
+  });
+
+  it("rejects a method that is not a real enum value", async () => {
+    const caller = createCaller(makeCtx());
+    await expect(
+      // @ts-expect-error — deliberately invalid input; Zod must reject it.
+      caller.list({ attributionMethod: "vibes" }),
+    ).rejects.toThrow();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// patrol.setMunicipalityOverride — provenance re-stamping
+//
+// Regression guard for a defect found during browser verification of the
+// attribution-review filter: overriding a municipality updated the VALUE but
+// left the PROVENANCE columns describing the automatic guess it replaced. A
+// corrected patrol therefore rendered "Baco — Nearest 21.1 km — Manual" (self-
+// contradictory) and kept matching the needs-review filter forever, so rows a
+// human had already reviewed never left the work queue.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("patrol.setMunicipalityOverride — attribution provenance", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValue({
+      id: "pat-1",
+      municipalityId: "muni-old",
+      municipalityManual: false,
+    } as never);
+    vi.mocked(prisma.patrol.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
+
+  it("re-stamps the method to `manual` and clears the automatic-guess metadata", async () => {
+    vi.mocked(prisma.municipality.findFirst).mockResolvedValue({ id: "muni-1" } as never);
+
+    const caller = createCaller(makeCtx());
+    await caller.setMunicipalityOverride({ id: "pat-1", municipalityId: "muni-1" });
+
+    const data = vi.mocked(prisma.patrol.update).mock.calls[0]?.[0]?.data;
+    expect(data).toMatchObject({
+      municipalityId: "muni-1",
+      municipalityManual: true,
+      municipalityAttributionMethod: "manual",
+      // The distance and near-tie flag described the guess that was just
+      // replaced — they must not survive to describe a human's decision.
+      municipalityDistanceKm: null,
+      municipalityAttributionAmbiguous: false,
+    });
+  });
+
+  it("drops the overridden row OUT of the needs-review queue", async () => {
+    // The whole point of the re-stamp: `manual` is deliberately excluded from
+    // the needs_review union, so a reviewed row stops matching it.
+    vi.mocked(prisma.municipality.findFirst).mockResolvedValue({ id: "muni-1" } as never);
+
+    const caller = createCaller(makeCtx());
+    await caller.setMunicipalityOverride({ id: "pat-1", municipalityId: "muni-1" });
+
+    const data = vi.mocked(prisma.patrol.update).mock.calls[0]?.[0]?.data as {
+      municipalityAttributionMethod: string;
+      municipalityAttributionAmbiguous: boolean;
+    };
+    expect(HEURISTIC_METHODS).not.toContain(data.municipalityAttributionMethod);
+    expect(data.municipalityAttributionAmbiguous).toBe(false);
+  });
+
+  it("records the new provenance in the audit log", async () => {
+    vi.mocked(prisma.municipality.findFirst).mockResolvedValue({ id: "muni-1" } as never);
+
+    const caller = createCaller(makeCtx());
+    await caller.setMunicipalityOverride({ id: "pat-1", municipalityId: "muni-1" });
+
+    const auditData = vi.mocked(prisma.auditLog.create).mock.calls[0]?.[0]
+      ?.data as unknown as {
+      changesJson: { after: Record<string, unknown> };
+    };
+    expect(auditData.changesJson.after).toMatchObject({
+      municipalityAttributionMethod: "manual",
+    });
+  });
+
+  it("leaves provenance to the re-assign processor when the override is CLEARED", async () => {
+    // Clearing does not null the columns out: municipalityId survives until the
+    // enqueued municipality-assign job re-derives it, and that processor
+    // re-stamps method/distance/ambiguous itself. Nulling them here would open
+    // a window where a row has a municipality but claims no attribution method.
+    const caller = createCaller(makeCtx());
+    await caller.setMunicipalityOverride({ id: "pat-1", municipalityId: null });
+
+    const data = vi.mocked(prisma.patrol.update).mock.calls[0]?.[0]?.data;
+    expect(data).toEqual({ municipalityManual: false });
+    expect(vi.mocked(enqueueMunicipalityAssign)).toHaveBeenCalled();
   });
 });

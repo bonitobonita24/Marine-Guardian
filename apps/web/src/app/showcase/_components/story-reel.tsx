@@ -1,10 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { useReducedMotion } from "motion/react";
+import { useEffect, useRef, useState } from "react";
 import { Play, Volume2, VolumeX } from "lucide-react";
 
 import { Reveal } from "./reveal";
+import { useReducedMotionSafe } from "./use-reduced-motion-safe";
 
 /**
  * "See it in action" story-reel section. A music-scored product reel framed in
@@ -20,7 +20,9 @@ import { Reveal } from "./reveal";
  *    Reveal wrapper); the video itself never auto-animates when motion is off.
  */
 export function StoryReel() {
-  const shouldReduceMotion = useReducedMotion() ?? false;
+  // Hydration-safe: the poster gate swaps WHAT is rendered (a play button vs
+  // the mute toggle), so it must not be decided before hydration commits.
+  const shouldReduceMotion = useReducedMotionSafe();
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Muted by default so browser autoplay policies allow the loop to start.
@@ -30,6 +32,26 @@ export function StoryReel() {
 
   // When motion is off, do not autoplay — show the poster + play button instead.
   const showPosterGate = shouldReduceMotion && !started;
+
+  // Playback is driven HERE rather than by an `autoPlay` attribute. `autoPlay`
+  // would have to differ between the server and client renders to honour the
+  // preference, and a differing DOM attribute is itself a hydration mismatch.
+  // The markup is therefore constant and the effect decides playback after
+  // hydration: muted video may be played programmatically under autoplay policy.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video === null) return;
+    if (shouldReduceMotion) {
+      if (!started) {
+        video.pause();
+        video.currentTime = 0;
+      }
+      return;
+    }
+    void video.play().catch(() => {
+      // Autoplay blocked (rare for muted inline video) — poster remains.
+    });
+  }, [shouldReduceMotion, started]);
 
   function toggleMute() {
     const video = videoRef.current;
@@ -73,7 +95,6 @@ export function StoryReel() {
               ref={videoRef}
               className="aspect-video w-full bg-black"
               poster="/showcase/story/mg-story-reel-poster.jpg"
-              autoPlay={!shouldReduceMotion}
               loop
               muted={muted}
               playsInline

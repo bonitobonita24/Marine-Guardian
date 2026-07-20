@@ -71,6 +71,7 @@ export function ReportFilterBar({
     province,
     includeChildren,
     includeTraversing,
+    includeTraversingFull,
     protectedZoneId,
     terrain,
     setRange,
@@ -78,6 +79,7 @@ export function ReportFilterBar({
     setProvince,
     setIncludeChildren,
     setIncludeTraversing,
+    setIncludeTraversingFull,
     setProtectedZoneId,
     setTerrain,
   } = useReportFilter();
@@ -118,11 +120,49 @@ export function ReportFilterBar({
     }
     return allZones;
   }, [allZones, municipalityId, province, municipalities.data]);
-  // While the zones query is still loading we don't yet know whether the
-  // selected municipality has zones, so treat "loading" as "not yet decided"
-  // and keep the control visible rather than prematurely hiding it.
+  // Does the CURRENT scope actually have child boundaries to fold in? Only
+  // decidable once the zones query has resolved — until then we deliberately
+  // report false so the "Include child boundaries" switch stays HIDDEN rather
+  // than flashing in and then out when the data lands (chosen over rendering
+  // it disabled: a control that appears then vanishes is more jarring than one
+  // that simply arrives a beat late, and this panel already mounts collapsed).
+  // (`isLoading` / `includeChildren` are strict booleans, so they are used
+  // directly — the repo lints `=== true` / `=== false` on a boolean as an
+  // unnecessary literal compare. strict-boolean-expressions is still honoured:
+  // every non-boolean below is compared explicitly, e.g. `visibleZones.length > 0`.)
+  const scopeHasChildBoundaries =
+    !protectedZones.isLoading && visibleZones.length > 0;
+
+  // Rule 3(c) — never a dead toggle. The switch renders only when a scope is
+  // selected (a specific municipality OR a province rollup) AND that scope
+  // provably has child boundaries. In dev data 14 of 16 municipalities have
+  // zero child zones, so without this guard ~87.5% of municipality selections
+  // showed a live switch that folded in nothing.
+  const showIncludeChildrenToggle =
+    (municipalityId !== null || province !== null) && scopeHasChildBoundaries;
+
+  // Scope-accurate switch label (2026-07-20 fix). The label was hard-coded to
+  // "this municipality's" and stayed that way after province scope was
+  // enabled, where the toggle actually folds in the PROVINCE's zones. A
+  // specific municipality still wins over the province (selecting a
+  // municipality narrows the scope), matching visibleZones above.
+  const includeChildrenAriaLabel =
+    municipalityId !== null
+      ? "Include child boundaries — fold in this municipality's MPAs, hotspots & custom zones"
+      : "Include child boundaries — fold in this province's MPAs, hotspots & custom zones";
+
+  // Rule 3(b) — at a SPECIFIC municipality the MPA/zone dropdown is gated on
+  // the "Include child boundaries" toggle being ON (you opt into the children
+  // before you can narrow to one of them). The province-rollup and
+  // all-municipality tiers are unchanged from 2026-07-12 (they fixed a real
+  // owner report about an unreachable Occidental-Mindoro zone): while the
+  // zones query is still loading we don't yet know whether the scope has
+  // zones, so "loading" stays "not yet decided" and the control remains
+  // visible rather than prematurely hiding.
   const showZoneFilter =
-    municipalityId === null || protectedZones.isLoading || visibleZones.length > 0;
+    municipalityId === null
+      ? true
+      : includeChildren && scopeHasChildBoundaries;
 
   // Whenever the municipality changes (or the zone list narrows out from
   // under the current selection) a stale protectedZoneId must not silently
@@ -132,14 +172,27 @@ export function ReportFilterBar({
   // query hasn't resolved yet, and on `protectedZoneId !== null` /
   // `stillValid` so this never fires (and therefore never loops) once the
   // selection is already valid or already "all".
+  // Extended (Rule 3(b)): switching "Include child boundaries" OFF while a
+  // municipality is selected hides the zone dropdown, so the selection must be
+  // dropped too — otherwise an invisible zone filter keeps narrowing the whole
+  // report. Handled inside this same effect rather than a competing one so
+  // there is exactly one owner of the stale-selection reset.
   useEffect(() => {
     if (protectedZones.isLoading) return;
     if (protectedZoneId === null) return;
+    const gatedOff = municipalityId !== null && !includeChildren;
     const stillValid = visibleZones.some((z) => z.id === protectedZoneId);
-    if (!stillValid) {
+    if (gatedOff || !stillValid) {
       setProtectedZoneId(null);
     }
-  }, [protectedZoneId, protectedZones.isLoading, visibleZones, setProtectedZoneId]);
+  }, [
+    protectedZoneId,
+    protectedZones.isLoading,
+    visibleZones,
+    municipalityId,
+    includeChildren,
+    setProtectedZoneId,
+  ]);
 
   // Group the (already canonically-ordered) municipalities by province so the
   // Select shows the owner's province headings (Oriental Mindoro → Occidental
@@ -218,6 +271,28 @@ export function ReportFilterBar({
   const fieldClass = cn(
     "flex",
     stacked ? "flex-col items-start gap-0.5" : "items-center gap-1.5",
+  );
+
+  /* Switch fields do NOT use `fieldClass`'s stacked `flex-col`. That column
+     layout is correct for a Select (the trigger needs the full width UNDER its
+     label) but wrong for a Switch: it pushed "Include child boundaries" and
+     "Include traversing patrols" onto a second row, diverging from every other
+     toggle in the MAP CONTROLS card. Those rows (TrackLegend's Boundaries /
+     Skylight events / Photo thumbnails) are all label-left, switch-right on ONE
+     row via `flex min-h-7 items-center justify-between gap-2` — mirrored here so
+     the embedded filter header matches the panel it sits in.
+     In `bar` layout the inner row collapses to `display:contents`, leaving the
+     original single-flex-line DOM box behaviour byte-for-byte unchanged. */
+  const toggleFieldClass = cn(
+    "flex",
+    stacked ? "flex-col items-stretch gap-0.5" : "items-center gap-1.5",
+  );
+  const toggleRowClass = stacked
+    ? "flex min-h-7 items-center justify-between gap-2"
+    : "contents";
+  const toggleHintClass = cn(
+    "text-[10px] text-muted-foreground",
+    stacked ? "" : "ml-1",
   );
 
   return (
@@ -366,26 +441,31 @@ export function ReportFilterBar({
         </Select>
       </div>
 
-      {/* Include child boundaries (Phase 4B) — only meaningful when a SPECIFIC
-          municipality is selected (province-wide and "all municipalities"
-          scopes have no single parent to fold children into). Cleared
-          automatically by the context whenever the municipality selection
-          is broadened back to "all" or a province rollup is chosen. */}
-      {municipalityId !== null && (
-        <div className={fieldClass}>
-          <Label
-            htmlFor="report-include-children"
-            className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
-          >
-            Include child boundaries
-          </Label>
-          <Switch
-            id="report-include-children"
-            data-testid="report-include-children"
-            checked={includeChildren}
-            onCheckedChange={setIncludeChildren}
-            aria-label="Include child boundaries — fold in this municipality's MPAs, hotspots & custom zones"
-          />
+      {/* Include child boundaries (Phase 4B) — meaningful for a SPECIFIC
+          municipality OR a PROVINCE rollup (the server's resolveChildZoneIds
+          accepts a multi-id array and resolveMunicipalityScope returns every
+          municipality in a province, so a province-scoped report can fold in
+          its MPA zones). Rendered ONLY when the selected scope actually HAS
+          child boundaries (Rule 3(c) — no dead toggle). Cleared automatically
+          by the context whenever the municipality selection is broadened back
+          to "all". */}
+      {showIncludeChildrenToggle && (
+        <div className={toggleFieldClass} data-testid="report-include-children-field">
+          <div className={toggleRowClass}>
+            <Label
+              htmlFor="report-include-children"
+              className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+            >
+              Include child boundaries
+            </Label>
+            <Switch
+              id="report-include-children"
+              data-testid="report-include-children"
+              checked={includeChildren}
+              onCheckedChange={setIncludeChildren}
+              aria-label={includeChildrenAriaLabel}
+            />
+          </div>
         </div>
       )}
 
@@ -398,38 +478,30 @@ export function ReportFilterBar({
           municipality nor a province is selected ("all municipalities" /
           "all provinces"), so the control's presence doesn't jump around
           while its target is unavailable. */}
-      <div className={fieldClass}>
-        <Label
-          htmlFor="report-include-traversing"
-          className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
-        >
-          Include traversing patrols
-        </Label>
-        <Switch
-          id="report-include-traversing"
-          data-testid="report-include-traversing"
-          checked={includeTraversing}
-          disabled={municipalityId === null && province === null}
-          onCheckedChange={setIncludeTraversing}
-          aria-label="Include traversing patrols — fold in patrols that pass through this municipality or province without starting here"
-        />
-        {municipalityId === null && province === null && (
-          <span
-            className={cn(
-              "text-[10px] text-muted-foreground",
-              stacked ? "" : "ml-1",
-            )}
+      <div className={toggleFieldClass} data-testid="report-include-traversing-field">
+        <div className={toggleRowClass}>
+          <Label
+            htmlFor="report-include-traversing"
+            className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
           >
+            Include traversing patrols
+          </Label>
+          <Switch
+            id="report-include-traversing"
+            data-testid="report-include-traversing"
+            checked={includeTraversing}
+            disabled={municipalityId === null && province === null}
+            onCheckedChange={setIncludeTraversing}
+            aria-label="Include traversing patrols — fold in patrols that pass through this municipality or province without starting here"
+          />
+        </div>
+        {municipalityId === null && province === null && (
+          <span className={toggleHintClass}>
             Select a municipality or province to enable
           </span>
         )}
         {municipalityId === null && province !== null && (
-          <span
-            className={cn(
-              "text-[10px] text-muted-foreground",
-              stacked ? "" : "ml-1",
-            )}
-          >
+          <span className={toggleHintClass}>
             Credits coverage across {province}&apos;s municipalities — patrol
             count stays at origin
           </span>
@@ -467,6 +539,44 @@ export function ReportFilterBar({
               ))}
             </SelectContent>
           </Select>
+
+          {/* Count full traversing patrols (2026-07-20, owner request) — ZONE
+              SCOPE ONLY, and only once a SPECIFIC zone is chosen (not "All
+              zones"), which is why it is nested inside the zone block and
+              additionally gated on `protectedZoneId !== null` rather than
+              rendered disabled: at "All zones" there is no single zone whose
+              transit could be credited, so the control has no target at all.
+              When ON, every patrol whose track enters the zone is COUNTED and
+              contributes its FULL distance/time — superseding (never adding
+              to) the clipped inside-the-boundary crediting of "Include
+              traversing patrols". Deliberately NOT coupled to that switch:
+              the two are independent, and the server resolves the exclusivity.
+              Cleared by the context whenever the zone selection is dropped. */}
+          {protectedZoneId !== null && (
+            <div
+              className={toggleFieldClass}
+              data-testid="report-include-traversing-full-field"
+            >
+              <div className={toggleRowClass}>
+                <Label
+                  htmlFor="report-include-traversing-full"
+                  className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+                >
+                  Count full traversing patrols
+                </Label>
+                <Switch
+                  id="report-include-traversing-full"
+                  data-testid="report-include-traversing-full"
+                  checked={includeTraversingFull}
+                  onCheckedChange={setIncludeTraversingFull}
+                  aria-label="Count full traversing patrols — count patrols that pass through this zone and add their full distance and time, even though they started elsewhere"
+                />
+              </div>
+              <span className={toggleHintClass}>
+                Counts patrols that only pass through — full distance &amp; time
+              </span>
+            </div>
+          )}
         </div>
       )}
 

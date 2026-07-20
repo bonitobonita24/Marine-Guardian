@@ -14,6 +14,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
+  AttributionBadge,
+  attributionTitle,
+  ATTRIBUTION_FILTER_OPTIONS,
+  type AttributionFilterValue,
+} from "@/components/attribution/attribution-badge";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -31,6 +37,42 @@ type PatrolListItem = inferRouterOutputs<AppRouter>["patrol"]["list"]["items"][n
 type StateFilter = "all" | "open" | "done" | "cancelled";
 type TypeFilter = "all" | "foot" | "seaborne";
 
+/**
+ * Format a Date for an `<input type="datetime-local">` value, which expects
+ * `YYYY-MM-DDTHH:mm` in LOCAL time (never a UTC ISO string).
+ */
+export function toDateTimeLocal(value: Date | string | null): string {
+  if (value === null) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number): string => String(n).padStart(2, "0");
+  return `${String(d.getFullYear())}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** Parse a `datetime-local` input value back to a Date (local tz), or null. */
+export function fromDateTimeLocal(value: string): Date | null {
+  if (value === "") return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * Provenance of a patrol time — the three origins are permanently
+ * distinguishable on the row (see the `_add_time_provenance` migration):
+ * officer-supplied MANUAL, script-DERIVED from patrol_segments.actual_start,
+ * or ER-supplied straight from the sync.
+ */
+export function timeOrigin(
+  value: Date | string | null,
+  manual: boolean,
+  derivedAt: Date | string | null,
+): "none" | "manual" | "derived" | "er" {
+  if (value === null) return "none";
+  if (manual) return "manual";
+  if (derivedAt !== null) return "derived";
+  return "er";
+}
+
 export function PatrolsTable() {
   const router = useRouter();
   const tenant = useTenantSlug();
@@ -47,6 +89,14 @@ export function PatrolsTable() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [includeTest, setIncludeTest] = useState(false);
   const [includeDeleted, setIncludeDeleted] = useState(false);
+  // Manual-attribution work queue — narrows to patrols with no municipality so
+  // an officer can find them and assign one via the Override dialog below.
+  const [unattributedOnly, setUnattributedOnly] = useState(false);
+  // Attribution-review filter. "" means no filter (all attributions), matching
+  // the other native <select> filters on this bar. See
+  // server/attribution-filter.ts for what each option selects.
+  const [attributionMethod, setAttributionMethod] =
+    useState<AttributionFilterValue>("");
   const [cursor, setCursor] = useState<string | undefined>(undefined);
 
   const [accumulated, setAccumulated] = useState<PatrolListItem[]>([]);
@@ -66,11 +116,21 @@ export function PatrolsTable() {
   } | null>(null);
   const [selectedMuni, setSelectedMuni] = useState<string>("");
 
+  // Pending start/end time-override target. The ER mobile app often fails to
+  // capture the phone's clock, so an officer supplies the time by hand.
+  const [timeTarget, setTimeTarget] = useState<{
+    id: string;
+    title: string | null;
+    manual: boolean;
+  } | null>(null);
+  const [startInput, setStartInput] = useState<string>("");
+  const [endInput, setEndInput] = useState<string>("");
+
   // When filters change, reset accumulated + cursor
   useEffect(() => {
     setAccumulated([]);
     setCursor(undefined);
-  }, [stateFilter, typeFilter, includeTest, includeDeleted]);
+  }, [stateFilter, typeFilter, includeTest, includeDeleted, unattributedOnly, attributionMethod]);
 
   const listQuery = trpc.patrol.list.useQuery({
     limit: 50,
@@ -79,6 +139,10 @@ export function PatrolsTable() {
     ...(typeFilter !== "all" ? { patrolType: typeFilter } : {}),
     includeTest,
     includeDeleted,
+    unattributedOnly,
+    // "" is the no-filter sentinel and is omitted entirely, so an unfiltered
+    // call sends exactly the same input shape it did before this filter existed.
+    ...(attributionMethod !== "" ? { attributionMethod } : {}),
   });
 
   // After a delete or restore, reset to the first page and refetch so the
@@ -109,6 +173,13 @@ export function PatrolsTable() {
   const setOverride = trpc.patrol.setMunicipalityOverride.useMutation({
     onSuccess: () => {
       setOverrideTarget(null);
+      refreshList();
+    },
+  });
+
+  const setTimeOverride = trpc.patrol.setTimeOverride.useMutation({
+    onSuccess: () => {
+      setTimeTarget(null);
       refreshList();
     },
   });
@@ -163,6 +234,44 @@ export function PatrolsTable() {
             className="h-4 w-4 rounded border-input"
           />
           Show test patrols
+        </label>
+        {/* Unattributed-only — the manual-attribution work queue. A view-level
+            filter on the same data the list already shows, so it is gated by
+            the list's own "patrols:view" permission (like "Show test patrols")
+            rather than by canManage, which guards write actions. */}
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            data-testid="unattributed-only-toggle"
+            checked={unattributedOnly}
+            onChange={(e) => { setUnattributedOnly(e.target.checked); }}
+            className="h-4 w-4 rounded border-input"
+          />
+          Unattributed only
+        </label>
+        {/* Attribution-review filter — the companion to "Unattributed only".
+            That checkbox finds rows with NO municipality; this finds rows that
+            HAVE one whose value was a heuristic guess (title-hint / nearest /
+            near-tie), which the unattributed filter excludes by definition.
+            Same permission rationale as above: a view-level narrowing of data
+            the list already shows, so it is gated by "patrols:view". */}
+        <label className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground">Attribution</span>
+          <select
+            data-testid="attribution-method-filter"
+            aria-label="Filter by how the municipality was attributed"
+            value={attributionMethod}
+            onChange={(e) => {
+              setAttributionMethod(e.target.value as AttributionFilterValue);
+            }}
+            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+          >
+            {ATTRIBUTION_FILTER_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
         </label>
         {canManage && (
           <label className="flex items-center gap-2 text-sm">
@@ -241,13 +350,39 @@ export function PatrolsTable() {
                     <TableCell className="capitalize">{p.patrolType}</TableCell>
                     <TableCell className="capitalize">{p.state}</TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
+                      <div
+                        className="flex flex-wrap items-center gap-2"
+                        title={attributionTitle(
+                          p.municipalityAttributionMethod,
+                          p.municipalityDistanceKm,
+                          p.municipalityAttributionAmbiguous,
+                        )}
+                      >
                         <span>
                           {p.municipality?.name ?? (
                             <span className="text-muted-foreground">Unattributed</span>
                           )}
                         </span>
-                        {p.municipalityManual && (
+                        {/* Provenance — WHY this municipality was chosen. Shared
+                            with the events list so both screens read alike. */}
+                        <AttributionBadge
+                          method={p.municipalityAttributionMethod}
+                          distanceKm={p.municipalityDistanceKm}
+                          ambiguous={p.municipalityAttributionAmbiguous}
+                          rowId={p.id}
+                        />
+                        {/* Legacy anti-clobber flag. Since an override now
+                            re-stamps the provenance to `manual`, this badge and
+                            the provenance badge above would render "Manual"
+                            TWICE on any newly-overridden row — so it is drawn
+                            only when it still carries information the
+                            provenance badge does not.
+                            That is the case for rows overridden BEFORE the
+                            re-stamp fix: they carry municipalityManual=true
+                            while their method still reads `nearest`/
+                            `title_hint`, and the lock is worth showing. */}
+                        {p.municipalityManual &&
+                          p.municipalityAttributionMethod !== "manual" && (
                           <Badge
                             variant="outline"
                             data-testid={`manual-badge-${p.id}`}
@@ -257,15 +392,56 @@ export function PatrolsTable() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell>
-                      {p.startTime !== null
-                        ? new Date(p.startTime).toLocaleString()
-                        : "—"}
+                    <TableCell data-testid={`start-cell-${p.id}`}>
+                      <div className="flex items-center gap-2">
+                        <span>
+                          {p.startTime !== null ? (
+                            new Date(p.startTime).toLocaleString()
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </span>
+                        {timeOrigin(p.startTime, p.startTimeManual, p.startTimeDerivedAt) ===
+                          "manual" && (
+                          <Badge
+                            variant="outline"
+                            data-testid={`start-manual-badge-${p.id}`}
+                            title="Set by an officer — protected from EarthRanger sync"
+                          >
+                            Manual
+                          </Badge>
+                        )}
+                        {timeOrigin(p.startTime, p.startTimeManual, p.startTimeDerivedAt) ===
+                          "derived" && (
+                          <Badge
+                            variant="secondary"
+                            data-testid={`start-derived-badge-${p.id}`}
+                            title="Derived from patrol segments — EarthRanger supplied no start time"
+                          >
+                            Derived
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
-                    <TableCell>
-                      {p.endTime !== null
-                        ? new Date(p.endTime).toLocaleString()
-                        : "—"}
+                    <TableCell data-testid={`end-cell-${p.id}`}>
+                      <div className="flex items-center gap-2">
+                        <span>
+                          {p.endTime !== null ? (
+                            new Date(p.endTime).toLocaleString()
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </span>
+                        {p.endTime !== null && p.endTimeManual && (
+                          <Badge
+                            variant="outline"
+                            data-testid={`end-manual-badge-${p.id}`}
+                            title="Set by an officer — protected from EarthRanger sync"
+                          >
+                            Manual
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       {p.firstSeenAt !== null
@@ -293,6 +469,22 @@ export function PatrolsTable() {
                           }}
                         >
                           Override
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          data-testid={`time-override-button-${p.id}`}
+                          onClick={() => {
+                            setStartInput(toDateTimeLocal(p.startTime));
+                            setEndInput(toDateTimeLocal(p.endTime));
+                            setTimeTarget({
+                              id: p.id,
+                              title: p.title,
+                              manual: p.startTimeManual || p.endTimeManual,
+                            });
+                          }}
+                        >
+                          Set times
                         </Button>
                         {p.isDeleted ? (
                           <Button
@@ -448,6 +640,96 @@ export function PatrolsTable() {
               }}
             >
               {setOverride.isPending ? "Saving…" : "Save override"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={timeTarget !== null}
+        onOpenChange={(v) => {
+          if (!v && !setTimeOverride.isPending) {
+            setTimeTarget(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Set patrol start &amp; end time</DialogTitle>
+            <DialogDescription>
+              The field app sometimes fails to record a patrol&apos;s clock
+              time. Times set here are marked Manual and are never overwritten
+              by an EarthRanger sync. Clear a field to hand it back to
+              automatic attribution.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <label className="block space-y-1 text-sm">
+              <span className="text-muted-foreground">Start time</span>
+              <input
+                type="datetime-local"
+                data-testid="override-start-time-input"
+                aria-label="Patrol start time"
+                value={startInput}
+                onChange={(e) => { setStartInput(e.target.value); }}
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+              />
+            </label>
+            <label className="block space-y-1 text-sm">
+              <span className="text-muted-foreground">End time</span>
+              <input
+                type="datetime-local"
+                data-testid="override-end-time-input"
+                aria-label="Patrol end time"
+                value={endInput}
+                onChange={(e) => { setEndInput(e.target.value); }}
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+              />
+            </label>
+          </div>
+          {setTimeOverride.error && (
+            <p className="text-sm text-destructive">
+              {setTimeOverride.error.message}
+            </p>
+          )}
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => { setTimeTarget(null); }}
+              disabled={setTimeOverride.isPending}
+            >
+              Cancel
+            </Button>
+            {timeTarget?.manual === true && (
+              <Button
+                variant="outline"
+                data-testid="clear-time-override-button"
+                disabled={setTimeOverride.isPending}
+                onClick={() => {
+                  setTimeOverride.mutate({
+                    id: timeTarget.id,
+                    startTime: null,
+                    endTime: null,
+                  });
+                }}
+              >
+                Clear override (auto)
+              </Button>
+            )}
+            <Button
+              data-testid="save-time-override-button"
+              disabled={setTimeOverride.isPending}
+              onClick={() => {
+                if (timeTarget !== null) {
+                  setTimeOverride.mutate({
+                    id: timeTarget.id,
+                    startTime: fromDateTimeLocal(startInput),
+                    endTime: fromDateTimeLocal(endInput),
+                  });
+                }
+              }}
+            >
+              {setTimeOverride.isPending ? "Saving…" : "Save times"}
             </Button>
           </DialogFooter>
         </DialogContent>

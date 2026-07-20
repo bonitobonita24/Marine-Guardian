@@ -13,15 +13,23 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import {
   Circle,
   Play,
   Check,
   Scale,
   Telescope,
+  ChevronsUpDown,
   type LucideIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import {
+  AttributionBadge,
+  attributionTitle,
+  ATTRIBUTION_FILTER_OPTIONS,
+  type AttributionFilterValue,
+} from "@/components/attribution/attribution-badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
@@ -41,6 +49,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { EventDetailModal } from "@/components/events/event-detail-modal";
 import { trpc } from "@/lib/trpc/client";
 import { eventPrimaryLabel, eventTypeLabel } from "@/lib/event-label";
@@ -100,6 +113,67 @@ const CATEGORY_OPTIONS = [
   { value: "monitoring_patrolling_and_surveillance", label: "Monitoring & Patrolling" },
 ];
 
+// ── Subcategories ──────────────────────────────────────────────────────────
+
+// ⚠ THERE IS NO PARENT/CHILD CATEGORY TABLE. `EventType.category` is a flat
+// nullable string on the event_types row; "Law Enforcement" and "Monitoring &
+// Patrolling" are simply two of the distinct values it takes. The hierarchy
+// below is DERIVED, not stored: a "subcategory" is an event type's `display`
+// value, and its "parent" is whatever category slug that type carries.
+//
+// Values MUST be the real `event_types.display` strings — the server filters
+// `lower(et.display) IN (…)` (event.ts listViaRawSql) / a case-insensitive
+// equals-OR (the Prisma path) against them directly. Same failure mode as the
+// CATEGORY_OPTIONS note above: a prettified label here returns 0 rows.
+//
+// Sourced from the tenant's synced event_types (verified against dev DB
+// 2026-07-20). This mirrors the existing hardcoded-CATEGORY_OPTIONS
+// convention in this file. A tenant whose EarthRanger instance carries extra
+// types will not see them here until this list is updated — the honest fix is
+// a tenant-scoped `event.listTypes` endpoint feeding this dropdown, which is
+// deliberately out of scope for this change.
+const SUBCATEGORY_GROUPS: { category: string; label: string; options: string[] }[] = [
+  {
+    category: "law-enforcement-and-apprehensions",
+    label: "Law Enforcement",
+    options: [
+      "Compressor Fishing",
+      "Destructive Practices",
+      "Fishing in a prohibited area (MPA)",
+      "Others",
+      "Taking of Prohibited Species",
+      "Unregistered Illegal Fishing",
+      "Use of Prohibited Gears",
+    ],
+  },
+  {
+    category: "monitoring_patrolling_and_surveillance",
+    label: "Monitoring & Patrolling",
+    options: [
+      "Community Support",
+      "Infrastructure and assets",
+      "Marine wildlife sightings",
+      "Research and Studies",
+      "Threats on Habitat",
+    ],
+  },
+];
+
+// ── Sort options ───────────────────────────────────────────────────────────
+
+// Encoded as a single "field:direction" token so the whole control is one
+// native <select>, matching the other filter-bar controls. The first entry is
+// the DEFAULT and reproduces the list's historical ordering exactly.
+const SORT_OPTIONS = [
+  { value: "date:desc",         label: "Newest first" },
+  { value: "date:asc",          label: "Oldest first" },
+  { value: "municipality:asc",  label: "Municipality (A–Z)" },
+  { value: "municipality:desc", label: "Municipality (Z–A)" },
+] as const;
+
+type SortValue = (typeof SORT_OPTIONS)[number]["value"];
+const DEFAULT_SORT: SortValue = "date:desc";
+
 // eventTypeLabel is imported from "@/lib/event-label" (shared with
 // event-detail-modal.tsx so both surfaces stay in sync — see eventPrimaryLabel).
 
@@ -121,19 +195,33 @@ function endOfDayIso(dateStr: string): string {
 type Filters = {
   state:           EventState | "";
   category:        string;
+  // Subcategory multi-select — event_types.display values. Empty = no filter.
+  typeDisplays:    string[];
   search:          string;
   dateFrom:        string; // "YYYY-MM-DD" or ""
   dateTo:          string; // "YYYY-MM-DD" or ""
   includeSkylight: boolean;
+  // Surfaces only events with no municipality assigned — the manual
+  // attribution work queue (see event.ts `unattributedOnly`).
+  unattributedOnly: boolean;
+  // Attribution-review filter — finds events that DO have a municipality but
+  // whose value was a heuristic guess. "" = no filter. Complements
+  // `unattributedOnly`, which by definition excludes every attributed row.
+  attributionMethod: AttributionFilterValue;
+  sort:            SortValue;
 };
 
 const DEFAULT_FILTERS: Filters = {
   state:           "",
   category:        "",
+  typeDisplays:    [],
   search:          "",
   dateFrom:        "",
   dateTo:          "",
   includeSkylight: false,
+  unattributedOnly: false,
+  attributionMethod: "",
+  sort:            DEFAULT_SORT,
 };
 
 // ── Exported filter shape (used by EventsPage to wire export URLs) ──────────
@@ -170,6 +258,27 @@ interface EventsListProps {
 export function EventsList({ initialEventId, onFiltersChange }: EventsListProps = {}) {
   const utils = trpc.useUtils();
 
+  // Municipality-override authority. Mirrors the patrols-table gate and, more
+  // importantly, the SERVER gate: event.setMunicipalityOverride runs through
+  // matrixProcedure(…, "events", "update"). Hiding the control from a user the
+  // server would reject keeps the two in agreement — the server remains the
+  // enforcement point regardless.
+  const { data: session } = useSession();
+  const roles = session?.user.roles ?? [];
+  const canOverrideMunicipality =
+    roles.includes("tenant_manager") ||
+    roles.includes("tenant_superadmin") ||
+    roles.includes("tenant_admin");
+
+  // Pending municipality-override target (null = dialog closed).
+  const [overrideTarget, setOverrideTarget] = useState<{
+    id: string;
+    label: string;
+    current: string | null;
+    manual: boolean;
+  } | null>(null);
+  const [selectedMuni, setSelectedMuni] = useState<string>("");
+
   // ── Filter state
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [searchInput, setSearchInput] = useState("");
@@ -190,6 +299,22 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
   const updateStateMutation = trpc.event.updateState.useMutation({
     onSuccess: () => {
       // Refresh all pages from top after a state change
+      setAccumulated([]);
+      setCursor(undefined);
+      void utils.event.list.invalidate();
+    },
+  });
+
+  // ── Municipality list — only fetched once the dialog actually opens, so the
+  //    list screen does not pay for a query most sessions never need.
+  const muniQuery = trpc.municipality.list.useQuery(undefined, {
+    enabled: overrideTarget !== null,
+  });
+
+  // ── Municipality override (per-row officer correction)
+  const setMunicipalityOverride = trpc.event.setMunicipalityOverride.useMutation({
+    onSuccess: () => {
+      setOverrideTarget(null);
       setAccumulated([]);
       setCursor(undefined);
       void utils.event.list.invalidate();
@@ -234,16 +359,28 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
     onFiltersChange(exportFilters);
   }, [filters, onFiltersChange]);
 
-  // Build query input from filters (server-side)
+  // Build query input from filters (server-side).
+  // `sort` is a UI-only "field:direction" token — split into the server's
+  // separate sortBy / sortDir inputs here.
+  const [sortBy, sortDir] = filters.sort.split(":") as ["date" | "municipality", "asc" | "desc"];
   const queryInput = {
     limit: 50 as const,
     cursor,
     ...(filters.state    !== "" ? { state:    filters.state    } : {}),
     ...(filters.category !== "" ? { category: filters.category } : {}),
+    ...(filters.typeDisplays.length > 0 ? { typeDisplays: filters.typeDisplays } : {}),
     ...(filters.search   !== "" ? { search:   filters.search   } : {}),
     ...(filters.dateFrom !== "" ? { dateFrom: filters.dateFrom } : {}),
     ...(filters.dateTo   !== "" ? { dateTo: endOfDayIso(filters.dateTo) } : {}),
     includeSkylight: filters.includeSkylight,
+    unattributedOnly: filters.unattributedOnly,
+    // "" is the no-filter sentinel and is omitted entirely, so an unfiltered
+    // call sends exactly the same input shape it did before this filter existed.
+    ...(filters.attributionMethod !== ""
+      ? { attributionMethod: filters.attributionMethod }
+      : {}),
+    sortBy,
+    sortDir,
   };
 
   const listQuery = trpc.event.list.useQuery(queryInput);
@@ -293,6 +430,26 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
   // ── Filter change helpers
   const setFilter = useCallback(<K extends keyof Filters>(key: K, value: Filters[K]) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
+  }, []);
+
+  // Subcategory multi-select — toggle one event-type display in/out of the set.
+  const toggleTypeDisplay = useCallback((display: string, checked: boolean) => {
+    setFilters((prev) => ({
+      ...prev,
+      typeDisplays: checked
+        ? [...prev.typeDisplays, display]
+        : prev.typeDisplays.filter((d) => d !== display),
+    }));
+  }, []);
+
+  // Select / clear every subcategory under one parent category in one click.
+  const toggleSubcategoryGroup = useCallback((options: string[], checked: boolean) => {
+    setFilters((prev) => ({
+      ...prev,
+      typeDisplays: checked
+        ? [...new Set([...prev.typeDisplays, ...options])]
+        : prev.typeDisplays.filter((d) => !options.includes(d)),
+    }));
   }, []);
 
   const handleSearchInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -364,6 +521,72 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
           ))}
         </select>
 
+        {/* Subcategory multi-select — individual event types, grouped under
+            their parent category. Popover + Checkbox (shadcn/ui). */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              data-testid="subcategory-filter-trigger"
+              aria-label="Filter by subcategory"
+              className="h-9 justify-between gap-2 px-3 text-sm font-normal"
+            >
+              {filters.typeDisplays.length === 0
+                ? "All Subcategories"
+                : `${String(filters.typeDisplays.length)} subcategor${filters.typeDisplays.length === 1 ? "y" : "ies"}`}
+              <ChevronsUpDown className="h-4 w-4 opacity-50" aria-hidden="true" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-72 p-0" align="start">
+            <div className="max-h-80 overflow-y-auto p-1" data-testid="subcategory-filter-panel">
+              {SUBCATEGORY_GROUPS.map((group) => {
+                const allChecked = group.options.every((o) => filters.typeDisplays.includes(o));
+                return (
+                  <div key={group.category} className="px-1 py-1.5">
+                    {/* Parent row — selects/clears the whole group */}
+                    <label className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-accent">
+                      <Checkbox
+                        checked={allChecked}
+                        onCheckedChange={(checked) => { toggleSubcategoryGroup([...group.options], checked === true); }}
+                        aria-label={`Select all ${group.label} subcategories`}
+                      />
+                      <span className="text-sm font-medium">{group.label}</span>
+                    </label>
+                    {/* Child rows — individually selectable subcategories */}
+                    {group.options.map((option) => (
+                      <label
+                        key={option}
+                        className="flex cursor-pointer items-center gap-2 rounded-sm py-1.5 pl-8 pr-2 hover:bg-accent"
+                      >
+                        <Checkbox
+                          data-testid={`subcategory-option-${option}`}
+                          checked={filters.typeDisplays.includes(option)}
+                          onCheckedChange={(checked) => { toggleTypeDisplay(option, checked === true); }}
+                          aria-label={option}
+                        />
+                        <span className="text-sm text-muted-foreground">{option}</span>
+                      </label>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        {/* Sort control */}
+        <select
+          data-testid="sort-control"
+          aria-label="Sort events"
+          value={filters.sort}
+          onChange={(e) => { setFilter("sort", e.target.value as SortValue); }}
+          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+        >
+          {SORT_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+
         {/* Fuzzy full-content search — replaces the old area/municipality box (T4) */}
         <input
           data-testid="search-filter"
@@ -421,8 +644,49 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
           </Label>
         </div>
 
+        {/* Unattributed-only toggle — the manual-attribution work queue.
+            Matches the Skylight toggle's Switch pattern rather than adding a
+            municipality dropdown, which does not exist on this page yet. */}
+        <div className="flex items-center gap-2 pl-1">
+          <Switch
+            id="unattributed-only"
+            data-testid="unattributed-only-toggle"
+            checked={filters.unattributedOnly}
+            onCheckedChange={(checked) => { setFilter("unattributedOnly", checked); }}
+            aria-label="Show only events with no municipality assigned"
+          />
+          <Label htmlFor="unattributed-only" className="text-sm font-normal text-muted-foreground">
+            Unattributed only
+          </Label>
+        </div>
+
+        {/* Attribution-review filter — companion to the toggle above. That one
+            finds events with NO municipality; this finds events that HAVE one
+            whose value was a heuristic guess (nearest / near-tie), which the
+            unattributed filter excludes by definition. Native <select> to match
+            the state/category/sort controls on this same bar. Option list is
+            shared with the patrols table so the two screens stay identical. */}
+        <select
+          data-testid="attribution-method-filter"
+          aria-label="Filter by how the municipality was attributed"
+          value={filters.attributionMethod}
+          onChange={(e) => {
+            setFilter(
+              "attributionMethod",
+              e.target.value as AttributionFilterValue,
+            );
+          }}
+          className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+        >
+          {ATTRIBUTION_FILTER_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+
         {/* Clear filters */}
-        {(filters.state !== "" || filters.category !== "" || filters.search !== "" || filters.dateFrom !== "" || filters.dateTo !== "" || filters.includeSkylight) && (
+        {(filters.state !== "" || filters.category !== "" || filters.typeDisplays.length > 0 || filters.search !== "" || filters.dateFrom !== "" || filters.dateTo !== "" || filters.includeSkylight || filters.unattributedOnly || filters.attributionMethod !== "" || filters.sort !== DEFAULT_SORT) && (
           <Button
             variant="ghost"
             size="sm"
@@ -540,6 +804,16 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
                 }
                 isSelected={selectedIds.has(event.id)}
                 onToggleSelected={toggleSelected}
+                canOverrideMunicipality={canOverrideMunicipality}
+                onOverrideMunicipality={(e) => {
+                  setSelectedMuni(e.municipalityId ?? "");
+                  setOverrideTarget({
+                    id: e.id,
+                    label: eventPrimaryLabel(e),
+                    current: e.municipalityId,
+                    manual: e.municipalityAttributionMethod === "manual",
+                  });
+                }}
               />
             ))}
           </ol>
@@ -570,6 +844,95 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
         </>
       )}
 
+      {/* ── Municipality override dialog ─────────────────────────────────
+          The command-center officer's correction path: the app attributes a
+          municipality automatically from the event's coordinates, and when it
+          gets that wrong (bad GPS fix, boundary gap, ambiguous water line) the
+          officer sets it by hand here. Saving stamps provenance "manual",
+          which is what stops the next EarthRanger sync from overwriting it. */}
+      <Dialog
+        open={overrideTarget !== null}
+        onOpenChange={(v) => {
+          if (!v && !setMunicipalityOverride.isPending) {
+            setOverrideTarget(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Set event municipality</DialogTitle>
+            <DialogDescription>
+              {overrideTarget !== null && (
+                <span className="mb-1 block font-medium text-foreground">
+                  {overrideTarget.label}
+                </span>
+              )}
+              Manually setting the municipality stops automatic attribution from
+              overwriting it. &quot;Clear override&quot; re-enables automatic
+              attribution.
+            </DialogDescription>
+          </DialogHeader>
+          <select
+            data-testid="event-override-municipality-select"
+            aria-label="Select municipality"
+            value={selectedMuni}
+            onChange={(e) => { setSelectedMuni(e.target.value); }}
+            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+          >
+            <option value="">— Select municipality —</option>
+            {muniQuery.data?.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+                {m.province ? ` (${m.province})` : ""}
+              </option>
+            ))}
+          </select>
+          {setMunicipalityOverride.error && (
+            <p className="text-sm text-destructive">
+              {setMunicipalityOverride.error.message}
+            </p>
+          )}
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => { setOverrideTarget(null); }}
+              disabled={setMunicipalityOverride.isPending}
+            >
+              Cancel
+            </Button>
+            {overrideTarget?.manual === true && (
+              <Button
+                variant="outline"
+                data-testid="event-clear-override-button"
+                disabled={setMunicipalityOverride.isPending}
+                onClick={() => {
+                  setMunicipalityOverride.mutate({
+                    id: overrideTarget.id,
+                    municipalityId: null,
+                  });
+                }}
+              >
+                Clear override (auto)
+              </Button>
+            )}
+            <Button
+              data-testid="event-save-override-button"
+              disabled={selectedMuni === "" || setMunicipalityOverride.isPending}
+              onClick={() => {
+                if (overrideTarget !== null) {
+                  setMunicipalityOverride.mutate({
+                    id: overrideTarget.id,
+                    municipalityId: selectedMuni,
+                  });
+                }
+              }}
+            >
+              {setMunicipalityOverride.isPending ? "Saving…" : "Save override"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* ── Detail modal (M2 Edit/History tabs) ─────────────────────────── */}
       <EventDetailModal
         eventId={selectedEventId}
@@ -582,12 +945,14 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
 // ── EventRow — single list item ────────────────────────────────────────────
 
 type EventRowProps = {
-  event:                EventListItem;
-  onOpenDetail:         (id: string) => void;
-  onStateChange:        (id: string, state: EventState) => void;
-  isStateChangePending: boolean;
-  isSelected:           boolean;
-  onToggleSelected:     (id: string, checked: boolean) => void;
+  event:                    EventListItem;
+  onOpenDetail:             (id: string) => void;
+  onStateChange:            (id: string, state: EventState) => void;
+  isStateChangePending:     boolean;
+  isSelected:               boolean;
+  onToggleSelected:         (id: string, checked: boolean) => void;
+  canOverrideMunicipality:  boolean;
+  onOverrideMunicipality:   (event: EventListItem) => void;
 };
 
 function EventRow({
@@ -597,6 +962,8 @@ function EventRow({
   isStateChangePending,
   isSelected,
   onToggleSelected,
+  canOverrideMunicipality,
+  onOverrideMunicipality,
 }: EventRowProps) {
   const state: EventState = event.state;
 
@@ -671,6 +1038,34 @@ function EventRow({
               </time>
             </>
           )}
+          {/* Municipality + attribution provenance. The municipality name is
+              shown alongside the badge because "Nearest — 3.2 km" is not
+              reviewable on its own: the officer has to see WHICH municipality
+              the heuristic landed on to judge whether it is wrong. Rendered
+              only when a municipality exists — un-attributed events are the
+              `unattributedOnly` filter's territory, and repeating
+              "Unattributed" on every such row would just add noise. */}
+          {event.municipality !== null && (
+            <>
+              <span aria-hidden="true" className="h-3 w-px bg-border" />
+              <span
+                className="inline-flex items-center gap-1.5"
+                title={attributionTitle(
+                  event.municipalityAttributionMethod,
+                  event.municipalityDistanceKm,
+                  event.municipalityAttributionAmbiguous,
+                )}
+              >
+                <span>{event.municipality.name}</span>
+                <AttributionBadge
+                  method={event.municipalityAttributionMethod}
+                  distanceKm={event.municipalityDistanceKm}
+                  ambiguous={event.municipalityAttributionAmbiguous}
+                  rowId={event.id}
+                />
+              </span>
+            </>
+          )}
         </div>
       </button>
 
@@ -716,6 +1111,23 @@ function EventRow({
             <SelectItem value="resolved">Resolved</SelectItem>
           </SelectContent>
         </Select>
+
+        {/* Municipality override — the officer's correction entry point.
+            Rendered for EVERY row, not just attributed ones: an UNATTRIBUTED
+            event (the `unattributedOnly` work queue) is precisely the row that
+            most needs a municipality set by hand. */}
+        {canOverrideMunicipality && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            data-testid={`event-override-button-${event.id}`}
+            aria-label={`Set municipality for ${eventPrimaryLabel(event)}`}
+            onClick={() => { onOverrideMunicipality(event); }}
+          >
+            Override
+          </Button>
+        )}
       </div>
     </li>
   );

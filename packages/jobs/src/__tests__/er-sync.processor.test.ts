@@ -959,3 +959,110 @@ describe("processErSync", () => {
     );
   });
 });
+
+// ── syncPatrols anti-clobber: officer-supplied start/end times survive sync ──
+//
+// The ER mobile app frequently fails to capture the phone's date/time, so ER
+// supplies no start_time for a large slice of patrols (overwhelmingly `foot`).
+// A Command Center officer fills the time in by hand via
+// patrol.setTimeOverride, which flags the row startTimeManual/endTimeManual.
+// If the sync then passes ER's value straight through, the next poll silently
+// reverts the officer's correction — the exact bug this guard prevents.
+//
+// These tests fail WITHOUT the manualTimeFields filter in syncPatrols and
+// pass with it.
+describe("processErSync — syncPatrols manual time-override anti-clobber", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockPrisma.tenantErConnection.findUnique.mockResolvedValue({
+      baseUrl: "https://er.example.com",
+      apiTokenEnc: "encrypted_token_123",
+    });
+    mockPrisma.syncLog.create.mockResolvedValue({ id: "sl-1" });
+    mockPrisma.syncLog.update.mockResolvedValue({ id: "sl-1" });
+    mockPrisma.patrolRevision.findMany.mockResolvedValue([]);
+    mockPrisma.patrolSegment.upsert.mockResolvedValue({});
+    mockPrisma.patrol.upsert.mockResolvedValue({ id: "pat-db-1" });
+  });
+
+  /** The `update` payload syncPatrols sent to patrol.upsert. */
+  function updatePayload(): Record<string, unknown> {
+    const call = mockPrisma.patrol.upsert.mock.calls[0]?.[0] as
+      | { update: Record<string, unknown> }
+      | undefined;
+    return call?.update ?? {};
+  }
+
+  it("does NOT overwrite startTime when startTimeManual=true (officer correction survives)", async () => {
+    mockPrisma.patrol.findUnique.mockResolvedValue({
+      id: "pat-db-1",
+      startTimeManual: true,
+      endTimeManual: false,
+    });
+
+    await processErSync(makeJob({ syncType: "patrols" }));
+
+    const update = updatePayload();
+    // ER supplied start_time 2025-01-01T06:00:00Z (see mockErClient.getPatrols).
+    // It must NOT appear in the update payload.
+    expect(update).not.toHaveProperty("startTime");
+    // endTime is unflagged, so ER still owns it.
+    expect(update).toHaveProperty("endTime");
+  });
+
+  it("does NOT overwrite endTime when endTimeManual=true", async () => {
+    mockPrisma.patrol.findUnique.mockResolvedValue({
+      id: "pat-db-1",
+      startTimeManual: false,
+      endTimeManual: true,
+    });
+
+    await processErSync(makeJob({ syncType: "patrols" }));
+
+    const update = updatePayload();
+    expect(update).not.toHaveProperty("endTime");
+    expect(update).toHaveProperty("startTime");
+  });
+
+  it("protects BOTH times when both flags are set", async () => {
+    mockPrisma.patrol.findUnique.mockResolvedValue({
+      id: "pat-db-1",
+      startTimeManual: true,
+      endTimeManual: true,
+    });
+
+    await processErSync(makeJob({ syncType: "patrols" }));
+
+    const update = updatePayload();
+    expect(update).not.toHaveProperty("startTime");
+    expect(update).not.toHaveProperty("endTime");
+    // Non-time fields are untouched by this guard.
+    expect(update).toHaveProperty("title");
+  });
+
+  it("writes both times normally when neither flag is set (no regression)", async () => {
+    mockPrisma.patrol.findUnique.mockResolvedValue({
+      id: "pat-db-1",
+      startTimeManual: false,
+      endTimeManual: false,
+    });
+
+    await processErSync(makeJob({ syncType: "patrols" }));
+
+    const update = updatePayload();
+    expect(update.startTime).toEqual(new Date("2025-01-01T06:00:00Z"));
+    expect(update.endTime).toEqual(new Date("2025-01-01T12:00:00Z"));
+  });
+
+  it("a brand-new patrol (no existing row) writes ER times unfiltered on create", async () => {
+    mockPrisma.patrol.findUnique.mockResolvedValue(null);
+
+    await processErSync(makeJob({ syncType: "patrols" }));
+
+    const call = mockPrisma.patrol.upsert.mock.calls[0]?.[0] as
+      | { create: Record<string, unknown> }
+      | undefined;
+    expect(call?.create.startTime).toEqual(new Date("2025-01-01T06:00:00Z"));
+    expect(call?.create.endTime).toEqual(new Date("2025-01-01T12:00:00Z"));
+  });
+});

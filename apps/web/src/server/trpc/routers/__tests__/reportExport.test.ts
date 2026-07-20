@@ -9,24 +9,10 @@ vi.mock("@marine-guardian/db", () => ({
       create: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
+      deleteMany: vi.fn(),
     },
     auditLog: {
       create: vi.fn(),
-    },
-    // Report Summary column (2026-07 harden pass) — reportExport.list
-    // batch-resolves these ids to names. Default to empty so existing tests
-    // that don't populate paramsJson ids never trigger a lookup.
-    municipality: {
-      findMany: vi.fn().mockResolvedValue([]),
-    },
-    protectedZone: {
-      findMany: vi.fn().mockResolvedValue([]),
-    },
-    reportTemplate: {
-      findMany: vi.fn().mockResolvedValue([]),
-    },
-    areaBoundary: {
-      findMany: vi.fn().mockResolvedValue([]),
     },
   },
 }));
@@ -35,6 +21,19 @@ vi.mock("@marine-guardian/jobs", () => ({
   enqueuePdfRender: vi.fn(),
   cancelPdfRender: vi.fn(),
   enqueuePptxRender: vi.fn(),
+}));
+
+// Mocked at the REAL key shape (not a stub) so purge's key assertions pin
+// the actual produced string — see packages/storage/src/index.ts.
+vi.mock("@marine-guardian/storage", () => ({
+  getExportsBucketName: vi.fn(() => "mg-exports"),
+  deleteObject: vi.fn(),
+  buildPptxExportKey: vi.fn(
+    (tenantId: string, exportId: string, at: Date) =>
+      `${tenantId}/${String(at.getUTCFullYear())}/${String(
+        at.getUTCMonth() + 1,
+      ).padStart(2, "0")}/${exportId}.pptx`,
+  ),
 }));
 
 vi.mock("../../../lib/rate-limit", () => ({
@@ -56,6 +55,7 @@ import {
   enqueuePdfRender,
   enqueuePptxRender,
 } from "@marine-guardian/jobs";
+import { deleteObject } from "@marine-guardian/storage";
 import { createCallerFactory } from "../../trpc";
 import { reportExportRouter } from "../reportExport";
 
@@ -67,8 +67,10 @@ function partial<T>(obj: T): T {
 const createCaller = createCallerFactory(reportExportRouter);
 
 const TENANT_ID = "tenant-abc";
-const OTHER_TENANT_ID = "tenant-xyz";
 const USER_ID = "user-123";
+
+/** The generic, client-safe replacement returned instead of raw error text. */
+const GENERIC_EXPORT_ERROR = "Report generation failed. Please try again.";
 
 function makeCtx(
   tenantId: string | null = TENANT_ID,
@@ -91,366 +93,10 @@ function makeCtx(
   };
 }
 
-describe("reportExport.list", () => {
+describe("reportExport.pollStatus", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("returns exports scoped to current tenant only", async () => {
-    vi.mocked(prisma.reportExport.findMany).mockResolvedValue([
-      { id: "re-1", tenantId: TENANT_ID, status: "ready" },
-      { id: "re-2", tenantId: TENANT_ID, status: "queued" },
-    ] as never);
-
-    const caller = createCaller(makeCtx());
-    const result = await caller.list({ limit: 50 });
-
-    expect(result.items).toHaveLength(2);
-    expect(vi.mocked(prisma.reportExport.findMany)).toHaveBeenCalledWith(
-      partial({
-        where: partial<{ tenantId: string }>({ tenantId: TENANT_ID }),
-      })
-    );
-  });
-
-  it("filters by status and reportType when provided", async () => {
-    vi.mocked(prisma.reportExport.findMany).mockResolvedValue([]);
-
-    const caller = createCaller(makeCtx());
-    await caller.list({ limit: 50, status: "ready", reportType: "coverage" });
-
-    expect(vi.mocked(prisma.reportExport.findMany)).toHaveBeenCalledWith(
-      partial({
-        where: partial<{ status: string; reportType: string }>({
-          status: "ready",
-          reportType: "coverage",
-        }),
-      })
-    );
-  });
-
-  // viewer (2026-07-06): list is tenantProcedure (any authenticated tenant
-  // user), unchanged by the reportGenerateProcedure widening on `create` —
-  // a viewer must be able to retrieve exports it generated. Still strictly
-  // tenant-scoped, same as every other role.
-  it("allows a viewer to list exports, scoped to its own tenant only", async () => {
-    vi.mocked(prisma.reportExport.findMany).mockResolvedValue([
-      { id: "re-1", tenantId: TENANT_ID, status: "ready" },
-    ] as never);
-
-    const caller = createCaller(makeCtx(TENANT_ID, ["viewer"]));
-    const result = await caller.list({ limit: 50 });
-
-    expect(result.items).toHaveLength(1);
-    expect(vi.mocked(prisma.reportExport.findMany)).toHaveBeenCalledWith(
-      partial({
-        where: partial<{ tenantId: string }>({ tenantId: TENANT_ID }),
-      })
-    );
-  });
-});
-
-describe("reportExport.list — reportSummary enrichment (Report Summary column)", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("resolves municipalityId + protectedZoneId + templateId to names for report_map rows, tenant-scoped", async () => {
-    vi.mocked(prisma.reportExport.findMany).mockResolvedValue([
-      {
-        id: "re-map-1",
-        tenantId: TENANT_ID,
-        reportType: "report_map",
-        status: "ready",
-        paramsJson: {
-          templateId: "tpl-1",
-          municipalityId: "muni-1",
-          protectedZoneId: "zone-1",
-          from: "2024-12-31T00:00:00.000Z",
-          to: "2026-07-05T00:00:00.000Z",
-        },
-      },
-    ] as never);
-    vi.mocked(prisma.municipality.findMany).mockResolvedValue([
-      { id: "muni-1", name: "Calapan City" },
-    ] as never);
-    vi.mocked(prisma.protectedZone.findMany).mockResolvedValue([
-      { id: "zone-1", name: "Apo Reef" },
-    ] as never);
-    vi.mocked(prisma.reportTemplate.findMany).mockResolvedValue([
-      { id: "tpl-1", name: "Standard" },
-    ] as never);
-
-    const caller = createCaller(makeCtx());
-    const result = await caller.list({ limit: 50 });
-
-    expect(result.items).toHaveLength(1);
-    expect(result.items[0]?.reportSummary).toEqual({
-      municipalityName: "Calapan City",
-      protectedZoneName: "Apo Reef",
-      templateName: "Standard",
-      areaName: null,
-      from: "2024-12-31T00:00:00.000Z",
-      to: "2026-07-05T00:00:00.000Z",
-      period: null,
-    });
-
-    // Every lookup is tenant-scoped — never leaks a cross-tenant name.
-    expect(vi.mocked(prisma.municipality.findMany)).toHaveBeenCalledWith(
-      partial({ where: partial({ tenantId: TENANT_ID, id: { in: ["muni-1"] } }) }),
-    );
-    expect(vi.mocked(prisma.protectedZone.findMany)).toHaveBeenCalledWith(
-      partial({ where: partial({ tenantId: TENANT_ID, id: { in: ["zone-1"] } }) }),
-    );
-    expect(vi.mocked(prisma.reportTemplate.findMany)).toHaveBeenCalledWith(
-      partial({ where: partial({ tenantId: TENANT_ID, id: { in: ["tpl-1"] } }) }),
-    );
-  });
-
-  it("surfaces province as municipalityName for a province-scoped report_map row (no municipalityId set)", async () => {
-    vi.mocked(prisma.reportExport.findMany).mockResolvedValue([
-      {
-        id: "re-map-2",
-        tenantId: TENANT_ID,
-        reportType: "report_map",
-        status: "ready",
-        paramsJson: {
-          province: "Oriental Mindoro",
-          from: "2026-05-01T00:00:00.000Z",
-          to: "2026-06-01T00:00:00.000Z",
-        },
-      },
-    ] as never);
-
-    const caller = createCaller(makeCtx());
-    const result = await caller.list({ limit: 50 });
-
-    expect(result.items[0]?.reportSummary).toEqual({
-      municipalityName: "Oriental Mindoro",
-      protectedZoneName: null,
-      templateName: null,
-      areaName: null,
-      from: "2026-05-01T00:00:00.000Z",
-      to: "2026-06-01T00:00:00.000Z",
-      period: null,
-    });
-    // Province rollup carries no municipalityId — no municipality name lookup.
-    expect(vi.mocked(prisma.municipality.findMany)).not.toHaveBeenCalled();
-  });
-
-  // Phase 4B (2026-07-09): includeChildren is carried through verbatim from
-  // paramsJson (mirrors the province field's pass-through above) but does
-  // NOT affect the summary municipalityName — that is still derived solely
-  // from municipalityId/province.
-  it("carries includeChildren through paramsJson without affecting the resolved municipalityName", async () => {
-    vi.mocked(prisma.reportExport.findMany).mockResolvedValue([
-      {
-        id: "re-map-children",
-        tenantId: TENANT_ID,
-        reportType: "report_map",
-        status: "ready",
-        paramsJson: {
-          municipalityId: "muni-1",
-          includeChildren: true,
-          from: "2026-05-01T00:00:00.000Z",
-          to: "2026-06-01T00:00:00.000Z",
-        },
-      },
-    ] as never);
-    vi.mocked(prisma.municipality.findMany).mockResolvedValue([
-      { id: "muni-1", name: "Calapan City" },
-    ] as never);
-
-    const caller = createCaller(makeCtx());
-    const result = await caller.list({ limit: 50 });
-
-    expect(result.items[0]?.reportSummary).toEqual({
-      municipalityName: "Calapan City",
-      protectedZoneName: null,
-      templateName: null,
-      areaName: null,
-      from: "2026-05-01T00:00:00.000Z",
-      to: "2026-06-01T00:00:00.000Z",
-      period: null,
-    });
-  });
-
-  it("resolves areaBoundaryId to name for area report rows", async () => {
-    vi.mocked(prisma.reportExport.findMany).mockResolvedValue([
-      {
-        id: "re-area-1",
-        tenantId: TENANT_ID,
-        reportType: "area",
-        status: "ready",
-        paramsJson: {
-          areaBoundaryId: "area-1",
-          startDate: "2026-01-01",
-          endDate: "2026-01-31",
-        },
-      },
-    ] as never);
-    vi.mocked(prisma.areaBoundary.findMany).mockResolvedValue([
-      { id: "area-1", name: "Bulalacao Coastal Zone" },
-    ] as never);
-
-    const caller = createCaller(makeCtx());
-    const result = await caller.list({ limit: 50 });
-
-    expect(result.items[0]?.reportSummary).toEqual({
-      municipalityName: null,
-      protectedZoneName: null,
-      templateName: null,
-      areaName: "Bulalacao Coastal Zone",
-      from: "2026-01-01",
-      to: "2026-01-31",
-      period: null,
-    });
-  });
-
-  it("surfaces a null-filled reportSummary (no DB lookups) when paramsJson carries no known ids — coverage period fields pass through", async () => {
-    vi.mocked(prisma.reportExport.findMany).mockResolvedValue([
-      {
-        id: "re-cov-1",
-        tenantId: TENANT_ID,
-        reportType: "coverage",
-        status: "ready",
-        paramsJson: { category: "monthly", year: 2026, month: 6 },
-      },
-    ] as never);
-
-    const caller = createCaller(makeCtx());
-    const result = await caller.list({ limit: 50 });
-
-    expect(result.items[0]?.reportSummary).toEqual({
-      municipalityName: null,
-      protectedZoneName: null,
-      templateName: null,
-      areaName: null,
-      from: null,
-      to: null,
-      period: { year: 2026, month: 6 },
-    });
-    expect(vi.mocked(prisma.municipality.findMany)).not.toHaveBeenCalled();
-    expect(vi.mocked(prisma.protectedZone.findMany)).not.toHaveBeenCalled();
-    expect(vi.mocked(prisma.reportTemplate.findMany)).not.toHaveBeenCalled();
-    expect(vi.mocked(prisma.areaBoundary.findMany)).not.toHaveBeenCalled();
-  });
-
-  it("batches distinct ids across multiple rows into a single findMany call per model (no N+1)", async () => {
-    vi.mocked(prisma.reportExport.findMany).mockResolvedValue([
-      {
-        id: "re-a",
-        tenantId: TENANT_ID,
-        reportType: "report_map",
-        status: "ready",
-        paramsJson: { municipalityId: "muni-1" },
-      },
-      {
-        id: "re-b",
-        tenantId: TENANT_ID,
-        reportType: "report_map",
-        status: "ready",
-        paramsJson: { municipalityId: "muni-2" },
-      },
-      {
-        id: "re-c",
-        tenantId: TENANT_ID,
-        reportType: "report_map",
-        status: "ready",
-        // Same municipalityId as re-a — must be deduped, not fetched twice.
-        paramsJson: { municipalityId: "muni-1" },
-      },
-    ] as never);
-    vi.mocked(prisma.municipality.findMany).mockResolvedValue([
-      { id: "muni-1", name: "Calapan City" },
-      { id: "muni-2", name: "Puerto Galera" },
-    ] as never);
-
-    const caller = createCaller(makeCtx());
-    const result = await caller.list({ limit: 50 });
-
-    expect(vi.mocked(prisma.municipality.findMany)).toHaveBeenCalledTimes(1);
-    const call = vi.mocked(prisma.municipality.findMany).mock.calls[0]?.[0] as {
-      where: { id: { in: string[] } };
-    };
-    expect(new Set(call.where.id.in)).toEqual(new Set(["muni-1", "muni-2"]));
-    expect(result.items.map((i) => i.reportSummary.municipalityName)).toEqual([
-      "Calapan City",
-      "Puerto Galera",
-      "Calapan City",
-    ]);
-  });
-
-  it("municipalityId set but unresolved (no matching row) resolves to null, not a crash", async () => {
-    vi.mocked(prisma.reportExport.findMany).mockResolvedValue([
-      {
-        id: "re-orphan",
-        tenantId: TENANT_ID,
-        reportType: "report_map",
-        status: "ready",
-        paramsJson: { municipalityId: "muni-deleted" },
-      },
-    ] as never);
-    vi.mocked(prisma.municipality.findMany).mockResolvedValue([] as never);
-
-    const caller = createCaller(makeCtx());
-    const result = await caller.list({ limit: 50 });
-
-    expect(result.items[0]?.reportSummary.municipalityName).toBeNull();
-  });
-});
-
-describe("reportExport.getById / pollStatus", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("returns the export when owned by current tenant", async () => {
-    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
-      id: "re-1",
-      tenantId: TENANT_ID,
-      status: "ready",
-    } as never);
-
-    const caller = createCaller(makeCtx());
-    const result = await caller.getById({ id: "re-1" });
-
-    expect(result?.id).toBe("re-1");
-    expect(vi.mocked(prisma.reportExport.findFirst)).toHaveBeenCalledWith(
-      partial({
-        where: { id: "re-1", tenantId: TENANT_ID },
-      })
-    );
-  });
-
-  it("returns null when export belongs to a different tenant", async () => {
-    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue(null);
-
-    const caller = createCaller(makeCtx(TENANT_ID));
-    const result = await caller.getById({ id: "re-other" });
-
-    expect(result).toBeNull();
-    expect(vi.mocked(prisma.reportExport.findFirst)).not.toHaveBeenCalledWith(
-      partial({
-        where: { id: "re-other", tenantId: OTHER_TENANT_ID },
-      })
-    );
-  });
-
-  // viewer (2026-07-06): getById is tenantProcedure, unchanged by the
-  // reportGenerateProcedure widening — a viewer can retrieve its own
-  // tenant's export, and a cross-tenant id still resolves to null/NOT_FOUND
-  // exactly like any other role (no leak introduced).
-  it("allows a viewer to getById its own tenant's export, and still returns null cross-tenant", async () => {
-    vi.mocked(prisma.reportExport.findFirst).mockResolvedValueOnce({
-      id: "re-1",
-      tenantId: TENANT_ID,
-      status: "ready",
-    } as never);
-    const caller = createCaller(makeCtx(TENANT_ID, ["viewer"]));
-    const owned = await caller.getById({ id: "re-1" });
-    expect(owned?.id).toBe("re-1");
-
-    vi.mocked(prisma.reportExport.findFirst).mockResolvedValueOnce(null);
-    const crossTenant = await caller.getById({ id: "re-other" });
-    expect(crossTenant).toBeNull();
-  });
-
-  it("pollStatus returns slim payload scoped to tenant", async () => {
+  it("returns a slim payload scoped to tenant", async () => {
     vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
       id: "re-1",
       status: "rendering",
@@ -463,15 +109,67 @@ describe("reportExport.getById / pollStatus", () => {
     const result = await caller.pollStatus({ id: "re-1" });
 
     expect(result?.status).toBe("rendering");
+    expect(result?.errorMessage).toBeNull();
     expect(vi.mocked(prisma.reportExport.findFirst)).toHaveBeenCalledWith(
       partial({
         where: { id: "re-1", tenantId: TENANT_ID },
       })
     );
   });
+
+  it("returns null when the row does not exist for this tenant", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx());
+    await expect(caller.pollStatus({ id: "re-other" })).resolves.toBeNull();
+  });
+
+  // REGRESSION TEST for the reported leak: internal renderer text (file
+  // paths, stack fragments) was visible in the network payload.
+  it("replaces a failed row's raw errorMessage with the generic message and never serialises the internal text", async () => {
+    const RAW =
+      "Error: ENOENT /srv/app/.next/server/app/print-render/page.js at renderPdfViaService";
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
+      id: "re-failed",
+      status: "failed",
+      completedAt: new Date("2026-07-20T00:00:00Z"),
+      errorMessage: RAW,
+      fileSizeBytes: null,
+    } as never);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.pollStatus({ id: "re-failed" });
+
+    expect(result?.errorMessage).toBe(GENERIC_EXPORT_ERROR);
+    expect(JSON.stringify(result)).not.toContain(RAW);
+    expect(JSON.stringify(result)).not.toContain("/srv/app");
+    expect(JSON.stringify(result)).not.toContain("ENOENT");
+    errorSpy.mockRestore();
+  });
+
+  it("still logs the real errorMessage server-side so operators keep diagnostics", async () => {
+    const RAW = "Error: renderer timed out after 120000ms";
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
+      id: "re-failed-2",
+      status: "failed",
+      completedAt: null,
+      errorMessage: RAW,
+      fileSizeBytes: null,
+    } as never);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const caller = createCaller(makeCtx());
+    await caller.pollStatus({ id: "re-failed-2" });
+
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(errorSpy.mock.calls[0]?.join(" ")).toContain(RAW);
+    expect(errorSpy.mock.calls[0]?.join(" ")).toContain("re-failed-2");
+    errorSpy.mockRestore();
+  });
 });
 
-describe("reportExport.create (RBAC + 5.3b pipeline wiring)", () => {
+describe("reportExport.create (RBAC + pipeline wiring)", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("creates an export row with status=queued and proper tenant/user scoping (coordinator+)", async () => {
@@ -492,7 +190,7 @@ describe("reportExport.create (RBAC + 5.3b pipeline wiring)", () => {
     expect(result.id).toBe("re-new");
     expect(vi.mocked(prisma.reportExport.create)).toHaveBeenCalledWith(
       partial({
-        // telegramFileId is a server-side storage locator — never returned.
+        // Legacy Telegram columns are never returned.
         omit: { telegramFileId: true, pptxTelegramFileId: true },
         data: partial<{
           tenantId: string;
@@ -521,14 +219,10 @@ describe("reportExport.create (RBAC + 5.3b pipeline wiring)", () => {
     expect(vi.mocked(enqueuePdfRender)).not.toHaveBeenCalled();
   });
 
-  // viewer role (2026-07-06) — reportExport.create now runs
+  // viewer role (2026-07-06) — reportExport.create runs
   // reportGenerateProcedure (rbac.ts), which allows viewer IN ADDITION to
   // coordinator+, so a viewer CAN generate a printable report from the
-  // Interactive Report Map ("Generate Printable" button, no longer hidden
-  // for viewer sessions). This is a narrow, deliberate exception — viewer
-  // remains rejected by every other mutation in this router (see the
-  // adminProcedure-gated retry/cancel/delete/renderPptx describe blocks
-  // below).
+  // Interactive Report Map.
   it("allows create when role is viewer (viewer can generate printable reports)", async () => {
     vi.mocked(prisma.reportExport.create).mockResolvedValue({
       id: "re-viewer",
@@ -555,7 +249,7 @@ describe("reportExport.create (RBAC + 5.3b pipeline wiring)", () => {
     );
   });
 
-  it("enqueues a pdf-render job with the created row's id + tenantId + userId (5.3b wiring)", async () => {
+  it("enqueues a pdf-render job with the created row's id + tenantId + userId", async () => {
     vi.mocked(prisma.reportExport.create).mockResolvedValue({
       id: "re-enqueue-1",
       tenantId: TENANT_ID,
@@ -581,8 +275,7 @@ describe("reportExport.create (RBAC + 5.3b pipeline wiring)", () => {
   it("does not fail the mutation when enqueue rejects (Valkey unreachable) — row stays queued, audit still written", async () => {
     // Regression — Generate Report 524. If the BullMQ enqueue throws (e.g.
     // bounded EnqueueTimeoutError because Valkey is down), create must still
-    // return the queued row (recoverable via the retry button) rather than
-    // hang or surface a 500.
+    // return the queued row rather than hang or surface a 500.
     vi.mocked(prisma.reportExport.create).mockResolvedValue({
       id: "re-enqueue-fail",
       tenantId: TENANT_ID,
@@ -602,12 +295,11 @@ describe("reportExport.create (RBAC + 5.3b pipeline wiring)", () => {
     });
 
     expect(result.id).toBe("re-enqueue-fail");
-    // Audit log is still written after a failed enqueue.
     expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledTimes(1);
     errorSpy.mockRestore();
   });
 
-  it("writes an EXPORT_REQUESTED AuditLog with the new row's id as entityId (5.3b wiring)", async () => {
+  it("writes an EXPORT_REQUESTED AuditLog with the new row's id as entityId", async () => {
     vi.mocked(prisma.reportExport.create).mockResolvedValue({
       id: "re-audit-1",
       tenantId: TENANT_ID,
@@ -674,29 +366,23 @@ describe("reportExport.getDownloadUrl", () => {
     vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
       id: "re-1",
       status: "ready",
-      filePath: "/exports/re-1.pdf",
-      tenantId: TENANT_ID,
+      filePath: `${TENANT_ID}/2026/07/re-1.pdf`,
     } as never);
 
     const caller = createCaller(makeCtx());
     const result = await caller.getDownloadUrl({ id: "re-1" });
 
-    // 5.3c — URL shape switched to /api/exports/reports/{id}/download.
-    // Tenant scope enforced server-side at the Route Handler boundary
-    // via session.tenantId; URL no longer carries tenantId.
+    // Tenant scope is enforced server-side at the Route Handler boundary
+    // via session.tenantId; the URL does not carry tenantId.
     expect(result.downloadUrl).toBe(`/api/exports/reports/re-1/download`);
     expect(result.status).toBe("ready");
   });
 
-  // viewer (2026-07-06): getDownloadUrl is tenantProcedure, unchanged by
-  // the reportGenerateProcedure widening — a viewer must be able to
-  // retrieve the download URL for a report it (or a coordinator) generated.
   it("allows a viewer to retrieve its own tenant's download URL", async () => {
     vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
       id: "re-1",
       status: "ready",
-      filePath: "/exports/re-1.pdf",
-      tenantId: TENANT_ID,
+      filePath: `${TENANT_ID}/2026/07/re-1.pdf`,
     } as never);
 
     const caller = createCaller(makeCtx(TENANT_ID, ["viewer"]));
@@ -711,7 +397,6 @@ describe("reportExport.getDownloadUrl", () => {
       id: "re-1",
       status: "rendering",
       filePath: null,
-      tenantId: TENANT_ID,
     } as never);
 
     const caller = createCaller(makeCtx());
@@ -719,6 +404,38 @@ describe("reportExport.getDownloadUrl", () => {
 
     expect(result.downloadUrl).toBeNull();
     expect(result.status).toBe("rendering");
+  });
+
+  // Telegram is gone: filePath (the MinIO object key) is the ONLY storage
+  // locator, so a ready row with no key has nothing to serve — e.g. it was
+  // already purged by the janitor or by reportExport.purge.
+  it("returns null downloadUrl when status=ready but filePath is null (purged / never stored)", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
+      id: "re-empty",
+      status: "ready",
+      filePath: null,
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.getDownloadUrl({ id: "re-empty" });
+
+    expect(result.downloadUrl).toBeNull();
+    expect(result.status).toBe("ready");
+  });
+
+  it("never returns the internal object key to the client", async () => {
+    const KEY = `${TENANT_ID}/2026/07/re-key.pdf`;
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
+      id: "re-key",
+      status: "ready",
+      filePath: KEY,
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.getDownloadUrl({ id: "re-key" });
+
+    expect(JSON.stringify(result)).not.toContain(KEY);
+    expect(result).not.toHaveProperty("filePath");
   });
 
   it("throws NOT_FOUND when the export does not exist for this tenant (no cross-tenant leak)", async () => {
@@ -729,646 +446,304 @@ describe("reportExport.getDownloadUrl", () => {
       TRPCError
     );
   });
-
-  it("returns the download URL for a Telegram-only row (telegramFileId set, filePath null) WITHOUT leaking the file_id", async () => {
-    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
-      id: "re-tg",
-      status: "ready",
-      filePath: null,
-      telegramFileId: "BQACAgUAAxkDAAII",
-      tenantId: TENANT_ID,
-    } as never);
-
-    const caller = createCaller(makeCtx());
-    const result = await caller.getDownloadUrl({ id: "re-tg" });
-
-    expect(result.downloadUrl).toBe(`/api/exports/reports/re-tg/download`);
-    expect(result.status).toBe("ready");
-    // The Telegram file_id must never cross the tRPC boundary.
-    expect(JSON.stringify(result)).not.toContain("BQACAgUAAxkDAAII");
-    expect(result).not.toHaveProperty("telegramFileId");
-  });
-
-  it("returns null downloadUrl when ready but NO storage location exists (both filePath and telegramFileId null)", async () => {
-    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
-      id: "re-empty",
-      status: "ready",
-      filePath: null,
-      telegramFileId: null,
-      tenantId: TENANT_ID,
-    } as never);
-
-    const caller = createCaller(makeCtx());
-    const result = await caller.getDownloadUrl({ id: "re-empty" });
-
-    expect(result.downloadUrl).toBeNull();
-  });
 });
 
-describe("reportExport telegramFileId non-exposure (Phase 4 S1)", () => {
+describe("reportExport.purge (best-effort dialog-close cleanup)", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("list omits telegramFileId AND pptxTelegramFileId from the query result", async () => {
-    vi.mocked(prisma.reportExport.findMany).mockResolvedValue([] as never);
+  function row(id: string, createdAt = new Date("2026-07-15T12:00:00Z")) {
+    return {
+      id,
+      tenantId: TENANT_ID,
+      filePath: `${TENANT_ID}/2026/07/${id}.pdf`,
+      createdAt,
+    };
+  }
+
+  it("deletes the PDF object, the derived PPTX object and the row, returning the count", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue(row("re-p1") as never);
+    vi.mocked(prisma.reportExport.deleteMany).mockResolvedValue({ count: 1 });
 
     const caller = createCaller(makeCtx());
-    await caller.list({ limit: 50 });
+    const result = await caller.purge({ ids: ["re-p1"] });
 
-    expect(vi.mocked(prisma.reportExport.findMany)).toHaveBeenCalledWith(
-      partial({
-        omit: { telegramFileId: true, pptxTelegramFileId: true },
-      })
-    );
+    expect(result).toEqual({ purged: 1 });
+    expect(vi.mocked(deleteObject)).toHaveBeenCalledWith({
+      bucket: "mg-exports",
+      key: `${TENANT_ID}/2026/07/re-p1.pdf`,
+    });
+    expect(vi.mocked(deleteObject)).toHaveBeenCalledWith({
+      bucket: "mg-exports",
+      key: `${TENANT_ID}/2026/07/re-p1.pptx`,
+    });
+    expect(vi.mocked(prisma.reportExport.deleteMany)).toHaveBeenCalledWith({
+      where: { id: "re-p1", tenantId: TENANT_ID },
+    });
   });
 
-  it("getById omits telegramFileId AND pptxTelegramFileId from the query result", async () => {
+  it("best-effort cancels any still-pending BullMQ render job", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue(row("re-p2") as never);
+    vi.mocked(prisma.reportExport.deleteMany).mockResolvedValue({ count: 1 });
+
+    const caller = createCaller(makeCtx());
+    await caller.purge({ ids: ["re-p2"] });
+
+    expect(vi.mocked(cancelPdfRender)).toHaveBeenCalledWith("re-p2");
+  });
+
+  it("purges several ids in one call", async () => {
+    vi.mocked(prisma.reportExport.findFirst)
+      .mockResolvedValueOnce(row("re-a") as never)
+      .mockResolvedValueOnce(row("re-b") as never);
+    vi.mocked(prisma.reportExport.deleteMany).mockResolvedValue({ count: 1 });
+
+    const caller = createCaller(makeCtx());
+    await expect(caller.purge({ ids: ["re-a", "re-b"] })).resolves.toEqual({
+      purged: 2,
+    });
+  });
+
+  // Tenant scope is enforced server-side: a hostile client's id simply
+  // resolves to no row. No NOT_FOUND — that would leak existence and make a
+  // normal double-close look like an error.
+  it("silently skips an unknown / cross-tenant id and does NOT throw", async () => {
     vi.mocked(prisma.reportExport.findFirst).mockResolvedValue(null);
 
     const caller = createCaller(makeCtx());
-    await caller.getById({ id: "re-1" });
+    const result = await caller.purge({ ids: ["re-other-tenant"] });
+
+    expect(result).toEqual({ purged: 0 });
+    expect(vi.mocked(deleteObject)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.reportExport.deleteMany)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.reportExport.findFirst)).toHaveBeenCalledWith(
+      partial({ where: { id: "re-other-tenant", tenantId: TENANT_ID } }),
+    );
+  });
+
+  it("scopes every lookup to the caller's tenant", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue(row("re-scope") as never);
+    vi.mocked(prisma.reportExport.deleteMany).mockResolvedValue({ count: 1 });
+
+    const caller = createCaller(makeCtx());
+    await caller.purge({ ids: ["re-scope"] });
 
     expect(vi.mocked(prisma.reportExport.findFirst)).toHaveBeenCalledWith(
-      partial({
-        omit: { telegramFileId: true, pptxTelegramFileId: true },
-      })
+      partial({ where: { id: "re-scope", tenantId: TENANT_ID } }),
     );
+  });
+
+  it("does not throw when deleteObject rejects, and still deletes the row", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue(row("re-p3") as never);
+    vi.mocked(deleteObject).mockRejectedValue(new Error("minio unreachable"));
+    vi.mocked(prisma.reportExport.deleteMany).mockResolvedValue({ count: 1 });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const caller = createCaller(makeCtx());
+    await expect(caller.purge({ ids: ["re-p3"] })).resolves.toEqual({ purged: 1 });
+
+    expect(vi.mocked(prisma.reportExport.deleteMany)).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it("does not throw when the row lookup itself rejects — the remaining ids are still swept", async () => {
+    vi.mocked(prisma.reportExport.findFirst)
+      .mockRejectedValueOnce(new Error("db blip"))
+      .mockResolvedValueOnce(row("re-ok") as never);
+    vi.mocked(prisma.reportExport.deleteMany).mockResolvedValue({ count: 1 });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const caller = createCaller(makeCtx());
+    await expect(caller.purge({ ids: ["re-bad", "re-ok"] })).resolves.toEqual({
+      purged: 1,
+    });
+    warnSpy.mockRestore();
+  });
+
+  it("does not count a row whose delete rejects, and still does not throw", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue(row("re-p4") as never);
+    vi.mocked(prisma.reportExport.deleteMany).mockRejectedValue(new Error("db down"));
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const caller = createCaller(makeCtx());
+    await expect(caller.purge({ ids: ["re-p4"] })).resolves.toEqual({ purged: 0 });
+    warnSpy.mockRestore();
+  });
+
+  it("still deletes the derived PPTX object when filePath is null", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
+      ...row("re-p5"),
+      filePath: null,
+    } as never);
+    vi.mocked(prisma.reportExport.deleteMany).mockResolvedValue({ count: 1 });
+
+    const caller = createCaller(makeCtx());
+    await caller.purge({ ids: ["re-p5"] });
+
+    expect(vi.mocked(deleteObject)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(deleteObject)).toHaveBeenCalledWith({
+      bucket: "mg-exports",
+      key: `${TENANT_ID}/2026/07/re-p5.pptx`,
+    });
+  });
+
+  // The PPTX key is derived and embeds the UPLOAD-time UTC year/month, so a
+  // row created just before UTC midnight on the last day of a month has its
+  // object under the NEXT month's prefix. Probe both candidates.
+  it("probes both month prefixes for the derived PPTX key at a month boundary", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue(
+      row("re-edge", new Date("2026-07-31T23:59:00Z")) as never,
+    );
+    vi.mocked(prisma.reportExport.deleteMany).mockResolvedValue({ count: 1 });
+
+    const caller = createCaller(makeCtx());
+    await caller.purge({ ids: ["re-edge"] });
+
+    const keys = vi.mocked(deleteObject).mock.calls.map((c) => c[0].key);
+    expect(keys).toContain(`${TENANT_ID}/2026/07/re-edge.pptx`);
+    expect(keys).toContain(`${TENANT_ID}/2026/08/re-edge.pptx`);
+  });
+
+  it("issues only ONE pptx delete mid-month (the two candidates dedupe)", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue(row("re-mid") as never);
+    vi.mocked(prisma.reportExport.deleteMany).mockResolvedValue({ count: 1 });
+
+    const caller = createCaller(makeCtx());
+    await caller.purge({ ids: ["re-mid"] });
+
+    const pptxKeys = vi
+      .mocked(deleteObject)
+      .mock.calls.map((c) => c[0].key)
+      .filter((k) => k.endsWith(".pptx"));
+    expect(pptxKeys).toEqual([`${TENANT_ID}/2026/07/re-mid.pptx`]);
+  });
+
+  it("allows a viewer to purge (anyone who can generate can clean up)", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue(row("re-v") as never);
+    vi.mocked(prisma.reportExport.deleteMany).mockResolvedValue({ count: 1 });
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["viewer"]));
+    await expect(caller.purge({ ids: ["re-v"] })).resolves.toEqual({ purged: 1 });
+  });
+
+  it("rejects an empty id list and a list over the 20-id cap at the schema boundary", async () => {
+    const caller = createCaller(makeCtx());
+    await expect(caller.purge({ ids: [] })).rejects.toThrow(TRPCError);
+    await expect(
+      caller.purge({ ids: Array.from({ length: 21 }, (_, i) => `re-${String(i)}`) }),
+    ).rejects.toThrow(TRPCError);
+    expect(vi.mocked(prisma.reportExport.findFirst)).not.toHaveBeenCalled();
   });
 });
 
-describe("reportExport.retry (5.3d)", () => {
+describe("reportExport.renderPptx (on-demand PowerPoint render)", () => {
   beforeEach(() => vi.clearAllMocks());
-
-  it("rejects retry when role is operator (adminProcedure — site_admin+)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["operator"]));
-
-    await expect(caller.retry({ id: "re-1" })).rejects.toThrow(TRPCError);
-    expect(vi.mocked(prisma.reportExport.findFirst)).not.toHaveBeenCalled();
-    expect(vi.mocked(prisma.reportExport.update)).not.toHaveBeenCalled();
-    expect(vi.mocked(enqueuePdfRender)).not.toHaveBeenCalled();
-  });
-
-  it("rejects retry when role is field_coordinator (adminProcedure gate)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["field_coordinator"]));
-
-    await expect(caller.retry({ id: "re-1" })).rejects.toThrow(TRPCError);
-    expect(vi.mocked(prisma.reportExport.update)).not.toHaveBeenCalled();
-    expect(vi.mocked(enqueuePdfRender)).not.toHaveBeenCalled();
-  });
-
-  // viewer (2026-07-06): the reportGenerateProcedure exception is scoped to
-  // `create` ONLY — retry stays adminProcedure, so a viewer that can now
-  // generate a report still cannot retry a failed one.
-  it("rejects retry when role is viewer (viewer widening is scoped to create only)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["viewer"]));
-
-    await expect(caller.retry({ id: "re-1" })).rejects.toMatchObject({
-      code: "FORBIDDEN",
-    });
-    expect(vi.mocked(prisma.reportExport.update)).not.toHaveBeenCalled();
-    expect(vi.mocked(enqueuePdfRender)).not.toHaveBeenCalled();
-  });
 
   it("throws NOT_FOUND when the row does not exist for this tenant (no cross-tenant leak)", async () => {
     vi.mocked(prisma.reportExport.findFirst).mockResolvedValue(null);
 
     const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
-    await expect(caller.retry({ id: "re-other" })).rejects.toThrow(TRPCError);
-
-    expect(vi.mocked(prisma.reportExport.update)).not.toHaveBeenCalled();
-    expect(vi.mocked(enqueuePdfRender)).not.toHaveBeenCalled();
+    await expect(caller.renderPptx({ id: "re-other" })).rejects.toThrow(TRPCError);
+    expect(vi.mocked(enqueuePptxRender)).not.toHaveBeenCalled();
   });
 
-  it("admin happy path: resets row state to queued + nullifies filePath/fileSizeBytes/errorMessage/completedAt", async () => {
+  // RBAC (2026-07-20) — REVERTED to adminProcedure. Phase 4 S6 had widened
+  // this to reportGenerateProcedure so the in-dialog "Generate PowerPoint"
+  // button would work for viewer/field_coordinator; the owner reverted that
+  // widening. The two tests that previously asserted viewer and
+  // field_coordinator were ALLOWED are inverted below — they encoded the
+  // widening itself, which is exactly the behaviour being removed. The UI now
+  // hides the button for these roles (canGeneratePptx), but THIS procedure is
+  // the authorisation boundary and must reject them regardless of the client.
+  it.each([["operator"], ["viewer"], ["field_coordinator"]])(
+    "rejects renderPptx for %s (adminProcedure — below the admin tier)",
+    async (role) => {
+      const caller = createCaller(makeCtx(TENANT_ID, [role]));
+
+      await expect(caller.renderPptx({ id: "re-1" })).rejects.toThrow(TRPCError);
+      // Rejected at the door: no row lookup, no job enqueued.
+      expect(vi.mocked(prisma.reportExport.findFirst)).not.toHaveBeenCalled();
+      expect(vi.mocked(enqueuePptxRender)).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([["tenant_manager"], ["tenant_superadmin"], ["tenant_admin"]])(
+    "allows renderPptx for %s (the adminProcedure tier)",
+    async (role) => {
+      vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
+        id: "re-admin-pptx",
+        status: "ready",
+      } as never);
+      vi.mocked(prisma.reportExport.update).mockResolvedValue({
+        id: "re-admin-pptx",
+        pptxStatus: "queued",
+      } as never);
+
+      const caller = createCaller(makeCtx(TENANT_ID, [role]));
+      const result = await caller.renderPptx({ id: "re-admin-pptx" });
+
+      expect(result.id).toBe("re-admin-pptx");
+      expect(vi.mocked(enqueuePptxRender)).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  // NOTE: create() stays on reportGenerateProcedure — this revert is scoped to
+  // renderPptx only. The viewer-can-create coverage lives in the `create`
+  // describe above and is deliberately left untouched.
+
+  // The old precondition (PDF status must be "ready" AND telegramFileId
+  // non-null) is DEAD: the pptx worker renders from live report data, and
+  // telegramFileId is now always null — the guard would reject every request.
+  it("succeeds on a row whose PDF status is 'failed' (dead precondition removed)", async () => {
     vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
-      id: "re-failed-1",
-      tenantId: TENANT_ID,
+      id: "re-pdf-failed",
       status: "failed",
-      filePath: null,
-      fileSizeBytes: null,
-      errorMessage: "Puppeteer timeout",
-      completedAt: new Date("2026-05-21T10:00:00Z"),
     } as never);
     vi.mocked(prisma.reportExport.update).mockResolvedValue({
-      id: "re-failed-1",
-      tenantId: TENANT_ID,
-      status: "queued",
+      id: "re-pdf-failed",
+      pptxStatus: "queued",
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
-    const result = await caller.retry({ id: "re-failed-1" });
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_admin"]));
+    const result = await caller.renderPptx({ id: "re-pdf-failed" });
 
-    expect(result.id).toBe("re-failed-1");
-    expect(vi.mocked(prisma.reportExport.update)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(prisma.reportExport.update)).toHaveBeenCalledWith({
-      where: { id: "re-failed-1" },
-      omit: { telegramFileId: true, pptxTelegramFileId: true },
-      data: {
-        status: "queued",
-        filePath: null,
-        telegramFileId: null,
-        fileSizeBytes: null,
-        errorMessage: null,
-        completedAt: null,
-      },
-    });
-  });
-
-  it("admin happy path: re-enqueues pdf-render with the exportId + tenantId + userId", async () => {
-    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
-      id: "re-failed-2",
-      tenantId: TENANT_ID,
-      status: "failed",
-    } as never);
-    vi.mocked(prisma.reportExport.update).mockResolvedValue({
-      id: "re-failed-2",
-      tenantId: TENANT_ID,
-      status: "queued",
-    } as never);
-
-    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
-    await caller.retry({ id: "re-failed-2" });
-
-    expect(vi.mocked(enqueuePdfRender)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(enqueuePdfRender)).toHaveBeenCalledWith({
-      exportId: "re-failed-2",
+    expect(result.id).toBe("re-pdf-failed");
+    expect(vi.mocked(enqueuePptxRender)).toHaveBeenCalledWith({
+      exportId: "re-pdf-failed",
       tenantId: TENANT_ID,
       userId: USER_ID,
     });
   });
 
-  it("admin happy path: writes EXPORT_RETRY AuditLog with the row id as entityId", async () => {
+  it("succeeds on a row whose PDF is still queued", async () => {
     vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
-      id: "re-failed-3",
-      tenantId: TENANT_ID,
-      status: "failed",
-      errorMessage: "renderer crashed",
-    } as never);
-    vi.mocked(prisma.reportExport.update).mockResolvedValue({
-      id: "re-failed-3",
-      tenantId: TENANT_ID,
-      status: "queued",
-    } as never);
-
-    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
-    await caller.retry({ id: "re-failed-3" });
-
-    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith({
-      data: partial<{
-        action: string;
-        userId: string;
-        tenantId: string;
-        entityType: string;
-        entityId: string;
-      }>({
-        action: "EXPORT_RETRY",
-        userId: USER_ID,
-        tenantId: TENANT_ID,
-        entityType: "ReportExport",
-        entityId: "re-failed-3",
-      }),
-    });
-  });
-
-  it("invokes findFirst BEFORE update BEFORE enqueuePdfRender BEFORE auditLog.create", async () => {
-    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
-      id: "re-order",
-      tenantId: TENANT_ID,
-      status: "failed",
-    } as never);
-    vi.mocked(prisma.reportExport.update).mockResolvedValue({
-      id: "re-order",
-      tenantId: TENANT_ID,
-      status: "queued",
-    } as never);
-
-    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
-    await caller.retry({ id: "re-order" });
-
-    const findOrder = vi.mocked(prisma.reportExport.findFirst).mock
-      .invocationCallOrder[0];
-    const updateOrder = vi.mocked(prisma.reportExport.update).mock
-      .invocationCallOrder[0];
-    const enqueueOrder = vi.mocked(enqueuePdfRender).mock.invocationCallOrder[0];
-    const auditOrder = vi.mocked(prisma.auditLog.create).mock
-      .invocationCallOrder[0];
-
-    expect(findOrder).toBeDefined();
-    expect(updateOrder).toBeDefined();
-    expect(enqueueOrder).toBeDefined();
-    expect(auditOrder).toBeDefined();
-    expect(findOrder).toBeLessThan(updateOrder as number);
-    expect(updateOrder).toBeLessThan(enqueueOrder as number);
-    expect(enqueueOrder).toBeLessThan(auditOrder as number);
-  });
-});
-
-describe("reportExport.cancel (Stop button — escape hatch for stuck queued/rendering rows)", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("rejects cancel when role is operator (adminProcedure — site_admin+)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["operator"]));
-
-    await expect(caller.cancel({ id: "re-1" })).rejects.toThrow(TRPCError);
-    expect(vi.mocked(prisma.reportExport.findFirst)).not.toHaveBeenCalled();
-    expect(vi.mocked(prisma.reportExport.update)).not.toHaveBeenCalled();
-    expect(vi.mocked(cancelPdfRender)).not.toHaveBeenCalled();
-  });
-
-  it("rejects cancel when role is field_coordinator (adminProcedure gate)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["field_coordinator"]));
-
-    await expect(caller.cancel({ id: "re-1" })).rejects.toThrow(TRPCError);
-    expect(vi.mocked(prisma.reportExport.update)).not.toHaveBeenCalled();
-    expect(vi.mocked(cancelPdfRender)).not.toHaveBeenCalled();
-  });
-
-  // viewer (2026-07-06): reportGenerateProcedure only widens `create` —
-  // cancel stays adminProcedure.
-  it("rejects cancel when role is viewer (viewer widening is scoped to create only)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["viewer"]));
-
-    await expect(caller.cancel({ id: "re-1" })).rejects.toMatchObject({
-      code: "FORBIDDEN",
-    });
-    expect(vi.mocked(prisma.reportExport.update)).not.toHaveBeenCalled();
-    expect(vi.mocked(cancelPdfRender)).not.toHaveBeenCalled();
-  });
-
-  it("throws NOT_FOUND when the row does not exist for this tenant (no cross-tenant leak)", async () => {
-    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue(null);
-
-    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
-    await expect(caller.cancel({ id: "re-other" })).rejects.toThrow(TRPCError);
-
-    expect(vi.mocked(prisma.reportExport.update)).not.toHaveBeenCalled();
-    expect(vi.mocked(cancelPdfRender)).not.toHaveBeenCalled();
-  });
-
-  it("admin happy path: sets a queued row to status=failed with errorMessage 'Cancelled by user' + completedAt", async () => {
-    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
-      id: "re-queued-1",
-      tenantId: TENANT_ID,
+      id: "re-pdf-queued",
       status: "queued",
     } as never);
     vi.mocked(prisma.reportExport.update).mockResolvedValue({
-      id: "re-queued-1",
-      tenantId: TENANT_ID,
-      status: "failed",
+      id: "re-pdf-queued",
+      pptxStatus: "queued",
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
-    const result = await caller.cancel({ id: "re-queued-1" });
-
-    expect(result.id).toBe("re-queued-1");
-    expect(vi.mocked(prisma.reportExport.update)).toHaveBeenCalledTimes(1);
-    const call = vi.mocked(prisma.reportExport.update).mock.calls[0]?.[0] as {
-      where: { id: string };
-      data: { status: string; errorMessage: string; completedAt: Date };
-    };
-    expect(call.where).toEqual({ id: "re-queued-1" });
-    expect(call.data.status).toBe("failed");
-    expect(call.data.errorMessage).toBe("Cancelled by user");
-    expect(call.data.completedAt).toBeInstanceOf(Date);
-  });
-
-  it("admin happy path: also works on a RENDERING row (not just queued)", async () => {
-    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
-      id: "re-rendering-1",
-      tenantId: TENANT_ID,
-      status: "rendering",
-    } as never);
-    vi.mocked(prisma.reportExport.update).mockResolvedValue({
-      id: "re-rendering-1",
-      tenantId: TENANT_ID,
-      status: "failed",
-    } as never);
-
-    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
-    const result = await caller.cancel({ id: "re-rendering-1" });
-
-    expect(result.id).toBe("re-rendering-1");
-    expect(vi.mocked(prisma.reportExport.update)).toHaveBeenCalledWith(
-      partial({
-        data: partial<{ status: string }>({ status: "failed" }),
-      }),
-    );
-  });
-
-  it("removes the BullMQ job for the exportId via cancelPdfRender", async () => {
-    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
-      id: "re-queued-2",
-      tenantId: TENANT_ID,
-      status: "queued",
-    } as never);
-    vi.mocked(prisma.reportExport.update).mockResolvedValue({
-      id: "re-queued-2",
-      tenantId: TENANT_ID,
-      status: "failed",
-    } as never);
-
-    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
-    await caller.cancel({ id: "re-queued-2" });
-
-    expect(vi.mocked(cancelPdfRender)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(cancelPdfRender)).toHaveBeenCalledWith("re-queued-2");
-  });
-
-  it("writes an EXPORT_CANCELLED AuditLog with the row id as entityId + previousStatus", async () => {
-    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
-      id: "re-queued-3",
-      tenantId: TENANT_ID,
-      status: "rendering",
-    } as never);
-    vi.mocked(prisma.reportExport.update).mockResolvedValue({
-      id: "re-queued-3",
-      tenantId: TENANT_ID,
-      status: "failed",
-    } as never);
-
-    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
-    await caller.cancel({ id: "re-queued-3" });
-
-    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith({
-      data: partial<{
-        action: string;
-        userId: string;
-        tenantId: string;
-        entityType: string;
-        entityId: string;
-        changesJson: { previousStatus: string };
-      }>({
-        action: "EXPORT_CANCELLED",
-        userId: USER_ID,
-        tenantId: TENANT_ID,
-        entityType: "ReportExport",
-        entityId: "re-queued-3",
-        changesJson: { previousStatus: "rendering" },
-      }),
-    });
-  });
-
-  it("still marks the row failed even when cancelPdfRender rejects (best-effort queue cleanup never blocks the DB write)", async () => {
-    // cancelPdfRender itself never throws in real usage (it swallows its own
-    // errors — see pdf-render.queue.ts), but this guards the router against
-    // a future regression where the mock/implementation does reject.
-    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
-      id: "re-queued-4",
-      tenantId: TENANT_ID,
-      status: "queued",
-    } as never);
-    vi.mocked(prisma.reportExport.update).mockResolvedValue({
-      id: "re-queued-4",
-      tenantId: TENANT_ID,
-      status: "failed",
-    } as never);
-    vi.mocked(cancelPdfRender).mockResolvedValueOnce(undefined);
-
-    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
-    const result = await caller.cancel({ id: "re-queued-4" });
-
-    expect(result.id).toBe("re-queued-4");
-  });
-});
-
-describe("reportExport.delete (Delete button — remove a terminal ready/failed row)", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("rejects delete when role is operator (adminProcedure — site_admin+)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["operator"]));
-
-    await expect(caller.delete({ id: "re-1" })).rejects.toThrow(TRPCError);
-    expect(vi.mocked(prisma.reportExport.findFirst)).not.toHaveBeenCalled();
-    expect(vi.mocked(prisma.reportExport.delete)).not.toHaveBeenCalled();
-  });
-
-  it("rejects delete when role is field_coordinator (adminProcedure gate)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["field_coordinator"]));
-
-    await expect(caller.delete({ id: "re-1" })).rejects.toMatchObject({
-      code: "FORBIDDEN",
-    });
-    expect(vi.mocked(prisma.reportExport.delete)).not.toHaveBeenCalled();
-  });
-
-  // viewer (2026-07-06): reportGenerateProcedure only widens `create` —
-  // delete stays adminProcedure. A viewer that can generate a report must
-  // NOT be able to delete any export.
-  it("rejects delete when role is viewer (viewer widening is scoped to create only)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["viewer"]));
-
-    await expect(caller.delete({ id: "re-1" })).rejects.toMatchObject({
-      code: "FORBIDDEN",
-    });
-    expect(vi.mocked(prisma.reportExport.delete)).not.toHaveBeenCalled();
-  });
-
-  it("throws NOT_FOUND when the row does not exist for this tenant (no cross-tenant leak)", async () => {
-    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue(null);
-
-    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
-    await expect(caller.delete({ id: "re-other" })).rejects.toThrow(TRPCError);
-
-    expect(vi.mocked(prisma.reportExport.delete)).not.toHaveBeenCalled();
-  });
-
-  it("admin happy path: deletes a FAILED row by id, tenant-scoped", async () => {
-    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
-      id: "re-failed-del-1",
-      tenantId: TENANT_ID,
-      status: "failed",
-    } as never);
-    vi.mocked(prisma.reportExport.delete).mockResolvedValue({
-      id: "re-failed-del-1",
-    } as never);
-
-    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
-    const result = await caller.delete({ id: "re-failed-del-1" });
-
-    expect(result).toEqual({ id: "re-failed-del-1" });
-    expect(vi.mocked(prisma.reportExport.delete)).toHaveBeenCalledWith({
-      where: { id: "re-failed-del-1" },
-    });
-  });
-
-  it("admin happy path: also deletes a READY row (terminal, not just failed)", async () => {
-    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
-      id: "re-ready-del-1",
-      tenantId: TENANT_ID,
-      status: "ready",
-    } as never);
-    vi.mocked(prisma.reportExport.delete).mockResolvedValue({
-      id: "re-ready-del-1",
-    } as never);
-
-    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
-    const result = await caller.delete({ id: "re-ready-del-1" });
-
-    expect(result).toEqual({ id: "re-ready-del-1" });
-  });
-
-  it("best-effort clears any lingering BullMQ job for the id via cancelPdfRender", async () => {
-    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
-      id: "re-failed-del-2",
-      tenantId: TENANT_ID,
-      status: "failed",
-    } as never);
-    vi.mocked(prisma.reportExport.delete).mockResolvedValue({
-      id: "re-failed-del-2",
-    } as never);
-
-    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
-    await caller.delete({ id: "re-failed-del-2" });
-
-    expect(vi.mocked(cancelPdfRender)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(cancelPdfRender)).toHaveBeenCalledWith("re-failed-del-2");
-  });
-
-  it("writes an EXPORT_DELETED AuditLog with the row id as entityId + previousStatus", async () => {
-    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
-      id: "re-failed-del-3",
-      tenantId: TENANT_ID,
-      status: "failed",
-    } as never);
-    vi.mocked(prisma.reportExport.delete).mockResolvedValue({
-      id: "re-failed-del-3",
-    } as never);
-
-    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
-    await caller.delete({ id: "re-failed-del-3" });
-
-    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith({
-      data: partial<{
-        action: string;
-        userId: string;
-        tenantId: string;
-        entityType: string;
-        entityId: string;
-        changesJson: { previousStatus: string };
-      }>({
-        action: "EXPORT_DELETED",
-        userId: USER_ID,
-        tenantId: TENANT_ID,
-        entityType: "ReportExport",
-        entityId: "re-failed-del-3",
-        changesJson: { previousStatus: "failed" },
-      }),
-    });
-  });
-
-  it("invokes findFirst BEFORE delete BEFORE auditLog.create", async () => {
-    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
-      id: "re-order-del",
-      tenantId: TENANT_ID,
-      status: "failed",
-    } as never);
-    vi.mocked(prisma.reportExport.delete).mockResolvedValue({
-      id: "re-order-del",
-    } as never);
-
-    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
-    await caller.delete({ id: "re-order-del" });
-
-    const findOrder = vi.mocked(prisma.reportExport.findFirst).mock
-      .invocationCallOrder[0];
-    const deleteOrder = vi.mocked(prisma.reportExport.delete).mock
-      .invocationCallOrder[0];
-    const auditOrder = vi.mocked(prisma.auditLog.create).mock
-      .invocationCallOrder[0];
-
-    expect(findOrder).toBeDefined();
-    expect(deleteOrder).toBeDefined();
-    expect(auditOrder).toBeDefined();
-    expect(findOrder).toBeLessThan(deleteOrder as number);
-    expect(deleteOrder).toBeLessThan(auditOrder as number);
-  });
-});
-
-describe("reportExport.renderPptx (on-demand PDF→PowerPoint)", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("rejects renderPptx when role is operator (adminProcedure — site_admin+)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["operator"]));
-
-    await expect(caller.renderPptx({ id: "re-1" })).rejects.toThrow(TRPCError);
-    expect(vi.mocked(prisma.reportExport.findFirst)).not.toHaveBeenCalled();
-    expect(vi.mocked(enqueuePptxRender)).not.toHaveBeenCalled();
-  });
-
-  it("rejects renderPptx when role is field_coordinator (adminProcedure gate — more restrictive than the coordinatorProcedure gating PDF create)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["field_coordinator"]));
-
-    await expect(caller.renderPptx({ id: "re-1" })).rejects.toThrow(TRPCError);
-    expect(vi.mocked(enqueuePptxRender)).not.toHaveBeenCalled();
-  });
-
-  // viewer (2026-07-06): reportGenerateProcedure only widens the PDF
-  // `create` — renderPptx stays adminProcedure.
-  it("rejects renderPptx when role is viewer (viewer widening is scoped to create only)", async () => {
-    const caller = createCaller(makeCtx(TENANT_ID, ["viewer"]));
-
-    await expect(caller.renderPptx({ id: "re-1" })).rejects.toMatchObject({
-      code: "FORBIDDEN",
-    });
-    expect(vi.mocked(enqueuePptxRender)).not.toHaveBeenCalled();
-  });
-
-  it("throws NOT_FOUND when the row does not exist for this tenant (no cross-tenant leak)", async () => {
-    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue(null);
-
-    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
-    await expect(caller.renderPptx({ id: "re-other" })).rejects.toThrow(
-      TRPCError,
-    );
-    expect(vi.mocked(enqueuePptxRender)).not.toHaveBeenCalled();
-  });
-
-  it("throws PRECONDITION_FAILED when the PDF is not yet ready (queued/rendering)", async () => {
-    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
-      id: "re-not-ready",
-      status: "rendering",
-      telegramFileId: null,
-    } as never);
-
-    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_admin"]));
     await expect(
-      caller.renderPptx({ id: "re-not-ready" }),
-    ).rejects.toThrow(TRPCError);
-    expect(vi.mocked(enqueuePptxRender)).not.toHaveBeenCalled();
-    expect(vi.mocked(prisma.reportExport.update)).not.toHaveBeenCalled();
+      caller.renderPptx({ id: "re-pdf-queued" }),
+    ).resolves.toEqual(partial({ id: "re-pdf-queued" }));
   });
 
-  it("throws PRECONDITION_FAILED when the PDF is ready but has no telegramFileId (nothing to convert)", async () => {
-    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
-      id: "re-no-file",
-      status: "ready",
-      telegramFileId: null,
-    } as never);
-
-    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
-    await expect(caller.renderPptx({ id: "re-no-file" })).rejects.toThrow(
-      TRPCError,
-    );
-    expect(vi.mocked(enqueuePptxRender)).not.toHaveBeenCalled();
-  });
-
-  it("admin happy path: resets pptxStatus=queued + nullifies pptx fields, then enqueues pptx-render", async () => {
+  it("resets pptxStatus=queued + nullifies prior pptx fields, then enqueues pptx-render", async () => {
     vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
       id: "re-ready-1",
       status: "ready",
-      telegramFileId: "tg-pdf-file",
     } as never);
     vi.mocked(prisma.reportExport.update).mockResolvedValue({
       id: "re-ready-1",
       pptxStatus: "queued",
     } as never);
 
-    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_superadmin"]));
-    const result = await caller.renderPptx({ id: "re-ready-1" });
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_admin"]));
+    await caller.renderPptx({ id: "re-ready-1" });
 
-    expect(result.id).toBe("re-ready-1");
     expect(vi.mocked(prisma.reportExport.update)).toHaveBeenCalledWith({
       where: { id: "re-ready-1" },
       omit: { telegramFileId: true, pptxTelegramFileId: true },
@@ -1380,18 +755,12 @@ describe("reportExport.renderPptx (on-demand PDF→PowerPoint)", () => {
       },
     });
     expect(vi.mocked(enqueuePptxRender)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(enqueuePptxRender)).toHaveBeenCalledWith({
-      exportId: "re-ready-1",
-      tenantId: TENANT_ID,
-      userId: USER_ID,
-    });
   });
 
-  it("admin happy path: writes EXPORT_PPTX_REQUESTED AuditLog with the row id as entityId", async () => {
+  it("writes EXPORT_PPTX_REQUESTED AuditLog with the row id as entityId", async () => {
     vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
       id: "re-ready-2",
       status: "ready",
-      telegramFileId: "tg-pdf-file",
     } as never);
     vi.mocked(prisma.reportExport.update).mockResolvedValue({
       id: "re-ready-2",
@@ -1434,12 +803,42 @@ describe("reportExport.pollPptxStatus", () => {
     const caller = createCaller(makeCtx());
     const result = await caller.pollPptxStatus({ id: "re-1" });
 
-    expect(result).toEqual(
-      partial({ id: "re-1", pptxStatus: "rendering" }),
-    );
+    expect(result).toEqual(partial({ id: "re-1", pptxStatus: "rendering" }));
+    expect(result?.pptxErrorMessage).toBeNull();
     expect(vi.mocked(prisma.reportExport.findFirst)).toHaveBeenCalledWith(
       partial({ where: partial({ id: "re-1", tenantId: TENANT_ID }) }),
     );
+  });
+
+  it("returns null when the row does not exist for this tenant", async () => {
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx());
+    await expect(caller.pollPptxStatus({ id: "re-other" })).resolves.toBeNull();
+  });
+
+  // Same regression guard as pollStatus: the raw pptx renderer error must
+  // never reach the browser.
+  it("replaces a failed row's raw pptxErrorMessage with the generic message", async () => {
+    const RAW =
+      "Error: EACCES /var/lib/minio/mg-exports/tenant-abc/2026/07/re-x.pptx";
+    vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
+      id: "re-pptx-failed",
+      pptxStatus: "failed",
+      pptxErrorMessage: RAW,
+      pptxFileSizeBytes: null,
+    } as never);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.pollPptxStatus({ id: "re-pptx-failed" });
+
+    expect(result?.pptxErrorMessage).toBe(GENERIC_EXPORT_ERROR);
+    expect(JSON.stringify(result)).not.toContain(RAW);
+    expect(JSON.stringify(result)).not.toContain("/var/lib/minio");
+    // …but the operator still gets it in the server log.
+    expect(errorSpy.mock.calls[0]?.join(" ")).toContain(RAW);
+    errorSpy.mockRestore();
   });
 });
 
@@ -1459,7 +858,6 @@ describe("reportExport.getPptxDownloadUrl", () => {
     vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
       id: "re-1",
       pptxStatus: "rendering",
-      pptxTelegramFileId: null,
     } as never);
 
     const caller = createCaller(makeCtx());
@@ -1468,11 +866,10 @@ describe("reportExport.getPptxDownloadUrl", () => {
     expect(result.downloadUrl).toBeNull();
   });
 
-  it("returns null downloadUrl when pptxStatus is ready but pptxTelegramFileId is missing (defensive)", async () => {
+  it("returns null downloadUrl when pptxStatus is null (never requested)", async () => {
     vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
       id: "re-1",
-      pptxStatus: "ready",
-      pptxTelegramFileId: null,
+      pptxStatus: null,
     } as never);
 
     const caller = createCaller(makeCtx());
@@ -1481,17 +878,18 @@ describe("reportExport.getPptxDownloadUrl", () => {
     expect(result.downloadUrl).toBeNull();
   });
 
-  it("returns the canonical PPTX download URL when pptxStatus=ready, without leaking the file_id", async () => {
+  // The pptx object key is DERIVED by the Route Handler, so pptxStatus is
+  // the only row-level gate — there is no key column to check.
+  it("returns the canonical PPTX download URL when pptxStatus=ready", async () => {
     vi.mocked(prisma.reportExport.findFirst).mockResolvedValue({
       id: "re-1",
       pptxStatus: "ready",
-      pptxTelegramFileId: "tg-pptx-file-abc",
     } as never);
 
     const caller = createCaller(makeCtx());
     const result = await caller.getPptxDownloadUrl({ id: "re-1" });
 
     expect(result.downloadUrl).toBe("/api/exports/reports/re-1/pptx");
-    expect(JSON.stringify(result)).not.toContain("tg-pptx-file-abc");
+    expect(result.pptxStatus).toBe("ready");
   });
 });

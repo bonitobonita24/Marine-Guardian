@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, ChevronRight, ChevronUp } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -102,6 +102,11 @@ type TrackLegendProps = {
    *  both orientations when provided (Interactive Report Map). */
   showSkylight?: boolean;
   onShowSkylightChange?: (next: boolean) => void;
+  /** Event photo-preview thumbnails (image markers, zoomed-in). Default ON —
+   *  when off, every event collapses to its plain icon-chip marker. Rendered on
+   *  both orientations when provided. */
+  showThumbnails?: boolean;
+  onShowThumbnailsChange?: (next: boolean) => void;
   /** "vertical" stacked card (overlay) or "horizontal" toolbar row (above map). */
   orientation?: "vertical" | "horizontal";
   /** Floating vertical card only: slot rendered at the top (e.g. date +
@@ -183,6 +188,8 @@ export function TrackLegend({
   onShowBoundariesChange,
   showSkylight,
   onShowSkylightChange,
+  showThumbnails,
+  onShowThumbnailsChange,
   orientation = "vertical",
   header,
   title,
@@ -356,6 +363,31 @@ export function TrackLegend({
             </div>
           </>
         )}
+
+        {/* Event photo-preview thumbnails (image markers, zoomed-in). Default
+            ON — off collapses every event to its plain icon-chip marker. */}
+        {showThumbnails !== undefined && onShowThumbnailsChange !== undefined && (
+          <>
+            <div
+              className="hidden h-5 w-px bg-border sm:block"
+              aria-hidden="true"
+            />
+            <div className="flex min-h-9 items-center gap-2">
+              <Label
+                htmlFor="show-thumbnails"
+                className="cursor-pointer font-medium"
+              >
+                Photo thumbnails
+              </Label>
+              <Switch
+                id="show-thumbnails"
+                checked={showThumbnails}
+                onCheckedChange={onShowThumbnailsChange}
+                aria-label="Show event photo thumbnails on the map"
+              />
+            </div>
+          </>
+        )}
       </section>
     );
   }
@@ -382,6 +414,8 @@ export function TrackLegend({
     onShowBoundariesChange={onShowBoundariesChange}
     showSkylight={showSkylight}
     onShowSkylightChange={onShowSkylightChange}
+    showThumbnails={showThumbnails}
+    onShowThumbnailsChange={onShowThumbnailsChange}
     header={header}
     title={title}
     collapsible={collapsible}
@@ -418,6 +452,8 @@ function VerticalTrackLegend({
   onShowBoundariesChange,
   showSkylight,
   onShowSkylightChange,
+  showThumbnails,
+  onShowThumbnailsChange,
   header,
   title,
   collapsible,
@@ -444,6 +480,8 @@ function VerticalTrackLegend({
   onShowBoundariesChange: ((next: boolean) => void) | undefined;
   showSkylight: boolean | undefined;
   onShowSkylightChange: ((next: boolean) => void) | undefined;
+  showThumbnails: boolean | undefined;
+  onShowThumbnailsChange: ((next: boolean) => void) | undefined;
   header: ReactNode;
   title: string | undefined;
   collapsible: boolean | undefined;
@@ -478,6 +516,63 @@ function VerticalTrackLegend({
       return next;
     });
   };
+  // ── Scroll affordances for the card's own scroll area (owner request
+  //    2026-07-20) ──────────────────────────────────────────────────────────
+  // The element that actually scrolls is the inner content div below — NOT the
+  // absolutely-positioned column that wraps this card in InteractiveMap. That
+  // column is `flex flex-col` with a max-height and no overflow of its own; this
+  // <section> is `overflow-hidden` + `min-h-0`, so it shrinks to the column's
+  // cap and the inner `overflow-y-auto` div is the single scroll container.
+  //
+  // `showFade` drives a bottom gradient shown ONLY while there is unseen content
+  // below — it is the affordance that answers "is there more?" with no hover, no
+  // focus and no touch required, and it must vanish at the end of the scroll.
+  // Pure CSS (a `background-attachment: local` gradient) was rejected: this card
+  // paints a translucent `bg-background/95` + `backdrop-blur`, and the local
+  // gradient composites against that instead of replacing it, so the fade stayed
+  // visible at the end of the scroll. A scroll listener is used instead: passive,
+  // one state write per frame-ish, torn down on unmount.
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [showFade, setShowFade] = useState(false);
+  const [isScrolling, setIsScrolling] = useState(false);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el === null) {
+      setShowFade(false);
+      return;
+    }
+    let idleTimer: ReturnType<typeof setTimeout> | null = null;
+    // 4px tolerance absorbs sub-pixel/zoom rounding so the fade reliably clears
+    // at the true end of the scroll.
+    const update = () => {
+      const scrollable = el.scrollHeight - el.clientHeight;
+      setShowFade(scrollable > 4 && scrollable - el.scrollTop > 4);
+    };
+    const handleScroll = () => {
+      update();
+      setIsScrolling(true);
+      if (idleTimer !== null) clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => { setIsScrolling(false); }, 900);
+    };
+    update();
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    // Content height changes when a category/type row expands; the effect also
+    // re-runs on those state changes, and the observer covers viewport resizes.
+    // ResizeObserver is guarded because jsdom (unit tests) does not provide it.
+    const observer =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
+    if (observer !== null) {
+      observer.observe(el);
+      for (const child of Array.from(el.children)) observer.observe(child);
+    }
+    return () => {
+      el.removeEventListener("scroll", handleScroll);
+      observer?.disconnect();
+      if (idleTimer !== null) clearTimeout(idleTimer);
+    };
+  }, [collapsed, expandedCategories, expandedTypeIds]);
+
   const hasHeaderRow = title !== undefined || collapsible === true;
   // Per-type toggle tree is available only when the map supplied the taxonomy
   // and a toggle handler (floating Report Map controls).
@@ -491,7 +586,8 @@ function VerticalTrackLegend({
     <section
       aria-label="Map controls"
       className={cn(
-        "flex flex-col overflow-hidden rounded-md border bg-background/95 text-sm shadow-md backdrop-blur",
+        // `relative` anchors the bottom scroll-fade overlay below.
+        "relative flex flex-col overflow-hidden rounded-md border bg-background/95 text-sm shadow-md backdrop-blur",
         className,
       )}
     >
@@ -518,10 +614,28 @@ function VerticalTrackLegend({
         </div>
       )}
 
+      {!collapsed && showFade && (
+        /* Bottom fade — the no-interaction "there is more below" cue. Sits over
+           the scroll area, stops short of the reserved scrollbar gutter so the
+           handle stays legible, and is removed entirely once the scroll reaches
+           the end. pointer-events-none so it never swallows a toggle click. */
+        <div
+          data-testid="map-controls-scroll-fade"
+          aria-hidden="true"
+          className="pointer-events-none absolute bottom-0 left-0 right-2 z-10 h-8 bg-gradient-to-t from-background to-transparent"
+        />
+      )}
+
       {!collapsed && (
         <div
+          ref={scrollRef}
+          data-testid="map-controls-scroll-area"
+          data-scrolling={isScrolling ? "true" : "false"}
           className={cn(
-            "min-h-0 flex-1 space-y-0 overflow-y-auto px-2.5 pb-2",
+            // mg-hover-scrollbar (globals.css): scrollbar hidden by default,
+            // revealed on hover / focus-within / while scrolling, with the
+            // gutter reserved so revealing it never shifts content.
+            "mg-hover-scrollbar min-h-0 flex-1 space-y-0 overflow-y-auto px-2.5 pb-2",
             hasHeaderRow ? "" : "pt-3",
           )}
         >
@@ -638,6 +752,28 @@ function VerticalTrackLegend({
                   checked={showSkylight}
                   onCheckedChange={onShowSkylightChange}
                   aria-label="Show Skylight events on the map"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Event photo-preview thumbnails (image markers, zoomed-in).
+              Default ON — off collapses every event to its plain icon-chip
+              marker. */}
+          {showThumbnails !== undefined && onShowThumbnailsChange !== undefined && (
+            <div className="border-t pt-0.5">
+              <div className="flex min-h-7 items-center justify-between gap-2">
+                <Label
+                  htmlFor="show-thumbnails"
+                  className="cursor-pointer font-medium"
+                >
+                  Photo thumbnails
+                </Label>
+                <Switch
+                  id="show-thumbnails"
+                  checked={showThumbnails}
+                  onCheckedChange={onShowThumbnailsChange}
+                  aria-label="Show event photo thumbnails on the map"
                 />
               </div>
             </div>

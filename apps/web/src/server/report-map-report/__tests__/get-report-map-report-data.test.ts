@@ -16,7 +16,7 @@ vi.mock("@marine-guardian/db", () => ({
     municipality: { findUnique: vi.fn(), findMany: vi.fn() },
     // findMany used by resolveChildZoneIds (Phase 4B "include children"
     // toggle) — real implementation, reads through this mocked client.
-    protectedZone: { findMany: vi.fn() },
+    protectedZone: { findMany: vi.fn(), findFirst: vi.fn() },
   },
 }));
 
@@ -41,10 +41,10 @@ import { getImageBytes } from "@marine-guardian/storage";
 import { buildEventBreakdownWithCoords } from "@/server/trpc/routers/reportMap";
 import { pointsFromTrackGeojson } from "@/server/trpc/routers/map";
 import {
+  applyFullTraversingToTypeTotals,
   buildPatrolHeatPoints,
   buildPatrolTypeTotals,
   capHeatLayerPoints,
-  clipTracksToMunicipalityGeometry,
   decimateHeatPointsByStride,
   getReportMapReportData,
   MAX_HEAT_POINTS_PER_LAYER,
@@ -136,6 +136,7 @@ function setupHappyPath() {
   vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
   vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([] as never);
   vi.mocked(prisma.municipality.findUnique).mockResolvedValue(null);
+  vi.mocked(prisma.protectedZone.findFirst).mockResolvedValue(null);
   vi.mocked(getImageBytes).mockResolvedValue(Buffer.from("fake-png-data"));
 }
 
@@ -704,6 +705,10 @@ describe("getReportMapReportData", () => {
     vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
     vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([] as never);
     vi.mocked(prisma.municipality.findUnique).mockResolvedValue(null);
+    // Scope-geometry lookup (2026-07-20 scope/clip fix): the municipality has
+    // no row on record, so the scope resolves to zero member polygons and the
+    // frame falls through to null.
+    vi.mocked(prisma.municipality.findMany).mockResolvedValue([] as never);
     vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
 
     const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
@@ -760,6 +765,41 @@ describe("getReportMapReportData", () => {
         ],
       },
     } as never);
+    // Scope-geometry lookup (2026-07-20 scope/clip fix): framing now unions
+    // the SCOPE's member polygons rather than reading params.municipalityId's
+    // polygon directly. Same geometry, so R10 water-only framing is unchanged.
+    vi.mocked(prisma.municipality.findMany).mockResolvedValue([
+      {
+        id: "muni_a",
+        name: "Puerto Galera",
+        boundaryGeojson: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [121.0, 13.0],
+              [121.2, 13.0],
+              [121.2, 13.2],
+              [121.0, 13.2],
+              [121.0, 13.0],
+            ],
+          ],
+        },
+        waterGeojson: {
+          type: "MultiPolygon",
+          coordinates: [
+            [
+              [
+                [121.0, 12.8],
+                [121.4, 12.8],
+                [121.4, 13.0],
+                [121.0, 13.0],
+                [121.0, 12.8],
+              ],
+            ],
+          ],
+        },
+      },
+    ] as never);
     vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
 
     const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
@@ -806,6 +846,27 @@ describe("getReportMapReportData", () => {
       },
       waterGeojson: null,
     } as never);
+    // Scope-geometry lookup (2026-07-20 scope/clip fix) — same geometry as the
+    // findUnique row, so the boundary fallback behaviour is unchanged.
+    vi.mocked(prisma.municipality.findMany).mockResolvedValue([
+      {
+        id: "muni_a",
+        name: "Puerto Galera",
+        boundaryGeojson: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [121.0, 13.0],
+              [121.2, 13.0],
+              [121.2, 13.2],
+              [121.0, 13.2],
+              [121.0, 13.0],
+            ],
+          ],
+        },
+        waterGeojson: null,
+      },
+    ] as never);
     vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
 
     const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
@@ -887,14 +948,20 @@ describe("getReportMapReportData", () => {
       boundaryGeojson: null,
       waterGeojson: null,
     } as never);
+    vi.mocked(prisma.municipality.findMany).mockResolvedValue([] as never);
     vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
 
     const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
     expect(result).not.toBeNull();
     if (!result) return;
 
-    // municipalityId wins — province lookup (findMany) is never consulted.
-    expect(prisma.municipality.findMany).not.toHaveBeenCalled();
+    // municipalityId wins — the PROVINCE rollup lookup is never consulted.
+    // (`municipality.findMany` itself IS now called, by the scope-geometry
+    // load added with the 2026-07-20 scope/clip fix; what must never happen
+    // is a province-keyed lookup.)
+    for (const call of vi.mocked(prisma.municipality.findMany).mock.calls) {
+      expect(call[0]?.where).not.toHaveProperty("province");
+    }
     expect(
       vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where,
     ).toMatchObject({ municipalityId: "muni_a" });
@@ -905,6 +972,80 @@ describe("getReportMapReportData", () => {
     // Region mode (2026-07-13): a specific municipalityId wins over
     // province — this is NOT a region report.
     expect(result.isRegionReport).toBe(false);
+  });
+
+  it("scopeTitleOverride uses the ProtectedZone's own name when a zone is scoped (owner 2026-07-20 — Apo Reef Park not Sablayan)", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValue(TENANT_ROW as never);
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValue({
+      ...EXPORT_ROW,
+      paramsJson: {
+        ...EXPORT_ROW.paramsJson,
+        // A zone-scoped report carries BOTH the parent municipality AND the zone.
+        municipalityId: "muni_sablayan",
+        protectedZoneId: "pz_apo_reef",
+      },
+    } as never);
+    vi.mocked(prisma.reportTemplate.findFirst).mockResolvedValue(TEMPLATE_ROW as never);
+    vi.mocked(buildEventBreakdownWithCoords).mockResolvedValue(EMPTY_BREAKDOWN);
+    vi.mocked(prisma.event.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([] as never);
+    // Parent municipality resolves to "Sablayan" — the OLD (wrong) header title.
+    vi.mocked(prisma.municipality.findUnique).mockResolvedValue({
+      name: "Sablayan",
+      boundaryGeojson: null,
+      waterGeojson: null,
+    } as never);
+    // The scoped zone's own name.
+    vi.mocked(prisma.protectedZone.findFirst).mockResolvedValue({
+      name: "Apo Reef Park",
+    } as never);
+    // Scope-geometry lookup (2026-07-20 scope/clip fix): a ZONE-level scope
+    // loads ZONE members only — the parent municipality is deliberately NOT
+    // queried for geometry, which is the anti-body for the clip-to-parent bug.
+    vi.mocked(prisma.protectedZone.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.municipality.findMany).mockResolvedValue([] as never);
+    vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
+
+    const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(result).not.toBeNull();
+    if (!result) return;
+
+    // The zone lookup is tenant-scoped by the scoped zone id.
+    expect(
+      vi.mocked(prisma.protectedZone.findFirst).mock.calls[0]?.[0]?.where,
+    ).toMatchObject({ id: "pz_apo_reef", tenantId: TENANT_ROW.id });
+    // The header now prefers the zone's own name…
+    expect(result.scopeTitleOverride).toBe("Apo Reef Park");
+    // …while municipalityName still resolves to the parent (unchanged), so the
+    // header override — not this field — is what fixes the printed title.
+    expect(result.municipalityName).toBe("Sablayan");
+  });
+
+  it("scopeTitleOverride is null when no protected zone is scoped", async () => {
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValue(TENANT_ROW as never);
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValue({
+      ...EXPORT_ROW,
+      paramsJson: { ...EXPORT_ROW.paramsJson, municipalityId: "muni_a" },
+    } as never);
+    vi.mocked(prisma.reportTemplate.findFirst).mockResolvedValue(TEMPLATE_ROW as never);
+    vi.mocked(buildEventBreakdownWithCoords).mockResolvedValue(EMPTY_BREAKDOWN);
+    vi.mocked(prisma.event.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.municipality.findUnique).mockResolvedValue({
+      name: "Puerto Galera",
+      boundaryGeojson: null,
+      waterGeojson: null,
+    } as never);
+    vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
+
+    const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(result).not.toBeNull();
+    if (!result) return;
+    expect(result.scopeTitleOverride).toBeNull();
+    // No zone → the zone lookup is never issued.
+    expect(prisma.protectedZone.findFirst).not.toHaveBeenCalled();
   });
 
   it("parses province from paramsJson and drops empty-string province", () => {
@@ -1212,6 +1353,483 @@ describe("getReportMapReportData", () => {
     if (!result) return;
     expect(result.traversingPatrols).toBeUndefined();
     expect(prisma.municipality.findMany).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Full-traversing mode (zone scope only, 2026-07-20) ──────────────────────
+//
+// Owner rationale: no patrol can START inside a small offshore MPA, so an
+// origin-only count reports nearly nothing for such a zone. With the toggle
+// on, a patrol that merely ENTERS the zone is counted once and credited its
+// FULL distance/time — superseding (never adding to) the clipped
+// inside-portion crediting.
+
+describe("getReportMapReportData — includeTraversingFull", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const ZONE_ID = "pz_apo_reef";
+  const MUNI_ID = "muni_sablayan";
+
+  /** The zone polygon: the unit square x ∈ [1,2], y ∈ [0,1]. */
+  const ZONE_SQUARE = {
+    type: "Polygon",
+    coordinates: [
+      [
+        [1, 0],
+        [2, 0],
+        [2, 1],
+        [1, 1],
+        [1, 0],
+      ],
+    ],
+  };
+
+  /** Runs x 0.5 → 1.5, i.e. exactly HALF of it lies inside ZONE_SQUARE.
+   *  That 50/50 split is what makes "full" (10 km) and "clipped" (~5 km)
+   *  crediting distinguishable by value alone. */
+  const CROSSING_TRACK = {
+    type: "LineString",
+    coordinates: [
+      [0.5, 0.5],
+      [1.5, 0.5],
+    ],
+  };
+
+  /** Whole-patrol DB columns for the transiting patrol (started elsewhere). */
+  const TRANSIT_FULL_KM = 10;
+  const TRANSIT_FULL_HOURS = 4;
+  /** Whole-patrol DB columns for a patrol the report already selected. */
+  const ATTRIBUTED_KM = 6;
+  const ATTRIBUTED_HOURS = 2;
+
+  /** A patrol row as returned by the report's own `patrolFilter` query — i.e.
+   *  one that STARTED in scope and is already in `patrolBreakdown`. */
+  const ATTRIBUTED_PATROL_ROW = {
+    id: "patrol-attributed",
+    title: "Zone sweep",
+    serialNumber: "P-1",
+    patrolType: "seaborne",
+    boatName: null,
+    startTime: new Date("2026-05-10T00:00:00.000Z"),
+    endTime: new Date("2026-05-10T02:00:00.000Z"),
+    totalDistanceKm: null,
+    computedDistanceKm: ATTRIBUTED_KM,
+    totalHours: null,
+    computedDurationHours: ATTRIBUTED_HOURS,
+    startLocationLat: 0.5,
+    startLocationLon: 1.5,
+    segments: [],
+  };
+
+  /** The transiting patrol's track row, as the traversing queries select it
+   *  (patrol select carries `municipalityId`). */
+  const TRANSIT_TRACK_ROW = {
+    trackGeojson: CROSSING_TRACK,
+    patrol: {
+      id: "patrol-transit",
+      title: "Sablayan → Apo Reef transit",
+      patrolType: "seaborne",
+      municipalityId: MUNI_ID,
+      totalHours: null,
+      computedDurationHours: TRANSIT_FULL_HOURS,
+      computedDistanceKm: TRANSIT_FULL_KM,
+      totalDistanceKm: null,
+      startLocationLat: 0.5,
+      startLocationLon: 0.5,
+      municipality: { name: "Sablayan" },
+    },
+  };
+
+  /**
+   * @param attributedRows patrols the report's own where-clause selects.
+   * @param trackRows rows the traversing track query sees.
+   */
+  function setupZoneScope(options: {
+    includeTraversing?: boolean;
+    includeTraversingFull?: boolean;
+    municipalityId?: string | undefined;
+    province?: string | undefined;
+    protectedZoneId?: string | undefined;
+    attributedRows?: unknown[];
+    trackRows?: unknown[];
+  }): void {
+    const paramsJson: Record<string, unknown> = { ...EXPORT_ROW.paramsJson };
+    if (options.includeTraversing === true) paramsJson.includeTraversing = true;
+    if (options.includeTraversingFull === true) {
+      paramsJson.includeTraversingFull = true;
+    }
+    if (options.municipalityId !== undefined) {
+      paramsJson.municipalityId = options.municipalityId;
+    }
+    if (options.province !== undefined) paramsJson.province = options.province;
+    if (options.protectedZoneId !== undefined) {
+      paramsJson.protectedZoneId = options.protectedZoneId;
+    }
+
+    vi.mocked(prisma.tenant.findUnique).mockResolvedValue(TENANT_ROW as never);
+    vi.mocked(prisma.reportExport.findUnique).mockResolvedValue({
+      ...EXPORT_ROW,
+      paramsJson,
+    } as never);
+    vi.mocked(prisma.reportTemplate.findFirst).mockResolvedValue(TEMPLATE_ROW as never);
+    vi.mocked(buildEventBreakdownWithCoords).mockResolvedValue(EMPTY_BREAKDOWN);
+    vi.mocked(prisma.event.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue(
+      (options.attributedRows ?? []) as never,
+    );
+    vi.mocked(prisma.municipality.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.municipality.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.protectedZone.findFirst).mockResolvedValue({
+      name: "Apo Reef Park",
+    } as never);
+    vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
+
+    // protectedZone.findMany is shared by loadScopeGeometries (select carries
+    // boundaryGeojson) and the credited-name lookup (id + name only) —
+    // distinguish by the select shape.
+    vi.mocked(prisma.protectedZone.findMany).mockImplementation(
+      ((args?: { select?: Record<string, unknown> }) => {
+        const select = args?.select ?? {};
+        if ("boundaryGeojson" in select) {
+          return Promise.resolve([
+            { id: ZONE_ID, name: "Apo Reef Park", boundaryGeojson: ZONE_SQUARE },
+          ]);
+        }
+        return Promise.resolve([{ id: ZONE_ID, name: "Apo Reef Park" }]);
+      }) as unknown as typeof prisma.protectedZone.findMany,
+    );
+
+    // patrolTrack.findMany is shared by the main polyline query (patrol select
+    // WITHOUT municipalityId) and the traversing queries (WITH it).
+    vi.mocked(prisma.patrolTrack.findMany).mockImplementation(
+      ((args?: { select?: { patrol?: { select?: Record<string, unknown> } } }) => {
+        const patrolSelect = args?.select?.patrol?.select ?? {};
+        if ("municipalityId" in patrolSelect) {
+          return Promise.resolve(options.trackRows ?? []);
+        }
+        return Promise.resolve([]);
+      }) as unknown as typeof prisma.patrolTrack.findMany,
+    );
+  }
+
+  // ── The must-not-change guarantee ────────────────────────────────────────
+
+  it("traversingMode is 'off' and totals are untouched when the flag is absent", async () => {
+    setupZoneScope({
+      protectedZoneId: ZONE_ID,
+      municipalityId: MUNI_ID,
+      attributedRows: [ATTRIBUTED_PATROL_ROW],
+      trackRows: [TRANSIT_TRACK_ROW],
+    });
+
+    const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(result).not.toBeNull();
+    if (!result) return;
+
+    expect(result.traversingMode).toBe("off");
+    expect(result.traversingPatrols).toBeUndefined();
+    // Byte-identical to the origin-only baseline: ONE patrol, its own columns.
+    expect(result.charts.patrolList.patrolTotals).toEqual({
+      count: 1,
+      totalHours: ATTRIBUTED_HOURS,
+      totalKm: ATTRIBUTED_KM,
+    });
+    expect(result.charts.patrolTypeTotals.seaborne).toEqual({
+      count: 1,
+      hours: ATTRIBUTED_HOURS,
+      km: ATTRIBUTED_KM,
+    });
+  });
+
+  it("the flag is inert at MUNICIPALITY scope — traversingMode falls back to 'clipped' and totals stay at the baseline", async () => {
+    setupZoneScope({
+      municipalityId: MUNI_ID,
+      includeTraversing: true,
+      includeTraversingFull: true,
+      attributedRows: [ATTRIBUTED_PATROL_ROW],
+      trackRows: [TRANSIT_TRACK_ROW],
+    });
+    // Municipality scope loads MUNICIPALITY geometry, not zone geometry.
+    vi.mocked(prisma.municipality.findMany).mockResolvedValue([
+      {
+        id: MUNI_ID,
+        name: "Sablayan",
+        boundaryGeojson: ZONE_SQUARE,
+        waterGeojson: null,
+      },
+    ] as never);
+
+    const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(result).not.toBeNull();
+    if (!result) return;
+
+    // resolveReportScope gates the mode to zone level — so this is 'clipped'.
+    expect(result.traversingMode).toBe("clipped");
+    expect(result.charts.patrolList.patrolTotals).toEqual({
+      count: 1,
+      totalHours: ATTRIBUTED_HOURS,
+      totalKm: ATTRIBUTED_KM,
+    });
+  });
+
+  it("the flag is inert at PROVINCE scope — traversingMode is 'clipped' and totals stay at the baseline", async () => {
+    setupZoneScope({
+      province: "Occidental Mindoro",
+      includeTraversing: true,
+      includeTraversingFull: true,
+      attributedRows: [ATTRIBUTED_PATROL_ROW],
+      trackRows: [TRANSIT_TRACK_ROW],
+    });
+    vi.mocked(prisma.municipality.findMany).mockImplementation(
+      ((args?: { where?: { province?: unknown } }) => {
+        if (args?.where?.province !== undefined) {
+          return Promise.resolve([{ id: MUNI_ID }]);
+        }
+        return Promise.resolve([
+          {
+            id: MUNI_ID,
+            name: "Sablayan",
+            boundaryGeojson: ZONE_SQUARE,
+            waterGeojson: null,
+          },
+        ]);
+      }) as unknown as typeof prisma.municipality.findMany,
+    );
+
+    const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(result).not.toBeNull();
+    if (!result) return;
+
+    expect(result.traversingMode).toBe("clipped");
+    expect(result.charts.patrolList.patrolTotals).toEqual({
+      count: 1,
+      totalHours: ATTRIBUTED_HOURS,
+      totalKm: ATTRIBUTED_KM,
+    });
+  });
+
+  // ── The feature itself ───────────────────────────────────────────────────
+
+  it("at ZONE scope the flag adds the traversing patrol's FULL count/km/hours to the totals", async () => {
+    setupZoneScope({
+      protectedZoneId: ZONE_ID,
+      municipalityId: MUNI_ID,
+      includeTraversingFull: true,
+      attributedRows: [ATTRIBUTED_PATROL_ROW],
+      trackRows: [TRANSIT_TRACK_ROW],
+    });
+
+    const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(result).not.toBeNull();
+    if (!result) return;
+
+    expect(result.traversingMode).toBe("full");
+    // Baseline + the transiting patrol's WHOLE figures — not its ~5 km
+    // inside-zone portion. Exact, not "greater than".
+    expect(result.charts.patrolList.patrolTotals).toEqual({
+      count: 2,
+      totalHours: ATTRIBUTED_HOURS + TRANSIT_FULL_HOURS,
+      totalKm: ATTRIBUTED_KM + TRANSIT_FULL_KM,
+    });
+    expect(result.charts.patrolTypeTotals.seaborne).toEqual({
+      count: 2,
+      hours: ATTRIBUTED_HOURS + TRANSIT_FULL_HOURS,
+      km: ATTRIBUTED_KM + TRANSIT_FULL_KM,
+    });
+    // Foot bucket untouched — neither fixture patrol is a foot patrol.
+    expect(result.charts.patrolTypeTotals.foot).toEqual({
+      count: 0,
+      hours: 0,
+      km: 0,
+    });
+  });
+
+  it("EVENT numbers are untouched by full mode", async () => {
+    setupZoneScope({
+      protectedZoneId: ZONE_ID,
+      municipalityId: MUNI_ID,
+      includeTraversingFull: true,
+      attributedRows: [ATTRIBUTED_PATROL_ROW],
+      trackRows: [TRANSIT_TRACK_ROW],
+    });
+
+    const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(result).not.toBeNull();
+    if (!result) return;
+
+    expect(result.charts.lawEnforcement.total).toBe(0);
+    expect(result.charts.monitoring.total).toBe(0);
+    expect(result.charts.highPriority.total).toBe(0);
+  });
+
+  // ── THE DOUBLE-CREDIT TEST ───────────────────────────────────────────────
+
+  // NOTE ON THIS FIXTURE: the already-selected patrol deliberately starts
+  // OUTSIDE the zone (0.5, 0.5). At zone scope `patrolFilter` selects on
+  // `coveredZones`, so a patrol can be in `patrolRows` — and therefore
+  // already fully credited in `patrolTotals` — without having started inside
+  // the zone. That means the origin guard does NOT fire for it, and the
+  // `excludePatrolIds` set is the ONLY thing standing between this fixture
+  // and a double credit. Verified by mutation: emptying that set makes this
+  // test fail. A start point inside the zone would be caught by the origin
+  // guard instead and would not exercise the exclusion set at all.
+  it("a patrol already selected by the report AND crossing the zone is counted exactly ONCE", async () => {
+    setupZoneScope({
+      protectedZoneId: ZONE_ID,
+      municipalityId: MUNI_ID,
+      includeTraversingFull: true,
+      attributedRows: [ATTRIBUTED_PATROL_ROW],
+      // The attributed patrol's OWN track is also visible to the traversing
+      // query — the exact shape that would double-credit it if the exclusion
+      // set were missing.
+      trackRows: [
+        {
+          trackGeojson: CROSSING_TRACK,
+          patrol: {
+            id: ATTRIBUTED_PATROL_ROW.id,
+            title: ATTRIBUTED_PATROL_ROW.title,
+            patrolType: "seaborne",
+            municipalityId: MUNI_ID,
+            totalHours: null,
+            computedDurationHours: ATTRIBUTED_HOURS,
+            computedDistanceKm: ATTRIBUTED_KM,
+            totalDistanceKm: null,
+            // Outside the zone — see the note above; this is what forces the
+            // exclusion set to be the guard under test.
+            startLocationLat: 0.5,
+            startLocationLon: 0.5,
+            municipality: { name: "Sablayan" },
+          },
+        },
+        TRANSIT_TRACK_ROW,
+      ],
+    });
+
+    const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(result).not.toBeNull();
+    if (!result) return;
+
+    expect(result.traversingMode).toBe("full");
+    // EXACT expectation: the attributed patrol contributes once (via
+    // patrolBreakdown) and the transiting patrol once (via full-traversing).
+    // A double-credit bug would read count 3 / 22 km / 8 h.
+    expect(result.charts.patrolList.patrolTotals).toEqual({
+      count: 2,
+      totalHours: ATTRIBUTED_HOURS + TRANSIT_FULL_HOURS,
+      totalKm: ATTRIBUTED_KM + TRANSIT_FULL_KM,
+    });
+    // The appended page likewise lists only the genuinely-transiting patrol.
+    const tp = result.traversingPatrols;
+    if (!tp) throw new Error("expected traversingPatrols in full mode");
+    expect(tp.rows.map((r) => r.patrolId)).toEqual(["patrol-transit"]);
+  });
+
+  // ── The appended dataset in full mode ────────────────────────────────────
+
+  it("with BOTH flags on, the clipped builder is not used: traversingMode is 'full' and the rows carry FULL figures credited to the zone", async () => {
+    setupZoneScope({
+      protectedZoneId: ZONE_ID,
+      municipalityId: MUNI_ID,
+      includeTraversing: true,
+      includeTraversingFull: true,
+      attributedRows: [ATTRIBUTED_PATROL_ROW],
+      trackRows: [TRANSIT_TRACK_ROW],
+    });
+
+    const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(result).not.toBeNull();
+    if (!result) return;
+
+    expect(result.traversingMode).toBe("full");
+    const tp = result.traversingPatrols;
+    if (!tp) throw new Error("expected traversingPatrols in full mode");
+    expect(tp.rows).toHaveLength(1);
+    const [row] = tp.rows;
+    if (!row) throw new Error("expected a full-traversing row");
+    // THE SIGNAL that `buildTraversingPatrols` did not run: exactly half of
+    // this track lies inside the zone, so the clipped builder would have
+    // produced ~5 km / ~2 h. Full mode reports the WHOLE patrol instead.
+    expect(row.insideKm).toBe(TRANSIT_FULL_KM);
+    expect(row.insideHoursEst).toBe(TRANSIT_FULL_HOURS);
+    expect(row.creditedMunicipalityName).toBe("Apo Reef Park");
+    expect(row.startMunicipalityName).toBe("Sablayan");
+    // Subtotals recomputed from those rows.
+    expect(tp.total).toEqual({
+      count: 1,
+      insideKm: TRANSIT_FULL_KM,
+      insideHoursEst: TRANSIT_FULL_HOURS,
+    });
+    expect(tp.seaborne.count).toBe(1);
+    expect(tp.foot.count).toBe(0);
+  });
+
+  it("full mode grows patrolTotals.count while leaving patrolBreakdown.length alone (the deliberate header-vs-rows divergence)", async () => {
+    setupZoneScope({
+      protectedZoneId: ZONE_ID,
+      municipalityId: MUNI_ID,
+      includeTraversingFull: true,
+      attributedRows: [ATTRIBUTED_PATROL_ROW],
+      trackRows: [TRANSIT_TRACK_ROW],
+    });
+
+    const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
+    expect(result).not.toBeNull();
+    if (!result) return;
+
+    // The printed per-patrol table stays the origin-in-zone list…
+    expect(result.charts.patrolList.breakdown).toHaveLength(1);
+    expect(result.charts.patrolList.breakdown[0]?.patrolId).toBe(
+      "patrol-attributed",
+    );
+    // …while the headline deliberately exceeds it. This is precisely why the
+    // rendered page must carry a visible stamp (slice 5).
+    expect(result.charts.patrolList.patrolTotals.count).toBe(2);
+  });
+});
+
+// ─── applyFullTraversingToTypeTotals ──────────────────────────────────────────
+
+describe("applyFullTraversingToTypeTotals", () => {
+  const base = {
+    seaborne: { count: 1, hours: 2, km: 6 },
+    foot: { count: 0, hours: 0, km: 0 },
+  };
+  const row = (
+    patrolId: string,
+    patrolType: string,
+    fullKm: number,
+    fullHours: number,
+  ) => ({
+    patrolId,
+    title: null,
+    patrolType,
+    startMunicipalityName: "Sablayan",
+    fullKm,
+    fullHours,
+  });
+
+  it("adds each row into its own type bucket", () => {
+    const out = applyFullTraversingToTypeTotals(base, [
+      row("p1", "seaborne", 10, 4),
+      row("p2", "foot", 3, 1),
+    ]);
+    expect(out.seaborne).toEqual({ count: 2, hours: 6, km: 16 });
+    expect(out.foot).toEqual({ count: 1, hours: 1, km: 3 });
+  });
+
+  it("ignores rows whose patrolType is neither seaborne nor foot (mirrors buildPatrolTypeTotals)", () => {
+    const out = applyFullTraversingToTypeTotals(base, [
+      row("p3", "aerial", 99, 99),
+    ]);
+    expect(out).toEqual(base);
+  });
+
+  it("is pure — the base totals object is never mutated", () => {
+    const snapshot = JSON.parse(JSON.stringify(base)) as typeof base;
+    applyFullTraversingToTypeTotals(base, [row("p1", "seaborne", 10, 4)]);
+    expect(base).toEqual(snapshot);
   });
 });
 
@@ -1632,145 +2250,20 @@ describe("capHeatLayerPoints", () => {
   });
 });
 
-// ─── clipTracksToMunicipalityGeometry (cross-municipality leak fix, 2026-07-06) ─
+// ─── clipTracksToMunicipalityGeometry — TESTS REMOVED WITH THE FEATURE ────────
 //
-// A simple square polygon standing in for a municipality's boundary/water
-// geometry — PG (Puerto Galera): lat 13.0–13.6, lon 120.85–121.2. Points west
-// of lon 120.85 stand in for the real-world Abra de Ilog leak this fix
-// targets (a patrol attributed to PG by dominant-track share, but with GPS
-// points that physically sit in the neighboring municipality).
-const PG_GEOJSON = {
-  type: "Polygon",
-  coordinates: [
-    [
-      [120.85, 13.0],
-      [121.2, 13.0],
-      [121.2, 13.6],
-      [120.85, 13.6],
-      [120.85, 13.0],
-    ],
-  ],
-};
-
-describe("clipTracksToMunicipalityGeometry", () => {
-  it("passes tracks through unchanged when geometries is null (regional / no-geometry report)", () => {
-    const tracks = [
-      makeTrackRow({
-        patrolId: "p1",
-        path: [
-          { lat: 13.2, lon: 120.7 }, // outside PG_GEOJSON — must survive when geometries is null
-          { lat: 13.2, lon: 121.0 },
-        ],
-      }),
-    ];
-    expect(clipTracksToMunicipalityGeometry(tracks, null)).toEqual(tracks);
-  });
-
-  it("drops points outside the municipality geometry, keeping the rest of the track", () => {
-    const tracks = [
-      makeTrackRow({
-        patrolId: "p1",
-        path: [
-          { lat: 13.2, lon: 120.7 }, // outside — west of the PG boundary (Abra de Ilog side)
-          { lat: 13.2, lon: 121.0 }, // inside
-          { lat: 13.3, lon: 121.05 }, // inside
-        ],
-      }),
-    ];
-    const result = clipTracksToMunicipalityGeometry(tracks, [PG_GEOJSON]);
-    expect(result).toEqual([
-      {
-        patrolId: "p1",
-        label: "p1",
-        patrolType: "seaborne",
-        path: [
-          { lat: 13.2, lon: 121.0 },
-          { lat: 13.3, lon: 121.05 },
-        ],
-      },
-    ]);
-  });
-
-  it("drops a track entirely when clipping leaves fewer than 2 points (mirrors the ADI mis-attributed-patrol case)", () => {
-    // Every point of this track sits outside PG_GEOJSON — the exact shape of
-    // the "ADI foot patrol" bug: a whole track physically in a neighboring
-    // municipality, attributed to this one.
-    const tracks = [
-      makeTrackRow({
-        patrolId: "adi-1",
-        patrolType: "foot",
-        path: [
-          { lat: 13.48, lon: 120.83 },
-          { lat: 13.48, lon: 120.70 },
-        ],
-      }),
-      makeTrackRow({
-        patrolId: "pg-1",
-        patrolType: "seaborne",
-        path: [
-          { lat: 13.2, lon: 121.0 },
-          { lat: 13.3, lon: 121.05 },
-        ],
-      }),
-    ];
-    const result = clipTracksToMunicipalityGeometry(tracks, [PG_GEOJSON]);
-    expect(result).toEqual([
-      {
-        patrolId: "pg-1",
-        label: "pg-1",
-        patrolType: "seaborne",
-        path: [
-          { lat: 13.2, lon: 121.0 },
-          { lat: 13.3, lon: 121.05 },
-        ],
-      },
-    ]);
-  });
-
-  it("checks multiple geometries (boundary ∪ water) — a point inside EITHER is kept", () => {
-    const waterGeojson = {
-      type: "Polygon",
-      coordinates: [
-        [
-          [121.2, 13.0],
-          [121.4, 13.0],
-          [121.4, 13.6],
-          [121.2, 13.6],
-          [121.2, 13.0],
-        ],
-      ],
-    };
-    const tracks = [
-      makeTrackRow({
-        patrolId: "p1",
-        path: [
-          { lat: 13.2, lon: 121.0 }, // inside boundary only
-          { lat: 13.2, lon: 121.3 }, // inside water only
-        ],
-      }),
-    ];
-    const result = clipTracksToMunicipalityGeometry(tracks, [PG_GEOJSON, waterGeojson]);
-    expect(result[0]?.path).toEqual([
-      { lat: 13.2, lon: 121.0 },
-      { lat: 13.2, lon: 121.3 },
-    ]);
-  });
-
-  it("returns an empty array when every track is fully outside the geometry", () => {
-    const tracks = [
-      makeTrackRow({
-        patrolId: "p1",
-        path: [
-          { lat: 13.2, lon: 120.7 },
-          { lat: 13.3, lon: 120.6 },
-        ],
-      }),
-    ];
-    expect(clipTracksToMunicipalityGeometry(tracks, [PG_GEOJSON])).toEqual([]);
-  });
-
-  it("returns an empty array for an empty track list, regardless of geometries", () => {
-    expect(clipTracksToMunicipalityGeometry([], [PG_GEOJSON])).toEqual([]);
-    expect(clipTracksToMunicipalityGeometry([], null)).toEqual([]);
-  });
-});
+// This suite (6 tests) protected the 2026-07-06 cross-municipality leak fix:
+// path points outside the scope polygon were dropped, and tracks left with
+// < 2 points were deleted. The OWNER RETIRED that behaviour on 2026-07-20 —
+// the printable report now draws WHOLE tracks so its pixels agree with the
+// interactive map and with its own headline totals (which sum whole-patrol DB
+// columns and were never clipped).
+//
+// These tests were deleted rather than fixed because the invariant they
+// asserted is the one the owner deliberately reversed — there is no honest
+// way to keep them green. The tradeoff (stray points from a dominant-track
+// mis-attribution can render for a neighbouring town again) is recorded in
+// full at the "DELIBERATELY REMOVED" block in `get-report-map-report-data.ts`.
+// The real fix for that leak is dominant-track ATTRIBUTION, not a render-time
+// clip; if it is ever built, its tests belong with the attribution code, not
+// here.

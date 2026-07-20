@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { MAP_LAYER } from "../mapLayers";
 import { trpc } from "@/lib/trpc/client";
 import type { DoodleStroke } from "./useDoodle";
 
@@ -58,8 +59,10 @@ function strokesToGeometryJson(strokes: DoodleStroke[]) {
 /**
  * Floating toolbar for the Doodle map-annotation feature — shown only while
  * doodle mode is ON. Placed like InteractiveMap's other floating overlays
- * (e.g. topRightSlot) at `absolute right-3 bottom-3 z-20`, above the
- * DoodleOverlay canvas (z-10).
+ * (e.g. topRightSlot) at `absolute right-3 bottom-3`, on the shared
+ * `MAP_LAYER.panel` layer — above the full-bleed DoodleOverlay canvas
+ * (`MAP_LAYER.doodleCanvas`) so its buttons stay clickable while drawing is
+ * live. See `../mapLayers.ts`.
  */
 export function DoodleToolbar({
   surface,
@@ -114,7 +117,8 @@ export function DoodleToolbar({
 
       <div
         className={cn(
-          "absolute right-3 bottom-3 z-20 flex w-56 flex-col gap-2 rounded-md border bg-background/95 p-3 shadow-md backdrop-blur",
+          "absolute right-3 bottom-3 flex w-56 flex-col gap-2 rounded-md border bg-background/95 p-3 shadow-md backdrop-blur",
+          MAP_LAYER.panel,
         )}
       >
         <div className="flex items-center justify-between">

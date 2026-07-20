@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import Image from "next/image";
 import { Maximize2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,47 @@ function FullscreenToggle() {
   );
 }
 
+/**
+ * Blue Alliance brand mark, pinned to the far right of the header bar.
+ *
+ * Asset: `public/blue-alliance-logo.png` — the same 400x160 artwork already
+ * bundled as `BLUE_ALLIANCE_DEFAULT_LOGO_DATA_URI` for report PDFs (extracted
+ * from that constant so the two surfaces stay one brand asset). The PDF path
+ * keeps its inline data URI because the renderer needs the bytes with zero
+ * I/O; this client surface can just take the `public/` URL.
+ *
+ * It MUST live at the public ROOT, not in a subfolder. `middleware.ts` treats
+ * any first path segment without a dot as a tenant slug, so `/brand/logo.png`
+ * gets resolved as tenant "brand" and redirected to HTML — which makes the
+ * next/image optimizer fail with "isn't a valid image ... received null" (400).
+ * A root-level dotted filename is excluded by both `config.matcher` and the
+ * `isStaticAssetSegment` guard, so it is served as a real static file.
+ *
+ * Sized to the visual weight of the neighbouring icon buttons (h-7), not the
+ * text — it is a signature, not a control. The wordmark's blue reads ~3.8:1 on
+ * the dark `bg-card`, and logotypes are exempt from WCAG 1.4.11, so the
+ * artwork is used unaltered rather than filtered or plated (brand fidelity).
+ *
+ * Hidden below `md` so the email + role badge keep the width they need on a
+ * phone/tablet instead of overflowing the bar. `md` (not `sm`) is measured,
+ * not guessed: the right-hand group needs ~438px and the bar reserves 176px
+ * of sidebar + 48px of `px-6`, so the logo only fits from ~662px up — at the
+ * `sm` 640px breakpoint it clipped off the right edge by 13px.
+ */
+function BlueAllianceMark() {
+  return (
+    <div className="ml-1 hidden shrink-0 border-l border-border pl-3 md:block">
+      <Image
+        src="/blue-alliance-logo.png"
+        alt="Blue Alliance — Philippines Marine Protected Areas"
+        width={400}
+        height={160}
+        className="h-7 w-auto"
+      />
+    </div>
+  );
+}
+
 export function Header() {
   const { data: session } = useSession();
 
@@ -50,6 +92,7 @@ export function Header() {
             )}
           </>
         )}
+        <BlueAllianceMark />
       </div>
     </header>
   );

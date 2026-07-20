@@ -1,31 +1,62 @@
 // V-pptx-export — pptx-render processor.
 //
 // BullMQ job handler for the on-demand "Render to PowerPoint" feature on
-// the /exports page. Converts an ALREADY-RENDERED report PDF into a .pptx
-// (one slide per PDF page, each page rasterized to a full-bleed image).
-// This is strictly ON-DEMAND — never enqueued automatically, never part of
-// the normal report generation pipeline (reportExport.create / pdf-render).
+// the /exports page. This is strictly ON-DEMAND — never enqueued
+// automatically, never part of the normal report generation pipeline
+// (reportExport.create / pdf-render).
+//
+// DERIVED FROM REPORT DATA, NOT FROM THE STORED PDF (owner requirement,
+// 2026-07-20). This processor used to download the already-rendered PDF from
+// Telegram and rasterize it. That is gone, for two reasons:
+//   1. The owner requires the PowerPoint be derived from the SAME report
+//      data, not converted from a delivered artifact.
+//   2. Report exports are now EPHEMERAL — the stored PDF object may be
+//      purged within ~30 minutes, or the instant the user closes the export
+//      dialog. Depending on it made this job fail for a normal, expected
+//      lifecycle event.
+//   So the PPTX render now drives its OWN Chromium render of the live
+//   /print-render page, exactly as pdf-render.processor does.
+//
+// COST NOTE: a PPTX request therefore triggers a SECOND full Chromium render
+// of the report (the PDF render is not reused). That is the accepted price of
+// "derived from report data, not converted from the PDF".
 //
 // Pipeline:
 //   1. Load the ReportExport row (id, tenantId) — defense-in-depth, same
-//      posture as pdf-render.processor.
-//   2. Require status="ready" AND telegramFileId non-null — the PDF must
-//      already exist and be downloadable. Anything else fails cleanly (no
-//      partial/garbage PPTX is ever produced from an unfinished PDF).
-//   3. Fetch the PDF bytes from Telegram (fetchTelegramFileBytes — same
-//      helper + bounded 429 retry as the download route).
-//   4. Rasterize every page via pdfjs-dist (legacy Node build) + a
-//      @napi-rs/canvas-backed canvas at scale=2.0 (~150 DPI equivalent for
-//      a 72-DPI PDF page) → PNG bytes per page.
-//   5. Build a .pptx via pptxgenjs: one custom-sized slide layout per
-//      distinct page aspect ratio (a report is normally uniform paper size,
-//      but nothing here assumes it), each page's PNG placed full-bleed via
-//      addImage({ data: <base64 PNG>, x:0, y:0, w:'100%', h:'100%' }).
-//   6. SOLE store = Telegram (same channel resolution as pdf-render):
-//      uploadDocumentToTelegram, bounded exponential-backoff retry.
-//      pptxTelegramFileId stores the returned file_id. There is NO
-//      server-side/MinIO copy of the .pptx at any point.
-//   7. Update pptxStatus=ready + pptxTelegramFileId + pptxFileSizeBytes.
+//      posture as pdf-render.processor. The row must exist because it carries
+//      paramsJson, which the /print-render page reads to rebuild the report.
+//      There is NO precondition on the PDF's own status: this job renders
+//      independently, so it does not care whether the PDF export succeeded,
+//      failed, or was already purged.
+//   2. Load the Tenant row for its slug (used in printUrl).
+//   3. Build printUrl = WEB_APP_INTERNAL_URL + /print-render/<slug>/<type>/<id>
+//      and call renderPdfViaService to obtain FRESH PDF bytes IN MEMORY.
+//      These bytes are NEVER persisted — they exist only as the raster source
+//      for the slides.
+//   4. Rasterize every page via renderPdfPagesToPptx (pdfjs-dist + a
+//      @napi-rs/canvas-backed canvas) and build the .pptx via pptxgenjs —
+//      one full-bleed image slide per page.
+//   5. SOLE store = MinIO (the exports bucket, via packages/storage
+//      uploadObject), wrapped in the same bounded exponential-backoff retry.
+//      There is NO size cap: the old 20 MB check was a Telegram Bot API
+//      getFile constraint, and removing it is a core reason for this change.
+//      NOTE: lib/telegram-storage.ts is still used for ER photo assets and
+//      /api/assets — untouched here; only report exports moved off Telegram.
+//   6. Update pptxStatus=ready + pptxFileSizeBytes + pptxTelegramFileId=null.
+//      The PPTX object key is NOT persisted anywhere: buildPptxExportKey
+//      (tenantId, exportId, at) is deterministic in tenantId/exportId, so
+//      every reader recomputes it. Deliberate PM decision to avoid a
+//      migration for a new column.
+//
+// Purged-row tolerance (mirrors pdf-render.processor):
+//   - The initial load uses findFirst and RETURNS EARLY on null instead of
+//     throwing — a purge mid-flight is NORMAL, and throwing would burn three
+//     BullMQ retries and pollute the failure metrics.
+//   - Every status write uses updateMany, which affects zero rows silently,
+//     instead of update, which throws P2025 when the row is gone.
+//   - If the row disappears between a SUCCESSFUL upload and the ready write
+//     (updateMany count === 0), the object we just wrote is an orphan and is
+//     deleted best-effort.
 //
 // Error path mirrors pdf-render.processor: on the LAST BullMQ attempt only,
 // flip pptxStatus=failed + pptxErrorMessage before re-throwing (intermediate
@@ -43,30 +74,43 @@ import {
 } from "@marine-guardian/db";
 import type { PptxRenderJobPayload } from "../queues/types";
 import { validateTenantContext } from "../workers/base-worker";
-import {
-  getTelegramBotToken,
-  fetchTelegramFileBytes,
-  uploadDocumentToTelegram,
-} from "../lib/telegram-storage";
+import { renderPdfViaService } from "../lib/pdf-renderer-client";
 import { renderPdfPagesToPptx } from "../lib/pdf-to-pptx";
+import {
+  assertBucketExists,
+  buildPptxExportKey,
+  deleteObject,
+  getExportsBucketName,
+  uploadObject,
+} from "@marine-guardian/storage";
 
 const prisma: ExtendedPrismaClient =
   platformPrisma as unknown as ExtendedPrismaClient;
 
+const PPTX_CONTENT_TYPE =
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+
 export interface PptxRenderResult {
   exportId: string;
   status: "ready" | "failed";
-  telegramFileId?: string;
+  /**
+   * MinIO object key of the stored .pptx. NOT persisted to any column —
+   * readers recompute it with buildPptxExportKey.
+   */
+  filePath?: string;
   fileSizeBytes?: number;
   errorMessage?: string;
 }
 
 /**
- * Same Telegram getFile 20 MB download cap as pdf-render.processor — a
- * .pptx this large would upload fine (sendDocument allows 50 MB) but be
- * permanently undownloadable through the Bot API.
+ * Duplicated from pdf-render.processor (LANDSCAPE_REPORT_TYPES is local to
+ * that file, not exported — it is a render-time concern, not a spec-level
+ * decision). Both processors render the SAME page, so the orientation must
+ * match: `coverage` is a wide funder template and renders landscape; every
+ * other report type (including report_map, which went portrait on
+ * 2026-07-12) renders portrait. Keep in sync with the sibling processor.
  */
-const TELEGRAM_GETFILE_MAX_BYTES = 20 * 1024 * 1024;
+const LANDSCAPE_REPORT_TYPES: ReadonlySet<string> = new Set(["coverage"]);
 
 async function withRetry<T>(
   label: string,
@@ -93,19 +137,6 @@ async function withRetry<T>(
   throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
 
-function resolveTelegramTarget(tenant: {
-  telegramChannelId: string | null;
-}): { botToken: string; chatId: string } | null {
-  const token = process.env["TELEGRAM_BOT_TOKEN"];
-  if (token === undefined || token.trim() === "") return null;
-  const chatId =
-    tenant.telegramChannelId ?? process.env["TELEGRAM_DEFAULT_CHANNEL_ID"];
-  if (chatId === undefined || chatId.trim() === "") {
-    return null;
-  }
-  return { botToken: token.trim(), chatId: chatId.trim() };
-}
-
 function isLastAttempt(job: Job<PptxRenderJobPayload>): boolean {
   const attempts = job.opts.attempts ?? 1;
   return job.attemptsMade + 1 >= attempts;
@@ -118,23 +149,34 @@ export async function processPptxRender(
 
   const { exportId, tenantId } = job.data;
 
-  const row = await prisma.reportExport.findFirstOrThrow({
+  // findFirst (not findFirstOrThrow): report exports are ephemeral and the row
+  // can legitimately be purged before the worker picks the job up. Expected
+  // behaviour, not a failure — return early instead of throwing.
+  const row = await prisma.reportExport.findFirst({
     where: { id: exportId, tenantId },
     select: {
       id: true,
       tenantId: true,
       reportType: true,
+      paperSize: true,
       status: true,
-      telegramFileId: true,
     },
   });
 
-  const tenant = await prisma.tenant.findUniqueOrThrow({
-    where: { id: row.tenantId },
-    select: { id: true, slug: true, telegramChannelId: true },
-  });
+  if (row === null) {
+    console.info(
+      `[pptx-render] export ${exportId} (tenant ${tenantId}) no longer exists — purged before render started; skipping`,
+    );
+    return {
+      exportId,
+      status: "failed",
+      errorMessage: "export row no longer exists (purged)",
+    };
+  }
 
-  await prisma.reportExport.update({
+  // updateMany, not update: the row may have been purged between the load
+  // above and here. update() would throw P2025.
+  await prisma.reportExport.updateMany({
     where: { id: row.id },
     data: {
       pptxStatus: "rendering",
@@ -143,77 +185,88 @@ export async function processPptxRender(
   });
 
   try {
-    // The source PDF must already be fully rendered and stored — PPTX
-    // export never triggers or waits on a PDF render itself.
-    if (row.status !== "ready" || row.telegramFileId === null) {
+    const baseUrl = process.env.WEB_APP_INTERNAL_URL;
+    if (baseUrl === undefined || baseUrl === "") {
       throw new Error(
-        "Source PDF is not ready — cannot render PowerPoint from an export that has not finished (or failed) PDF generation",
+        "WEB_APP_INTERNAL_URL is not configured — pptx-render processor cannot construct printUrl",
       );
     }
 
-    const botToken = getTelegramBotToken();
-    const { bytes: pdfBytes } = await fetchTelegramFileBytes({
-      botToken,
-      fileId: row.telegramFileId,
+    const tenant = await prisma.tenant.findUniqueOrThrow({
+      where: { id: row.tenantId },
+      select: { id: true, slug: true },
     });
 
-    const pptxBuffer = await renderPdfPagesToPptx(
-      new Uint8Array(pdfBytes),
-    );
+    // Fresh render of the LIVE report page — the stored PDF is never read.
+    const printUrl = `${baseUrl}/print-render/${tenant.slug}/${row.reportType}/${row.id}`;
+    const landscape = LANDSCAPE_REPORT_TYPES.has(row.reportType);
+
+    const pdfBuffer = await renderPdfViaService({
+      printUrl,
+      paperSize: row.paperSize,
+      landscape,
+      exportId: row.id,
+    });
+
+    // In-memory only — these bytes are the raster source and are never stored.
+    const pptxBuffer = await renderPdfPagesToPptx(new Uint8Array(pdfBuffer));
 
     const fileSizeBytes = pptxBuffer.length;
 
-    const target = resolveTelegramTarget(tenant);
-    if (target === null) {
-      throw new Error(
-        "Telegram not configured for tenant — set TELEGRAM_BOT_TOKEN plus tenant.telegramChannelId or TELEGRAM_DEFAULT_CHANNEL_ID",
-      );
-    }
-    if (fileSizeBytes > TELEGRAM_GETFILE_MAX_BYTES) {
-      throw new Error(
-        `PPTX exceeds Telegram's 20 MB getFile limit (rendered ${String(fileSizeBytes)} bytes) — cannot store this export`,
-      );
-    }
+    const bucket = getExportsBucketName();
+    await assertBucketExists(bucket);
+    const key = buildPptxExportKey(row.tenantId, row.id, new Date());
 
-    const uploaded = await withRetry("telegram sendDocument", () =>
-      uploadDocumentToTelegram({
-        botToken: target.botToken,
-        chatId: target.chatId,
-        bytes: new Uint8Array(pptxBuffer),
-        filename: `${row.reportType}-${row.id}.pptx`,
-        mimeType:
-          "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        caption: `Report export ${row.reportType} — ${tenant.slug} (PowerPoint)`,
+    await withRetry("minio putObject", () =>
+      uploadObject({
+        bucket,
+        key,
+        body: pptxBuffer,
+        contentType: PPTX_CONTENT_TYPE,
       }),
     );
-    if (uploaded.fileId === "") {
-      throw new Error(
-        "Telegram sendDocument returned no document file_id for report PPTX",
-      );
-    }
-    const telegramFileId = uploaded.fileId;
 
-    await prisma.reportExport.update({
+    const readyWrite = await prisma.reportExport.updateMany({
       where: { id: row.id },
       data: {
         pptxStatus: "ready",
-        pptxTelegramFileId: telegramFileId,
         pptxFileSizeBytes: fileSizeBytes,
         pptxErrorMessage: null,
+        pptxTelegramFileId: null,
       },
     });
+
+    if (readyWrite.count === 0) {
+      // The row was purged while we were rendering/uploading, so the object we
+      // just wrote can never be reached through it. Best-effort cleanup only:
+      // a cleanup failure must never turn a successful render into a failure.
+      try {
+        await deleteObject({ bucket, key });
+      } catch (cleanupErr) {
+        console.warn(
+          `[pptx-render] orphan cleanup failed for ${key}: ${
+            cleanupErr instanceof Error
+              ? cleanupErr.message
+              : String(cleanupErr)
+          }`,
+        );
+      }
+      console.info(
+        `[pptx-render] export ${row.id} was purged mid-render — orphaned object ${key} removed`,
+      );
+    }
 
     return {
       exportId: row.id,
       status: "ready",
-      telegramFileId,
+      filePath: key,
       fileSizeBytes,
     };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
 
     if (isLastAttempt(job)) {
-      await prisma.reportExport.update({
+      await prisma.reportExport.updateMany({
         where: { id: row.id },
         data: {
           pptxStatus: "failed",

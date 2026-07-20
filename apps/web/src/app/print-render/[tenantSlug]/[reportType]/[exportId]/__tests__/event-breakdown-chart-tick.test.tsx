@@ -54,4 +54,22 @@ describe("BreakdownYAxisTick — event-type icon + label (PDF report)", () => {
       ),
     ).not.toThrow();
   });
+
+  it("never paints a blank label — falls back to 'Unknown' when handed an empty value", () => {
+    render(
+      <svg>
+        <BreakdownYAxisTick payload={{ value: "   " }} variant="lawEnforcement" />
+      </svg>,
+    );
+    expect(screen.getByText("Unknown")).toBeTruthy();
+  });
+
+  it("falls back to 'Unknown' when no payload is supplied at all", () => {
+    render(
+      <svg>
+        <BreakdownYAxisTick variant="monitoring" />
+      </svg>,
+    );
+    expect(screen.getByText("Unknown")).toBeTruthy();
+  });
 });

@@ -37,6 +37,107 @@ function unwrapGeojson(raw: unknown): GeoJSON.Feature | GeoJSON.Geometry {
   return raw as GeoJSON.Feature | GeoJSON.Geometry;
 }
 
+// ── Performance: memoized unwrap (O5) + bbox pre-filter (O1) ─────────────────
+//
+// Both caches are keyed on the RAW geojson object's identity (WeakMap), so
+// their lifetime tracks the municipality/zone objects the caller passed in —
+// no manual invalidation, and no correctness impact: `unwrapGeojson` and the
+// bbox derived from a geometry are both pure functions of that SAME object's
+// content, so caching by object identity can never return a stale/wrong
+// value for a different geojson object.
+//
+// IMPORTANT — the bbox pre-filter is an EXACT short-circuit, NOT an
+// approximation: `booleanPointInPolygon(point, polygon)` can only be true
+// when the point's lon/lat falls within the polygon's own bounding box
+// (every vertex of a polygon — and therefore every point on or inside it —
+// has lon/lat within that box). So "point outside the polygon's bbox"
+// definitively proves "point outside the polygon" with zero loss of
+// precision; the bbox test only ever skips `booleanPointInPolygon` calls
+// that were guaranteed to return `false` anyway. The bbox comparison is
+// INCLUSIVE (`<=`/`>=`) so a point exactly ON the bbox edge is never wrongly
+// treated as outside.
+const unwrapCache = new WeakMap<object, GeoJSON.Feature | GeoJSON.Geometry>();
+
+function getCachedUnwrap(raw: unknown): GeoJSON.Feature | GeoJSON.Geometry {
+  if (raw != null && typeof raw === "object") {
+    const cached = unwrapCache.get(raw);
+    if (cached != null) return cached;
+    const result = unwrapGeojson(raw);
+    unwrapCache.set(raw, result);
+    return result;
+  }
+  return unwrapGeojson(raw);
+}
+
+type BBox = readonly [minLon: number, minLat: number, maxLon: number, maxLat: number];
+
+const bboxCache = new WeakMap<object, BBox | null>();
+
+/**
+ * Extract every Polygon/MultiPolygon coordinate ring-set out of a (possibly
+ * Feature-wrapped) geometry, for bbox computation. Returns null for geometry
+ * types this module never stores boundaries as (e.g. LineString/Point) —
+ * callers must treat null as "no bbox available, fall through to the exact
+ * test", never as "always outside".
+ */
+function extractPolygonRingSets(
+  geometry: GeoJSON.Feature | GeoJSON.Geometry,
+): number[][][][] | null {
+  const geom = geometry.type === "Feature" ? geometry.geometry : geometry;
+  if (geom.type === "Polygon") {
+    return [geom.coordinates];
+  }
+  if (geom.type === "MultiPolygon") {
+    return geom.coordinates;
+  }
+  return null;
+}
+
+function computeBBox(geometry: GeoJSON.Feature | GeoJSON.Geometry): BBox | null {
+  const ringSets = extractPolygonRingSets(geometry);
+  if (ringSets == null) return null;
+  let minLon = Infinity;
+  let minLat = Infinity;
+  let maxLon = -Infinity;
+  let maxLat = -Infinity;
+  for (const rings of ringSets) {
+    for (const ring of rings) {
+      for (const coord of ring) {
+        const lon: number | undefined = coord[0];
+        const lat: number | undefined = coord[1];
+        if (lon == null || lat == null) continue;
+        if (lon < minLon) minLon = lon;
+        if (lon > maxLon) maxLon = lon;
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+      }
+    }
+  }
+  if (!Number.isFinite(minLon) || !Number.isFinite(minLat)) return null;
+  return [minLon, minLat, maxLon, maxLat];
+}
+
+/**
+ * Cached bbox for a raw (pre-unwrap) geojson value, or null when a bbox
+ * couldn't be computed (unsupported/malformed geometry) — callers must
+ * treat null as "no pre-filter available", never as "always outside".
+ */
+function getCachedBBox(raw: unknown): BBox | null {
+  if (raw == null || typeof raw !== "object") return null;
+  if (bboxCache.has(raw)) {
+    return bboxCache.get(raw) ?? null;
+  }
+  const unwrapped = getCachedUnwrap(raw);
+  const bbox = computeBBox(unwrapped);
+  bboxCache.set(raw, bbox);
+  return bbox;
+}
+
+/** Inclusive bbox membership test (see the pre-filter note above). */
+function isInBBox(lon: number, lat: number, bbox: BBox): boolean {
+  return lon >= bbox[0] && lon <= bbox[2] && lat >= bbox[1] && lat <= bbox[3];
+}
+
 // ── Layer 1 — Municipality (exclusive) ────────────────────────────────────────
 
 /**
@@ -61,8 +162,14 @@ function containingMunicipality(
   tPoint: ReturnType<typeof turfPoint>,
   municipalities: MunicipalityForAssignment[],
 ): string | null {
+  const [lon, lat] = tPoint.geometry.coordinates as [number, number];
   for (const muni of municipalities) {
-    const geojson = unwrapGeojson(muni.boundaryGeojson);
+    // O1 — bbox pre-filter: an exact short-circuit, see the comment above
+    // getCachedBBox. bbox === null just means "couldn't compute one", so we
+    // always fall through to the real PIP test in that case.
+    const bbox = getCachedBBox(muni.boundaryGeojson);
+    if (bbox != null && !isInBBox(lon, lat, bbox)) continue;
+    const geojson = getCachedUnwrap(muni.boundaryGeojson); // O5
     if (
       booleanPointInPolygon(
         tPoint,
@@ -101,11 +208,15 @@ function containingWaterMunicipality(
   tPoint: ReturnType<typeof turfPoint>,
   municipalities: MunicipalityForAssignment[],
 ): string | null {
+  const [lon, lat] = tPoint.geometry.coordinates as [number, number];
   let nearestId: string | null = null;
   let nearestKm = Infinity;
   for (const muni of municipalities) {
     if (muni.waterGeojson == null) continue;
-    const water = unwrapGeojson(muni.waterGeojson);
+    // O1 — bbox pre-filter (exact short-circuit, see getCachedBBox comment).
+    const waterBBox = getCachedBBox(muni.waterGeojson);
+    if (waterBBox != null && !isInBBox(lon, lat, waterBBox)) continue;
+    const water = getCachedUnwrap(muni.waterGeojson); // O5
     if (
       !booleanPointInPolygon(
         tPoint,
@@ -116,7 +227,7 @@ function containingWaterMunicipality(
     }
     // Point is in this municipality's waters — measure distance to its coast
     // (land polygon) to resolve any overlap with another municipality's waters.
-    const land = unwrapGeojson(muni.boundaryGeojson);
+    const land = getCachedUnwrap(muni.boundaryGeojson); // O5
     const km = Math.abs(
       pointToPolygonDistance(
         tPoint,
@@ -130,6 +241,44 @@ function containingWaterMunicipality(
     }
   }
   return nearestId;
+}
+
+/**
+ * O3 — existence-only water-jurisdiction test, used ONLY by
+ * `classifyPointTerrain`. That caller only ever checks
+ * `containingWaterMunicipality(...) != null` and discards the winning id —
+ * but `containingWaterMunicipality` always runs the expensive
+ * `pointToPolygonDistance` equidistance tie-break for EVERY municipality
+ * whose water polygon contains the point, purely to pick a winner nobody
+ * asked for at that call site. This helper short-circuits `true` on the
+ * FIRST containing water polygon and does NO distance work.
+ *
+ * `containingWaterMunicipality` itself is UNCHANGED and remains the one used
+ * by every caller that needs the actual winning municipality id
+ * (`assignMunicipalityByContainment`, `assignMunicipalityToPoint`,
+ * `assignMunicipalityToPointOrNearest`) — those still need the nearest-coast
+ * equidistance tie-break, which this helper deliberately does not compute.
+ */
+function isPointInAnyWaterPolygon(
+  tPoint: ReturnType<typeof turfPoint>,
+  municipalities: MunicipalityForAssignment[],
+): boolean {
+  const [lon, lat] = tPoint.geometry.coordinates as [number, number];
+  for (const muni of municipalities) {
+    if (muni.waterGeojson == null) continue;
+    const waterBBox = getCachedBBox(muni.waterGeojson);
+    if (waterBBox != null && !isInBBox(lon, lat, waterBBox)) continue;
+    const water = getCachedUnwrap(muni.waterGeojson);
+    if (
+      booleanPointInPolygon(
+        tPoint,
+        water as Parameters<typeof booleanPointInPolygon>[1],
+      )
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -161,7 +310,7 @@ export function nearestMunicipality(
   let nearestId: string | null = null;
   let nearestKm = Infinity;
   for (const muni of municipalities) {
-    const geojson = unwrapGeojson(muni.boundaryGeojson);
+    const geojson = getCachedUnwrap(muni.boundaryGeojson); // O5
     const km = Math.abs(
       pointToPolygonDistance(
         tPoint,
@@ -217,11 +366,16 @@ export function assignMunicipalityToPoint(
   const waterContained = containingWaterMunicipality(tPoint, municipalities);
   if (waterContained != null) return waterContained;
 
-  // 3. Municipal waters — nearest coastline within the seaward reach.
+  // 3. Municipal waters — nearest coastline within the seaward reach. Needs
+  //    the actual nearest municipality id, so — unlike classifyPointTerrain's
+  //    stage 3 — this keeps computing the true minimum across all
+  //    municipalities (no O4 early-exit / no O2 distance-cap short-circuit
+  //    here, per spec: those are correctness-safe only where the caller
+  //    discards the winning id and only consumes the boolean verdict).
   let nearestId: string | null = null;
   let nearestKm = Infinity;
   for (const muni of municipalities) {
-    const geojson = unwrapGeojson(muni.boundaryGeojson);
+    const geojson = getCachedUnwrap(muni.boundaryGeojson); // O5
     const km = Math.abs(
       pointToPolygonDistance(
         tPoint,
@@ -297,7 +451,10 @@ export function assignZonesToPoint(
   const tPoint = turfPoint([point.lon, point.lat]);
   return zones
     .filter((z) => {
-      const geojson = unwrapGeojson(z.boundaryGeojson);
+      // O1 — bbox pre-filter (exact short-circuit, see getCachedBBox comment).
+      const bbox = getCachedBBox(z.boundaryGeojson);
+      if (bbox != null && !isInBBox(point.lon, point.lat, bbox)) return false;
+      const geojson = getCachedUnwrap(z.boundaryGeojson); // O5
       return booleanPointInPolygon(
         tPoint,
         geojson as Parameters<typeof booleanPointInPolygon>[1],
@@ -559,8 +716,25 @@ export function assignMunicipalityToDominantTrackByContainment(
   const tallies = new Map<string, number>();
   const firstHitIndex = new Map<string, number>();
 
+  // O6 — exact-coordinate dedup, scoped to this single call. ONLY the
+  // per-point geometry computation (assignMunicipalityByContainment) is
+  // cached by exact `${lon},${lat}` — municipalities is fixed for the whole
+  // loop so a repeated exact coordinate always resolves to the same
+  // municipality id. EVERY point occurrence still runs through
+  // `points.forEach` below and is tallied individually (including its own
+  // `index`), so `firstHitIndex`'s earliest-index tie-break is completely
+  // unaffected — dedup only skips redundant geometry math, never a tally.
+  const municipalityCache = new Map<string, string | null>();
+
   points.forEach(([lon, lat], index) => {
-    const municipalityId = assignMunicipalityByContainment({ lat, lon }, municipalities);
+    const key = `${String(lon)},${String(lat)}`;
+    let municipalityId: string | null;
+    if (municipalityCache.has(key)) {
+      municipalityId = municipalityCache.get(key) ?? null;
+    } else {
+      municipalityId = assignMunicipalityByContainment({ lat, lon }, municipalities);
+      municipalityCache.set(key, municipalityId);
+    }
     if (municipalityId == null) return;
     tallies.set(municipalityId, (tallies.get(municipalityId) ?? 0) + 1);
     if (!firstHitIndex.has(municipalityId)) {
@@ -615,10 +789,13 @@ export function isPointInAnyGeometry(
   const tPoint = turfPoint([point.lon, point.lat]);
   for (const geometry of geometries) {
     if (geometry == null) continue;
+    // O1 — bbox pre-filter (exact short-circuit, see getCachedBBox comment).
+    const bbox = getCachedBBox(geometry);
+    if (bbox != null && !isInBBox(point.lon, point.lat, bbox)) continue;
     if (
       booleanPointInPolygon(
         tPoint,
-        unwrapGeojson(geometry) as Parameters<typeof booleanPointInPolygon>[1],
+        getCachedUnwrap(geometry) as Parameters<typeof booleanPointInPolygon>[1], // O5
       )
     ) {
       return true;
@@ -665,14 +842,23 @@ export function classifyPointTerrain(
   const contained = containingMunicipality(tPoint, municipalities);
   if (contained != null) return "land";
 
-  // 2. Uploaded water-jurisdiction polygon (when present).
-  const waterContained = containingWaterMunicipality(tPoint, municipalities);
-  if (waterContained != null) return "water";
+  // 2. Uploaded water-jurisdiction polygon (when present). Existence-only
+  //    (O3): this call site only ever needs the yes/no verdict and discards
+  //    the winning municipality id, so it uses `isPointInAnyWaterPolygon`
+  //    instead of `containingWaterMunicipality` — same containment result,
+  //    without the per-overlap distance tie-break nobody reads here.
+  if (isPointInAnyWaterPolygon(tPoint, municipalities)) return "water";
 
   // 3. Generic municipal-waters buffer — nearest land polygon within reach.
-  let nearestKm = Infinity;
+  //    Only the verdict `nearestKm <= maxWaterDistanceKm` is ever consumed
+  //    (this function doesn't return WHICH municipality), so (O4) this
+  //    returns "water" as soon as ANY municipality is within reach instead
+  //    of computing the true minimum over all of them first: if any
+  //    individual km is <= maxWaterDistanceKm, the true minimum is too (the
+  //    min can only be <= that value); if none ever is, the true minimum
+  //    isn't either — so the verdict is identical either way.
   for (const muni of municipalities) {
-    const geojson = unwrapGeojson(muni.boundaryGeojson);
+    const geojson = getCachedUnwrap(muni.boundaryGeojson); // O5
     const km = Math.abs(
       pointToPolygonDistance(
         tPoint,
@@ -680,10 +866,10 @@ export function classifyPointTerrain(
         { units: "kilometers" },
       ),
     );
-    if (km < nearestKm) nearestKm = km;
+    if (km <= maxWaterDistanceKm) return "water";
   }
 
-  return nearestKm <= maxWaterDistanceKm ? "water" : null;
+  return null;
 }
 
 /**
@@ -721,8 +907,24 @@ export function classifyTrackTerrain(
   let landCount = 0;
   let waterCount = 0;
 
+  // O6 — exact-coordinate dedup, scoped to this single call. Dense GPS
+  // tracks frequently repeat the EXACT [lon, lat] pair when a vessel is
+  // stationary; classifyPointTerrain is a pure function of (point,
+  // municipalities, maxWaterDistanceKm) — both of which are fixed for the
+  // whole loop — so the SAME exact coordinate always classifies to the SAME
+  // terrain, and it's safe to compute it once and reuse the result for every
+  // repeat. Key is the EXACT `${lon},${lat}` string — no rounding.
+  const terrainCache = new Map<string, "land" | "water" | null>();
+
   for (const [lon, lat] of points) {
-    const terrain = classifyPointTerrain({ lat, lon }, municipalities, maxWaterDistanceKm);
+    const key = `${String(lon)},${String(lat)}`;
+    let terrain: "land" | "water" | null;
+    if (terrainCache.has(key)) {
+      terrain = terrainCache.get(key) ?? null;
+    } else {
+      terrain = classifyPointTerrain({ lat, lon }, municipalities, maxWaterDistanceKm);
+      terrainCache.set(key, terrain);
+    }
     if (terrain === "land") landCount++;
     else if (terrain === "water") waterCount++;
   }

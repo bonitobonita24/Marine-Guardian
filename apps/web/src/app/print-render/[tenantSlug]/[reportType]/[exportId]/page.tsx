@@ -26,9 +26,12 @@ import { notFound } from "next/navigation";
 import { getCoverageReportData } from "@/server/coverage-report/get-coverage-report-data";
 import { getPerAreaReportData } from "@/server/per-area-report/get-per-area-report-data";
 import { getReportMapReportData } from "@/server/report-map-report/get-report-map-report-data";
+import { getEventHighlightsReportData } from "@/server/event-highlights-report/get-event-highlights-report-data";
 import { CoverageReport } from "./coverage-report";
 import { PerAreaReport } from "./per-area-report";
 import { ReportMapReport } from "./report-map-report";
+import { EventHighlightsReport } from "./event-highlights-report";
+import { PrintDocumentShell } from "./components/print-document-shell";
 
 interface PrintPageProps {
   params: Promise<{
@@ -42,6 +45,7 @@ const VALID_REPORT_TYPES = new Set([
   "coverage",
   "area",
   "report_map",
+  "event_highlights",
   "ad-hoc-events",
   "ad-hoc-patrols",
 ]);
@@ -67,19 +71,24 @@ export default async function PrintPage({ params }: PrintPageProps) {
     return <ReportMapReport data={data} />;
   }
 
+  if (reportType === "event_highlights") {
+    const data = await getEventHighlightsReportData(tenantSlug, exportId);
+    if (data === null) notFound();
+    return <EventHighlightsReport data={data} />;
+  }
+
   const generatedAt = new Date().toISOString();
   const reportTypeLabel = VALID_REPORT_TYPES.has(reportType)
     ? reportType
     : `${reportType} (unrecognized — pipeline stub)`;
 
   return (
-    <html lang="en">
-      <head>
-        <meta charSet="utf-8" />
-        <title>
-          Marine Guardian Export — {reportTypeLabel} — {exportId}
-        </title>
-        <style>{`
+    /* No <html>/<head>/<body> here — this page renders inside the app root
+       layout's document. Emitting a nested document was the React #418
+       hydration-mismatch root cause; see components/print-document-shell.tsx. */
+    <PrintDocumentShell
+      title={`Marine Guardian Export — ${reportTypeLabel} — ${exportId}`}
+      css={`
           @page { size: A4 landscape; margin: 12mm; }
           body { font-family: ui-sans-serif, system-ui, sans-serif; color: #111; margin: 0; padding: 24px; }
           h1 { font-size: 22px; margin: 0 0 8px; }
@@ -87,9 +96,8 @@ export default async function PrintPage({ params }: PrintPageProps) {
           .meta dt { float: left; clear: left; width: 8em; font-weight: 600; }
           .meta dd { margin: 0 0 4px 8em; }
           .stub-banner { margin-top: 24px; padding: 12px 16px; background: #f4f4f5; border-left: 3px solid #71717a; font-size: 12px; }
-        `}</style>
-      </head>
-      <body>
+        `}
+    >
         <h1>Marine Guardian — Export Render Pipeline Stub</h1>
         <dl className="meta">
           <dt>Tenant:</dt>
@@ -112,7 +120,6 @@ export default async function PrintPage({ params }: PrintPageProps) {
           src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
           style={{ position: "absolute", width: 1, height: 1, left: -9999 }}
         />
-      </body>
-    </html>
+    </PrintDocumentShell>
   );
 }

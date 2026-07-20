@@ -5,9 +5,14 @@ import { tenantProcedure } from "../middleware/tenant";
 import { matrixProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
 import {
+  buildMemberContainment,
   clipTrackAcrossMembers,
-  bboxOfGeojson,
 } from "../../reporting/traversing-coverage";
+import {
+  buildScopeWhere,
+  loadScopeGeometries,
+  resolveReportScope,
+} from "../../reporting/report-scope";
 import { EVENT_CATEGORY } from "@/components/map/eventMarkerStyle";
 import { boundaryKindFromRef, municipalityIdFromRef } from "./boundary-kind";
 import {
@@ -90,6 +95,13 @@ const patrolTracksInRangeInput = z
     // only affects which tracks are RENDERED, never any count tile. Defaults
     // to unset/false, which preserves the exact prior behavior.
     includeTraversing: z.boolean().optional(),
+    // Full-traversing toggle (2026-07-20) — opt-in, ZONE SCOPE ONLY, default
+    // off. When true AND a protected zone is selected, a patrol that merely
+    // ENTERS the zone is COUNTED (+1) and contributes its FULL distance/time,
+    // superseding `includeTraversing`'s inside-portion crediting for those
+    // same patrols (never both). The zone-scope-only gate lives in
+    // `resolveReportScope` — see `ReportScope.includeTraversingFull`.
+    includeTraversingFull: z.boolean().optional(),
   })
   .strict();
 
@@ -598,81 +610,106 @@ const patrolTracksRouter = router({
       if (startTime.gte !== undefined || startTime.lte !== undefined) {
         patrolWhere.startTime = startTime;
       }
-      // Province rollup (2026-07-09): resolves municipalityId (wins) or every
-      // municipality in the given province; undefined when neither is set.
-      const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
-      // Phase 4B (2026-07-09): "include child boundaries" folds a municipality
-      // scope's child protected zones (MPA/hotspot/custom) into the patrol tracks.
-      const childZoneIds =
-        input.includeChildren === true && municipalityIds !== undefined
-          ? await resolveChildZoneIds(ctx.tenantId, municipalityIds)
-          : undefined;
-      if (municipalityIds !== undefined) {
-        const scope = buildMunicipalityScopeWhere(municipalityIds, childZoneIds);
-        if ("OR" in scope) patrolWhere.OR = scope.OR;
-        else patrolWhere.municipalityId = scope.municipalityId;
+      // Scope (2026-07-20): ONE shared resolver, replacing the inline
+      // resolveMunicipalityScope / resolveChildZoneIds /
+      // buildMunicipalityScopeWhere + protectedZoneId derivation this resolver
+      // used to duplicate. `buildScopeWhere` reproduces that output exactly for
+      // every scope combination: the municipality clause comes from the same
+      // `buildMunicipalityScopeWhere` call, and `resolveReportScope` yields
+      // `childZoneIds: []` where this code used `undefined` — both collapse to
+      // the plain municipality clause in `buildMunicipalityScopeWhere` (its
+      // widening requires `childZoneIds.length > 0`). The explicit-zone clause
+      // is set on the same independent `coveredZones` key as before, so the two
+      // still AND together. The non-traversing path below is unchanged.
+      const scope = await resolveReportScope(ctx.tenantId, input);
+      const scopeWhere = buildScopeWhere(scope);
+      if (scopeWhere.OR !== undefined) patrolWhere.OR = scopeWhere.OR;
+      if (scopeWhere.municipalityId !== undefined) {
+        patrolWhere.municipalityId = scopeWhere.municipalityId;
       }
-      if (input.protectedZoneId !== undefined) {
-        patrolWhere.coveredZones = {
-          some: { protectedZoneId: input.protectedZoneId },
-        };
+      if (scopeWhere.coveredZones !== undefined) {
+        patrolWhere.coveredZones = scopeWhere.coveredZones;
       }
 
-      // Traversing-patrols mode (2026-07-16, extended for province/multi-
-      // municipality scope): activates for ANY resolved municipality scope
-      // (a single concrete municipality OR a province rollup of several). A
-      // patrol is still counted only at its origin municipality — this
-      // toggle only affects which tracks are RENDERED, never any count
-      // tile — but its coverage (distance/time) is credited to every scope
-      // member it physically passes through. At province scope, `attributed`
-      // and `traversing` are NOT mutually exclusive: a patrol whose origin
-      // is member A can also cross member B, so it may be BOTH
-      // attributed=true and traversing=true with insideKm/insideHoursEst > 0
-      // (the credited coverage across the OTHER members it crosses). In the
-      // single-municipality case (municipalityIds.length === 1) there is no
-      // non-origin member to cross, so an attributed patrol's traversing
-      // stays false — output is unchanged from the prior single-muni-only
-      // behavior.
-      if (
-        input.includeTraversing === true &&
-        municipalityIds !== undefined &&
-        municipalityIds.length > 0
-      ) {
-        const muniRows = await prisma.municipality.findMany({
-          where: { id: { in: municipalityIds } },
-          select: { id: true, boundaryGeojson: true, waterGeojson: true },
-        });
+      // Traversing-patrols mode (2026-07-16; scope-corrected 2026-07-20).
+      //
+      // A patrol is still counted only at its origin boundary — this toggle
+      // only affects which tracks are RENDERED, never any count tile — but its
+      // coverage (distance/time) is credited to every scope member it
+      // physically passes through. `attributed` and `traversing` are NOT
+      // mutually exclusive at a multi-member scope: a patrol whose origin is
+      // member A can also cross member B, so it may be both, with
+      // insideKm/insideHoursEst carrying the coverage across the OTHER members.
+      //
+      // THE FIX: this branch used to DISCARD `patrolWhere` and decide inclusion
+      // purely from `municipalityIds.includes(origin)` against MUNICIPALITY
+      // polygons. Selecting an MPA zone with traversing ON therefore reverted
+      // the track layer to whole-municipality scope — the selection predicate
+      // and the render predicate disagreed by construction. Now:
+      //   • the ORIGIN-ATTRIBUTED half is selected by the real scope
+      //     where-clause (`patrolWhere`), the same predicate the non-traversing
+      //     path uses;
+      //   • the TRAVERSING half is decided against the SCOPE's own geometry
+      //     members (`loadScopeGeometries`), which returns ZONE members only at
+      //     zone level and municipalities ∪ child zones when includeChildren is
+      //     on — so Rule 2's "or its MPA zones" now actually holds.
+      // The candidate FETCH stays deliberately broad: finding tracks that pass
+      // through somewhere they are not attributed to cannot be expressed as a
+      // scope where-clause.
+      //
+      // GEOMETRY IS UNCHANGED: this endpoint returns FULL, unclipped track
+      // points (owner-confirmed correct). This branch changes WHICH tracks come
+      // back, never their shape.
+      // FULL mode (2026-07-20) renders the SAME track set as clipped mode —
+      // it changes only what those tracks REPORT — so it enters this same
+      // branch. `includeTraversingFull` is already gated to zone scope in
+      // `resolveReportScope`; do not re-check the level here.
+      if (scope.includeTraversing || scope.includeTraversingFull) {
+        const members = await loadScopeGeometries(ctx.tenantId, scope);
 
-        if (muniRows.length === 0) {
-          return { tracks: [] };
-        }
+        if (members.length > 0) {
+          // Built once per request, not per track — the containment relation
+          // that stops a child zone's kilometres being counted twice (once
+          // under the zone, once under its parent municipality).
+          const containment = buildMemberContainment(members);
 
-        const members = muniRows.map((m) => ({
-          id: m.id,
-          landGeojson: m.boundaryGeojson,
-          waterGeojson: m.waterGeojson,
-          bbox:
-            bboxOfGeojson(m.waterGeojson ?? m.boundaryGeojson) ??
-            bboxOfGeojson(m.boundaryGeojson),
-        }));
+          const attributedRows = await prisma.patrol.findMany({
+            where: { tenantId: ctx.tenantId, ...patrolWhere },
+            select: { id: true },
+          });
+          const attributedIds = new Set(attributedRows.map((p) => p.id));
 
-        const candidatePatrolWhere: {
-          isDeleted: false;
-          isTestPatrol: false;
-          startTime?: { gte?: Date; lte?: Date };
-        } = { isDeleted: false, isTestPatrol: false };
-        if (startTime.gte !== undefined || startTime.lte !== undefined) {
-          candidatePatrolWhere.startTime = startTime;
-        }
+          const candidatePatrolWhere: {
+            isDeleted: false;
+            isTestPatrol: false;
+            startTime?: { gte?: Date; lte?: Date };
+          } = { isDeleted: false, isTestPatrol: false };
+          if (startTime.gte !== undefined || startTime.lte !== undefined) {
+            candidatePatrolWhere.startTime = startTime;
+          }
 
-        const candidateRows = await prisma.patrolTrack.findMany({
-          where: {
-            tenantId: ctx.tenantId,
-            patrol: candidatePatrolWhere,
-          },
-          take: ACTIVE_TRACKS_PATROL_CAP,
-          orderBy: { until: "desc" },
-          select: {
+          // ⚠ THE CANDIDATE SET IS A UNION OF TWO CAPPED READS, AND IT MUST
+          // STAY THAT WAY. (regression fix, 2026-07-20)
+          //
+          // THE BUG: this used to be ONE tenant-wide read capped at
+          // ACTIVE_TRACKS_PATROL_CAP. A tenant-wide "most recent N tracks"
+          // window is not a superset of "the N most recent tracks IN SCOPE" —
+          // it is a different window entirely. On a small offshore zone the
+          // two barely intersect: in dev, Apo Reef has 199 tracks (114 foot /
+          // 85 seaborne) but only 9 of them (8 foot / 1 seaborne) fall inside
+          // the 50 most recent of the tenant's 4,138 tracks. Turning the
+          // full-traversing toggle ON therefore routed the render through this
+          // branch and made nearly every seaborne track vanish from the map —
+          // silent truncation, not a filter the user asked for.
+          //
+          // THE INVARIANT this restores: the ATTRIBUTED (in-scope) tracks
+          // rendered here are exactly the ones the non-traversing path at the
+          // bottom of this procedure renders, because the first read below is
+          // that same query. Traversing candidates are then ADDED on top.
+          // Geometry and scope stay identical between toggle states; only the
+          // reported figures move. Never collapse these back into one read.
+          const trackSelect = {
+            id: true,
             trackGeojson: true,
             patrol: {
               select: {
@@ -684,45 +721,109 @@ const patrolTracksRouter = router({
                 totalHours: true,
                 computedDistanceKm: true,
                 totalDistanceKm: true,
+                // Origin exclusion at ZONE level: a Patrol has no origin-zone
+                // column, so the start point is tested against each zone
+                // member's polygon in memory (resolveOriginMemberIds).
+                startLocationLat: true,
+                startLocationLon: true,
               },
             },
-          },
-        });
+          } as const;
 
-        const traversingTracks = candidateRows.flatMap((row) => {
-          const points = pointsFromTrackGeojson(row.trackGeojson);
-          if (points.length < 2) return [];
+          const [scopedRows, traversingCandidateRows] = await Promise.all([
+            // (1) IN-SCOPE tracks — same where-clause + cap + ordering as the
+            // non-traversing path, so the attributed half cannot be truncated
+            // away by unrelated tenant-wide activity.
+            prisma.patrolTrack.findMany({
+              where: { tenantId: ctx.tenantId, patrol: patrolWhere },
+              take: ACTIVE_TRACKS_PATROL_CAP,
+              orderBy: { until: "desc" },
+              select: trackSelect,
+            }),
+            // (2) TRAVERSING candidates — deliberately broad, because "passes
+            // through somewhere it is not attributed to" cannot be expressed
+            // as a scope where-clause. Still capped; this half is best-effort
+            // by design and only ever ADDS tracks.
+            prisma.patrolTrack.findMany({
+              where: { tenantId: ctx.tenantId, patrol: candidatePatrolWhere },
+              take: ACTIVE_TRACKS_PATROL_CAP,
+              orderBy: { until: "desc" },
+              select: trackSelect,
+            }),
+          ]);
 
-          const attributed =
-            row.patrol.municipalityId !== null &&
-            municipalityIds.includes(row.patrol.municipalityId);
+          // Dedupe by TRACK row id (a patrol may own several track rows, and
+          // the two reads overlap whenever an in-scope track is also recent).
+          const candidateRows = [
+            ...new Map(
+              [...scopedRows, ...traversingCandidateRows].map((r) => [r.id, r]),
+            ).values(),
+          ];
 
-          const result = clipTrackAcrossMembers(row.trackGeojson, members, {
-            originMunicipalityId: row.patrol.municipalityId,
-            computedDurationHours: row.patrol.computedDurationHours,
-            totalHours: row.patrol.totalHours,
-            computedDistanceKm: row.patrol.computedDistanceKm,
-            totalDistanceKm: row.patrol.totalDistanceKm,
+          const traversingTracks = candidateRows.flatMap((row) => {
+            const points = pointsFromTrackGeojson(row.trackGeojson);
+            if (points.length < 2) return [];
+
+            const attributed = attributedIds.has(row.patrol.id);
+
+            const result = clipTrackAcrossMembers(
+              row.trackGeojson,
+              members,
+              {
+                originMunicipalityId: row.patrol.municipalityId,
+                computedDurationHours: row.patrol.computedDurationHours,
+                totalHours: row.patrol.totalHours,
+                computedDistanceKm: row.patrol.computedDistanceKm,
+                totalDistanceKm: row.patrol.totalDistanceKm,
+                startLat: row.patrol.startLocationLat,
+                startLon: row.patrol.startLocationLon,
+              },
+              containment,
+            );
+
+            const traversing = result.traversesNonOrigin;
+            if (!attributed && !traversing) return [];
+
+            // COVERAGE FIGURES — the ONLY thing full mode changes here.
+            //
+            // The on-screen "Traversing coverage" box in InteractiveMap.tsx
+            // SUMS these two fields across the returned tracks. In full mode
+            // the tiles and the PDF credit each entering patrol its WHOLE
+            // distance/time rather than the clipped inside-zone portion, so
+            // these must carry the full figures too — otherwise the map box
+            // and the tiles show two different numbers for the same zone and
+            // dates, which is exactly the credibility failure this feature is
+            // stamped in the report to avoid.
+            //
+            // SUPERSEDES, NEVER ADDS: full figures REPLACE the clipped ones —
+            // they are never summed with them.
+            //
+            // Same coalescing order as `collectFullTraversingPatrols` and the
+            // `patrolBreakdown` builder, so all three read one source of truth.
+            const insideKm = scope.includeTraversingFull
+              ? (row.patrol.computedDistanceKm ?? row.patrol.totalDistanceKm ?? 0)
+              : result.insideKm;
+            const insideHoursEst = scope.includeTraversingFull
+              ? (row.patrol.computedDurationHours ?? row.patrol.totalHours ?? 0)
+              : result.insideHoursEst;
+
+            return [
+              {
+                patrolId: row.patrol.id,
+                title: row.patrol.title,
+                patrolType: row.patrol.patrolType,
+                // GEOMETRY IS UNCHANGED in both modes: full, unclipped points.
+                points,
+                attributed,
+                traversing,
+                insideKm,
+                insideHoursEst,
+              },
+            ];
           });
 
-          const traversing = result.traversesNonOrigin;
-          if (!attributed && !traversing) return [];
-
-          return [
-            {
-              patrolId: row.patrol.id,
-              title: row.patrol.title,
-              patrolType: row.patrol.patrolType,
-              points,
-              attributed,
-              traversing,
-              insideKm: result.insideKm,
-              insideHoursEst: result.insideHoursEst,
-            },
-          ];
-        });
-
-        return { tracks: traversingTracks };
+          return { tracks: traversingTracks };
+        }
       }
 
       const trackRows = await prisma.patrolTrack.findMany({

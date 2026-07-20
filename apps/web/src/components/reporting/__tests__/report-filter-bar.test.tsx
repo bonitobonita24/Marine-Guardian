@@ -52,8 +52,15 @@ afterEach(() => {
 
 // Read-out probe so we can assert the bar drives the shared context.
 function Probe() {
-  const { from, to, municipalityId, province, includeChildren, protectedZoneId } =
-    useReportFilter();
+  const {
+    from,
+    to,
+    municipalityId,
+    province,
+    includeChildren,
+    includeTraversingFull,
+    protectedZoneId,
+  } = useReportFilter();
   return (
     <div
       data-testid="probe"
@@ -62,6 +69,7 @@ function Probe() {
       data-municipality={municipalityId ?? "null"}
       data-province={province ?? "null"}
       data-include-children={String(includeChildren)}
+      data-include-traversing-full={String(includeTraversingFull)}
       data-zone={protectedZoneId ?? "null"}
     />
   );
@@ -92,6 +100,23 @@ async function openAndPick(triggerTestId: string, optionText: string) {
   fireEvent.click(screen.getByTestId(triggerTestId));
   const option = await screen.findByText(optionText);
   fireEvent.click(option);
+}
+
+/** Turn the "Include child boundaries" switch ON.
+ *
+ *  Rule 3(b) gates the MPA/zone dropdown at a SPECIFIC municipality behind
+ *  this toggle, and Rule 3(c) only renders the toggle once the scope provably
+ *  HAS child boundaries — so a test that wants the zone dropdown must both
+ *  stub at least one in-scope zone and flip this switch first. This is test
+ *  SETUP for the gate, not a relaxation of any assertion. */
+async function enableIncludeChildren() {
+  const toggle = await screen.findByTestId("report-include-children");
+  fireEvent.click(toggle);
+  await waitFor(() => {
+    expect(
+      screen.getByTestId("probe").getAttribute("data-include-children"),
+    ).toBe("true");
+  });
 }
 
 describe("ReportFilterBar", () => {
@@ -218,6 +243,11 @@ describe("ReportFilterBar", () => {
     renderBar();
 
     await openAndPick("report-municipality", "Calapan City"); // m-1
+    // Rule 3(b): at a SPECIFIC municipality the zone dropdown is gated behind
+    // "Include child boundaries" — opt into the children before narrowing to
+    // one of them. Setup-only: the assertion below (which zones are offered)
+    // is unchanged.
+    await enableIncludeChildren();
     await waitFor(() => {
       expect(screen.getByTestId("report-protected-zone")).toBeTruthy();
     });
@@ -271,6 +301,10 @@ describe("ReportFilterBar", () => {
     renderBar();
 
     await openAndPick("report-municipality", "Calapan City"); // m-1
+    // Rule 3(b) gate — setup only (see enableIncludeChildren). The invariant
+    // under test (a stale zone selection resets when the municipality changes)
+    // is asserted unchanged below.
+    await enableIncludeChildren();
     await waitFor(() => {
       expect(screen.getByTestId("report-protected-zone")).toBeTruthy();
     });
@@ -340,6 +374,13 @@ describe("ReportFilterBar", () => {
   });
 
   it("shows the Include child boundaries toggle only once a specific municipality is selected", async () => {
+    // Rule 3(c) — never a dead toggle: the switch only renders when the scope
+    // PROVABLY has child boundaries. The default stub is an empty zone list,
+    // so m-1 needs at least one child zone for this scope to qualify. Setup
+    // only — the visibility invariant asserted below is unchanged.
+    stubs.protectedZones = [
+      { id: "z-1", name: "Zone One", slug: "zone-one", category: "mpa", parentMunicipalityId: "m-1" },
+    ];
     renderBar();
     expect(screen.queryByTestId("report-include-children")).toBeNull();
 
@@ -349,7 +390,22 @@ describe("ReportFilterBar", () => {
     });
   });
 
-  it("hides the Include child boundaries toggle again when a province is selected", async () => {
+  it("keeps the Include child boundaries toggle available when a province with child boundaries is selected", async () => {
+    // ⚠ INVERTED INVARIANT (owner decision, 2026-07-20). This test previously
+    // asserted the toggle was HIDDEN at province scope. That premise is now
+    // wrong: the owner enabled "Include child boundaries" at province scope,
+    // so the toggle must stay AVAILABLE whenever the province provably has
+    // child boundaries. The server already supported it (resolveChildZoneIds
+    // takes a multi-id array; resolveMunicipalityScope expands a province to
+    // all its municipalities) — only the UI was blocking. Accepted
+    // consequence: province-wide totals on existing reports will increase.
+    // Rewritten rather than deleted so the (new) invariant stays protected.
+    stubs.protectedZones = [
+      { id: "z-1", name: "Zone One", slug: "zone-one", category: "mpa", parentMunicipalityId: "m-1" },
+      // z-4 → m-4 (Puerto Princesa, Palawan): gives the Palawan province
+      // rollup a child boundary, so Rule 3(c) qualifies that scope too.
+      { id: "z-4", name: "Zone Four", slug: "zone-four", category: "mpa", parentMunicipalityId: "m-4" },
+    ];
     renderBar();
 
     await openAndPick("report-municipality", "Calapan City"); // m-1
@@ -359,11 +415,31 @@ describe("ReportFilterBar", () => {
 
     await openAndPick("report-province", "Palawan");
     await waitFor(() => {
+      expect(screen.getByTestId("report-include-children")).toBeTruthy();
+    });
+  });
+
+  it("still hides the Include child boundaries toggle for a province with NO child boundaries", async () => {
+    // The Rule 3(c) "never a dead toggle" guard survives the province
+    // enablement above — province scope gets the toggle only when it has
+    // something to fold in.
+    stubs.protectedZones = [
+      { id: "z-1", name: "Zone One", slug: "zone-one", category: "mpa", parentMunicipalityId: "m-1" },
+    ];
+    renderBar();
+
+    await openAndPick("report-province", "Palawan"); // m-4 has no zones
+    await waitFor(() => {
       expect(screen.queryByTestId("report-include-children")).toBeNull();
     });
   });
 
   it("toggling Include child boundaries calls setIncludeChildren and updates the shared context", async () => {
+    // Rule 3(c) setup — the toggle only renders for a scope that has child
+    // boundaries (see the sibling visibility test). Setup only.
+    stubs.protectedZones = [
+      { id: "z-1", name: "Zone One", slug: "zone-one", category: "mpa", parentMunicipalityId: "m-1" },
+    ];
     renderBar();
 
     await openAndPick("report-municipality", "Calapan City"); // m-1
@@ -402,5 +478,327 @@ describe("ReportFilterBar", () => {
     expect(await screen.findByText("Calapan City")).toBeTruthy();
     expect(screen.getByText("Mamburao")).toBeTruthy();
     expect(screen.getByText("Puerto Princesa")).toBeTruthy();
+  });
+});
+
+// 2026-07-20 browser-QA defect: the "Include child boundaries" switch's
+// aria-label was hard-coded to "this municipality's MPAs…" and kept saying
+// that at PROVINCE scope, where the toggle folds in the province's zones.
+describe("ReportFilterBar — include-children aria-label follows the scope", () => {
+  it("says 'this municipality's' when a specific municipality is selected", async () => {
+    stubs.protectedZones = [
+      { id: "z-1", name: "Zone One", slug: "zone-one", category: "mpa", parentMunicipalityId: "m-1" },
+    ];
+    renderBar();
+
+    await openAndPick("report-municipality", "Calapan City"); // m-1
+
+    const toggle = await screen.findByTestId("report-include-children");
+    expect(toggle.getAttribute("aria-label")).toBe(
+      "Include child boundaries — fold in this municipality's MPAs, hotspots & custom zones",
+    );
+  });
+
+  it("says 'this province's' at province scope (municipality still 'all')", async () => {
+    // Zone parented to m-1 (Calapan City, Oriental Mindoro) so the province
+    // rollup provably has child boundaries and the toggle renders.
+    stubs.protectedZones = [
+      { id: "z-1", name: "Zone One", slug: "zone-one", category: "mpa", parentMunicipalityId: "m-1" },
+    ];
+    renderBar();
+
+    await openAndPick("report-province", "Oriental Mindoro");
+    expect(screen.getByTestId("probe").getAttribute("data-municipality")).toBe(
+      "null",
+    );
+
+    const toggle = await screen.findByTestId("report-include-children");
+    expect(toggle.getAttribute("aria-label")).toBe(
+      "Include child boundaries — fold in this province's MPAs, hotspots & custom zones",
+    );
+  });
+});
+
+// 2026-07-20 browser-QA defect: in the stacked layout (the filter header
+// embedded in the MAP CONTROLS card) the "Include child boundaries" and
+// "Include traversing patrols" switches rendered BELOW their label, while
+// every other toggle in that card (Boundaries / Skylight events / Photo
+// thumbnails, see TrackLegend) puts the switch to the RIGHT of the label on
+// one row. Cause: both reused `fieldClass`, whose stacked variant is
+// `flex-col` — correct for a Select, wrong for a Switch.
+describe("ReportFilterBar — stacked toggle row layout", () => {
+  /** Label and Switch must share ONE horizontal row: same parent element, and
+   *  that parent is a horizontal flex row with the switch pushed to the end. */
+  function expectLabelSwitchOnOneRow(switchTestId: string, labelText: string) {
+    const toggle = screen.getByTestId(switchTestId);
+    const label = screen.getByText(labelText);
+    const row = toggle.parentElement;
+
+    expect(row).not.toBeNull();
+    // Same row element — not stacked in a column.
+    expect(label.parentElement).toBe(row);
+
+    const cls = row?.className ?? "";
+    expect(cls).toContain("flex");
+    expect(cls).toContain("items-center");
+    expect(cls).toContain("justify-between");
+    expect(cls).not.toContain("flex-col");
+
+    // Label precedes the switch in DOM order (label left, switch right).
+    expect(
+      label.compareDocumentPosition(toggle) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  }
+
+  function renderStacked() {
+    return render(
+      <ReportFilterProvider>
+        <ReportFilterBar layout="stacked" />
+        <Probe />
+      </ReportFilterProvider>,
+    );
+  }
+
+  it("puts the traversing switch on the same row as its label", () => {
+    renderStacked();
+    expectLabelSwitchOnOneRow(
+      "report-include-traversing",
+      "Include traversing patrols",
+    );
+  });
+
+  it("keeps the disabled state + helper hint while the switch sits on the row", () => {
+    renderStacked();
+
+    // No municipality and no province selected → disabled + hinted.
+    const toggle = screen.getByTestId("report-include-traversing");
+    expect(toggle.getAttribute("data-disabled")).not.toBeNull();
+    expect(
+      screen.getByText("Select a municipality or province to enable"),
+    ).toBeTruthy();
+
+    // The hint is a sibling of the ROW (below it), not inside it.
+    const hint = screen.getByText("Select a municipality or province to enable");
+    expect(hint.parentElement).toBe(
+      screen.getByTestId("report-include-traversing-field"),
+    );
+  });
+
+  it("puts the include-children switch on the same row as its label", async () => {
+    stubs.protectedZones = [
+      {
+        id: "z-1",
+        name: "Zone One",
+        slug: "zone-one",
+        category: "mpa",
+        parentMunicipalityId: "m-1",
+      },
+    ];
+    renderStacked();
+
+    await openAndPick("report-municipality", "Calapan City"); // m-1
+    await screen.findByTestId("report-include-children");
+
+    expectLabelSwitchOnOneRow(
+      "report-include-children",
+      "Include child boundaries",
+    );
+  });
+
+  it("preserves the scope-accurate include-children aria-label in stacked layout", async () => {
+    stubs.protectedZones = [
+      {
+        id: "z-1",
+        name: "Zone One",
+        slug: "zone-one",
+        category: "mpa",
+        parentMunicipalityId: "m-1",
+      },
+    ];
+    renderStacked();
+
+    await openAndPick("report-province", "Oriental Mindoro");
+
+    const toggle = await screen.findByTestId("report-include-children");
+    expect(toggle.getAttribute("aria-label")).toBe(
+      "Include child boundaries — fold in this province's MPAs, hotspots & custom zones",
+    );
+  });
+
+  it("associates each switch with its label via htmlFor/id", () => {
+    renderStacked();
+    const label = screen.getByText("Include traversing patrols");
+    expect(label.getAttribute("for")).toBe("report-include-traversing");
+    expect(screen.getByTestId("report-include-traversing").id).toBe(
+      "report-include-traversing",
+    );
+  });
+});
+
+/** "Count full traversing patrols" — the zone-scoped, default-OFF, opt-in
+ *  exception to the count-at-origin rule (2026-07-20 owner request). Every
+ *  test here asserts the CONTEXT STATE as well as the DOM where a hidden-but-
+ *  still-applying toggle would be the real bug. */
+describe("ReportFilterBar — count full traversing patrols (zone scope only)", () => {
+  const ZONES = [
+    {
+      id: "z-1",
+      name: "Zone One",
+      slug: "zone-one",
+      category: "mpa",
+      parentMunicipalityId: "m-1",
+    },
+    {
+      id: "z-2",
+      name: "Zone Two",
+      slug: "zone-two",
+      category: "mpa",
+      parentMunicipalityId: "m-2",
+    },
+  ];
+
+  function fullToggleState(): string | null {
+    return screen
+      .getByTestId("probe")
+      .getAttribute("data-include-traversing-full");
+  }
+
+  /** Get to "a specific zone is selected" from the all-municipalities scope,
+   *  where the zone dropdown is visible without the Rule 3(b) child gate. */
+  async function selectZoneOne() {
+    await openAndPick("report-protected-zone", "Zone One");
+    await waitFor(() => {
+      expect(screen.getByTestId("probe").getAttribute("data-zone")).toBe("z-1");
+    });
+  }
+
+  it("is absent while the zone select is showing but no specific zone is chosen", () => {
+    stubs.protectedZones = ZONES;
+    renderBar();
+    // "All zones" is the default → the select is there, the toggle is not.
+    expect(screen.getByTestId("report-protected-zone")).toBeTruthy();
+    expect(screen.queryByTestId("report-include-traversing-full")).toBeNull();
+  });
+
+  it("is absent when the zone filter itself is hidden", async () => {
+    // Rule 3(b): at a SPECIFIC municipality with "Include child boundaries"
+    // OFF the whole zone block is hidden — the toggle lives inside it.
+    stubs.protectedZones = ZONES;
+    renderBar();
+    await openAndPick("report-municipality", "Calapan City"); // m-1
+    await waitFor(() => {
+      expect(screen.queryByTestId("report-protected-zone")).toBeNull();
+    });
+    expect(screen.queryByTestId("report-include-traversing-full")).toBeNull();
+  });
+
+  it("appears once a specific zone is selected, and defaults to OFF", async () => {
+    stubs.protectedZones = ZONES;
+    renderBar();
+    expect(fullToggleState()).toBe("false");
+
+    await selectZoneOne();
+
+    const toggle = await screen.findByTestId("report-include-traversing-full");
+    expect(toggle).toBeTruthy();
+    // Default OFF — nothing changes for an existing report until someone
+    // deliberately enables it.
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    expect(fullToggleState()).toBe("false");
+  });
+
+  it("renders directly UNDER the MPA Zone select", async () => {
+    stubs.protectedZones = ZONES;
+    renderBar();
+    await selectZoneOne();
+
+    const zoneSelect = screen.getByTestId("report-protected-zone");
+    const toggle = await screen.findByTestId("report-include-traversing-full");
+    expect(
+      zoneSelect.compareDocumentPosition(toggle) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("associates the switch with its label via htmlFor/id", async () => {
+    stubs.protectedZones = ZONES;
+    renderBar();
+    await selectZoneOne();
+
+    const label = screen.getByText("Count full traversing patrols");
+    expect(label.getAttribute("for")).toBe("report-include-traversing-full");
+    expect(screen.getByTestId("report-include-traversing-full").id).toBe(
+      "report-include-traversing-full",
+    );
+  });
+
+  it("drives the shared context when flipped on", async () => {
+    stubs.protectedZones = ZONES;
+    renderBar();
+    await selectZoneOne();
+
+    fireEvent.click(await screen.findByTestId("report-include-traversing-full"));
+    await waitFor(() => {
+      expect(fullToggleState()).toBe("true");
+    });
+  });
+
+  it("is INDEPENDENT of 'Include traversing patrols' (never coupled)", async () => {
+    stubs.protectedZones = ZONES;
+    renderBar();
+    await selectZoneOne();
+
+    fireEvent.click(await screen.findByTestId("report-include-traversing-full"));
+    await waitFor(() => {
+      expect(fullToggleState()).toBe("true");
+    });
+    // The clipped-mode switch is untouched by the full-mode switch.
+    expect(
+      screen
+        .getByTestId("report-include-traversing")
+        .getAttribute("aria-checked"),
+    ).toBe("false");
+  });
+
+  it("selecting 'All zones' resets it to false (state, not just DOM)", async () => {
+    stubs.protectedZones = ZONES;
+    renderBar();
+    await selectZoneOne();
+
+    fireEvent.click(await screen.findByTestId("report-include-traversing-full"));
+    await waitFor(() => {
+      expect(fullToggleState()).toBe("true");
+    });
+
+    // Clearing back to the "all zones" sentinel removes the toggle's target —
+    // a hidden ON must never keep applying.
+    await openAndPick("report-protected-zone", "All zones");
+    await waitFor(() => {
+      expect(screen.getByTestId("probe").getAttribute("data-zone")).toBe("null");
+    });
+    expect(fullToggleState()).toBe("false");
+    expect(screen.queryByTestId("report-include-traversing-full")).toBeNull();
+  });
+
+  it("broadening to 'all municipalities' resets it to false (state, not just DOM)", async () => {
+    stubs.protectedZones = ZONES;
+    renderBar();
+    await selectZoneOne();
+
+    fireEvent.click(await screen.findByTestId("report-include-traversing-full"));
+    await waitFor(() => {
+      expect(fullToggleState()).toBe("true");
+    });
+
+    // Pick a municipality, then broaden back to "All municipalities".
+    await openAndPick("report-municipality", "Calapan City");
+    await openAndPick("report-municipality", "All municipalities");
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("probe").getAttribute("data-municipality"),
+      ).toBe("null");
+    });
+    expect(fullToggleState()).toBe("false");
   });
 });

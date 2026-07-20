@@ -1,21 +1,27 @@
 // V-pptx-export — pptx-render processor tests.
 //
 // Verifies the BullMQ job handler for the ON-DEMAND "Render to PowerPoint"
-// feature:
+// feature, AFTER the 2026-07-20 rework that made the PPTX derive from the
+// report DATA (a fresh Chromium render of /print-render) rather than from the
+// already-stored PDF:
 //  (1) validates tenant context first,
 //  (2) loads the ReportExport row + tenant scoped by (id, tenantId),
 //  (3) transitions pptxStatus → "rendering" before doing any work,
-//  (4) requires the source PDF to already be status=ready + telegramFileId
-//      non-null — refuses to convert an unfinished/failed PDF,
-//  (5) fetches the PDF bytes from Telegram, converts via renderPdfPagesToPptx,
-//  (6) SOLE store is Telegram (same posture as pdf-render) — uploads the
-//      .pptx and persists pptxStatus=ready + pptxTelegramFileId +
-//      pptxFileSizeBytes,
-//  (7) on failure (transient, not last attempt): re-throws WITHOUT flipping
+//  (4) renders FRESH bytes via renderPdfViaService against the /print-render
+//      URL — there is NO Telegram fetch and NO read of the stored PDF,
+//  (5) there is NO precondition on the source PDF's status: a "failed" or
+//      "queued" PDF still produces a PowerPoint,
+//  (6) SOLE store is MinIO — uploads with the pptx content type and persists
+//      pptxStatus=ready + pptxFileSizeBytes + pptxTelegramFileId=null; the
+//      object key is NOT persisted (readers recompute it),
+//  (7) there is NO 20 MB size cap any more (that was a Telegram getFile
+//      constraint) — a >20 MB pptx succeeds,
+//  (8) purged-row tolerance: a null row returns early WITHOUT throwing, the
+//      status writes use updateMany (no P2025), and a row purged between a
+//      successful upload and the ready write triggers an orphan deleteObject,
+//  (9) on failure (transient, not last attempt): re-throws WITHOUT flipping
 //      pptxStatus=failed,
-//  (8) on failure (last attempt exhausted): pptxStatus=failed + pptxErrorMessage,
-//  (9) the 20 MB Telegram getFile cap applies to the .pptx output the same
-//      way it applies to the PDF.
+// (10) on failure (last attempt exhausted): pptxStatus=failed + pptxErrorMessage.
 
 import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 import type { Job } from "bullmq";
@@ -30,16 +36,19 @@ vi.mock("../../workers/base-worker", () => ({
   validateTenantContext: vi.fn(),
 }));
 
-const mockReportExportFindFirstOrThrow = vi.fn();
+const mockReportExportFindFirst = vi.fn();
 const mockReportExportUpdate = vi.fn();
+const mockReportExportUpdateMany = vi.fn();
 const mockTenantFindUniqueOrThrow = vi.fn();
 
 vi.mock("@marine-guardian/db", () => ({
   platformPrisma: {
     reportExport: {
-      findFirstOrThrow: (...args: unknown[]): unknown =>
-        mockReportExportFindFirstOrThrow(...args),
+      findFirst: (...args: unknown[]): unknown =>
+        mockReportExportFindFirst(...args),
       update: (...args: unknown[]): unknown => mockReportExportUpdate(...args),
+      updateMany: (...args: unknown[]): unknown =>
+        mockReportExportUpdateMany(...args),
     },
     tenant: {
       findUniqueOrThrow: (...args: unknown[]): unknown =>
@@ -48,22 +57,39 @@ vi.mock("@marine-guardian/db", () => ({
   },
 }));
 
-const mockFetchTelegramFileBytes = vi.fn();
-const mockUploadDocumentToTelegram = vi.fn();
-const mockGetTelegramBotToken = vi.fn();
-vi.mock("../../lib/telegram-storage", () => ({
-  getTelegramBotToken: (...args: unknown[]): unknown =>
-    mockGetTelegramBotToken(...args),
-  fetchTelegramFileBytes: (...args: unknown[]): unknown =>
-    mockFetchTelegramFileBytes(...args),
-  uploadDocumentToTelegram: (...args: unknown[]): unknown =>
-    mockUploadDocumentToTelegram(...args),
+const mockRenderPdfViaService = vi.fn();
+vi.mock("../../lib/pdf-renderer-client", () => ({
+  renderPdfViaService: (...args: unknown[]): unknown =>
+    mockRenderPdfViaService(...args),
+  PdfRendererError: class PdfRendererError extends Error {
+    readonly status: number | undefined;
+    constructor(message: string, status?: number) {
+      super(message);
+      this.name = "PdfRendererError";
+      this.status = status;
+    }
+  },
 }));
 
 const mockRenderPdfPagesToPptx = vi.fn();
 vi.mock("../../lib/pdf-to-pptx", () => ({
   renderPdfPagesToPptx: (...args: unknown[]): unknown =>
     mockRenderPdfPagesToPptx(...args),
+}));
+
+const mockUploadObject = vi.fn();
+const mockDeleteObject = vi.fn();
+const mockAssertBucketExists = vi.fn();
+vi.mock("@marine-guardian/storage", () => ({
+  getExportsBucketName: (): string => "marine-guardian-test-exports",
+  buildPptxExportKey: (tenantId: string, exportId: string, at: Date): string =>
+    `${tenantId}/${String(at.getUTCFullYear())}/${String(
+      at.getUTCMonth() + 1,
+    ).padStart(2, "0")}/${exportId}.pptx`,
+  assertBucketExists: (...args: unknown[]): unknown =>
+    mockAssertBucketExists(...args),
+  uploadObject: (...args: unknown[]): unknown => mockUploadObject(...args),
+  deleteObject: (...args: unknown[]): unknown => mockDeleteObject(...args),
 }));
 
 import { processPptxRender } from "../pptx-render.processor";
@@ -88,56 +114,43 @@ function makeJob(
   } as unknown as Job<PptxRenderJobPayload>;
 }
 
-const fakePdfBytesBuffer = new TextEncoder().encode("%PDF-1.4 fake").buffer;
+const fakePdfBuffer = Buffer.from("%PDF-1.4 fake pdf bytes for testing");
 const fakePptxBuffer = Buffer.from("PK-fake-pptx-zip-bytes");
 
+const PPTX_CONTENT_TYPE =
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+
 describe("processPptxRender", () => {
-  const ORIGINAL_TELEGRAM_ENV = {
-    TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
-    TELEGRAM_DEFAULT_CHANNEL_ID: process.env.TELEGRAM_DEFAULT_CHANNEL_ID,
-  };
+  const ORIGINAL_ENV = process.env.WEB_APP_INTERNAL_URL;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.TELEGRAM_BOT_TOKEN = "test-bot-token";
-    delete process.env.TELEGRAM_DEFAULT_CHANNEL_ID;
+    process.env.WEB_APP_INTERNAL_URL = "http://marine-guardian_test_app:3000";
 
-    mockReportExportFindFirstOrThrow.mockResolvedValue({
+    mockReportExportFindFirst.mockResolvedValue({
       id: "export-1",
       tenantId: "tenant-1",
       reportType: "coverage",
+      paperSize: "A4",
       status: "ready",
-      telegramFileId: "tg-pdf-file",
     });
     mockTenantFindUniqueOrThrow.mockResolvedValue({
       id: "tenant-1",
       slug: "marine-guardian-sample",
-      telegramChannelId: "-1003816125998",
     });
-    mockReportExportUpdate.mockResolvedValue({});
-    mockGetTelegramBotToken.mockReturnValue("test-bot-token");
-    mockFetchTelegramFileBytes.mockResolvedValue({
-      bytes: fakePdfBytesBuffer,
-      filePath: "documents/file_1.pdf",
-    });
+    mockReportExportUpdateMany.mockResolvedValue({ count: 1 });
+    mockRenderPdfViaService.mockResolvedValue(fakePdfBuffer);
     mockRenderPdfPagesToPptx.mockResolvedValue(fakePptxBuffer);
-    mockUploadDocumentToTelegram.mockResolvedValue({
-      messageId: 99,
-      fileId: "tg-pptx-file-abc",
-    });
+    mockAssertBucketExists.mockResolvedValue(undefined);
+    mockUploadObject.mockResolvedValue({ key: "ignored" });
+    mockDeleteObject.mockResolvedValue(undefined);
   });
 
   afterAll(() => {
-    if (ORIGINAL_TELEGRAM_ENV.TELEGRAM_BOT_TOKEN === undefined) {
-      delete process.env.TELEGRAM_BOT_TOKEN;
+    if (ORIGINAL_ENV === undefined) {
+      delete process.env.WEB_APP_INTERNAL_URL;
     } else {
-      process.env.TELEGRAM_BOT_TOKEN = ORIGINAL_TELEGRAM_ENV.TELEGRAM_BOT_TOKEN;
-    }
-    if (ORIGINAL_TELEGRAM_ENV.TELEGRAM_DEFAULT_CHANNEL_ID === undefined) {
-      delete process.env.TELEGRAM_DEFAULT_CHANNEL_ID;
-    } else {
-      process.env.TELEGRAM_DEFAULT_CHANNEL_ID =
-        ORIGINAL_TELEGRAM_ENV.TELEGRAM_DEFAULT_CHANNEL_ID;
+      process.env.WEB_APP_INTERNAL_URL = ORIGINAL_ENV;
     }
   });
 
@@ -150,109 +163,248 @@ describe("processPptxRender", () => {
       exportId: "export-1",
     });
     expect(mockValidate.mock.invocationCallOrder[0]).toBeLessThan(
-      mockReportExportFindFirstOrThrow.mock.invocationCallOrder[0] ?? Infinity,
+      mockReportExportFindFirst.mock.invocationCallOrder[0] ?? Infinity,
     );
   });
 
   it("loads ReportExport row scoped by exportId AND tenantId (no cross-tenant leak)", async () => {
-    await processPptxRender(makeJob({ exportId: "export-99", tenantId: "tenant-x" }));
-    const call = mockReportExportFindFirstOrThrow.mock.calls[0]?.[0] as {
+    await processPptxRender(
+      makeJob({ exportId: "export-99", tenantId: "tenant-x" }),
+    );
+    const call = mockReportExportFindFirst.mock.calls[0]?.[0] as {
       where: { id: string; tenantId: string };
+      select: Record<string, boolean>;
     };
     expect(call.where.id).toBe("export-99");
     expect(call.where.tenantId).toBe("tenant-x");
+    expect(call.select.paperSize).toBe(true);
   });
 
-  it("transitions pptxStatus to 'rendering' BEFORE fetching PDF bytes", async () => {
+  it("transitions pptxStatus to 'rendering' BEFORE rendering, via updateMany (never update)", async () => {
     await processPptxRender(makeJob());
-    const firstUpdateCall = mockReportExportUpdate.mock.calls[0]?.[0] as {
+    const firstUpdateCall = mockReportExportUpdateMany.mock.calls[0]?.[0] as {
       data: { pptxStatus: string };
     };
     expect(firstUpdateCall.data.pptxStatus).toBe("rendering");
-    expect(mockReportExportUpdate.mock.invocationCallOrder[0]).toBeLessThan(
-      mockFetchTelegramFileBytes.mock.invocationCallOrder[0] ?? Infinity,
+    expect(mockReportExportUpdateMany.mock.invocationCallOrder[0]).toBeLessThan(
+      mockRenderPdfViaService.mock.invocationCallOrder[0] ?? Infinity,
     );
+    expect(mockReportExportUpdate).not.toHaveBeenCalled();
   });
 
-  it("refuses to convert when the source PDF is not ready (queued/rendering) — throws, no Telegram fetch", async () => {
-    mockReportExportFindFirstOrThrow.mockResolvedValueOnce({
-      id: "export-1",
-      tenantId: "tenant-1",
-      reportType: "coverage",
-      status: "rendering",
-      telegramFileId: null,
+  describe("renders from report data, not from the stored PDF", () => {
+    it("calls renderPdfViaService with the /print-render URL, paperSize and derived landscape", async () => {
+      await processPptxRender(makeJob());
+
+      expect(mockRenderPdfViaService).toHaveBeenCalledTimes(1);
+      expect(mockRenderPdfViaService).toHaveBeenCalledWith({
+        printUrl:
+          "http://marine-guardian_test_app:3000/print-render/marine-guardian-sample/coverage/export-1",
+        paperSize: "A4",
+        landscape: true,
+        exportId: "export-1",
+      });
+
+      const pdfArg = mockRenderPdfPagesToPptx.mock.calls[0]?.[0] as Uint8Array;
+      expect(pdfArg).toBeInstanceOf(Uint8Array);
     });
 
-    await expect(
-      processPptxRender(makeJob({}, { attemptsMade: 0, attempts: 3 })),
-    ).rejects.toThrow("Source PDF is not ready");
-    expect(mockFetchTelegramFileBytes).not.toHaveBeenCalled();
-  });
+    it("renders non-coverage report types in portrait", async () => {
+      mockReportExportFindFirst.mockResolvedValue({
+        id: "export-1",
+        tenantId: "tenant-1",
+        reportType: "report_map",
+        paperSize: "Letter",
+        status: "ready",
+      });
 
-  it("refuses to convert when the PDF is ready but has no telegramFileId", async () => {
-    mockReportExportFindFirstOrThrow.mockResolvedValueOnce({
-      id: "export-1",
-      tenantId: "tenant-1",
-      reportType: "coverage",
-      status: "ready",
-      telegramFileId: null,
-    });
+      await processPptxRender(makeJob());
 
-    await expect(processPptxRender(makeJob())).rejects.toThrow(
-      "Source PDF is not ready",
-    );
-    expect(mockFetchTelegramFileBytes).not.toHaveBeenCalled();
-  });
-
-  it("on success: fetches the PDF from Telegram, converts via renderPdfPagesToPptx, uploads the result, and persists pptxStatus=ready", async () => {
-    const result = await processPptxRender(makeJob());
-
-    expect(mockFetchTelegramFileBytes).toHaveBeenCalledWith({
-      botToken: "test-bot-token",
-      fileId: "tg-pdf-file",
-    });
-    expect(mockRenderPdfPagesToPptx).toHaveBeenCalledTimes(1);
-    const pdfArg = mockRenderPdfPagesToPptx.mock.calls[0]?.[0] as Uint8Array;
-    expect(pdfArg).toBeInstanceOf(Uint8Array);
-
-    expect(mockUploadDocumentToTelegram).toHaveBeenCalledTimes(1);
-    const uploadCall = mockUploadDocumentToTelegram.mock.calls[0]?.[0] as {
-      botToken: string;
-      chatId: string;
-      filename: string;
-      mimeType: string;
-    };
-    expect(uploadCall.botToken).toBe("test-bot-token");
-    expect(uploadCall.chatId).toBe("-1003816125998");
-    expect(uploadCall.filename).toBe("coverage-export-1.pptx");
-    expect(uploadCall.mimeType).toBe(
-      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    );
-
-    expect(mockReportExportUpdate).toHaveBeenCalledTimes(2);
-    const finalUpdate = mockReportExportUpdate.mock.calls[1]?.[0] as {
-      data: {
-        pptxStatus: string;
-        pptxTelegramFileId: string;
-        pptxFileSizeBytes: number;
+      const call = mockRenderPdfViaService.mock.calls[0]?.[0] as {
+        landscape: boolean;
+        paperSize: string;
       };
-    };
-    expect(finalUpdate.data.pptxStatus).toBe("ready");
-    expect(finalUpdate.data.pptxTelegramFileId).toBe("tg-pptx-file-abc");
-    expect(finalUpdate.data.pptxFileSizeBytes).toBe(fakePptxBuffer.length);
+      expect(call.landscape).toBe(false);
+      expect(call.paperSize).toBe("Letter");
+    });
 
-    expect(result.status).toBe("ready");
-    expect(result.telegramFileId).toBe("tg-pptx-file-abc");
+    it("STILL renders when the source PDF status is 'failed' (precondition removed)", async () => {
+      mockReportExportFindFirst.mockResolvedValue({
+        id: "export-1",
+        tenantId: "tenant-1",
+        reportType: "coverage",
+        paperSize: "A4",
+        status: "failed",
+      });
+
+      const result = await processPptxRender(makeJob());
+
+      expect(result.status).toBe("ready");
+      expect(mockRenderPdfViaService).toHaveBeenCalledTimes(1);
+      expect(mockUploadObject).toHaveBeenCalledTimes(1);
+    });
+
+    it("STILL renders when the source PDF status is 'queued'", async () => {
+      mockReportExportFindFirst.mockResolvedValue({
+        id: "export-1",
+        tenantId: "tenant-1",
+        reportType: "coverage",
+        paperSize: "A4",
+        status: "queued",
+      });
+
+      const result = await processPptxRender(makeJob());
+
+      expect(result.status).toBe("ready");
+      expect(mockRenderPdfViaService).toHaveBeenCalledTimes(1);
+    });
+
+    it("throws when WEB_APP_INTERNAL_URL is unset — after the row was moved to rendering", async () => {
+      delete process.env.WEB_APP_INTERNAL_URL;
+
+      await expect(
+        processPptxRender(makeJob({}, { attemptsMade: 0, attempts: 3 })),
+      ).rejects.toThrow("WEB_APP_INTERNAL_URL is not configured");
+      expect(mockRenderPdfViaService).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("MinIO storage + purged-row tolerance", () => {
+    it("on success: uploads the pptx with the pptx content type and persists pptxStatus=ready", async () => {
+      const result = await processPptxRender(makeJob());
+
+      expect(mockAssertBucketExists).toHaveBeenCalledWith(
+        "marine-guardian-test-exports",
+      );
+      expect(mockUploadObject).toHaveBeenCalledTimes(1);
+      const uploadCall = mockUploadObject.mock.calls[0]?.[0] as {
+        bucket: string;
+        key: string;
+        body: Buffer;
+        contentType: string;
+      };
+      expect(uploadCall.bucket).toBe("marine-guardian-test-exports");
+      expect(uploadCall.key).toMatch(/^tenant-1\/\d{4}\/\d{2}\/export-1\.pptx$/);
+      expect(uploadCall.contentType).toBe(PPTX_CONTENT_TYPE);
+      expect(uploadCall.body).toBe(fakePptxBuffer);
+
+      expect(mockReportExportUpdateMany).toHaveBeenCalledTimes(2);
+      const finalUpdate = mockReportExportUpdateMany.mock.calls[1]?.[0] as {
+        data: {
+          pptxStatus: string;
+          pptxFileSizeBytes: number;
+          pptxErrorMessage: string | null;
+          pptxTelegramFileId: string | null;
+        };
+      };
+      expect(finalUpdate.data.pptxStatus).toBe("ready");
+      expect(finalUpdate.data.pptxFileSizeBytes).toBe(fakePptxBuffer.length);
+      expect(finalUpdate.data.pptxErrorMessage).toBeNull();
+      expect(finalUpdate.data.pptxTelegramFileId).toBeNull();
+
+      expect(result.status).toBe("ready");
+      expect(result.filePath).toBe(uploadCall.key);
+      expect(result.fileSizeBytes).toBe(fakePptxBuffer.length);
+      expect(mockDeleteObject).not.toHaveBeenCalled();
+    });
+
+    it("does NOT persist the pptx object key to any column (readers recompute it)", async () => {
+      await processPptxRender(makeJob());
+      const finalUpdate = mockReportExportUpdateMany.mock.calls[1]?.[0] as {
+        data: Record<string, unknown>;
+      };
+      expect(Object.keys(finalUpdate.data).sort()).toEqual([
+        "pptxErrorMessage",
+        "pptxFileSizeBytes",
+        "pptxStatus",
+        "pptxTelegramFileId",
+      ]);
+    });
+
+    it("succeeds for a pptx larger than 20 MB (the Telegram getFile cap is gone)", async () => {
+      const oversized = Buffer.alloc(20 * 1024 * 1024 + 1, 0x50);
+      mockRenderPdfPagesToPptx.mockResolvedValueOnce(oversized);
+
+      const result = await processPptxRender(makeJob());
+
+      expect(result.status).toBe("ready");
+      expect(result.fileSizeBytes).toBe(oversized.length);
+      expect(mockUploadObject).toHaveBeenCalledTimes(1);
+    });
+
+    it("returns early WITHOUT throwing when the row was purged before the render started", async () => {
+      mockReportExportFindFirst.mockResolvedValue(null);
+
+      const result = await processPptxRender(makeJob());
+
+      expect(result.status).toBe("failed");
+      expect(result.errorMessage).toContain("purged");
+      expect(mockRenderPdfViaService).not.toHaveBeenCalled();
+      expect(mockRenderPdfPagesToPptx).not.toHaveBeenCalled();
+      expect(mockUploadObject).not.toHaveBeenCalled();
+      expect(mockReportExportUpdateMany).not.toHaveBeenCalled();
+      expect(mockTenantFindUniqueOrThrow).not.toHaveBeenCalled();
+    });
+
+    it("deletes the orphaned object when the row was purged after a successful upload", async () => {
+      mockReportExportUpdateMany
+        .mockResolvedValueOnce({ count: 1 })
+        .mockResolvedValueOnce({ count: 0 });
+
+      const result = await processPptxRender(makeJob());
+
+      const uploadCall = mockUploadObject.mock.calls[0]?.[0] as { key: string };
+      expect(mockDeleteObject).toHaveBeenCalledTimes(1);
+      expect(mockDeleteObject).toHaveBeenCalledWith({
+        bucket: "marine-guardian-test-exports",
+        key: uploadCall.key,
+      });
+      expect(result.status).toBe("ready");
+    });
+
+    it("a failing orphan cleanup still yields a ready result", async () => {
+      mockReportExportUpdateMany
+        .mockResolvedValueOnce({ count: 1 })
+        .mockResolvedValueOnce({ count: 0 });
+      mockDeleteObject.mockRejectedValueOnce(new Error("minio delete boom"));
+
+      const result = await processPptxRender(makeJob());
+
+      expect(result.status).toBe("ready");
+    });
+
+    it("retries a transient upload failure without re-rendering", async () => {
+      mockUploadObject
+        .mockRejectedValueOnce(new Error("minio 503"))
+        .mockRejectedValueOnce(new Error("minio 503"))
+        .mockResolvedValueOnce({ key: "ok" });
+
+      vi.useFakeTimers();
+      try {
+        const pending = processPptxRender(makeJob());
+        await vi.runAllTimersAsync();
+        const result = await pending;
+        expect(result.status).toBe("ready");
+      } finally {
+        vi.useRealTimers();
+      }
+
+      expect(mockUploadObject).toHaveBeenCalledTimes(3);
+      expect(mockRenderPdfViaService).toHaveBeenCalledTimes(1);
+      expect(mockRenderPdfPagesToPptx).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("on transient failure (NOT last attempt): re-throws WITHOUT flipping pptxStatus=failed", async () => {
-    mockRenderPdfPagesToPptx.mockRejectedValueOnce(new Error("rasterize failed"));
+    mockRenderPdfPagesToPptx.mockRejectedValueOnce(
+      new Error("rasterize failed"),
+    );
 
     await expect(
       processPptxRender(makeJob({}, { attemptsMade: 0, attempts: 3 })),
     ).rejects.toThrow("rasterize failed");
 
-    const statuses = mockReportExportUpdate.mock.calls.map(
+    const statuses = mockReportExportUpdateMany.mock.calls.map(
       (c) => (c[0] as { data: { pptxStatus?: string } }).data.pptxStatus,
     );
     expect(statuses).toEqual(["rendering"]);
@@ -260,66 +412,19 @@ describe("processPptxRender", () => {
   });
 
   it("on final failure (last attempt exhausted): pptxStatus=failed + pptxErrorMessage + re-throws", async () => {
-    mockUploadDocumentToTelegram.mockRejectedValue(
-      new Error("Telegram sendDocument failed: 500"),
+    mockRenderPdfViaService.mockRejectedValue(
+      new Error("pdf-renderer returned non-OK status 500"),
     );
 
-    vi.useFakeTimers();
-    try {
-      const pending = processPptxRender(
-        makeJob({}, { attemptsMade: 2, attempts: 3 }),
-      );
-      const assertion = expect(pending).rejects.toThrow("500");
-      await vi.runAllTimersAsync();
-      await assertion;
-    } finally {
-      vi.useRealTimers();
-    }
+    await expect(
+      processPptxRender(makeJob({}, { attemptsMade: 2, attempts: 3 })),
+    ).rejects.toThrow("500");
 
-    expect(mockReportExportUpdate).toHaveBeenCalledTimes(2);
-    const failedUpdate = mockReportExportUpdate.mock.calls[1]?.[0] as {
+    expect(mockReportExportUpdateMany).toHaveBeenCalledTimes(2);
+    const failedUpdate = mockReportExportUpdateMany.mock.calls[1]?.[0] as {
       data: { pptxStatus: string; pptxErrorMessage: string };
     };
     expect(failedUpdate.data.pptxStatus).toBe("failed");
     expect(failedUpdate.data.pptxErrorMessage).toContain("500");
-  });
-
-  it("throws (job fails cleanly) when Telegram is unconfigured for the tenant", async () => {
-    delete process.env.TELEGRAM_BOT_TOKEN;
-    mockTenantFindUniqueOrThrow.mockResolvedValue({
-      id: "tenant-1",
-      slug: "marine-guardian-sample",
-      telegramChannelId: null,
-    });
-    mockGetTelegramBotToken.mockImplementation(() => {
-      throw new Error("TELEGRAM_BOT_TOKEN environment variable is not set.");
-    });
-
-    await expect(
-      processPptxRender(makeJob({}, { attemptsMade: 0, attempts: 3 })),
-    ).rejects.toThrow("TELEGRAM_BOT_TOKEN");
-    expect(mockUploadDocumentToTelegram).not.toHaveBeenCalled();
-  });
-
-  it("throws when the rendered PPTX exceeds Telegram's 20 MB getFile cap", async () => {
-    const oversized = Buffer.alloc(20 * 1024 * 1024 + 1, 0x50);
-    mockRenderPdfPagesToPptx.mockResolvedValueOnce(oversized);
-
-    await expect(
-      processPptxRender(makeJob({}, { attemptsMade: 2, attempts: 3 })),
-    ).rejects.toThrow("exceeds Telegram's 20 MB getFile limit");
-    expect(mockUploadDocumentToTelegram).not.toHaveBeenCalled();
-  });
-
-  it("throws when Telegram returns an empty file_id (never persists a ready row without a locator)", async () => {
-    mockUploadDocumentToTelegram.mockResolvedValue({ messageId: 1, fileId: "" });
-
-    await expect(processPptxRender(makeJob())).rejects.toThrow(
-      "no document file_id",
-    );
-    const statuses = mockReportExportUpdate.mock.calls.map(
-      (c) => (c[0] as { data: { pptxStatus?: string } }).data.pptxStatus,
-    );
-    expect(statuses).not.toContain("ready");
   });
 });

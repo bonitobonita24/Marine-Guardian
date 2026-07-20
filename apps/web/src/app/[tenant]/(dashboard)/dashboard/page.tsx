@@ -31,6 +31,11 @@ import { PatrolEditDialog } from "./_components/patrol-edit-dialog";
 import { BreakdownDrilldownModal } from "./_components/breakdown-drilldown-modal";
 import { KpiDrilldownModal } from "./_components/kpi-drilldown-modal";
 import { RangersOnDutyDrilldownModal } from "./_components/rangers-on-duty-drilldown-modal";
+import {
+  EventsThisMonthPanel,
+  type SelectedMonthEvent,
+} from "./_components/events-this-month-panel";
+import { EventSummaryCard } from "./_components/event-summary-card";
 import type { KpiDrilldown } from "./_components/kpi-strip";
 import { AlertDetailModal } from "./_components/alert-detail-modal";
 import { EventDetailModal } from "@/components/events/event-detail-modal";
@@ -184,13 +189,28 @@ function DashboardContent() {
   // Q2 (2026-07-07) — click a Ranger Roster row to fly the live map to that
   // ranger's last-known position. Reuses InteractiveMap's `focusLocation`
   // flyTo prop (the same one the Report Map's "locate" button uses). The `key`
-  // bumps on every click so re-clicking the same ranger re-triggers the flyTo.
-  const [rangerFocus, setRangerFocus] = useState<{
+  // bumps on every click so re-clicking the same target re-triggers the
+  // flyTo. Generalized (Q3, 2026-07-19) to a single SHARED `mapFocus` state
+  // used by BOTH the Ranger Roster AND the Events This Month panel — only
+  // one focus target is ever active at a time, so a single focusLocation
+  // prop on InteractiveMap covers both callers.
+  const [mapFocus, setMapFocus] = useState<{
     lon: number;
     lat: number;
     key: number;
   } | null>(null);
-  const rangerFocusKey = useRef(0);
+  const mapFocusKey = useRef(0);
+  // Q3 (2026-07-19) — click an Events This Month row to open a geo-anchored
+  // MapPopup summary card (event-summary-card.tsx) at that event's location,
+  // in addition to flying the map there via `mapFocus` above.
+  const [detailPopup, setDetailPopup] = useState<SelectedMonthEvent | null>(
+    null,
+  );
+  const handleSelectMonthEvent = useCallback((row: SelectedMonthEvent) => {
+    mapFocusKey.current += 1;
+    setMapFocus({ lon: row.lon, lat: row.lat, key: mapFocusKey.current });
+    setDetailPopup(row);
+  }, []);
   // name (normalized) → last position, built from the map subjects list.
   const rangerPositionByName = useMemo(() => {
     const m = new Map<string, { lat: number; lon: number }>();
@@ -217,8 +237,8 @@ function DashboardContent() {
     (ranger: RosterRanger) => {
       const pos = rangerPositionByName.get(ranger.name.trim().toLowerCase());
       if (pos === undefined) return;
-      rangerFocusKey.current += 1;
-      setRangerFocus({ lon: pos.lon, lat: pos.lat, key: rangerFocusKey.current });
+      mapFocusKey.current += 1;
+      setMapFocus({ lon: pos.lon, lat: pos.lat, key: mapFocusKey.current });
     },
     [rangerPositionByName],
   );
@@ -466,9 +486,43 @@ function DashboardContent() {
               : {})}
             onPatrolTrackClick={selectMapPatrolById}
             onBackgroundClick={clearMapPatrolSelection}
-            /* Q2 — Ranger Roster row click flies the map to that ranger's
-               last-known position (matched by name → subject coordinate). */
-            focusLocation={rangerFocus}
+            /* Q3 — Events This Month floating panel replaces the center
+               KpiDrilldownModal for this one tile (see kpi-drilldown-modal.tsx).
+               A row click flies the map to the event (shared mapFocus state)
+               and opens a geo-anchored detail popup (detailPopup below). */
+            topRightSlot={
+              selectedKpi?.kind === "eventsThisMonth" ? (
+                <EventsThisMonthPanel
+                  dateTo={rangeIso.dateTo}
+                  onClose={() => {
+                    setSelectedKpi(null);
+                    setDetailPopup(null);
+                  }}
+                  onSelectEvent={handleSelectMonthEvent}
+                />
+              ) : undefined
+            }
+            /* Q2/Q3 — shared focus target: Ranger Roster row click OR Events
+               This Month row click flies the map to that lon/lat. */
+            focusLocation={mapFocus}
+            /* Q3 — geo-anchored MapPopup summary card for the currently
+               selected Events This Month row (event-summary-card.tsx). */
+            detailPopup={
+              detailPopup !== null
+                ? {
+                    lon: detailPopup.lon,
+                    lat: detailPopup.lat,
+                    content: (
+                      <EventSummaryCard
+                        event={detailPopup}
+                        onClose={() => {
+                          setDetailPopup(null);
+                        }}
+                      />
+                    ),
+                  }
+                : null
+            }
             /* CC-3 — 48h event markers open the shared EventDetailModal
                (same modal + state the Live Event Feed / Last Incident use). */
             onEventClick={setSelectedEventId}

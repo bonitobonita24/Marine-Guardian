@@ -467,15 +467,35 @@ async function syncPatrols(
     // On create (new patrol) there are no revisions yet — no protection needed.
     const existingPatrol = await platformPrisma.patrol.findUnique({
       where: { tenantId_erPatrolId: { tenantId, erPatrolId: p.id } },
-      select: { id: true },
+      select: { id: true, startTimeManual: true, endTimeManual: true },
     });
 
     const editedPatrolFields =
       existingPatrol !== null
         ? await getPatrolEditedFields(tenantId, existingPatrol.id)
         : new Set<string>();
+
+    // ANTI-CLOBBER — officer-supplied start/end times (patrol.setTimeOverride).
+    // The ER mobile app frequently fails to capture the phone's date/time, so
+    // ER supplies no start_time for a large slice of patrols; a Command Center
+    // officer fills it in by hand. That correction is flagged on the row
+    // (startTimeManual / endTimeManual) and MUST survive every subsequent sync
+    // — otherwise the next ER poll silently reverts it to null (or to ER's
+    // wrong value) and the officer's work is lost.
+    //
+    // This is a SEPARATE mechanism from the PatrolRevision-presence protection
+    // above: revisions cover the free-text editable fields
+    // (PATROL_EDITABLE_FIELDS), whereas start/end time overrides are recorded
+    // as boolean flags on the patrol row itself — the same shape as the
+    // `municipalityManual` guard at the municipality-assign choke-point.
+    const manualTimeFields = new Set<string>();
+    if (existingPatrol?.startTimeManual === true) manualTimeFields.add("startTime");
+    if (existingPatrol?.endTimeManual === true) manualTimeFields.add("endTime");
+
     const safeLivePatrolFields = Object.fromEntries(
-      Object.entries(livePatrolFields).filter(([key]) => !editedPatrolFields.has(key)),
+      Object.entries(livePatrolFields).filter(
+        ([key]) => !editedPatrolFields.has(key) && !manualTimeFields.has(key),
+      ),
     ) as Partial<typeof livePatrolFields>;
 
     const patrol = await platformPrisma.patrol.upsert({

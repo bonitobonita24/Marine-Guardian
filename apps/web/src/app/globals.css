@@ -195,3 +195,75 @@
     display: none; /* shadcn / Radix ScrollArea bar */
   }
 }
+
+/* ── Hover-revealed scrollbar (MAP CONTROLS card — TrackLegend.tsx) ──────────
+   Owner request 2026-07-20: the map-controls card's scroll area should reveal a
+   draggable scrollbar handle so operators can tell there is more content below.
+
+   ⚠ Why the doubled class and why this block is NOT inside @layer utilities:
+   the Report Map view root carries `.command-center` (report-map-view.tsx), and
+   the rule directly above hides scrollbars on EVERY descendant via
+   `.command-center *` / `.command-center *::-webkit-scrollbar`. That selector's
+   specificity is (0,1,0), so a single-class rule would only win on source order
+   — fragile. `.mg-hover-scrollbar.mg-hover-scrollbar` is (0,2,0) and beats it
+   outright, and living outside the Tailwind layers keeps it after the utilities
+   output. Do not "simplify" the repeated class away.
+
+   Engine behaviour: Chromium (what this app ships in — Electron-free, Chrome
+   dev/prod) honours BOTH the standard `scrollbar-*` properties and the
+   `::-webkit-scrollbar` pseudo-elements, and when `::-webkit-scrollbar` rules
+   exist they take over rendering — so the visible result here is driven by the
+   webkit block; `scrollbar-width/color` is the Firefox/standards fallback
+   (Firefox gets a thin auto-coloured bar that cannot fade, which is acceptable
+   because the bottom fade — not the bar — is what signals "there is more").
+   `scrollbar-gutter: stable` reserves the track width up front so revealing the
+   handle never reflows the card's content. */
+.mg-hover-scrollbar.mg-hover-scrollbar {
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  /* thumb track — transparent thumb until revealed */
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 150ms ease-out;
+}
+.mg-hover-scrollbar.mg-hover-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  /* Overlay-style: the gutter above is already reserved, so showing the thumb
+     cannot shift content. */
+  background: transparent;
+}
+.mg-hover-scrollbar.mg-hover-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.mg-hover-scrollbar.mg-hover-scrollbar::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background-color: transparent;
+  /* Inset the thumb so it reads as a slim pill inside the 8px gutter. */
+  border: 2px solid transparent;
+  background-clip: content-box;
+  transition: background-color 150ms ease-out;
+}
+
+/* Revealed on hover, on keyboard focus inside the card, and — via the
+   `data-scrolling` attribute TrackLegend sets — briefly while scrolling. Hover
+   alone would be invisible to keyboard users and absent on touch, which is why
+   all three triggers exist. */
+.mg-hover-scrollbar.mg-hover-scrollbar:hover,
+.mg-hover-scrollbar.mg-hover-scrollbar:focus-within,
+.mg-hover-scrollbar.mg-hover-scrollbar[data-scrolling="true"] {
+  scrollbar-color: hsl(var(--muted-foreground) / 0.45) transparent;
+}
+.mg-hover-scrollbar.mg-hover-scrollbar:hover::-webkit-scrollbar-thumb,
+.mg-hover-scrollbar.mg-hover-scrollbar:focus-within::-webkit-scrollbar-thumb,
+.mg-hover-scrollbar.mg-hover-scrollbar[data-scrolling="true"]::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--muted-foreground) / 0.45);
+}
+.mg-hover-scrollbar.mg-hover-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--muted-foreground) / 0.7);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mg-hover-scrollbar.mg-hover-scrollbar,
+  .mg-hover-scrollbar.mg-hover-scrollbar::-webkit-scrollbar-thumb {
+    transition: none;
+  }
+}

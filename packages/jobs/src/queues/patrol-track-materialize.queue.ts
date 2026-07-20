@@ -20,9 +20,19 @@
 // matters for dedupe, not who triggered the refetch. Two rapid admin clicks
 // from different operators on the same patrol should still collapse to one
 // ER fetch.
+//
+// 🔴 2026-07-20 — that dedupe must only apply to PENDING work. BullMQ matches
+// the jobId regardless of state and completed jobs linger (removeOnComplete:
+// { count: 1000 }), so a deliberate later re-materialize of the same patrol
+// (admin "rebuild track" after the first fetch already finished) silently
+// returned the stale completed job and never re-fetched from ER.
+// removeStaleTerminalJob() clears a terminal job under this id before add();
+// pending jobs are untouched so the dedupe above still holds.
+// Full rationale: ./remove-stale-terminal-job.ts
 
 import type { Queue } from "bullmq";
 import { getQueue } from "./queue-factory";
+import { removeStaleTerminalJob } from "./remove-stale-terminal-job";
 import type { PatrolTrackMaterializeJobPayload } from "./types";
 import { QUEUE_NAMES } from "./types";
 
@@ -34,12 +44,10 @@ export async function enqueuePatrolTrackMaterialize(
   payload: PatrolTrackMaterializeJobPayload,
 ): Promise<string> {
   const queue = getPatrolTrackMaterializeQueue();
-  const job = await queue.add(
-    "patrol-track-materialize",
-    payload,
-    {
-      jobId: `patrol-track-materialize__${payload.tenantId}__${payload.patrolId}`,
-    },
-  );
+  const jobId = `patrol-track-materialize__${payload.tenantId}__${payload.patrolId}`;
+
+  await removeStaleTerminalJob(queue, jobId, "patrol-track-materialize.queue");
+
+  const job = await queue.add("patrol-track-materialize", payload, { jobId });
   return job.id ?? "";
 }

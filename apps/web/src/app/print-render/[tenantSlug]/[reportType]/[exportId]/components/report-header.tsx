@@ -37,6 +37,19 @@ export interface ReportHeaderProps {
    *  template with no municipality concept doesn't render an empty line.
    *  Ignored when `regionMode` is true. */
   municipalityName?: string | null;
+  /**
+   * PROTECTED-ZONE SCOPE (2026-07-20): the selected zone's OWN name (e.g.
+   * "Apo Reef Natural Park") when the report is scoped to a ProtectedZone.
+   * A zone-scoped filter always carries the parent `municipalityId` too, so
+   * `municipalityName` would otherwise resolve to the parent LGU and print
+   * "LGU Sablayan" for an Apo Reef report. When this is set (and
+   * `regionMode` is false) it wins over `municipalityName` and is rendered
+   * VERBATIM through the same unprefixed title path region mode uses — no
+   * "LGU " prefix and no "Blue Alliance Monitoring" brand subline — while
+   * the logo slots stay (a zone still sits inside an LGU). Generic: applies
+   * to ANY protected zone, not a named special case.
+   */
+  protectedZoneName?: string | null;
   /** Per-page / per-section report title (smaller, third line). */
   reportTitle: string;
   /** Date range of coverage (smallest, muted, fourth line). */
@@ -58,14 +71,25 @@ export interface ReportHeaderProps {
 export function ReportHeader({
   mainTitle,
   municipalityName,
+  protectedZoneName,
   reportTitle,
   dateRange,
   municipalLogoUrl,
   partnerLogoUrl,
   regionMode = false,
 }: ReportHeaderProps) {
+  // Zone scope wins over the municipality line (a zone-scoped report also
+  // carries its parent municipality — see `protectedZoneName` above).
+  const zoneTitle =
+    !regionMode &&
+    protectedZoneName !== null &&
+    protectedZoneName !== undefined &&
+    protectedZoneName.length > 0
+      ? protectedZoneName
+      : null;
   const hasMunicipality =
     !regionMode &&
+    zoneTitle === null &&
     municipalityName !== null &&
     municipalityName !== undefined &&
     municipalityName.length > 0;
@@ -74,11 +98,15 @@ export function ReportHeader({
   // (regional / all-municipality), fall back to the brand line as the title.
   // Region mode (2026-07-13): line 1 = the region/province name ALONE, no
   // "LGU " prefix and no brand subline.
+  // Zone mode (2026-07-20): line 1 = the protected zone's own name ALONE,
+  // reusing region mode's unprefixed title path (logos are kept).
   const line1 = regionMode
     ? (mainTitle ?? "")
-    : hasMunicipality
-      ? `LGU ${municipalityName}`
-      : (mainTitle ?? "Blue Alliance Monitoring");
+    : zoneTitle !== null
+      ? zoneTitle
+      : hasMunicipality
+        ? `LGU ${municipalityName}`
+        : (mainTitle ?? "Blue Alliance Monitoring");
   return (
     <header className="pr-header" role="banner">
       {regionMode ? null : (

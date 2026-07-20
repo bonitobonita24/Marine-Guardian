@@ -22,6 +22,7 @@ vi.mock("next-auth/react", () => ({
 }));
 
 const setOverrideMutate = vi.fn();
+const setTimeOverrideMutate = vi.fn();
 
 vi.mock("@/lib/trpc/client", () => ({
   trpc: {
@@ -50,6 +51,13 @@ vi.mock("@/lib/trpc/client", () => ({
           error: null,
         }),
       },
+      setTimeOverride: {
+        useMutation: (): unknown => ({
+          mutate: setTimeOverrideMutate,
+          isPending: false,
+          error: null,
+        }),
+      },
     },
     municipality: {
       list: {
@@ -66,6 +74,7 @@ beforeEach(() => {
   softDeleteMutate.mockReset();
   restoreMutate.mockReset();
   setOverrideMutate.mockReset();
+  setTimeOverrideMutate.mockReset();
   sessionRoles = [];
 });
 
@@ -93,6 +102,9 @@ const basePatrol = {
   state: "open",
   startTime: null,
   endTime: null,
+  startTimeManual: false,
+  endTimeManual: false,
+  startTimeDerivedAt: null,
   firstSeenAt: null,
   isDeleted: false,
   segments: [],
@@ -232,5 +244,205 @@ describe("PatrolsTable", () => {
     fireEvent.click(screen.getByTestId("restore-button-p9"));
 
     expect(restoreMutate).toHaveBeenCalledWith({ id: "p9" });
+  });
+});
+
+// ── Manual start/end time override (officer correction for missing ER clock) ──
+
+describe("PatrolsTable — time override", () => {
+  const MANAGER_ROLES = ["tenant_admin"];
+
+  it("renders an em-dash for a patrol with no start or end time", () => {
+    mockListResult([{ ...basePatrol, id: "p1", title: "Foot patrol" }]);
+
+    render(<PatrolsTable />);
+
+    expect(screen.getByTestId("start-cell-p1").textContent).toContain("—");
+    expect(screen.getByTestId("end-cell-p1").textContent).toContain("—");
+  });
+
+  it("marks an officer-supplied start time with a Manual badge", () => {
+    mockListResult([
+      {
+        ...basePatrol,
+        id: "p1",
+        title: "Foot patrol",
+        startTime: new Date("2026-07-01T08:00:00Z"),
+        startTimeManual: true,
+      },
+    ]);
+
+    render(<PatrolsTable />);
+
+    expect(screen.queryByTestId("start-manual-badge-p1")).not.toBeNull();
+    expect(screen.queryByTestId("start-derived-badge-p1")).toBeNull();
+  });
+
+  it("marks a script-derived start time with a Derived badge, not Manual", () => {
+    mockListResult([
+      {
+        ...basePatrol,
+        id: "p1",
+        title: "Foot patrol",
+        startTime: new Date("2026-07-01T08:00:00Z"),
+        startTimeManual: false,
+        startTimeDerivedAt: new Date("2026-07-02T00:00:00Z"),
+      },
+    ]);
+
+    render(<PatrolsTable />);
+
+    expect(screen.queryByTestId("start-derived-badge-p1")).not.toBeNull();
+    expect(screen.queryByTestId("start-manual-badge-p1")).toBeNull();
+  });
+
+  it("shows no provenance badge for an ER-supplied start time", () => {
+    mockListResult([
+      {
+        ...basePatrol,
+        id: "p1",
+        title: "Foot patrol",
+        startTime: new Date("2026-07-01T08:00:00Z"),
+      },
+    ]);
+
+    render(<PatrolsTable />);
+
+    expect(screen.queryByTestId("start-manual-badge-p1")).toBeNull();
+    expect(screen.queryByTestId("start-derived-badge-p1")).toBeNull();
+  });
+
+  it("marks an officer-supplied end time with a Manual badge", () => {
+    mockListResult([
+      {
+        ...basePatrol,
+        id: "p1",
+        title: "Foot patrol",
+        endTime: new Date("2026-07-01T12:00:00Z"),
+        endTimeManual: true,
+      },
+    ]);
+
+    render(<PatrolsTable />);
+
+    expect(screen.queryByTestId("end-manual-badge-p1")).not.toBeNull();
+  });
+
+  it("hides the 'Set times' action from users who cannot manage patrols", () => {
+    sessionRoles = ["ranger"];
+    mockListResult([{ ...basePatrol, id: "p1", title: "Foot patrol" }]);
+
+    render(<PatrolsTable />);
+
+    expect(screen.queryByTestId("time-override-button-p1")).toBeNull();
+  });
+
+  it("shows the 'Set times' action to a manager", () => {
+    sessionRoles = MANAGER_ROLES;
+    mockListResult([{ ...basePatrol, id: "p1", title: "Foot patrol" }]);
+
+    render(<PatrolsTable />);
+
+    expect(screen.queryByTestId("time-override-button-p1")).not.toBeNull();
+  });
+
+  it("submits both entered times through setTimeOverride", () => {
+    sessionRoles = MANAGER_ROLES;
+    mockListResult([{ ...basePatrol, id: "p1", title: "Foot patrol" }]);
+
+    render(<PatrolsTable />);
+    fireEvent.click(screen.getByTestId("time-override-button-p1"));
+
+    fireEvent.change(screen.getByTestId("override-start-time-input"), {
+      target: { value: "2026-07-01T08:00" },
+    });
+    fireEvent.change(screen.getByTestId("override-end-time-input"), {
+      target: { value: "2026-07-01T12:00" },
+    });
+    fireEvent.click(screen.getByTestId("save-time-override-button"));
+
+    expect(setTimeOverrideMutate).toHaveBeenCalledTimes(1);
+    const arg = setTimeOverrideMutate.mock.calls[0]?.[0] as {
+      id: string;
+      startTime: Date | null;
+      endTime: Date | null;
+    };
+    expect(arg.id).toBe("p1");
+    expect(arg.startTime).toEqual(new Date("2026-07-01T08:00"));
+    expect(arg.endTime).toEqual(new Date("2026-07-01T12:00"));
+  });
+
+  it("submits null for a field left blank", () => {
+    sessionRoles = MANAGER_ROLES;
+    mockListResult([{ ...basePatrol, id: "p1", title: "Foot patrol" }]);
+
+    render(<PatrolsTable />);
+    fireEvent.click(screen.getByTestId("time-override-button-p1"));
+
+    fireEvent.change(screen.getByTestId("override-start-time-input"), {
+      target: { value: "2026-07-01T08:00" },
+    });
+    fireEvent.click(screen.getByTestId("save-time-override-button"));
+
+    const arg = setTimeOverrideMutate.mock.calls[0]?.[0] as {
+      startTime: Date | null;
+      endTime: Date | null;
+    };
+    expect(arg.startTime).toEqual(new Date("2026-07-01T08:00"));
+    expect(arg.endTime).toBeNull();
+  });
+
+  it("prefills the dialog inputs from the patrol's existing times", () => {
+    sessionRoles = MANAGER_ROLES;
+    mockListResult([
+      {
+        ...basePatrol,
+        id: "p1",
+        title: "Foot patrol",
+        startTime: new Date(2026, 6, 1, 8, 30),
+        startTimeManual: true,
+      },
+    ]);
+
+    render(<PatrolsTable />);
+    fireEvent.click(screen.getByTestId("time-override-button-p1"));
+
+    const startInput: HTMLInputElement = screen.getByTestId(
+      "override-start-time-input",
+    );
+    expect(startInput.value).toBe("2026-07-01T08:30");
+  });
+
+  it("offers 'Clear override' only when a time is already manual, and sends nulls", () => {
+    sessionRoles = MANAGER_ROLES;
+    mockListResult([
+      {
+        ...basePatrol,
+        id: "p1",
+        title: "Foot patrol",
+        startTime: new Date("2026-07-01T08:00:00Z"),
+        startTimeManual: true,
+      },
+    ]);
+
+    render(<PatrolsTable />);
+    fireEvent.click(screen.getByTestId("time-override-button-p1"));
+    fireEvent.click(screen.getByTestId("clear-time-override-button"));
+
+    expect(setTimeOverrideMutate).toHaveBeenCalledWith({
+      id: "p1",
+      startTime: null,
+      endTime: null,
+    });
+  });
+
+  it("does not offer 'Clear override' for a patrol with no manual time", () => {
+    sessionRoles = MANAGER_ROLES;
+    mockListResult([{ ...basePatrol, id: "p1", title: "Foot patrol" }]);
+
+    render(<PatrolsTable />);
+    fireEvent.click(screen.getByTestId("time-override-button-p1"));
+
+    expect(screen.queryByTestId("clear-time-override-button")).toBeNull();
   });
 });

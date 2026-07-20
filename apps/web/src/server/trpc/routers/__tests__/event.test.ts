@@ -89,6 +89,15 @@ vi.mock("@marine-guardian/db", () => ({
     auditLog: {
       create: vi.fn(),
     },
+    // Municipality-override target validation (tenant-scoped existence check).
+    municipality: {
+      findFirst: vi.fn(),
+    },
+    // Backs the matrixProcedure permission resolver for custom-role callers
+    // (deny-by-default when no RolePermission row exists).
+    rolePermission: {
+      findUnique: vi.fn(),
+    },
   },
   decrypt: (value: string): string => value,
   writeAuditLog: vi.fn(),
@@ -96,6 +105,10 @@ vi.mock("@marine-guardian/db", () => ({
 
 vi.mock("../../../lib/earthranger-push", () => ({
   pushEventUpdateToEarthRanger: vi.fn(),
+}));
+
+vi.mock("@marine-guardian/jobs", () => ({
+  enqueueMunicipalityAssign: vi.fn().mockResolvedValue("job-id"),
 }));
 
 vi.mock("../../../lib/rate-limit", () => ({
@@ -112,6 +125,7 @@ vi.mock("../../../auth", () => ({
 }));
 
 import { prisma, writeAuditLog } from "@marine-guardian/db";
+import { enqueueMunicipalityAssign } from "@marine-guardian/jobs";
 import { pushEventUpdateToEarthRanger } from "../../../lib/earthranger-push";
 import { createCallerFactory } from "../../trpc";
 import { eventRouter } from "../event";
@@ -126,7 +140,10 @@ const createCaller = createCallerFactory(eventRouter);
 const TENANT_ID = "tenant-abc";
 const USER_ID = "user-123";
 
-function makeCtx(tenantId: string | null = TENANT_ID) {
+function makeCtx(
+  tenantId: string | null = TENANT_ID,
+  customRoleId: string | null = null,
+) {
   return {
     session: {
       user: {
@@ -134,6 +151,7 @@ function makeCtx(tenantId: string | null = TENANT_ID) {
         tenantId: tenantId as string,
         tenantSlug: "",
         roles: ["ranger" as const],
+        customRoleId,
         email: "test@example.com",
         name: "Test User",
       },
@@ -237,6 +255,356 @@ describe("event.list — typeDisplay filter (War Room breakdown drill-down T5b)"
 
     const call = vi.mocked(prisma.event.findMany).mock.calls[0];
     expect(call?.[0]?.where?.eventType).toBeUndefined();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Subcategory multi-select + sorting.
+//
+// ⚠ `event.list` has TWO implementations — the Prisma-fluent path and the
+// hand-written $queryRaw (listViaRawSql) used whenever `search` is non-empty.
+// A filter or sort wired into only one of them silently stops working the
+// moment a user types in the search box. The "two-path parity" block at the
+// bottom is the regression guard for exactly that.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Composed SQL text of the Nth $queryRaw call (FakeSql — see file header). */
+function rawSqlText(callIndex = 0): string {
+  const call = vi.mocked(prisma.$queryRaw).mock.calls[callIndex];
+  return (call?.[0] as unknown as { text: string }).text;
+}
+
+/** Bound parameter values of the Nth $queryRaw call. */
+function rawSqlValues(callIndex = 0): unknown[] {
+  const call = vi.mocked(prisma.$queryRaw).mock.calls[callIndex];
+  return (call?.[0] as unknown as { values: unknown[] }).values;
+}
+
+describe("event.list — typeDisplays subcategory multi-select", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("narrows to the selected subcategories as an OR of case-insensitive equals (Prisma path)", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ typeDisplays: ["Compressor Fishing", "Use of Prohibited Gears"] });
+
+    const call = vi.mocked(prisma.event.findMany).mock.calls[0];
+    expect(call?.[0]?.where?.eventType).toEqual({
+      OR: [
+        { display: { equals: "Compressor Fishing", mode: "insensitive" } },
+        { display: { equals: "Use of Prohibited Gears", mode: "insensitive" } },
+      ],
+    });
+    expect(call?.[0]?.where?.tenantId).toBe(TENANT_ID);
+  });
+
+  it("merges with category AND singular typeDisplay into ONE eventType filter (no key clobbering)", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({
+      category: "law-enforcement-and-apprehensions",
+      typeDisplay: "Others",
+      typeDisplays: ["Compressor Fishing"],
+    });
+
+    // All three must survive — an earlier draft emitted two `eventType` keys
+    // and the second silently overwrote the first.
+    const call = vi.mocked(prisma.event.findMany).mock.calls[0];
+    expect(call?.[0]?.where?.eventType).toEqual({
+      category: { equals: "law-enforcement-and-apprehensions", mode: "insensitive" },
+      display: { equals: "Others", mode: "insensitive" },
+      OR: [{ display: { equals: "Compressor Fishing", mode: "insensitive" } }],
+    });
+  });
+
+  it("treats an EMPTY typeDisplays array as no filter (not as match-nothing)", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ typeDisplays: [] });
+
+    const call = vi.mocked(prisma.event.findMany).mock.calls[0];
+    expect(call?.[0]?.where?.eventType).toBeUndefined();
+  });
+
+  it("filters by lower(et.display) IN (…) with lowercased bound params (raw/search path)", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({
+      search: "vessel",
+      typeDisplays: ["Compressor Fishing", "Use of Prohibited Gears"],
+    });
+
+    expect(rawSqlText()).toContain("lower(et.display) IN (");
+    // Values are lowercased so the IN comparison is case-insensitive, matching
+    // the Prisma path's `mode: "insensitive"`.
+    expect(rawSqlValues()).toContain("compressor fishing");
+    expect(rawSqlValues()).toContain("use of prohibited gears");
+  });
+
+  it("omits the IN predicate entirely for an empty array on the raw path", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ search: "vessel", typeDisplays: [] });
+
+    expect(rawSqlText()).not.toContain("lower(et.display) IN (");
+  });
+});
+
+describe("event.list — unattributedOnly filter (manual-attribution work queue)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("restricts to municipalityId: null on the Prisma path", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ unattributedOnly: true });
+
+    const call = vi.mocked(prisma.event.findMany).mock.calls[0];
+    expect(call?.[0]?.where?.municipalityId).toBeNull();
+    expect(call?.[0]?.where?.tenantId).toBe(TENANT_ID);
+  });
+
+  it("emits `e.municipality_id IS NULL` on the raw/search path", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ unattributedOnly: true, search: "vessel" });
+
+    expect(rawSqlText()).toContain("e.municipality_id IS NULL");
+  });
+
+  it("is OFF by default — no municipality predicate on either path", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+    const caller = createCaller(makeCtx());
+    await caller.list({});
+    expect(
+      vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where?.municipalityId,
+    ).toBeUndefined();
+
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+    await caller.list({ search: "vessel" });
+    expect(rawSqlText()).not.toContain("e.municipality_id IS NULL");
+  });
+
+  it("PARITY — honours unattributedOnly identically with and without a search term", async () => {
+    // Path A — no search → Prisma fluent path.
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+    const caller = createCaller(makeCtx());
+    await caller.list({ unattributedOnly: true });
+    expect(vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where?.municipalityId).toBeNull();
+
+    // Path B — same filter, plus a search term → raw SQL path.
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+    await caller.list({ unattributedOnly: true, search: "vessel" });
+    expect(rawSqlText()).toContain("e.municipality_id IS NULL");
+  });
+
+  it("composes with the subcategory filter and municipality sort", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({
+      unattributedOnly: true,
+      typeDisplays: ["Compressor Fishing"],
+      sortBy: "municipality",
+      sortDir: "asc",
+    });
+
+    const sql = rawSqlText();
+    expect(sql).toContain("e.municipality_id IS NULL");
+    expect(sql).toContain("lower(et.display) IN (");
+    expect(sql).toContain("ORDER BY COALESCE(m.name, '') ASC");
+  });
+});
+
+describe("event.list — sorting", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("defaults to date DESC — unchanged historical ordering", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({});
+
+    const call = vi.mocked(prisma.event.findMany).mock.calls[0];
+    expect(call?.[0]?.orderBy).toEqual([{ createdAt: "desc" }, { id: "desc" }]);
+    // Default sort must NOT divert to the raw path.
+    expect(vi.mocked(prisma.$queryRaw)).not.toHaveBeenCalled();
+  });
+
+  it("sorts by date ASC when requested", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ sortBy: "date", sortDir: "asc" });
+
+    const call = vi.mocked(prisma.event.findMany).mock.calls[0];
+    expect(call?.[0]?.orderBy).toEqual([{ createdAt: "asc" }, { id: "asc" }]);
+  });
+
+  it("routes municipality sort to the raw path even with NO search term", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ sortBy: "municipality", sortDir: "asc" });
+
+    // Single implementation by construction — the Prisma path is not used.
+    expect(vi.mocked(prisma.event.findMany)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.$queryRaw)).toHaveBeenCalledTimes(1);
+
+    const sql = rawSqlText();
+    expect(sql).toContain("LEFT JOIN municipalities m ON m.id = e.municipality_id");
+    expect(sql).toContain("ORDER BY COALESCE(m.name, '') ASC, e.id ASC");
+    // No search term supplied → the pg_trgm fuzzy predicate must be absent.
+    // (Asserted via the JSON-blob concat that is unique to it — a bare "ILIKE"
+    // check would false-positive on the Skylight `NOT ILIKE` exclusion, which
+    // is always present.)
+    expect(sql).not.toContain("e.event_details_json::text");
+  });
+
+  it("sorts municipality DESC when requested", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ sortBy: "municipality", sortDir: "desc" });
+
+    expect(rawSqlText()).toContain("ORDER BY COALESCE(m.name, '') DESC, e.id DESC");
+  });
+
+  it("orders the raw path by created_at when sorting by date with a search term", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ search: "vessel", sortBy: "date", sortDir: "desc" });
+
+    expect(rawSqlText()).toContain("ORDER BY e.created_at DESC, e.id DESC");
+  });
+
+  it("keysets the cursor on the municipality sort key, not created_at", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+    vi.mocked(prisma.event.findFirst).mockResolvedValue({
+      createdAt: new Date("2026-01-01"),
+      municipality: { name: "Baco" },
+    } as unknown as Awaited<ReturnType<typeof prisma.event.findFirst>>);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ sortBy: "municipality", sortDir: "asc", cursor: "ev-42" });
+
+    // Keyset tuple must use the SAME expression as the ORDER BY, or pagination
+    // silently drops or repeats rows.
+    expect(rawSqlText()).toContain("(COALESCE(m.name, ''), e.id) > (");
+    expect(rawSqlValues()).toContain("Baco");
+    expect(rawSqlValues()).toContain("ev-42");
+  });
+
+  it("falls back to an empty-string sort key when the cursor row has no municipality", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+    vi.mocked(prisma.event.findFirst).mockResolvedValue({
+      createdAt: new Date("2026-01-01"),
+      municipality: null,
+    } as unknown as Awaited<ReturnType<typeof prisma.event.findFirst>>);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ sortBy: "municipality", sortDir: "asc", cursor: "ev-42" });
+
+    // COALESCE sentinel keeps the tuple comparison total — a NULL here would
+    // make the predicate NULL and silently drop every remaining row.
+    expect(rawSqlValues()).toContain("");
+  });
+});
+
+describe("event.list — two-path parity (search vs no-search)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("honours the SAME subcategory filter with and without a search term", async () => {
+    const typeDisplays = ["Compressor Fishing", "Threats on Habitat"];
+
+    // Path A — no search → Prisma fluent path.
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+    const caller = createCaller(makeCtx());
+    await caller.list({ typeDisplays });
+
+    const prismaCall = vi.mocked(prisma.event.findMany).mock.calls[0];
+    const prismaOr = (prismaCall?.[0]?.where?.eventType as { OR: { display: { equals: string } }[] }).OR;
+    const prismaSelected = prismaOr.map((c) => c.display.equals).sort();
+
+    // Path B — same filter, plus a search term → raw SQL path.
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+    await caller.list({ typeDisplays, search: "vessel" });
+
+    const rawSelected = rawSqlValues()
+      .filter((v): v is string => typeof v === "string" && typeDisplays.some((d) => d.toLowerCase() === v))
+      .sort();
+
+    // Both paths must restrict to the same set of subcategories.
+    expect(prismaSelected).toEqual(typeDisplays.slice().sort());
+    expect(rawSelected).toEqual(typeDisplays.map((d) => d.toLowerCase()).sort());
+  });
+
+  it("honours the SAME date sort direction with and without a search term", async () => {
+    // Path A — no search.
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+    const caller = createCaller(makeCtx());
+    await caller.list({ sortBy: "date", sortDir: "asc" });
+    expect(vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.orderBy).toEqual([
+      { createdAt: "asc" },
+      { id: "asc" },
+    ]);
+
+    // Path B — same sort, plus a search term.
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+    await caller.list({ sortBy: "date", sortDir: "asc", search: "vessel" });
+    expect(rawSqlText()).toContain("ORDER BY e.created_at ASC, e.id ASC");
+  });
+
+  it("keeps every pre-existing filter working on both paths alongside the new ones", async () => {
+    const common = {
+      state: "active" as const,
+      category: "law-enforcement-and-apprehensions",
+      typeDisplays: ["Compressor Fishing"],
+      dateFrom: "2026-01-01",
+      dateTo: "2026-06-30",
+      includeSkylight: false,
+      sortBy: "date" as const,
+      sortDir: "desc" as const,
+    };
+
+    // Path A — no search.
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+    const caller = createCaller(makeCtx());
+    await caller.list(common);
+
+    const where = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where;
+    expect(where?.state).toBe("active");
+    expect(where?.reportedAt).toBeDefined();
+    // Skylight stays excluded by default.
+    expect(where?.NOT).toBeDefined();
+
+    // Path B — identical filters plus a search term.
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+    await caller.list({ ...common, search: "vessel" });
+
+    const sql = rawSqlText();
+    expect(sql).toContain('e.state = ');
+    expect(sql).toContain("et.category ILIKE");
+    expect(sql).toContain("lower(et.display) IN (");
+    expect(sql).toContain("e.reported_at >=");
+    expect(sql).toContain("e.reported_at <=");
+    expect(sql).toContain("NOT ILIKE '%skylight%'");
+    expect(sql).toContain("e.tenant_id = ");
   });
 });
 
@@ -1150,14 +1518,17 @@ describe("event.list — cursor pagination (M3)", () => {
     );
   });
 
-  it("orders by createdAt desc (newest-first)", async () => {
+  it("orders by createdAt desc (newest-first), with id as tie-breaker", async () => {
     vi.mocked(prisma.event.findMany).mockResolvedValue([] as never);
 
     const caller = createCaller(makeCtx());
     await caller.list({ limit: 50 });
 
+    // Sorting made the ordering explicit: the `id` tie-breaker was added so
+    // this path matches the raw path's `(created_at, id)` keyset ordering.
+    // Newest-first default is unchanged.
     expect(vi.mocked(prisma.event.findMany)).toHaveBeenCalledWith(
-      expect.objectContaining({ orderBy: { createdAt: "desc" } })
+      expect.objectContaining({ orderBy: [{ createdAt: "desc" }, { id: "desc" }] })
     );
   });
 });
@@ -1875,5 +2246,451 @@ describe("event.resolveAllEvents", () => {
 
     const call = vi.mocked(prisma.event.updateMany).mock.calls[0];
     expect(call?.[0]?.where?.tenantId).toBe("other-tenant");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// event.list — attribution-review filter (DUAL PATH)
+//
+// The backfill (96f7ff4) attributed 76 events by `nearest`, 7 of them flagged
+// `municipalityAttributionAmbiguous` (near-ties resolved as coin-flips). All 76
+// have a NON-NULL municipality_id, so `unattributedOnly` excludes them BY
+// DEFINITION — this filter is the only way to reach them.
+//
+// ⚠ event.list has TWO implementations (Prisma + $queryRaw when a search term
+// is present). EVERY assertion below is made against BOTH, because a filter
+// wired into only one silently stops working the moment a user types in the
+// search box.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("event.list — attributionMethod filter (both paths)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("does NOT constrain attribution when omitted (Prisma path)", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({});
+
+    const where = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where;
+    expect(where?.municipalityAttributionMethod).toBeUndefined();
+    expect(where?.OR).toBeUndefined();
+  });
+
+  it("does NOT constrain attribution when omitted (raw/search path)", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ search: "vessel" });
+
+    // NB: assert on the PREDICATE forms, not the bare column name — the column
+    // is now always present in the SELECT list (it feeds the badges), so a
+    // bare `not.toContain("e.municipality_attribution_method")` would fail for
+    // the wrong reason and hide a real regression.
+    const sql = rawSqlText();
+    expect(sql).not.toContain("e.municipality_attribution_method = ");
+    expect(sql).not.toContain("e.municipality_attribution_method IN (");
+    expect(sql).not.toContain("e.municipality_attribution_ambiguous = true");
+  });
+
+  it.each(["containment", "nearest", "manual", "title_hint"] as const)(
+    "narrows to exactly the %s method (Prisma path)",
+    async (method) => {
+      vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+      const caller = createCaller(makeCtx());
+      await caller.list({ attributionMethod: method });
+
+      const where = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where;
+      expect(where?.municipalityAttributionMethod).toBe(method);
+      expect(where?.OR).toBeUndefined();
+    },
+  );
+
+  it.each(["containment", "nearest", "manual", "title_hint"] as const)(
+    "narrows to exactly the %s method (raw/search path)",
+    async (method) => {
+      vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+
+      const caller = createCaller(makeCtx());
+      await caller.list({ search: "vessel", attributionMethod: method });
+
+      expect(rawSqlText()).toContain("e.municipality_attribution_method = ");
+      // The enum value travels as a BOUND PARAMETER, never concatenated.
+      expect(rawSqlValues()).toContain(method);
+      // An exact-method query must not also widen via the needs-review OR.
+      expect(rawSqlText()).not.toContain("municipality_attribution_ambiguous = true");
+    },
+  );
+
+  it("returns the UNION of heuristic methods and ambiguous rows for needs_review (Prisma path)", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ attributionMethod: "needs_review" });
+
+    const where = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where;
+    expect(where?.OR).toEqual([
+      { municipalityAttributionMethod: { in: ["title_hint", "nearest"] } },
+      { municipalityAttributionAmbiguous: true },
+    ]);
+    expect(where?.municipalityAttributionMethod).toBeUndefined();
+  });
+
+  it("returns the UNION of heuristic methods and ambiguous rows for needs_review (raw/search path)", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ search: "vessel", attributionMethod: "needs_review" });
+
+    const sql = rawSqlText();
+    expect(sql).toContain("e.municipality_attribution_method IN (");
+    expect(sql).toContain("OR e.municipality_attribution_ambiguous = true");
+    // Both heuristic methods bound as parameters; neither trusted method is.
+    expect(rawSqlValues()).toContain("title_hint");
+    expect(rawSqlValues()).toContain("nearest");
+    expect(rawSqlValues()).not.toContain("containment");
+    expect(rawSqlValues()).not.toContain("manual");
+  });
+
+  it("applies the SAME filter with and without a search term (two-path parity)", async () => {
+    // This is the regression guard the file header warns about: the identical
+    // user intent must reach the database identically on both paths.
+    const caller = createCaller(makeCtx());
+
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+    await caller.list({ attributionMethod: "needs_review" });
+    const where = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where;
+
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+    await caller.list({ search: "vessel", attributionMethod: "needs_review" });
+    const sql = rawSqlText();
+
+    // Prisma path expresses the union as an OR of two clauses…
+    expect(where?.OR).toHaveLength(2);
+    // …and the raw path as the semantically identical SQL disjunction.
+    expect(sql).toContain("e.municipality_attribution_method IN (");
+    expect(sql).toContain("OR e.municipality_attribution_ambiguous = true");
+  });
+
+  it("composes with every pre-existing filter on BOTH paths", async () => {
+    const common = {
+      state: "active" as const,
+      category: "law-enforcement-and-apprehensions",
+      typeDisplays: ["Compressor Fishing"],
+      dateFrom: "2026-01-01",
+      dateTo: "2026-06-30",
+      includeSkylight: false,
+      attributionMethod: "nearest" as const,
+    };
+
+    // Path A — no search.
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+    const caller = createCaller(makeCtx());
+    await caller.list(common);
+
+    const where = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where;
+    expect(where?.state).toBe("active");
+    expect(where?.reportedAt).toBeDefined();
+    expect(where?.NOT).toBeDefined();
+    expect(where?.municipalityAttributionMethod).toBe("nearest");
+
+    // Path B — identical filters plus a search term.
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+    await caller.list({ ...common, search: "vessel" });
+
+    const sql = rawSqlText();
+    expect(sql).toContain("e.state = ");
+    expect(sql).toContain("et.category ILIKE");
+    expect(sql).toContain("e.reported_at >=");
+    expect(sql).toContain("NOT ILIKE '%skylight%'");
+    expect(sql).toContain("e.municipality_attribution_method = ");
+  });
+
+  it("composes with unattributedOnly on both paths (mutually exclusive by design)", async () => {
+    const caller = createCaller(makeCtx());
+
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+    await caller.list({ unattributedOnly: true, attributionMethod: "nearest" });
+    const where = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where;
+    expect(where?.municipalityId).toBeNull();
+    expect(where?.municipalityAttributionMethod).toBe("nearest");
+
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+    await caller.list({
+      search: "vessel",
+      unattributedOnly: true,
+      attributionMethod: "nearest",
+    });
+    const sql = rawSqlText();
+    expect(sql).toContain("e.municipality_id IS NULL");
+    expect(sql).toContain("e.municipality_attribution_method = ");
+  });
+
+  it("SELECTs the provenance columns on the raw path so badges survive a search", async () => {
+    // Regression guard: the raw path selects an EXPLICIT column list. Before
+    // this filter shipped it omitted the provenance columns entirely, so the
+    // attribution badges would have silently blanked out the moment a user
+    // typed in the search box — while the Prisma path rendered them fine.
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ search: "vessel" });
+
+    const sql = rawSqlText();
+    expect(sql).toContain('e.municipality_attribution_method        AS "municipalityAttributionMethod"');
+    expect(sql).toContain('e.municipality_distance_km               AS "municipalityDistanceKm"');
+    expect(sql).toContain('e.municipality_attribution_ambiguous     AS "municipalityAttributionAmbiguous"');
+    expect(sql).toContain('m.name                                   AS "municipality_name"');
+  });
+
+  it("rejects a method that is not a real enum value", async () => {
+    const caller = createCaller(makeCtx());
+    await expect(
+      // @ts-expect-error — deliberately invalid input; Zod must reject it.
+      caller.list({ attributionMethod: "vibes" }),
+    ).rejects.toThrow();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// event.setMunicipalityOverride — command-center manual correction
+//
+// The app attributes a municipality automatically from the event's coordinates
+// and sometimes gets it wrong (bad GPS fix, boundary gap, ambiguous water
+// line). The officer can see that and set it by hand.
+//
+// ⚠ These tests cover only HALF the contract. The other half — the anti-clobber
+// guard that stops the next ER sync from destroying the correction — lives in
+// packages/jobs municipality-assign.processor.test.ts ("event manual-override
+// anti-clobber"). Neither half is meaningful alone.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("event.setMunicipalityOverride", () => {
+  const existingEvent = {
+    id: "ev-1",
+    municipalityId: null,
+    municipalityAttributionMethod: null,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.event.findFirst).mockResolvedValue(existingEvent as never);
+    vi.mocked(prisma.event.update).mockResolvedValue({} as never);
+  });
+
+  it("sets a valid municipality — stamps method='manual' and CLEARS the stale auto-guess provenance", async () => {
+    vi.mocked(prisma.municipality.findFirst).mockResolvedValue({ id: "muni-1" } as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.setMunicipalityOverride({ id: "ev-1", municipalityId: "muni-1" });
+
+    expect(result).toEqual({ id: "ev-1", municipalityId: "muni-1", municipalityManual: true });
+    expect(vi.mocked(prisma.event.update).mock.calls[0]?.[0]).toMatchObject({
+      where: { id: "ev-1" },
+      data: {
+        municipalityId: "muni-1",
+        municipalityAttributionMethod: "manual",
+        // The distance + near-tie flag described the AUTOMATIC guess. Leaving
+        // them behind is what made corrected rows match the needs-review filter
+        // forever on the patrol side — regression guard for 4f41c57.
+        municipalityDistanceKm: null,
+        municipalityAttributionAmbiguous: false,
+      },
+    });
+    expect(vi.mocked(enqueueMunicipalityAssign)).not.toHaveBeenCalled();
+  });
+
+  it("writes an audit row on set", async () => {
+    vi.mocked(prisma.municipality.findFirst).mockResolvedValue({ id: "muni-1" } as never);
+
+    const caller = createCaller(makeCtx());
+    await caller.setMunicipalityOverride({ id: "ev-1", municipalityId: "muni-1" });
+
+    expect(vi.mocked(writeAuditLog).mock.calls[0]?.[1]).toMatchObject({
+      tenantId: TENANT_ID,
+      userId: USER_ID,
+      action: "SET_EVENT_MUNICIPALITY_OVERRIDE",
+      entityType: "Event",
+      entityId: "ev-1",
+    });
+  });
+
+  it("clears the override (null) — resets method, clears the value, and RE-ENQUEUES auto attribution", async () => {
+    vi.mocked(prisma.event.findFirst).mockResolvedValue({
+      id: "ev-1",
+      municipalityId: "muni-1",
+      municipalityAttributionMethod: "manual",
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.setMunicipalityOverride({ id: "ev-1", municipalityId: null });
+
+    expect(result).toEqual({ id: "ev-1", municipalityId: null, municipalityManual: false });
+    expect(vi.mocked(prisma.event.update)).toHaveBeenCalledWith({
+      where: { id: "ev-1" },
+      data: { municipalityAttributionMethod: null, municipalityId: null },
+    });
+    // Without the re-enqueue the row would be stranded unattributed forever.
+    expect(vi.mocked(enqueueMunicipalityAssign)).toHaveBeenCalledWith({
+      entity: "event",
+      id: "ev-1",
+      tenantId: TENANT_ID,
+      userId: USER_ID,
+    });
+    expect(vi.mocked(writeAuditLog).mock.calls[0]?.[1]).toMatchObject({
+      action: "CLEAR_EVENT_MUNICIPALITY_OVERRIDE",
+      entityType: "Event",
+      entityId: "ev-1",
+    });
+  });
+
+  it("cross-tenant event — NOT_FOUND, no update, no audit", async () => {
+    vi.mocked(prisma.event.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.setMunicipalityOverride({ id: "ev-other-tenant", municipalityId: "muni-1" })
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(vi.mocked(prisma.event.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(writeAuditLog)).not.toHaveBeenCalled();
+  });
+
+  it("cross-tenant municipality — BAD_REQUEST, no update, no audit", async () => {
+    vi.mocked(prisma.municipality.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.setMunicipalityOverride({ id: "ev-1", municipalityId: "muni-other-tenant" })
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(vi.mocked(prisma.event.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(writeAuditLog)).not.toHaveBeenCalled();
+  });
+
+  it("scopes BOTH existence checks to the caller's tenant (L6)", async () => {
+    vi.mocked(prisma.municipality.findFirst).mockResolvedValue({ id: "muni-1" } as never);
+
+    const caller = createCaller(makeCtx());
+    await caller.setMunicipalityOverride({ id: "ev-1", municipalityId: "muni-1" });
+
+    expect(vi.mocked(prisma.event.findFirst).mock.calls[0]?.[0]).toMatchObject({
+      where: { id: "ev-1", tenantId: TENANT_ID },
+    });
+    expect(vi.mocked(prisma.municipality.findFirst).mock.calls[0]?.[0]).toMatchObject({
+      where: { id: "muni-1", tenantId: TENANT_ID },
+    });
+  });
+
+  it("custom-role user without events:update — FORBIDDEN, no update, no audit", async () => {
+    // Deny-by-default: no RolePermission row for the custom role.
+    vi.mocked(prisma.rolePermission.findUnique).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx(TENANT_ID, "role-no-update"));
+    await expect(
+      caller.setMunicipalityOverride({ id: "ev-1", municipalityId: "muni-1" })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(vi.mocked(prisma.event.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(writeAuditLog)).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unknown input key at the schema boundary (.strict())", async () => {
+    const caller = createCaller(makeCtx());
+    await expect(
+      // @ts-expect-error — deliberately passing a key the schema forbids
+      caller.setMunicipalityOverride({ id: "ev-1", municipalityId: "muni-1", municipalityManual: true })
+    ).rejects.toThrow();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// event.list — municipality + provenance SHAPE parity across the two paths
+//
+// event.list has TWO implementations: the Prisma fluent path, and the
+// hand-written $queryRaw path taken whenever a search term is present (or the
+// municipality sort is used). The Prisma path returns every Event scalar for
+// free; the raw path returns ONLY what its SELECT list names — so any field the
+// UI reads has to be added there BY HAND, and forgetting is silent. Commit
+// 4f41c57 found exactly that: the raw path was missing the provenance columns
+// entirely, so typing in the search box made the attribution badges vanish.
+//
+// The municipality override control reads the same fields (it seeds its dialog
+// from `municipalityId` and decides "is this row overridden?" from
+// `municipalityAttributionMethod`), so it inherits that trap. These tests pin
+// the SELECT list and the mapped key shape so a future edit cannot regress one
+// path without failing here.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("event.list — municipality/provenance parity across both paths", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("the raw path SELECTs every municipality + provenance column the UI reads", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ search: "vessel" });
+
+    const sql = rawSqlText();
+    expect(sql).toContain("e.municipality_id");
+    expect(sql).toContain("e.municipality_attribution_method");
+    expect(sql).toContain("e.municipality_distance_km");
+    expect(sql).toContain("e.municipality_attribution_ambiguous");
+    // The NAME comes from the joined municipalities table — an id alone is not
+    // reviewable by an officer.
+    expect(sql).toContain("LEFT JOIN municipalities m ON m.id = e.municipality_id");
+  });
+
+  it("both paths expose the SAME municipality/provenance keys for the same row", async () => {
+    const MUNI_KEYS = [
+      "municipalityId",
+      "municipalityAttributionMethod",
+      "municipalityDistanceKm",
+      "municipalityAttributionAmbiguous",
+      "municipality",
+    ] as const;
+
+    // Path A — no search → Prisma fluent path.
+    vi.mocked(prisma.event.findMany).mockResolvedValue([
+      {
+        id: "ev-1",
+        municipalityId: "muni-1",
+        municipalityAttributionMethod: "manual",
+        municipalityDistanceKm: null,
+        municipalityAttributionAmbiguous: false,
+        municipality: { id: "muni-1", name: "Baco" },
+      },
+    ] as never);
+
+    const caller = createCaller(makeCtx());
+    const prismaRes = await caller.list({});
+    const prismaItem = prismaRes.items[0] as unknown as Record<string, unknown>;
+
+    // Path B — same row, reached through the raw path via a search term.
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([
+      {
+        id: "ev-1",
+        municipalityId: "muni-1",
+        municipalityAttributionMethod: "manual",
+        municipalityDistanceKm: null,
+        municipalityAttributionAmbiguous: false,
+        municipality_name: "Baco",
+      },
+    ] as never);
+
+    const rawRes = await caller.list({ search: "vessel" });
+    const rawItem = rawRes.items[0] as unknown as Record<string, unknown>;
+
+    for (const key of MUNI_KEYS) {
+      expect(rawItem).toHaveProperty(key);
+      expect(prismaItem).toHaveProperty(key);
+      expect(rawItem[key]).toEqual(prismaItem[key]);
+    }
+
+    // The nested municipality object must be re-built to the SAME shape the
+    // Prisma `include` produces — the row renderer cannot tell the paths apart.
+    expect(rawItem.municipality).toEqual({ id: "muni-1", name: "Baco" });
   });
 });

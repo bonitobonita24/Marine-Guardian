@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import { Map, MapRoute, type MapRef } from "@/components/ui/map";
+import { filterValidLonLatPairs } from "@/lib/map-coordinates";
 import { cn } from "@/lib/utils";
 
 export type ScheduleStatus = "planned" | "in_progress" | "completed" | "cancelled";
@@ -67,8 +68,12 @@ export function MapView<T extends ScheduleItem>({ items, onSelect }: Props<T>) {
     [items],
   );
 
+  // MAP GEOMETRY ONLY — (0,0)/non-finite/out-of-domain vertices are excluded
+  // from the auto-fit so one bad planned-track point can't stretch the camera
+  // across the planet. The routes themselves still draw from `withTracks`
+  // unfiltered, and no schedule row is hidden from the list.
   const allCoordinates = useMemo(
-    () => withTracks.flatMap((entry) => entry.coordinates),
+    () => filterValidLonLatPairs(withTracks.flatMap((entry) => entry.coordinates)),
     [withTracks],
   );
 

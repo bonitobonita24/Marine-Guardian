@@ -19,9 +19,12 @@ import { patrolTypeMeta } from "./lib";
  * in-range records by re-using the existing `event.list` / `patrol.list`
  * procedures with the active FROM/TO range + the matching filter:
  *   - activeEvents    → event.list  { state: "active", dateFrom, dateTo, linkedToActivePatrol: true }
- *   - eventsThisMonth → event.list  { dateFrom: monthStart, dateTo: now }
  *   - activePatrols   → patrol.list { state: "open" }
  * No new tRPC procedure is introduced.
+ *
+ * "eventsThisMonth" is INTENTIONALLY excluded from this modal (Q3, 2026-07-19)
+ * — that tile now opens the floating EventsThisMonthPanel on the map's
+ * top-right slot instead of this center Dialog. See events-this-month-panel.tsx.
  */
 export function KpiDrilldownModal({
   drilldown,
@@ -42,27 +45,13 @@ export function KpiDrilldownModal({
   // richer two-pane (list + map) drill-down rendered by its own dedicated modal
   // (RangersOnDutyDrilldownModal), which shares the same selectedKpi state — so
   // this modal must stay CLOSED for that kind or both dialogs would open at once.
-  const open =
-    kind === "activeEvents" ||
-    kind === "activePatrols" ||
-    kind === "eventsThisMonth";
-
-  // "Events This Month" drills into the calendar month containing `dateTo`,
-  // independent of the active War Room window (the KPI itself is month-scoped).
-  const monthAnchor = new Date(dateTo);
-  const monthStart = new Date(
-    monthAnchor.getFullYear(),
-    monthAnchor.getMonth(),
-    1,
-  ).toISOString();
+  const open = kind === "activeEvents" || kind === "activePatrols";
 
   const eventsQuery = trpc.event.list.useQuery(
-    kind === "eventsThisMonth"
-      ? { dateFrom: monthStart, dateTo, limit: 100 }
-      // event-patrol-link — restrict Active Events to events tied to an
-      // open patrol (see event.ts eventListFilters.linkedToActivePatrol).
-      : { state: "active", dateFrom, dateTo, linkedToActivePatrol: true, limit: 100 },
-    { enabled: open && (kind === "activeEvents" || kind === "eventsThisMonth") },
+    // event-patrol-link — restrict Active Events to events tied to an
+    // open patrol (see event.ts eventListFilters.linkedToActivePatrol).
+    { state: "active", dateFrom, dateTo, linkedToActivePatrol: true, limit: 100 },
+    { enabled: open && kind === "activeEvents" },
   );
 
   const patrolsQuery = trpc.patrol.list.useQuery(
@@ -140,7 +129,7 @@ export function KpiDrilldownModal({
             <ul className="divide-y divide-border">
               {events.map((ev) => (
                 <li key={ev.id} className="flex flex-col gap-0.5 py-2 text-sm">
-                  <span className="font-medium">{ev.title ?? "Untitled event"}</span>
+                  <span className="font-medium">{ev.title ?? ev.eventType?.display ?? "Untitled event"}</span>
                   <span className="text-xs text-muted-foreground">
                     {ev.areaName ?? "—"}
                     {" · "}

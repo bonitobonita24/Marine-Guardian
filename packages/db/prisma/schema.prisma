@@ -126,6 +126,17 @@ enum BoundarySource {
   custom
 }
 
+enum MunicipalityAttributionMethod {
+  containment
+  nearest
+  // title_hint — written ONLY by the one-time historical backfill
+  // (scripts/backfill-municipality-attribution.ts) when a patrol was
+  // attributed from a whitelisted whole-token hint in its title. The live
+  // municipality-assign processor never produces this value.
+  title_hint
+  manual
+}
+
 enum GeometryType {
   Polygon
   LineString
@@ -144,6 +155,7 @@ enum ReportType {
   rangers
   patrol_filtered
   report_map
+  event_highlights
 }
 
 enum PaperSize {
@@ -453,6 +465,12 @@ model Event {
   municipalityId         String?   @map("municipality_id")
   municipalityAssignedAt DateTime? @map("municipality_assigned_at")
 
+  // provenance — records HOW municipalityId was determined (containment / nearest /
+  // manual); Events have no anti-clobber manual flag yet (that's Patrol-only today).
+  municipalityAttributionMethod    MunicipalityAttributionMethod? @map("municipality_attribution_method")
+  municipalityDistanceKm           Float?                         @map("municipality_distance_km")
+  municipalityAttributionAmbiguous Boolean                        @default(false) @map("municipality_attribution_ambiguous")
+
   // terrain-filter — spatial classifier derived from geometry; nullable until backfilled.
   terrain String? @map("terrain")
 
@@ -491,6 +509,7 @@ model Event {
   @@index([tenantId, reportedByKnownRangerId])
   @@index([tenantId, patrolId])
   @@index([tenantId, terrain])
+  @@index([tenantId, municipalityId, municipalityAttributionMethod])
   @@map("events")
 }
 
@@ -589,8 +608,21 @@ model Patrol {
   // attribution still refreshes terrain + covered-zones (geometry-derived).
   municipalityManual Boolean @default(false) @map("municipality_manual")
 
+  // provenance — records HOW municipalityId was determined (containment / nearest /
+  // manual) independent of the anti-clobber `municipalityManual` flag above.
+  municipalityAttributionMethod    MunicipalityAttributionMethod? @map("municipality_attribution_method")
+  municipalityDistanceKm           Float?                         @map("municipality_distance_km")
+  municipalityAttributionAmbiguous Boolean                        @default(false) @map("municipality_attribution_ambiguous")
+
   // terrain-filter — spatial classifier derived from geometry; nullable until backfilled.
   terrain String? @map("terrain")
+
+  // time-provenance — ER frequently omits start/end time; distinguishes ER-supplied
+  // (both null), DERIVED from patrol_segments.actual_start (startTimeDerivedAt set),
+  // and officer-supplied MANUAL entry (startTimeManual/endTimeManual).
+  startTimeDerivedAt DateTime? @map("start_time_derived_at")
+  startTimeManual    Boolean   @default(false) @map("start_time_manual")
+  endTimeManual      Boolean   @default(false) @map("end_time_manual")
 
   syncedAt  DateTime @map("synced_at")
   createdAt DateTime @default(now()) @map("created_at")
@@ -618,6 +650,7 @@ model Patrol {
   @@index([tenantId, isDeleted])
   @@index([tenantId, isTestPatrol])
   @@index([tenantId, terrain])
+  @@index([tenantId, municipalityId, municipalityAttributionMethod])
   @@map("patrols")
 }
 

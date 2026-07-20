@@ -7,7 +7,6 @@ import { useTranslations } from "next-intl";
 import {
   LayoutDashboard,
   Map,
-  FileDown,
   CalendarClock,
   Calendar,
   Ship,
@@ -57,7 +56,6 @@ const navGroups: NavGroup[] = [
       { href: "/dashboard", icon: LayoutDashboard, labelKey: "dashboard" },
       { href: "/map", icon: Map, labelKey: "map" },
       // Rendered indented as a submenu under "Interactive Report Map".
-      { href: "/exports", icon: FileDown, labelKey: "exports", indent: true },
       { href: "/doodles", icon: Brush, labelKey: "doodles", indent: true },
     ],
   },
@@ -103,9 +101,10 @@ const navGroups: NavGroup[] = [
 ];
 
 // viewer role (2026-07-05, extended 2026-07-06): read-only, scoped to
-// Command Center (/dashboard) + Interactive Report Map (/map) + Exports
-// (/exports — viewer can now generate a printable report from /map and
-// must be able to reach /exports to retrieve it, reportGenerateProcedure)
+// Command Center (/dashboard) + Interactive Report Map (/map — the viewer can
+// generate a printable report there, reportGenerateProcedure; the generated
+// file is downloaded from inside the dialog itself, so there is no separate
+// Exports page to reach) + Doodles (/doodles)
 // + Profile (/profile — every role, including viewer, can manage its own
 // password/email). Every other page is hidden from nav here AND blocked at
 // the route level in middleware.ts (defense in depth — a viewer can never
@@ -113,7 +112,6 @@ const navGroups: NavGroup[] = [
 const VIEWER_ALLOWED_HREFS = new Set<string>([
   "/dashboard",
   "/map",
-  "/exports",
   "/doodles",
   "/profile",
 ]);

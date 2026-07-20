@@ -23,6 +23,7 @@ import { useCallback, useMemo, useRef } from "react";
 import type { Map as LeafletMap, TileLayer as LeafletTileLayer } from "leaflet";
 import { MapContainer, TileLayer } from "react-leaflet";
 import type { HeatLatLng } from "@marine-guardian/shared/lib/heatmap-sample";
+import { filterValidLatLonPairs } from "@/lib/map-coordinates";
 import { HeatLayer } from "./heat-layer";
 import { MapRenderGate } from "./map-render-gate";
 
@@ -54,8 +55,13 @@ export function PerAreaHeatmapMap({
 
   const applyFraming = useCallback(
     (map: LeafletMap) => {
-      if (allPoints.length < 2) return;
-      const latLngs = allPoints.map(
+      // MAP GEOMETRY ONLY — drop (0,0)/non-finite/out-of-domain heat points
+      // before fitting; the HeatLayers above still receive every point and no
+      // event or patrol total changes. Fewer than 2 usable points → keep the
+      // initial center/zoom rather than fit a degenerate box.
+      const boundsPoints = filterValidLatLonPairs(allPoints);
+      if (boundsPoints.length < 2) return;
+      const latLngs = boundsPoints.map(
         ([lat, lon]) => [lat, lon] as [number, number],
       );
       map.fitBounds(latLngs, { padding: [16, 16] });

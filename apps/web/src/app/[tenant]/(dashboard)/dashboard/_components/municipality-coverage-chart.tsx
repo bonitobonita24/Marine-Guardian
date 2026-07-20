@@ -19,6 +19,12 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  COMPACT_CARD_SHORT_CLASS,
+  COMPACT_CHART_BODY_CLASS,
+  COMPACT_HIDE_WHEN_SHORT_CLASS,
+  COMPACT_LEGEND_SHORT_CLASS,
+} from "@/components/reporting/compact-chart-density";
 
 export interface MunicipalityCoverageDatum {
   municipality: string;
@@ -87,7 +93,15 @@ export function MunicipalityCoverageChart({
   isLoading: boolean;
   /** Active War Room range label (e.g. "Jun 19 – Jun 26"). */
   rangeLabel: string;
-  /** Half-height chart for dense surfaces (Interactive Report Map). */
+  /**
+   * Half-height chart for dense surfaces (Interactive Report Map). On SHORT
+   * viewports (<800px tall) the compact variant shrinks further and drops
+   * non-essential chrome so the whole panel fits the map's overlay column —
+   * see @/components/reporting/compact-chart-density for the measurements.
+   * Legibility note: the overlay only ever renders few rows in this mode (3
+   * provinces when grouped, 1 municipality when one is selected), so 4.5rem
+   * still leaves ~24px per row for the 11px bar pair.
+   */
   compact?: boolean;
   /**
    * Collapse the per-municipality rows into 3 province/region rows ("Oriental
@@ -119,7 +133,9 @@ export function MunicipalityCoverageChart({
   return (
     <Card
       aria-labelledby={HEADING_ID}
-      className="min-w-0 flex-1 gap-2 border-border py-3"
+      className={`min-w-0 flex-1 gap-2 border-border py-3 ${
+        compact ? COMPACT_CARD_SHORT_CLASS : ""
+      }`}
     >
       <CardHeader className="px-3 pb-0 pt-0">
         <div className="flex items-center justify-between">
@@ -129,7 +145,11 @@ export function MunicipalityCoverageChart({
           >
             {heading}
           </h3>
-          <span className="text-xs font-semibold tabular-nums text-muted-foreground">
+          <span
+            className={`text-xs font-semibold tabular-nums text-muted-foreground ${
+              compact ? COMPACT_HIDE_WHEN_SHORT_CLASS : ""
+            }`}
+          >
             {rangeLabel}
           </span>
         </div>
@@ -144,7 +164,9 @@ export function MunicipalityCoverageChart({
           <>
             <ChartContainer
               config={CHART_CONFIG}
-              className={`${compact ? "h-[7.5rem]" : "h-[15rem]"} w-full`}
+              className={`${
+                compact ? COMPACT_CHART_BODY_CLASS : "h-[15rem]"
+              } w-full`}
             >
               <BarChart
                 accessibilityLayer
@@ -198,8 +220,13 @@ export function MunicipalityCoverageChart({
               </BarChart>
             </ChartContainer>
 
-            {/* Legend row */}
-            <div className="mt-1 flex items-center gap-3">
+            {/* Legend row — KEPT at every size: it carries the Patrols/Events
+                totals, which are data, not chrome. */}
+            <div
+              className={`mt-1 flex items-center gap-3 ${
+                compact ? COMPACT_LEGEND_SHORT_CLASS : ""
+              }`}
+            >
               <div className="flex items-center gap-1.5">
                 <span
                   className="inline-block h-2 w-3 rounded-sm"

@@ -167,7 +167,6 @@ describe("Sidebar — viewer role nav filtering", () => {
   const ALL_NAV_LABEL_KEYS = [
     "dashboard",
     "map",
-    "exports",
     "events",
     "notifications",
     "patrols",
@@ -182,21 +181,21 @@ describe("Sidebar — viewer role nav filtering", () => {
     "profile",
   ];
 
-  it("renders exactly the 4 self-service items for a viewer session (dashboard, map, exports, profile)", () => {
+  it("renders exactly the 3 self-service items for a viewer session (dashboard, map, profile)", () => {
     stubs.sessionRoles = ["viewer"];
     const { getByText, queryByText } = render(<Sidebar />);
 
     expect(getByText("dashboard")).toBeTruthy();
+    // A viewer still generates printable reports from /map — the generated
+    // file is downloaded inside the dialog itself (Phase 4 S8 removed the
+    // separate /exports page), so no extra nav entry is needed.
     expect(getByText("map")).toBeTruthy();
-    // exports (2026-07-06): viewer can now generate + retrieve printable
-    // reports, so /exports joins the viewer-allowed nav set.
-    expect(getByText("exports")).toBeTruthy();
     // profile (2026-07-06): every role, including viewer, can reach its own
     // self-service Profile page (own password/email).
     expect(getByText("profile")).toBeTruthy();
 
     for (const key of ALL_NAV_LABEL_KEYS) {
-      if (["dashboard", "map", "exports", "profile"].includes(key)) continue;
+      if (["dashboard", "map", "profile"].includes(key)) continue;
       expect(queryByText(key)).toBeNull();
     }
   });
@@ -268,9 +267,12 @@ describe("Sidebar — viewer role nav filtering", () => {
   });
 });
 
-// Exports submenu item (2026-07-06) — rendered directly below "map" as a
-// visually-nested child of "Interactive Report Map", linking to /exports.
-describe("Sidebar — Exports submenu item", () => {
+// Map submenu items — rendered directly below "map" as visually-nested
+// children of "Interactive Report Map". The former "exports" submenu entry was
+// REMOVED in Phase 4 S8 along with the /exports page (reports are now ephemeral
+// and downloaded from inside the /map dialog), leaving "doodles" as the only
+// submenu child. The removal is pinned by a regression assertion below.
+describe("Sidebar — map submenu items", () => {
   beforeEach(() => {
     stubs.notificationsLength = 0;
     stubs.useQueryOpts = undefined;
@@ -286,21 +288,31 @@ describe("Sidebar — Exports submenu item", () => {
     cleanup();
   });
 
-  it("renders an Exports link to /exports, indented as a submenu under map", () => {
+  it("renders a Doodles link to /doodles, indented as a submenu under map", () => {
     const { getByText } = render(<Sidebar />);
-    const exportsLabel = getByText("exports");
-    const link = exportsLabel.closest("a");
+    const doodlesLabel = getByText("doodles");
+    const link = doodlesLabel.closest("a");
     expect(link).not.toBeNull();
-    expect(link?.getAttribute("href")).toBe("/demo-site/exports");
+    expect(link?.getAttribute("href")).toBe("/demo-site/doodles");
     // Indented sub-item styling distinguishes it from a peer nav item.
     expect(link?.className).toMatch(/ml-3/);
     expect(link?.className).toMatch(/border-l/);
   });
 
-  it("shows Exports for a viewer session (2026-07-06: viewer can generate + retrieve reports)", () => {
+  it("renders NO nav link to the removed /exports page (Phase 4 S8)", () => {
+    const { queryByText, container } = render(<Sidebar />);
+    expect(queryByText("exports")).toBeNull();
+    const hrefs = Array.from(container.querySelectorAll("a")).map((a) =>
+      a.getAttribute("href"),
+    );
+    expect(hrefs).not.toContain("/demo-site/exports");
+  });
+
+  it("renders NO /exports link for a viewer session either", () => {
     stubs.sessionRoles = ["viewer"];
-    const { getByText } = render(<Sidebar />);
-    expect(getByText("exports")).toBeTruthy();
+    const { queryByText } = render(<Sidebar />);
+    expect(queryByText("exports")).toBeNull();
+    expect(queryByText("doodles")).toBeTruthy();
   });
 });
 
@@ -342,7 +354,6 @@ describe("Sidebar — custom-role permission-matrix nav filtering", () => {
     expect(queryByText("patrols")).toBeNull();
     expect(queryByText("patrolAreas")).toBeNull();
     expect(queryByText("patrolSchedule")).toBeNull();
-    expect(queryByText("exports")).toBeNull();
     expect(queryByText("notifications")).toBeNull();
     expect(queryByText("fuel")).toBeNull();
     expect(queryByText("alerts")).toBeNull();
@@ -362,7 +373,6 @@ describe("Sidebar — custom-role permission-matrix nav filtering", () => {
 
     for (const key of [
       "map",
-      "exports",
       "events",
       "notifications",
       "patrols",

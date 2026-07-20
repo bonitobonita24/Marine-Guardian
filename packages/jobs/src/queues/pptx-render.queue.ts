@@ -14,36 +14,9 @@
 
 import type { Queue } from "bullmq";
 import { getQueue } from "./queue-factory";
+import { removeStaleTerminalJob } from "./remove-stale-terminal-job";
 import type { PptxRenderJobPayload } from "./types";
 import { QUEUE_NAMES } from "./types";
-
-const TERMINAL_JOB_STATES = new Set(["completed", "failed"]);
-
-/**
- * Removes a prior job under `jobId` if — and only if — it already reached
- * a terminal state (completed/failed), same rationale as pdf-render.queue's
- * removeStaleTerminalJob: a re-request after a completed/failed prior PPTX
- * render must actually re-run, not silently return the stale terminal job.
- * Best-effort — any failure here is swallowed so add() can still proceed.
- */
-async function removeStaleTerminalJob(
-  queue: Queue<PptxRenderJobPayload>,
-  jobId: string,
-): Promise<void> {
-  try {
-    const existing = await queue.getJob(jobId);
-    if (existing === undefined) return;
-    const state = await existing.getState();
-    if (TERMINAL_JOB_STATES.has(state)) {
-      await existing.remove();
-    }
-  } catch (err) {
-    console.warn(
-      `[pptx-render.queue] removeStaleTerminalJob(${jobId}) failed — proceeding with add() as-is:`,
-      err instanceof Error ? err.message : String(err),
-    );
-  }
-}
 
 export function getPptxRenderQueue(): Queue<PptxRenderJobPayload> {
   return getQueue(QUEUE_NAMES.PPTX_RENDER);
@@ -112,7 +85,7 @@ export async function enqueuePptxRender(
   try {
     const job = await Promise.race([
       (async () => {
-        await removeStaleTerminalJob(queue, jobId);
+        await removeStaleTerminalJob(queue, jobId, "pptx-render.queue");
         return queue.add("pptx-render", payload, { jobId });
       })(),
       timeout,

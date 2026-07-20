@@ -30,7 +30,14 @@
  *      listener) — never a stale pre-resize/pre-fit "load". If no tiles
  *      are pending right after framing (already cached, or no tile layer
  *      ref yet), flips immediately since there's nothing to wait for.
- *   4. 8s hard timeout backstop — always flips ready even if a tile never
+ *   4. Repaint every registered heat layer (`repaintHeatLayers`) against the
+ *      final framed view, then flip only after the browser has PAINTED that
+ *      work (`afterPaintedFrames`). Added 2026-07-20 for the intermittent
+ *      torn-heatmap bug: the gate previously waited on tile load alone and
+ *      knew nothing about the heat canvas, so Puppeteer could capture a
+ *      half-rastered heat layer (black/white streaks across the lower band
+ *      of the map). Full root cause in heat-paint-registry.ts.
+ *   5. 8s hard timeout backstop — always flips ready even if a tile never
  *      loads, so one flaky tile can never hang the whole render.
  *
  * `window.__renderReady` is flipped EXACTLY ONCE per mount (guarded by a
@@ -45,6 +52,7 @@
 import { useEffect, useRef } from "react";
 import type { Map as LeafletMap, TileLayer as LeafletTileLayer } from "leaflet";
 import { useMap } from "react-leaflet";
+import { afterPaintedFrames, repaintHeatLayers } from "./heat-paint-registry";
 import { flipRenderReady } from "./render-ready-signal";
 
 export { flipRenderReady } from "./render-ready-signal";
@@ -83,9 +91,20 @@ export function MapRenderGate({
     }
 
     function paintFlush() {
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(flip);
-      });
+      // Force every heat layer mounted on THIS map to redraw against the
+      // final, post-invalidateSize/post-framing view. leaflet.heat only
+      // redraws on the map's "moveend", and `invalidateSize` skips firing
+      // "moveend" when the re-measured centre offset rounds to (0,0) — so a
+      // sub-pixel size change could leave the heat canvas drawn for a stale
+      // view, or freshly reallocated (blank) by a canvas.width reassignment.
+      // No-ops (returns 0) on the non-heat islands that share this gate.
+      repaintHeatLayers(map);
+      // Then wait for the browser to actually PAINT that work before
+      // reporting ready. `afterPaintedFrames` queues its task from inside a
+      // rAF callback, which is serviced after that frame's paint — unlike
+      // the previous double-rAF, which fires before the paint it was meant
+      // to be waiting on and let Puppeteer capture a half-rastered canvas.
+      afterPaintedFrames(flip);
     }
 
     // Safety net: 8s hard timeout (matches Puppeteer's waitForFunction

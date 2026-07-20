@@ -28,6 +28,7 @@ import {
   shouldShowReportMapEmptyState,
 } from "./report-map-empty-state";
 import { GeneratePrintableButton } from "./generate-printable-button";
+import { MapChartOverlayPanels } from "./map-chart-overlay-panels";
 
 /**
  * Interactive Report Map (2026-06-27) — a presentation surface for reporting to
@@ -37,6 +38,14 @@ import { GeneratePrintableButton } from "./generate-printable-button";
  * dashboard breakdown chart is reused in-place (pure presentational). (The top
  * KPI strip was removed 2026-06-28; the Municipality Coverage chart was replaced
  * 2026-06-28 with the High Priority Events list per owner request.)
+ *
+ * Layout (owner request 2026-07-20 — supersedes commit b2cf14a):
+ *  - "Generate Printable" sits in the page header row, opposite the <h1>.
+ *  - The summary row is back to its original FOUR tiles (Law Enforcement /
+ *    Monitoring / High Priority / Patrols) at xl:grid-cols-4.
+ *  - The two trend charts (Events vs Patrols Over Time, Region Coverage) are no
+ *    longer a 5th tile — they are floating map overlays, hidden by default,
+ *    revealed by the always-visible toggles under the Map controls card.
  */
 
 /**
@@ -84,6 +93,7 @@ function ReportMapInner() {
     province,
     includeChildren,
     includeTraversing,
+    includeTraversingFull,
   } = useReportFilter();
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
@@ -112,6 +122,7 @@ function ReportMapInner() {
     ...(province !== null ? { province } : {}),
     ...(includeChildren ? { includeChildren } : {}),
     ...(includeTraversing ? { includeTraversing } : {}),
+    ...(includeTraversingFull ? { includeTraversingFull } : {}),
   };
 
   // eventBreakdownWithCoords (not the lean eventBreakdown) — the Report Map
@@ -294,11 +305,14 @@ function ReportMapInner() {
           reached by scrolling (owner request 2026-06-30: it must not be part of
           the full-screen view). */}
       <div className="flex h-full min-h-0 shrink-0 flex-col gap-2">
-      {/* Slim header band — title only. The shared FROM/TO/municipality filter
-          now lives inside the floating map-controls card (passed as filterSlot
-          below) so the map gets the reclaimed height. */}
+      {/* Slim header band — title left, "Generate Printable" right (owner
+          request 2026-07-20: the button moved up here from below the fold).
+          The shared FROM/TO/municipality filter lives inside the floating
+          map-controls card (passed as filterSlot below) so the map keeps the
+          reclaimed height. */}
       <div className="flex shrink-0 items-center justify-between gap-2">
         <h1 className="text-lg font-semibold">Interactive Report Map</h1>
+        {!showEmptyState && <GeneratePrintableButton />}
       </div>
 
       {/* Map — grows to fill the viewport (fits one screen on a wide display;
@@ -316,6 +330,7 @@ function ReportMapInner() {
           {...(province !== null ? { province } : {})}
           {...(includeChildren ? { includeChildren } : {})}
           {...(includeTraversing ? { includeTraversing } : {})}
+          {...(includeTraversingFull ? { includeTraversingFull } : {})}
           trackMode="inRange"
           defaultEventLayers={{ lawEnforcement: true, monitoring: true }}
           hidePatrolSelector
@@ -323,6 +338,39 @@ function ReportMapInner() {
           controlsPlacement="floating"
           doodleSurface="report-map"
           filterSlot={<ReportFilterBar layout="stacked" />}
+          topRightPinnedSlot={
+            <MapChartOverlayPanels
+              items={[
+                {
+                  key: "events-over-time",
+                  toggleLabel: "Events vs Patrols",
+                  title: "Events vs Patrols Over Time",
+                  content: (
+                    <EventsOverTimeChart
+                      data={eventsOverTime.data ?? []}
+                      isLoading={eventsOverTime.isLoading}
+                      rangeLabel={label}
+                      compact
+                    />
+                  ),
+                },
+                {
+                  key: "region-coverage",
+                  toggleLabel: "Region Coverage",
+                  title: "Region Coverage",
+                  content: (
+                    <MunicipalityCoverageChart
+                      data={municipalityCoverage.data ?? []}
+                      isLoading={municipalityCoverage.isLoading}
+                      rangeLabel={label}
+                      compact
+                      groupByProvince={municipalityId === null}
+                    />
+                  ),
+                },
+              ]}
+            />
+          }
           onEventClick={setSelectedEventId}
           focusLocation={focusLocation}
           selectedPatrolId={selectedPatrolId}
@@ -423,32 +471,6 @@ function ReportMapInner() {
       )}
       </div>
       {/* end above-the-fold block */}
-
-      {/* Events Over Time — BELOW the fold (scroll to see). Full-width + taller
-          so the trend reads clearly; intentionally NOT part of the map+analytics
-          full-screen view (owner request 2026-06-30). */}
-      {!showEmptyState && (
-        <div className="shrink-0 space-y-2 pt-2">
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-            <EventsOverTimeChart
-              data={eventsOverTime.data ?? []}
-              isLoading={eventsOverTime.isLoading}
-              rangeLabel={label}
-              compact
-            />
-            <MunicipalityCoverageChart
-              data={municipalityCoverage.data ?? []}
-              isLoading={municipalityCoverage.isLoading}
-              rangeLabel={label}
-              compact
-              groupByProvince={municipalityId === null}
-            />
-          </div>
-          <div className="flex justify-end">
-            <GeneratePrintableButton />
-          </div>
-        </div>
-      )}
 
       <EventDetailModal
         eventId={selectedEventId}

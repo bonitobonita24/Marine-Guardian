@@ -7,6 +7,7 @@ import { prisma, writeAuditLog } from "@marine-guardian/db";
 import { Prisma } from "@marine-guardian/db";
 import type { PrismaClient } from "@marine-guardian/db";
 import { enqueuePatrolTrackMaterialize, enqueueMunicipalityAssign } from "@marine-guardian/jobs";
+import { attributionMethodFilter, attributionWhere } from "../../attribution-filter";
 
 /**
  * The set of patrol fields that are locally editable.
@@ -29,6 +30,21 @@ export const patrolListFilters = z.object({
   // Phase 7 soft-delete: exclude soft-deleted patrols by default. Admin "Show
   // Deleted" UI sets includeDeleted=true to surface deleted rows for restore.
   includeDeleted: z.boolean().default(false),
+  // Unattributed-only — surfaces patrols whose municipality could not be
+  // determined from geometry (municipality_id IS NULL), as a manual-attribution
+  // work queue. Automatic attribution is a ONE-TIME cleanup, not an ongoing
+  // process: patrols geometry cannot attribute STAY unattributed until an
+  // officer assigns one by hand via setMunicipalityOverride. This filter is the
+  // entry point to that workflow. Defaults false — existing behaviour unchanged.
+  // Mirrors event.list's `unattributedOnly` (same work queue, sibling surface).
+  unattributedOnly: z.boolean().default(false),
+  // Attribution-review filter — the SECOND half of the manual-attribution
+  // workflow. `unattributedOnly` above finds rows with NO municipality;
+  // this finds rows that DO have one but whose value was a heuristic guess
+  // (see server/attribution-filter.ts for the full rationale). The two are
+  // complementary and mutually exclusive by construction: a row cannot be
+  // both un-attributed and heuristically attributed.
+  attributionMethod: attributionMethodFilter.optional(),
 });
 
 export const patrolRouter = router({
@@ -49,6 +65,17 @@ export const patrolRouter = router({
           ...(input.includeTest ? {} : { isTestPatrol: false }),
           // Phase 7 soft-delete: exclude soft-deleted patrols by default
           ...(input.includeDeleted ? {} : { isDeleted: false }),
+          // Manual-attribution work queue — narrow to patrols with no
+          // municipality. Composes with every filter above (all are ANDed).
+          ...(input.unattributedOnly ? { municipalityId: null } : {}),
+          // Attribution-review filter. ANDs with every filter above.
+          //
+          // ⚠ If a raw-SQL path is ever added to patrol.list (event.list has
+          // one), this filter MUST be mirrored into it via
+          // `attributionRawCondition` or it silently stops applying on that
+          // path. That is exactly the trap event.list's dual implementation
+          // carries; patrol.list has a single path today.
+          ...attributionWhere(input.attributionMethod),
         },
         take: input.limit + 1,
         ...(input.cursor !== undefined ? { cursor: { id: input.cursor } } : {}),
@@ -357,6 +384,19 @@ export const patrolRouter = router({
             municipalityId: input.municipalityId,
             municipalityManual: true,
             municipalityAssignedAt: new Date(),
+            // Re-stamp the PROVENANCE to match reality. Without this the row
+            // keeps whatever the automatic pass wrote — so a patrol a human
+            // just corrected still reports `nearest` with a stale distance,
+            // still renders a "Nearest 21.1 km" badge next to the officer's own
+            // value, and (worst) still matches the needs-review filter FOREVER.
+            // Reviewed rows would never leave the work queue, which defeats the
+            // entire review workflow.
+            municipalityAttributionMethod: "manual",
+            // The distance and the near-tie flag described the AUTOMATIC guess.
+            // They say nothing about a human's decision, so they are cleared
+            // rather than left to describe a value that no longer exists.
+            municipalityDistanceKm: null,
+            municipalityAttributionAmbiguous: false,
           },
         });
 
@@ -368,7 +408,11 @@ export const patrolRouter = router({
           entityId: input.id,
           changesJson: {
             before: { municipalityId: existing.municipalityId, municipalityManual: existing.municipalityManual },
-            after: { municipalityId: input.municipalityId, municipalityManual: true },
+            after: {
+              municipalityId: input.municipalityId,
+              municipalityManual: true,
+              municipalityAttributionMethod: "manual",
+            },
           },
           ipAddress: ctx.ip,
           severity: "info",
@@ -405,6 +449,109 @@ export const patrolRouter = router({
         id: input.id,
         municipalityId: input.municipalityId,
         municipalityManual: input.municipalityId !== null,
+      };
+    }),
+
+  /**
+   * Manual per-patrol start/end time override (anti-clobber flags).
+   *
+   * WHY: the ER mobile app frequently fails to capture the phone's date/time,
+   * so ER supplies no `start_time` for a large slice of patrols (overwhelmingly
+   * `foot` patrols). Only a minority are derivable from patrol_segments, so for
+   * the rest an officer-supplied value is the ONLY way the patrol ever gets a
+   * time — and that correction must survive every subsequent ER sync.
+   *
+   * Setting a time marks the corresponding `*Manual` flag true; the er-sync
+   * processor excludes flagged fields from its update payload (same
+   * choke-point pattern as `municipalityManual`). Clearing (null) drops the
+   * value AND the flag, handing the field back to ER/derivation.
+   *
+   * NOTE — no re-derive job is enqueued on clear, unlike
+   * `setMunicipalityOverride`. Start-time derivation from
+   * patrol_segments.actual_start currently lives ONLY in the one-off
+   * `scripts/backfill-patrol-start-time.ts`; there is no queue/processor
+   * counterpart to enqueue. Once one exists, enqueue it here on the
+   * clear path.
+   *
+   * Security: tenant-scoped (L6); matrix-gated same as `update`.
+   */
+  setTimeOverride: matrixProcedure(tenantProcedure, "patrols", "update")
+    .input(
+      z
+        .object({
+          id: z.string(),
+          startTime: z.coerce.date().nullable(),
+          endTime: z.coerce.date().nullable(),
+        })
+        .strict()
+    )
+    .mutation(async ({ ctx, input }) => {
+      const existing = await prisma.patrol.findFirst({
+        where: { id: input.id, tenantId: ctx.tenantId },
+        select: {
+          id: true,
+          startTime: true,
+          endTime: true,
+          startTimeManual: true,
+          endTimeManual: true,
+          startTimeDerivedAt: true,
+        },
+      });
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Patrol not found." });
+      }
+
+      if (
+        input.startTime !== null &&
+        input.endTime !== null &&
+        input.endTime.getTime() < input.startTime.getTime()
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "End time must be on or after start time.",
+        });
+      }
+
+      // Setting a value flags it manual. Clearing drops the value AND the
+      // flag, so ER/derivation may repopulate it. `startTimeDerivedAt` is
+      // provenance for a DERIVED value — a manual set supersedes it, and a
+      // clear invalidates it, so it is nulled on both paths.
+      const data = {
+        startTime: input.startTime,
+        startTimeManual: input.startTime !== null,
+        startTimeDerivedAt: null,
+        endTime: input.endTime,
+        endTimeManual: input.endTime !== null,
+      };
+
+      await prisma.patrol.update({ where: { id: input.id }, data });
+
+      await writeAuditLog(prisma as unknown as PrismaClient, {
+        tenantId: ctx.tenantId,
+        userId: ctx.userId,
+        action: "SET_PATROL_TIME_OVERRIDE",
+        entityType: "Patrol",
+        entityId: input.id,
+        changesJson: {
+          before: {
+            startTime: existing.startTime,
+            endTime: existing.endTime,
+            startTimeManual: existing.startTimeManual,
+            endTimeManual: existing.endTimeManual,
+            startTimeDerivedAt: existing.startTimeDerivedAt,
+          },
+          after: data,
+        },
+        ipAddress: ctx.ip,
+        severity: "info",
+      });
+
+      return {
+        id: input.id,
+        startTime: input.startTime,
+        endTime: input.endTime,
+        startTimeManual: data.startTimeManual,
+        endTimeManual: data.endTimeManual,
       };
     }),
 

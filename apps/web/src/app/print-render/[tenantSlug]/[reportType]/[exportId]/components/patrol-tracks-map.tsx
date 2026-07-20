@@ -4,7 +4,9 @@
  * Patrol Tracks Map — Leaflet client island for Report Map PDF patrol section.
  *
  * Renders OpenStreetMap tiles + a Polyline for every patrol track that has at
- * least two points. Auto-fits bounds over all track paths. Each polyline is
+ * least two points. Frames the camera on the union of the report's scope
+ * bounds and the drawn track extent (see computeTracksFraming), falling back
+ * to fitting the track paths when the report has no scope. Each polyline is
  * colored by ReportMapTrackRow.patrolType (R1, 2026-07-06) — seaborne
  * (#16A34A green-600) / foot (#F97316 orange-500 — swapped 2026-07-06 from
  * the former cyan/teal pair, which read too similarly to each other),
@@ -23,27 +25,50 @@
  */
 
 import "leaflet/dist/leaflet.css";
-import { useCallback, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import type { Map as LeafletMap, TileLayer as LeafletTileLayer } from "leaflet";
 import { MapContainer, Polyline, TileLayer } from "react-leaflet";
 import type {
   ReportMapBounds,
   ReportMapTrackRow,
 } from "@/server/report-map-report/get-report-map-report-data";
-import { boundsToView } from "./bounds-view";
+import { computeTracksFraming } from "./patrol-tracks-framing";
 import { MapRenderGate } from "./map-render-gate";
 
-// Approximate rendered pixel size of this map's box — the patrol-tracks map
-// sits in a right column (narrower than the full-width event/heatmap maps)
-// per report-map-report.tsx's layout. Exact values aren't critical —
-// boundsToView only needs to be close enough that the initial view is
-// already framed on the municipality before applyFraming's post-mount
-// fitBounds refinement runs.
-const TRACKS_MAP_WIDTH_PX = 560;
-const TRACKS_MAP_HEIGHT_PX = 360;
+// Rendered pixel size of this map's box. These are NOT cosmetic: nothing
+// re-frames the camera after computeTracksFraming (MapRenderGate calls
+// applyFraming once and never touches the view again), so an assumed box
+// LARGER than the real one silently over-zooms and the geometry runs off the
+// edge. The 2026-07-20 "tracks run off the bottom" defect was exactly this —
+// the height below read 360 while the real box is 235.
+//
+// HEIGHT — exact. report-map-report.tsx pins the map box:
+//   `.patrol-tracks-block { width: 100%; height: 235px; }` (figure + map both
+//   100%/100% inside it).
+// WIDTH — deliberately conservative. The map is full-width inside
+//   `.report-section` on an A4 page: portrait is 210mm − 24mm @page margin =
+//   186mm ≈ 703px, minus the section's 24px horizontal padding each side
+//   ≈ 655px; a landscape template is wider still. 640 sits just under the
+//   narrowest case, and UNDER-stating the box can only zoom out (extra
+//   margin), never clip.
+const TRACKS_MAP_WIDTH_PX = 640;
+const TRACKS_MAP_HEIGHT_PX = 235;
 
 const DEFAULT_CENTER: [number, number] = [13.0, 121.0];
 const DEFAULT_ZOOM = 9;
+
+/** Flatten every renderable track into a `[lat, lon]` vertex list. */
+function collectTrackPoints(
+  tracks: ReadonlyArray<ReportMapTrackRow>,
+): Array<[number, number]> {
+  const points: Array<[number, number]> = [];
+  for (const t of tracks) {
+    for (const pt of t.path) {
+      points.push([pt.lat, pt.lon]);
+    }
+  }
+  return points;
+}
 
 /** Mirrors SEABORNE_COLOR/FOOT_COLOR in patrol-type-bar-chart.tsx. */
 function trackColor(patrolType: string): string {
@@ -54,9 +79,10 @@ function trackColor(patrolType: string): string {
 
 interface PatrolTracksMapProps {
   tracks: ReportMapTrackRow[];
-  /** When set (report scoped to one municipality), the map frames this area
-   *  instead of fitting to the track paths — fixes the whole-region /
-   *  empty-ocean-margin view on a single-municipality report. */
+  /** Scope bounds (municipality / zone / province the report is scoped to).
+   *  When set, the map frames the UNION of this box and the drawn track
+   *  extent — the scope stays visible for context while whole tracks that
+   *  run outside it are still fully contained (see computeTracksFraming). */
   municipalityBounds?: ReportMapBounds | null;
 }
 
@@ -64,50 +90,47 @@ export function PatrolTracksMap({
   tracks,
   municipalityBounds = null,
 }: PatrolTracksMapProps) {
-  const renderableTracks = tracks.filter((t) => t.path.length > 1);
+  const renderableTracks = useMemo(
+    () => tracks.filter((t) => t.path.length > 1),
+    [tracks],
+  );
   const hasTracks = renderableTracks.length > 0;
   const tileLayerRef = useRef<LeafletTileLayer>(null);
 
-  // A specific municipality is in scope — always frame it, even when there
-  // are 0/1 renderable tracks (the case that used to fall through to the
-  // fixed whole-region fallback). Runs AFTER MapRenderGate's invalidateSize.
-  const applyFraming = useCallback(
-    (map: LeafletMap) => {
-      if (municipalityBounds) {
-        // Re-assert the SAME size-independent view the MapContainer initialized
-        // with (boundsToView), via setView — NOT fitBounds. fitBounds recomputes
-        // the zoom from the print container's unreliable measured size and was
-        // resetting the correct initial zoom back to the whole-region default;
-        // setView applies the precomputed center/zoom directly (no size dep).
-        const { center, zoom } = boundsToView(
-          municipalityBounds,
-          TRACKS_MAP_WIDTH_PX,
-          TRACKS_MAP_HEIGHT_PX,
-        );
-        map.setView(center, zoom, { animate: false });
-        return;
-      }
-      const points: Array<[number, number]> = [];
-      for (const t of renderableTracks) {
-        for (const pt of t.path) {
-          points.push([pt.lat, pt.lon]);
-        }
-      }
-      if (points.length < 2) return;
-      map.fitBounds(points, { padding: [16, 16], animate: false });
-    },
+  // Frame to the DATA: the union of the scope box and the drawn track extent
+  // (see computeTracksFraming). Runs AFTER MapRenderGate's invalidateSize.
+  // Memoised so `applyFraming` keeps a stable identity — MapRenderGate takes
+  // it as an effect dependency, and a fresh identity every render would
+  // re-run invalidateSize/framing on each re-render.
+  const framingPlan = useMemo(
+    () =>
+      computeTracksFraming(
+        collectTrackPoints(renderableTracks),
+        municipalityBounds,
+        TRACKS_MAP_WIDTH_PX,
+        TRACKS_MAP_HEIGHT_PX,
+      ),
     [renderableTracks, municipalityBounds],
   );
 
-  // Compute the initial view from municipalityBounds DIRECTLY — independent
-  // of the live container size, which is unreliable at effect time in this
-  // multi-page Puppeteer print document (see bounds-view.ts's file header
-  // for the full root-cause explanation of why post-mount fitBounds alone
-  // was not sufficient). Falls back to the whole-region default when no
-  // municipality is in scope.
-  const initialView = municipalityBounds
-    ? boundsToView(municipalityBounds, TRACKS_MAP_WIDTH_PX, TRACKS_MAP_HEIGHT_PX)
-    : { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM };
+  const applyFraming = useCallback(
+    (map: LeafletMap) => {
+      if (framingPlan.kind === "setView") {
+        map.setView(framingPlan.center, framingPlan.zoom, { animate: false });
+      }
+    },
+    [framingPlan],
+  );
+
+  // Compute the initial view from the same plan DIRECTLY — independent of the
+  // live container size, which is unreliable at effect time in this multi-page
+  // Puppeteer print document (see bounds-view.ts's file header for the full
+  // root-cause explanation of why post-mount fitBounds alone was not
+  // sufficient). Falls back to the whole-region default when there is no scope.
+  const initialView =
+    framingPlan.kind === "setView"
+      ? { center: framingPlan.center, zoom: framingPlan.zoom }
+      : { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM };
 
   return (
     <div

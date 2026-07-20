@@ -41,39 +41,15 @@
 // fresh, actually-processed job. Active/waiting/delayed jobs are left
 // alone — the double-fire dedupe above still applies to those.
 
+// 2026-07-20 — this guard was first written here, then hit again on
+// municipality-assign. It now lives in ./remove-stale-terminal-job.ts and is
+// shared by every deterministic-jobId queue; the local copy was removed.
+
 import type { Queue } from "bullmq";
 import { getQueue } from "./queue-factory";
+import { removeStaleTerminalJob } from "./remove-stale-terminal-job";
 import type { PdfRenderJobPayload } from "./types";
 import { QUEUE_NAMES } from "./types";
-
-const TERMINAL_JOB_STATES = new Set(["completed", "failed"]);
-
-/**
- * Removes a prior job under `jobId` if — and only if — it already reached
- * a terminal state (completed/failed). Active/waiting/delayed jobs are left
- * untouched so BullMQ's jobId dedupe still collapses genuine double-fires
- * to one execution. Best-effort: any failure here (e.g. Valkey hiccup) is
- * swallowed so the subsequent queue.add() attempt can still proceed — worst
- * case BullMQ's own dedupe behavior applies, same as before this fix.
- */
-async function removeStaleTerminalJob(
-  queue: Queue<PdfRenderJobPayload>,
-  jobId: string,
-): Promise<void> {
-  try {
-    const existing = await queue.getJob(jobId);
-    if (existing === undefined) return;
-    const state = await existing.getState();
-    if (TERMINAL_JOB_STATES.has(state)) {
-      await existing.remove();
-    }
-  } catch (err) {
-    console.warn(
-      `[pdf-render.queue] removeStaleTerminalJob(${jobId}) failed — proceeding with add() as-is:`,
-      err instanceof Error ? err.message : String(err),
-    );
-  }
-}
 
 export function getPdfRenderQueue(): Queue<PdfRenderJobPayload> {
   return getQueue(QUEUE_NAMES.PDF_RENDER);
@@ -165,7 +141,7 @@ export async function enqueuePdfRender(
         // Clear a completed/failed job under this id first — see the 🔴
         // 2026-07-05 bugfix note above. Leaves active/waiting/delayed jobs
         // alone so the double-fire dedupe still collapses those to one.
-        await removeStaleTerminalJob(queue, jobId);
+        await removeStaleTerminalJob(queue, jobId, "pdf-render.queue");
         return queue.add("pdf-render", payload, { jobId });
       })(),
       timeout,

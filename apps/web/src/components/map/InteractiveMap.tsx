@@ -13,14 +13,20 @@ import {
   Map,
   MapControls,
   MapMarker,
+  MapPopup,
   MapRoute,
   MarkerContent,
   MarkerTooltip,
   type MapRef,
 } from "@/components/ui/map";
 import { trpc } from "@/lib/trpc/client";
+import {
+  filterValidLonLatPairs,
+  isValidMapCoordinate,
+} from "@/lib/map-coordinates";
 import { cn } from "@/lib/utils";
 import { MapPolygon } from "./MapPolygon";
+import { MapTopRightColumn } from "./MapTopRightColumn";
 import { MapHeatmap } from "./MapHeatmap";
 import { PatrolSelector } from "./PatrolSelector";
 import { TrackLegend } from "./TrackLegend";
@@ -47,6 +53,7 @@ import {
   type EventFilterState,
 } from "./eventMarkerStyle";
 import { isSubjectVisible } from "./subjectVisibility";
+import { MAP_LAYER } from "./mapLayers";
 import { isImageAsset } from "@marine-guardian/shared/lib/asset-mime";
 import { eventTypeIcon } from "@/lib/event-type-icon";
 import { AlertTriangle, Flag, FlagTriangleRight, Pencil } from "lucide-react";
@@ -56,6 +63,43 @@ import { AlertTriangle, Flag, FlagTriangleRight, Pencil } from "lucide-react";
 // to the actual loaded data bounds once features arrive (see fit-bounds effect).
 const DEFAULT_CENTER: [number, number] = [121.5, 13.0];
 const DEFAULT_ZOOM = 6;
+
+/* ---------------------------------------------------------------------------
+ * ZOOM / DOODLE CLUSTER PLACEMENT — floating ("Interactive Report Map") mode
+ * ---------------------------------------------------------------------------
+ * Owner request 2026-07-20: park the zoom + doodle controls immediately to the
+ * RIGHT of the "MAP CONTROLS" card, top-aligned with it, with a small gap —
+ * and INDEPENDENT of it, so they do not move when MAP CONTROLS collapses.
+ * Independence is why these are absolute insets on the MAP rather than DOM
+ * children of the card: the card's own height/collapse state cannot reach them.
+ *
+ * DERIVATION (do not hardcode a bare pixel number — recompute from these):
+ *   MAP CONTROLS column  = `left-3` (0.75rem) + `w-48` (12rem) below `lg`
+ *                                             + `w-60` (15rem) at `lg` and up
+ *   gap                  = 0.75rem (12px), matching the card's own left inset
+ *
+ *   below lg : 0.75 + 12 + 0.75 = 13.5rem (216px)
+ *   lg and up: 0.75 + 15 + 0.75 = 16.5rem (264px)
+ *
+ * The responsive step is load-bearing: MAP CONTROLS narrows by 3rem below
+ * `lg`, so a single fixed offset would leave a ~60px hole there. Both values
+ * are derived from the SAME width classes on the column literal below — if
+ * that column's width changes, change these together.
+ */
+const CONTROL_CLUSTER_BESIDE_MAP_CONTROLS =
+  "top-3 left-[13.5rem] lg:left-[16.5rem]";
+
+/**
+ * The doodle toggle stacks directly beneath the zoom group, in the same
+ * column, matching the cluster's own `gap-1.5`:
+ *   top-3 (0.75rem) + zoom ControlGroup height + 0.375rem gap
+ *   zoom group = two `size-8` (2rem) buttons + the group's 1px top/bottom
+ *                border + the 1px divider between them ≈ 4.1875rem
+ *   0.75 + 4.1875 + 0.375 = 5.3125rem
+ * Rounded to `top-[5.3125rem]`. Same left offsets as the cluster.
+ */
+const DOODLE_TOGGLE_BESIDE_MAP_CONTROLS =
+  "top-[5.3125rem] left-[13.5rem] lg:left-[16.5rem]";
 
 /** "Xh YYm" duration string for the traversing-coverage summary line, or "—"
  *  when the figure is unavailable. Mirrors formatPatrolHours in
@@ -187,6 +231,15 @@ type InteractiveMapProps = {
    *  `traversing` / `insideKm` / `insideHoursEst` so the caller can tell
    *  them apart and render the clipped coverage. */
   includeTraversing?: boolean;
+  /** Optional "count full traversing patrols" toggle (Interactive Report Map,
+   *  ZONE SCOPE ONLY). When true, patrols that merely traverse the selected
+   *  protected zone are still returned, but each such track's
+   *  `insideKm`/`insideHoursEst` carry the patrol's FULL distance/time rather
+   *  than the clipped inside-the-zone portion — superseding, never adding to,
+   *  `includeTraversing`'s clipped crediting (the server enforces the
+   *  exclusivity). The "Traversing coverage" readout therefore sums full
+   *  patrol effort in this mode, agreeing with the KPI tiles and the PDF. */
+  includeTraversingFull?: boolean;
   /**
    * Patrol-track overlay source (2026-06-27):
    *   "active"  (default) — most-recent patrols' tracks, live (Command Center /
@@ -225,6 +278,10 @@ type InteractiveMapProps = {
    *  Events list "locate" button). `key` bumps on every click so re-clicking the
    *  same event re-triggers the flyTo. Null = no focus requested. */
   focusLocation?: { lon: number; lat: number; key: number } | null;
+  /** Geo-anchored MapPopup summary card (Command Center "Events This Month"
+   *  panel row click, Q3 2026-07-19). Rendered inside the map's `<Map>` at
+   *  the given coordinates; `content` supplies the popup body. null = none. */
+  detailPopup?: { lon: number; lat: number; content: ReactNode } | null;
   /** Controlled patrol selection — when provided (not undefined), the map
    *  renders this patrol's track instead of the internal PatrolSelector state.
    *  Used by the Report Map "Patrols in range" list so clicking a row draws
@@ -236,8 +293,19 @@ type InteractiveMapProps = {
   /** Rendered as a floating overlay in the map's upper-RIGHT corner, above the
    *  canvas — symmetric with the floating controls card on the left. The
    *  Report Map passes the selected-patrol detail panel here so it lives
-   *  inside the map container (and survives fullscreen). */
+   *  inside the map container (and survives fullscreen). TRANSIENT: this slot
+   *  is empty until the operator selects a patrol / event type. It stacks
+   *  BELOW `topRightPinnedSlot` in one shared right-hand column (see below),
+   *  so an opening panel never overlaps the pinned content. Width `w-72`. */
   topRightSlot?: ReactNode;
+  /** Rendered at the TOP of the same upper-RIGHT column as `topRightSlot`,
+   *  above it (owner request 2026-07-20 — the Report Map's chart panel, which
+   *  is top-aligned with the "Map controls" card on the left, mirroring it at
+   *  `right-3 top-3`). PINNED: always present, unlike the transient slot
+   *  below it. Pinned to `w-60` — the Map controls card's width — so a `w-60`
+   *  pinned panel and a `w-72` transient panel still share a flush right edge
+   *  in the right-anchored column. */
+  topRightPinnedSlot?: ReactNode;
   /** Clicking one of the all-tracks patrol polylines calls this with its
    *  patrolId (Report Map: select that patrol from the map itself). */
   onPatrolTrackClick?: (patrolId: string) => void;
@@ -281,6 +349,7 @@ export function InteractiveMap({
   province,
   includeChildren,
   includeTraversing,
+  includeTraversingFull,
   trackMode = "active",
   displayMode: initialDisplayMode = "dots",
   defaultEventLayers,
@@ -290,8 +359,10 @@ export function InteractiveMap({
   controlsPlacement = "bar",
   filterSlot,
   focusLocation,
+  detailPopup,
   selectedPatrolId: controlledSelectedPatrolId,
   topRightSlot,
+  topRightPinnedSlot,
   onPatrolTrackClick,
   onBackgroundClick,
   activeSubjectNames,
@@ -303,6 +374,10 @@ export function InteractiveMap({
   // the map's events unless the operator toggles this on (TrackLegend "Show
   // Skylight events" switch, wired below).
   const [showSkylight, setShowSkylight] = useState(false);
+  // Event photo-preview thumbnails (image markers, zoomed-in). Default ON —
+  // when the operator toggles this off (TrackLegend "Photo thumbnails"
+  // switch), every event collapses to its plain icon-chip marker.
+  const [showThumbnails, setShowThumbnails] = useState(true);
   const subjectsQuery = trpc.map.subjects.list.useQuery();
   const eventsQuery = trpc.map.events.list.useQuery({
     ...(dateFrom !== undefined ? { from: dateFrom } : {}),
@@ -355,6 +430,7 @@ export function InteractiveMap({
       ...(province !== undefined ? { province } : {}),
       ...(includeChildren !== undefined ? { includeChildren } : {}),
       ...(includeTraversing !== undefined ? { includeTraversing } : {}),
+      ...(includeTraversingFull !== undefined ? { includeTraversingFull } : {}),
     },
     { enabled: useInRangeTracks },
   );
@@ -441,7 +517,14 @@ export function InteractiveMap({
     // insideKm/insideHoursEst — read directly from it (not the merged
     // `tracksData`, whose type unions with the `active` query's plain shape
     // and would lose these fields).
-    if (includeTraversing !== true || !useInRangeTracks) return null;
+    // Full mode also returns traversing tracks (with FULL distance/time in
+    // insideKm/insideHoursEst), so the readout must not vanish when only the
+    // full-traversing toggle is on.
+    if (
+      (includeTraversing !== true && includeTraversingFull !== true) ||
+      !useInRangeTracks
+    )
+      return null;
     const tracks = inRangeTracksQuery.data?.tracks ?? [];
     let km = 0;
     let hours = 0;
@@ -454,7 +537,12 @@ export function InteractiveMap({
     }
     if (count === 0) return null;
     return { km, hours, count };
-  }, [includeTraversing, useInRangeTracks, inRangeTracksQuery.data]);
+  }, [
+    includeTraversing,
+    includeTraversingFull,
+    useInRangeTracks,
+    inRangeTracksQuery.data,
+  ]);
 
   // Selected-patrol track isolation (2026-07-03): while a patrol is selected
   // via the CONTROLLED prop (Report Map list / track click), the all-tracks
@@ -603,8 +691,16 @@ export function InteractiveMap({
   // (dep: [trackCoordinates]) re-ran on EVERY render and snapped the camera
   // back to the track extent — making the map feel "zoom-locked" whenever a
   // patrol was selected (owner bug 2026-07-06).
+  // MAP GEOMETRY ONLY — (0,0)/non-finite/out-of-domain vertices are dropped so
+  // one bad track point can't stretch the fly-to extent across the planet. The
+  // rendered track layer draws from the query data directly and is unaffected.
   const trackCoordinates = useMemo<[number, number][]>(
-    () => (patrolTracksQuery.data?.points ?? []).map((p) => [p.lon, p.lat]),
+    () =>
+      filterValidLonLatPairs(
+        (patrolTracksQuery.data?.points ?? []).map(
+          (p) => [p.lon, p.lat] as [number, number],
+        ),
+      ),
     [patrolTracksQuery.data],
   );
 
@@ -624,6 +720,14 @@ export function InteractiveMap({
   const didFitInitialRef = useRef(false);
 
   // All point coordinates from the loaded data, used to auto-fit the viewport.
+  //
+  // MAP GEOMETRY ONLY: coordinates that cannot legitimately frame a camera —
+  // (0,0) "Null Island", non-finite, outside the WGS84 domain — are excluded
+  // here (see lib/map-coordinates.ts). Four (0,0) event rows exist in the dev
+  // DB; including them stretched the auto-fit from West Africa to Mindoro and
+  // left the real cluster an unreadable speck. The events themselves are NOT
+  // filtered: they still appear in `events`, in every count, list and card on
+  // this page, and in the marker layer below.
   const dataCoordinates = useMemo<[number, number][]>(() => {
     const coords: [number, number][] = [];
     if (hideSubjects !== true) {
@@ -635,7 +739,7 @@ export function InteractiveMap({
         coords.push([e.locationLon, e.locationLat]);
       }
     }
-    return coords;
+    return filterValidLonLatPairs(coords);
   }, [subjects, events, hideSubjects]);
 
   // Auto-fit the map to the data bounds once features have loaded, so the
@@ -690,10 +794,17 @@ export function InteractiveMap({
     let extended = false;
     for (const b of matching) {
       for (const [lon, lat] of geometryCoordinates(b.geometryGeojson)) {
+        // MAP GEOMETRY ONLY — skip (0,0)/non-finite/out-of-domain vertices so a
+        // malformed boundary upload can't blow this municipality's frame open
+        // to a hemisphere. The boundary itself still renders and still drives
+        // attribution and coverage math.
+        if (!isValidMapCoordinate(lat, lon)) continue;
         bounds.extend([lon, lat]);
         extended = true;
       }
     }
+    // No usable vertex → leave the current view alone rather than fitting an
+    // empty LngLatBounds (which throws in maplibre).
     if (!extended) return;
     map.fitBounds(bounds, { padding: 60, maxZoom: 13, duration: 800 });
   }, [municipalityId, officialBoundaries]);
@@ -755,6 +866,8 @@ export function InteractiveMap({
           onShowBoundariesChange={setShowBoundaries}
           showSkylight={showSkylight}
           onShowSkylightChange={setShowSkylight}
+          showThumbnails={showThumbnails}
+          onShowThumbnailsChange={setShowThumbnails}
           {...(useInRangeTracks
             ? {
                 displayMode,
@@ -772,7 +885,15 @@ export function InteractiveMap({
           collapsible card overlaid on the map's upper-left → the map gets the
           full panel height. */}
       {floating && (
-        <div className="absolute left-3 top-3 z-20 flex max-h-[calc(100%-1.5rem)] w-60 max-w-[calc(100%-1.5rem)] flex-col">
+        /* Responsive width (regression fix 2026-07-20): this column and the
+           upper-RIGHT column were both hard `w-60` (240px), which made them
+           collide from ~730px viewport downward (see MapTopRightColumn for the
+           measured numbers and the full rationale). Below `lg` it steps down to
+           `w-48` and is capped at 60% of the map, so the map stays the dominant
+           surface and the card's own collapse button remains reachable without
+           first dismissing anything. Every `lg:` value is the pre-regression
+           value verbatim — >= 1024px is pixel-identical to before. */
+        <div className="absolute left-3 top-3 z-20 flex max-h-[calc(100%-1.5rem)] w-48 max-w-[60%] flex-col lg:w-60 lg:max-w-[calc(100%-1.5rem)]">
           <TrackLegend
             orientation="vertical"
             collapsible
@@ -793,6 +914,8 @@ export function InteractiveMap({
             onShowBoundariesChange={setShowBoundaries}
             showSkylight={showSkylight}
             onShowSkylightChange={setShowSkylight}
+            showThumbnails={showThumbnails}
+            onShowThumbnailsChange={setShowThumbnails}
             {...(eventTypesQuery.data !== undefined
               ? { eventTypesByCategory: eventTypesQuery.data }
               : {})}
@@ -828,14 +951,14 @@ export function InteractiveMap({
           )}
         </div>
       )}
-      {/* Upper-right floating overlay (Report Map: selected-patrol detail
-          panel). Above the canvas (z-20), clamped to the map's height so a
-          tall panel scrolls instead of spilling past the map. */}
-      {topRightSlot != null && (
-        <div className="absolute right-3 top-3 z-20 max-h-[calc(100%-1.5rem)] w-72 max-w-[calc(100%-1.5rem)] overflow-y-auto">
-          {topRightSlot}
-        </div>
-      )}
+      {/* Upper-right floating column — mirrors the upper-left controls column
+          at `right-3 top-3`. The pinned chart panel and the transient
+          patrol/event-type panels share this ONE stacking column (see
+          MapTopRightColumn for the full collision-resolution rationale). */}
+      <MapTopRightColumn
+        {...(topRightPinnedSlot != null ? { pinned: topRightPinnedSlot } : {})}
+        {...(topRightSlot != null ? { transient: topRightSlot } : {})}
+      />
       <Map
         ref={attachMapRef}
         center={DEFAULT_CENTER}
@@ -850,15 +973,40 @@ export function InteractiveMap({
           setZoom((prev) => (Math.abs(prev - vp.zoom) >= 0.25 ? vp.zoom : prev));
         }}
       >
-        <MapControls />
+        {/* `className` is merged LAST inside MapControls (twMerge), so
+            MAP_LAYER.control overrides the primitive's default z-10 and lifts
+            the zoom cluster above the full-bleed doodle canvas. Without this
+            the canvas (painted later, equal z) swallowed every zoom click
+            while doodle mode was on. */}
+        <MapControls
+          className={MAP_LAYER.control}
+          {...(floating
+            ? { positionClassName: CONTROL_CLUSTER_BESIDE_MAP_CONTROLS }
+            : {})}
+        />
 
         {/* Doodle mode toggle — alongside the existing zoom/compass controls
-            (both z-10). Only rendered when the caller opts a surface in via
+            (both on MAP_LAYER.control, above the doodle canvas so this button
+            can always be used to LEAVE doodle mode). Only rendered when the
+            caller opts a surface in via
             `doodleSurface` (Command Center / Report Map); other consumers of
             this shared component (e.g. the Rangers-on-Duty drilldown map)
-            never render it. */}
+            never render it.
+
+            In `floating` mode it joins the relocated cluster: same left
+            offset, stacked directly under the zoom group (see
+            DOODLE_TOGGLE_BESIDE_MAP_CONTROLS). In bar mode it keeps its
+            original bottom-right slot. */}
         {doodleSurface !== undefined && (
-          <div className="absolute z-10 bottom-24 right-2 border-border bg-background flex flex-col overflow-hidden rounded-md border shadow-sm">
+          <div
+            className={cn(
+              "border-border bg-background absolute flex flex-col overflow-hidden rounded-md border shadow-sm",
+              MAP_LAYER.control,
+              floating
+                ? DOODLE_TOGGLE_BESIDE_MAP_CONTROLS
+                : "bottom-24 right-2",
+            )}
+          >
             <button
               type="button"
               onClick={doodle.toggleActive}
@@ -879,7 +1027,10 @@ export function InteractiveMap({
 
         {/* Doodle drawing surface — a portaled child of the map (see
             DoodleOverlay), pinned to geo coordinates so strokes stay put on
-            pan/zoom. Sits at z-10, below the floating controls (z-20). */}
+            pan/zoom. Full-bleed (`absolute inset-0`), so it MUST stay on the
+            lowest floating layer (MAP_LAYER.doodleCanvas) — the panels
+            (MAP_LAYER.panel) and control clusters (MAP_LAYER.control) sit
+            above it and stay clickable. See mapLayers.ts. */}
         {doodleSurface !== undefined && (
           <DoodleOverlay
             active={doodle.active}
@@ -1101,10 +1252,11 @@ export function InteractiveMap({
             (serious ? eventPrioritySizePx(event.priority) + 6 : eventPrioritySizePx(event.priority)) *
               zoomScale,
           );
-          // Image preview only once zoomed in past the threshold AND the event
-          // actually has an image asset.
+          // Image preview only when thumbnails are enabled (TrackLegend "Photo
+          // thumbnails" switch, default on) AND zoomed in past the threshold
+          // AND the event actually has an image asset.
           const firstImage =
-            zoom >= PIN_PREVIEW_ZOOM
+            showThumbnails && zoom >= PIN_PREVIEW_ZOOM
               ? event.assets.find((a) => isImageAsset(a.mimeType, a.filename))
               : undefined;
           const clickable = onEventClick !== undefined;
@@ -1208,6 +1360,16 @@ export function InteractiveMap({
             </MapMarker>
           );
         })}
+        {detailPopup != null && (
+          <MapPopup
+            key={`${String(detailPopup.lon)},${String(detailPopup.lat)}`}
+            longitude={detailPopup.lon}
+            latitude={detailPopup.lat}
+            closeButton
+          >
+            {detailPopup.content}
+          </MapPopup>
+        )}
       </Map>
 
         {hidePatrolSelector !== true && (

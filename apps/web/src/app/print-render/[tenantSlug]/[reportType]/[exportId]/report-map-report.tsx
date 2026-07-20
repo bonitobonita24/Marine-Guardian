@@ -91,6 +91,7 @@ import {
 } from "@/server/report-map-report/event-type-grouping";
 import { EventBreakdownChart } from "./components/event-breakdown-chart";
 import { ReportHeader, reportHeaderStyles } from "./components/report-header";
+import { PrintDocumentShell } from "./components/print-document-shell";
 import { RowHeightSync } from "./components/row-height-sync";
 // Leaflet islands are loaded dynamically (ssr:false) via the client wrapper to
 // prevent window-is-not-defined during Next.js server-side bundle evaluation.
@@ -103,6 +104,7 @@ import {
 import { PatrolTotalsTable } from "./components/patrol-type-bar-chart";
 import { PrintMultiSeriesChart } from "./components/print-multi-series-chart";
 import { PrintTimeSeriesChart } from "./components/print-time-series-chart";
+import { resolveTraversingScopeLabel } from "./traversing-scope-label";
 
 // ─── Layout resolution ────────────────────────────────────────────────────────
 
@@ -186,6 +188,12 @@ interface HeaderProps {
   /** Region mode (2026-07-13): true when the report is scoped to a whole
    *  province — see ReportMapReportData.isRegionReport. */
   regionMode: boolean;
+  /** Protected-zone scope title (2026-07-20): the selected zone's OWN name
+   *  (e.g. "Apo Reef Park") when the report is scoped to a ProtectedZone.
+   *  When set (and not regionMode), it becomes the header title unprefixed
+   *  (no "LGU "), overriding the parent-municipality name. Null otherwise.
+   *  See ReportMapReportData.scopeTitleOverride. */
+  scopeTitleOverride: string | null;
 }
 
 /** Wraps the shared <ReportHeader> — every report-map-report page passes
@@ -200,6 +208,7 @@ function PageHeader({
   municipalityName,
   period,
   regionMode,
+  scopeTitleOverride,
   reportTitle,
 }: HeaderProps & { reportTitle: string }) {
   const reportHeaderProps: ComponentProps<typeof ReportHeader> = regionMode
@@ -212,14 +221,29 @@ function PageHeader({
         dateRange: period,
         ...(municipalityName !== null ? { mainTitle: municipalityName } : {}),
       }
-    : {
-        municipalLogoUrl: municipalLogoDataUri,
-        partnerLogoUrl: partnerLogoDataUri,
-        municipalityName,
-        regionMode: false,
-        reportTitle,
-        dateRange: period,
-      };
+    : scopeTitleOverride !== null
+      ? {
+          // Protected-zone scope (2026-07-20): render the zone's OWN name as
+          // the title, unprefixed via <ReportHeader>'s `protectedZoneName`
+          // path, while keeping the municipal/partner logos since a zone
+          // still sits within an LGU. Fixes "Apo Reef Park" printing as its
+          // parent municipality "Sablayan". Generic to any zone.
+          municipalLogoUrl: municipalLogoDataUri,
+          partnerLogoUrl: partnerLogoDataUri,
+          municipalityName,
+          protectedZoneName: scopeTitleOverride,
+          regionMode: false,
+          reportTitle,
+          dateRange: period,
+        }
+      : {
+          municipalLogoUrl: municipalLogoDataUri,
+          partnerLogoUrl: partnerLogoDataUri,
+          municipalityName,
+          regionMode: false,
+          reportTitle,
+          dateRange: period,
+        };
   return <ReportHeader {...reportHeaderProps} />;
 }
 
@@ -745,12 +769,45 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
     data.traversingPatrols !== undefined && data.traversingPatrols.rows.length > 0;
   const totalPagesFinal = totalPages + (hasTraversing ? 1 : 0);
 
+  // Scope-aware traversing labels (2026-07-20): the heading/caption/body copy
+  // must name the boundary the report is actually scoped to — the ZONE when
+  // zone-scoped, the province in region mode, the municipality otherwise —
+  // so they agree with the table's per-scope distance column. Reuses the same
+  // resolved scope the header consumes (see resolveTraversingScopeLabel).
+  //
+  // The crediting MODE is read from the single `data.traversingMode` field the
+  // loader derives (see get-report-map-report-data.ts) — never re-derived here
+  // from params or scope level. In "full" mode the body copy must not claim
+  // these patrols are counted elsewhere and not here, because they ARE counted
+  // here.
+  const isFullTraversing = data.traversingMode === "full";
+  const traversingScope = resolveTraversingScopeLabel({
+    mode: isFullTraversing ? "full" : "clipped",
+    scopeTitleOverride: data.scopeTitleOverride,
+    isRegionReport: data.isRegionReport,
+    municipalityName: data.municipalityName,
+  });
+
+  // Full-mode disclosure stamp (2026-07-20). In "full" mode the headline patrol
+  // totals deliberately EXCEED the sum of the per-patrol rows printed beneath
+  // them (full-traversing patrols fold into the totals but not into
+  // patrolBreakdown), and the same patrol is also counted in its origin
+  // municipality's report. A reader must never meet two different counts for
+  // the same zone and dates with no explanation on the page, so both the
+  // totals block and the standalone full-list page carry this stamp.
+  const traversingFullStamp = isFullTraversing ? (
+    <p className="traversing-full-stamp" data-testid="traversing-full-stamp">
+      Includes full patrols traversing this zone
+    </p>
+  ) : null;
+
   const headerProps: HeaderProps = {
     municipalLogoDataUri: data.template.municipalLogoDataUri,
     partnerLogoDataUri: data.template.partnerLogoDataUri,
     municipalityName: data.municipalityName,
     period,
     regionMode: data.isRegionReport,
+    scopeTitleOverride: data.scopeTitleOverride,
   };
 
   const footerBase = {
@@ -1032,6 +1089,14 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
        Total row bumped to a heavier border/weight (mirrors
        .total-patrols-table tfoot) so it reads as the grand total. */
     p.traversing-note { font-size: 10px; color: #6b7280; margin: 4px 0 10px; font-style: italic; }
+    /* Full-traversing disclosure stamp (2026-07-20) — sibling of
+       .traversing-note, deliberately a notch darker/heavier than that muted
+       italic caption: this is a factual qualifier on the totals a funder
+       reads, so it must be legible in print, never a faint watermark. */
+    p.traversing-full-stamp {
+      font-size: 10px; font-weight: 600; color: #374151;
+      margin: 4px 0 8px; padding-left: 6px; border-left: 2px solid #9ca3af;
+    }
     table.report-table.traversing-table tfoot th,
     table.report-table.traversing-table tfoot td {
       border-top: 2px solid #d1d5db; font-weight: 600;
@@ -1044,38 +1109,33 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
   `;
 
   return (
-    <html lang="en">
-      <head>
-        <meta charSet="utf-8" />
-        <title>
-          {data.tenant.name} — {data.template.reportTitle} — {period}
-        </title>
-        <style>{css}</style>
-        {/* Initialise the multi-map render-ready counter before any island
-            mounts. mapIslandCount = 7 in "combined"/"charts" export mode: 3
-            EventPointsMap (Law Enf, Monitoring, Events Over Time) + 1
-            PatrolTracksMap + 1 PatrolHeatmapMap + 2 EventHeatmapMap (Law Enf
-            + Monitoring category-page heatmaps) — verified by counting every
-            <EventPointsMap>/<PatrolTracksMap>/<PatrolHeatmapMap>/
-            <EventHeatmapMap> JSX usage in the (showCharts-gated) sections
-            below. Each MapReadySignal decrements the counter; window.__
-            renderReady is only set once it reaches zero.
-            "lists" export mode omits every chart section, so
-            mapIslandCount is 0 — nothing would ever decrement a
-            __renderPending counter, so window.__renderReady is flipped
-            directly instead (the pdf-renderer's 8s waitForFunction fallback
-            would otherwise idle the full timeout on every list-only
-            export — see deploy/pdf-renderer/src/server.js). */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html:
-              mapIslandCount > 0
-                ? `window.__renderPending = ${String(mapIslandCount)};`
-                : "window.__renderReady = true;",
-          }}
-        />
-      </head>
-      <body>
+    /* No <html>/<head>/<body> here — this page renders inside the app root
+       layout's document. Emitting a nested document was the React #418
+       hydration-mismatch root cause; see components/print-document-shell.tsx. */
+    <PrintDocumentShell
+      title={`${data.tenant.name} — ${data.template.reportTitle} — ${period}`}
+      css={css}
+      /* Initialise the multi-map render-ready counter before any island
+         mounts. mapIslandCount = 7 in "combined"/"charts" export mode: 3
+         EventPointsMap (Law Enf, Monitoring, Events Over Time) + 1
+         PatrolTracksMap + 1 PatrolHeatmapMap + 2 EventHeatmapMap (Law Enf
+         + Monitoring category-page heatmaps) — verified by counting every
+         <EventPointsMap>/<PatrolTracksMap>/<PatrolHeatmapMap>/
+         <EventHeatmapMap> JSX usage in the (showCharts-gated) sections
+         below. Each MapReadySignal decrements the counter; window.__
+         renderReady is only set once it reaches zero.
+         "lists" export mode omits every chart section, so
+         mapIslandCount is 0 — nothing would ever decrement a
+         __renderPending counter, so window.__renderReady is flipped
+         directly instead (the pdf-renderer's 8s waitForFunction fallback
+         would otherwise idle the full timeout on every list-only
+         export — see deploy/pdf-renderer/src/server.js). */
+      gateScript={
+        mapIslandCount > 0
+          ? `window.__renderPending = ${String(mapIslandCount)};`
+          : "window.__renderReady = true;"
+      }
+    >
 
         {/* ── Section 1: Law Enforcement ────────────────────────────────── */}
         {/* Chart+map section — omitted entirely in "lists" export mode
@@ -1239,6 +1299,7 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
             seaborne={data.charts.patrolTypeTotals.seaborne}
             foot={data.charts.patrolTypeTotals.foot}
           />
+          {traversingFullStamp}
           {data.charts.patrolList.breakdown.length === 0 ? (
             <p className="empty-note">No patrols in this period.</p>
           ) : (
@@ -1537,6 +1598,10 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
               {data.charts.patrolList.total.toLocaleString()}
             </span>
           </h2>
+          {/* Same stamp as the Patrol List totals block: in full mode these
+              rows do NOT sum to the headline count, so a reader who lands on
+              this page alone still needs the explanation. */}
+          {traversingFullStamp}
           <FullPatrolTable
             patrols={data.charts.patrolList.breakdown}
             caption="Full patrol list"
@@ -1586,20 +1651,15 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
             reportTitle={REPORT_MAP_SECTION_TITLES.traversingPatrols}
           />
           <h2 className="section-heading">
-            Patrols Traversing {data.municipalityName ?? "This Municipality"}
+            {traversingScope.heading}
             <span className="total-badge">
               {data.traversingPatrols.total.count.toLocaleString()}
             </span>
           </h2>
-          <p className="traversing-note">
-            These patrols started in another municipality and are counted
-            there, not here. Distance and time shown are only the portion
-            inside this municipality; time is estimated (proportional to
-            distance).
-          </p>
+          <p className="traversing-note">{traversingScope.note}</p>
           <TraversingPatrolsTable
             data={data.traversingPatrols}
-            caption={`Patrols traversing ${data.municipalityName ?? "this municipality"}`}
+            caption={traversingScope.caption}
           />
           <PageFooter {...footerBase} pageNum={totalPagesFinal} />
         </section>
@@ -1615,7 +1675,6 @@ export function ReportMapReport({ data }: ReportMapReportProps) {
             pages so rows line up (owner report 2026-07-06). Client island;
             runs after layout, before the map islands flip __renderReady. */}
         <RowHeightSync />
-      </body>
-    </html>
+    </PrintDocumentShell>
   );
 }

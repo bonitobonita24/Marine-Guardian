@@ -56,11 +56,22 @@ const pdfColumns: PdfColumn[] = columnDefs.map((c) => ({
 }));
 
 function summarizeFilters(
-  filters: Record<string, string | number | boolean | undefined>,
+  // `string[]` accommodates the shared eventListFilters' array-valued members
+  // (e.g. `typeDisplays`, the Events-list subcategory multi-select). This route
+  // never populates them — it only reads state/priority/category/areaName/
+  // dateFrom/dateTo off the query string — but they are part of the shared
+  // schema's inferred type. Arrays stringify as "a,b", which is fine for an
+  // audit summary line.
+  filters: Record<string, string | number | boolean | string[] | undefined>,
 ): string {
   const parts: string[] = [];
   for (const [k, v] of Object.entries(filters)) {
     if (v === undefined || v === "") continue;
+    if (Array.isArray(v)) {
+      if (v.length === 0) continue;
+      parts.push(`${k}=${v.join(",")}`);
+      continue;
+    }
     parts.push(`${k}=${String(v)}`);
   }
   return parts.length > 0 ? parts.join(", ") : "(none)";

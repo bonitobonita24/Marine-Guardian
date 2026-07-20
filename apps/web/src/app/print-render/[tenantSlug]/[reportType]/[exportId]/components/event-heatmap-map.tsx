@@ -10,7 +10,7 @@
  */
 
 import "leaflet/dist/leaflet.css";
-import { useCallback, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import type { Map as LeafletMap, TileLayer as LeafletTileLayer } from "leaflet";
 import { MapContainer, TileLayer } from "react-leaflet";
 import type { HeatLatLng } from "@marine-guardian/shared/lib/heatmap-sample";
@@ -18,26 +18,72 @@ import type {
   ReportMapBounds,
   ReportMapEventPoint,
 } from "@/server/report-map-report/get-report-map-report-data";
+import { filterValidMapPoints } from "@/lib/map-coordinates";
 import { boundsToView } from "./bounds-view";
 import { HeatLayer } from "./heat-layer";
 import { MapRenderGate } from "./map-render-gate";
 
-const HEATMAP_WIDTH_PX = 1010;
-const HEATMAP_HEIGHT_PX = 360;
+// REAL rendered pixel size of the `.cat-map` print box this heatmap occupies.
+// The previous values (1010x360) were stale constants from the superseded
+// LANDSCAPE layout — see the derivation comment in event-points-map.tsx. This
+// island only ever renders inside `.cat-map` (report-map-report.tsx), which is
+// 655x235 under the A4-portrait layout.
+const HEATMAP_WIDTH_PX = 655;
+const HEATMAP_HEIGHT_PX = 235;
+
+/**
+ * Bounds inset per side, in CSS px. Deliberately kept identical to
+ * EventPointsMap's `framingInsetPx` (and duplicated here for the same reason
+ * `pointsBounds` below is duplicated: these two islands are independently
+ * code-split via next/dynamic, so importing across them would drag the points
+ * map's react-leaflet module graph into this chunk for one arithmetic helper).
+ * Both must agree — the heatmap renders directly beneath the points map on a
+ * category page, so any framing mismatch between them reads as a bug.
+ *
+ * 96px == 1.0 inch at print scale (`preferCSSPageSize` maps CSS px at 96dpi),
+ * clamped to 20% of the smaller box dimension so the data always keeps >=60% of
+ * the box. A literal 1-inch inset is impossible in a 235px-tall (2.45in) box —
+ * it would leave 43px of usable height. min(96, floor(235 * 0.2)) = 47px.
+ */
+const TARGET_INSET_PX = 96;
+const MAX_INSET_FRACTION = 0.2;
+
+export function framingInsetPx(widthPx: number, heightPx: number): number {
+  return Math.min(
+    TARGET_INSET_PX,
+    Math.floor(Math.min(widthPx, heightPx) * MAX_INSET_FRACTION),
+  );
+}
+
+const HEATMAP_INSET_PX = framingInsetPx(HEATMAP_WIDTH_PX, HEATMAP_HEIGHT_PX);
 const DEFAULT_CENTER: [number, number] = [13.0, 121.0];
 const DEFAULT_ZOOM = 9;
 
-/** Tight padded bbox around the located points (mirrors EventPointsMap). */
+/**
+ * Tight padded bbox around the located points (mirrors EventPointsMap).
+ *
+ * Bounds-unsafe coordinates — (0,0) "Null Island", non-finite, out-of-domain —
+ * are dropped before the box is built (see lib/map-coordinates.ts). MAP
+ * GEOMETRY ONLY: the excluded events still count everywhere else in the report,
+ * and this island still receives the full point set for its heat layers.
+ * Returns null when nothing survives, so the caller falls back to the
+ * municipality bounds and then the default view instead of producing NaN.
+ */
 function pointsBounds(
   points: { lat: number; lon: number }[],
 ): ReportMapBounds | null {
-  const first = points[0];
+  const boundsPoints = filterValidMapPoints(
+    points,
+    (p) => p.lat,
+    (p) => p.lon,
+  );
+  const first = boundsPoints[0];
   if (first === undefined) return null;
   let south = first.lat;
   let north = first.lat;
   let west = first.lon;
   let east = first.lon;
-  for (const p of points) {
+  for (const p of boundsPoints) {
     south = Math.min(south, p.lat);
     north = Math.max(north, p.lat);
     west = Math.min(west, p.lon);
@@ -89,17 +135,34 @@ export function EventHeatmapMap({
   const tileLayerRef = useRef<LeafletTileLayer>(null);
 
   // Group points by their sub-type legend colour → one HeatLayer per hue.
-  const groups = new Map<string, HeatLatLng[]>();
-  for (const p of points) {
-    const key = p.color ?? NEUTRAL_HEAT_COLOR;
-    const arr = groups.get(key);
-    const tuple: HeatLatLng = [p.lat, p.lon, HEAT_WEIGHT];
-    if (arr) arr.push(tuple);
-    else groups.set(key, [tuple]);
-  }
-  const colorGroups = [...groups.entries()];
+  //
+  // MEMOISED (2026-07-20, part of the torn-heatmap fix): this used to be
+  // rebuilt inline on every render, handing each <HeatLayer> a brand-new
+  // `points` array identity. HeatLayer's effect depends on `points`, so every
+  // re-render removed and re-added every L.heatLayer — meaning a re-render
+  // that landed after MapRenderGate had already flipped __renderReady would
+  // blank and repaint the heat canvas with nothing left waiting on it. Stable
+  // identities keep the layers mounted for the life of the island.
+  const colorGroups = useMemo(() => {
+    const groups = new Map<string, HeatLatLng[]>();
+    for (const p of points) {
+      const key = p.color ?? NEUTRAL_HEAT_COLOR;
+      const arr = groups.get(key);
+      const tuple: HeatLatLng = [p.lat, p.lon, HEAT_WEIGHT];
+      if (arr) arr.push(tuple);
+      else groups.set(key, [tuple]);
+    }
+    return [...groups.entries()];
+  }, [points]);
 
-  const framingBounds = pointsBounds(points) ?? municipalityBounds;
+  // Memoised for the same reason: `applyFraming` closes over this, and
+  // MapRenderGate's effect lists `applyFraming` in its deps — an unstable
+  // identity re-ran the entire invalidateSize/framing/tile-listener sequence
+  // on every render.
+  const framingBounds = useMemo(
+    () => pointsBounds(points) ?? municipalityBounds,
+    [points, municipalityBounds],
+  );
 
   const applyFraming = useCallback(
     (map: LeafletMap) => {
@@ -108,6 +171,7 @@ export function EventHeatmapMap({
         framingBounds,
         HEATMAP_WIDTH_PX,
         HEATMAP_HEIGHT_PX,
+        { paddingPx: HEATMAP_INSET_PX },
       );
       map.setView(center, zoom, { animate: false });
     },
@@ -115,7 +179,9 @@ export function EventHeatmapMap({
   );
 
   const initialView = framingBounds
-    ? boundsToView(framingBounds, HEATMAP_WIDTH_PX, HEATMAP_HEIGHT_PX)
+    ? boundsToView(framingBounds, HEATMAP_WIDTH_PX, HEATMAP_HEIGHT_PX, {
+        paddingPx: HEATMAP_INSET_PX,
+      })
     : { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM };
 
   return (

@@ -114,16 +114,25 @@ export const dashboardRouter = router({
         where: { tenantId: ctx.tenantId, isActive: true },
         select: { id: true, name: true, erSubjectId: true },
       }),
+      // eventsThisMonth / eventsLastMonth EXCLUDE Skylight automated
+      // vessel-detection events (owner decision 2026-07-20) so the tile count
+      // matches its click-through EventsThisMonthPanel (event.list is
+      // Skylight-excluded by default). Skylight events arrive from EarthRanger
+      // with eventType.display "Skylight …" — the same reliable marker every
+      // other Skylight-excluded aggregation in this file uses. Excluded from
+      // BOTH months so the month-over-month delta stays apples-to-apples.
       prisma.event.count({
         where: {
           tenantId: ctx.tenantId,
           reportedAt: { gte: startOfMonth },
+          NOT: { eventType: { display: { contains: "skylight", mode: "insensitive" } } },
         },
       }),
       prisma.event.count({
         where: {
           tenantId: ctx.tenantId,
           reportedAt: { gte: startOfLastMonth, lt: startOfMonth },
+          NOT: { eventType: { display: { contains: "skylight", mode: "insensitive" } } },
         },
       }),
     ]);
