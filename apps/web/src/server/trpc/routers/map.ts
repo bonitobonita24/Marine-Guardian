@@ -5,9 +5,14 @@ import { tenantProcedure } from "../middleware/tenant";
 import { matrixProcedure } from "../middleware/rbac";
 import { prisma } from "@marine-guardian/db";
 import {
+  buildMemberContainment,
   clipTrackAcrossMembers,
-  bboxOfGeojson,
 } from "../../reporting/traversing-coverage";
+import {
+  buildScopeWhere,
+  loadScopeGeometries,
+  resolveReportScope,
+} from "../../reporting/report-scope";
 import { EVENT_CATEGORY } from "@/components/map/eventMarkerStyle";
 import { boundaryKindFromRef, municipalityIdFromRef } from "./boundary-kind";
 import {
@@ -598,131 +603,149 @@ const patrolTracksRouter = router({
       if (startTime.gte !== undefined || startTime.lte !== undefined) {
         patrolWhere.startTime = startTime;
       }
-      // Province rollup (2026-07-09): resolves municipalityId (wins) or every
-      // municipality in the given province; undefined when neither is set.
-      const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
-      // Phase 4B (2026-07-09): "include child boundaries" folds a municipality
-      // scope's child protected zones (MPA/hotspot/custom) into the patrol tracks.
-      const childZoneIds =
-        input.includeChildren === true && municipalityIds !== undefined
-          ? await resolveChildZoneIds(ctx.tenantId, municipalityIds)
-          : undefined;
-      if (municipalityIds !== undefined) {
-        const scope = buildMunicipalityScopeWhere(municipalityIds, childZoneIds);
-        if ("OR" in scope) patrolWhere.OR = scope.OR;
-        else patrolWhere.municipalityId = scope.municipalityId;
+      // Scope (2026-07-20): ONE shared resolver, replacing the inline
+      // resolveMunicipalityScope / resolveChildZoneIds /
+      // buildMunicipalityScopeWhere + protectedZoneId derivation this resolver
+      // used to duplicate. `buildScopeWhere` reproduces that output exactly for
+      // every scope combination: the municipality clause comes from the same
+      // `buildMunicipalityScopeWhere` call, and `resolveReportScope` yields
+      // `childZoneIds: []` where this code used `undefined` — both collapse to
+      // the plain municipality clause in `buildMunicipalityScopeWhere` (its
+      // widening requires `childZoneIds.length > 0`). The explicit-zone clause
+      // is set on the same independent `coveredZones` key as before, so the two
+      // still AND together. The non-traversing path below is unchanged.
+      const scope = await resolveReportScope(ctx.tenantId, input);
+      const scopeWhere = buildScopeWhere(scope);
+      if (scopeWhere.OR !== undefined) patrolWhere.OR = scopeWhere.OR;
+      if (scopeWhere.municipalityId !== undefined) {
+        patrolWhere.municipalityId = scopeWhere.municipalityId;
       }
-      if (input.protectedZoneId !== undefined) {
-        patrolWhere.coveredZones = {
-          some: { protectedZoneId: input.protectedZoneId },
-        };
+      if (scopeWhere.coveredZones !== undefined) {
+        patrolWhere.coveredZones = scopeWhere.coveredZones;
       }
 
-      // Traversing-patrols mode (2026-07-16, extended for province/multi-
-      // municipality scope): activates for ANY resolved municipality scope
-      // (a single concrete municipality OR a province rollup of several). A
-      // patrol is still counted only at its origin municipality — this
-      // toggle only affects which tracks are RENDERED, never any count
-      // tile — but its coverage (distance/time) is credited to every scope
-      // member it physically passes through. At province scope, `attributed`
-      // and `traversing` are NOT mutually exclusive: a patrol whose origin
-      // is member A can also cross member B, so it may be BOTH
-      // attributed=true and traversing=true with insideKm/insideHoursEst > 0
-      // (the credited coverage across the OTHER members it crosses). In the
-      // single-municipality case (municipalityIds.length === 1) there is no
-      // non-origin member to cross, so an attributed patrol's traversing
-      // stays false — output is unchanged from the prior single-muni-only
-      // behavior.
-      if (
-        input.includeTraversing === true &&
-        municipalityIds !== undefined &&
-        municipalityIds.length > 0
-      ) {
-        const muniRows = await prisma.municipality.findMany({
-          where: { id: { in: municipalityIds } },
-          select: { id: true, boundaryGeojson: true, waterGeojson: true },
-        });
+      // Traversing-patrols mode (2026-07-16; scope-corrected 2026-07-20).
+      //
+      // A patrol is still counted only at its origin boundary — this toggle
+      // only affects which tracks are RENDERED, never any count tile — but its
+      // coverage (distance/time) is credited to every scope member it
+      // physically passes through. `attributed` and `traversing` are NOT
+      // mutually exclusive at a multi-member scope: a patrol whose origin is
+      // member A can also cross member B, so it may be both, with
+      // insideKm/insideHoursEst carrying the coverage across the OTHER members.
+      //
+      // THE FIX: this branch used to DISCARD `patrolWhere` and decide inclusion
+      // purely from `municipalityIds.includes(origin)` against MUNICIPALITY
+      // polygons. Selecting an MPA zone with traversing ON therefore reverted
+      // the track layer to whole-municipality scope — the selection predicate
+      // and the render predicate disagreed by construction. Now:
+      //   • the ORIGIN-ATTRIBUTED half is selected by the real scope
+      //     where-clause (`patrolWhere`), the same predicate the non-traversing
+      //     path uses;
+      //   • the TRAVERSING half is decided against the SCOPE's own geometry
+      //     members (`loadScopeGeometries`), which returns ZONE members only at
+      //     zone level and municipalities ∪ child zones when includeChildren is
+      //     on — so Rule 2's "or its MPA zones" now actually holds.
+      // The candidate FETCH stays deliberately broad: finding tracks that pass
+      // through somewhere they are not attributed to cannot be expressed as a
+      // scope where-clause.
+      //
+      // GEOMETRY IS UNCHANGED: this endpoint returns FULL, unclipped track
+      // points (owner-confirmed correct). This branch changes WHICH tracks come
+      // back, never their shape.
+      if (scope.includeTraversing) {
+        const members = await loadScopeGeometries(ctx.tenantId, scope);
 
-        if (muniRows.length === 0) {
-          return { tracks: [] };
-        }
+        if (members.length > 0) {
+          // Built once per request, not per track — the containment relation
+          // that stops a child zone's kilometres being counted twice (once
+          // under the zone, once under its parent municipality).
+          const containment = buildMemberContainment(members);
 
-        const members = muniRows.map((m) => ({
-          id: m.id,
-          landGeojson: m.boundaryGeojson,
-          waterGeojson: m.waterGeojson,
-          bbox:
-            bboxOfGeojson(m.waterGeojson ?? m.boundaryGeojson) ??
-            bboxOfGeojson(m.boundaryGeojson),
-        }));
+          const attributedRows = await prisma.patrol.findMany({
+            where: { tenantId: ctx.tenantId, ...patrolWhere },
+            select: { id: true },
+          });
+          const attributedIds = new Set(attributedRows.map((p) => p.id));
 
-        const candidatePatrolWhere: {
-          isDeleted: false;
-          isTestPatrol: false;
-          startTime?: { gte?: Date; lte?: Date };
-        } = { isDeleted: false, isTestPatrol: false };
-        if (startTime.gte !== undefined || startTime.lte !== undefined) {
-          candidatePatrolWhere.startTime = startTime;
-        }
+          const candidatePatrolWhere: {
+            isDeleted: false;
+            isTestPatrol: false;
+            startTime?: { gte?: Date; lte?: Date };
+          } = { isDeleted: false, isTestPatrol: false };
+          if (startTime.gte !== undefined || startTime.lte !== undefined) {
+            candidatePatrolWhere.startTime = startTime;
+          }
 
-        const candidateRows = await prisma.patrolTrack.findMany({
-          where: {
-            tenantId: ctx.tenantId,
-            patrol: candidatePatrolWhere,
-          },
-          take: ACTIVE_TRACKS_PATROL_CAP,
-          orderBy: { until: "desc" },
-          select: {
-            trackGeojson: true,
-            patrol: {
-              select: {
-                id: true,
-                title: true,
-                patrolType: true,
-                municipalityId: true,
-                computedDurationHours: true,
-                totalHours: true,
-                computedDistanceKm: true,
-                totalDistanceKm: true,
+          const candidateRows = await prisma.patrolTrack.findMany({
+            where: {
+              tenantId: ctx.tenantId,
+              patrol: candidatePatrolWhere,
+            },
+            take: ACTIVE_TRACKS_PATROL_CAP,
+            orderBy: { until: "desc" },
+            select: {
+              trackGeojson: true,
+              patrol: {
+                select: {
+                  id: true,
+                  title: true,
+                  patrolType: true,
+                  municipalityId: true,
+                  computedDurationHours: true,
+                  totalHours: true,
+                  computedDistanceKm: true,
+                  totalDistanceKm: true,
+                  // Origin exclusion at ZONE level: a Patrol has no origin-zone
+                  // column, so the start point is tested against each zone
+                  // member's polygon in memory (resolveOriginMemberIds).
+                  startLocationLat: true,
+                  startLocationLon: true,
+                },
               },
             },
-          },
-        });
-
-        const traversingTracks = candidateRows.flatMap((row) => {
-          const points = pointsFromTrackGeojson(row.trackGeojson);
-          if (points.length < 2) return [];
-
-          const attributed =
-            row.patrol.municipalityId !== null &&
-            municipalityIds.includes(row.patrol.municipalityId);
-
-          const result = clipTrackAcrossMembers(row.trackGeojson, members, {
-            originMunicipalityId: row.patrol.municipalityId,
-            computedDurationHours: row.patrol.computedDurationHours,
-            totalHours: row.patrol.totalHours,
-            computedDistanceKm: row.patrol.computedDistanceKm,
-            totalDistanceKm: row.patrol.totalDistanceKm,
           });
 
-          const traversing = result.traversesNonOrigin;
-          if (!attributed && !traversing) return [];
+          const traversingTracks = candidateRows.flatMap((row) => {
+            const points = pointsFromTrackGeojson(row.trackGeojson);
+            if (points.length < 2) return [];
 
-          return [
-            {
-              patrolId: row.patrol.id,
-              title: row.patrol.title,
-              patrolType: row.patrol.patrolType,
-              points,
-              attributed,
-              traversing,
-              insideKm: result.insideKm,
-              insideHoursEst: result.insideHoursEst,
-            },
-          ];
-        });
+            const attributed = attributedIds.has(row.patrol.id);
 
-        return { tracks: traversingTracks };
+            const result = clipTrackAcrossMembers(
+              row.trackGeojson,
+              members,
+              {
+                originMunicipalityId: row.patrol.municipalityId,
+                computedDurationHours: row.patrol.computedDurationHours,
+                totalHours: row.patrol.totalHours,
+                computedDistanceKm: row.patrol.computedDistanceKm,
+                totalDistanceKm: row.patrol.totalDistanceKm,
+                startLat: row.patrol.startLocationLat,
+                startLon: row.patrol.startLocationLon,
+              },
+              containment,
+            );
+
+            const traversing = result.traversesNonOrigin;
+            if (!attributed && !traversing) return [];
+
+            return [
+              {
+                patrolId: row.patrol.id,
+                title: row.patrol.title,
+                patrolType: row.patrol.patrolType,
+                points,
+                attributed,
+                traversing,
+                insideKm: result.insideKm,
+                insideHoursEst: result.insideHoursEst,
+              },
+            ];
+          });
+
+          return { tracks: traversingTracks };
+        }
       }
 
       const trackRows = await prisma.patrolTrack.findMany({

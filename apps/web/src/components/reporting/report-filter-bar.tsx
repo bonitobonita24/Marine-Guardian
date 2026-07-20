@@ -118,11 +118,39 @@ export function ReportFilterBar({
     }
     return allZones;
   }, [allZones, municipalityId, province, municipalities.data]);
-  // While the zones query is still loading we don't yet know whether the
-  // selected municipality has zones, so treat "loading" as "not yet decided"
-  // and keep the control visible rather than prematurely hiding it.
+  // Does the CURRENT scope actually have child boundaries to fold in? Only
+  // decidable once the zones query has resolved — until then we deliberately
+  // report false so the "Include child boundaries" switch stays HIDDEN rather
+  // than flashing in and then out when the data lands (chosen over rendering
+  // it disabled: a control that appears then vanishes is more jarring than one
+  // that simply arrives a beat late, and this panel already mounts collapsed).
+  // (`isLoading` / `includeChildren` are strict booleans, so they are used
+  // directly — the repo lints `=== true` / `=== false` on a boolean as an
+  // unnecessary literal compare. strict-boolean-expressions is still honoured:
+  // every non-boolean below is compared explicitly, e.g. `visibleZones.length > 0`.)
+  const scopeHasChildBoundaries =
+    !protectedZones.isLoading && visibleZones.length > 0;
+
+  // Rule 3(c) — never a dead toggle. The switch renders only when a scope is
+  // selected (a specific municipality OR a province rollup) AND that scope
+  // provably has child boundaries. In dev data 14 of 16 municipalities have
+  // zero child zones, so without this guard ~87.5% of municipality selections
+  // showed a live switch that folded in nothing.
+  const showIncludeChildrenToggle =
+    (municipalityId !== null || province !== null) && scopeHasChildBoundaries;
+
+  // Rule 3(b) — at a SPECIFIC municipality the MPA/zone dropdown is gated on
+  // the "Include child boundaries" toggle being ON (you opt into the children
+  // before you can narrow to one of them). The province-rollup and
+  // all-municipality tiers are unchanged from 2026-07-12 (they fixed a real
+  // owner report about an unreachable Occidental-Mindoro zone): while the
+  // zones query is still loading we don't yet know whether the scope has
+  // zones, so "loading" stays "not yet decided" and the control remains
+  // visible rather than prematurely hiding.
   const showZoneFilter =
-    municipalityId === null || protectedZones.isLoading || visibleZones.length > 0;
+    municipalityId === null
+      ? true
+      : includeChildren && scopeHasChildBoundaries;
 
   // Whenever the municipality changes (or the zone list narrows out from
   // under the current selection) a stale protectedZoneId must not silently
@@ -132,14 +160,27 @@ export function ReportFilterBar({
   // query hasn't resolved yet, and on `protectedZoneId !== null` /
   // `stillValid` so this never fires (and therefore never loops) once the
   // selection is already valid or already "all".
+  // Extended (Rule 3(b)): switching "Include child boundaries" OFF while a
+  // municipality is selected hides the zone dropdown, so the selection must be
+  // dropped too — otherwise an invisible zone filter keeps narrowing the whole
+  // report. Handled inside this same effect rather than a competing one so
+  // there is exactly one owner of the stale-selection reset.
   useEffect(() => {
     if (protectedZones.isLoading) return;
     if (protectedZoneId === null) return;
+    const gatedOff = municipalityId !== null && !includeChildren;
     const stillValid = visibleZones.some((z) => z.id === protectedZoneId);
-    if (!stillValid) {
+    if (gatedOff || !stillValid) {
       setProtectedZoneId(null);
     }
-  }, [protectedZoneId, protectedZones.isLoading, visibleZones, setProtectedZoneId]);
+  }, [
+    protectedZoneId,
+    protectedZones.isLoading,
+    visibleZones,
+    municipalityId,
+    includeChildren,
+    setProtectedZoneId,
+  ]);
 
   // Group the (already canonically-ordered) municipalities by province so the
   // Select shows the owner's province headings (Oriental Mindoro → Occidental
@@ -366,12 +407,15 @@ export function ReportFilterBar({
         </Select>
       </div>
 
-      {/* Include child boundaries (Phase 4B) — only meaningful when a SPECIFIC
-          municipality is selected (province-wide and "all municipalities"
-          scopes have no single parent to fold children into). Cleared
-          automatically by the context whenever the municipality selection
-          is broadened back to "all" or a province rollup is chosen. */}
-      {municipalityId !== null && (
+      {/* Include child boundaries (Phase 4B) — meaningful for a SPECIFIC
+          municipality OR a PROVINCE rollup (the server's resolveChildZoneIds
+          accepts a multi-id array and resolveMunicipalityScope returns every
+          municipality in a province, so a province-scoped report can fold in
+          its MPA zones). Rendered ONLY when the selected scope actually HAS
+          child boundaries (Rule 3(c) — no dead toggle). Cleared automatically
+          by the context whenever the municipality selection is broadened back
+          to "all". */}
+      {showIncludeChildrenToggle && (
         <div className={fieldClass}>
           <Label
             htmlFor="report-include-children"

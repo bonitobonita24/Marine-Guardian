@@ -39,14 +39,19 @@ import {
 } from "@/server/trpc/routers/reportMap";
 import { pointsFromTrackGeojson } from "@/server/trpc/routers/map";
 import {
-  resolveMunicipalityScope,
-  resolveChildZoneIds,
-  buildMunicipalityScopeWhere,
-} from "../reporting/municipality-scope";
+  resolveReportScope,
+  buildScopeWhere,
+  loadScopeGeometries,
+  type ReportScope,
+  type ScopeGeometryMember,
+} from "../reporting/report-scope";
 import {
   clipTrackAcrossMembers,
-  bboxOfGeojson,
+  buildMemberContainment,
+  resolveOriginMemberIds,
+  type MemberContainment,
   type TraversingMember,
+  type TraversingPatrolMeta,
 } from "../reporting/traversing-coverage";
 import {
   buildSingleCountSeries,
@@ -54,7 +59,10 @@ import {
 } from "@/server/trpc/routers/time-series-bucketing";
 import { BLUE_ALLIANCE_DEFAULT_LOGO_DATA_URI } from "@/server/report-map-report/assets/blue-alliance-default-logo";
 import { buildGlobalEventTypeColumns } from "@/server/report-map-report/event-type-grouping";
-import { isPointInAnyGeometry } from "@marine-guardian/shared/lib/municipality-assignment";
+// NOTE: `isPointInAnyGeometry` used to be imported here for the track clip
+// removed on 2026-07-20 (owner decision — see the "DELIBERATELY REMOVED"
+// block below). This module no longer does any point-in-polygon work; that
+// import belongs to `traversing-coverage.ts`, which still needs it.
 import type { HeatLatLng } from "@marine-guardian/shared/lib/heatmap-sample";
 import { isValidMapCoordinate } from "@/lib/map-coordinates";
 
@@ -142,6 +150,8 @@ export interface ReportMapTrackRow {
    *  per-type colored polyline (R1) and the Patrol Tracks Heatmap page's
    *  seaborne/foot point split (R5, 2026-07-06). */
   patrolType: string;
+  /** The patrol's FULL track — never clipped to the report scope (owner
+   *  decision 2026-07-20; see the "DELIBERATELY REMOVED" block below). */
   path: { lat: number; lon: number }[];
 }
 
@@ -244,44 +254,42 @@ export function buildPatrolHeatPoints(
   };
 }
 
-/**
- * Clip patrol track path points to a single municipality's own geometry
- * (boundary ∪ water polygon) — fixes a cross-municipality leak (2026-07-06):
- * patrol→municipality attribution (`assignMunicipalityToDominantTrack`,
- * municipality-assignment package) is by DOMINANT track share, so a patrol
- * included in a single-municipality report's filter can still have
- * individual GPS points that physically sit in a NEIGHBORING municipality —
- * those stray points then rendered on the map/heatmap for the wrong town.
+/* ────────────────────────────────────────────────────────────────────────────
+ * ⚠ DELIBERATELY REMOVED — DO NOT RESTORE WITHOUT A NEW OWNER DECISION.
  *
- * Drops any path point that falls outside every geometry in `geometries`,
- * then drops the whole track if fewer than 2 points remain (mirrors the
- * `pts.length < 2` skip already applied when tracks are first built — a
- * single leftover point can't draw a polyline). Feeds BOTH the track
- * polyline map (Patrols page) and, via the same clipped `tracks` array,
- * `buildPatrolHeatPoints` (Patrol Tracks Heatmap page) — one clip step,
- * both consumers covered.
+ * WHAT WAS HERE: `clipTracksToMunicipalityGeometry` (added 2026-07-06 as the
+ * "cross-municipality leak" fix) plus the `TRACK_GEOMETRY_MODE` /
+ * `applyTrackGeometryMode` / `scopeClipGeometries` machinery that selected
+ * between three rendering modes. It dropped every GPS point of an in-scope
+ * patrol that fell outside the scope's polygon union, then dropped any track
+ * left with < 2 points.
  *
- * No-op (returns `tracks` unchanged) when `geometries` is null — the
- * regional / all-municipality report path (`municipalityId` undefined, or a
- * municipality with no recorded geometry) keeps the existing
- * fit-to-data-points behavior with no clipping.
+ * WHY IT IS GONE: owner decision, 2026-07-20 — the printable report DRAWS
+ * WHOLE TRACKS. Selection alone decides which patrols are in scope; once a
+ * patrol is in scope its ENTIRE track is drawn, unclipped. This is what makes
+ * the printable report agree with (a) the interactive map, which the owner
+ * has confirmed correct, and (b) the headline totals, which sum whole-patrol
+ * DB columns (hours / distanceKm) and were never clipped. The clip made the
+ * PDF's pixels disagree with its own numbers: a patrol whose points mostly
+ * sat outside the scope could vanish from the map entirely while still
+ * counting in the totals printed above it.
  *
- * Exported as a pure helper for unit testing (extracted from the loader
- * body, same convention as `buildPatrolHeatPoints`/`buildPatrolTypeTotals`).
- */
-export function clipTracksToMunicipalityGeometry(
-  tracks: ReportMapTrackRow[],
-  geometries: unknown[] | null,
-): ReportMapTrackRow[] {
-  if (geometries === null) return tracks;
-  const clipped: ReportMapTrackRow[] = [];
-  for (const t of tracks) {
-    const path = t.path.filter((pt) => isPointInAnyGeometry(pt, geometries));
-    if (path.length < 2) continue;
-    clipped.push({ ...t, path });
-  }
-  return clipped;
-}
+ * KNOWN, ACCEPTED CONSEQUENCE: this RE-OPENS the 2026-07-06 leak. Patrol →
+ * municipality attribution (`assignMunicipalityToDominantTrack`) is by
+ * DOMINANT track share, so a patrol attributed to municipality A can carry
+ * GPS points physically inside neighbouring municipality B, and those points
+ * will again render on A's report. The owner accepted this explicitly. The
+ * clip was only ever masking the symptom — the real fix is dominant-track
+ * ATTRIBUTION itself, which is deliberately OUT OF SCOPE here. If stray
+ * neighbouring points are reported again, fix attribution; do NOT reinstate
+ * a render-time clip.
+ *
+ * INHERITED BY THE HEATMAP: `buildPatrolHeatPoints` consumes the very same
+ * `tracks` binding the polyline map does (single binding in the loader), so
+ * the heatmap picks up whole tracks automatically — the Patrol Tracks page
+ * and the Patrol Tracks Heatmap page cannot disagree about which geometry
+ * exists.
+ * ──────────────────────────────────────────────────────────────────────── */
 
 export interface PatrolTotals {
   count: number;
@@ -772,10 +780,35 @@ function dayKey(d: Date): string {
  * its COUNT stays with its own `startMunicipalityName` — this dataset never
  * feeds `charts.patrolList.total` or any other count.
  */
+function selectCreditableMembers(
+  members: TraversingMember[],
+  originIds: Set<string>,
+  containment: MemberContainment,
+): TraversingMember[] {
+  const candidates = members.filter((m) => !originIds.has(m.id));
+  const candidateIds = new Set(candidates.map((m) => m.id));
+
+  return candidates.filter((candidate) => {
+    const containers = containment.containedIn.get(candidate.id);
+    if (containers === undefined || containers.size === 0) return true;
+
+    for (const containerId of containers) {
+      if (originIds.has(containerId)) return false;
+    }
+    for (const containerId of containers) {
+      if (!candidateIds.has(containerId)) continue;
+      const reverse = containment.containedIn.get(containerId);
+      const mutual = reverse !== undefined && reverse.has(candidate.id);
+      if (!mutual || containerId < candidate.id) return false;
+    }
+    return true;
+  });
+}
+
 async function buildTraversingPatrols(
   tenantId: string,
   params: { from?: Date | undefined; to?: Date | undefined },
-  memberIds: string[],
+  members: ScopeGeometryMember[],
 ): Promise<TraversingPatrolsData> {
   const initSubtotal = (): TraversingPatrolsSubtotal => ({
     count: 0,
@@ -789,22 +822,39 @@ async function buildTraversingPatrols(
     total: initSubtotal(),
   });
 
-  if (memberIds.length === 0) return emptyResult();
+  if (members.length === 0) return emptyResult();
 
-  const muniRows = await prisma.municipality.findMany({
-    where: { id: { in: memberIds } },
-    select: { id: true, name: true, boundaryGeojson: true, waterGeojson: true },
-  });
-  if (muniRows.length === 0) return emptyResult();
+  // Display names for the credited-boundary column. `loadScopeGeometries`
+  // returns geometry only, so names are resolved here, per member KIND — a
+  // scope member can now be an MPA/other zone, not just a municipality.
+  const municipalityMemberIds = members
+    .filter((m) => m.kind === "municipality")
+    .map((m) => m.id);
+  const zoneMemberIds = members.filter((m) => m.kind === "zone").map((m) => m.id);
 
-  const members: (TraversingMember & { name: string })[] = muniRows.map((m) => ({
-    id: m.id,
-    name: m.name,
-    landGeojson: m.boundaryGeojson,
-    waterGeojson: m.waterGeojson,
-    bbox:
-      bboxOfGeojson(m.waterGeojson ?? m.boundaryGeojson) ?? bboxOfGeojson(m.boundaryGeojson),
-  }));
+  const [muniNameRows, zoneNameRows] = await Promise.all([
+    municipalityMemberIds.length > 0
+      ? prisma.municipality.findMany({
+          where: { id: { in: municipalityMemberIds } },
+          select: { id: true, name: true },
+        })
+      : Promise.resolve([]),
+    zoneMemberIds.length > 0
+      ? prisma.protectedZone.findMany({
+          where: { tenantId, id: { in: zoneMemberIds } },
+          select: { id: true, name: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const nameById = new Map<string, string>();
+  for (const r of muniNameRows) nameById.set(r.id, r.name);
+  for (const r of zoneNameRows) nameById.set(r.id, r.name);
+
+  // Containment relation is track-independent — build it ONCE over the FULL
+  // member set so a child zone nested in its parent municipality is never
+  // credited twice (traversing-coverage.ts de-overlap rules 2 + 3).
+  const containment = buildMemberContainment(members);
 
   const startTime: { gte?: Date; lte?: Date } = {};
   if (params.from !== undefined) startTime.gte = params.from;
@@ -834,6 +884,11 @@ async function buildTraversingPatrols(
           computedDurationHours: true,
           computedDistanceKm: true,
           totalDistanceKm: true,
+          // Origin exclusion at ZONE level: a Patrol has no origin-zone
+          // column, so "did this patrol start inside this MPA?" is answered
+          // in memory from the start point (resolveOriginMemberIds).
+          startLocationLat: true,
+          startLocationLon: true,
           municipality: { select: { name: true } },
         },
       },
@@ -843,19 +898,25 @@ async function buildTraversingPatrols(
   const rows: TraversingPatrolRow[] = [];
   for (const row of trackRows) {
     const startMunicipalityName = row.patrol.municipality?.name ?? "Unattributed";
-    const patrolMeta = {
+    const patrolMeta: TraversingPatrolMeta = {
       originMunicipalityId: row.patrol.municipalityId,
       computedDurationHours: row.patrol.computedDurationHours,
       totalHours: row.patrol.totalHours,
       computedDistanceKm: row.patrol.computedDistanceKm,
       totalDistanceKm: row.patrol.totalDistanceKm,
+      startLat: row.patrol.startLocationLat,
+      startLon: row.patrol.startLocationLon,
     };
 
-    for (const member of members) {
-      // Per-member exclusion via a one-member call: `clipTrackAcrossMembers`
-      // itself skips `member` only when it equals THIS patrol's own origin —
-      // a track originating in member A that also crosses member B still
-      // produces a credited row for B.
+    // Origin + de-overlap are decided ONCE per track over the FULL member
+    // set (a one-member call could not see that a candidate zone is nested
+    // inside this patrol's origin municipality). The surviving members are
+    // pairwise non-nested, so each can then be clipped on its own to produce
+    // its own row without double-counting the subtotal.
+    const originIds = resolveOriginMemberIds(members, patrolMeta);
+    const creditable = selectCreditableMembers(members, originIds, containment);
+
+    for (const member of creditable) {
       const clip = clipTrackAcrossMembers(row.trackGeojson, [member], patrolMeta);
       if (!clip.traversesNonOrigin) continue;
 
@@ -864,7 +925,7 @@ async function buildTraversingPatrols(
         title: row.patrol.title,
         patrolType: row.patrol.patrolType,
         startMunicipalityName,
-        creditedMunicipalityName: member.name,
+        creditedMunicipalityName: nameById.get(member.id) ?? "Unnamed boundary",
         insideKm: clip.insideKm,
         insideHoursEst: clip.insideHoursEst,
       });
@@ -964,21 +1025,30 @@ export async function getReportMapReportData(
     includeTraversing: params.includeTraversing,
   };
 
-  // Resolve the effective municipality scope ONCE: a specific municipalityId
-  // always wins over province; province-only resolves to every municipality
-  // in that province (tenant-scoped); neither set → undefined (no scoping).
-  const municipalityIds = await resolveMunicipalityScope(tenant.id, {
-    municipalityId: params.municipalityId,
-    province: params.province,
-  });
+  // Resolve the report's scope ONCE (2026-07-20 scope/clip divergence fix).
+  //
+  // Every divergence in this file had the same root cause: scope was
+  // re-derived per consumer, so row SELECTION, map FRAMING, track CLIPPING
+  // and the TRAVERSING dataset each saw a different boundary. They now all
+  // read this one object. `resolveReportScope` wraps the exact same
+  // `resolveMunicipalityScope` + `resolveChildZoneIds` calls this block used
+  // to make inline, and applies the owner's smallest-explicit-boundary rule.
+  const scope: ReportScope = await resolveReportScope(tenant.id, filterInput);
 
-  // "Include child boundaries" toggle (Phase 4B): only resolved when the
-  // report is actually municipality-scoped — a regional/all-municipality
-  // report has no municipality set to fold children into.
-  const childZoneIds =
-    params.includeChildren === true && municipalityIds !== undefined
-      ? await resolveChildZoneIds(tenant.id, municipalityIds)
-      : undefined;
+  // The polygons that DEFINE the scope. Zone-level → ZONE members ONLY (never
+  // the parent municipality — that substitution IS the confirmed bug);
+  // municipality/province level with children → municipalities AND child zones.
+  const scopeMembers = await loadScopeGeometries(tenant.id, scope);
+
+  // SELECTION IS UNCHANGED. `buildScopeWhere` reproduces today's clause
+  // exactly: the municipality clause (`municipalityId`, or the `OR` widening
+  // when child zones are folded in) and — independently, on a different key,
+  // so the two AND together — `coveredZones` for an explicitly-selected zone.
+  // `childZoneIds` is `[]` (not `undefined`) when the toggle is off, and
+  // `buildMunicipalityScopeWhere` treats an empty array and `undefined`
+  // identically, so the emitted where-object is byte-for-byte what the
+  // inline code produced.
+  const scopeWhere = buildScopeWhere(scope);
 
   const eventFilter: {
     tenantId: string;
@@ -1002,16 +1072,12 @@ export async function getReportMapReportData(
     if (params.to !== undefined) reportedAt.lte = params.to;
     eventFilter.reportedAt = reportedAt;
   }
-  if (municipalityIds !== undefined) {
-    const scope = buildMunicipalityScopeWhere(municipalityIds, childZoneIds);
-    if ("OR" in scope) {
-      eventFilter.OR = scope.OR;
-    } else {
-      eventFilter.municipalityId = scope.municipalityId;
-    }
+  if (scopeWhere.OR !== undefined) eventFilter.OR = scopeWhere.OR;
+  if (scopeWhere.municipalityId !== undefined) {
+    eventFilter.municipalityId = scopeWhere.municipalityId;
   }
-  if (params.protectedZoneId !== undefined) {
-    eventFilter.coveredZones = { some: { protectedZoneId: params.protectedZoneId } };
+  if (scopeWhere.coveredZones !== undefined) {
+    eventFilter.coveredZones = scopeWhere.coveredZones;
   }
 
   const patrolFilter: {
@@ -1032,16 +1098,12 @@ export async function getReportMapReportData(
     if (params.to !== undefined) startTime.lte = params.to;
     patrolFilter.startTime = startTime;
   }
-  if (municipalityIds !== undefined) {
-    const scope = buildMunicipalityScopeWhere(municipalityIds, childZoneIds);
-    if ("OR" in scope) {
-      patrolFilter.OR = scope.OR;
-    } else {
-      patrolFilter.municipalityId = scope.municipalityId;
-    }
+  if (scopeWhere.OR !== undefined) patrolFilter.OR = scopeWhere.OR;
+  if (scopeWhere.municipalityId !== undefined) {
+    patrolFilter.municipalityId = scopeWhere.municipalityId;
   }
-  if (params.protectedZoneId !== undefined) {
-    patrolFilter.coveredZones = { some: { protectedZoneId: params.protectedZoneId } };
+  if (scopeWhere.coveredZones !== undefined) {
+    patrolFilter.coveredZones = scopeWhere.coveredZones;
   }
 
   // 4. Fetch logos + all chart data + municipality geometry concurrently
@@ -1153,11 +1215,28 @@ export async function getReportMapReportData(
   // the print map centers on the coastline + municipal water instead of a
   // loose, land-inclusive frame. Falls back to the land boundary when a
   // municipality has no waterGeojson recorded.
-  const municipalityBounds: ReportMapBounds | null = municipalityGeometry
-    ? unionGeometryBounds(
-        municipalityGeometry.waterGeojson ?? municipalityGeometry.boundaryGeojson,
-      )
-    : null;
+  //
+  // SCOPE-FRAMED (2026-07-20): the frame is the union of the SCOPE's member
+  // bounds, not `params.municipalityId`'s polygon. A zone-scoped report now
+  // frames on the zone (an Apo Reef report framed on Sablayan was the visible
+  // symptom); a muni+children report frames on muni ∪ children. Falls back to
+  // the legacy single-municipality geometry when the scope produced no member
+  // polygons, so a municipality with geometry but no scope members still frames.
+  const scopeFramingGeometries: unknown[] = scopeMembers.map(
+    (m) => m.waterGeojson ?? m.landGeojson,
+  );
+  const scopeBounds: ReportMapBounds | null =
+    scopeFramingGeometries.length > 0
+      ? unionGeometryBounds(...scopeFramingGeometries)
+      : null;
+  const legacyMunicipalityBounds: ReportMapBounds | null =
+    municipalityGeometry !== null
+      ? unionGeometryBounds(
+          municipalityGeometry.waterGeojson ?? municipalityGeometry.boundaryGeojson,
+        )
+      : null;
+  const municipalityBounds: ReportMapBounds | null =
+    scopeBounds ?? legacyMunicipalityBounds;
 
   // Header municipality line (2026-07-06 header redesign; province rollup
   // added 2026-07-09): the resolved Municipality.name when scoped to one
@@ -1201,11 +1280,28 @@ export async function getReportMapReportData(
   // municipality in a province). A fully regional "All Municipalities"
   // report (neither filter set) leaves `municipalityIds` `undefined`, so
   // this stays `undefined` too and the report-page worker omits the page.
+  //
+  // SCOPE-AWARE (2026-07-20): members are now the SCOPE's boundaries, so a
+  // zone-scoped report computes "Patrols Traversing X" over the ZONE instead
+  // of the whole parent municipality (owner Rule 2 extends traversing down to
+  // MPA zones). Still distance/hours ONLY — this dataset keeps its own
+  // variable, its own payload key and its own page, and never feeds
+  // patrolTotals / patrolBreakdown / patrolList.total.
+  //
+  // ✅ OWNER DECIDED (2026-07-20) — this is no longer an open question:
+  // traversing coverage STAYS on its own page and is NOT folded into the
+  // headline patrolTotals. Reason: the headline totals must stay
+  // reconcilable with the patrol table printed beneath them (both are
+  // whole-patrol DB columns for patrols that STARTED in scope). Adding
+  // traversing time/distance would make the header stop equalling the sum of
+  // the rows under it. Do not "unify" these two numbers.
   const traversingPatrols: TraversingPatrolsData | undefined =
-    params.includeTraversing === true &&
-    municipalityIds !== undefined &&
-    municipalityIds.length > 0
-      ? await buildTraversingPatrols(tenant.id, { from: params.from, to: params.to }, municipalityIds)
+    params.includeTraversing === true && scopeMembers.length > 0
+      ? await buildTraversingPatrols(
+          tenant.id,
+          { from: params.from, to: params.to },
+          scopeMembers,
+        )
       : undefined;
 
   // Partner logo default fallback: the editor form promises "leave empty to
@@ -1337,16 +1433,14 @@ export async function getReportMapReportData(
     });
   }
 
-  // Single-municipality report with geometry on record: clip stray
-  // out-of-municipality track points (dominant-track attribution is by
-  // majority share, not full containment — see
-  // clipTracksToMunicipalityGeometry doc). Regional reports / a
-  // municipality with no geometry keep every point (geometries === null).
-  const municipalityGeometries: unknown[] | null =
-    municipalityGeometry
-      ? [municipalityGeometry.boundaryGeojson, municipalityGeometry.waterGeojson]
-      : null;
-  const tracks = clipTracksToMunicipalityGeometry(rawTracks, municipalityGeometries);
+  // WHOLE TRACKS (owner decision, 2026-07-20). No geometry clip runs here:
+  // scope selection alone decides which patrols are included, and every
+  // included patrol is drawn in full. See the "DELIBERATELY REMOVED" block
+  // above for what was here, why it went, and the accepted consequence.
+  //
+  // ONE array — the polyline map AND the heatmap below both consume this
+  // exact binding, so the two pages can never disagree (D-HEATMAP).
+  const tracks = rawTracks;
 
   const patrolList: PatrolListChartData = {
     key: "patrol_list",

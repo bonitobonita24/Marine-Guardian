@@ -28,11 +28,15 @@ import { SERIOUS_EVENT_PATTERNS } from "@/components/map/eventMarkerStyle";
 import { pointsFromTrackGeojson } from "./map";
 import { buildEventsPatrolsSeries, dayKeyToLabel } from "./time-series-bucketing";
 import {
-  resolveMunicipalityScope,
-  resolveChildZoneIds,
-  buildMunicipalityScopeWhere,
-} from "../../reporting/municipality-scope";
-import { sumTraversingCoverageAcross } from "../../reporting/traversing-coverage";
+  buildScopeWhere,
+  loadScopeGeometries,
+  resolveReportScope,
+  type ReportScope,
+} from "../../reporting/report-scope";
+import {
+  sumTraversingCoverageAcrossMembers,
+  type TraversingWindow,
+} from "../../reporting/traversing-coverage";
 
 const LAW_CATEGORY = "law-enforcement-and-apprehensions";
 const MONITORING_CATEGORY = "monitoring_patrolling_and_surveillance";
@@ -80,15 +84,19 @@ type ReportFilterInput = z.infer<typeof reportFilterInput>;
 
 /**
  * Event where-clause shared by every report aggregation: tenant-scoped, Skylight
- * excluded (markers exclude it too), optional reportedAt range + municipality
- * scope (resolved from either a specific municipalityId or a province rollup
- * via `resolveMunicipalityScope`).
+ * excluded (markers exclude it too), optional reportedAt range + boundary scope.
+ *
+ * The boundary portion now comes from the shared `buildScopeWhere(scope)`
+ * (report-scope.ts) instead of being re-derived here. That helper is
+ * behaviour-identical to the code it replaces: it sets the municipality clause
+ * via the same `buildMunicipalityScopeWhere` and, INDEPENDENTLY on a different
+ * key, `coveredZones` for an explicitly-selected zone — so the two AND
+ * together exactly as before. Non-traversing numbers therefore do not move.
  */
 function eventWhere(
   tenantId: string,
   input: ReportFilterInput,
-  municipalityIds?: string[],
-  childZoneIds?: string[],
+  scope: ReportScope,
 ) {
   const where: {
     tenantId: string;
@@ -106,20 +114,13 @@ function eventWhere(
     NOT: {
       eventType: { display: { contains: "skylight", mode: "insensitive" } },
     },
+    ...buildScopeWhere(scope),
   };
   const reportedAt: { gte?: Date; lte?: Date } = {};
-  if (input.from) reportedAt.gte = input.from;
-  if (input.to) reportedAt.lte = input.to;
+  if (input.from !== undefined) reportedAt.gte = input.from;
+  if (input.to !== undefined) reportedAt.lte = input.to;
   if (reportedAt.gte !== undefined || reportedAt.lte !== undefined) {
     where.reportedAt = reportedAt;
-  }
-  if (municipalityIds !== undefined) {
-    const scope = buildMunicipalityScopeWhere(municipalityIds, childZoneIds);
-    if ("OR" in scope) where.OR = scope.OR;
-    else where.municipalityId = scope.municipalityId;
-  }
-  if (input.protectedZoneId !== undefined) {
-    where.coveredZones = { some: { protectedZoneId: input.protectedZoneId } };
   }
   if (input.terrain !== undefined) {
     where.terrain = input.terrain;
@@ -128,15 +129,18 @@ function eventWhere(
 }
 
 /**
- * Patrol where-clause: non-deleted, non-test, optional startTime + municipality
- * scope (resolved from either a specific municipalityId or a province rollup
- * via `resolveMunicipalityScope`).
+ * Patrol where-clause: non-deleted, non-test, optional startTime + boundary
+ * scope. Same shared `buildScopeWhere(scope)` as `eventWhere` above — see that
+ * function's note on behaviour-identity.
+ *
+ * NOTE (owner Rule 2): this clause is what `totalPatrols` counts, and it is
+ * ATTRIBUTION-based. Traversing NEVER widens it — a patrol is counted only at
+ * the boundary where it STARTED.
  */
 function patrolWhere(
   tenantId: string,
   input: ReportFilterInput,
-  municipalityIds?: string[],
-  childZoneIds?: string[],
+  scope: ReportScope,
 ) {
   const where: {
     tenantId: string;
@@ -150,20 +154,17 @@ function patrolWhere(
     ];
     coveredZones?: { some: { protectedZoneId: string } };
     terrain?: string;
-  } = { tenantId, isDeleted: false, isTestPatrol: false };
+  } = {
+    tenantId,
+    isDeleted: false,
+    isTestPatrol: false,
+    ...buildScopeWhere(scope),
+  };
   const startTime: { gte?: Date; lte?: Date } = {};
-  if (input.from) startTime.gte = input.from;
-  if (input.to) startTime.lte = input.to;
+  if (input.from !== undefined) startTime.gte = input.from;
+  if (input.to !== undefined) startTime.lte = input.to;
   if (startTime.gte !== undefined || startTime.lte !== undefined) {
     where.startTime = startTime;
-  }
-  if (municipalityIds !== undefined) {
-    const scope = buildMunicipalityScopeWhere(municipalityIds, childZoneIds);
-    if ("OR" in scope) where.OR = scope.OR;
-    else where.municipalityId = scope.municipalityId;
-  }
-  if (input.protectedZoneId !== undefined) {
-    where.coveredZones = { some: { protectedZoneId: input.protectedZoneId } };
   }
   if (input.terrain !== undefined) {
     where.terrain = input.terrain;
@@ -252,12 +253,8 @@ export async function buildEventBreakdownWithCoords(
     eventType: { select: { category: true, display: true } },
     municipality: { select: { name: true } },
   } as const;
-  const municipalityIds = await resolveMunicipalityScope(tenantId, input);
-  const childZoneIds =
-    input.includeChildren === true && municipalityIds !== undefined
-      ? await resolveChildZoneIds(tenantId, municipalityIds)
-      : undefined;
-  const where = eventWhere(tenantId, input, municipalityIds, childZoneIds);
+  const scope = await resolveReportScope(tenantId, input);
+  const where = eventWhere(tenantId, input, scope);
   const events = includeEventDetails
     ? await prisma.event.findMany({
         where,
@@ -385,29 +382,28 @@ export const reportMapRouter = router({
    *
    * `totalDistanceKm` / `totalHours` are the attributed patrols' coalesced
    * (computed-preferred, ER-fallback) distance/hours sum. When
-   * `includeTraversing` is true AND a municipality scope is resolved —
-   * either a single `municipalityId` OR a `province` rollup that resolves to
-   * one-or-more member municipalities, see `sumTraversingCoverageAcross`'s
-   * doc — these two totals ALSO fold in the clipped in-boundary
-   * distance/hours of patrols that traverse a scoped municipality without
-   * being attributed to it — owner-locked semantics (2026-07-16): a
-   * traversing patrol's COVERAGE counts toward every scoped municipality it
-   * crosses, but the patrol itself is COUNTED only at its origin.
-   * `totalPatrols` is therefore left untouched by the toggle. For a province
-   * rollup, coverage is summed per-member (a patrol originating in one
-   * member that crosses another member of the same province is still
-   * credited).
+   * `includeTraversing` is true these two totals ALSO fold in the clipped
+   * in-boundary distance/hours of patrols that pass THROUGH the scope without
+   * being attributed to it — owner Rule 2: "all those patrols time and
+   * distances that passes to the selected Province/Municipality boundary **or
+   * to its MPA zones** must be added to the report, except for patrol count
+   * because ... the patrol count must only for the boundary where it started."
+   *
+   * The traversing scope is now the SAME scope as the base totals (via
+   * `resolveReportScope` + `loadScopeGeometries`), at every level:
+   *   - zone selected      → coverage clipped to that ZONE only;
+   *   - municipality/province with includeChildren → members are the
+   *     municipalities ∪ their child zones, de-overlapped by containment;
+   *   - municipality/province otherwise → per-member municipality coverage,
+   *     as before.
+   * `totalPatrols` is left untouched by the toggle at every level.
    */
   summary: matrixProcedure(tenantProcedure, "exports", "view")
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
-      const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
-      const childZoneIds =
-        input.includeChildren === true && municipalityIds !== undefined
-          ? await resolveChildZoneIds(ctx.tenantId, municipalityIds)
-          : undefined;
-      const baseEvent = eventWhere(ctx.tenantId, input, municipalityIds, childZoneIds);
-      const basePatrolWhere = patrolWhere(ctx.tenantId, input, municipalityIds, childZoneIds);
+      const scope = await resolveReportScope(ctx.tenantId, input);
+      const baseEvent = eventWhere(ctx.tenantId, input, scope);
+      const basePatrolWhere = patrolWhere(ctx.tenantId, input, scope);
       const [totalEvents, lawEnforcementEvents, monitoringEvents, totalPatrols, attributedPatrolTotals] =
         await Promise.all([
           prisma.event.count({ where: baseEvent }),
@@ -439,26 +435,43 @@ export const reportMapRouter = router({
         totalHours += p.computedDurationHours ?? p.totalHours ?? 0;
       }
 
-      // Traversing-patrols fold-in — now active at BOTH single-municipality
-      // AND province scope: `municipalityIds` (resolved above by
-      // `resolveMunicipalityScope`) already covers both cases, so the shared
-      // multi-member helper sums per-member coverage across whichever set
-      // is in scope. See reportFilterInput's doc comment.
-      if (
-        input.includeTraversing === true &&
-        municipalityIds !== undefined &&
-        municipalityIds.length > 0
-      ) {
-        const traversingWindow: { from?: Date; to?: Date } = {};
-        if (input.from) traversingWindow.from = input.from;
-        if (input.to) traversingWindow.to = input.to;
-        const traversing = await sumTraversingCoverageAcross(
-          ctx.tenantId,
-          traversingWindow,
-          municipalityIds,
-        );
-        totalDistanceKm += traversing.km;
-        totalHours += traversing.hours;
+      // Traversing-patrols fold-in — computed at the SAME scope as the base
+      // totals above.
+      //
+      // THE BUG THIS FIXES: this used to call the municipality-resolving
+      // `sumTraversingCoverageAcross(tenantId, window, municipalityIds)`,
+      // which never saw `protectedZoneId` / the child-zone set and clipped to
+      // WHOLE municipalities. On a zone-scoped report the tile then summed
+      // (patrols narrowed to the zone) + (traversing coverage over the entire
+      // parent municipality) — two different scopes in one number, over-
+      // reporting by roughly a municipality's worth of coverage.
+      //
+      // `loadScopeGeometries` applies the smallest-explicit-boundary rule:
+      // ZONE members only at zone level, municipalities ∪ child zones when
+      // includeChildren is on. The parent/child overlap is de-overlapped
+      // inside `sumTraversingCoverageAcrossMembers` (containment rule) — do
+      // NOT attempt to de-overlap the member list here. Origin exclusion,
+      // including zone-level origins via Patrol.startLocationLat/Lon, is
+      // likewise handled in that helper's own patrol read.
+      if (scope.includeTraversing) {
+        const members = await loadScopeGeometries(ctx.tenantId, scope);
+        if (members.length > 0) {
+          const traversingWindow: TraversingWindow = {};
+          if (input.from !== undefined) traversingWindow.from = input.from;
+          if (input.to !== undefined) traversingWindow.to = input.to;
+          const traversing = await sumTraversingCoverageAcrossMembers(
+            ctx.tenantId,
+            traversingWindow,
+            members,
+          );
+          // DISTANCE + HOURS ONLY. `totalPatrols` above is a plain
+          // `patrol.count` on the attributed where-clause and is deliberately
+          // NOT touched here (owner Rule 2: "the patrol count must only for
+          // the boundary where it started"). Events are untouched entirely —
+          // `includeTraversing` appears in no event where-clause.
+          totalDistanceKm += traversing.km;
+          totalHours += traversing.hours;
+        }
       }
 
       return {
@@ -478,13 +491,9 @@ export const reportMapRouter = router({
   patrolsInRange: matrixProcedure(tenantProcedure, "exports", "view")
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
-      const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
-      const childZoneIds =
-        input.includeChildren === true && municipalityIds !== undefined
-          ? await resolveChildZoneIds(ctx.tenantId, municipalityIds)
-          : undefined;
+      const scope = await resolveReportScope(ctx.tenantId, input);
       const rows = await prisma.patrol.findMany({
-        where: patrolWhere(ctx.tenantId, input, municipalityIds, childZoneIds),
+        where: patrolWhere(ctx.tenantId, input, scope),
         // Cap raised 300 -> 1200 (owner 2026-07-06: "where can I see the
         // remaining?"). The card is scrollable, so realistic ranges now list
         // every patrol in-card; the "Showing N of M" note only appears past the
@@ -531,13 +540,9 @@ export const reportMapRouter = router({
   eventBreakdown: matrixProcedure(tenantProcedure, "exports", "view")
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
-      const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
-      const childZoneIds =
-        input.includeChildren === true && municipalityIds !== undefined
-          ? await resolveChildZoneIds(ctx.tenantId, municipalityIds)
-          : undefined;
+      const scope = await resolveReportScope(ctx.tenantId, input);
       const events = await prisma.event.findMany({
-        where: eventWhere(ctx.tenantId, input, municipalityIds, childZoneIds),
+        where: eventWhere(ctx.tenantId, input, scope),
         select: { eventType: { select: { category: true, display: true } } },
       });
 
@@ -578,17 +583,8 @@ export const reportMapRouter = router({
   highPriorityEvents: matrixProcedure(tenantProcedure, "exports", "view")
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
-      const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
-      const childZoneIds =
-        input.includeChildren === true && municipalityIds !== undefined
-          ? await resolveChildZoneIds(ctx.tenantId, municipalityIds)
-          : undefined;
-      const { OR: scopeOr, ...baseWhere } = eventWhere(
-        ctx.tenantId,
-        input,
-        municipalityIds,
-        childZoneIds,
-      );
+      const scope = await resolveReportScope(ctx.tenantId, input);
+      const { OR: scopeOr, ...baseWhere } = eventWhere(ctx.tenantId, input, scope);
       const seriousOr = SERIOUS_EVENT_PATTERNS.map((p) => ({
         eventType: {
           display: { contains: p, mode: "insensitive" as const },
@@ -658,13 +654,9 @@ export const reportMapRouter = router({
   allEventPointsInRange: matrixProcedure(tenantProcedure, "exports", "view")
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
-      const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
-      const childZoneIds =
-        input.includeChildren === true && municipalityIds !== undefined
-          ? await resolveChildZoneIds(ctx.tenantId, municipalityIds)
-          : undefined;
+      const scope = await resolveReportScope(ctx.tenantId, input);
       const rows = await prisma.event.findMany({
-        where: eventWhere(ctx.tenantId, input, municipalityIds, childZoneIds),
+        where: eventWhere(ctx.tenantId, input, scope),
         select: {
           id: true,
           title: true,
@@ -698,15 +690,11 @@ export const reportMapRouter = router({
   patrolTrackPointsInRange: matrixProcedure(tenantProcedure, "exports", "view")
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
-      const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
-      const childZoneIds =
-        input.includeChildren === true && municipalityIds !== undefined
-          ? await resolveChildZoneIds(ctx.tenantId, municipalityIds)
-          : undefined;
+      const scope = await resolveReportScope(ctx.tenantId, input);
       const trackRows = await prisma.patrolTrack.findMany({
         where: {
           tenantId: ctx.tenantId,
-          patrol: patrolWhere(ctx.tenantId, input, municipalityIds, childZoneIds),
+          patrol: patrolWhere(ctx.tenantId, input, scope),
         },
         orderBy: { until: "desc" },
         select: {
@@ -747,18 +735,14 @@ export const reportMapRouter = router({
   eventsOverTime: matrixProcedure(tenantProcedure, "exports", "view")
     .input(reportFilterInput)
     .query(async ({ ctx, input }) => {
-      const municipalityIds = await resolveMunicipalityScope(ctx.tenantId, input);
-      const childZoneIds =
-        input.includeChildren === true && municipalityIds !== undefined
-          ? await resolveChildZoneIds(ctx.tenantId, municipalityIds)
-          : undefined;
+      const scope = await resolveReportScope(ctx.tenantId, input);
       const [events, patrols] = await Promise.all([
         prisma.event.findMany({
-          where: eventWhere(ctx.tenantId, input, municipalityIds, childZoneIds),
+          where: eventWhere(ctx.tenantId, input, scope),
           select: { reportedAt: true },
         }),
         prisma.patrol.findMany({
-          where: patrolWhere(ctx.tenantId, input, municipalityIds, childZoneIds),
+          where: patrolWhere(ctx.tenantId, input, scope),
           select: { startTime: true },
         }),
       ]);

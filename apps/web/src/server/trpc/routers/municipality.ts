@@ -58,13 +58,31 @@ export const municipalityRouter = router({
   // Protected zones (MPAs) for the Report Map MPA-scope filter Select. A flat
   // {id, name, parentMunicipalityId} list — the filter narrows events/patrols
   // to a single zone via the EventCoveredZone / PatrolCoveredZone joins.
-  protectedZones: matrixProcedure(tenantProcedure, "patrol-areas", "view").query(async ({ ctx }) => {
-    return prisma.protectedZone.findMany({
-      where: { tenantId: ctx.tenantId },
-      select: { id: true, name: true, slug: true, category: true, parentMunicipalityId: true },
-      orderBy: { name: "asc" },
-    });
-  }),
+  //
+  // `municipalityId` is OPTIONAL: when supplied the parent filter is applied
+  // SERVER-side (authoritative scoping — the client's visibleZones filter stays
+  // as defence in depth). Omitting it keeps the original tenant-wide behaviour
+  // byte-identical, so existing callers are unaffected.
+  protectedZones: matrixProcedure(tenantProcedure, "patrol-areas", "view")
+    .input(
+      z
+        .object({
+          municipalityId: z.string().cuid().optional(),
+        })
+        .strict()
+        .optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      const parentMunicipalityId = input?.municipalityId;
+      return prisma.protectedZone.findMany({
+        where: {
+          tenantId: ctx.tenantId,
+          ...(parentMunicipalityId !== undefined ? { parentMunicipalityId } : {}),
+        },
+        select: { id: true, name: true, slug: true, category: true, parentMunicipalityId: true },
+        orderBy: { name: "asc" },
+      });
+    }),
 
   /**
    * Create a named sub-boundary (ProtectedZone) under a municipality from a

@@ -44,7 +44,6 @@ import {
   buildPatrolHeatPoints,
   buildPatrolTypeTotals,
   capHeatLayerPoints,
-  clipTracksToMunicipalityGeometry,
   decimateHeatPointsByStride,
   getReportMapReportData,
   MAX_HEAT_POINTS_PER_LAYER,
@@ -705,6 +704,10 @@ describe("getReportMapReportData", () => {
     vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
     vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([] as never);
     vi.mocked(prisma.municipality.findUnique).mockResolvedValue(null);
+    // Scope-geometry lookup (2026-07-20 scope/clip fix): the municipality has
+    // no row on record, so the scope resolves to zero member polygons and the
+    // frame falls through to null.
+    vi.mocked(prisma.municipality.findMany).mockResolvedValue([] as never);
     vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
 
     const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
@@ -761,6 +764,41 @@ describe("getReportMapReportData", () => {
         ],
       },
     } as never);
+    // Scope-geometry lookup (2026-07-20 scope/clip fix): framing now unions
+    // the SCOPE's member polygons rather than reading params.municipalityId's
+    // polygon directly. Same geometry, so R10 water-only framing is unchanged.
+    vi.mocked(prisma.municipality.findMany).mockResolvedValue([
+      {
+        id: "muni_a",
+        name: "Puerto Galera",
+        boundaryGeojson: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [121.0, 13.0],
+              [121.2, 13.0],
+              [121.2, 13.2],
+              [121.0, 13.2],
+              [121.0, 13.0],
+            ],
+          ],
+        },
+        waterGeojson: {
+          type: "MultiPolygon",
+          coordinates: [
+            [
+              [
+                [121.0, 12.8],
+                [121.4, 12.8],
+                [121.4, 13.0],
+                [121.0, 13.0],
+                [121.0, 12.8],
+              ],
+            ],
+          ],
+        },
+      },
+    ] as never);
     vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
 
     const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
@@ -807,6 +845,27 @@ describe("getReportMapReportData", () => {
       },
       waterGeojson: null,
     } as never);
+    // Scope-geometry lookup (2026-07-20 scope/clip fix) — same geometry as the
+    // findUnique row, so the boundary fallback behaviour is unchanged.
+    vi.mocked(prisma.municipality.findMany).mockResolvedValue([
+      {
+        id: "muni_a",
+        name: "Puerto Galera",
+        boundaryGeojson: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [121.0, 13.0],
+              [121.2, 13.0],
+              [121.2, 13.2],
+              [121.0, 13.2],
+              [121.0, 13.0],
+            ],
+          ],
+        },
+        waterGeojson: null,
+      },
+    ] as never);
     vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
 
     const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
@@ -888,14 +947,20 @@ describe("getReportMapReportData", () => {
       boundaryGeojson: null,
       waterGeojson: null,
     } as never);
+    vi.mocked(prisma.municipality.findMany).mockResolvedValue([] as never);
     vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
 
     const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
     expect(result).not.toBeNull();
     if (!result) return;
 
-    // municipalityId wins — province lookup (findMany) is never consulted.
-    expect(prisma.municipality.findMany).not.toHaveBeenCalled();
+    // municipalityId wins — the PROVINCE rollup lookup is never consulted.
+    // (`municipality.findMany` itself IS now called, by the scope-geometry
+    // load added with the 2026-07-20 scope/clip fix; what must never happen
+    // is a province-keyed lookup.)
+    for (const call of vi.mocked(prisma.municipality.findMany).mock.calls) {
+      expect(call[0]?.where).not.toHaveProperty("province");
+    }
     expect(
       vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where,
     ).toMatchObject({ municipalityId: "muni_a" });
@@ -934,6 +999,11 @@ describe("getReportMapReportData", () => {
     vi.mocked(prisma.protectedZone.findFirst).mockResolvedValue({
       name: "Apo Reef Park",
     } as never);
+    // Scope-geometry lookup (2026-07-20 scope/clip fix): a ZONE-level scope
+    // loads ZONE members only — the parent municipality is deliberately NOT
+    // queried for geometry, which is the anti-body for the clip-to-parent bug.
+    vi.mocked(prisma.protectedZone.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.municipality.findMany).mockResolvedValue([] as never);
     vi.mocked(getImageBytes).mockResolvedValue(Buffer.from(""));
 
     const result = await getReportMapReportData(TENANT_SLUG, EXPORT_ID);
@@ -1702,145 +1772,20 @@ describe("capHeatLayerPoints", () => {
   });
 });
 
-// ─── clipTracksToMunicipalityGeometry (cross-municipality leak fix, 2026-07-06) ─
+// ─── clipTracksToMunicipalityGeometry — TESTS REMOVED WITH THE FEATURE ────────
 //
-// A simple square polygon standing in for a municipality's boundary/water
-// geometry — PG (Puerto Galera): lat 13.0–13.6, lon 120.85–121.2. Points west
-// of lon 120.85 stand in for the real-world Abra de Ilog leak this fix
-// targets (a patrol attributed to PG by dominant-track share, but with GPS
-// points that physically sit in the neighboring municipality).
-const PG_GEOJSON = {
-  type: "Polygon",
-  coordinates: [
-    [
-      [120.85, 13.0],
-      [121.2, 13.0],
-      [121.2, 13.6],
-      [120.85, 13.6],
-      [120.85, 13.0],
-    ],
-  ],
-};
-
-describe("clipTracksToMunicipalityGeometry", () => {
-  it("passes tracks through unchanged when geometries is null (regional / no-geometry report)", () => {
-    const tracks = [
-      makeTrackRow({
-        patrolId: "p1",
-        path: [
-          { lat: 13.2, lon: 120.7 }, // outside PG_GEOJSON — must survive when geometries is null
-          { lat: 13.2, lon: 121.0 },
-        ],
-      }),
-    ];
-    expect(clipTracksToMunicipalityGeometry(tracks, null)).toEqual(tracks);
-  });
-
-  it("drops points outside the municipality geometry, keeping the rest of the track", () => {
-    const tracks = [
-      makeTrackRow({
-        patrolId: "p1",
-        path: [
-          { lat: 13.2, lon: 120.7 }, // outside — west of the PG boundary (Abra de Ilog side)
-          { lat: 13.2, lon: 121.0 }, // inside
-          { lat: 13.3, lon: 121.05 }, // inside
-        ],
-      }),
-    ];
-    const result = clipTracksToMunicipalityGeometry(tracks, [PG_GEOJSON]);
-    expect(result).toEqual([
-      {
-        patrolId: "p1",
-        label: "p1",
-        patrolType: "seaborne",
-        path: [
-          { lat: 13.2, lon: 121.0 },
-          { lat: 13.3, lon: 121.05 },
-        ],
-      },
-    ]);
-  });
-
-  it("drops a track entirely when clipping leaves fewer than 2 points (mirrors the ADI mis-attributed-patrol case)", () => {
-    // Every point of this track sits outside PG_GEOJSON — the exact shape of
-    // the "ADI foot patrol" bug: a whole track physically in a neighboring
-    // municipality, attributed to this one.
-    const tracks = [
-      makeTrackRow({
-        patrolId: "adi-1",
-        patrolType: "foot",
-        path: [
-          { lat: 13.48, lon: 120.83 },
-          { lat: 13.48, lon: 120.70 },
-        ],
-      }),
-      makeTrackRow({
-        patrolId: "pg-1",
-        patrolType: "seaborne",
-        path: [
-          { lat: 13.2, lon: 121.0 },
-          { lat: 13.3, lon: 121.05 },
-        ],
-      }),
-    ];
-    const result = clipTracksToMunicipalityGeometry(tracks, [PG_GEOJSON]);
-    expect(result).toEqual([
-      {
-        patrolId: "pg-1",
-        label: "pg-1",
-        patrolType: "seaborne",
-        path: [
-          { lat: 13.2, lon: 121.0 },
-          { lat: 13.3, lon: 121.05 },
-        ],
-      },
-    ]);
-  });
-
-  it("checks multiple geometries (boundary ∪ water) — a point inside EITHER is kept", () => {
-    const waterGeojson = {
-      type: "Polygon",
-      coordinates: [
-        [
-          [121.2, 13.0],
-          [121.4, 13.0],
-          [121.4, 13.6],
-          [121.2, 13.6],
-          [121.2, 13.0],
-        ],
-      ],
-    };
-    const tracks = [
-      makeTrackRow({
-        patrolId: "p1",
-        path: [
-          { lat: 13.2, lon: 121.0 }, // inside boundary only
-          { lat: 13.2, lon: 121.3 }, // inside water only
-        ],
-      }),
-    ];
-    const result = clipTracksToMunicipalityGeometry(tracks, [PG_GEOJSON, waterGeojson]);
-    expect(result[0]?.path).toEqual([
-      { lat: 13.2, lon: 121.0 },
-      { lat: 13.2, lon: 121.3 },
-    ]);
-  });
-
-  it("returns an empty array when every track is fully outside the geometry", () => {
-    const tracks = [
-      makeTrackRow({
-        patrolId: "p1",
-        path: [
-          { lat: 13.2, lon: 120.7 },
-          { lat: 13.3, lon: 120.6 },
-        ],
-      }),
-    ];
-    expect(clipTracksToMunicipalityGeometry(tracks, [PG_GEOJSON])).toEqual([]);
-  });
-
-  it("returns an empty array for an empty track list, regardless of geometries", () => {
-    expect(clipTracksToMunicipalityGeometry([], [PG_GEOJSON])).toEqual([]);
-    expect(clipTracksToMunicipalityGeometry([], null)).toEqual([]);
-  });
-});
+// This suite (6 tests) protected the 2026-07-06 cross-municipality leak fix:
+// path points outside the scope polygon were dropped, and tracks left with
+// < 2 points were deleted. The OWNER RETIRED that behaviour on 2026-07-20 —
+// the printable report now draws WHOLE tracks so its pixels agree with the
+// interactive map and with its own headline totals (which sum whole-patrol DB
+// columns and were never clipped).
+//
+// These tests were deleted rather than fixed because the invariant they
+// asserted is the one the owner deliberately reversed — there is no honest
+// way to keep them green. The tradeoff (stray points from a dominant-track
+// mis-attribution can render for a neighbouring town again) is recorded in
+// full at the "DELIBERATELY REMOVED" block in `get-report-map-report-data.ts`.
+// The real fix for that leak is dominant-track ATTRIBUTION, not a render-time
+// clip; if it is ever built, its tests belong with the attribution code, not
+// here.

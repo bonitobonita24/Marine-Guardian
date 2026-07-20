@@ -863,6 +863,11 @@ describe("map.patrolTracks.inRange includeTraversing (province rollup, W6)", () 
         ]);
       }) as unknown as typeof prisma.municipality.findMany,
     );
+    // The origin-attributed half of the traversing result is now selected by
+    // the REAL scope where-clause (a patrol.findMany over `patrolWhere`)
+    // rather than a bare `municipalityIds.includes(origin)`. patrol-1's origin
+    // muni-a is in the province scope, so it comes back attributed.
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([{ id: "patrol-1" }] as any);
     vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([
       {
         trackGeojson: TRAVERSING_CROSSING_TRACK,
@@ -910,6 +915,9 @@ describe("map.patrolTracks.inRange includeTraversing (province rollup, W6)", () 
         ]);
       }) as unknown as typeof prisma.municipality.findMany,
     );
+    // Origin muni-far is outside the province scope, so the scope
+    // where-clause selects nothing — the patrol is not attributed.
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([]);
     vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([
       {
         // Far-away track that never touches A or B, and an origin outside

@@ -140,7 +140,15 @@ describe("ReportFilterProvider / useReportFilter", () => {
     expect(result.current.includeChildren).toBe(false);
   });
 
-  it("setProvince (to a non-null value) clears includeChildren", () => {
+  it("setProvince (to a non-null value) PRESERVES includeChildren", () => {
+    // ⚠ INVERTED INVARIANT (owner decision, 2026-07-20). This test previously
+    // asserted that selecting a province CLEARED includeChildren. The owner
+    // has enabled "Include child boundaries" at province scope, so clearing
+    // it here would silently flip an ON toggle back OFF the moment the user
+    // picks a province. The flag must now survive a province selection.
+    // Broadening back to "all municipalities" (setMunicipalityId(null)) and
+    // resetRange() still clear it — see the sibling tests — because those
+    // really do leave the toggle without a target.
     const { result } = renderHook(() => useReportFilter(), { wrapper });
 
     act(() => {
@@ -151,7 +159,8 @@ describe("ReportFilterProvider / useReportFilter", () => {
     act(() => {
       result.current.setProvince("Palawan");
     });
-    expect(result.current.includeChildren).toBe(false);
+    expect(result.current.includeChildren).toBe(true);
+    expect(result.current.province).toBe("Palawan");
   });
 
   it("setMunicipalityId(null) clears includeChildren", () => {

@@ -42,18 +42,19 @@ export type ReportFilter = {
   /** Active province rollup filter; null = all provinces. */
   province: string | null;
   /**
-   * When a specific municipality is selected, fold in that municipality's
-   * child boundaries (MPAs, hotspots, custom zones) into the scope. Default
-   * false. Meaningless (and always cleared) outside a specific-municipality
-   * selection.
+   * Fold the selected scope's child boundaries (MPAs, hotspots, custom zones)
+   * into the report. Applies to a specific municipality AND to a province
+   * rollup (the server resolves child zones for every municipality in the
+   * province). Default false. Cleared when the scope is broadened back to
+   * "all municipalities" or the filter is reset.
    */
   includeChildren: boolean;
   /**
-   * When a specific municipality is selected, also include patrols that
-   * merely TRAVERSE (pass through, without starting in) that municipality.
-   * Default false. Meaningless (and always cleared) outside a
-   * specific-municipality selection — backend traversing computation is
-   * single-municipality only.
+   * Also include patrols that merely TRAVERSE (pass through, without starting
+   * in) the selected scope — a specific municipality OR a province rollup.
+   * Patrol COUNT never moves: a patrol is counted only where it started.
+   * Default false. Cleared when the scope is broadened back to "all
+   * municipalities" or the filter is reset.
    */
   includeTraversing: boolean;
   /** Active MPA (protected-zone) scope filter; null = all zones. */
@@ -116,14 +117,15 @@ export function ReportFilterProvider({ children }: { children: ReactNode }) {
 
   const setProvince = useCallback((next: string | null) => {
     setProvinceState(next);
-    // A province rollup is mutually exclusive with a specific-municipality
-    // selection (see handleProvinceChange) — the include-children /
-    // include-traversing toggles are only meaningful for a specific
-    // municipality, so clear them here too.
-    if (next !== null) {
-      setIncludeChildrenState(false);
-      setIncludeTraversingState(false);
-    }
+    // NOTE (2026-07-20): selecting a province deliberately does NOT clear
+    // includeChildren or includeTraversing any more. Both are meaningful at
+    // province scope and the server already supports it — resolveChildZoneIds
+    // takes a multi-id array and resolveMunicipalityScope returns every
+    // municipality in the province, and the bar has enabled the traversing
+    // switch for province scope since 2026-07-09. Clearing them here meant
+    // picking a province silently flipped an ON toggle back OFF. Broadening
+    // back to "all municipalities" (setMunicipalityId(null)) and resetRange()
+    // still clear both — those really do leave the toggles without a target.
   }, []);
 
   const setIncludeChildren = useCallback((next: boolean) => {

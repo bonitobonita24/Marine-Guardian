@@ -94,6 +94,23 @@ async function openAndPick(triggerTestId: string, optionText: string) {
   fireEvent.click(option);
 }
 
+/** Turn the "Include child boundaries" switch ON.
+ *
+ *  Rule 3(b) gates the MPA/zone dropdown at a SPECIFIC municipality behind
+ *  this toggle, and Rule 3(c) only renders the toggle once the scope provably
+ *  HAS child boundaries — so a test that wants the zone dropdown must both
+ *  stub at least one in-scope zone and flip this switch first. This is test
+ *  SETUP for the gate, not a relaxation of any assertion. */
+async function enableIncludeChildren() {
+  const toggle = await screen.findByTestId("report-include-children");
+  fireEvent.click(toggle);
+  await waitFor(() => {
+    expect(
+      screen.getByTestId("probe").getAttribute("data-include-children"),
+    ).toBe("true");
+  });
+}
+
 describe("ReportFilterBar", () => {
   it("renders From/To date inputs and a municipality select", () => {
     renderBar();
@@ -218,6 +235,11 @@ describe("ReportFilterBar", () => {
     renderBar();
 
     await openAndPick("report-municipality", "Calapan City"); // m-1
+    // Rule 3(b): at a SPECIFIC municipality the zone dropdown is gated behind
+    // "Include child boundaries" — opt into the children before narrowing to
+    // one of them. Setup-only: the assertion below (which zones are offered)
+    // is unchanged.
+    await enableIncludeChildren();
     await waitFor(() => {
       expect(screen.getByTestId("report-protected-zone")).toBeTruthy();
     });
@@ -271,6 +293,10 @@ describe("ReportFilterBar", () => {
     renderBar();
 
     await openAndPick("report-municipality", "Calapan City"); // m-1
+    // Rule 3(b) gate — setup only (see enableIncludeChildren). The invariant
+    // under test (a stale zone selection resets when the municipality changes)
+    // is asserted unchanged below.
+    await enableIncludeChildren();
     await waitFor(() => {
       expect(screen.getByTestId("report-protected-zone")).toBeTruthy();
     });
@@ -340,6 +366,13 @@ describe("ReportFilterBar", () => {
   });
 
   it("shows the Include child boundaries toggle only once a specific municipality is selected", async () => {
+    // Rule 3(c) — never a dead toggle: the switch only renders when the scope
+    // PROVABLY has child boundaries. The default stub is an empty zone list,
+    // so m-1 needs at least one child zone for this scope to qualify. Setup
+    // only — the visibility invariant asserted below is unchanged.
+    stubs.protectedZones = [
+      { id: "z-1", name: "Zone One", slug: "zone-one", category: "mpa", parentMunicipalityId: "m-1" },
+    ];
     renderBar();
     expect(screen.queryByTestId("report-include-children")).toBeNull();
 
@@ -349,7 +382,22 @@ describe("ReportFilterBar", () => {
     });
   });
 
-  it("hides the Include child boundaries toggle again when a province is selected", async () => {
+  it("keeps the Include child boundaries toggle available when a province with child boundaries is selected", async () => {
+    // ⚠ INVERTED INVARIANT (owner decision, 2026-07-20). This test previously
+    // asserted the toggle was HIDDEN at province scope. That premise is now
+    // wrong: the owner enabled "Include child boundaries" at province scope,
+    // so the toggle must stay AVAILABLE whenever the province provably has
+    // child boundaries. The server already supported it (resolveChildZoneIds
+    // takes a multi-id array; resolveMunicipalityScope expands a province to
+    // all its municipalities) — only the UI was blocking. Accepted
+    // consequence: province-wide totals on existing reports will increase.
+    // Rewritten rather than deleted so the (new) invariant stays protected.
+    stubs.protectedZones = [
+      { id: "z-1", name: "Zone One", slug: "zone-one", category: "mpa", parentMunicipalityId: "m-1" },
+      // z-4 → m-4 (Puerto Princesa, Palawan): gives the Palawan province
+      // rollup a child boundary, so Rule 3(c) qualifies that scope too.
+      { id: "z-4", name: "Zone Four", slug: "zone-four", category: "mpa", parentMunicipalityId: "m-4" },
+    ];
     renderBar();
 
     await openAndPick("report-municipality", "Calapan City"); // m-1
@@ -359,11 +407,31 @@ describe("ReportFilterBar", () => {
 
     await openAndPick("report-province", "Palawan");
     await waitFor(() => {
+      expect(screen.getByTestId("report-include-children")).toBeTruthy();
+    });
+  });
+
+  it("still hides the Include child boundaries toggle for a province with NO child boundaries", async () => {
+    // The Rule 3(c) "never a dead toggle" guard survives the province
+    // enablement above — province scope gets the toggle only when it has
+    // something to fold in.
+    stubs.protectedZones = [
+      { id: "z-1", name: "Zone One", slug: "zone-one", category: "mpa", parentMunicipalityId: "m-1" },
+    ];
+    renderBar();
+
+    await openAndPick("report-province", "Palawan"); // m-4 has no zones
+    await waitFor(() => {
       expect(screen.queryByTestId("report-include-children")).toBeNull();
     });
   });
 
   it("toggling Include child boundaries calls setIncludeChildren and updates the shared context", async () => {
+    // Rule 3(c) setup — the toggle only renders for a scope that has child
+    // boundaries (see the sibling visibility test). Setup only.
+    stubs.protectedZones = [
+      { id: "z-1", name: "Zone One", slug: "zone-one", category: "mpa", parentMunicipalityId: "m-1" },
+    ];
     renderBar();
 
     await openAndPick("report-municipality", "Calapan City"); // m-1

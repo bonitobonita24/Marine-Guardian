@@ -21,8 +21,11 @@ import { prisma } from "@marine-guardian/db";
 import {
   bboxOfGeojson,
   bboxesOverlap,
+  buildMemberContainment,
   clipTrackAcrossMembers,
+  resolveOriginMemberIds,
   sumTraversingCoverageAcross,
+  sumTraversingCoverageAcrossMembers,
   type TraversingMember,
   type TraversingPatrolMeta,
 } from "../traversing-coverage";
@@ -140,6 +143,191 @@ describe("clipTrackAcrossMembers", () => {
   });
 });
 
+// ── Zone members (owner Rule 2 — credit accrues at MPA/zone level too) ──────
+//
+// Two zone shapes, both children of municipality A in the product sense but
+// geometrically opposite, because the double-count bug only fires on one:
+//   zoneInside  — fully CONTAINED in A   (the Calapan City / Harka Piloto shape)
+//   zoneOutside — geometrically DISJOINT from A (the Sablayan / Apo Reef shape)
+
+const zoneInsideSquare = {
+  type: "Polygon",
+  coordinates: [
+    [
+      [0.2, 0.2],
+      [0.8, 0.2],
+      [0.8, 0.8],
+      [0.2, 0.8],
+      [0.2, 0.2],
+    ],
+  ],
+};
+
+// (2,0)-(3,1): outside A's (0,0)-(1,1) box entirely — like Apo Reef sitting
+// west of Sablayan's municipal waters with no shared area.
+const zoneOutsideSquare = {
+  type: "Polygon",
+  coordinates: [
+    [
+      [2, 0],
+      [3, 0],
+      [3, 1],
+      [2, 1],
+      [2, 0],
+    ],
+  ],
+};
+
+/** A zone member: ProtectedZone has boundary_geojson only — waterGeojson is
+ *  null, so the land ∪ water union degrades to boundary-only (correct for an
+ *  MPA, which already IS a water polygon). */
+function zoneMember(id: string, boundary: unknown): TraversingMember {
+  return {
+    id,
+    kind: "zone",
+    landGeojson: boundary,
+    waterGeojson: null,
+    bbox: bboxOfGeojson(boundary),
+  };
+}
+
+const zoneInside = zoneMember("zone-inside", zoneInsideSquare);
+const zoneOutside = zoneMember("zone-outside", zoneOutsideSquare);
+
+// Straight track from (0.1,0.5) to (0.9,0.5) — entirely inside A (0.8 deg of
+// length), and 0.6 deg of that is also inside the contained zone.
+const insideBothTrack = { type: "LineString", coordinates: [[0.1, 0.5], [0.9, 0.5]] };
+
+// Straight track from (0.5,0.5) to (2.5,0.5) — 0.5 deg inside A, then a gap,
+// then 0.5 deg inside the disjoint zone. Total raw length 2.0 deg.
+const throughParentAndOutsideZoneTrack = {
+  type: "LineString",
+  coordinates: [[0.5, 0.5], [2.5, 0.5]],
+};
+
+function metaAt(
+  originId: string | null,
+  startLat: number | null,
+  startLon: number | null,
+): TraversingPatrolMeta {
+  return { ...meta(originId), startLat, startLon };
+}
+
+describe("clipTrackAcrossMembers — zone members (owner Rule 2)", () => {
+  it("OVERLAP: a zone contained in its parent municipality is NOT double-counted", () => {
+    // Track lies wholly inside municipality A, so a single pass credits the
+    // full clean distance (clipFraction = 1 → insideKm = cleanDistanceKm = 10).
+    const single = clipTrackAcrossMembers(insideBothTrack, [memberA], meta("muni-other"));
+    expect(single.insideKm).toBeCloseTo(10, 5);
+
+    // Adding the CONTAINED zone to the member set must not change the number.
+    // A naive per-member sum would add the zone's own clip (0.6/0.8 × 10 =
+    // 7.5) on top, yielding 17.5 for kilometres travelled exactly once.
+    const withZone = clipTrackAcrossMembers(
+      insideBothTrack,
+      [memberA, zoneInside],
+      meta("muni-other"),
+    );
+    expect(withZone.insideKm).toBeCloseTo(10, 5);
+    expect(withZone.insideKm).not.toBeCloseTo(17.5, 1);
+    expect(withZone.insideHoursEst).toBeCloseTo(single.insideHoursEst, 5);
+    expect(withZone.traversesNonOrigin).toBe(true);
+  });
+
+  it("DISJOINT (the Apo Reef shape): parent is the origin, the outside zone still earns its real inside-km", () => {
+    // Origin municipality A contributes nothing (self-exclusion). The zone is
+    // geometrically outside A, so it is NOT dropped as contained — it keeps
+    // its own 0.5-of-2.0 fraction: 0.25 × 10 km = 2.5 km, 0.25 × 4 h = 1 h.
+    // This is the case that was silently returning nothing.
+    const result = clipTrackAcrossMembers(
+      throughParentAndOutsideZoneTrack,
+      [memberA, zoneOutside],
+      meta(memberA.id),
+    );
+
+    expect(result.traversesNonOrigin).toBe(true);
+    expect(result.insideKm).toBeCloseTo(2.5, 5);
+    expect(result.insideHoursEst).toBeCloseTo(1, 5);
+  });
+
+  it("a zone member with waterGeojson null clips against its boundary only and does not throw", () => {
+    const explicitNullWater: TraversingMember = {
+      id: "zone-null-water",
+      kind: "zone",
+      landGeojson: zoneOutsideSquare,
+      waterGeojson: null,
+      bbox: bboxOfGeojson(zoneOutsideSquare),
+    };
+
+    const result = clipTrackAcrossMembers(
+      throughParentAndOutsideZoneTrack,
+      [explicitNullWater],
+      meta("muni-other"),
+    );
+    expect(result.traversesNonOrigin).toBe(true);
+    expect(result.insideKm).toBeCloseTo(2.5, 5);
+  });
+
+  it("a zone containing the patrol's START point earns no credit (count stays where it started)", () => {
+    // Patrol started at (2.5, 0.5) — inside the disjoint zone. There is no
+    // origin-zone column, so this is resolved from the start coordinates.
+    const result = clipTrackAcrossMembers(
+      throughParentAndOutsideZoneTrack,
+      [memberA, zoneOutside],
+      metaAt(memberA.id, 0.5, 2.5),
+    );
+    expect(result.insideKm).toBe(0);
+    expect(result.insideHoursEst).toBe(0);
+    expect(result.traversesNonOrigin).toBe(false);
+  });
+
+  it("null startLat/startLon degrades to municipality-id exclusion only, without crashing", () => {
+    const degraded = clipTrackAcrossMembers(
+      throughParentAndOutsideZoneTrack,
+      [memberA, zoneOutside],
+      metaAt(memberA.id, null, null),
+    );
+    // Zone origin is undetectable without coordinates, so the zone is still
+    // credited — the documented degradation, and no worse than before.
+    expect(degraded.insideKm).toBeCloseTo(2.5, 5);
+    expect(degraded.traversesNonOrigin).toBe(true);
+  });
+
+  it("a zone contained in the ORIGIN municipality contributes nothing (its km is origin km)", () => {
+    const result = clipTrackAcrossMembers(
+      insideBothTrack,
+      [memberA, zoneInside],
+      meta(memberA.id),
+    );
+    expect(result.insideKm).toBe(0);
+    expect(result.traversesNonOrigin).toBe(false);
+  });
+});
+
+describe("buildMemberContainment / resolveOriginMemberIds", () => {
+  it("detects the contained zone and rejects the disjoint one", () => {
+    const relation = buildMemberContainment([memberA, zoneInside, zoneOutside]);
+    expect(relation.containedIn.get("zone-inside")).toEqual(new Set(["muni-a"]));
+    expect(relation.containedIn.get("zone-outside")).toEqual(new Set());
+    expect(relation.containedIn.get("muni-a")).toEqual(new Set());
+  });
+
+  it("origin set = origin municipality ∪ zones containing the start point", () => {
+    const withCoords = resolveOriginMemberIds(
+      [memberA, zoneInside, zoneOutside],
+      metaAt(memberA.id, 0.5, 0.5),
+    );
+    // (0.5, 0.5) is inside both A and the contained zone.
+    expect(withCoords).toEqual(new Set(["muni-a", "zone-inside"]));
+
+    const withoutCoords = resolveOriginMemberIds(
+      [memberA, zoneInside, zoneOutside],
+      metaAt(memberA.id, null, null),
+    );
+    expect(withoutCoords).toEqual(new Set(["muni-a"]));
+  });
+});
+
 describe("bboxOfGeojson / bboxesOverlap", () => {
   it("computes a tight bbox and detects overlap/non-overlap correctly", () => {
     const bboxA = bboxOfGeojson(squareA);
@@ -238,6 +426,43 @@ describe("sumTraversingCoverageAcross", () => {
     vi.mocked(prisma.municipality.findMany).mockResolvedValue([] as never);
 
     const result = await sumTraversingCoverageAcross("tenant-1", {}, ["missing-id"]);
+    expect(result).toEqual({ km: 0, hours: 0 });
+    expect(prisma.patrolTrack.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("sumTraversingCoverageAcrossMembers (pre-resolved members)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("accepts municipality AND zone members without touching prisma.municipality", async () => {
+    vi.mocked(prisma.patrolTrack.findMany).mockResolvedValue([
+      {
+        trackGeojson: throughParentAndOutsideZoneTrack,
+        patrol: {
+          municipalityId: "muni-a", // origin — self-excluded
+          totalHours: null,
+          computedDurationHours: 4,
+          computedDistanceKm: 10,
+          totalDistanceKm: null,
+          startLocationLat: 0.5,
+          startLocationLon: 0.5, // started inside A, NOT inside the zone
+        },
+      },
+    ] as never);
+
+    const result = await sumTraversingCoverageAcrossMembers("tenant-1", {}, [memberA, zoneOutside]);
+
+    // Members are already resolved — no geometry lookup at all.
+    expect(prisma.municipality.findMany).not.toHaveBeenCalled();
+    // Only the disjoint zone is credited: 0.25 × 10 km, 0.25 × 4 h.
+    expect(result.km).toBeCloseTo(2.5, 5);
+    expect(result.hours).toBeCloseTo(1, 5);
+  });
+
+  it("returns zero for an empty member set without querying tracks", async () => {
+    const result = await sumTraversingCoverageAcrossMembers("tenant-1", {}, []);
     expect(result).toEqual({ km: 0, hours: 0 });
     expect(prisma.patrolTrack.findMany).not.toHaveBeenCalled();
   });
