@@ -194,6 +194,9 @@ type Filters = {
   dateFrom:        string; // "YYYY-MM-DD" or ""
   dateTo:          string; // "YYYY-MM-DD" or ""
   includeSkylight: boolean;
+  // Surfaces only events with no municipality assigned — the manual
+  // attribution work queue (see event.ts `unattributedOnly`).
+  unattributedOnly: boolean;
   sort:            SortValue;
 };
 
@@ -205,6 +208,7 @@ const DEFAULT_FILTERS: Filters = {
   dateFrom:        "",
   dateTo:          "",
   includeSkylight: false,
+  unattributedOnly: false,
   sort:            DEFAULT_SORT,
 };
 
@@ -320,6 +324,7 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
     ...(filters.dateFrom !== "" ? { dateFrom: filters.dateFrom } : {}),
     ...(filters.dateTo   !== "" ? { dateTo: endOfDayIso(filters.dateTo) } : {}),
     includeSkylight: filters.includeSkylight,
+    unattributedOnly: filters.unattributedOnly,
     sortBy,
     sortDir,
   };
@@ -585,8 +590,24 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
           </Label>
         </div>
 
+        {/* Unattributed-only toggle — the manual-attribution work queue.
+            Matches the Skylight toggle's Switch pattern rather than adding a
+            municipality dropdown, which does not exist on this page yet. */}
+        <div className="flex items-center gap-2 pl-1">
+          <Switch
+            id="unattributed-only"
+            data-testid="unattributed-only-toggle"
+            checked={filters.unattributedOnly}
+            onCheckedChange={(checked) => { setFilter("unattributedOnly", checked); }}
+            aria-label="Show only events with no municipality assigned"
+          />
+          <Label htmlFor="unattributed-only" className="text-sm font-normal text-muted-foreground">
+            Unattributed only
+          </Label>
+        </div>
+
         {/* Clear filters */}
-        {(filters.state !== "" || filters.category !== "" || filters.typeDisplays.length > 0 || filters.search !== "" || filters.dateFrom !== "" || filters.dateTo !== "" || filters.includeSkylight || filters.sort !== DEFAULT_SORT) && (
+        {(filters.state !== "" || filters.category !== "" || filters.typeDisplays.length > 0 || filters.search !== "" || filters.dateFrom !== "" || filters.dateTo !== "" || filters.includeSkylight || filters.unattributedOnly || filters.sort !== DEFAULT_SORT) && (
           <Button
             variant="ghost"
             size="sm"

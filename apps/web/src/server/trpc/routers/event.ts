@@ -142,6 +142,16 @@ export const eventListFilters = z.object({
   // Skylight/"Marine Entry" opt-in toggle — mirrors map.ts's includeSkylight
   // (SKY-1). Default false preserves the existing unconditional exclusion.
   includeSkylight: z.boolean().default(false),
+  // Unattributed-only — surfaces events whose municipality could not be
+  // derived from geometry (`municipality_id IS NULL`), so a Command Center
+  // officer can find and correct them by hand.
+  //
+  // Automatic municipality attribution is a ONE-TIME cleanup, not an ongoing
+  // process: records geometry cannot attribute STAY unattributed until an
+  // officer fixes them. This filter is the entry point to that workflow —
+  // without it there is no way to enumerate the records needing attention.
+  // Default false preserves existing behaviour exactly.
+  unattributedOnly: z.boolean().default(false),
 });
 
 /**
@@ -279,6 +289,10 @@ async function listViaRawSql(
   }
   if (input.areaName !== undefined) {
     conditions.push(Prisma.sql`e.area_name ILIKE ${`%${input.areaName}%`}`);
+  }
+  // Unattributed-only — mirrors `municipalityId: null` on the Prisma path.
+  if (input.unattributedOnly) {
+    conditions.push(Prisma.sql`e.municipality_id IS NULL`);
   }
   if (dateFromParsed !== undefined) {
     conditions.push(Prisma.sql`e.reported_at >= ${dateFromParsed}`);
@@ -509,6 +523,9 @@ export const eventRouter = router({
           ...(input.areaName !== undefined
             ? { areaName: { contains: input.areaName, mode: "insensitive" } }
             : {}),
+          // Unattributed-only — mirrors `e.municipality_id IS NULL` in
+          // listViaRawSql. Surfaces the manual-attribution work queue.
+          ...(input.unattributedOnly ? { municipalityId: null } : {}),
           // date range on reportedAt (monthly-accomplishment view)
           ...(dateFromParsed !== undefined || dateToParsed !== undefined
             ? {

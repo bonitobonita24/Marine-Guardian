@@ -339,6 +339,75 @@ describe("event.list — typeDisplays subcategory multi-select", () => {
   });
 });
 
+describe("event.list — unattributedOnly filter (manual-attribution work queue)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("restricts to municipalityId: null on the Prisma path", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ unattributedOnly: true });
+
+    const call = vi.mocked(prisma.event.findMany).mock.calls[0];
+    expect(call?.[0]?.where?.municipalityId).toBeNull();
+    expect(call?.[0]?.where?.tenantId).toBe(TENANT_ID);
+  });
+
+  it("emits `e.municipality_id IS NULL` on the raw/search path", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ unattributedOnly: true, search: "vessel" });
+
+    expect(rawSqlText()).toContain("e.municipality_id IS NULL");
+  });
+
+  it("is OFF by default — no municipality predicate on either path", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+    const caller = createCaller(makeCtx());
+    await caller.list({});
+    expect(
+      vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where?.municipalityId,
+    ).toBeUndefined();
+
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+    await caller.list({ search: "vessel" });
+    expect(rawSqlText()).not.toContain("e.municipality_id IS NULL");
+  });
+
+  it("PARITY — honours unattributedOnly identically with and without a search term", async () => {
+    // Path A — no search → Prisma fluent path.
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+    const caller = createCaller(makeCtx());
+    await caller.list({ unattributedOnly: true });
+    expect(vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where?.municipalityId).toBeNull();
+
+    // Path B — same filter, plus a search term → raw SQL path.
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+    await caller.list({ unattributedOnly: true, search: "vessel" });
+    expect(rawSqlText()).toContain("e.municipality_id IS NULL");
+  });
+
+  it("composes with the subcategory filter and municipality sort", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({
+      unattributedOnly: true,
+      typeDisplays: ["Compressor Fishing"],
+      sortBy: "municipality",
+      sortDir: "asc",
+    });
+
+    const sql = rawSqlText();
+    expect(sql).toContain("e.municipality_id IS NULL");
+    expect(sql).toContain("lower(et.display) IN (");
+    expect(sql).toContain("ORDER BY COALESCE(m.name, '') ASC");
+  });
+});
+
 describe("event.list — sorting", () => {
   beforeEach(() => {
     vi.clearAllMocks();
