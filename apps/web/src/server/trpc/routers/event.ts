@@ -116,6 +116,19 @@ export const eventListFilters = z.object({
   // label (exact, case-insensitive) so clicking a breakdown bar lists the events
   // of exactly that event type. Distinct from `category`, which groups types.
   typeDisplay: z.string().max(200).optional(),
+  // Events-list subcategory multi-select. `category` (above) is the PARENT
+  // grouping — a flat EarthRanger `event_types.category` slug such as
+  // "law-enforcement-and-apprehensions". The "subcategories" under it are the
+  // individual event types' `display` values ("Compressor Fishing", "Use of
+  // Prohibited Gears", …). There is NO parent/child table: the hierarchy is
+  // DERIVED (category slug → the displays carrying that slug), so a
+  // subcategory filter is just a set of `et.display` values.
+  //
+  // Distinct from the singular `typeDisplay` above, which stays exactly as-is
+  // for the War Room breakdown drill-down (one bar → one type). When BOTH are
+  // supplied they AND together (intersection), which is the intuitive result.
+  // Capped at 50 to bound the generated IN (…) list.
+  typeDisplays: z.array(z.string().max(200)).max(50).optional(),
   dateFrom: z.string().optional(), // ISO date, inclusive lower bound on reportedAt
   dateTo: z.string().optional(),   // ISO date, inclusive upper bound on reportedAt
   // event-patrol-link — Command Center "Active Events" drilldown: restrict to
@@ -167,34 +180,74 @@ interface RawEventRow {
   eventType_category: string | null;
 }
 
-type ListInput = z.infer<typeof eventListFilters> & {
-  cursor?: string | undefined;
-  limit: number;
-};
+/**
+ * Sort controls for `event.list`. Deliberately NOT part of `eventListFilters`
+ * — ordering is a list-view concern, and /api/exports/events shares that
+ * schema; keeping sort out leaves the export contract untouched.
+ *
+ * Defaults reproduce the historical ordering EXACTLY (`created_at DESC`), so
+ * an un-parameterised call behaves byte-identically to before this change.
+ *
+ *   date         — Event.createdAt. Note this is the SYNC/ingest timestamp,
+ *                  which is what the list has always ordered by and what both
+ *                  paths' keyset pagination is built on. Deliberately not
+ *                  switched to `reportedAt` (which is nullable — nulls would
+ *                  break the keyset tuple comparison).
+ *   municipality — the joined Municipality.name.
+ */
+const eventListSort = z.object({
+  sortBy: z.enum(["date", "municipality"]).default("date"),
+  sortDir: z.enum(["asc", "desc"]).default("desc"),
+});
+
+type ListInput = z.infer<typeof eventListFilters> &
+  z.infer<typeof eventListSort> & {
+    cursor?: string | undefined;
+    limit: number;
+  };
 
 /**
- * pg_trgm fuzzy full-content search path for `event.list`.
+ * Raw-SQL path for `event.list`. Handles TWO cases the Prisma-fluent path
+ * cannot express:
  *
- * Re-implements the exact same tenant scoping, filter set, ordering, and
- * cursor pagination as the Prisma-fluent path above, but as a hand-written
- * $queryRaw — Prisma's fluent API cannot express an ILIKE across a
- * concatenation of scalar text columns AND the eventDetailsJson/notesJson
- * blobs (cast to text). The `search` value is ALWAYS passed as a bound
- * parameter via Prisma.sql template interpolation (never string-concatenated
- * into the query), so this is not vulnerable to SQL injection.
+ *   1. pg_trgm fuzzy full-content `search` — Prisma's fluent API cannot
+ *      express an ILIKE across a concatenation of scalar text columns AND the
+ *      eventDetailsJson/notesJson blobs (cast to text).
+ *   2. `sortBy: "municipality"` — see the ordering note below.
  *
- * Pagination note: the Prisma path above uses `cursor: { id }` with
- * `orderBy: { createdAt: "desc" }`, which Prisma resolves internally by
- * locating the cursor row's position in that order. Raw SQL has no such
- * primitive, so this re-implements it as standard keyset pagination:
- * `(created_at, id) < (cursorCreatedAt, cursorId)` ordered by
- * `created_at DESC, id DESC` — semantically equivalent (and more stable
- * under createdAt ties) to the original.
+ * `searchTerm` is therefore OPTIONAL: when undefined the fuzzy predicate is
+ * simply omitted and this behaves as a plain filtered list. Every interpolated
+ * value is ALWAYS passed as a bound parameter via Prisma.sql template
+ * interpolation (never string-concatenated), so this is not vulnerable to SQL
+ * injection.
+ *
+ * ── Why municipality sort routes here UNCONDITIONALLY ──────────────────────
+ * This procedure has two implementations, and a filter/sort added to only one
+ * of them silently changes behaviour the moment a user types in the search
+ * box. Rather than write municipality ordering twice and hope the two stay in
+ * step (Postgres NULL-ordering defaults differ between ASC and DESC, so
+ * "equivalent" hand-written SQL and Prisma `orderBy` are easy to drift), the
+ * router routes ALL municipality-sorted queries through THIS function —
+ * searched or not. One implementation cannot disagree with itself.
+ *
+ * Date sort keeps both paths (the Prisma path is the hot default and its
+ * ordering is trivially equivalent), and the regression test asserts the two
+ * agree.
+ *
+ * ── Pagination ────────────────────────────────────────────────────────────
+ * The Prisma path uses `cursor: { id }` + `orderBy`, which Prisma resolves
+ * internally by locating the cursor row's position in that order. Raw SQL has
+ * no such primitive, so this uses standard keyset pagination on the same
+ * ordering tuple — `(created_at, id)` for date, `(COALESCE(m.name,''), e.id)`
+ * for municipality. The COALESCE sentinel keeps the comparison total (NULL
+ * municipality would otherwise make the tuple comparison return NULL and drop
+ * rows silently); it sorts un-attributed events first in ASC / last in DESC,
+ * deterministically.
  */
-async function listViaSearch(
+async function listViaRawSql(
   tenantId: string,
   input: ListInput,
-  searchTerm: string,
+  searchTerm: string | undefined,
   dateFromParsed: Date | undefined,
   dateToParsed: Date | undefined,
 ) {
@@ -211,6 +264,18 @@ async function listViaSearch(
   }
   if (input.typeDisplay !== undefined) {
     conditions.push(Prisma.sql`et.display ILIKE ${input.typeDisplay}`);
+  }
+  // Subcategory multi-select — case-insensitive membership over et.display.
+  // An EMPTY array is treated as "no filter" (same as undefined) rather than
+  // as "match nothing": the UI clears the selection to [], and a literal
+  // `IN ()` is both a SQL syntax error and a surprising empty list.
+  if (input.typeDisplays !== undefined && input.typeDisplays.length > 0) {
+    conditions.push(
+      Prisma.sql`lower(et.display) IN (${Prisma.join(
+        input.typeDisplays.map((d) => Prisma.sql`${d.toLowerCase()}`),
+        ", ",
+      )})`,
+    );
   }
   if (input.areaName !== undefined) {
     conditions.push(Prisma.sql`e.area_name ILIKE ${`%${input.areaName}%`}`);
@@ -239,6 +304,7 @@ async function listViaSearch(
   // preserving the planner's BitmapOr branch for the common case — while
   // still closing the gap where a search term matches ONLY the event type
   // name and nothing else on the event.
+  if (searchTerm !== undefined) {
   conditions.push(Prisma.sql`(
     (
       coalesce(e.title, '') || ' ' ||
@@ -255,17 +321,37 @@ async function listViaSearch(
     ) ILIKE ${`%${searchTerm}%`}
     OR coalesce(et.display, '') ILIKE ${`%${searchTerm}%`}
   )`);
+  }
 
-  // Keyset cursor — look up the cursor row's createdAt so we can continue the
-  // same createdAt DESC ordering the non-search path uses.
+  // ── Ordering ──────────────────────────────────────────────────────────────
+  // `cmp` is the keyset comparison operator matching the sort direction, and
+  // `dir` the ORDER BY direction. Both are emitted via Prisma.raw from a
+  // CLOSED enum (never from user text) — the Zod enum above is what makes that
+  // safe; do not widen it to a free-form string.
+  const sortingByMunicipality = input.sortBy === "municipality";
+  const ascending = input.sortDir === "asc";
+  const dir = Prisma.raw(ascending ? "ASC" : "DESC");
+  const cmp = Prisma.raw(ascending ? ">" : "<");
+  // Sort key expression, reused by both the ORDER BY and the keyset predicate
+  // so they can never disagree.
+  const sortKey = sortingByMunicipality
+    ? Prisma.sql`COALESCE(m.name, '')`
+    : Prisma.sql`e.created_at`;
+
+  // Keyset cursor — look up the cursor row's sort-key value so we can continue
+  // the same ordering. Mirrors what Prisma's `cursor: { id }` resolves
+  // internally on the fluent path.
   if (input.cursor !== undefined) {
     const cursorRow = await prisma.event.findFirst({
       where: { id: input.cursor, tenantId },
-      select: { createdAt: true },
+      select: { createdAt: true, municipality: { select: { name: true } } },
     });
     if (cursorRow) {
+      const cursorKey = sortingByMunicipality
+        ? cursorRow.municipality?.name ?? ""
+        : cursorRow.createdAt;
       conditions.push(
-        Prisma.sql`(e.created_at, e.id) < (${cursorRow.createdAt}, ${input.cursor})`,
+        Prisma.sql`(${sortKey}, e.id) ${cmp} (${cursorKey}, ${input.cursor})`,
       );
     }
   }
@@ -301,9 +387,10 @@ async function listViaSearch(
       et.category                 AS "eventType_category"
     FROM events e
     LEFT JOIN event_types et ON et.id = e.event_type_id
+    LEFT JOIN municipalities m ON m.id = e.municipality_id
     ${input.linkedToActivePatrol === true ? Prisma.sql`JOIN patrols p ON p.id = e.patrol_id` : Prisma.empty}
     WHERE ${whereSql}
-    ORDER BY e.created_at DESC, e.id DESC
+    ORDER BY ${sortKey} ${dir}, e.id ${dir}
     LIMIT ${input.limit + 1}
   `);
 
@@ -349,7 +436,7 @@ async function listViaSearch(
 export const eventRouter = router({
   list: matrixProcedure(tenantProcedure, "events", "view")
     .input(
-      eventListFilters.extend({
+      eventListFilters.merge(eventListSort).extend({
         cursor: z.string().optional(),
         limit: z.number().int().min(1).max(200).default(50),
       })
@@ -358,14 +445,25 @@ export const eventRouter = router({
       const dateFromParsed = input.dateFrom !== undefined ? new Date(input.dateFrom) : undefined;
       const dateToParsed   = input.dateTo   !== undefined ? new Date(input.dateTo)   : undefined;
 
-      // pg_trgm fuzzy full-content search — Prisma's fluent API can't express
-      // an ILIKE across a JSON-cast-to-text + scalar-column concatenation, so
-      // when `search` is supplied we drop to a hand-written $queryRaw that
-      // re-implements the SAME tenant scoping, filters, ordering, and
-      // keyset/cursor pagination as the path below (see listViaSearch).
+      // ⚠ TWO IMPLEMENTATIONS LIVE BELOW. Any filter or sort added to one MUST
+      // be added to the other, or it silently stops working the moment a user
+      // types in the search box. See listViaRawSql's header.
+      //
+      // Route to the raw-SQL path when EITHER:
+      //   • `search` is set — Prisma's fluent API can't express the pg_trgm
+      //     ILIKE across a JSON-cast-to-text + scalar-column concatenation; or
+      //   • sorting by municipality — deliberately given a SINGLE
+      //     implementation so searched and un-searched results cannot drift.
       const trimmedSearch = input.search?.trim();
-      if (trimmedSearch !== undefined && trimmedSearch !== "") {
-        return listViaSearch(ctx.tenantId, input, trimmedSearch, dateFromParsed, dateToParsed);
+      const hasSearch = trimmedSearch !== undefined && trimmedSearch !== "";
+      if (hasSearch || input.sortBy === "municipality") {
+        return listViaRawSql(
+          ctx.tenantId,
+          input,
+          hasSearch ? trimmedSearch : undefined,
+          dateFromParsed,
+          dateToParsed,
+        );
       }
 
       const items = await prisma.event.findMany({
@@ -373,10 +471,22 @@ export const eventRouter = router({
           tenantId: ctx.tenantId,
           ...(input.state    !== undefined ? { state:    input.state    } : {}),
           ...(input.priority !== undefined ? { priority: input.priority } : {}),
-          // category / typeDisplay filters — both target the joined eventType
-          // relation, so merge them into a single nested `eventType` filter to
-          // avoid one key overwriting the other when both are supplied.
-          ...(input.category !== undefined || input.typeDisplay !== undefined
+          // category / typeDisplay / typeDisplays filters — ALL THREE target
+          // the joined eventType relation, so they merge into a SINGLE nested
+          // `eventType` filter. Separate spreads would each emit an
+          // `eventType` key and the last one would silently win.
+          //
+          // `typeDisplays` (subcategory multi-select) is expressed as an OR of
+          // case-insensitive equals rather than `{ in: [...] }`: Prisma's
+          // `mode: "insensitive"` is documented for equals/contains/startsWith/
+          // endsWith, and relying on it applying to `in` would be a guess. The
+          // OR form is unambiguously equivalent to the raw path's
+          // `lower(et.display) IN (…)`. It nests under AND so it composes with
+          // a singular `typeDisplay` instead of colliding on the same key.
+          // An empty array means "no filter", matching the raw path.
+          ...(input.category !== undefined ||
+          input.typeDisplay !== undefined ||
+          (input.typeDisplays !== undefined && input.typeDisplays.length > 0)
             ? {
                 eventType: {
                   ...(input.category !== undefined
@@ -384,6 +494,13 @@ export const eventRouter = router({
                     : {}),
                   ...(input.typeDisplay !== undefined
                     ? { display: { equals: input.typeDisplay, mode: "insensitive" } }
+                    : {}),
+                  ...(input.typeDisplays !== undefined && input.typeDisplays.length > 0
+                    ? {
+                        OR: input.typeDisplays.map((d) => ({
+                          display: { equals: d, mode: "insensitive" as const },
+                        })),
+                      }
                     : {}),
                 },
               }
@@ -418,7 +535,12 @@ export const eventRouter = router({
         },
         take: input.limit + 1,
         ...(input.cursor !== undefined ? { cursor: { id: input.cursor } } : {}),
-        orderBy: { createdAt: "desc" },
+        // Only the date sort reaches here — municipality sort is routed to
+        // listViaRawSql above so it has a single implementation. `id` is the
+        // tie-breaker, matching the raw path's `(created_at, id)` ordering.
+        // Default (desc) reproduces the historical `orderBy: { createdAt:
+        // "desc" }` exactly.
+        orderBy: [{ createdAt: input.sortDir }, { id: input.sortDir }],
         include: { eventType: { select: { display: true, category: true } } },
       });
       let nextCursor: string | undefined;

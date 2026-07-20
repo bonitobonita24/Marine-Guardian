@@ -240,6 +240,287 @@ describe("event.list — typeDisplay filter (War Room breakdown drill-down T5b)"
   });
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Subcategory multi-select + sorting.
+//
+// ⚠ `event.list` has TWO implementations — the Prisma-fluent path and the
+// hand-written $queryRaw (listViaRawSql) used whenever `search` is non-empty.
+// A filter or sort wired into only one of them silently stops working the
+// moment a user types in the search box. The "two-path parity" block at the
+// bottom is the regression guard for exactly that.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Composed SQL text of the Nth $queryRaw call (FakeSql — see file header). */
+function rawSqlText(callIndex = 0): string {
+  const call = vi.mocked(prisma.$queryRaw).mock.calls[callIndex];
+  return (call?.[0] as unknown as { text: string }).text;
+}
+
+/** Bound parameter values of the Nth $queryRaw call. */
+function rawSqlValues(callIndex = 0): unknown[] {
+  const call = vi.mocked(prisma.$queryRaw).mock.calls[callIndex];
+  return (call?.[0] as unknown as { values: unknown[] }).values;
+}
+
+describe("event.list — typeDisplays subcategory multi-select", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("narrows to the selected subcategories as an OR of case-insensitive equals (Prisma path)", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ typeDisplays: ["Compressor Fishing", "Use of Prohibited Gears"] });
+
+    const call = vi.mocked(prisma.event.findMany).mock.calls[0];
+    expect(call?.[0]?.where?.eventType).toEqual({
+      OR: [
+        { display: { equals: "Compressor Fishing", mode: "insensitive" } },
+        { display: { equals: "Use of Prohibited Gears", mode: "insensitive" } },
+      ],
+    });
+    expect(call?.[0]?.where?.tenantId).toBe(TENANT_ID);
+  });
+
+  it("merges with category AND singular typeDisplay into ONE eventType filter (no key clobbering)", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({
+      category: "law-enforcement-and-apprehensions",
+      typeDisplay: "Others",
+      typeDisplays: ["Compressor Fishing"],
+    });
+
+    // All three must survive — an earlier draft emitted two `eventType` keys
+    // and the second silently overwrote the first.
+    const call = vi.mocked(prisma.event.findMany).mock.calls[0];
+    expect(call?.[0]?.where?.eventType).toEqual({
+      category: { equals: "law-enforcement-and-apprehensions", mode: "insensitive" },
+      display: { equals: "Others", mode: "insensitive" },
+      OR: [{ display: { equals: "Compressor Fishing", mode: "insensitive" } }],
+    });
+  });
+
+  it("treats an EMPTY typeDisplays array as no filter (not as match-nothing)", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ typeDisplays: [] });
+
+    const call = vi.mocked(prisma.event.findMany).mock.calls[0];
+    expect(call?.[0]?.where?.eventType).toBeUndefined();
+  });
+
+  it("filters by lower(et.display) IN (…) with lowercased bound params (raw/search path)", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({
+      search: "vessel",
+      typeDisplays: ["Compressor Fishing", "Use of Prohibited Gears"],
+    });
+
+    expect(rawSqlText()).toContain("lower(et.display) IN (");
+    // Values are lowercased so the IN comparison is case-insensitive, matching
+    // the Prisma path's `mode: "insensitive"`.
+    expect(rawSqlValues()).toContain("compressor fishing");
+    expect(rawSqlValues()).toContain("use of prohibited gears");
+  });
+
+  it("omits the IN predicate entirely for an empty array on the raw path", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ search: "vessel", typeDisplays: [] });
+
+    expect(rawSqlText()).not.toContain("lower(et.display) IN (");
+  });
+});
+
+describe("event.list — sorting", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("defaults to date DESC — unchanged historical ordering", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({});
+
+    const call = vi.mocked(prisma.event.findMany).mock.calls[0];
+    expect(call?.[0]?.orderBy).toEqual([{ createdAt: "desc" }, { id: "desc" }]);
+    // Default sort must NOT divert to the raw path.
+    expect(vi.mocked(prisma.$queryRaw)).not.toHaveBeenCalled();
+  });
+
+  it("sorts by date ASC when requested", async () => {
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ sortBy: "date", sortDir: "asc" });
+
+    const call = vi.mocked(prisma.event.findMany).mock.calls[0];
+    expect(call?.[0]?.orderBy).toEqual([{ createdAt: "asc" }, { id: "asc" }]);
+  });
+
+  it("routes municipality sort to the raw path even with NO search term", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ sortBy: "municipality", sortDir: "asc" });
+
+    // Single implementation by construction — the Prisma path is not used.
+    expect(vi.mocked(prisma.event.findMany)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.$queryRaw)).toHaveBeenCalledTimes(1);
+
+    const sql = rawSqlText();
+    expect(sql).toContain("LEFT JOIN municipalities m ON m.id = e.municipality_id");
+    expect(sql).toContain("ORDER BY COALESCE(m.name, '') ASC, e.id ASC");
+    // No search term supplied → the pg_trgm fuzzy predicate must be absent.
+    // (Asserted via the JSON-blob concat that is unique to it — a bare "ILIKE"
+    // check would false-positive on the Skylight `NOT ILIKE` exclusion, which
+    // is always present.)
+    expect(sql).not.toContain("e.event_details_json::text");
+  });
+
+  it("sorts municipality DESC when requested", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ sortBy: "municipality", sortDir: "desc" });
+
+    expect(rawSqlText()).toContain("ORDER BY COALESCE(m.name, '') DESC, e.id DESC");
+  });
+
+  it("orders the raw path by created_at when sorting by date with a search term", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ search: "vessel", sortBy: "date", sortDir: "desc" });
+
+    expect(rawSqlText()).toContain("ORDER BY e.created_at DESC, e.id DESC");
+  });
+
+  it("keysets the cursor on the municipality sort key, not created_at", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+    vi.mocked(prisma.event.findFirst).mockResolvedValue({
+      createdAt: new Date("2026-01-01"),
+      municipality: { name: "Baco" },
+    } as unknown as Awaited<ReturnType<typeof prisma.event.findFirst>>);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ sortBy: "municipality", sortDir: "asc", cursor: "ev-42" });
+
+    // Keyset tuple must use the SAME expression as the ORDER BY, or pagination
+    // silently drops or repeats rows.
+    expect(rawSqlText()).toContain("(COALESCE(m.name, ''), e.id) > (");
+    expect(rawSqlValues()).toContain("Baco");
+    expect(rawSqlValues()).toContain("ev-42");
+  });
+
+  it("falls back to an empty-string sort key when the cursor row has no municipality", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+    vi.mocked(prisma.event.findFirst).mockResolvedValue({
+      createdAt: new Date("2026-01-01"),
+      municipality: null,
+    } as unknown as Awaited<ReturnType<typeof prisma.event.findFirst>>);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ sortBy: "municipality", sortDir: "asc", cursor: "ev-42" });
+
+    // COALESCE sentinel keeps the tuple comparison total — a NULL here would
+    // make the predicate NULL and silently drop every remaining row.
+    expect(rawSqlValues()).toContain("");
+  });
+});
+
+describe("event.list — two-path parity (search vs no-search)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("honours the SAME subcategory filter with and without a search term", async () => {
+    const typeDisplays = ["Compressor Fishing", "Threats on Habitat"];
+
+    // Path A — no search → Prisma fluent path.
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+    const caller = createCaller(makeCtx());
+    await caller.list({ typeDisplays });
+
+    const prismaCall = vi.mocked(prisma.event.findMany).mock.calls[0];
+    const prismaOr = (prismaCall?.[0]?.where?.eventType as { OR: { display: { equals: string } }[] }).OR;
+    const prismaSelected = prismaOr.map((c) => c.display.equals).sort();
+
+    // Path B — same filter, plus a search term → raw SQL path.
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+    await caller.list({ typeDisplays, search: "vessel" });
+
+    const rawSelected = rawSqlValues()
+      .filter((v): v is string => typeof v === "string" && typeDisplays.some((d) => d.toLowerCase() === v))
+      .sort();
+
+    // Both paths must restrict to the same set of subcategories.
+    expect(prismaSelected).toEqual(typeDisplays.slice().sort());
+    expect(rawSelected).toEqual(typeDisplays.map((d) => d.toLowerCase()).sort());
+  });
+
+  it("honours the SAME date sort direction with and without a search term", async () => {
+    // Path A — no search.
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+    const caller = createCaller(makeCtx());
+    await caller.list({ sortBy: "date", sortDir: "asc" });
+    expect(vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.orderBy).toEqual([
+      { createdAt: "asc" },
+      { id: "asc" },
+    ]);
+
+    // Path B — same sort, plus a search term.
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+    await caller.list({ sortBy: "date", sortDir: "asc", search: "vessel" });
+    expect(rawSqlText()).toContain("ORDER BY e.created_at ASC, e.id ASC");
+  });
+
+  it("keeps every pre-existing filter working on both paths alongside the new ones", async () => {
+    const common = {
+      state: "active" as const,
+      category: "law-enforcement-and-apprehensions",
+      typeDisplays: ["Compressor Fishing"],
+      dateFrom: "2026-01-01",
+      dateTo: "2026-06-30",
+      includeSkylight: false,
+      sortBy: "date" as const,
+      sortDir: "desc" as const,
+    };
+
+    // Path A — no search.
+    vi.mocked(prisma.event.findMany).mockResolvedValue([]);
+    const caller = createCaller(makeCtx());
+    await caller.list(common);
+
+    const where = vi.mocked(prisma.event.findMany).mock.calls[0]?.[0]?.where;
+    expect(where?.state).toBe("active");
+    expect(where?.reportedAt).toBeDefined();
+    // Skylight stays excluded by default.
+    expect(where?.NOT).toBeDefined();
+
+    // Path B — identical filters plus a search term.
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+    await caller.list({ ...common, search: "vessel" });
+
+    const sql = rawSqlText();
+    expect(sql).toContain('e.state = ');
+    expect(sql).toContain("et.category ILIKE");
+    expect(sql).toContain("lower(et.display) IN (");
+    expect(sql).toContain("e.reported_at >=");
+    expect(sql).toContain("e.reported_at <=");
+    expect(sql).toContain("NOT ILIKE '%skylight%'");
+    expect(sql).toContain("e.tenant_id = ");
+  });
+});
+
 describe("event.update", () => {
   const existingEvent = {
     id: "ev-1",
@@ -1150,14 +1431,17 @@ describe("event.list — cursor pagination (M3)", () => {
     );
   });
 
-  it("orders by createdAt desc (newest-first)", async () => {
+  it("orders by createdAt desc (newest-first), with id as tie-breaker", async () => {
     vi.mocked(prisma.event.findMany).mockResolvedValue([] as never);
 
     const caller = createCaller(makeCtx());
     await caller.list({ limit: 50 });
 
+    // Sorting made the ordering explicit: the `id` tie-breaker was added so
+    // this path matches the raw path's `(created_at, id)` keyset ordering.
+    // Newest-first default is unchanged.
     expect(vi.mocked(prisma.event.findMany)).toHaveBeenCalledWith(
-      expect.objectContaining({ orderBy: { createdAt: "desc" } })
+      expect.objectContaining({ orderBy: [{ createdAt: "desc" }, { id: "desc" }] })
     );
   });
 });
