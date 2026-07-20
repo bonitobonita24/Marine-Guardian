@@ -4,6 +4,11 @@
 // 2026-07-20). Guards the behaviour contract: both charts hidden on load so
 // they never block the map, always-visible toggles for discoverability, and
 // fully independent show/hide per chart.
+//
+// Follow-up 2026-07-20: the chevron/aria-expanded expanders were replaced with
+// shadcn/ui <Switch> on/off controls, so these assertions now target
+// role="switch" + aria-checked and the chart label as the switch's accessible
+// name (associated via <Label htmlFor>, not merely adjacent).
 
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
@@ -31,6 +36,11 @@ function renderPanels() {
   return render(<MapChartOverlayPanels items={items} />);
 }
 
+/** The on/off switch for a chart, found by its accessible name. */
+function switchFor(name: string): HTMLElement {
+  return screen.getByRole("switch", { name });
+}
+
 describe("MapChartOverlayPanels", () => {
   afterEach(() => {
     cleanup();
@@ -44,87 +54,102 @@ describe("MapChartOverlayPanels", () => {
     expect(screen.queryByTestId("map-chart-panel-region-coverage")).toBeNull();
   });
 
-  it("keeps both toggles visible even while every chart is hidden", () => {
+  it("keeps both switches visible even while every chart is hidden", () => {
     renderPanels();
-    expect(
-      screen.getByTestId("map-chart-toggle-events-over-time"),
-    ).toBeTruthy();
-    expect(screen.getByTestId("map-chart-toggle-region-coverage")).toBeTruthy();
+    expect(switchFor("Events vs Patrols")).toBeTruthy();
+    expect(switchFor("Region Coverage")).toBeTruthy();
   });
 
-  it("reports collapsed state via aria-expanded on load", () => {
+  it("renders the toggles as switches (not chevron expanders)", () => {
     renderPanels();
-    for (const key of ["events-over-time", "region-coverage"]) {
-      expect(
-        screen.getByTestId(`map-chart-toggle-${key}`).getAttribute("aria-expanded"),
-      ).toBe("false");
+    expect(screen.getAllByRole("switch")).toHaveLength(2);
+    // The old chevron affordance reported state via aria-expanded — gone.
+    for (const el of screen.getAllByRole("switch")) {
+      expect(el.getAttribute("aria-expanded")).toBeNull();
     }
   });
 
-  it("reveals ONLY the Events vs Patrols chart when its toggle is clicked", () => {
+  it("associates each switch with its visible chart label", () => {
     renderPanels();
-    fireEvent.click(screen.getByTestId("map-chart-toggle-events-over-time"));
+    // The <Label htmlFor> targets the switch's own id — a real association,
+    // not just visual adjacency.
+    const label = screen.getByText("Events vs Patrols");
+    expect(label.getAttribute("for")).toBe(
+      switchFor("Events vs Patrols").getAttribute("id"),
+    );
+  });
+
+  it("reports OFF state via aria-checked on load", () => {
+    renderPanels();
+    for (const name of ["Events vs Patrols", "Region Coverage"]) {
+      expect(switchFor(name).getAttribute("aria-checked")).toBe("false");
+    }
+  });
+
+  it("reveals ONLY the Events vs Patrols chart when its switch is turned on", () => {
+    renderPanels();
+    fireEvent.click(switchFor("Events vs Patrols"));
 
     expect(screen.getByTestId("chart-events")).toBeTruthy();
-    // The other chart stays hidden — the toggles are independent.
+    // The other chart stays hidden — the switches are independent.
     expect(screen.queryByTestId("chart-coverage")).toBeNull();
-    expect(
-      screen
-        .getByTestId("map-chart-toggle-events-over-time")
-        .getAttribute("aria-expanded"),
-    ).toBe("true");
+    expect(switchFor("Events vs Patrols").getAttribute("aria-checked")).toBe(
+      "true",
+    );
   });
 
-  it("reveals ONLY the Region Coverage chart when its toggle is clicked", () => {
+  it("reveals ONLY the Region Coverage chart when its switch is turned on", () => {
     renderPanels();
-    fireEvent.click(screen.getByTestId("map-chart-toggle-region-coverage"));
+    fireEvent.click(switchFor("Region Coverage"));
 
     expect(screen.getByTestId("chart-coverage")).toBeTruthy();
     expect(screen.queryByTestId("chart-events")).toBeNull();
   });
 
-  it("shows BOTH charts when both toggles are clicked", () => {
+  it("shows BOTH charts when both switches are on", () => {
     renderPanels();
-    fireEvent.click(screen.getByTestId("map-chart-toggle-events-over-time"));
-    fireEvent.click(screen.getByTestId("map-chart-toggle-region-coverage"));
+    fireEvent.click(switchFor("Events vs Patrols"));
+    fireEvent.click(switchFor("Region Coverage"));
 
     expect(screen.getByTestId("chart-events")).toBeTruthy();
     expect(screen.getByTestId("chart-coverage")).toBeTruthy();
   });
 
-  it("hides a shown chart again when its toggle is re-clicked", () => {
+  it("hides a shown chart again when its switch is turned back off", () => {
     renderPanels();
-    const toggle = screen.getByTestId("map-chart-toggle-events-over-time");
-    fireEvent.click(toggle);
+    fireEvent.click(switchFor("Events vs Patrols"));
     expect(screen.getByTestId("chart-events")).toBeTruthy();
 
-    fireEvent.click(toggle);
+    fireEvent.click(switchFor("Events vs Patrols"));
     expect(screen.queryByTestId("chart-events")).toBeNull();
-    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(switchFor("Events vs Patrols").getAttribute("aria-checked")).toBe(
+      "false",
+    );
   });
 
-  it("hides a shown chart via the panel's own close button", () => {
+  it("hides a shown chart via the panel's own close button, syncing the switch off", () => {
     renderPanels();
-    fireEvent.click(screen.getByTestId("map-chart-toggle-region-coverage"));
+    fireEvent.click(switchFor("Region Coverage"));
     expect(screen.getByTestId("chart-coverage")).toBeTruthy();
 
     fireEvent.click(screen.getByLabelText("Hide Region Coverage"));
     expect(screen.queryByTestId("chart-coverage")).toBeNull();
+    expect(switchFor("Region Coverage").getAttribute("aria-checked")).toBe(
+      "false",
+    );
   });
 
   it("gives each revealed panel an accessible region name", () => {
     renderPanels();
-    fireEvent.click(screen.getByTestId("map-chart-toggle-events-over-time"));
+    fireEvent.click(switchFor("Events vs Patrols"));
 
     const panel = screen.getByRole("region", {
       name: "Events vs Patrols Over Time",
     });
     expect(panel).toBeTruthy();
     // aria-controls points at the panel that is actually in the DOM.
-    expect(
-      screen
-        .getByTestId("map-chart-toggle-events-over-time")
-        .getAttribute("aria-controls"),
-    ).toBe(panel.getAttribute("id"));
+    expect(switchFor("Events vs Patrols").getAttribute("aria-controls")).toBe(
+      panel.getAttribute("id"),
+    );
   });
 });

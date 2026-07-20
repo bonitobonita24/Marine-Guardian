@@ -335,7 +335,7 @@ function ReportMapInner() {
           controlsPlacement="floating"
           doodleSurface="report-map"
           filterSlot={<ReportFilterBar layout="stacked" />}
-          controlsBelowSlot={
+          topRightPinnedSlot={
             <MapChartOverlayPanels
               items={[
                 {

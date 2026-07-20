@@ -54,19 +54,24 @@ vi.mock("@/components/reporting/report-filter-bar", () => ({
 }));
 
 // InteractiveMap is replaced by a stub that still renders the slots the view
-// passes it — so the overlay wiring (controlsBelowSlot) is exercised for real
-// without booting maplibre in jsdom.
+// passes it — so the overlay wiring (topRightPinnedSlot) is exercised for real
+// without booting maplibre in jsdom. The stub tags each slot so the test can
+// assert the charts go to the RIGHT-hand pinned slot (owner follow-up
+// 2026-07-20 — they used to sit in the left column's controlsBelowSlot).
 vi.mock("@/components/map/InteractiveMap", () => ({
   InteractiveMap: ({
     filterSlot,
-    controlsBelowSlot,
+    topRightPinnedSlot,
+    topRightSlot,
   }: {
     filterSlot?: ReactNode;
-    controlsBelowSlot?: ReactNode;
+    topRightPinnedSlot?: ReactNode;
+    topRightSlot?: ReactNode;
   }) => (
     <div data-testid="interactive-map">
-      {filterSlot}
-      {controlsBelowSlot}
+      <div data-testid="slot-filter">{filterSlot}</div>
+      <div data-testid="slot-top-right-pinned">{topRightPinnedSlot}</div>
+      <div data-testid="slot-top-right">{topRightSlot}</div>
     </div>
   ),
 }));
@@ -136,14 +141,28 @@ describe("Interactive Report Map layout", () => {
     expect(map.contains(overlay)).toBe(true);
   });
 
+  it("mounts the chart overlay in the map's TOP-RIGHT pinned slot", () => {
+    render(<ReportMapView />);
+
+    const overlay = screen.getByTestId("map-chart-overlay");
+    // Right-hand pinned slot — top-aligned with the left "Map controls" card.
+    expect(
+      screen.getByTestId("slot-top-right-pinned").contains(overlay),
+    ).toBe(true);
+    // ...and NOT in the left-hand filter/controls column any more.
+    expect(screen.getByTestId("slot-filter").contains(overlay)).toBe(false);
+  });
+
   it("keeps BOTH trend charts hidden on initial load", () => {
     render(<ReportMapView />);
 
     expect(screen.queryByTestId("chart-events")).toBeNull();
     expect(screen.queryByTestId("chart-coverage")).toBeNull();
-    // ...but their toggles are present, so they stay discoverable.
-    expect(screen.getByTestId("map-chart-toggle-events-over-time")).toBeTruthy();
-    expect(screen.getByTestId("map-chart-toggle-region-coverage")).toBeTruthy();
+    // ...but their on/off switches are present, so they stay discoverable.
+    expect(
+      screen.getByRole("switch", { name: "Events vs Patrols" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("switch", { name: "Region Coverage" })).toBeTruthy();
   });
 
   it("restores the summary row to FOUR tiles at xl (no 5th chart tile)", () => {

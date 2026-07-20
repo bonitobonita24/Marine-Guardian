@@ -22,6 +22,7 @@ import {
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import { MapPolygon } from "./MapPolygon";
+import { MapTopRightColumn } from "./MapTopRightColumn";
 import { MapHeatmap } from "./MapHeatmap";
 import { PatrolSelector } from "./PatrolSelector";
 import { TrackLegend } from "./TrackLegend";
@@ -241,14 +242,19 @@ type InteractiveMapProps = {
   /** Rendered as a floating overlay in the map's upper-RIGHT corner, above the
    *  canvas — symmetric with the floating controls card on the left. The
    *  Report Map passes the selected-patrol detail panel here so it lives
-   *  inside the map container (and survives fullscreen). */
+   *  inside the map container (and survives fullscreen). TRANSIENT: this slot
+   *  is empty until the operator selects a patrol / event type. It stacks
+   *  BELOW `topRightPinnedSlot` in one shared right-hand column (see below),
+   *  so an opening panel never overlaps the pinned content. Width `w-72`. */
   topRightSlot?: ReactNode;
-  /** Rendered directly BELOW the floating "Map controls" card, inside the same
-   *  absolutely-positioned upper-left column — so its contents inherit the
-   *  controls card's exact width (`w-60`) and stay visible regardless of the
-   *  controls card's own collapse state. Only used when
-   *  controlsPlacement="floating". (Report Map: the chart overlay panels.) */
-  controlsBelowSlot?: ReactNode;
+  /** Rendered at the TOP of the same upper-RIGHT column as `topRightSlot`,
+   *  above it (owner request 2026-07-20 — the Report Map's chart panel, which
+   *  is top-aligned with the "Map controls" card on the left, mirroring it at
+   *  `right-3 top-3`). PINNED: always present, unlike the transient slot
+   *  below it. Pinned to `w-60` — the Map controls card's width — so a `w-60`
+   *  pinned panel and a `w-72` transient panel still share a flush right edge
+   *  in the right-anchored column. */
+  topRightPinnedSlot?: ReactNode;
   /** Clicking one of the all-tracks patrol polylines calls this with its
    *  patrolId (Report Map: select that patrol from the map itself). */
   onPatrolTrackClick?: (patrolId: string) => void;
@@ -304,7 +310,7 @@ export function InteractiveMap({
   detailPopup,
   selectedPatrolId: controlledSelectedPatrolId,
   topRightSlot,
-  controlsBelowSlot,
+  topRightPinnedSlot,
   onPatrolTrackClick,
   onBackgroundClick,
   activeSubjectNames,
@@ -847,22 +853,16 @@ export function InteractiveMap({
               +{formatCoverageHours(traversingCoverage.hours)} hrs (est.)
             </div>
           )}
-          {/* Below-controls slot (2026-07-20) — the Report Map's floating chart
-              panels. Inside this column so it inherits the w-60 controls width;
-              min-h-0 so it scrolls rather than spilling past the map. */}
-          {controlsBelowSlot != null && (
-            <div className="mt-2 flex min-h-0 flex-col">{controlsBelowSlot}</div>
-          )}
         </div>
       )}
-      {/* Upper-right floating overlay (Report Map: selected-patrol detail
-          panel). Above the canvas (z-20), clamped to the map's height so a
-          tall panel scrolls instead of spilling past the map. */}
-      {topRightSlot != null && (
-        <div className="absolute right-3 top-3 z-20 max-h-[calc(100%-1.5rem)] w-72 max-w-[calc(100%-1.5rem)] overflow-y-auto">
-          {topRightSlot}
-        </div>
-      )}
+      {/* Upper-right floating column — mirrors the upper-left controls column
+          at `right-3 top-3`. The pinned chart panel and the transient
+          patrol/event-type panels share this ONE stacking column (see
+          MapTopRightColumn for the full collision-resolution rationale). */}
+      <MapTopRightColumn
+        {...(topRightPinnedSlot != null ? { pinned: topRightPinnedSlot } : {})}
+        {...(topRightSlot != null ? { transient: topRightSlot } : {})}
+      />
       <Map
         ref={attachMapRef}
         center={DEFAULT_CENTER}
