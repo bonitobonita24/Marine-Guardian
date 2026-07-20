@@ -243,6 +243,12 @@ type InteractiveMapProps = {
    *  Report Map passes the selected-patrol detail panel here so it lives
    *  inside the map container (and survives fullscreen). */
   topRightSlot?: ReactNode;
+  /** Rendered directly BELOW the floating "Map controls" card, inside the same
+   *  absolutely-positioned upper-left column — so its contents inherit the
+   *  controls card's exact width (`w-60`) and stay visible regardless of the
+   *  controls card's own collapse state. Only used when
+   *  controlsPlacement="floating". (Report Map: the chart overlay panels.) */
+  controlsBelowSlot?: ReactNode;
   /** Clicking one of the all-tracks patrol polylines calls this with its
    *  patrolId (Report Map: select that patrol from the map itself). */
   onPatrolTrackClick?: (patrolId: string) => void;
@@ -298,6 +304,7 @@ export function InteractiveMap({
   detailPopup,
   selectedPatrolId: controlledSelectedPatrolId,
   topRightSlot,
+  controlsBelowSlot,
   onPatrolTrackClick,
   onBackgroundClick,
   activeSubjectNames,
@@ -839,6 +846,12 @@ export function InteractiveMap({
               Traversing coverage: +{traversingCoverage.km.toFixed(1)} km ·{" "}
               +{formatCoverageHours(traversingCoverage.hours)} hrs (est.)
             </div>
+          )}
+          {/* Below-controls slot (2026-07-20) — the Report Map's floating chart
+              panels. Inside this column so it inherits the w-60 controls width;
+              min-h-0 so it scrolls rather than spilling past the map. */}
+          {controlsBelowSlot != null && (
+            <div className="mt-2 flex min-h-0 flex-col">{controlsBelowSlot}</div>
           )}
         </div>
       )}
