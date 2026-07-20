@@ -1,11 +1,31 @@
-# Production promotion — READY (staged 2026-07-21)
+# Production promotion — ✅ COMPLETED 2026-07-21
 
 **Candidate image:** `bonitobonita24/marine-guardian:sha-bb2aa50`
-**Currently on prod:** `sha-a08c700` (app + worker)
+**Previously on prod:** `sha-a08c700` (app + worker)
 **Validated on staging:** yes — full data-first gate green against a fresh copy of production data.
 
-> **Status: NOT PROMOTED.** Everything below is staged for the owner to run.
-> Nothing in this document has been executed against production.
+> **Status: PROMOTED.** Executed 2026-07-21 on the owner's explicit authorization
+> ("push this to staging and to production"). The sequence below ran exactly as written.
+
+## Execution record
+
+| Step | Result |
+|---|---|
+| 1 — Prod DB backup | `/root/mg-prod-backup-pre-bb2aa50-20260720-220820.sql.gz` (27 MB) |
+| Baseline captured | Baco 51 · Dumaran 271 · Roxas 368 · 4603 attributed · both services `sha-a08c700` |
+| 2 — Tag pinned + images pulled | `APP_IMAGE_TAG=sha-bb2aa50`; `.env` backed up to `.env.bak-pre-bb2aa50` |
+| 3 — app + worker stopped | ok — stale writer removed before the constraint landed |
+| 4 — Migrations | exactly the 4 expected applied, no more |
+| 5 — HARD GATE `migrate status` | **"Database schema is up to date!"** |
+| 6 — Pairing check | **0 unpaired patrols · 0 unpaired events** — repair script correctly skipped as a no-op |
+| 7 — app + worker up | both on `sha-bb2aa50` |
+| 8 — Verify | `/api/health` 200 · homepage 307 (tenant-login redirect, expected) · attribution **byte-identical to baseline** · `municipality-assign` jobs completing through the new CHECK constraint |
+
+**Note — one benign log line.** `[export-janitor] orphan sweep failed (non-fatal): The specified
+bucket does not exist`. Expected: `marine-guardian-prod-exports` does not exist yet because no export
+has been rendered on prod since the feature shipped. Both render processors call `assertBucketExists`
+before uploading (`pdf-render.processor.ts:242`, `pptx-render.processor.ts:217`), so the first real
+export creates it. Self-healing — no action required.
 
 ---
 

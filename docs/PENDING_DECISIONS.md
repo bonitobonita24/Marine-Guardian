@@ -15,7 +15,10 @@ PRODUCTION UNTOUCHED — still `sha-a08c700`.** One local unpushed commit: **`d7
 
 ### 🔴 OPEN OWNER DECISIONS — most important first
 
-- [ ] **1. PRODUCTION PROMOTION — staged, rehearsed, green. The owner's call to run.**
+- [x] **1. PRODUCTION PROMOTION — ✅ DONE 2026-07-21.** Owner authorized; `sha-bb2aa50` is live on
+  production. Hard gate green, 0 unpaired rows, attribution byte-identical to baseline,
+  `municipality-assign` writing cleanly through the new CHECK constraint. Execution record in
+  `docs/PROD_PROMOTION_READY.md`. Original staging context below, kept for history:
   Runbook: `docs/PROD_PROMOTION_READY.md`. It was deferred earlier tonight (nothing was on staging, the
   ordering was unrehearsed, the owner was asleep) — **those conditions no longer hold**: staging is
   deployed and verified against prod-shaped data. ⚠ The runbook uses the **rehearsed stop → migrate →
