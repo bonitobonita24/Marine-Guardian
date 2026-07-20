@@ -1351,6 +1351,26 @@ IF user replies "confirmed" (or similar positive):
        work. Reference .ai_prompt/design-principles.md for library-agnostic guidance on
        anything the token table doesn't cover."
 
+  STEP 7b.3 — IF the app has ANY public-facing surface (marketing/landing page, docs, public
+  listings, auth-less pages): draft SEO-aware content structure into docs/DESIGN.md (NEW V32.31).
+    INHERIT-not-REPLACE: this is automatic for public surfaces — no new interview question, no new
+    PRODUCT.md section. Reference: Rule 35 (Master_Prompt.md) + .ai_prompt/seo.md §1.5
+    "Design & content-time SEO." Internal/authed-only screens are skipped (they render
+    noindex,nofollow regardless of content quality — see seo.md §1).
+
+    Append a short "## SEO-Aware Content" section to docs/DESIGN.md for each public screen in the
+    mockup, covering:
+    - The page's single `<h1>` (exactly one, matching the mockup's hero/primary heading).
+    - The `<h2>`/`<h3>` heading hierarchy the mockup's sections imply.
+    - Keyword-informed hero + section copy direction (what a real searcher would type to find this).
+    - Intended `alt` text for each meaningful image/illustration already placed in the mockup.
+    - A note on any hero/above-the-fold asset that needs Core-Web-Vitals-aware sizing (reserved
+      dimensions, priority-loadable) so Phase 4 doesn't have to guess.
+
+    → Tell the user: "Public-facing screens in DESIGN.md now include an SEO-Aware Content note —
+      a single H1, heading hierarchy, keyword-informed copy direction, and alt-text intent, so the
+      page is Google-friendly by design rather than retrofitted at Phase 5. (Rule 35 + seo.md §1.5.)"
+
   STEP 7b.5 — IF DESIGN_AESTHETIC_CHOSEN: Generate docs/tokens.json (DTCG machine sibling):
     → Translate the color palette and layout values from DESIGN.md into a minimal
       DTCG v2025.10 token file. Use the seed template from templates.md §V32.8.

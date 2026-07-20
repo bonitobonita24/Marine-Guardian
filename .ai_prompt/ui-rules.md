@@ -301,6 +301,16 @@ rule's fallback slots (page-footer fine print / an about-settings panel). INHERI
 docs/DESIGN.md may relocate/restyle either mark and it wins. This is a Phase 4 Parts 5-6 output-contract
 + gate-closure item (see phases.md), not a new numbered UI rule.
 
+**SEO Foundation — semantic HTML + per-route metadata (V32.30 — pointer, NOT a new numbered rule; UI
+rules stay 14).** Semantic HTML (proper landmark elements, heading hierarchy, `<nav>`/`<main>`/
+`<article>`) and per-route metadata (title, description, canonical URL, Open Graph + Twitter cards)
+are MANDATORY on every route — adaptive to the public/private split (full SEO on public routes;
+`noindex,nofollow` + sitemap/robots exclusion on private/authed routes). This is ALWAYS-ON,
+constitutional (same posture as Rule 13's WCAG gate), not a PRODUCT.md-gated capability. See **Rule 35**
+(`Master_Prompt.md`) + `.ai_prompt/seo.md` (SEO Foundation, always-on adaptive baseline) for the full
+Next.js App Router primitive checklist. This is a Phase 4 Parts 5-6 output-contract + gate-closure item
+and a Phase 5 validation gate (see phases.md), not a new numbered UI rule.
+
 ---
 
 ## FILE DELIVERY RULES

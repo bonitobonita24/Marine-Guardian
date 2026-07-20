@@ -564,13 +564,658 @@ Telegram vars; credentials live ONLY in `Server-Setups/<Server>/secrets/<app>-<e
 (SOPS+age) — never in the app repo. For gov/LGU PII apps, Telegram is an owner-accepted TEMPORARY
 measure until funded object storage (pair with `.ai_prompt/privacy.md` Rule 33).
 
-> ⚠️ **SCAFFOLD-CODE DELIVERABLE — PENDING (owner-gated).** The Telegram code path — the
-> `StorageAdapter` (S3 **+** Telegram), the `/api/media` proxy route, the `media_objects` migration,
-> and the `STORAGE_BACKEND`/`TELEGRAM_*` env wiring — is **proven in FRMS but NOT yet ported into the
-> framework scaffold deliverables** (`packages/storage/`, Phase-4 templates). Until that port lands, a
-> newly-scaffolded app ships MinIO-only and must adopt the Telegram adapter from FRMS by hand to
-> realize this default. This doc records the DEFAULT DECISION; the deliverable port is a separate,
-> owner-gated framework build (tracked as a follow-up).
+### SCAFFOLD — `packages/storage/` dual-backend package (V32.29 — port of the proven FRMS implementation)
+
+At scaffold time (Phase 3.3 design-system + Phase 4 Part covering `packages/storage/`), emit a
+**dual-backend** storage package — S3/MinIO **and** Telegram behind one `StorageAdapter` interface,
+selected at runtime by `STORAGE_BACKEND`. This ports FRMS's proven, production-verified
+`packages/storage/` (Telegram cutover complete on FRMS dev+staging+prod, 2026-07-16/17) into the
+scaffold so a **newly-generated app ships Telegram-default, not MinIO-only**. Package name:
+`@${app_slug}/storage` (mirrors `@frms/storage`). MinIO/S3 stays fully wired — it is the retained
+fallback (temp/index/scratch + the pre-Telegram dual-read path), never removed.
+
+**`packages/storage/package.json`** — zero extra deps for the Telegram path (Node's global `fetch` /
+`FormData` / `Blob`); only the S3 side needs the AWS SDK:
+```json
+{
+  "name": "@${app_slug}/storage",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client.ts",
+    "./upload": "./src/upload.ts",
+    "./validation": "./src/validation.ts",
+    "./telegram": "./src/telegram.ts",
+    "./adapter": "./src/adapter.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.700.0",
+    "@aws-sdk/s3-request-presigner": "^3.700.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^3.2.6"
+  }
+}
+```
+
+**`src/client.ts`** — the S3/MinIO client (unchanged from the MinIO-only baseline; drives `STORAGE_ENDPOINT`/`STORAGE_REGION`/`STORAGE_ACCESS_KEY`/`STORAGE_SECRET_KEY`/`STORAGE_BUCKET`, `forcePathStyle: true`):
+```typescript
+import { S3Client } from "@aws-sdk/client-s3";
+
+function getRequiredEnv(name: string): string {
+  const value = process.env[name];
+  if (value === undefined || value === "") {
+    throw new Error(`${name} environment variable is required`);
+  }
+  return value;
+}
+
+let client: S3Client | undefined;
+
+export function getStorageClient(): S3Client {
+  if (client === undefined) {
+    client = new S3Client({
+      endpoint: getRequiredEnv("STORAGE_ENDPOINT"),
+      region: process.env["STORAGE_REGION"] ?? "us-east-1",
+      credentials: {
+        accessKeyId: getRequiredEnv("STORAGE_ACCESS_KEY"),
+        secretAccessKey: getRequiredEnv("STORAGE_SECRET_KEY"),
+      },
+      forcePathStyle: true,
+    });
+  }
+  return client;
+}
+
+export function getBucket(): string {
+  return getRequiredEnv("STORAGE_BUCKET");
+}
+```
+
+**`src/validation.ts`** — MIME allow-list + magic-byte sniff + size cap + storage-key generation. Tune
+`ALLOWED_MIME_TYPES` / `MAX_FILE_SIZE_BYTES` / `MAGIC_BYTES` to the app's actual upload types from
+PRODUCT.md (the block below is FRMS's photo/signature/PDF profile — treat as a starting set, not a fixed
+constant):
+```typescript
+import { randomBytes } from "node:crypto";
+import { extname } from "node:path";
+
+const ALLOWED_MIME_TYPES: ReadonlySet<string> = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+]);
+
+const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024; // 15 MB
+
+const MAGIC_BYTES: ReadonlyArray<{ mime: string; bytes: ReadonlyArray<number>; offset: number }> = [
+  { mime: "image/jpeg", bytes: [0xff, 0xd8, 0xff], offset: 0 },
+  { mime: "image/png", bytes: [0x89, 0x50, 0x4e, 0x47], offset: 0 },
+  { mime: "image/webp", bytes: [0x52, 0x49, 0x46, 0x46], offset: 0 },
+  { mime: "application/pdf", bytes: [0x25, 0x50, 0x44, 0x46], offset: 0 },
+];
+
+export function validateMimeType(buffer: Buffer, declaredMime: string): { valid: boolean; detectedMime: string | null } {
+  for (const entry of MAGIC_BYTES) {
+    const match = entry.bytes.every((byte, i) => buffer[entry.offset + i] === byte);
+    if (match) {
+      return {
+        valid: entry.mime === declaredMime && ALLOWED_MIME_TYPES.has(declaredMime),
+        detectedMime: entry.mime,
+      };
+    }
+  }
+  return { valid: false, detectedMime: null };
+}
+
+export function validateFileSize(sizeBytes: number): boolean {
+  return sizeBytes > 0 && sizeBytes <= MAX_FILE_SIZE_BYTES;
+}
+
+export function isAllowedMimeType(mime: string): boolean {
+  return ALLOWED_MIME_TYPES.has(mime);
+}
+
+export function generateStorageKey(tenantId: string, entityType: string, originalFilename: string): string {
+  const ext = extname(originalFilename).toLowerCase();
+  const randomName = randomBytes(16).toString("hex");
+  return `${tenantId}/${entityType}/${randomName}${ext}`;
+}
+
+export function extractTenantFromKey(storageKey: string): string | null {
+  const firstSlash = storageKey.indexOf("/");
+  if (firstSlash === -1) return null;
+  return storageKey.substring(0, firstSlash);
+}
+
+export { ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES };
+```
+
+**`src/upload.ts`** — the S3/MinIO upload primitives (kept verbatim as the `S3Adapter`'s backing impl;
+`UploadResult` carries optional Telegram fields so one return type serves both backends):
+```typescript
+import {
+  PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand,
+} from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { getStorageClient, getBucket } from "./client";
+import { validateMimeType, validateFileSize, generateStorageKey, extractTenantFromKey } from "./validation";
+
+export interface UploadInput {
+  tenantId: string;
+  entityType: string;
+  originalFilename: string;
+  mimeType: string;
+  buffer: Buffer;
+}
+
+export interface UploadResult {
+  key: string;
+  bucket: string;
+  sizeBytes: number;
+  mimeType: string;
+  /** Present only when the upload was served by TelegramAdapter (see adapter.ts). */
+  backend?: "telegram" | "minio" | "s3";
+  telegramFileId?: string;
+  telegramMessageId?: number;
+  telegramChatId?: string;
+}
+
+export async function uploadFile(input: UploadInput): Promise<UploadResult> {
+  if (!validateFileSize(input.buffer.length)) {
+    throw new Error(`File size ${input.buffer.length} bytes exceeds maximum allowed`);
+  }
+  const mimeCheck = validateMimeType(input.buffer, input.mimeType);
+  if (!mimeCheck.valid) {
+    throw new Error(`Invalid file type. Declared: ${input.mimeType}, detected: ${mimeCheck.detectedMime ?? "unknown"}`);
+  }
+  const key = generateStorageKey(input.tenantId, input.entityType, input.originalFilename);
+  const bucket = getBucket();
+  await getStorageClient().send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: input.buffer, ContentType: input.mimeType }));
+  return { key, bucket, sizeBytes: input.buffer.length, mimeType: input.mimeType };
+}
+
+export async function getFileDownloadUrl(key: string, requestingTenantId: string, expiresInSeconds = 3600): Promise<string> {
+  if (extractTenantFromKey(key) !== requestingTenantId) throw new Error("Access denied");
+  const command = new GetObjectCommand({ Bucket: getBucket(), Key: key });
+  return getSignedUrl(getStorageClient(), command, { expiresIn: expiresInSeconds });
+}
+
+export async function deleteFile(key: string, requestingTenantId: string): Promise<void> {
+  if (extractTenantFromKey(key) !== requestingTenantId) throw new Error("Access denied");
+  await getStorageClient().send(new DeleteObjectCommand({ Bucket: getBucket(), Key: key }));
+}
+
+export async function fileExists(key: string, requestingTenantId: string): Promise<boolean> {
+  if (extractTenantFromKey(key) !== requestingTenantId) throw new Error("Access denied");
+  try {
+    await getStorageClient().send(new HeadObjectCommand({ Bucket: getBucket(), Key: key }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+```
+
+**`src/telegram.ts`** — dependency-free Telegram Bot API helpers (Node 22 global `fetch`/`FormData`/`Blob`).
+Bounded retry with exponential backoff honouring Telegram's `retry_after` hint on HTTP 429, and a
+network-error retry (safe — the send never reached Telegram, so a retry cannot double-upload). Emit
+verbatim:
+```typescript
+export interface TelegramUploadResult {
+  messageId: number;
+  fileId: string;
+}
+
+const MAX_TELEGRAM_RETRIES = 3;
+const BASE_BACKOFF_MS = 500;
+const MAX_BACKOFF_MS = 15_000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function backoffMs(attempt: number, hintMs: number): number {
+  const floor = BASE_BACKOFF_MS * 2 ** attempt;
+  return Math.min(Math.max(hintMs, floor), MAX_BACKOFF_MS);
+}
+
+/** Upload raw bytes to a Telegram channel as a document; returns message_id + file_id. */
+export async function uploadDocumentToTelegram(params: {
+  botToken: string; chatId: string; bytes: Uint8Array<ArrayBuffer>; filename: string;
+  mimeType?: string; caption?: string; maxRetries?: number;
+}): Promise<TelegramUploadResult> {
+  const { botToken, chatId, bytes, filename, mimeType = "application/octet-stream", caption, maxRetries = MAX_TELEGRAM_RETRIES } = params;
+  const url = `https://api.telegram.org/bot${botToken}/sendDocument`;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const form = new FormData();
+    form.append("chat_id", chatId);
+    if (caption !== undefined && caption !== "") form.append("caption", caption);
+    // Do NOT set Content-Type manually — fetch sets the multipart boundary automatically.
+    form.append("document", new Blob([bytes], { type: mimeType }), filename);
+    let json: { ok: boolean; description?: string; result?: { message_id: number; document?: { file_id: string }; photo?: { file_id: string }[] }; error_code?: number; parameters?: { retry_after?: number } };
+    try {
+      const res = await fetch(url, { method: "POST", body: form });
+      json = (await res.json()) as typeof json;
+    } catch (err) {
+      if (attempt < maxRetries) { await sleep(backoffMs(attempt, 0)); continue; }
+      throw new Error(`Telegram sendDocument network error after ${String(maxRetries)} retries: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    if (json.ok && json.result !== undefined) {
+      const messageId = json.result.message_id;
+      const fileId = json.result.document?.file_id ?? json.result.photo?.at(-1)?.file_id ?? "";
+      return { messageId, fileId };
+    }
+    if (json.error_code === 429 && attempt < maxRetries) {
+      await sleep(backoffMs(attempt, (json.parameters?.retry_after ?? 0) * 1000));
+      continue;
+    }
+    throw new Error(`Telegram sendDocument failed: ${json.description ?? "unknown error"}`);
+  }
+  throw new Error(`Telegram sendDocument rate-limited (429) after ${String(maxRetries)} retries`);
+}
+
+/** Retrieve a previously uploaded file's raw bytes via getFile + the file download URL. Capped at 20 MB by Telegram. */
+export async function fetchTelegramFileBytes(params: { botToken: string; fileId: string; maxRetries?: number }): Promise<{ bytes: ArrayBuffer; filePath: string }> {
+  const { botToken, fileId, maxRetries = MAX_TELEGRAM_RETRIES } = params;
+  const metaUrl = `https://api.telegram.org/bot${botToken}/getFile?file_id=${encodeURIComponent(fileId)}`;
+  let filePath: string | undefined;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const metaRes = await fetch(metaUrl);
+    const meta = (await metaRes.json()) as { ok: boolean; description?: string; error_code?: number; parameters?: { retry_after?: number }; result?: { file_path?: string } };
+    if (meta.ok && meta.result !== undefined) { filePath = meta.result.file_path; break; }
+    if (meta.error_code === 429 && attempt < maxRetries) { await sleep(backoffMs(attempt, (meta.parameters?.retry_after ?? 0) * 1000)); continue; }
+    throw new Error(`Telegram getFile failed: ${meta.description ?? "unknown error"}`);
+  }
+  if (filePath === undefined || filePath === "") throw new Error(`Telegram getFile returned no file_path for file_id "${fileId}"`);
+  const downloadUrl = `https://api.telegram.org/file/bot${botToken}/${filePath}`;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const downloadRes = await fetch(downloadUrl);
+    if (downloadRes.status === 429 && attempt < maxRetries) {
+      const hdr = downloadRes.headers.get("retry-after");
+      const hintMs = hdr !== null ? Number(hdr) * 1000 : 0;
+      await sleep(backoffMs(attempt, Number.isFinite(hintMs) ? hintMs : 0));
+      continue;
+    }
+    if (!downloadRes.ok) throw new Error(`Telegram file download failed: HTTP ${String(downloadRes.status)} ${downloadRes.statusText}`);
+    return { bytes: await downloadRes.arrayBuffer(), filePath };
+  }
+  throw new Error(`Telegram file download rate-limited (429) after ${String(maxRetries)} retries for file_id "${fileId}"`);
+}
+
+/** Re-send an already-uploaded file (by file_id) into a different chat with no re-upload — used for dev-channel backfills. */
+export async function resendDocumentToTelegram(params: { botToken: string; chatId: string; fileId: string; caption?: string; maxRetries?: number }): Promise<TelegramUploadResult> {
+  const { botToken, chatId, fileId, caption, maxRetries = MAX_TELEGRAM_RETRIES } = params;
+  const url = `https://api.telegram.org/bot${botToken}/sendDocument`;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const form = new URLSearchParams();
+    form.set("chat_id", chatId);
+    form.set("document", fileId);
+    if (caption !== undefined && caption !== "") form.set("caption", caption);
+    let json: { ok: boolean; description?: string; result?: { message_id: number; document?: { file_id: string }; photo?: { file_id: string }[]; video?: { file_id: string } }; error_code?: number; parameters?: { retry_after?: number } };
+    try {
+      const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: form });
+      json = (await res.json()) as typeof json;
+    } catch (err) {
+      if (attempt < maxRetries) { await sleep(backoffMs(attempt, 0)); continue; }
+      throw new Error(`Telegram sendDocument (resend) network error after ${String(maxRetries)} retries for file_id "${fileId}": ${err instanceof Error ? err.message : String(err)}`);
+    }
+    if (json.ok && json.result !== undefined) {
+      const messageId = json.result.message_id;
+      const resentFileId = json.result.document?.file_id ?? json.result.photo?.at(-1)?.file_id ?? json.result.video?.file_id ?? fileId;
+      return { messageId, fileId: resentFileId };
+    }
+    if (json.error_code === 429 && attempt < maxRetries) { await sleep(backoffMs(attempt, (json.parameters?.retry_after ?? 0) * 1000)); continue; }
+    throw new Error(`Telegram sendDocument (resend) failed: ${json.description ?? "unknown error"}`);
+  }
+  throw new Error(`Telegram sendDocument (resend) rate-limited (429) after ${String(maxRetries)} retries for file_id "${fileId}"`);
+}
+
+/** Read TELEGRAM_BOT_TOKEN from the process environment; throws a descriptive error rather than a mysterious 401. */
+export function getTelegramBotToken(): string {
+  const token = process.env["TELEGRAM_BOT_TOKEN"];
+  if (token === undefined || token.trim() === "") {
+    throw new Error("TELEGRAM_BOT_TOKEN environment variable is not set. Add it to your .env.dev / .env.staging / .env.prod file.");
+  }
+  return token.trim();
+}
+```
+
+**`src/adapter.ts`** — the `StorageAdapter` interface + the config-driven `resolveBackend()` factory
+(`STORAGE_BACKEND` = `"minio" | "s3" | "telegram"`, default `"minio"`; `"minio"` and `"s3"` both resolve
+to `S3Adapter` — same S3-wire client, only endpoint/creds differ). **This module stays Prisma-free** —
+`TelegramAdapter.upload()` never looks up a tenant or writes a ledger row; the app layer resolves
+`tenant.telegramChannelId ?? TELEGRAM_DEFAULT_CHANNEL_ID` and passes the resolved `chatId` in, then
+separately persists the `MediaObject` ledger row from the returned `UploadResult`:
+```typescript
+import { uploadFile as s3UploadFile, getFileDownloadUrl as s3GetFileDownloadUrl, deleteFile as s3DeleteFile, fileExists as s3FileExists, type UploadInput, type UploadResult } from "./upload";
+import { generateStorageKey } from "./validation";
+import { getTelegramBotToken, uploadDocumentToTelegram } from "./telegram";
+
+export interface TelegramUploadInput extends UploadInput { chatId: string; }
+export type StorageBackend = "minio" | "s3" | "telegram";
+
+export interface StorageAdapter {
+  upload(input: UploadInput | TelegramUploadInput): Promise<UploadResult>;
+  getDownloadUrl(key: string, tenantId: string, ttl?: number): Promise<string>;
+  delete(key: string, tenantId: string): Promise<void>;
+  exists(key: string, tenantId: string): Promise<boolean>;
+}
+
+export class S3Adapter implements StorageAdapter {
+  async upload(input: UploadInput): Promise<UploadResult> { return s3UploadFile(input); }
+  async getDownloadUrl(key: string, tenantId: string, ttl = 3600): Promise<string> { return s3GetFileDownloadUrl(key, tenantId, ttl); }
+  async delete(key: string, tenantId: string): Promise<void> { return s3DeleteFile(key, tenantId); }
+  async exists(key: string, tenantId: string): Promise<boolean> { return s3FileExists(key, tenantId); }
+}
+
+/**
+ * delete() is a best-effort no-op: Telegram's Bot API cannot reliably delete channel messages
+ * older than 48h — real soft-delete semantics live in the app-layer MediaObject ledger.
+ * exists() is formatting-only (no DB lookup here) — real existence must be checked against the
+ * MediaObject ledger (telegramFileId non-null) in the app layer.
+ */
+export class TelegramAdapter implements StorageAdapter {
+  async upload(input: UploadInput | TelegramUploadInput): Promise<UploadResult> {
+    if (!("chatId" in input) || input.chatId === "") {
+      throw new Error("TelegramAdapter.upload requires a resolved chatId (tenant.telegramChannelId ?? TELEGRAM_DEFAULT_CHANNEL_ID)");
+    }
+    const key = generateStorageKey(input.tenantId, input.entityType, input.originalFilename);
+    const botToken = getTelegramBotToken();
+    const caption = `${input.tenantId} · ${input.entityType} · ${key}`;
+    const { messageId, fileId } = await uploadDocumentToTelegram({ botToken, chatId: input.chatId, bytes: new Uint8Array(input.buffer), filename: input.originalFilename, mimeType: input.mimeType, caption });
+    return { key, bucket: "", sizeBytes: input.buffer.length, mimeType: input.mimeType, backend: "telegram", telegramFileId: fileId, telegramMessageId: messageId, telegramChatId: input.chatId };
+  }
+  getDownloadUrl(key: string, _tenantId: string, _ttl?: number): Promise<string> { return Promise.resolve(`/api/media?key=${encodeURIComponent(key)}`); }
+  async delete(_key: string, _tenantId: string): Promise<void> { return Promise.resolve(); }
+  async exists(key: string, _tenantId: string): Promise<boolean> { return Promise.resolve(key.length > 0); }
+}
+
+export function getStorageBackend(): StorageBackend {
+  const value = process.env["STORAGE_BACKEND"];
+  if (value === "telegram") return "telegram";
+  if (value === "s3") return "s3";
+  return "minio";
+}
+
+export function resolveBackend(): StorageAdapter {
+  return getStorageBackend() === "telegram" ? new TelegramAdapter() : new S3Adapter();
+}
+```
+
+**`src/index.ts`** — barrel export (re-export everything from `client`, `validation`, `upload`,
+`telegram`, `adapter`) so app code imports a single `@${app_slug}/storage` specifier.
+
+---
+
+### SCAFFOLD — `MediaObject` ledger + `tenants.telegram_channel_id` (Prisma)
+
+Add to `packages/db/prisma/schema.prisma`, as an **additive** migration (never touches existing tables
+destructively):
+
+```prisma
+model MediaObject {
+  id                String    @id @default(cuid())
+  tenantId          String    @map("tenant_id")
+  storageKey        String    @map("storage_key")
+  entityType        String    @map("entity_type")
+  backend           String    @default("telegram")
+  telegramChatId    String?   @map("telegram_chat_id")
+  telegramFileId    String?   @map("telegram_file_id")
+  telegramMessageId BigInt?   @map("telegram_message_id")
+  sizeBytes         Int?      @map("size_bytes")
+  mimeType          String?   @map("mime_type")
+  migratedAt        DateTime? @map("migrated_at")
+  minioReclaimedAt  DateTime? @map("minio_reclaimed_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, storageKey])
+  @@index([tenantId])
+  @@index([tenantId, backend])
+  @@map("media_objects")
+}
+```
+
+And on the existing `Tenant` model, add a nullable per-tenant Telegram channel override (falls back to
+`TELEGRAM_DEFAULT_CHANNEL_ID` when unset):
+```prisma
+  telegramChannelId String? @map("telegram_channel_id")
+```
+
+**Migration SQL** (additive — `ALTER TABLE … ADD COLUMN` + `CREATE TABLE`, never `DROP`):
+```sql
+-- AlterTable
+ALTER TABLE "tenants" ADD COLUMN     "telegram_channel_id" TEXT;
+
+-- CreateTable
+CREATE TABLE "media_objects" (
+    "id" TEXT NOT NULL,
+    "tenant_id" TEXT NOT NULL,
+    "storage_key" TEXT NOT NULL,
+    "entity_type" TEXT NOT NULL,
+    "backend" TEXT NOT NULL DEFAULT 'telegram',
+    "telegram_chat_id" TEXT,
+    "telegram_file_id" TEXT,
+    "telegram_message_id" BIGINT,
+    "size_bytes" INTEGER,
+    "mime_type" TEXT,
+    "migrated_at" TIMESTAMP(3),
+    "minio_reclaimed_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "media_objects_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE INDEX "media_objects_tenant_id_idx" ON "media_objects"("tenant_id");
+
+-- CreateIndex
+CREATE INDEX "media_objects_tenant_id_backend_idx" ON "media_objects"("tenant_id", "backend");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "media_objects_tenant_id_storage_key_key" ON "media_objects"("tenant_id", "storage_key");
+
+-- AddForeignKey
+ALTER TABLE "media_objects" ADD CONSTRAINT "media_objects_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "tenants"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+```
+
+---
+
+### SCAFFOLD — `/api/media` proxy route + `resolveMediaBytes` dual-read + upload-router Telegram branch
+
+This is the app layer that turns the adapter + ledger above into working reads/writes. It requires four
+**host primitives the app scaffold must already provide** (per `security.md` L1-L6 and the framework's
+standard tRPC/auth scaffold) — name these explicitly when emitting the code below, do not fabricate new
+ones: **(1)** `platformPrisma` / `ctx.db` — the tenant-scoped Prisma client; **(2)** `requireRouteAuth()`
+— the manual (non-tRPC) route-auth helper that resolves `{ userId, tenantId }` from the session/cookie
+and throws a `RouteAuthError` carrying the correct `NextResponse` on failure (security.md L11 — Route
+Handlers bypass the tRPC middleware chain, so auth is manual); **(3)** `rateLimiters` — the app's
+rate-limiter registry, extended with a `mediaDownload` tier (and reusing the existing `upload` tier);
+**(4)** an `AuditLog` model with an `action` field — reuse the app's existing L5 audit table, writing a
+`MEDIA_DOWNLOAD` row. If the target app's scaffold has not yet built one of these four, build the
+minimal version first (they are standard L1-L6 scaffold pieces, not Telegram-specific).
+
+**`src/server/lib/media-bytes.ts`** — `resolveMediaBytes`: Telegram-first, MinIO-fallback (dual-read so
+rows written before a Telegram cutover still resolve). Prisma-free — caller resolves `telegramFileId` /
+`storageKey` from the ledger and passes them in:
+```typescript
+import { fetchTelegramFileBytes, getTelegramBotToken, getFileDownloadUrl } from "@${app_slug}/storage";
+
+export interface ResolvedMedia { bytes: Buffer; source: "telegram" | "minio"; }
+export interface ResolveMediaBytesInput { tenantId: string; storageKey: string; telegramFileId: string | null; mimeType?: string | null; }
+
+async function resolveFromMinio(storageKey: string, tenantId: string): Promise<Buffer> {
+  const url = await getFileDownloadUrl(storageKey, tenantId);
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`MinIO download failed: HTTP ${String(res.status)} ${res.statusText}`);
+  return Buffer.from(await res.arrayBuffer());
+}
+
+export async function resolveMediaBytes(input: ResolveMediaBytesInput): Promise<ResolvedMedia> {
+  const { tenantId, storageKey, telegramFileId } = input;
+  if (telegramFileId !== null && telegramFileId !== "") {
+    try {
+      const { bytes } = await fetchTelegramFileBytes({ botToken: getTelegramBotToken(), fileId: telegramFileId });
+      return { bytes: Buffer.from(bytes), source: "telegram" };
+    } catch {
+      // Swallow — degrade to the MinIO fallback below.
+    }
+  }
+  try {
+    return { bytes: await resolveFromMinio(storageKey, tenantId), source: "minio" };
+  } catch (minioError) {
+    throw new Error(`Failed to resolve media bytes for key "${storageKey}": both Telegram and MinIO fetch failed. ${minioError instanceof Error ? minioError.message : String(minioError)}`);
+  }
+}
+```
+
+**`src/app/api/media/route.ts`** — the proxy GET route. Auth → rate-limit → tenant-scoped ledger
+lookup (**404 on miss, never 403** — a 403 would leak key/tenant occupancy) → `MEDIA_DOWNLOAD` audit
+**before** byte resolution (an interrupted fetch still leaves a record) → `resolveMediaBytes` → serve
+with restrictive headers. `telegramFileId` is **never** returned to the client — bytes are proxied
+server-side via the bot token only:
+```typescript
+import { type NextRequest, NextResponse } from "next/server";
+import { TRPCError } from "@trpc/server";
+import { platformPrisma } from "@${app_slug}/db";
+import { requireRouteAuth, RouteAuthError } from "@/server/lib/route-auth";
+import { rateLimiters } from "@/server/lib/rate-limit";
+import { resolveMediaBytes } from "@/server/lib/media-bytes";
+
+// Node runtime required: Telegram fetch + Buffer handling are not supported on the Edge runtime.
+export const runtime = "nodejs";
+
+export async function GET(req: NextRequest): Promise<NextResponse | Response> {
+  const key = req.nextUrl.searchParams.get("key");
+  if (key === null || key === "") return NextResponse.json({ error: "Missing key" }, { status: 400 });
+
+  let ctx;
+  try {
+    ctx = await requireRouteAuth();
+  } catch (e) {
+    if (e instanceof RouteAuthError) return e.response;
+    throw e;
+  }
+
+  try {
+    rateLimiters.mediaDownload.check(ctx.userId);
+  } catch (e) {
+    if (e instanceof TRPCError && e.code === "TOO_MANY_REQUESTS") return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    throw e;
+  }
+
+  // Tenant-scoped lookup — cross-tenant / non-existent keys both fall through to the same 404.
+  const mediaObject = await platformPrisma.mediaObject.findUnique({
+    where: { tenantId_storageKey: { tenantId: ctx.tenantId, storageKey: key } },
+    select: { entityType: true, mimeType: true, telegramFileId: true, backend: true },
+  });
+  if (!mediaObject) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  await platformPrisma.auditLog.create({
+    data: { action: "MEDIA_DOWNLOAD", userId: ctx.userId, tenantId: ctx.tenantId, entityType: mediaObject.entityType, entityId: key },
+  });
+
+  let bytes: Buffer;
+  try {
+    const resolved = await resolveMediaBytes({ tenantId: ctx.tenantId, storageKey: key, telegramFileId: mediaObject.telegramFileId, mimeType: mediaObject.mimeType });
+    bytes = resolved.bytes;
+  } catch {
+    return NextResponse.json({ error: "Media temporarily unavailable" }, { status: 502 });
+  }
+
+  const headers = new Headers({
+    "Content-Type": mediaObject.mimeType ?? "application/octet-stream",
+    "Content-Length": String(bytes.byteLength),
+    // Immutable bytes: cache per-browser up to a day, but KEEP `private` — never a shared CDN cache.
+    "Cache-Control": "private, max-age=86400, immutable",
+    "Content-Security-Policy": "default-src 'none'; sandbox; frame-ancestors 'none'",
+    "X-Content-Type-Options": "nosniff",
+    "Content-Disposition": "inline",
+  });
+  return new Response(new Uint8Array(bytes), { status: 200, headers });
+}
+```
+
+**Upload-router Telegram branch** (`src/server/trpc/routers/upload.ts`) — when
+`getStorageBackend() === "telegram"`, resolve the tenant's channel, call `uploadDocumentToTelegram`,
+then write the `MediaObject` ledger row (the storage package stays Prisma-free, so this write happens
+at the app layer):
+```typescript
+if (getStorageBackend() === "telegram") {
+  const tenant = await ctx.db.tenant.findUnique({ where: { id: ctx.tenantId }, select: { telegramChannelId: true } });
+  const chatId = tenant?.telegramChannelId ?? process.env["TELEGRAM_DEFAULT_CHANNEL_ID"];
+  if (!chatId) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Telegram channel not configured." });
+
+  const key = generateStorageKey(ctx.tenantId, input.entityType, input.originalFilename);
+  let messageId: number, fileId: string;
+  try {
+    const result = await uploadDocumentToTelegram({ botToken: getTelegramBotToken(), chatId, bytes: new Uint8Array(buffer), filename: input.originalFilename, mimeType: input.mimeType });
+    messageId = result.messageId;
+    fileId = result.fileId;
+  } catch {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Upload failed." });
+  }
+
+  await ctx.db.mediaObject.create({
+    data: {
+      tenantId: ctx.tenantId, storageKey: key, entityType: input.entityType, backend: "telegram",
+      telegramChatId: chatId, telegramFileId: fileId, telegramMessageId: BigInt(messageId),
+      sizeBytes: buffer.length, mimeType: input.mimeType, migratedAt: new Date(),
+    },
+  });
+
+  return { key, sizeBytes: buffer.length, mimeType: input.mimeType, downloadUrl: `/api/media?key=${encodeURIComponent(key)}` };
+}
+// else fall through to the existing S3/MinIO uploadFile() branch unchanged.
+```
+The paired read-side helper `getDownloadUrl` (protected tRPC query) does the same dual-read as
+`resolveMediaBytes`: look up the `MediaObject` ledger first — if `backend === "telegram"` return the
+`/api/media?key=...` proxy URL; otherwise fall back to a presigned S3/MinIO URL for pre-migration rows.
+
+---
+
+### SCAFFOLD — env wiring per environment
+
+```
+# .env.dev — DEDICATED private dev channel (same bot, own channel — never the shared staging/prod one)
+STORAGE_BACKEND=telegram
+TELEGRAM_BOT_TOKEN=<bot token from @BotFather — Server-Setups SOPS+age>
+TELEGRAM_DEFAULT_CHANNEL_ID=<dev-only channel id>
+
+# .env.staging — shares the prod channel (so prod→staging data-first refreshes render photos)
+STORAGE_BACKEND=telegram
+TELEGRAM_BOT_TOKEN=<same bot token>
+TELEGRAM_DEFAULT_CHANNEL_ID=<prod channel id>
+
+# .env.prod
+STORAGE_BACKEND=telegram
+TELEGRAM_BOT_TOKEN=<same bot token>
+TELEGRAM_DEFAULT_CHANNEL_ID=<prod channel id>
+
+# .env.demo — the ONE env that stays on MinIO (curated fixed dataset)
+STORAGE_BACKEND=minio
+```
+Every env keeps its `STORAGE_ENDPOINT` / `STORAGE_REGION` / `STORAGE_ACCESS_KEY` / `STORAGE_SECRET_KEY`
+/ `STORAGE_BUCKET` MinIO block wired regardless of `STORAGE_BACKEND` — MinIO is the retained fallback
+(temp/index/scratch files + the dual-read path for objects predating a Telegram cutover), never removed.
+**Credentials live ONLY in `Server-Setups/<Server>/secrets/<app>-<env>-app.enc.env`** (SOPS+age) — never
+pasted into the app repo. For gov/LGU PII apps, Telegram is an owner-accepted **temporary** measure
+until funded object storage (pair with `.ai_prompt/privacy.md` Rule 33).
 
 ---
 

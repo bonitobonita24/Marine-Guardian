@@ -52,7 +52,7 @@ TOKEN BUDGET REFERENCE (applies to ALL phases):
    - `Read .ai_prompt/phases.md` → then find your current phase section below
    - `Read .ai_prompt/memory-governance.md` → then run the phase hooks (§1 PRE + §2 POST + §4 MODEL)
 0a. **REGISTRY WORK-START CONSULT (V32.8 — Rule 32):** Before writing any file, consult `LESSONS_REGISTRY.md` for fingerprints matching this phase's target surface. If a matching entry has a `standing_check` → run it now. Skip if `LESSONS_REGISTRY.md` does not yet exist.
-0b. **CONSTITUTION-CHECK GATE (V32.23 — pre-flight, every build phase):** before executing a planned task, confirm it does not VIOLATE any of the 34 Rules or the L1-L6 security model (esp. Rule 1 PRODUCT.md-as-source-of-truth, L3 RBAC, L5 AuditLog, L6 Prisma guardrails). If a rule would be violated: STOP — resolve it as **[HOW]** if technical (decide and proceed as the execution owner), or escalate as **[WHAT]** if it's a product/scope tradeoff (record in `PENDING_DECISIONS.md`, keep advancing un-gated work, re-surface until answered). Record the gate verdict in the phase pre-flight output (a single collapsed line — `✅ constitution-check: clear` — on a clean pass; the specific rule/level + resolution path when a conflict was found and resolved). This is the app-build companion to the `Master_Prompt.md` Sync Impact Report: the Sync Impact Report verifies FRAMEWORK edits propagate to every dependent file; the Constitution-Check gate verifies APP-BUILD tasks comply with the framework's own rules before code is written.
+0b. **CONSTITUTION-CHECK GATE (V32.23 — pre-flight, every build phase):** before executing a planned task, confirm it does not VIOLATE any of the 35 Rules or the L1-L6 security model (esp. Rule 1 PRODUCT.md-as-source-of-truth, L3 RBAC, L5 AuditLog, L6 Prisma guardrails). If a rule would be violated: STOP — resolve it as **[HOW]** if technical (decide and proceed as the execution owner), or escalate as **[WHAT]** if it's a product/scope tradeoff (record in `PENDING_DECISIONS.md`, keep advancing un-gated work, re-surface until answered). Record the gate verdict in the phase pre-flight output (a single collapsed line — `✅ constitution-check: clear` — on a clean pass; the specific rule/level + resolution path when a conflict was found and resolved). This is the app-build companion to the `Master_Prompt.md` Sync Impact Report: the Sync Impact Report verifies FRAMEWORK edits propagate to every dependent file; the Constitution-Check gate verifies APP-BUILD tasks comply with the framework's own rules before code is written.
 1. **Estimate scope** — how many files will you read + create + modify?
 2. **Estimate token cost** — use the reference table above
 3. **If >12 files OR >80K tokens → SPLIT before starting:**
@@ -623,6 +623,8 @@ See `Planning_Assistant.md` — Phase 2.8 section (trigger logic, Step-by-Step, 
 **MODEL HOOK (V32.11 — shadcn/studio Pro generator routing):** From Phase 3.3 onward the framework's DEFAULT design generator is the owner's licensed **shadcn/studio Pro MCP** (a user-global, build-time generator; output = plain shadcn/ui — see `AI_Tools_Reference.md §2.5`). Command routing: **`/cui`** (Create-UI) is the daily driver — builds a whole page / multiple sections from Pro blocks ("collect first, install last"); **`/iui`** (Inspire-UI, Pro-only) adds per-section distinctiveness — ONE section at a time, never whole pages; **`/rui`** (Refine-UI) polishes an already-generated block; **`/ftc`** (Figma→Code) ONLY when the design source is Figma AND the Figma MCP is present — otherwise skip. At **Phase 3.3 (design finalization)** the recommended trio is `/cui` (structure) → `/iui` (per-section distinctiveness) → `/rui` (polish), THEN compile tokens → `/design-refine` → sign off → capture the DESIGN baseline (ordering per ui-rules.md Rule 12). **INHERIT-not-REPLACE (HARD):** Pro blocks carry their own tokens — reconcile every generated block to `docs/DESIGN.md` / the compiled tokens; the block NEVER overrides the design system. The PA's `docs/MOCKUP.jsx` stays the visual source of truth. **Fallback** when the Pro MCP is unreachable: the plain shadcn/ui MCP + Blocks gallery (same shadcn/ui output, lower automation). `/iui` is a Phase 3.3 tool — Phase 4 Parts 5-6 and Phase 7 default to `/cui` + `/rui` so the finalized design is not re-opened.
 
 Note (Phase 2.8 — design principles): When docs/DESIGN.md / ui-rules.md are silent on a pattern, component state, or a11y approach, **Read .ai_prompt/design-principles.md** — principles win for structural decisions; the design system wins for token values.
+
+**MODEL HOOK (V32.31 — SEO-aware design & content, Rule 35 extension):** For any PUBLIC-facing surface being mocked up — especially a marketing/landing page — being Google-friendly is a design + content-time decision, not something bolted on later. **Read `.ai_prompt/seo.md` §1.5** when generating or reviewing the Step 7 mockup: plan a single clear H1 per page, a logical H2/H3 heading hierarchy, keyword-informed headline/body copy, descriptive link text, meaningful `alt` text alongside the imagery, and a Core-Web-Vitals-aware layout (LCP-friendly hero, CLS-stable dimensions) — captured directly into `docs/DESIGN.md` / `docs/MOCKUP.jsx` alongside the token baseline. This is automatic for public marketing/landing surfaces; internal/authed screens get a lighter touch (they stay `noindex,nofollow` per Rule 35 §1). No new PRODUCT.md section, no new interview question — same posture as the rest of Rule 35's adaptive baseline.
 
 **MODEL HOOK (V32.24 — Spec Expert Panel gate, Phase 2.8 + Phase 3):** before Phase 2.8 hands off (and again before Phase 3 spec-lock, see the matching hook at the Phase 3 Output Contract below), the PM (Opus) dispatches 5 expert-lens Sonnet subagents IN PARALLEL against `docs/PRODUCT.md` (+ `docs/DESIGN.md`/`docs/MOCKUP.jsx` at this Phase 2.8 pass) — `secure-code-guardian` (security/authz/data-privacy), `architecture-designer` (structure/scalability/coupling), `api-designer` (API surface/contracts/versioning), `test-master` (testability/coverage/acceptance criteria), `database-optimizer` (schema/indexing/tenancy). The PM synthesizes the 5 findings lists, dedups overlapping findings, prioritizes (Critical/High/Medium), and feeds every finding into the Flow-Back / LIVING-SPEC reconcile (Rule 1 Spec-Persistence Model, Scenario 40's 5-step loop — BEHAVIOR findings become a proposed `docs/PRODUCT.md` edit for the human to apply per Rule 1; STRATEGY findings go to `docs/DECISIONS_LOG.md`; TASK-BREAKDOWN findings go to `docs/IMPLEMENTATION_MAP.md`). See Prompt 3.24 / Scenario 41 for the full dispatch pattern. **Gate-closure:** Phase 2.8 CANNOT close while any CRITICAL Spec-Expert-Panel finding is unresolved. Emit a single collapsed line on a clean pass — `✅ spec-expert-panel: clear` — or `⛔ spec-expert-panel: N Critical findings unresolved` when blocked. This is an ADDITIVE gate alongside the existing V32.5.1 `/design-review` gate-closure above — both must clear. This is a MODEL HOOK, not a new `memory-governance.md §3` phase hook — the Phase Hooks count stays 18.
 
@@ -1560,6 +1562,15 @@ actual blueprint of the scaffolding — not by pointing at it.*
 schema shape** and lives behind a clear interface boundary, so Phase 4 swaps it for the real backend
 without touching the UI.
 
+**MODEL HOOK (V32.31 — SEO-aware design & content, Rule 35 extension):** the interactive prototype
+carries the SEO-aware content structure decided at the Planning Assistant / Phase 2.8 mockup forward
+into working screens — **Read `.ai_prompt/seo.md` §1.5** during Step 3 (design-system finalization)
+and Step 5 (screen wiring) for any PUBLIC-facing flow: verify the single-H1/H2-H3 heading hierarchy,
+keyword-informed copy, descriptive link text, planned `alt` text, and CWV-aware layout (LCP-friendly
+hero, CLS-stable dimensions) survive intact from the mockup into the prototype, so it is validated
+here — before Phase 4 scaffold — rather than discovered late. Internal/authed flows get the lighter
+`noindex,nofollow` touch per Rule 35 §1.
+
 **Steps:**
 ```
 Step 1 — Flow inventory: Opus dispatches a Sonnet Scout to read PRODUCT.md §3 (R6 — non-allow-list, typically >100 lines) → Opus reviews the Scout's output to list every Core User Flow + the entities each touches (from the Phase 3 schema).
@@ -1935,6 +1946,18 @@ Parts 5-6 cannot close — and Part 7 MUST NOT begin — until ALL of these hold
   NEW TAB to https://www.powerbyteitsolutions.com/ with target="_blank" rel="noopener noreferrer"
   — per ~/.claude/rules/design-defaults.md Entry 3 (non-sidebar archetypes: marks placed per
   that rule's page-footer / about-panel fallback slots)
+□ SEO Foundation scaffold (V32.30 — Rule 35, ALWAYS-ON, no PRODUCT.md gate): Read `.ai_prompt/seo.md`
+  and emit — root `app/layout.tsx` `metadataBase` + base `metadata` (title template, description,
+  default `openGraph`/`twitter`, `Organization` + `WebSite` JSON-LD); `robots: { index: false,
+  follow: false }` on every private/authed route-group layout (the app's existing auth boundary,
+  fail-closed to private on an undetermined route); `alternates.canonical` + `openGraph`/`twitter` on
+  every public route; `app/sitemap.ts` listing ONLY public routes; `app/robots.ts` allowing `/` and
+  explicitly disallowing every private route-group prefix + pointing `sitemap:` at the deployed
+  sitemap URL; `alternates.languages` (hreflang) ONLY when PRODUCT.md App Identity declares >1 locale;
+  `BreadcrumbList` JSON-LD on nested public routes; dynamic `opengraph-image`/`next/og` `ImageResponse`
+  ONLY on a PRODUCT.md per-page-OG signal (otherwise a single static default OG image). Config values
+  (site name, base URL, default OG image, locales) sourced from PRODUCT.md App Identity + env vars —
+  never fabricated, gaps flagged not guessed. See `.ai_prompt/seo.md` §5.
 IF ANY item fails → Parts 5-6 = INCOMPLETE → resolve before Part 7 (background jobs) begins
 ```
 
@@ -1947,6 +1970,11 @@ Note (Phase 4 Parts 5-6 — design principles): When docs/DESIGN.md / ui-rules.m
 Note (Phase 4 Parts 5-6 — motion): When wiring motion/interaction and docs/DESIGN.md / ui-rules.md are silent on a motion/easing/duration/reduced-motion pattern, **Read .ai_prompt/motion.md** (ui-rules.md Rule 14). Motion (motion.dev) prescribed lib (LazyMotion/mini); mandatory `useReducedMotion()` guard on every animation, paired with the accessibility-agents WCAG gate (R13); `transform`/`opacity` only. A guardless animation FAILS the gov/LGU Phase 5 accessibility gate.
 Note (Phase 4 Parts 5-6 — anti-slop): After wiring and regression review, run `bash scripts/lint-design.sh --report-only apps/web/src` (V32.17 — regression pass for D1–D7 sins introduced during production wiring; advisory, never blocks Parts 5-6 gate).
 Note (Phase 4 Parts 5-6 — sidebar footer white-label, V32.26): Confirm the SidebarFooter version tag + "Developed by Powerbyte IT Solutions" link (new tab) are present per **Read `~/.claude/rules/design-defaults.md` Entry 3** — this is a GATE-CLOSURE item above, not optional polish; INHERIT-not-REPLACE if docs/DESIGN.md relocates/restyles either mark.
+Note (Phase 4 Parts 5-6 — SEO Foundation, V32.30): **Read `.ai_prompt/seo.md`** (Rule 35) — ALWAYS-ON,
+never gated on a PRODUCT.md signal (unlike `.ai_prompt/notifications.md`). Adaptive public-vs-private
+baseline detected from the app's existing route-group/auth boundary; this is a GATE-CLOSURE item above,
+not optional polish. Built entirely on Next.js App Router native primitives (`metadata`/
+`generateMetadata`, `app/sitemap.ts`, `app/robots.ts`) — no third-party SEO library.
 
 ### Phase 4 Part 7 (Docker + infrastructure) — conditional
 
@@ -2286,6 +2314,17 @@ Seed script for dev data. `package.json` with exports field.
   }
   ```
 
+- `MediaObject` Prisma model — the storage-layer ledger (always in schema when `storage.enabled`).
+  **Emit the CANONICAL model verbatim from templates.md Rule 5 → "SCAFFOLD — MediaObject ledger"**
+  (do NOT hand-transcribe a thinner copy here — the ledger is tenant-scoped via the composite
+  `@@unique([tenantId, storageKey])` that the `/api/media` route's lookup depends on, plus the
+  `telegram_chat_id`/`telegram_message_id`/`entity_type` columns; a global `@unique` on `storageKey`
+  would break multi-tenancy). The dual-backend S3/MinIO **and** Telegram adapter this ledger backs is
+  scaffolded in Part 4, wired to routes in Part 5. `Tenant` also gains an optional `telegramChannelId`
+  column (`@map("telegram_channel_id")`) so a tenant may override the app-default Telegram channel.
+  Both are an ADDITIVE migration only (new table + new nullable column) — never destructive, never
+  rewrites existing media rows.
+
 **Additionally if `tenancy.mode: multi` — (Rule 7 L2):**
 
 - `src/rls.ts` — PostgreSQL RLS helper:
@@ -2320,6 +2359,17 @@ Seed script for dev data. `package.json` with exports field.
 - `packages/jobs/` — ONLY if jobs.enabled. Valkey (MIT Redis fork) + BullMQ typed queues, workers, DLQ.
 - `packages/storage/` — ONLY if storage.enabled. Typed MinIO/S3/R2 wrapper.
 
+  **MODEL HOOK (V32.27/V32.28 pointer — Telegram-default dual-backend storage):** scaffold
+  `packages/storage/` as a **dual-backend `StorageAdapter`** (S3/MinIO **and** Telegram) selected at
+  runtime by `STORAGE_BACKEND` — per templates.md Rule 5 "DEFAULT: Telegram for persistent media"
+  for the canonical adapter code. Default `STORAGE_BACKEND=telegram` on dev + staging + prod (dev
+  runs on its OWN dedicated Telegram channel — never share the staging/prod channel); `demo` stays
+  `minio`. MinIO/S3 is retained on every env as the fallback + temp/index/scratch backend — the
+  adapter is never removed, only defaulted differently per env. Every write goes through the
+  adapter AND writes the `MediaObject` ledger row (Part 3); every read resolves through
+  `resolveMediaBytes` + the `/api/media` proxy route (Part 5) — never a raw MinIO/S3 URL or a
+  Telegram URL exposed to the client.
+
 ### PART 5 — apps/[web app] (Next.js full scaffold)
 
 **FIRST — Initialize shadcn/ui (V29 — before generating any component):**
@@ -2342,12 +2392,29 @@ Each web app in inputs.yml apps list gets:
 - `src/env.ts` — ALL env vars typed and validated at startup (Zod)
 - `src/app/` — App Router layout, pages for every module in spec
 - `src/app/api/trpc/[trpc]/route.ts` — tRPC API handler
+- `src/app/api/media/[...key]/route.ts` — ONLY if `storage.enabled`. Dual-read media proxy (see
+  MODEL HOOK below)
 - `src/server/trpc/` — tRPC routers for every entity/module
 - `src/server/auth/` — Auth.js / Keycloak / chosen auth provider config
 - `src/middleware.ts` — tenant resolution from URL path or subdomain, auth guard
 - `src/components/` — page-level components per module
 - `next.config.ts` — typed Next.js config
 - All source files `.ts` / `.tsx` only — zero `.js` in src/
+
+**MODEL HOOK (V32.27/V32.28 pointer — Telegram-default dual-backend storage, ONLY if
+`storage.enabled`):** wire the storage layer end-to-end per templates.md Rule 5 "DEFAULT: Telegram
+for persistent media":
+- `src/app/api/media/[...key]/route.ts` — auth → rate-limit → tenant-ledger lookup (`MediaObject`
+  from Part 3) → `resolveMediaBytes()` dual-read helper (reads `s3` or `telegram` per the row's
+  `backend` column) → audit-logged serve. Never returns a raw MinIO/S3 or Telegram URL.
+- The upload tRPC router gets a Telegram branch alongside its existing S3 branch — same
+  `packages/storage` `StorageAdapter` (Part 4), same `MediaObject` ledger write, selected by
+  `STORAGE_BACKEND`.
+- `src/env.ts` validates `STORAGE_BACKEND` (`telegram` | `s3` | `minio`) + `TELEGRAM_BOT_TOKEN` +
+  `TELEGRAM_DEFAULT_CHANNEL_ID` when `STORAGE_BACKEND=telegram`. Per-env `.env` (Phase 3) sets
+  `STORAGE_BACKEND=telegram` for dev/staging/prod (dev = its own dedicated channel) and
+  `STORAGE_BACKEND=minio` for demo; credentials come from `Server-Setups` (SOPS+age) only, never
+  hardcoded.
 
 **Always generate — regardless of tenancy mode (Rule 7B):**
 
@@ -3549,6 +3616,27 @@ Before running any validation commands, read `.ai_prompt/privacy.md` and run the
       → Proceed with validation.
    □ IF accessibility not declared: skip accessibility audit step.
 
+□ SEO FOUNDATION VALIDATION GATE (V32.30 — Rule 35 / `.ai_prompt/seo.md` §6, ALWAYS-ON):
+   □ Read `.ai_prompt/seo.md` and run the Phase-5 SEO checklist:
+      □ Every route (public + private) exports resolvable `metadata`/`generateMetadata` — no route
+        falls through to a bare Next.js default title.
+      □ `app/sitemap.ts` + `app/robots.ts` build clean (no runtime error, valid XML/txt output).
+      □ Every public route carries `alternates.canonical` + `openGraph` + `twitter` (or an inherited
+        equivalent from a parent layout).
+      □ Every private route carries `robots: { index: false, follow: false }` AND is covered by an
+        `app/robots.ts` `disallow` rule AND is absent from `app/sitemap.ts` — all three, not just one.
+      □ Structured data (JSON-LD) on public routes validates as well-formed JSON matching its `@type`.
+      □ `alternates.languages` present on every public route when PRODUCT.md declares multi-locale.
+      □ No private-route content or metadata leaks into a public sitemap or a public JSON-LD block.
+   □ Check PRODUCT.md for at least one public-facing route (marketing/landing/docs/auth-less pages):
+      → IF the app HAS a public-facing surface:
+         → Run a Lighthouse SEO audit against the built app.
+         → HARD GATE: Lighthouse SEO score ≥ 90 — MUST be resolved before Phase 6 may start.
+         → Output: "🔴 Phase 5 blocked — Lighthouse SEO score below 90 on public route(s)."
+      → IF the app is fully internal/back-office-only (no public surface at all):
+         → Run Lighthouse SEO audit if practical; log score in DECISIONS_LOG.md as advisory
+           (non-blocking) — the private-route noindex/disallow checks above stay mandatory regardless.
+
 □ DESIGN ANTI-SLOP CHECK (V32.17 — advisory, never blocks):
    → Run: `bash scripts/lint-design.sh --report-only apps/web/src`
    → Surfaces D1–D7 cardinal sins (see .ai_prompt/design-principles.md Pillar 8); agent self-corrects findings.
@@ -3671,6 +3759,13 @@ Before proceeding to Phase 6, verify ALL of these:
 □ WCAG 2.2 AA gate (V32.9 — ui-rules.md Rule 13):
   - gov/LGU apps (DICT MC 004): accessibility:check exit 0 — HARD GATE, blocks Phase 6 if failing.
   - All other apps: audit run; any failures logged in DECISIONS_LOG.md (warn-only, non-blocking).
+□ SEO Foundation gate (V32.30 — Rule 35 / `.ai_prompt/seo.md` §6, ALWAYS-ON, no PRODUCT.md gate):
+  metadata/generateMetadata on every route; sitemap.ts + robots.ts build clean; public routes carry
+  canonical+OG+Twitter; private routes carry noindex/nofollow + robots.ts disallow + sitemap exclusion
+  (all three); structured data valid; hreflang present when multi-locale.
+  - Apps with any public-facing route: Lighthouse SEO ≥ 90 — HARD GATE, blocks Phase 6 if failing.
+  - Fully internal/back-office-only apps: Lighthouse SEO score advisory-only (non-blocking); the
+    private-route noindex/disallow checks above stay mandatory regardless.
 IF ANY command fails → fix before proceeding → do not start Phase 6 with failing validation
 
 PHASE 5 FAILURE HANDLING (V32.8 — Rule 32): On any build/test/gate failure:

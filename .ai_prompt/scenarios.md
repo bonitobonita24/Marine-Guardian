@@ -1,4 +1,4 @@
-# Spec-Driven Platform V31 — Scenarios 1-40
+# Spec-Driven Platform V31 — Scenarios 1-44
 
 > Loaded contextually when user triggers a named scenario.
 > Read ONLY the scenario matching the user's request.
@@ -2413,6 +2413,23 @@ VERIFICATION:
 5. **Enforce the 6 additions** — schema/versioning, tenant isolation (never cross-tenant), preference center, idempotency-at-ingestion, per-provider rate limits, PII routing (`privacy.md`).
 6. **Phased:** MVP (email + in-app + DLQ + audit) → expand channels + preferences → (only if needed) graduate Valkey → NATS JetStream at the documented threshold.
 7. DEV gate: schema-validated, tenant-isolated, idempotent, DLQ + replay verified on real data. Staging/prod/demo promotion each require the owner's explicit word (deploy discipline).
+
+---
+
+### SCENARIO 44 — Retrofit SEO baseline into an already-built app (NEW V32.30)
+
+**Trigger:** an existing framework-built app predates V32.30 and needs the SEO Foundation (Rule 35) retrofitted — the owner says anything like "add SEO to `<app>`", "make `<app>`'s pages indexable", "our dashboard is leaking into Google", "set up sitemap/robots for `<app>`", or the app is about to gain a public-facing marketing/landing surface.
+
+**Read first:** `.ai_prompt/seo.md` (deliverable #31 — the full Next.js-native pattern + Phase-4/Phase-5 checklists, + §1.5 "Design & content-time SEO" for the content/design pass added in V32.31) + Rule 35 (`Master_Prompt.md`).
+
+**Procedure (dev-first, LOCAL-only, HARD HOLD — same posture as every other retrofit scenario, Scenario 42's RBAC retrofit and Scenario 43's notifications build):**
+1. On the app's next substantial touch (or an explicit "retrofit SEO" request), scaffold the SAME adaptive SEO baseline a new app gets automatically at Phase 4 — no PRODUCT.md checkbox, no new interview: run the Phase-4 scaffold checklist in `.ai_prompt/seo.md` §5 against the existing route tree.
+2. **Detect the public/private split from the app's EXISTING route-group/middleware-auth boundary** (the same boundary that already gates tRPC/session access) — never re-declare it by hand per page; fail-closed to private on any undetermined route.
+3. Emit `app/sitemap.ts` (public routes only) + `app/robots.ts` (disallow every private route-group prefix + `sitemap:` pointer) + root `metadata`/`generateMetadata` (title template, description, `openGraph`/`twitter`, `Organization`+`WebSite` JSON-LD) + `robots: { index: false, follow: false }` on every private route-group layout + canonical/OG/Twitter on every public route + `BreadcrumbList` JSON-LD on nested public routes.
+4. **Config values from PRODUCT.md App Identity + env vars only** — site name, base URL (`NEXT_PUBLIC_SITE_URL` per env), default OG image, locale(s). Never fabricate; flag a gap rather than guessing.
+5. Run the Phase-5 SEO validation gate (`.ai_prompt/seo.md` §6): metadata on every route, clean sitemap/robots build, canonical+OG+Twitter on public routes, noindex+disallow+sitemap-exclusion on private routes (all three), valid structured data, hreflang if multi-locale, **Lighthouse SEO ≥ 90 hard-gated if the app has any public-facing route** (advisory-only for a fully internal/back-office-only app).
+6. **Content/design SEO pass (EXTENDED V32.31 — not just technical tags).** For the app's existing public/marketing/landing surfaces, ALSO run a content/design SEO pass per `.ai_prompt/seo.md` §1.5: audit and fix heading hierarchy (exactly one `<h1>` per page, a logical `<h2>`/`<h3>` nesting), keyword-informed headline/body copy, semantic sectioning, meaningful `alt` text on every meaningful image, and CWV-affecting layout (LCP-friendly hero sizing, CLS-stable reserved dimensions). This runs alongside — not instead of — the technical tag work in steps 1-5. Still dev-first + owner-gated: LOCAL commits only, same HARD HOLD.
+7. Back-port the retrofit to `docs/DECISIONS_LOG.md` / `docs/CHANGELOG_AI.md`. Staging/prod/demo promotion of the retrofit branch each require the owner's explicit word (`~/.claude/rules/deploy-discipline.md`) — the retrofit itself lands as LOCAL commits only.
 
 ---
 

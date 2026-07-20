@@ -76,6 +76,10 @@
 #         • .ai_prompt/rbac.md               (Tenant-RBAC standard, Rule 34 — on-demand — deliverable #29)
 # V32.28 (notifications.md on-demand reference) adds deliverable #30 — a right-sized FOSS
 # event-delivery / notification pattern (.ai_prompt/, Scenario 43). Deliverable count 29 → 30.
+#      V32.30 SEO Foundation (overwrite-with-backup):
+#         • .ai_prompt/seo.md                (SEO scaffold + validation reference, Rule 35 — ALWAYS-ON — deliverable #31)
+# V32.30 (seo.md always-on reference) adds deliverable #31 — the adaptive-baseline SEO
+# foundation (.ai_prompt/, Scenario 44). Deliverable count 30 → 31.
 #         NOTE: sd.config.mjs, design-validate.mjs, and STATE.md evidence template are
 #         NOT deploy-copied — they are scaffolded by bootstrap.md Step 20 from templates.md
 #         (project-adjacent files, not standalone framework deliverables).
@@ -130,6 +134,7 @@
 #   │   ├── spec-gap-check.sh          ← NEW V32.21 — cross-artifact gap-check (→ scripts/, deliverable #28)
 #   │   ├── rbac.md                    ← NEW V32.25 — Tenant-RBAC standard, Rule 34 (→ .ai_prompt/, deliverable #29)
 #   │   ├── notifications.md              ← NEW V32.28 — Event Delivery & Notifications (→ .ai_prompt/, deliverable #30)
+#   │   ├── seo.md                     ← NEW V32.30 — SEO Foundation (Adaptive Baseline), Rule 35 (→ .ai_prompt/, deliverable #31)
 #   │   ├── Planning_Assistant.md
 #   │   ├── Framework_Feature_Index.md
 #   │   ├── AI_Tools_Reference.md
@@ -137,7 +142,7 @@
 #   │   ├── ChatGPT_Cross_Audit.md
 #   │   ├── Prompt_References.md
 #   │   └── Prompt_References.html     ← interactive HTML UI for prompt references
-#   └── deploy.sh             ← this script at project root (30-file total deliverable set)
+#   └── deploy.sh             ← this script at project root (31-file total deliverable set)
 #
 # DEPLOYED TARGET LOCATIONS (V32.7.2 additions):
 #   .claude/agents/spec-executor.md    ← overwrite-with-backup (framework-owned)
@@ -156,6 +161,8 @@
 #   .ai_prompt/rbac.md                 ← overwrite-with-backup (framework-owned) (deliverable #29, V32.25)
 # DEPLOYED TARGET LOCATIONS (V32.28 addition):
 #   .ai_prompt/notifications.md        ← overwrite-with-backup (framework-owned) (deliverable #30, V32.28)
+# DEPLOYED TARGET LOCATIONS (V32.30 addition):
+#   .ai_prompt/seo.md                  ← overwrite-with-backup (framework-owned) (deliverable #31, V32.30)
 #   tests/visual/                      ← scaffold-if-absent (.gitkeep); existing files untouched
 # DEPLOYED TARGET LOCATIONS (V32.17 addition):
 #   scripts/lint-design.sh             ← overwrite-with-backup (framework-owned), chmod +x (deliverable #26, V32.17)
@@ -658,13 +665,17 @@ overwrite_with_backup "$AI_PROMPT/LESSONS_REGISTRY.md" "$PROJECT/.ai_prompt/LESS
 #   .ai_prompt/notifications.md ← event-delivery/notification pattern (V32.28)
 #                             Deliverable #30. Loaded on-demand when PRODUCT.md declares a
 #                             notification/multi-channel need.
+#   .ai_prompt/seo.md      ← SEO Foundation (Adaptive Baseline) (V32.30 — Rule 35)
+#                             Deliverable #31. ALWAYS-ON — read at Phase 4 scaffold + Phase 5
+#                             validation gate, no PRODUCT.md flag required.
 # ============================================================
-echo "─── Group 8: V32.9 compliance + data privacy + V32.12 design principles + V32.14 motion + V32.25 rbac + V32.28 notifications ───"
+echo "─── Group 8: V32.9 compliance + data privacy + V32.12 design principles + V32.14 motion + V32.25 rbac + V32.28 notifications + V32.30 seo ───"
 overwrite_with_backup "$AI_PROMPT/privacy.md" "$PROJECT/.ai_prompt/privacy.md"
 overwrite_with_backup "$AI_PROMPT/design-principles.md" "$PROJECT/.ai_prompt/design-principles.md"
 overwrite_with_backup "$AI_PROMPT/motion.md" "$PROJECT/.ai_prompt/motion.md"
 overwrite_with_backup "$AI_PROMPT/rbac.md" "$PROJECT/.ai_prompt/rbac.md"
 overwrite_with_backup "$AI_PROMPT/notifications.md" "$PROJECT/.ai_prompt/notifications.md"
+overwrite_with_backup "$AI_PROMPT/seo.md" "$PROJECT/.ai_prompt/seo.md"
 echo ""
 
 # ============================================================
@@ -796,6 +807,7 @@ echo "    privacy.md                                ← PH Data Privacy Act + WC
 echo "    design-principles.md                      ← framework-level design guidance (V32.12, deliverable #24)"
 echo "    motion.md                                 ← framework-level motion guidance (V32.14, deliverable #25)"
 echo "    notifications.md                          ← event-delivery & notification pattern (V32.28, deliverable #30)"
+echo "    seo.md                                    ← SEO scaffold + validation (any public/private app) (V32.30, deliverable #31)"
 echo "    (Deployed to scripts/ — do not run from .ai_prompt/:)"
 echo "    lint-deploy.sh                            ← pre-deploy footgun gate (deploys to scripts/lint-deploy.sh, V32.7.5)"
 echo "    design-stop-hook.sh                       ← Claude Code Stop hook (deploys to scripts/, V32.8)"
