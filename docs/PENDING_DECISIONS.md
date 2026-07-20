@@ -4,15 +4,109 @@
 
 ---
 
-## 🔴 2026-07-20 (late) — SESSION HANDOFF · `preview/session-0720`
+## 🔴 2026-07-21 — SESSION HANDOFF · `preview/session-0720` · tip `b6dcbb8`
 
 **STATE: all commits LOCAL, NONE pushed. HARD HOLD holds — no push/merge/deploy without the owner's explicit word.**
-All work below is verified on **dev only**.
+Verified on **dev only**. **⚠ Working tree is DIRTY — other agents were still in flight at handoff; uncommitted
+files are unfinished, not shipped.**
 
-> ⚠ **METHOD REQUIREMENT, learned the hard way this session:** verify intermittent defects with **repeated runs,
-> not single passes.** React #418 was declared fixed THREE times off single page loads; an 8-run check measured it
-> at **37.5%** — a one-shot check passes ~2 times in 3. Any nondeterministic symptom needs **N≥5** before it may be
-> called fixed. Rebuild dev app **and worker** off this branch before any re-verification (no source bind-mount).
+📄 **Full detail: [`docs/SESSION_HANDOFF_0721.md`](./SESSION_HANDOFF_0721.md)** — commit table, precise data ops,
+in-flight file list, the through-line, env quick-ref. This block is the scannable queue.
+
+### ⭐ #1 NEXT-SESSION TASK (owner-directed) — full re-verification in a real browser
+
+Against a **freshly rebuilt dev app AND worker**. Numbered checklist, not "test everything":
+
+1. **Rebuild app AND worker off the branch, then verify the image shas match.** A stale worker running
+   pre-`825cf6c` code caused a wrong diagnosis this session and is a repeat offender here.
+   **Check the sha before trusting any behavioural result.** (`--progress=plain` to a file, never `| tail`.)
+2. **Attribution backfill reconciles against SQL** — 281 `title_hint` + 51 `nearest` patrols, 76 `nearest`
+   events (7 ambiguous). Match each number exactly.
+3. **Patrol municipality override + anti-clobber guard** survives a real ER sync tick.
+4. **Event municipality override + anti-clobber guard** — ⚠ newly added (`22f2de1`); the event path had **none** before.
+5. **Patrol start/end time override + provenance badges** — Manual / Derived / ER-supplied.
+6. **Four filters cross-checked against SQL counts** — Events unattributed · Patrols unattributed ·
+   Events subcategory+sorting · attribution needs-review **on BOTH screens**.
+7. **Seaborne track parity** — identical feature count with COUNT FULL TRAVERSING PATROLS on **and** off
+   (owner-reported regression, fixed `7386eb3`). **N ≥ 5.**
+8. **Clear-override actually recomputes** (`4e7b1cb`) on **BOTH** entities — assert the **DB delta**, not job status.
+9. **Provenance pairing CHECK constraint holds** — zero rows with id set / method NULL.
+10. **React #418 on `report_map` print page — N ≥ 5 MINIMUM** (measured 37.5% intermittent).
+11. **New BA header logo** at 1440px and 390px.
+12. **New `/showcase` Development Timeline page** — both `TIMELINE_MODE` values, reduced-motion, 3 breakpoints.
+
+> ⚠ **METHOD REQUIREMENT:** intermittent defects need **N≥5 repeated runs**, never a single pass. React #418 was
+> declared fixed THREE times off single loads; an 8-run check measured it at **37.5%**. Rebuild dev app **and
+> worker** off this branch before re-verifying (no source bind-mount).
+
+### 🗂 Data operations performed (not code)
+
+- **Dev:** `start_time` backfill 63 rows · attribution backfill 281+51 patrols / 76 events · provenance repair
+  34 events + 1 patrol.
+- **Staging + Prod:** stalled-cohort re-enqueue — staging 15 attributed, prod 11 attributed; both converged to
+  **4617 attributed / 153 never-processed**. Prod backup at `/root/muni-catchup/backup/`.
+- **Staging ⏳ IN FLIGHT at handoff:** the **173 stale-attribution correction**, draining slowly, **not yet
+  converged**. **Must be confirmed converged before prod runs.**
+- **Prod:** the 173 correction **NOT applied** — gated on staging matching prediction.
+
+### 🔴 OPEN OWNER DECISIONS — most important first
+
+- [ ] **1. Production deploy — owner asked for it immediately with no confirmation; it was DEFERRED.**
+  Reasoning: ~**55 commits never on staging** · an **unrehearsed worker-before-migration ordering constraint**
+  (item 2) · **known-open defects** · **owner asleep** and unable to respond if it went wrong. Plan: everything
+  staged up to prod, with prod promotion reduced to **a single command**. **The owner must decide whether to run it.**
+
+- [ ] **2. ⚠ DEPLOY ORDERING — LOAD-BEARING.** A worker image **≥ `825cf6c` MUST ship BEFORE** migration
+  `20260721020000` (the pairing CHECK) is applied in **any** environment — a pre-`825cf6c` worker writes one half
+  of the pair and that write is now **rejected**. Run `scripts/repair-municipality-attribution-pairing.ts`
+  **per env** before validating the constraint.
+
+- [ ] **3. Water-polygon split-artifact fix — NOT yet done.** **14.0% (~3,052 km²)** of prod's legal 15 km zone
+  unclaimed. Regeneration changes only **9 records directly** but **forces a re-backfill**. *Recommendation:*
+  unfiltered **authoritative** geometry + a separate **filtered display projection** + a **coverage/no-gap
+  invariant** (independent of the existing no-overlap one).
+  *Lesson:* `geo.derivation.display-declutter-filter-mutilates-source-of-truth`.
+
+- [ ] **4. The full-traversing toggle now moves NO numbers** — identical counts on/off at every scope tested.
+  The `96f7ff4` backfill appears to have closed the gap it existed to fill. It may be **inert**:
+  **keep, rework, or remove?**
+
+- [ ] **5. Timeline date presentation** — phase labels by default; February-anchored variant behind one constant:
+  `apps/web/src/app/showcase/timeline/_components/timeline-data.ts:41` →
+  `export const TIMELINE_MODE: "phases" | "dates-feb" = "phases";`
+
+- [ ] **6. Carried forward:** exports ignore the new filters on both screens · hardcoded `SUBCATEGORY_GROUPS` ·
+  `municipalityAttributionMethod` sweep · Patrols-unattributed filter permission level · PPTX 91 MB ·
+  DSR export TTL · environments to clear of Telegram-era reports · demo Patrol Zone Alpha · ER/DAS token minting ·
+  Slice-6 field-value backfill execution.
+
+### 🐞 Known-open defects
+
+- **React #418**, `report_map` print page, **~37.5% intermittent** (clean on `event_highlights`). **N ≥ 5 only.**
+- **Traversing-coverage readout jumped +175.4 km → +4452.2 km** after the seaborne fix — correct per design, but
+  sits oddly beside a count the toggle doesn't move (decision 4).
+
+### 🧭 THE THROUGH-LINE — the most transferable thing from tonight
+
+Every real bug found tonight was **invisible to the check that should have caught it**: the queue reported
+success on work it never did · the seaborne regression passed every count assertion while the map drew nothing ·
+provenance drift came from a stale worker the test suite never runs against · the geometry equivalence proof
+destroyed its own evidence through a `| tail`. **Standing rules now in force:**
+**assert DB deltas not job status · verify image shas before trusting behaviour · N≥5 on anything intermittent ·
+never pipe a long-running verification through `tail`.**
+
+### 📚 Lessons logged (all six confirmed in `~/.claude/LESSONS_GLOBAL.md`)
+
+`bullmq.deterministic-jobid.retained-completed-job-silently-drops-readd` ·
+`bullmq.lockduration.cpu-bound-processor-defeats-lock-renewal` ·
+`db.paired-columns.stale-worker-writes-one-of-the-pair` ·
+`geo.derivation.display-declutter-filter-mutilates-source-of-truth` ·
+`prisma.updateMany.not-predicate-excludes-null-rows` ·
+`regex.word-boundary.ascii-class-splits-unicode-tokens`
+
+---
+
+## 📦 2026-07-20 (late) — earlier detail from the same branch (retained; superseded where it overlaps the block above)
 
 ### 🔴 OPEN OWNER DECISIONS — most important first
 
@@ -84,7 +178,8 @@ All work below is verified on **dev only**.
 | `start_time` backfill (63 rows on dev) | `888189a` |
 | Provenance writes + track-fallback re-enqueue (18 patrols) | `825cf6c` |
 | Patrol start/end override + ER-sync anti-clobber | `a7518e8` |
-| Events subcategory filter / sorting / unattributed | `e35382e` |
+| Events subcategory filter + date/municipality sorting | `caa28bc` |
+| Events "Unattributed only" filter | `e35382e` |
 | Patrols unattributed filter | `97ff0bd` |
 | **One-time attribution backfill** (281 `title_hint` + 51 `nearest` patrols; 76 `nearest` events) | `96f7ff4` |
 
