@@ -64,9 +64,39 @@ ssh_vps "cd ${STACK}; \
 
 echo "▶ 4/6 Migrate staging (prod-data → new schema; drift-resolve fallback)"
 DBPORT=$(ssh_vps "grep -oP '(?<=^DB_PORT=)[0-9]+' ${STACK}/.env")
-DBURL=$(ssh_vps "grep -oP '(?<=^INTERNAL_DATABASE_URL=).*' ${STACK}/.env" | sed -E "s#@[^:]+:5432#@localhost:${DBPORT}#")
-ssh -i "$KEY" -N -L "${DBPORT}:localhost:${DBPORT}" "$VPS" & TUN=$!; sleep 3
-DBURL_LOCAL=$(echo "$DBURL" | sed -E "s#@[^:]+:${DBPORT}#@localhost:${DBPORT}#")
+
+# ── INVARIANT 1: ephemeral LOCAL tunnel port, DECOUPLED from the remote DB_PORT ──
+# Binding local==remote (the old behaviour) collides with any local process already
+# on that number — e.g. ferrybook_dev_db publishes 5433, the same as MG staging's
+# DB_PORT. The -L forward then fails to bind and `migrate deploy` silently connects
+# to the WRONG database while the run still reports "HEALTHY — safe to promote".
+# See ~/.claude/rules/staging-refresh-gate.md + LESSONS_GLOBAL
+# `deploy.staging-gate.tunnel-port-collision-swallows-migrate-failure`.
+LOCALPORT=""
+for _P in $(seq 45500 45560); do
+  if ! ss -ltn "sport = :${_P}" 2>/dev/null | grep -q LISTEN; then LOCALPORT="$_P"; break; fi
+done
+[ -n "$LOCALPORT" ] || { echo "  ✖ ABORT: no free local port in 45500-45560 for the DB tunnel"; exit 1; }
+echo "  · tunnel: localhost:${LOCALPORT} → VPS localhost:${DBPORT} (remote DB_PORT)"
+
+DBURL_LOCAL=$(ssh_vps "grep -oP '(?<=^INTERNAL_DATABASE_URL=).*' ${STACK}/.env" \
+  | sed -E "s#@[^:/]+:[0-9]+#@localhost:${LOCALPORT}#")
+
+ssh -o ConnectTimeout=20 -i "$KEY" -N -L "${LOCALPORT}:localhost:${DBPORT}" "$VPS" & TUN=$!
+
+# ── INVARIANT 2: verify the tunnel is actually LISTENING — fail loud, never no-op ──
+TUN_UP=0
+for _ in $(seq 1 15); do
+  if ss -ltn "sport = :${LOCALPORT}" 2>/dev/null | grep -q LISTEN; then TUN_UP=1; break; fi
+  sleep 1
+done
+if [ "$TUN_UP" != "1" ]; then
+  kill $TUN 2>/dev/null || true
+  echo "  ✖ ABORT: SSH tunnel never came up on localhost:${LOCALPORT}."
+  echo "    Refusing to run migrations — a no-op/wrong-DB migrate must never certify staging."
+  exit 1
+fi
+echo "  · tunnel verified LISTENING"
 if ! DATABASE_URL="$DBURL_LOCAL" pnpm --filter @marine-guardian/db db:migrate:deploy; then
   echo "  ↳ migrate deploy hit drift; resolving pending migrations as applied…"
   for M in $(DATABASE_URL="$DBURL_LOCAL" pnpm --filter @marine-guardian/db exec prisma migrate status 2>/dev/null | grep -oE '[0-9]{14}_[a-z_]+'); do
@@ -75,8 +105,15 @@ if ! DATABASE_URL="$DBURL_LOCAL" pnpm --filter @marine-guardian/db db:migrate:de
 fi
 
 echo "▶ 4b/6 Re-key staging ER token (prod copy carries prod-keyed secrets)"
+# ── INVARIANT 4: read secrets from a source available while the app is STOPPED ──
+# Staging's app/worker/pdf are stopped back in step 2, so `docker exec
+# ${PROJ}_app printenv` returns EMPTY here and the re-key would silently skip,
+# leaving staging ER sync broken ("unable to authenticate data"). Read staging's
+# key from the stack .env instead. Prod's app is never stopped by this script, so
+# its docker exec is reliable — .env is kept only as a fallback.
 PROD_ENCKEY=$(ssh_vps "docker exec ${PRODPROJ}_app printenv ENCRYPTION_KEY 2>/dev/null" | tr -d '\r\n' || true)
-STAGING_ENCKEY=$(ssh_vps "docker exec ${PROJ}_app printenv ENCRYPTION_KEY 2>/dev/null" | tr -d '\r\n' || true)
+[ -n "$PROD_ENCKEY" ] || PROD_ENCKEY=$(ssh_vps "grep -oP '(?<=^ENCRYPTION_KEY=).*' /etc/komodo/stacks/marine-guardian/.env 2>/dev/null" | tr -d '\r\n' || true)
+STAGING_ENCKEY=$(ssh_vps "grep -oP '(?<=^ENCRYPTION_KEY=).*' ${STACK}/.env 2>/dev/null" | tr -d '\r\n' || true)
 if [ -z "$PROD_ENCKEY" ] || [ -z "$STAGING_ENCKEY" ]; then
   echo "  ⚠ could not read one/both ENCRYPTION_KEYs — skipping re-key (staging ER sync may fail until re-keyed)"
 elif [ "$PROD_ENCKEY" = "$STAGING_ENCKEY" ]; then
@@ -87,7 +124,21 @@ else
     || echo "  ⚠ re-key reported an issue (non-fatal) — check staging ER sync after deploy"
 fi
 
+# ── INVARIANT 3: schema-status HARD GATE before the app is brought up ──
+# A shallow /health 200 must NEVER certify a promotable staging on its own. If the
+# schema is not provably up to date, ABORT *before* `up -d` rather than letting a
+# green health check vouch for migrations that never applied.
+echo "▶ 4c/6 Schema-status HARD GATE (must report up to date)"
+MIGSTATUS=$(DATABASE_URL="$DBURL_LOCAL" pnpm --filter @marine-guardian/db exec prisma migrate status 2>&1 || true)
 kill $TUN 2>/dev/null || true
+if echo "$MIGSTATUS" | grep -qi 'Database schema is up to date'; then
+  echo "  ✓ schema up to date"
+else
+  echo "  ✖ ABORT: prisma migrate status did NOT report an up-to-date schema."
+  echo "$MIGSTATUS" | tail -25
+  echo "  Staging NOT brought up on the candidate image. Nothing is promotable."
+  exit 1
+fi
 
 echo "▶ 5/6 Bring staging up on new image"
 ssh_vps "cd ${STACK}; docker compose -p ${PROJ} --env-file .env ${CF} up -d app worker pdf-renderer && echo '  ok'"
