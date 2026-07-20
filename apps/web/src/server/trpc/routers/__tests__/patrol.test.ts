@@ -21,6 +21,10 @@ vi.mock("@marine-guardian/db", () => ({
     municipality: {
       findFirst: vi.fn(),
     },
+    rolePermission: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+    },
     auditLog: {
       create: vi.fn(),
     },
@@ -95,6 +99,7 @@ const USER_ID = "user-123";
 function makeCtx(
   tenantId: string | null = TENANT_ID,
   roles: string[] = ["ranger"],
+  customRoleId: string | null = null,
 ) {
   return {
     session: {
@@ -103,6 +108,7 @@ function makeCtx(
         tenantId: tenantId as string,
         tenantSlug: "",
         roles,
+        customRoleId,
         email: "test@example.com",
         name: "Test User",
       },
@@ -924,6 +930,169 @@ describe("patrol.setMunicipalityOverride", () => {
     await expect(
       caller.setMunicipalityOverride({ id: "pat-missing", municipalityId: "muni-1" })
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(vi.mocked(prisma.patrol.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.auditLog.create)).not.toHaveBeenCalled();
+  });
+});
+
+// ── patrol.setTimeOverride (officer manual start/end time — anti-clobber) ──
+//
+// WHY this exists: the ER mobile app frequently fails to capture the phone's
+// clock, leaving `startTime` NULL on ~190 patrols (189 of them Foot). Only 63
+// are derivable from segments, so for the remaining 127 an officer override is
+// the ONLY way the patrol ever gets a time. The `*Manual` flags these writes
+// set are what stops the next ER sync from reverting them.
+
+describe("patrol.setTimeOverride", () => {
+  const START = new Date("2026-07-01T08:00:00.000Z");
+  const END = new Date("2026-07-01T12:00:00.000Z");
+
+  const existingPatrol = {
+    id: "pat-1",
+    startTime: null,
+    endTime: null,
+    startTimeManual: false,
+    endTimeManual: false,
+    startTimeDerivedAt: null,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValue(existingPatrol as never);
+    vi.mocked(prisma.patrol.update).mockResolvedValue({} as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
+
+  it("sets both times — flags both *Manual=true, clears derived stamp, audit logged", async () => {
+    const caller = createCaller(makeCtx());
+    const result = await caller.setTimeOverride({
+      id: "pat-1",
+      startTime: START,
+      endTime: END,
+    });
+
+    expect(result).toEqual({
+      id: "pat-1",
+      startTime: START,
+      endTime: END,
+      startTimeManual: true,
+      endTimeManual: true,
+    });
+    expect(vi.mocked(prisma.patrol.update).mock.calls[0]?.[0]).toMatchObject({
+      where: { id: "pat-1" },
+      data: {
+        startTime: START,
+        endTime: END,
+        startTimeManual: true,
+        endTimeManual: true,
+        startTimeDerivedAt: null,
+      },
+    });
+    expect(vi.mocked(prisma.auditLog.create).mock.calls[0]?.[0]).toMatchObject({
+      data: {
+        action: "SET_PATROL_TIME_OVERRIDE",
+        entityType: "Patrol",
+        entityId: "pat-1",
+      },
+    });
+  });
+
+  it("sets only startTime — endTimeManual stays false and endTime is cleared", async () => {
+    const caller = createCaller(makeCtx());
+    const result = await caller.setTimeOverride({
+      id: "pat-1",
+      startTime: START,
+      endTime: null,
+    });
+
+    expect(result).toMatchObject({ startTimeManual: true, endTimeManual: false });
+    expect(vi.mocked(prisma.patrol.update).mock.calls[0]?.[0]).toMatchObject({
+      data: { startTime: START, endTime: null, startTimeManual: true, endTimeManual: false },
+    });
+  });
+
+  it("clears both times (null, null) — flags drop to false, values nulled, audit logged", async () => {
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValue({
+      id: "pat-1",
+      startTime: START,
+      endTime: END,
+      startTimeManual: true,
+      endTimeManual: true,
+      startTimeDerivedAt: null,
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.setTimeOverride({
+      id: "pat-1",
+      startTime: null,
+      endTime: null,
+    });
+
+    expect(result).toEqual({
+      id: "pat-1",
+      startTime: null,
+      endTime: null,
+      startTimeManual: false,
+      endTimeManual: false,
+    });
+    expect(vi.mocked(prisma.patrol.update).mock.calls[0]?.[0]).toMatchObject({
+      data: {
+        startTime: null,
+        endTime: null,
+        startTimeManual: false,
+        endTimeManual: false,
+        startTimeDerivedAt: null,
+      },
+    });
+    expect(vi.mocked(prisma.auditLog.create).mock.calls[0]?.[0]).toMatchObject({
+      data: { action: "SET_PATROL_TIME_OVERRIDE", entityId: "pat-1" },
+    });
+  });
+
+  it("endTime earlier than startTime — throws BAD_REQUEST, no update, no audit", async () => {
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.setTimeOverride({ id: "pat-1", startTime: END, endTime: START }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(vi.mocked(prisma.patrol.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.auditLog.create)).not.toHaveBeenCalled();
+  });
+
+  it("endTime equal to startTime — accepted (boundary is >=, not >)", async () => {
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.setTimeOverride({ id: "pat-1", startTime: START, endTime: START }),
+    ).resolves.toMatchObject({ startTimeManual: true, endTimeManual: true });
+  });
+
+  it("missing patrol (cross-tenant id) — throws NOT_FOUND, no update, no audit", async () => {
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.setTimeOverride({ id: "pat-missing", startTime: START, endTime: END }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(vi.mocked(prisma.patrol.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.auditLog.create)).not.toHaveBeenCalled();
+  });
+
+  it("scopes the existence check to the caller's tenant (L6)", async () => {
+    const caller = createCaller(makeCtx());
+    await caller.setTimeOverride({ id: "pat-1", startTime: START, endTime: END });
+
+    expect(vi.mocked(prisma.patrol.findFirst).mock.calls[0]?.[0]).toMatchObject({
+      where: { id: "pat-1", tenantId: TENANT_ID },
+    });
+  });
+
+  it("custom-role user without patrols:update — FORBIDDEN, no update, no audit", async () => {
+    // Deny-by-default: no RolePermission row for the custom role => hasPermission false.
+    vi.mocked(prisma.rolePermission.findUnique).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["ranger"], "role-no-update"));
+    await expect(
+      caller.setTimeOverride({ id: "pat-1", startTime: START, endTime: END }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
     expect(vi.mocked(prisma.patrol.update)).not.toHaveBeenCalled();
     expect(vi.mocked(prisma.auditLog.create)).not.toHaveBeenCalled();
   });

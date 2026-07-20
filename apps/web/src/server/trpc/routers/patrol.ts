@@ -409,6 +409,109 @@ export const patrolRouter = router({
     }),
 
   /**
+   * Manual per-patrol start/end time override (anti-clobber flags).
+   *
+   * WHY: the ER mobile app frequently fails to capture the phone's date/time,
+   * so ER supplies no `start_time` for a large slice of patrols (overwhelmingly
+   * `foot` patrols). Only a minority are derivable from patrol_segments, so for
+   * the rest an officer-supplied value is the ONLY way the patrol ever gets a
+   * time — and that correction must survive every subsequent ER sync.
+   *
+   * Setting a time marks the corresponding `*Manual` flag true; the er-sync
+   * processor excludes flagged fields from its update payload (same
+   * choke-point pattern as `municipalityManual`). Clearing (null) drops the
+   * value AND the flag, handing the field back to ER/derivation.
+   *
+   * NOTE — no re-derive job is enqueued on clear, unlike
+   * `setMunicipalityOverride`. Start-time derivation from
+   * patrol_segments.actual_start currently lives ONLY in the one-off
+   * `scripts/backfill-patrol-start-time.ts`; there is no queue/processor
+   * counterpart to enqueue. Once one exists, enqueue it here on the
+   * clear path.
+   *
+   * Security: tenant-scoped (L6); matrix-gated same as `update`.
+   */
+  setTimeOverride: matrixProcedure(tenantProcedure, "patrols", "update")
+    .input(
+      z
+        .object({
+          id: z.string(),
+          startTime: z.coerce.date().nullable(),
+          endTime: z.coerce.date().nullable(),
+        })
+        .strict()
+    )
+    .mutation(async ({ ctx, input }) => {
+      const existing = await prisma.patrol.findFirst({
+        where: { id: input.id, tenantId: ctx.tenantId },
+        select: {
+          id: true,
+          startTime: true,
+          endTime: true,
+          startTimeManual: true,
+          endTimeManual: true,
+          startTimeDerivedAt: true,
+        },
+      });
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Patrol not found." });
+      }
+
+      if (
+        input.startTime !== null &&
+        input.endTime !== null &&
+        input.endTime.getTime() < input.startTime.getTime()
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "End time must be on or after start time.",
+        });
+      }
+
+      // Setting a value flags it manual. Clearing drops the value AND the
+      // flag, so ER/derivation may repopulate it. `startTimeDerivedAt` is
+      // provenance for a DERIVED value — a manual set supersedes it, and a
+      // clear invalidates it, so it is nulled on both paths.
+      const data = {
+        startTime: input.startTime,
+        startTimeManual: input.startTime !== null,
+        startTimeDerivedAt: null,
+        endTime: input.endTime,
+        endTimeManual: input.endTime !== null,
+      };
+
+      await prisma.patrol.update({ where: { id: input.id }, data });
+
+      await writeAuditLog(prisma as unknown as PrismaClient, {
+        tenantId: ctx.tenantId,
+        userId: ctx.userId,
+        action: "SET_PATROL_TIME_OVERRIDE",
+        entityType: "Patrol",
+        entityId: input.id,
+        changesJson: {
+          before: {
+            startTime: existing.startTime,
+            endTime: existing.endTime,
+            startTimeManual: existing.startTimeManual,
+            endTimeManual: existing.endTimeManual,
+            startTimeDerivedAt: existing.startTimeDerivedAt,
+          },
+          after: data,
+        },
+        ipAddress: ctx.ip,
+        severity: "info",
+      });
+
+      return {
+        id: input.id,
+        startTime: input.startTime,
+        endTime: input.endTime,
+        startTimeManual: data.startTimeManual,
+        endTimeManual: data.endTimeManual,
+      };
+    }),
+
+  /**
    * Fetch the edit-history revision timeline for a single patrol (q-ops-04).
    *
    * Returns revisions NEWEST-FIRST plus the immutable erOriginalSnapshot as
