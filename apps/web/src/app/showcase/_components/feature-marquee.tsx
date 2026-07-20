@@ -1,10 +1,9 @@
 "use client";
 
-import { useReducedMotion } from "motion/react";
-
 import { cn } from "@/lib/utils";
 import { Marquee } from "@/components/ui/marquee";
 import { MARQUEE_CHIPS } from "./data";
+import { useReducedMotionSafe } from "./use-reduced-motion-safe";
 
 function Chip({ label }: { label: string }) {
   return (
@@ -16,7 +15,12 @@ function Chip({ label }: { label: string }) {
 }
 
 export function FeatureMarquee() {
-  const shouldReduceMotion = useReducedMotion() ?? false;
+  // The two branches below render genuinely DIFFERENT content (a single wrapped
+  // row vs the Marquee's 4× repeated scrolling track), so no `motion-reduce:`
+  // CSS override can express the difference — this is the one case that needs
+  // the hydration-safe gate. Reading the raw `useReducedMotion()` here would
+  // make the server and first client trees disagree → React #418.
+  const shouldReduceMotion = useReducedMotionSafe();
 
   // Reduced motion: render a static, wrapping row of chips instead of a scroll.
   if (shouldReduceMotion) {
