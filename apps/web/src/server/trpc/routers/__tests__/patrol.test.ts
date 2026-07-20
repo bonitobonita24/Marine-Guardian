@@ -465,6 +465,99 @@ describe("patrol.list — Phase 7 soft-delete filter (default exclude)", () => {
   });
 });
 
+// Manual-attribution work queue — surfaces patrols whose geometry could not be
+// attributed to a municipality (municipality_id IS NULL) so an officer can
+// assign one by hand. Automatic attribution is a ONE-TIME cleanup, so this
+// filter is the permanent entry point to that workflow.
+//
+// NOTE on query paths: unlike event.list — which has BOTH a Prisma path and a
+// hand-written $queryRaw path taken whenever `search` is non-empty — patrol.list
+// has exactly ONE path (prisma.patrol.findMany) and accepts no `search` input at
+// all. There is therefore no second path to mirror this filter into. If a raw
+// search path is ever added to patrol.list, this filter MUST be implemented
+// there too or it will silently stop narrowing the moment someone searches.
+describe("patrol.list — unattributedOnly filter (manual-attribution work queue)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("default behavior — passes no municipalityId constraint (returns all patrols)", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50 });
+    const call = vi.mocked(prisma.patrol.findMany).mock.calls[0];
+    expect(call?.[0]?.where).not.toHaveProperty("municipalityId");
+    expect(call?.[0]?.where).toMatchObject({ tenantId: TENANT_ID });
+  });
+
+  it("unattributedOnly=true — narrows to municipalityId: null", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50, unattributedOnly: true });
+    expect(vi.mocked(prisma.patrol.findMany)).toHaveBeenCalledWith(
+      partial({ where: partial({ tenantId: TENANT_ID, municipalityId: null }) })
+    );
+  });
+
+  it("unattributedOnly=false — explicitly passing false does not narrow", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50, unattributedOnly: false });
+    const call = vi.mocked(prisma.patrol.findMany).mock.calls[0];
+    expect(call?.[0]?.where).not.toHaveProperty("municipalityId");
+  });
+
+  it("composes with state + type + includeTest + includeDeleted (all ANDed)", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    const caller = createCaller(makeCtx());
+    await caller.list({
+      limit: 50,
+      unattributedOnly: true,
+      state: "done",
+      patrolType: "seaborne",
+    });
+    // Defaults (includeTest/includeDeleted false) must still apply alongside it.
+    expect(vi.mocked(prisma.patrol.findMany)).toHaveBeenCalledWith(
+      partial({
+        where: partial({
+          tenantId: TENANT_ID,
+          municipalityId: null,
+          state: "done",
+          patrolType: "seaborne",
+          isTestPatrol: false,
+          isDeleted: false,
+        }),
+      })
+    );
+  });
+
+  it("composes with includeTest/includeDeleted=true — narrows municipality but drops the other two constraints", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    const caller = createCaller(makeCtx());
+    await caller.list({
+      limit: 50,
+      unattributedOnly: true,
+      includeTest: true,
+      includeDeleted: true,
+    });
+    const call = vi.mocked(prisma.patrol.findMany).mock.calls[0];
+    expect(call?.[0]?.where).toMatchObject({
+      tenantId: TENANT_ID,
+      municipalityId: null,
+    });
+    expect(call?.[0]?.where).not.toHaveProperty("isTestPatrol");
+    expect(call?.[0]?.where).not.toHaveProperty("isDeleted");
+  });
+
+  it("stays tenant-scoped — never leaks another tenant's unattributed patrols", async () => {
+    vi.mocked(prisma.patrol.findMany).mockResolvedValue([] as never);
+    const caller = createCaller(makeCtx());
+    await caller.list({ limit: 50, unattributedOnly: true });
+    const call = vi.mocked(prisma.patrol.findMany).mock.calls[0];
+    expect(call?.[0]?.where).toMatchObject({ tenantId: TENANT_ID });
+  });
+});
+
 // Phase 7 soft-delete — patrol.softDelete + patrol.restore (write path).
 // adminProcedure (super_admin + site_admin) Option B hardening: findFirst
 // tenant-scoped → NOT_FOUND (same message for missing vs cross-tenant) →

@@ -83,6 +83,9 @@ export function PatrolsTable() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [includeTest, setIncludeTest] = useState(false);
   const [includeDeleted, setIncludeDeleted] = useState(false);
+  // Manual-attribution work queue — narrows to patrols with no municipality so
+  // an officer can find them and assign one via the Override dialog below.
+  const [unattributedOnly, setUnattributedOnly] = useState(false);
   const [cursor, setCursor] = useState<string | undefined>(undefined);
 
   const [accumulated, setAccumulated] = useState<PatrolListItem[]>([]);
@@ -116,7 +119,7 @@ export function PatrolsTable() {
   useEffect(() => {
     setAccumulated([]);
     setCursor(undefined);
-  }, [stateFilter, typeFilter, includeTest, includeDeleted]);
+  }, [stateFilter, typeFilter, includeTest, includeDeleted, unattributedOnly]);
 
   const listQuery = trpc.patrol.list.useQuery({
     limit: 50,
@@ -125,6 +128,7 @@ export function PatrolsTable() {
     ...(typeFilter !== "all" ? { patrolType: typeFilter } : {}),
     includeTest,
     includeDeleted,
+    unattributedOnly,
   });
 
   // After a delete or restore, reset to the first page and refetch so the
@@ -216,6 +220,20 @@ export function PatrolsTable() {
             className="h-4 w-4 rounded border-input"
           />
           Show test patrols
+        </label>
+        {/* Unattributed-only — the manual-attribution work queue. A view-level
+            filter on the same data the list already shows, so it is gated by
+            the list's own "patrols:view" permission (like "Show test patrols")
+            rather than by canManage, which guards write actions. */}
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            data-testid="unattributed-only-toggle"
+            checked={unattributedOnly}
+            onChange={(e) => { setUnattributedOnly(e.target.checked); }}
+            className="h-4 w-4 rounded border-input"
+          />
+          Unattributed only
         </label>
         {canManage && (
           <label className="flex items-center gap-2 text-sm">

@@ -29,6 +29,14 @@ export const patrolListFilters = z.object({
   // Phase 7 soft-delete: exclude soft-deleted patrols by default. Admin "Show
   // Deleted" UI sets includeDeleted=true to surface deleted rows for restore.
   includeDeleted: z.boolean().default(false),
+  // Unattributed-only — surfaces patrols whose municipality could not be
+  // determined from geometry (municipality_id IS NULL), as a manual-attribution
+  // work queue. Automatic attribution is a ONE-TIME cleanup, not an ongoing
+  // process: patrols geometry cannot attribute STAY unattributed until an
+  // officer assigns one by hand via setMunicipalityOverride. This filter is the
+  // entry point to that workflow. Defaults false — existing behaviour unchanged.
+  // Mirrors event.list's `unattributedOnly` (same work queue, sibling surface).
+  unattributedOnly: z.boolean().default(false),
 });
 
 export const patrolRouter = router({
@@ -49,6 +57,9 @@ export const patrolRouter = router({
           ...(input.includeTest ? {} : { isTestPatrol: false }),
           // Phase 7 soft-delete: exclude soft-deleted patrols by default
           ...(input.includeDeleted ? {} : { isDeleted: false }),
+          // Manual-attribution work queue — narrow to patrols with no
+          // municipality. Composes with every filter above (all are ANDed).
+          ...(input.unattributedOnly ? { municipalityId: null } : {}),
         },
         take: input.limit + 1,
         ...(input.cursor !== undefined ? { cursor: { id: input.cursor } } : {}),
