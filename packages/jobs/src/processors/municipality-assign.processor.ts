@@ -79,7 +79,18 @@ export async function processMunicipalityAssign(
   if (entity === "event") {
     const event = await platformPrisma.event.findUnique({
       where: { id },
-      select: { id: true, tenantId: true, locationLat: true, locationLon: true },
+      select: {
+        id: true,
+        tenantId: true,
+        locationLat: true,
+        locationLon: true,
+        municipalityId: true,
+        // Anti-clobber key. Unlike Patrol (which carries a dedicated
+        // `municipalityManual` boolean), an Event records its override purely
+        // through the provenance enum — "manual" IS the lock. No redundant
+        // boolean is added: one column, one source of truth.
+        municipalityAttributionMethod: true,
+      },
     });
 
     if (event == null) {
@@ -97,18 +108,34 @@ export async function processMunicipalityAssign(
     const zoneIds = assignZonesToPoint(point, zones);
     const terrain = classifyPointTerrain(point, municipalities);
 
-    // Update event row (Layer 1). municipalityAttributionMethod records HOW the
-    // municipality was determined; this path is pure containment, so it is
-    // "containment" on a hit and null when the point falls outside every
-    // boundary (unattributed ⇒ no method to record).
+    // Update event row (Layer 1) — anti-clobber: a municipality an officer set
+    // by hand is NEVER overwritten by auto attribution, and neither is its
+    // provenance ("manual" must survive). Terrain + covered-zones are
+    // geometry-derived and always refresh regardless, exactly as on the patrol
+    // path — the override is a claim about JURISDICTION, not about geometry.
+    //
+    // Without this guard the officer's correction is silently destroyed on the
+    // very next ER sync, which makes the whole override feature a lie.
+    //
+    // The comparison is a JS strict-equality on the enum, NOT a DB `not:
+    // "manual"` predicate — `NULL <> 'manual'` is NULL in SQL, so an ORM-side
+    // guard would silently match nothing for the (very common) null-method row.
+    // See LESSONS_GLOBAL `sql.three-valued-logic.not-predicate-skips-nulls`.
+    //
+    // On the auto path the method is "containment" whenever a municipality was
+    // resolved, and null when the point falls outside every boundary
+    // (unattributed ⇒ no method to record, never a false claim).
+    const manualOverride = event.municipalityAttributionMethod === "manual";
     await platformPrisma.event.update({
       where: { id },
-      data: {
-        municipalityId,
-        municipalityAssignedAt: now,
-        municipalityAttributionMethod: municipalityId != null ? "containment" : null,
-        terrain,
-      },
+      data: manualOverride
+        ? { terrain }
+        : {
+            municipalityId,
+            municipalityAssignedAt: now,
+            municipalityAttributionMethod: municipalityId != null ? "containment" : null,
+            terrain,
+          },
     });
 
     // Upsert junction rows (Layer 2) — idempotent
@@ -120,7 +147,16 @@ export async function processMunicipalityAssign(
       });
     }
 
-    return { entity, id, municipalityId, zoneIds, skipped: false };
+    return {
+      entity,
+      id,
+      // Report the municipality that is actually ON the row — on an override
+      // that is the officer's value, not the containment result we discarded.
+      municipalityId: manualOverride ? event.municipalityId : municipalityId,
+      zoneIds,
+      skipped: false,
+      ...(manualOverride ? { skipReason: "manual_override" } : {}),
+    };
   }
 
   // ── Patrol path ──────────────────────────────────────────────────────────

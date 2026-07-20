@@ -89,6 +89,15 @@ vi.mock("@marine-guardian/db", () => ({
     auditLog: {
       create: vi.fn(),
     },
+    // Municipality-override target validation (tenant-scoped existence check).
+    municipality: {
+      findFirst: vi.fn(),
+    },
+    // Backs the matrixProcedure permission resolver for custom-role callers
+    // (deny-by-default when no RolePermission row exists).
+    rolePermission: {
+      findUnique: vi.fn(),
+    },
   },
   decrypt: (value: string): string => value,
   writeAuditLog: vi.fn(),
@@ -96,6 +105,10 @@ vi.mock("@marine-guardian/db", () => ({
 
 vi.mock("../../../lib/earthranger-push", () => ({
   pushEventUpdateToEarthRanger: vi.fn(),
+}));
+
+vi.mock("@marine-guardian/jobs", () => ({
+  enqueueMunicipalityAssign: vi.fn().mockResolvedValue("job-id"),
 }));
 
 vi.mock("../../../lib/rate-limit", () => ({
@@ -112,6 +125,7 @@ vi.mock("../../../auth", () => ({
 }));
 
 import { prisma, writeAuditLog } from "@marine-guardian/db";
+import { enqueueMunicipalityAssign } from "@marine-guardian/jobs";
 import { pushEventUpdateToEarthRanger } from "../../../lib/earthranger-push";
 import { createCallerFactory } from "../../trpc";
 import { eventRouter } from "../event";
@@ -126,7 +140,10 @@ const createCaller = createCallerFactory(eventRouter);
 const TENANT_ID = "tenant-abc";
 const USER_ID = "user-123";
 
-function makeCtx(tenantId: string | null = TENANT_ID) {
+function makeCtx(
+  tenantId: string | null = TENANT_ID,
+  customRoleId: string | null = null,
+) {
   return {
     session: {
       user: {
@@ -134,6 +151,7 @@ function makeCtx(tenantId: string | null = TENANT_ID) {
         tenantId: tenantId as string,
         tenantSlug: "",
         roles: ["ranger" as const],
+        customRoleId,
         email: "test@example.com",
         name: "Test User",
       },
@@ -2434,5 +2452,245 @@ describe("event.list — attributionMethod filter (both paths)", () => {
       // @ts-expect-error — deliberately invalid input; Zod must reject it.
       caller.list({ attributionMethod: "vibes" }),
     ).rejects.toThrow();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// event.setMunicipalityOverride — command-center manual correction
+//
+// The app attributes a municipality automatically from the event's coordinates
+// and sometimes gets it wrong (bad GPS fix, boundary gap, ambiguous water
+// line). The officer can see that and set it by hand.
+//
+// ⚠ These tests cover only HALF the contract. The other half — the anti-clobber
+// guard that stops the next ER sync from destroying the correction — lives in
+// packages/jobs municipality-assign.processor.test.ts ("event manual-override
+// anti-clobber"). Neither half is meaningful alone.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("event.setMunicipalityOverride", () => {
+  const existingEvent = {
+    id: "ev-1",
+    municipalityId: null,
+    municipalityAttributionMethod: null,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.event.findFirst).mockResolvedValue(existingEvent as never);
+    vi.mocked(prisma.event.update).mockResolvedValue({} as never);
+  });
+
+  it("sets a valid municipality — stamps method='manual' and CLEARS the stale auto-guess provenance", async () => {
+    vi.mocked(prisma.municipality.findFirst).mockResolvedValue({ id: "muni-1" } as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.setMunicipalityOverride({ id: "ev-1", municipalityId: "muni-1" });
+
+    expect(result).toEqual({ id: "ev-1", municipalityId: "muni-1", municipalityManual: true });
+    expect(vi.mocked(prisma.event.update).mock.calls[0]?.[0]).toMatchObject({
+      where: { id: "ev-1" },
+      data: {
+        municipalityId: "muni-1",
+        municipalityAttributionMethod: "manual",
+        // The distance + near-tie flag described the AUTOMATIC guess. Leaving
+        // them behind is what made corrected rows match the needs-review filter
+        // forever on the patrol side — regression guard for 4f41c57.
+        municipalityDistanceKm: null,
+        municipalityAttributionAmbiguous: false,
+      },
+    });
+    expect(vi.mocked(enqueueMunicipalityAssign)).not.toHaveBeenCalled();
+  });
+
+  it("writes an audit row on set", async () => {
+    vi.mocked(prisma.municipality.findFirst).mockResolvedValue({ id: "muni-1" } as never);
+
+    const caller = createCaller(makeCtx());
+    await caller.setMunicipalityOverride({ id: "ev-1", municipalityId: "muni-1" });
+
+    expect(vi.mocked(writeAuditLog).mock.calls[0]?.[1]).toMatchObject({
+      tenantId: TENANT_ID,
+      userId: USER_ID,
+      action: "SET_EVENT_MUNICIPALITY_OVERRIDE",
+      entityType: "Event",
+      entityId: "ev-1",
+    });
+  });
+
+  it("clears the override (null) — resets method, clears the value, and RE-ENQUEUES auto attribution", async () => {
+    vi.mocked(prisma.event.findFirst).mockResolvedValue({
+      id: "ev-1",
+      municipalityId: "muni-1",
+      municipalityAttributionMethod: "manual",
+    } as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.setMunicipalityOverride({ id: "ev-1", municipalityId: null });
+
+    expect(result).toEqual({ id: "ev-1", municipalityId: null, municipalityManual: false });
+    expect(vi.mocked(prisma.event.update)).toHaveBeenCalledWith({
+      where: { id: "ev-1" },
+      data: { municipalityAttributionMethod: null, municipalityId: null },
+    });
+    // Without the re-enqueue the row would be stranded unattributed forever.
+    expect(vi.mocked(enqueueMunicipalityAssign)).toHaveBeenCalledWith({
+      entity: "event",
+      id: "ev-1",
+      tenantId: TENANT_ID,
+      userId: USER_ID,
+    });
+    expect(vi.mocked(writeAuditLog).mock.calls[0]?.[1]).toMatchObject({
+      action: "CLEAR_EVENT_MUNICIPALITY_OVERRIDE",
+      entityType: "Event",
+      entityId: "ev-1",
+    });
+  });
+
+  it("cross-tenant event — NOT_FOUND, no update, no audit", async () => {
+    vi.mocked(prisma.event.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.setMunicipalityOverride({ id: "ev-other-tenant", municipalityId: "muni-1" })
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(vi.mocked(prisma.event.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(writeAuditLog)).not.toHaveBeenCalled();
+  });
+
+  it("cross-tenant municipality — BAD_REQUEST, no update, no audit", async () => {
+    vi.mocked(prisma.municipality.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.setMunicipalityOverride({ id: "ev-1", municipalityId: "muni-other-tenant" })
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(vi.mocked(prisma.event.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(writeAuditLog)).not.toHaveBeenCalled();
+  });
+
+  it("scopes BOTH existence checks to the caller's tenant (L6)", async () => {
+    vi.mocked(prisma.municipality.findFirst).mockResolvedValue({ id: "muni-1" } as never);
+
+    const caller = createCaller(makeCtx());
+    await caller.setMunicipalityOverride({ id: "ev-1", municipalityId: "muni-1" });
+
+    expect(vi.mocked(prisma.event.findFirst).mock.calls[0]?.[0]).toMatchObject({
+      where: { id: "ev-1", tenantId: TENANT_ID },
+    });
+    expect(vi.mocked(prisma.municipality.findFirst).mock.calls[0]?.[0]).toMatchObject({
+      where: { id: "muni-1", tenantId: TENANT_ID },
+    });
+  });
+
+  it("custom-role user without events:update — FORBIDDEN, no update, no audit", async () => {
+    // Deny-by-default: no RolePermission row for the custom role.
+    vi.mocked(prisma.rolePermission.findUnique).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx(TENANT_ID, "role-no-update"));
+    await expect(
+      caller.setMunicipalityOverride({ id: "ev-1", municipalityId: "muni-1" })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(vi.mocked(prisma.event.update)).not.toHaveBeenCalled();
+    expect(vi.mocked(writeAuditLog)).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unknown input key at the schema boundary (.strict())", async () => {
+    const caller = createCaller(makeCtx());
+    await expect(
+      // @ts-expect-error — deliberately passing a key the schema forbids
+      caller.setMunicipalityOverride({ id: "ev-1", municipalityId: "muni-1", municipalityManual: true })
+    ).rejects.toThrow();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// event.list — municipality + provenance SHAPE parity across the two paths
+//
+// event.list has TWO implementations: the Prisma fluent path, and the
+// hand-written $queryRaw path taken whenever a search term is present (or the
+// municipality sort is used). The Prisma path returns every Event scalar for
+// free; the raw path returns ONLY what its SELECT list names — so any field the
+// UI reads has to be added there BY HAND, and forgetting is silent. Commit
+// 4f41c57 found exactly that: the raw path was missing the provenance columns
+// entirely, so typing in the search box made the attribution badges vanish.
+//
+// The municipality override control reads the same fields (it seeds its dialog
+// from `municipalityId` and decides "is this row overridden?" from
+// `municipalityAttributionMethod`), so it inherits that trap. These tests pin
+// the SELECT list and the mapped key shape so a future edit cannot regress one
+// path without failing here.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("event.list — municipality/provenance parity across both paths", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("the raw path SELECTs every municipality + provenance column the UI reads", async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
+
+    const caller = createCaller(makeCtx());
+    await caller.list({ search: "vessel" });
+
+    const sql = rawSqlText();
+    expect(sql).toContain("e.municipality_id");
+    expect(sql).toContain("e.municipality_attribution_method");
+    expect(sql).toContain("e.municipality_distance_km");
+    expect(sql).toContain("e.municipality_attribution_ambiguous");
+    // The NAME comes from the joined municipalities table — an id alone is not
+    // reviewable by an officer.
+    expect(sql).toContain("LEFT JOIN municipalities m ON m.id = e.municipality_id");
+  });
+
+  it("both paths expose the SAME municipality/provenance keys for the same row", async () => {
+    const MUNI_KEYS = [
+      "municipalityId",
+      "municipalityAttributionMethod",
+      "municipalityDistanceKm",
+      "municipalityAttributionAmbiguous",
+      "municipality",
+    ] as const;
+
+    // Path A — no search → Prisma fluent path.
+    vi.mocked(prisma.event.findMany).mockResolvedValue([
+      {
+        id: "ev-1",
+        municipalityId: "muni-1",
+        municipalityAttributionMethod: "manual",
+        municipalityDistanceKm: null,
+        municipalityAttributionAmbiguous: false,
+        municipality: { id: "muni-1", name: "Baco" },
+      },
+    ] as never);
+
+    const caller = createCaller(makeCtx());
+    const prismaRes = await caller.list({});
+    const prismaItem = prismaRes.items[0] as unknown as Record<string, unknown>;
+
+    // Path B — same row, reached through the raw path via a search term.
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([
+      {
+        id: "ev-1",
+        municipalityId: "muni-1",
+        municipalityAttributionMethod: "manual",
+        municipalityDistanceKm: null,
+        municipalityAttributionAmbiguous: false,
+        municipality_name: "Baco",
+      },
+    ] as never);
+
+    const rawRes = await caller.list({ search: "vessel" });
+    const rawItem = rawRes.items[0] as unknown as Record<string, unknown>;
+
+    for (const key of MUNI_KEYS) {
+      expect(rawItem).toHaveProperty(key);
+      expect(prismaItem).toHaveProperty(key);
+      expect(rawItem[key]).toEqual(prismaItem[key]);
+    }
+
+    // The nested municipality object must be re-built to the SAME shape the
+    // Prisma `include` produces — the row renderer cannot tell the paths apart.
+    expect(rawItem.municipality).toEqual({ id: "muni-1", name: "Baco" });
   });
 });

@@ -402,3 +402,104 @@ describe("processMunicipalityAssign — municipalityAttributionMethod provenance
     expect(data).toHaveProperty("municipalityAttributionMethod", "containment");
   });
 });
+
+// EVENT manual-override anti-clobber (2026-07-21).
+//
+// The event path historically had NO guard at all: it overwrote municipalityId
+// unconditionally on every sync, so a command-center officer's correction was
+// silently destroyed the next time the row was re-processed. That made the
+// override control worse than useless — it looked like it worked.
+//
+// Unlike Patrol, Event carries no `municipalityManual` boolean; the provenance
+// enum IS the lock (municipalityAttributionMethod === "manual"). These tests
+// pin that contract. Sibling of the patrol block above; the two paths must stay
+// behaviourally identical.
+describe("processMunicipalityAssign — event manual-override anti-clobber", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    pp.municipality.findMany.mockResolvedValue([]);
+    pp.protectedZone.findMany.mockResolvedValue([]);
+  });
+
+  it("does not overwrite municipalityId/method when the event was manually overridden, but still writes terrain", async () => {
+    pp.event.findUnique.mockResolvedValueOnce({
+      id: "event-manual-1",
+      tenantId: "tenant-1",
+      locationLat: 13.4,
+      locationLon: 121.2,
+      municipalityId: "muni-officer-chose",
+      municipalityAttributionMethod: "manual",
+    });
+
+    // The sync supplies a DIFFERENT municipality — this is exactly the clobber
+    // the officer is being protected from.
+    mockedAssignByContainment.mockReturnValue("muni-auto-computed");
+
+    const result = await processMunicipalityAssign(
+      makeJob({ entity: "event", id: "event-manual-1" }),
+    );
+
+    expect(pp.event.update).toHaveBeenCalledTimes(1);
+    const data = ((pp.event.update.mock.calls[0]?.[0] ?? {}) as { data: Record<string, unknown> }).data;
+    expect(data).not.toHaveProperty("municipalityId");
+    expect(data).not.toHaveProperty("municipalityAssignedAt");
+    // Provenance must survive too — otherwise the next pass would see a
+    // non-"manual" method and happily clobber the row.
+    expect(data).not.toHaveProperty("municipalityAttributionMethod");
+    // Geometry-derived fields still refresh.
+    expect(data).toHaveProperty("terrain");
+
+    expect(result.municipalityId).toBe("muni-officer-chose");
+    expect(result.skipped).toBe(false);
+    expect(result.skipReason).toBe("manual_override");
+  });
+
+  it("writes municipalityId as normal when the method is 'containment' (auto row, not overridden)", async () => {
+    pp.event.findUnique.mockResolvedValueOnce({
+      id: "event-auto-1",
+      tenantId: "tenant-1",
+      locationLat: 13.4,
+      locationLon: 121.2,
+      municipalityId: "muni-old",
+      municipalityAttributionMethod: "containment",
+    });
+
+    mockedAssignByContainment.mockReturnValue("muni-auto-computed");
+
+    const result = await processMunicipalityAssign(
+      makeJob({ entity: "event", id: "event-auto-1" }),
+    );
+
+    const data = ((pp.event.update.mock.calls[0]?.[0] ?? {}) as { data: Record<string, unknown> }).data;
+    expect(data).toHaveProperty("municipalityId", "muni-auto-computed");
+    expect(data).toHaveProperty("municipalityAssignedAt");
+    expect(result.municipalityId).toBe("muni-auto-computed");
+    expect(result.skipReason).toBeUndefined();
+  });
+
+  // Regression guard for the SQL three-valued-logic trap
+  // (LESSONS_GLOBAL `sql.three-valued-logic.not-predicate-skips-nulls`): the
+  // overwhelming majority of rows carry a NULL method. If the guard were ever
+  // re-expressed as a DB `not: "manual"` predicate, `NULL <> 'manual'` would
+  // evaluate to NULL and these rows would stop being processed entirely.
+  it("writes municipalityId as normal when the method is NULL (never-attributed row)", async () => {
+    pp.event.findUnique.mockResolvedValueOnce({
+      id: "event-null-method-1",
+      tenantId: "tenant-1",
+      locationLat: 13.4,
+      locationLon: 121.2,
+      municipalityId: null,
+      municipalityAttributionMethod: null,
+    });
+
+    mockedAssignByContainment.mockReturnValue("muni-auto-computed");
+
+    const result = await processMunicipalityAssign(
+      makeJob({ entity: "event", id: "event-null-method-1" }),
+    );
+
+    const data = ((pp.event.update.mock.calls[0]?.[0] ?? {}) as { data: Record<string, unknown> }).data;
+    expect(data).toHaveProperty("municipalityId", "muni-auto-computed");
+    expect(result.skipReason).toBeUndefined();
+  });
+});

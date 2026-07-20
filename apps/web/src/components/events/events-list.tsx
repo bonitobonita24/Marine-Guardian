@@ -13,6 +13,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import {
   Circle,
   Play,
@@ -257,6 +258,27 @@ interface EventsListProps {
 export function EventsList({ initialEventId, onFiltersChange }: EventsListProps = {}) {
   const utils = trpc.useUtils();
 
+  // Municipality-override authority. Mirrors the patrols-table gate and, more
+  // importantly, the SERVER gate: event.setMunicipalityOverride runs through
+  // matrixProcedure(…, "events", "update"). Hiding the control from a user the
+  // server would reject keeps the two in agreement — the server remains the
+  // enforcement point regardless.
+  const { data: session } = useSession();
+  const roles = session?.user.roles ?? [];
+  const canOverrideMunicipality =
+    roles.includes("tenant_manager") ||
+    roles.includes("tenant_superadmin") ||
+    roles.includes("tenant_admin");
+
+  // Pending municipality-override target (null = dialog closed).
+  const [overrideTarget, setOverrideTarget] = useState<{
+    id: string;
+    label: string;
+    current: string | null;
+    manual: boolean;
+  } | null>(null);
+  const [selectedMuni, setSelectedMuni] = useState<string>("");
+
   // ── Filter state
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [searchInput, setSearchInput] = useState("");
@@ -277,6 +299,22 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
   const updateStateMutation = trpc.event.updateState.useMutation({
     onSuccess: () => {
       // Refresh all pages from top after a state change
+      setAccumulated([]);
+      setCursor(undefined);
+      void utils.event.list.invalidate();
+    },
+  });
+
+  // ── Municipality list — only fetched once the dialog actually opens, so the
+  //    list screen does not pay for a query most sessions never need.
+  const muniQuery = trpc.municipality.list.useQuery(undefined, {
+    enabled: overrideTarget !== null,
+  });
+
+  // ── Municipality override (per-row officer correction)
+  const setMunicipalityOverride = trpc.event.setMunicipalityOverride.useMutation({
+    onSuccess: () => {
+      setOverrideTarget(null);
       setAccumulated([]);
       setCursor(undefined);
       void utils.event.list.invalidate();
@@ -766,6 +804,16 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
                 }
                 isSelected={selectedIds.has(event.id)}
                 onToggleSelected={toggleSelected}
+                canOverrideMunicipality={canOverrideMunicipality}
+                onOverrideMunicipality={(e) => {
+                  setSelectedMuni(e.municipalityId ?? "");
+                  setOverrideTarget({
+                    id: e.id,
+                    label: eventPrimaryLabel(e),
+                    current: e.municipalityId,
+                    manual: e.municipalityAttributionMethod === "manual",
+                  });
+                }}
               />
             ))}
           </ol>
@@ -796,6 +844,95 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
         </>
       )}
 
+      {/* ── Municipality override dialog ─────────────────────────────────
+          The command-center officer's correction path: the app attributes a
+          municipality automatically from the event's coordinates, and when it
+          gets that wrong (bad GPS fix, boundary gap, ambiguous water line) the
+          officer sets it by hand here. Saving stamps provenance "manual",
+          which is what stops the next EarthRanger sync from overwriting it. */}
+      <Dialog
+        open={overrideTarget !== null}
+        onOpenChange={(v) => {
+          if (!v && !setMunicipalityOverride.isPending) {
+            setOverrideTarget(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Set event municipality</DialogTitle>
+            <DialogDescription>
+              {overrideTarget !== null && (
+                <span className="mb-1 block font-medium text-foreground">
+                  {overrideTarget.label}
+                </span>
+              )}
+              Manually setting the municipality stops automatic attribution from
+              overwriting it. &quot;Clear override&quot; re-enables automatic
+              attribution.
+            </DialogDescription>
+          </DialogHeader>
+          <select
+            data-testid="event-override-municipality-select"
+            aria-label="Select municipality"
+            value={selectedMuni}
+            onChange={(e) => { setSelectedMuni(e.target.value); }}
+            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+          >
+            <option value="">— Select municipality —</option>
+            {muniQuery.data?.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+                {m.province ? ` (${m.province})` : ""}
+              </option>
+            ))}
+          </select>
+          {setMunicipalityOverride.error && (
+            <p className="text-sm text-destructive">
+              {setMunicipalityOverride.error.message}
+            </p>
+          )}
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => { setOverrideTarget(null); }}
+              disabled={setMunicipalityOverride.isPending}
+            >
+              Cancel
+            </Button>
+            {overrideTarget?.manual === true && (
+              <Button
+                variant="outline"
+                data-testid="event-clear-override-button"
+                disabled={setMunicipalityOverride.isPending}
+                onClick={() => {
+                  setMunicipalityOverride.mutate({
+                    id: overrideTarget.id,
+                    municipalityId: null,
+                  });
+                }}
+              >
+                Clear override (auto)
+              </Button>
+            )}
+            <Button
+              data-testid="event-save-override-button"
+              disabled={selectedMuni === "" || setMunicipalityOverride.isPending}
+              onClick={() => {
+                if (overrideTarget !== null) {
+                  setMunicipalityOverride.mutate({
+                    id: overrideTarget.id,
+                    municipalityId: selectedMuni,
+                  });
+                }
+              }}
+            >
+              {setMunicipalityOverride.isPending ? "Saving…" : "Save override"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* ── Detail modal (M2 Edit/History tabs) ─────────────────────────── */}
       <EventDetailModal
         eventId={selectedEventId}
@@ -808,12 +945,14 @@ export function EventsList({ initialEventId, onFiltersChange }: EventsListProps 
 // ── EventRow — single list item ────────────────────────────────────────────
 
 type EventRowProps = {
-  event:                EventListItem;
-  onOpenDetail:         (id: string) => void;
-  onStateChange:        (id: string, state: EventState) => void;
-  isStateChangePending: boolean;
-  isSelected:           boolean;
-  onToggleSelected:     (id: string, checked: boolean) => void;
+  event:                    EventListItem;
+  onOpenDetail:             (id: string) => void;
+  onStateChange:            (id: string, state: EventState) => void;
+  isStateChangePending:     boolean;
+  isSelected:               boolean;
+  onToggleSelected:         (id: string, checked: boolean) => void;
+  canOverrideMunicipality:  boolean;
+  onOverrideMunicipality:   (event: EventListItem) => void;
 };
 
 function EventRow({
@@ -823,6 +962,8 @@ function EventRow({
   isStateChangePending,
   isSelected,
   onToggleSelected,
+  canOverrideMunicipality,
+  onOverrideMunicipality,
 }: EventRowProps) {
   const state: EventState = event.state;
 
@@ -970,6 +1111,23 @@ function EventRow({
             <SelectItem value="resolved">Resolved</SelectItem>
           </SelectContent>
         </Select>
+
+        {/* Municipality override — the officer's correction entry point.
+            Rendered for EVERY row, not just attributed ones: an UNATTRIBUTED
+            event (the `unattributedOnly` work queue) is precisely the row that
+            most needs a municipality set by hand. */}
+        {canOverrideMunicipality && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            data-testid={`event-override-button-${event.id}`}
+            aria-label={`Set municipality for ${eventPrimaryLabel(event)}`}
+            onClick={() => { onOverrideMunicipality(event); }}
+          >
+            Override
+          </Button>
+        )}
       </div>
     </li>
   );

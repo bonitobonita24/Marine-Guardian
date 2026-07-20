@@ -7,6 +7,7 @@ import { prisma, decrypt, writeAuditLog } from "@marine-guardian/db";
 import { Prisma } from "@marine-guardian/db";
 import type { PrismaClient } from "@marine-guardian/db";
 import { pushEventUpdateToEarthRanger } from "../../lib/earthranger-push";
+import { enqueueMunicipalityAssign } from "@marine-guardian/jobs";
 import {
   attributionMethodFilter,
   attributionRawCondition,
@@ -653,6 +654,141 @@ export const eventRouter = router({
           },
         },
       });
+    }),
+
+  /**
+   * Manual per-event municipality override (command-center correction).
+   *
+   * WHY: municipality attribution is automatic (point-in-polygon containment on
+   * the event's coordinates), and it is sometimes WRONG — a bad/absent GPS fix,
+   * a point metres offshore falling in a boundary gap, or a genuinely ambiguous
+   * location near a shared water line. The command-center officer can SEE that
+   * the app got it wrong, so they get the authority to set it by hand.
+   *
+   * ⚠ This mutation is only half the feature. The other half is the anti-clobber
+   * guard in packages/jobs municipality-assign.processor.ts — without it the
+   * next ER sync silently overwrites the officer's correction and this control
+   * is worse than useless. The two ALWAYS ship together.
+   *
+   * Mirrors patrol.setMunicipalityOverride exactly, with one deliberate
+   * difference: Event has NO `municipalityManual` boolean. The provenance enum
+   * IS the lock (`municipalityAttributionMethod === "manual"`), so there is one
+   * column and one source of truth rather than two that can disagree.
+   */
+  setMunicipalityOverride: matrixProcedure(tenantProcedure, "events", "update")
+    .input(
+      z
+        .object({
+          id: z.string(),
+          municipalityId: z.string().nullable(),
+        })
+        .strict()
+    )
+    .mutation(async ({ ctx, input }) => {
+      const existing = await prisma.event.findFirst({
+        where: { id: input.id, tenantId: ctx.tenantId },
+        select: {
+          id: true,
+          municipalityId: true,
+          municipalityAttributionMethod: true,
+        },
+      });
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Event not found." });
+      }
+
+      if (input.municipalityId !== null) {
+        // Tenant-scoped: an officer can only ever assign a municipality that
+        // belongs to their own tenant. A cross-tenant id is a bad request, not
+        // a silent no-op.
+        const municipality = await prisma.municipality.findFirst({
+          where: { id: input.municipalityId, tenantId: ctx.tenantId },
+          select: { id: true },
+        });
+        if (!municipality) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Municipality not found." });
+        }
+
+        await prisma.event.update({
+          where: { id: input.id },
+          data: {
+            municipalityId: input.municipalityId,
+            municipalityAssignedAt: new Date(),
+            // Re-stamp the PROVENANCE to match reality. This is also what arms
+            // the processor's anti-clobber guard — "manual" is the lock.
+            municipalityAttributionMethod: "manual",
+            // The distance and the near-tie flag described the AUTOMATIC guess.
+            // They say nothing about a human's decision, so they are cleared
+            // rather than left to describe a value that no longer exists.
+            // Leaving them behind is what made corrected rows match the
+            // needs-review filter FOREVER on the patrol side (fixed in 4f41c57)
+            // — that bug is deliberately not reintroduced here.
+            municipalityDistanceKm: null,
+            municipalityAttributionAmbiguous: false,
+          },
+        });
+
+        await writeAuditLog(prisma as unknown as PrismaClient, {
+          tenantId: ctx.tenantId,
+          userId: ctx.userId,
+          action: "SET_EVENT_MUNICIPALITY_OVERRIDE",
+          entityType: "Event",
+          entityId: input.id,
+          changesJson: {
+            before: {
+              municipalityId: existing.municipalityId,
+              municipalityAttributionMethod: existing.municipalityAttributionMethod,
+            },
+            after: {
+              municipalityId: input.municipalityId,
+              municipalityAttributionMethod: "manual",
+            },
+          },
+          ipAddress: ctx.ip,
+          severity: "info",
+        });
+      } else {
+        // Clearing the override hands the row back to automatic attribution:
+        // drop the lock, then re-enqueue so a real value is recomputed rather
+        // than leaving the event stranded with a stale manual value.
+        await prisma.event.update({
+          where: { id: input.id },
+          data: {
+            municipalityAttributionMethod: null,
+            municipalityId: null,
+          },
+        });
+
+        await enqueueMunicipalityAssign({
+          entity: "event",
+          id: input.id,
+          tenantId: ctx.tenantId,
+          userId: ctx.userId,
+        });
+
+        await writeAuditLog(prisma as unknown as PrismaClient, {
+          tenantId: ctx.tenantId,
+          userId: ctx.userId,
+          action: "CLEAR_EVENT_MUNICIPALITY_OVERRIDE",
+          entityType: "Event",
+          entityId: input.id,
+          changesJson: {
+            before: {
+              municipalityId: existing.municipalityId,
+              municipalityAttributionMethod: existing.municipalityAttributionMethod,
+            },
+            after: { municipalityId: null, municipalityAttributionMethod: null },
+          },
+          ipAddress: ctx.ip,
+          severity: "info",
+        });
+      }
+
+      return {
+        id: input.id,
+        municipalityId: input.municipalityId,
+        municipalityManual: input.municipalityId !== null,
+      };
     }),
 
   updateState: matrixProcedure(tenantProcedure, "events", "update")
