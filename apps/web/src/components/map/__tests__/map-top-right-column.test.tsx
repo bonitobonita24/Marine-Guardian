@@ -77,8 +77,9 @@ describe("MapTopRightColumn", () => {
     // flush right edge (intended).
     expect(column.className).toContain("items-end");
     // Clamped to the map height with its own scroller; clamped on narrow
-    // viewports so it never covers the whole map.
-    expect(column.className).toContain("max-h-[calc(100%-1.5rem)]");
+    // viewports so it never covers the whole map. The clamp reserves the
+    // bottom-right control band — see the control-clearance suite below.
+    expect(column.className).toContain("max-h-[calc(100%-9.75rem)]");
     expect(column.className).toContain("overflow-y-auto");
     expect(column.className).toContain("lg:max-w-[calc(100%-1.5rem)]");
   });
@@ -112,8 +113,9 @@ describe("MapTopRightColumn", () => {
       render(<MapTopRightColumn transient={<div />} />);
 
       const column = screen.getByTestId("map-top-right-column");
-      // Base (narrow) anchor is the BOTTOM edge...
-      expect(column.className).toContain("bottom-3");
+      // Base (narrow) anchor is the BOTTOM edge, held clear of the map's
+      // bottom-right controls (see the control-clearance suite below)...
+      expect(column.className).toContain("bottom-36");
       // ...and it reverts to the approved top alignment from lg upward.
       expect(column.className).toContain("lg:bottom-auto");
       expect(column.className).toContain("lg:top-3");

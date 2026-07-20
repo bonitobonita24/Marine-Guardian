@@ -74,6 +74,56 @@ import type { ReactNode } from "react";
  *
  * `lg:` is Tailwind's min-width breakpoint, so every wide-viewport class here
  * is the pre-regression value verbatim — behaviour at >= 1024px is unchanged.
+ *
+ * ---------------------------------------------------------------------------
+ * BOTTOM-RIGHT CONTROL CLEARANCE (regression fix 2026-07-20, second pass)
+ * ---------------------------------------------------------------------------
+ * ⚠ DO NOT "simplify" `bottom-36` back to `bottom-3`, and do not relax the
+ * `max-h` clamp below. Both numbers are load-bearing — they are the reserved
+ * gutter that keeps this column off the map's bottom-right control cluster.
+ *
+ * The map owns a second overlay stack in its lower-RIGHT corner, at z-10 —
+ * BELOW this column's z-20. Raising z-index would therefore NOT fix anything:
+ * the controls would stay visible but remain unclickable, because hit-testing
+ * follows paint order. The only real fix is to not occupy those pixels at all.
+ *
+ * Measured in-browser (768x1024, transient panel open, pre-fix): the panel box
+ * spanned x 507-731 / y 576.5-727 while the zoom cluster sat at x 701-735 /
+ * y 633-699 and the doodle toggle at y 609-643 — a 30px horizontal by 66px
+ * vertical overlap, with `elementFromPoint` returning the PANEL at all three
+ * button centres. The same collision existed at >= lg whenever the CHARTS
+ * panel was toggled on and made the column tall enough to reach down (30x66 at
+ * 1024x800; 0 with charts off).
+ *
+ * The clearance is DERIVED from the cluster's own classes, not guessed:
+ *
+ *   zoom cluster   `ui/map.tsx` positionClasses["bottom-right"] = `bottom-10`
+ *                  (40px) + one ControlGroup of two `size-8` buttons plus the
+ *                  group's 1px top/bottom border = 66px tall
+ *                  -> its top edge is 40 + 66 = 106px above the map's bottom.
+ *   doodle toggle  `InteractiveMap.tsx` `bottom-24` (96px) + one `size-8`
+ *                  button + 1px borders = 34px tall
+ *                  -> its top edge is 96 + 34 = 130px above the map's bottom.
+ *
+ * 130px is therefore the topmost pixel the cluster can ever reach (the doodle
+ * toggle is conditional on `doodleSurface`; when it is absent the cluster only
+ * reaches 106px, so reserving for 130px is the safe worst case). The smallest
+ * Tailwind step that clears it is `bottom-36` = 9rem = 144px, leaving a 14px
+ * clearance band. Horizontally the cluster is `right-2`+34px wide = 8-42px
+ * from the map's right edge and this column is `right-3` = 12px, so the two
+ * DO share 30px of horizontal span — which is exactly why the separation has
+ * to be vertical.
+ *
+ * One clamp covers BOTH anchoring modes, because they are mirror images:
+ *   `max-h-[calc(100%-9.75rem)]`  = 100% - (top-3 12px + 144px reserve = 156px)
+ *     - below lg  (bottom-anchored at `bottom-36`): the column grows UPWARD
+ *       from 144px and its top stops 12px below the map's top edge.
+ *     - at >= lg  (top-anchored at `lg:top-3`): it grows DOWNWARD from 12px
+ *       and its bottom stops 144px above the map's bottom edge — so a
+ *       charts-ON column can no longer reach the controls however tall its
+ *       content is. `overflow-y-auto` (already present) scrolls the excess.
+ * That is why the clamp is unprefixed: the reserved band is the same at every
+ * viewport, so the fix is breakpoint-independent by construction.
  */
 export function MapTopRightColumn({
   pinned,
@@ -86,7 +136,10 @@ export function MapTopRightColumn({
   return (
     <div
       data-testid="map-top-right-column"
-      className="absolute bottom-3 right-3 z-20 flex max-h-[calc(100%-1.5rem)] max-w-[70%] flex-col items-end gap-2 overflow-y-auto lg:bottom-auto lg:top-3 lg:max-w-[calc(100%-1.5rem)]"
+      // `bottom-36` + `max-h-[calc(100%-9.75rem)]` reserve the 144px band the
+      // map's z-10 bottom-right zoom/doodle cluster lives in — see the
+      // "BOTTOM-RIGHT CONTROL CLEARANCE" block above for the derivation.
+      className="absolute bottom-36 right-3 z-20 flex max-h-[calc(100%-9.75rem)] max-w-[70%] flex-col items-end gap-2 overflow-y-auto lg:bottom-auto lg:top-3 lg:max-w-[calc(100%-1.5rem)]"
     >
       {pinned != null && (
         <div
