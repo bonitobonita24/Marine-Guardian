@@ -4,56 +4,97 @@
 
 ---
 
-## 🔴 2026-07-20 (late) — SESSION HANDOFF · `preview/session-0720` @ `96fa629`
+## 🔴 2026-07-20 (late) — SESSION HANDOFF · `preview/session-0720`
 
-**STATE: 35 commits local, NONE pushed. HARD HOLD holds — no push/merge/deploy without the owner's explicit word.**
-All work below is verified on dev only.
-
-### ▶ FIRST TASK NEXT SESSION (owner-directed)
-**Run a FULL double-check re-verification of everything built this session.** Rebuild dev app **and worker** off
-this branch first (no source bind-mount). Then re-verify every item in "Shipped this session" below against the
-real runtime — not unit tests, not agent self-reports.
+**STATE: all commits LOCAL, NONE pushed. HARD HOLD holds — no push/merge/deploy without the owner's explicit word.**
+All work below is verified on **dev only**.
 
 > ⚠ **METHOD REQUIREMENT, learned the hard way this session:** verify intermittent defects with **repeated runs,
 > not single passes.** React #418 was declared fixed THREE times off single page loads; an 8-run check measured it
-> at **37.5%** — a one-shot check passes ~2 times in 3. Same for the heatmap tear (was ~1-in-3, now 5/5 clean).
-> Any nondeterministic symptom needs N≥5 before it may be called fixed.
+> at **37.5%** — a one-shot check passes ~2 times in 3. Any nondeterministic symptom needs **N≥5** before it may be
+> called fixed. Rebuild dev app **and worker** off this branch before any re-verification (no source bind-mount).
 
-### 🔴 OPEN OWNER DECISIONS
-- [ ] **Staging deploy of 35 local commits.** Nothing shipped all session. Use the data-first staging refresh gate.
-- [ ] **PPTX is a Chromium re-render** (~78s, produced a **91 MB** file), not native slides. Native = multi-week. Accept?
-- [ ] **DSR export history goes near-always empty** — rows live ~30 min under the TTL. RA 10173 compliance surface.
+### 🔴 OPEN OWNER DECISIONS — most important first
+
+- [ ] **1. Water-polygon split-artifact fix — BIGGEST OPEN ITEM.**
+  Commit `13a035f` applied a **map-decluttering filter** (`MIN_ISLET_DEG2`, `MIN_WATER_DEG2` in
+  `scripts/derive-municipal-waters.ts`) to `Municipality.waterGeojson` — which is **BOTH the map overlay source
+  AND the authoritative attribution geometry**. Consequence: **172 of 192 landmasses now generate no municipal
+  waters**, leaving **14.1% (~3,080 km²) of the legal 15 km zone unclaimed**, ~**99% of it from dropped islets**.
+  - *Measured impact:* dev = **6 events / 0 patrols**. **PROD IMPACT UNKNOWN** — and the comparable 2026-07-13
+    change predicted 166 records and actually moved 2,592, so the dev number is not a safe proxy.
+  - *Recommendation:* regenerate `waterGeojson` **unfiltered for attribution**, plus a **separate filtered display
+    projection** so the map keeps the owner-approved decluttered look. Add a **coverage (no-gap) invariant**
+    alongside the existing no-overlap one — they are independent, and a subtractive bug passes no-overlap cleanly.
+  - *Required before acting:* a **read-only PROD dry-run** to get the true change count **before** regenerating.
+  - *Lesson logged:* `geo.derivation.display-declutter-filter-mutilates-source-of-truth` (LESSONS_GLOBAL).
+
+- [ ] **2. Staging/prod carry the same 18-patrol stalled cohort.** These patrols were never re-enqueued after
+  `d89b5d4` added the track-first-coordinate fallback. Needs a **deliberate re-enqueue**; deploy-gated.
+
+- [ ] **3. Proposed review filter (awaiting owner).** Extend the Unattributed filter so officers can also list
+  records attributed by **`title_hint`**, by **`nearest`**, or **flagged ambiguous**, to confirm or correct them.
+  *Rationale:* ~**2% of title-hint attributions are wrong by construction**, and near-ties were resolved as
+  attribute-and-flag (coin-flips). **Without this filter the one-time cleanup becomes permanent unreviewed data.**
+
+- [ ] **4. Exports ignore the new filters on BOTH screens.** `/api/exports/patrols` reads only state/type; the
+  events export reads only state/priority/category/area/dates. Filtering the list to **Unattributed** and then
+  exporting yields the **wider, unfiltered set**. Pre-existing behaviour (search / includeTest / includeDeleted
+  behave the same way) but **newly visible** now that Unattributed filters exist.
+
+- [ ] **5. Hardcoded `SUBCATEGORY_GROUPS`** in the events filter will not cover a tenant with extra EarthRanger
+  event types. Real fix is a **tenant-scoped `event.listTypes` endpoint**.
+
+- [ ] **6. Sweep `municipalityAttributionMethod` to authoritative everywhere?** Pre-existing rows keep the value
+  written by the migration backfill; only processor-touched rows update going forward.
+
+- [ ] **7. Patrols Unattributed filter permission** is gated on `patrols:view`. Owner may prefer **admin-only**,
+  alongside the existing "Show deleted" control.
+
+### 🔴 CARRIED FORWARD UNCHANGED
+- [ ] **Staging deploy** of the local commit stack. Use the data-first staging refresh gate.
+- [ ] **PPTX is a Chromium re-render** (~78s, **91 MB** file), not native slides. Native = multi-week. Accept?
+- [ ] **DSR export history goes near-always empty** — rows live ~30 min under the TTL. RA 10173 surface.
 - [ ] **Which environments to clear** of old Telegram-era reports (janitor only reaches MinIO) — staging/prod/demo.
 - [ ] **Demo Patrol Zone Alpha** removed from `seed.ts` + dev row; staging/prod/demo NOT touched. Which to clear?
-
-### 🐞 KNOWN-OPEN DEFECT
 - [ ] **React #418 on `report_map` print page — INTERMITTENT ~37.5%** (8-run measurement). Clean on
   `event_highlights` (0/8). Hydration mismatch React recovers from; PDF output correct in all samples.
-  **Do not re-verify with a single load.**
-
-### ⚠ ACCEPTED DEBT (owner-accepted, real, revisit before staging)
-- **Cross-municipality leak reopened** by deleting the render-time track clip (owner chose whole tracks).
-  Real fix is dominant-track attribution, not a render-time clip. Not yet done.
-- **`params_json` stores `2025-12-31T16:00:00Z` for a 2026-01-01 range** (UTC). The filename formatter now
-  compensates; anything else reading that field directly will hit the same off-by-one.
-- **No combined single PDF** — the report checklist yields separate files; ticking Summary+Detailed gives two.
-- `MapTopRightColumn` + the MAP CONTROLS left column still carry ad-hoc `z-20` literals outside `MAP_LAYER`.
-
-### 🔗 EXTERNAL / PRE-EXISTING BLOCKERS (unchanged)
-- [ ] ER/DAS token minting (owner in ER-admin UI) → SOPS vault → `set-er-connection.ts` per env.
-- [ ] Slice-6 field-value backfill execution (`--dry-run` first).
+  **Verify only with N≥5 — never a single load.**
+- [ ] **ER/DAS token minting** (owner in ER-admin UI) → SOPS vault → `set-er-connection.ts` per env.
+- [ ] **Slice-6 field-value backfill execution** (`--dry-run` first).
 - [ ] Older items still open: RBAC per-env deploy · `feat/canonical-seed-credentials` merge ·
       Skylight "18 vs 23" · Banggai/Pecca tenants · area-attribution backfill.
 - [ ] Deferred by owner to the "user-facing apps" discussion: dashboard sidebar never collapses
       (`sidebar.tsx` hard `w-44`, no `SidebarProvider`) — phone width only, not CC/map screens.
 
-### ✅ SHIPPED THIS SESSION (all LOCAL, all dev-verified unless noted)
+### ⚠ ACCEPTED DEBT (owner-accepted, real, revisit before staging)
+- **Cross-municipality leak reopened** by deleting the render-time track clip (owner chose whole tracks).
+  Real fix is dominant-track attribution, not a render-time clip. Not yet done.
+- **`params_json` stores `2025-12-31T16:00:00Z` for a 2026-01-01 range** (UTC off-by-one). The filename formatter
+  now compensates; anything else reading that field directly will hit the same off-by-one.
+- **No combined single PDF** — the report checklist yields separate files; ticking Summary+Detailed gives two.
+- `MapTopRightColumn` + the MAP CONTROLS left column still carry ad-hoc `z-20` literals outside `MAP_LAYER`.
+
+### ✅ SHIPPED THIS SESSION (all **LOCAL / UNPUSHED**, all **dev-verified only**)
+
+**Attribution / provenance / filters**
+| Area | Commit |
+|---|---|
+| Schema + provenance | `b438303` |
+| `start_time` backfill (63 rows on dev) | `888189a` |
+| Provenance writes + track-fallback re-enqueue (18 patrols) | `825cf6c` |
+| Patrol start/end override + ER-sync anti-clobber | `a7518e8` |
+| Events subcategory filter / sorting / unattributed | `e35382e` |
+| Patrols unattributed filter | `97ff0bd` |
+| **One-time attribution backfill** (281 `title_hint` + 51 `nearest` patrols; 76 `nearest` events) | `96f7ff4` |
+
+**Reports / map overhaul (earlier in the session)**
 | Area | Commit |
 |---|---|
 | 5 report defects (zone header, map framing, chart labels, EH 20MB, generic error) | `04383c0` |
 | Charts → toggleable floating panels; Generate Printable to header | `255bb25` |
 | CHARTS panel top-right + switches | `7b7e9e1` |
-| Overlay collision below lg | `a7edbb9` → `8fd8530` → `201b586` (horizontal clearance) |
+| Overlay collision below lg | `a7edbb9` → `8fd8530` → `201b586` |
 | Ephemeral MinIO exports + TTL janitor; React #418 (partial); Null Island | `3503e5b` |
 | Boundary hierarchy scope, whole tracks, zone-level traversing | `f5c6058` |
 | Map controls relocated, scroll affordance, print fixes, seed cleanup | `9ec3804` |
@@ -71,6 +112,10 @@ control relocation (12px gap, 0px top delta) · blue square gone.
 Verify with a DB cross-check: count patrols whose track intersects Apo Reef independently, confirm the report's
 count equals THAT and not Sablayan's 361; repeat on **Harka Piloto** (different parent municipality — proves it
 isn't resolving via the parent); and confirm toggle-OFF numbers are byte-identical.
+
+> 🧭 **Attribution decisions are recorded in `docs/DECISIONS_LOG.md` (2026-07-20 entry).** The boundary-only
+> governing rule (`b5ef25c`) **STANDS** — the 45 km nearest fallback was a **one-time backlog cleanup only**, the
+> live processor was never modified, and unattributable records now stay Unattributed for officer manual fix.
 
 ---
 

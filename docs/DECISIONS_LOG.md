@@ -3,6 +3,96 @@
 # NEVER re-ask anything listed here.
 # ---
 
+## 2026-07-20 — ONE-TIME attribution reconciliation of the unattributed backlog (NOT a rule change)
+
+> ⚠ **READ THIS FIRST — the boundary-only governing rule STANDS.** A future session reading below about a
+> "45 km nearest-municipality fallback" could easily conclude the pure-containment rule was overturned.
+> **It was not.** Commit `b5ef25c` (municipality attribution = boundaries ONLY, pure containment, no
+> nearest-fallback, out-of-bounds = Unattributed) remains the governing everyday behaviour. **The live
+> processor was never modified.** What follows describes a ONE-TIME, agent-analysed cleanup script run
+> against the pre-existing backlog only.
+
+Decision (owner, explicit): automatic attribution applies **ONLY to the existing unattributed backlog**,
+performed **once**, with agent analysis. **Going forward, any record whose geometry cannot attribute stays
+Unattributed** and a Command Center officer assigns it manually. There is no ongoing automatic fallback.
+
+**Resolution order used by the one-time script (in precedence):**
+`containment → whitelisted title_hint → 45 km nearest → unattributed`
+
+**Patrol progression:** 414 unattributed → **396** after containment/provenance re-runs → **64** remaining
+after the one-time reconciliation. (281 patrols attributed by `title_hint`, 51 by `nearest`; 76 events by
+`nearest`.)
+
+**Why the 45 km cap (measured, not chosen by feel):** the distance histogram of orphan records shows the
+main mass ending at **43 km**, with the **46–53 km bins completely empty** — a natural break, so the cap
+sits in a gap rather than through a cluster. Apo Reef records at **30.07–41.43 km** selected Sablayan
+**unanimously**, confirming the far tail still resolves correctly.
+
+**Why 5 km was rejected:** containment already tests a derived **15 km** water buffer. Any record that
+reached the fallback is therefore already **>15 km** outside every polygon by construction — so a 5 km cap
+would attribute **exactly zero** records. It is not a conservative choice; it is a no-op.
+
+**Near-ties:** owner decision — **attribute and flag** (rather than leave unattributed), so the record is
+usable and still reviewable.
+
+### Title-hint whitelist — accepted tokens (validated against 4,597 geometry-attributed patrols)
+| Token | Accuracy |
+|---|---|
+| `pg` | 99.3% |
+| `adi` | 99.1% |
+| `tacligan` | 98.5% |
+| `st` | 98.1% |
+| `cal` | 98.1% |
+| `dum` | 97.4% |
+| `ara` | 97.2% |
+
+**Gate:** token maps to a **unique municipality** + is **whitelisted** + is **≥5 chars** → measured
+**98.4%** accuracy overall.
+
+### Rejected tokens, with reasons
+| Token | Accuracy | Why rejected |
+|---|---|---|
+| `baco` | 51.7% | **Real Baco/Calapan start-point conflict** — a Baco team departing a Calapan pier legitimately books to Calapan. Not a matcher bug; the title genuinely does not identify the municipality. |
+| `mam` | 0 true positives / **190 false** | Every single occurrence is the ranger **Mamerto** — a person's name, not a place. |
+| `rox` | 58% | Origin→destination contamination. |
+| `roxas` / `dumaran` / `araceli` (full names) | 48–65% | Origin→destination contamination — the title names where the patrol *went*, not where it *started*. |
+| `sab` | unproven, **n=11** | Sample too small to validate. Match the **full word `sablayan`** instead. |
+
+**Events deliberately excluded from title-hint entirely:** event titles carry only **12 distinct values
+across 5,139 rows**, roughly half of them NULL — there is no signal to mine. The description path was
+measured at **6% coverage / 82.8% accuracy** and also rejected. Events therefore used containment →
+nearest → unattributed only.
+
+**Accepted error rate:** ~**2% of title-hint attributions are expected to be wrong by construction.** This
+is a known, quantified cost of the one-time cleanup, not a defect — see the proposed review filter in
+`docs/PENDING_DECISIONS.md`.
+
+### Officer manual override is the sanctioned fix path
+Manual override by a Command Center officer is now the **sanctioned correction mechanism for both Patrols
+and Events**. The **Unattributed filter on both list screens** is the entry point: an officer filters to
+Unattributed, opens the record, and assigns the municipality by hand. Manual assignments are protected
+from clobber by the `municipalityAttributionMethod = "manual"` guard.
+
+Rationale: geometry is authoritative but silent on records outside every boundary. Rather than weaken the
+containment rule with a permanent heuristic, the backlog was cleared once under measurement and human
+judgement becomes the ongoing path.
+
+Files affected (one-time script + UI entry points; **live processor untouched**):
+  • `scripts/backfill-municipality-attribution.ts` — one-time reconciliation driver (`--dry-run` / `--execute`).
+  • Patrols + Events list screens — Unattributed filter (commits `97ff0bd`, `e35382e`).
+  • Patrol start/end override + ER-sync anti-clobber (`a7518e8`).
+Locked: yes
+
+📋 **Back-Port Candidates** *(surface-and-inform only — `docs/PRODUCT.md` is human-owned per Rule 1; the
+owner may wish to write these in, no agent edit has been made):*
+  1. **The three-method attribution model** — that a record's municipality is attributed by one of
+     `containment` / `title_hint` / `nearest`, recorded in `municipalityAttributionMethod`, plus `manual`
+     override; and that only `containment` and `manual` are ongoing behaviours (the other two were a
+     one-time backlog cleanup).
+  2. **The officer-manual-fix policy for unattributed records** — that records geometry cannot attribute
+     remain Unattributed by design, and a Command Center officer resolves them by hand via the
+     Unattributed filter on the Patrols and Events screens.
+
 ## 2026-06-21 — Activate live EarthRanger recurring sync on PROD "Demo Site" tenant
 Decision: Owner approved wiring the LIVE mindoro.pamdas.org EarthRanger connection into the prod
 "Demo Site" tenant (id cmqgv4kit0000gmygz0ulcjos) with a 5-minute (interval_ms=300000) recurring
