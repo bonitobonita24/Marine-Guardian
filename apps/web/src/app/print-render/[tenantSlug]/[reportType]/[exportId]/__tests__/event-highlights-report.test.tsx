@@ -59,6 +59,9 @@ function buildData(overrides: Partial<EventHighlightsReportData> = {}): EventHig
     isRegionReport: false,
     blocks: [block()],
     totalQualifying: 1,
+    photosShown: 2,
+    photosAvailable: 2,
+    photoBudgetReached: false,
     ...overrides,
   };
 }
@@ -132,5 +135,76 @@ describe("EventHighlightsReport", () => {
       <EventHighlightsReport data={buildData({ blocks: [block()], totalQualifying: 5 })} />,
     );
     expect(html).toContain("Showing 1 of 5 qualifying events");
+  });
+
+  // ─── Total-photo-budget footer note ─────────────────────────────────────
+
+  it("adds the photo-budget truncation note to the footer when the budget was reached", () => {
+    const html = renderToStaticMarkup(
+      <EventHighlightsReport
+        data={buildData({
+          blocks: [block()],
+          totalQualifying: 30,
+          photosShown: 120,
+          photosAvailable: 187,
+          photoBudgetReached: true,
+        })}
+      />,
+    );
+    expect(html).toContain("Showing 120 of 187 photos — photo budget reached");
+    // The pre-existing qualifying-events note is preserved alongside it.
+    expect(html).toContain("Showing 1 of 30 qualifying events");
+  });
+
+  it("omits the photo-budget note entirely when the budget was not reached", () => {
+    const html = renderToStaticMarkup(
+      <EventHighlightsReport data={buildData({ photoBudgetReached: false })} />,
+    );
+    expect(html).not.toContain("photo budget reached");
+  });
+
+  it("still renders a block's caption text when the budget left it zero photos", () => {
+    const starved = block({ id: "e_starved", photoAssetIds: [], photoCount: 6, layout: "full" });
+    const html = renderToStaticMarkup(
+      <EventHighlightsReport
+        data={buildData({
+          blocks: [starved],
+          photosShown: 0,
+          photosAvailable: 6,
+          photoBudgetReached: true,
+        })}
+      />,
+    );
+    // Block itself survives, with its narrative intact...
+    expect(html).toContain('data-testid="event-highlight-block"');
+    expect(html).toContain("Confiscated illegal gear.");
+    expect(html).toContain("Vessel warned and released.");
+    // ...but contributes no <img> and therefore nothing to the sentinel.
+    expect(html).not.toContain('class="hl-photo"');
+    expect(html).toContain("window.__renderReady = true;");
+  });
+
+  // ─── Hydration safety (React #418) ──────────────────────────────────────
+
+  it("emits <title> as a single text node (multi-child <title> breaks hydration)", () => {
+    const html = renderToStaticMarkup(<EventHighlightsReport data={buildData()} />);
+    // React inserts `<!-- -->` separators between adjacent text children. A
+    // <title> cannot carry them (browsers parse its content as raw text), so
+    // any separator inside <title> means the children were an array.
+    const title = /<title>(.*?)<\/title>/s.exec(html)?.[1];
+    expect(title).toBe("Mindoro MPA — Event Highlights — May 1, 2026 – Jun 1, 2026");
+    expect(title).not.toContain("<!-- -->");
+  });
+
+  it("emits void <img> markup that round-trips through the HTML parser unchanged", () => {
+    // The photo grid is injected via dangerouslySetInnerHTML. React hydration
+    // compares that raw string against the DOM's re-serialized innerHTML, so
+    // a self-closing ` />` (which the parser strips from void elements) would
+    // mismatch on every grid — the React #418 root cause.
+    const html = renderToStaticMarkup(
+      <EventHighlightsReport data={buildData({ blocks: [block({ photoAssetIds: ["a1"] })] })} />,
+    );
+    expect(html).toContain('onerror="window.__hlPhotoLoaded()">');
+    expect(html).not.toContain("window.__hlPhotoLoaded()\" />");
   });
 });

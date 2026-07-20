@@ -99,6 +99,15 @@ export interface EventHighlightsReportData {
   blocks: EventHighlightsEventBlock[];
   /** Count of qualifying events BEFORE the 25-block cap. */
   totalQualifying: number;
+  /** Photos actually rendered across all blocks, AFTER the global
+   *  MAX_TOTAL_PHOTOS budget. */
+  photosShown: number;
+  /** Photos that would have rendered before the global budget was applied
+   *  (i.e. after the per-block MAX_PHOTOS_PER_BLOCK cap). */
+  photosAvailable: number;
+  /** True when the global photo budget truncated the collage — the report
+   *  footer surfaces this to the reader. */
+  photoBudgetReached: boolean;
 }
 
 // ─── App-default template (no logos, minimal layout) ──────────────────────
@@ -116,6 +125,76 @@ const APP_DEFAULT_TEMPLATE = {
 
 const MAX_BLOCKS = 25;
 const MAX_PHOTOS_PER_BLOCK = 8;
+
+/**
+ * Global ceiling on photos rendered across the WHOLE report.
+ *
+ * The per-block cap alone allowed 25 × 8 = 200 photos. The print renderer
+ * eagerly loads every photo <img> and only flips window.__renderReady once
+ * all of them have settled; at the observed ~1.3 images/sec that blows the
+ * PDF renderer's 120s page.goto budget on wide scopes (e.g. all
+ * municipalities × 18 months) and the export fails outright.
+ *
+ * 120 photos ≈ 90s of image loading at that throughput, leaving headroom
+ * inside the renderer budget.
+ */
+export const MAX_TOTAL_PHOTOS = 120;
+
+export interface TotalPhotoBudgetResult {
+  /** Same blocks, in the same order, with `photoAssetIds` truncated so the
+   *  running total never exceeds the budget. */
+  blocks: EventHighlightsEventBlock[];
+  photosShown: number;
+  photosAvailable: number;
+  photoBudgetReached: boolean;
+}
+
+/**
+ * Applies the global MAX_TOTAL_PHOTOS budget AFTER the per-block cap.
+ *
+ * Walks blocks in order and truncates each block's `photoAssetIds` to the
+ * remaining budget. A block whose remaining budget is 0 keeps all of its text
+ * content and simply renders with zero photos — it is NEVER dropped, because
+ * the narrative (actionTaken / remarks) is the point of the report and the
+ * photos are the supporting evidence.
+ *
+ * `photoCount` is deliberately left untouched: it stays the PRE-cap
+ * displayable-photo count so the UI can still say "N photos available".
+ *
+ * Pure + exported for unit testing.
+ */
+export function applyTotalPhotoBudget(
+  blocks: EventHighlightsEventBlock[],
+  budget: number = MAX_TOTAL_PHOTOS,
+): TotalPhotoBudgetResult {
+  const photosAvailable = blocks.reduce((sum, b) => sum + b.photoAssetIds.length, 0);
+
+  if (photosAvailable <= budget) {
+    return {
+      blocks,
+      photosShown: photosAvailable,
+      photosAvailable,
+      photoBudgetReached: false,
+    };
+  }
+
+  let remaining = budget;
+  const truncated = blocks.map((b) => {
+    const take = Math.min(remaining, b.photoAssetIds.length);
+    remaining -= take;
+    // Preserve object identity when nothing was cut — avoids pointless copies
+    // for the leading blocks that fit entirely inside the budget.
+    if (take === b.photoAssetIds.length) return b;
+    return { ...b, photoAssetIds: b.photoAssetIds.slice(0, take) };
+  });
+
+  return {
+    blocks: truncated,
+    photosShown: budget - remaining,
+    photosAvailable,
+    photoBudgetReached: true,
+  };
+}
 
 // ─── Logo resolution ────────────────────────────────────────────────────────
 // REPLICATED (not imported): `resolveLogoDataUri` in the report-map loader is
@@ -436,7 +515,12 @@ export async function getEventHighlightsReportData(
     return b.reportedAt.getTime() - a.reportedAt.getTime();
   });
 
-  const blocks = qualifying.slice(0, MAX_BLOCKS).map((q) => q.block);
+  const cappedBlocks = qualifying.slice(0, MAX_BLOCKS).map((q) => q.block);
+
+  // Global photo budget — applied AFTER the per-block cap so the renderer
+  // never has to wait on more than MAX_TOTAL_PHOTOS eager <img> loads.
+  const { blocks, photosShown, photosAvailable, photoBudgetReached } =
+    applyTotalPhotoBudget(cappedBlocks);
 
   // Partner logo default fallback (mirrors report-map loader): never null.
   const partnerLogoDataUri =
@@ -471,5 +555,8 @@ export async function getEventHighlightsReportData(
     isRegionReport,
     blocks,
     totalQualifying,
+    photosShown,
+    photosAvailable,
+    photoBudgetReached,
   };
 }
