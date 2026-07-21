@@ -18,7 +18,7 @@
 
 import type { Worker } from "bullmq";
 import { QUEUE_NAMES } from "../queues/types";
-import { createWorker } from "./base-worker";
+import { createWorker, EVENT_LOOP_BLOCKING_LOCK_DURATION_MS } from "./base-worker";
 import { processAreaRederive } from "../processors/area-rederive.processor";
 import type { AreaRederiveJobPayload } from "../queues/types";
 
@@ -41,6 +41,11 @@ export function startAreaRederiveWorker(): Worker<AreaRederiveJobPayload> {
     {
       concurrency: AREA_REDERIVE_CONCURRENCY,
       limiter: AREA_REDERIVE_LIMITER,
+      // Sibling of the CPU-bound municipality-assign worker in the same
+      // process — its 30s default lock was starved whenever a
+      // municipality-assign job blocked the shared event loop, causing
+      // re-run spirals. See EVENT_LOOP_BLOCKING_LOCK_DURATION_MS.
+      lockDuration: EVENT_LOOP_BLOCKING_LOCK_DURATION_MS,
     },
   );
 }

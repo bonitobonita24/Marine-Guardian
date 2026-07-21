@@ -305,6 +305,29 @@ describe("findNearestBoundary", () => {
     warnSpy.mockRestore();
   });
 
+  it("warns about a given malformed boundary only ONCE per process, not on every call", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    // Unique id so this assertion is independent of any prior test that may
+    // have already warned about a shared id (the suppression set is
+    // module-level / process-lifetime by design).
+    const bad = makeBoundary({
+      id: "malformed-once-regression",
+      geometryGeojson: { type: "Polygon" }, // missing coordinates
+    });
+    const good = makeBoundary({ id: "good-once" });
+    const point = { lat: 12.05, lon: 120.105 };
+
+    findNearestBoundary(point, [bad, good]);
+    findNearestBoundary(point, [bad, good]);
+    findNearestBoundary(point, [bad, good]);
+
+    const warnsForThisBoundary = warnSpy.mock.calls.filter((c) =>
+      String(c[0]).includes("malformed-once-regression"),
+    );
+    expect(warnsForThisBoundary).toHaveLength(1);
+    warnSpy.mockRestore();
+  });
+
   it("skips geometry with wrong type field without throwing", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const bad = makeBoundary({

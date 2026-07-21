@@ -112,4 +112,41 @@ describe("start-workers.ts — municipality-assign lock duration", () => {
     const [, , opts] = call as WorkerCtorArgs;
     expect(opts.lockDuration).toBeGreaterThan(30_000);
   });
+
+  // CROSS-QUEUE STARVATION regression (2026-07): municipality-assign,
+  // area-rederive and patrol-track-materialize all run in ONE process / ONE
+  // event loop. When municipality-assign's synchronous turf geometry blocks
+  // the loop, the lock-renewal timers of its SIBLINGS are starved too — so
+  // their 30s-default locks expired and BullMQ re-ran them from scratch
+  // (prod observed a patrol-track-materialize job re-running 16×). These two
+  // siblings MUST carry an explicit lockDuration that survives a full
+  // municipality-assign stall, or the re-run spiral returns.
+  it.each([
+    ["area-rederive"],
+    ["patrol-track-materialize"],
+  ])(
+    "registers the %s worker with an explicit lockDuration that survives a sibling municipality-assign event-loop block",
+    async (queueName) => {
+      const { EVENT_LOOP_BLOCKING_LOCK_DURATION_MS } = await import(
+        "../workers/base-worker"
+      );
+      await import("../start-workers");
+
+      const call = mockWorkerCtor.mock.calls.find(
+        (c) => (c as WorkerCtorArgs)[0] === queueName,
+      ) as WorkerCtorArgs | undefined;
+
+      expect(call).toBeDefined();
+      const [, , opts] = call as WorkerCtorArgs;
+      expect(opts.lockDuration).toBe(EVENT_LOOP_BLOCKING_LOCK_DURATION_MS);
+      expect(opts.lockDuration).toBeGreaterThan(30_000);
+    },
+  );
+
+  it("sets EVENT_LOOP_BLOCKING_LOCK_DURATION_MS to the proven 15-minute ceiling", async () => {
+    const { EVENT_LOOP_BLOCKING_LOCK_DURATION_MS } = await import(
+      "../workers/base-worker"
+    );
+    expect(EVENT_LOOP_BLOCKING_LOCK_DURATION_MS).toBe(900_000);
+  });
 });

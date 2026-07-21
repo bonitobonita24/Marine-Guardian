@@ -29,7 +29,7 @@
 
 import type { Worker } from "bullmq";
 import { QUEUE_NAMES } from "../queues/types";
-import { createWorker } from "./base-worker";
+import { createWorker, EVENT_LOOP_BLOCKING_LOCK_DURATION_MS } from "./base-worker";
 import { processPatrolTrackMaterialize } from "../processors/patrol-track-materialize.processor";
 import type { PatrolTrackMaterializeJobPayload } from "../queues/types";
 
@@ -53,6 +53,13 @@ export function startPatrolTrackMaterializeWorker(): Worker<PatrolTrackMateriali
     {
       concurrency: PATROL_TRACK_MATERIALIZE_CONCURRENCY,
       limiter: PATROL_TRACK_MATERIALIZE_LIMITER,
+      // This processor is IO-bound (its own work is short), but it shares a
+      // process with the CPU-bound municipality-assign worker. When a
+      // municipality-assign job blocks the shared event loop, THIS worker's
+      // lock-renewal timer is starved too — on the 30s default that meant
+      // prod re-ran a single patrol-track-materialize job 16× (a stalled-job
+      // spiral). See EVENT_LOOP_BLOCKING_LOCK_DURATION_MS.
+      lockDuration: EVENT_LOOP_BLOCKING_LOCK_DURATION_MS,
     },
   );
 }

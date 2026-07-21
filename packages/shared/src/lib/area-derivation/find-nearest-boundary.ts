@@ -151,6 +151,21 @@ function minDistanceToBoundary(
   return minDist;
 }
 
+/**
+ * Boundary ids already warned about as malformed, so we log each one ONCE per
+ * process instead of on every area-rederive job.
+ *
+ * WHY: findNearestBoundary runs once per area-rederive job over ALL enabled
+ * boundaries, and a real tenant carries dozens of malformed municipal-waters
+ * polygons (a known data gap). Re-warning every malformed boundary on every
+ * job produced a synchronous console.warn STORM (staging worker logs were ~all
+ * these lines) — noisy and itself blocking IO on the shared event loop. The
+ * skip logic is unchanged; only the logging is deduplicated. The REAL fix is
+ * repairing the malformed geometry in the data (see the prod/demo geometry
+ * zone-membership gap) — this dedup just stops the noise until then.
+ */
+const warnedMalformedBoundaryIds = new Set<string>();
+
 export function findNearestBoundary(
   point: LatLon,
   boundaries: AreaBoundaryForDerivation[],
@@ -167,9 +182,12 @@ export function findNearestBoundary(
 
     const segments = extractSegments(b.geometryGeojson);
     if (segments === null) {
-      console.warn(
-        `[area-derivation] Skipping boundary ${b.id} (${b.name}): malformed or unsupported geometry`,
-      );
+      if (!warnedMalformedBoundaryIds.has(b.id)) {
+        warnedMalformedBoundaryIds.add(b.id);
+        console.warn(
+          `[area-derivation] Skipping boundary ${b.id} (${b.name}): malformed or unsupported geometry (further occurrences for this boundary suppressed)`,
+        );
+      }
       continue;
     }
 

@@ -3,6 +3,40 @@ import type { RateLimiterOptions } from "bullmq";
 import { getConnection } from "../connection";
 import type { BaseJobPayload, QueueName } from "../queues/types";
 
+/**
+ * Lock duration (ms) for a worker that shares its Node PROCESS with a
+ * CPU-bound geometry worker (municipality-assign) — i.e. every worker in
+ * start-workers.ts, which registers them all in ONE process / ONE event loop.
+ *
+ * ⚠ CROSS-QUEUE STARVATION (measured defect, 2026-07): the original
+ * municipality-assign incident raised ONLY that queue's lockDuration to 15min
+ * (see MUNICIPALITY_ASSIGN_LOCK_DURATION_MS in start-workers.ts), but left its
+ * SIBLINGS (area-rederive, patrol-track-materialize) on BullMQ's 30s default.
+ * That is not enough. BullMQ's per-job lock-renewal is a single timer PER
+ * WORKER PROCESS that only fires when the event loop is free. When a
+ * municipality-assign job blocks the loop for minutes doing synchronous turf
+ * math (see the CAVEAT on WorkerOptions.lockDuration below), the renewal
+ * timers for EVERY other queue in the process are starved too — so even the
+ * IO-bound patrol-track-materialize jobs (whose own work is short and would
+ * normally be safe under renewal) lose their 30s lock, get flagged stalled,
+ * and are re-run from scratch. Prod was observed re-running a single
+ * patrol-track-materialize job 16×, pinning a core at ~100%.
+ *
+ * FIX: any queue co-resident with the geometry workers must set its
+ * lockDuration >= the worst-case time the shared event loop can be blocked,
+ * NOT just its own runtime. 900000ms (15min) matches the ceiling already
+ * proven for municipality-assign (~3.75x the observed ~4min staging worst
+ * case), so a sibling job survives a full municipality-assign stall.
+ *
+ * TRADEOFF (accepted, same as municipality-assign): a genuinely-dead worker's
+ * job waits up to 15min before another worker reclaims it. These are
+ * idempotent background geometry jobs — acceptable. The real cure for the
+ * event-loop blocking itself is to yield during the synchronous geometry
+ * (see @marine-guardian/shared/lib/municipality-assignment); this lock ceiling
+ * is the belt-and-suspenders that stops the re-run spiral regardless.
+ */
+export const EVENT_LOOP_BLOCKING_LOCK_DURATION_MS = 900_000;
+
 export interface WorkerOptions {
   concurrency?: number;
   /**
