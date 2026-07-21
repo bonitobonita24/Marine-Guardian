@@ -83,6 +83,18 @@ export const patrolRouter = router({
         include: {
           segments: { select: { id: true, leaderName: true, actualStart: true, actualEnd: true } },
           municipality: { select: { id: true, name: true } },
+          // Zone-coverage override UI (mirrors the municipality override):
+          // needs each row's currently-covered protected zones + their source
+          // (geometry/title_hint/manual_include/manual_exclude) so the picker
+          // dialog can render "already covered" vs "missed" and whether a zone
+          // is manually locked.
+          coveredZones: {
+            select: {
+              protectedZoneId: true,
+              source: true,
+              protectedZone: { select: { id: true, name: true } },
+            },
+          },
         },
       });
       let nextCursor: string | undefined;
