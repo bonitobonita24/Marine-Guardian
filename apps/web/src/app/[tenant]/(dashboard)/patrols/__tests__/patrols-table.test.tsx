@@ -522,6 +522,39 @@ describe("PatrolsTable — zone coverage override", () => {
     // Auto-derived coverage offers "Exclude"; manual coverage offers "Clear".
     expect(screen.getByTestId("exclude-zone-button-z1")).not.toBeNull();
     expect(screen.getByTestId("clear-zone-button-z2")).not.toBeNull();
+
+    // Provenance badges — geometry (containment) draws NO badge (the
+    // rendering contract shared with attribution-badge.tsx); manual_include
+    // gets a distinct "Manually added" chip.
+    expect(screen.queryByTestId("zone-coverage-badge-z1")).toBeNull();
+    expect(
+      screen.getByTestId("zone-coverage-badge-z2").textContent,
+    ).toContain("Manually added");
+  });
+
+  it("badges a title_hint-covered zone as 'Included by caption'", () => {
+    sessionRoles = MANAGER_ROLES;
+    mockListResult([
+      {
+        ...basePatrol,
+        id: "p1",
+        title: "Foot patrol",
+        coveredZones: [
+          {
+            protectedZoneId: "z5",
+            source: "title_hint",
+            protectedZone: { id: "z5", name: "Baco Bay MPA" },
+          },
+        ],
+      },
+    ]);
+
+    render(<PatrolsTable />);
+    fireEvent.click(screen.getByTestId("zone-override-button-p1"));
+
+    expect(
+      screen.getByTestId("zone-coverage-badge-z5").textContent,
+    ).toContain("Included by caption");
   });
 
   it("clicking Exclude on an auto-covered zone calls setZoneCoverageOverride with action=exclude", () => {

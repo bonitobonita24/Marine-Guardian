@@ -20,6 +20,11 @@ import {
   type AttributionFilterValue,
 } from "@/components/attribution/attribution-badge";
 import {
+  ZoneCoverageBadge,
+  zoneCoverageTitle,
+  type CoveredZoneBadgeSource,
+} from "@/components/attribution/zone-coverage-badge";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -719,16 +724,21 @@ export function PatrolsTable() {
                           key={z.protectedZoneId}
                           data-testid={`covered-zone-row-${z.protectedZoneId}`}
                           className="flex items-center justify-between gap-2 text-sm"
+                          title={zoneCoverageTitle(
+                            z.source as CoveredZoneBadgeSource,
+                          )}
                         >
                           <span className="flex items-center gap-2">
                             {z.protectedZone.name}
-                            <Badge variant="outline">
-                              {z.source === "manual_include"
-                                ? "Manual"
-                                : z.source === "title_hint"
-                                ? "Title hint"
-                                : "Auto"}
-                            </Badge>
+                            {/* Provenance — geometry (containment) draws no
+                                badge; title_hint/manual_include get a chip.
+                                manual_exclude never reaches here (filtered
+                                above). Shared with the report/map render
+                                surfaces via zone-coverage-badge.tsx. */}
+                            <ZoneCoverageBadge
+                              source={z.source as CoveredZoneBadgeSource}
+                              zoneId={z.protectedZoneId}
+                            />
                           </span>
                           {z.source === "manual_include" ? (
                             <Button
