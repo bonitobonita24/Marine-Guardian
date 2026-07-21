@@ -124,6 +124,11 @@ describe("start-workers.ts — municipality-assign lock duration", () => {
   it.each([
     ["area-rederive"],
     ["patrol-track-materialize"],
+    ["er-sync"],
+    ["alerts"],
+    ["email"],
+    ["maintenance"],
+    ["export-janitor"],
   ])(
     "registers the %s worker with an explicit lockDuration that survives a sibling municipality-assign event-loop block",
     async (queueName) => {

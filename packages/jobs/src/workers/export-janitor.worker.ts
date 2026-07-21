@@ -13,7 +13,7 @@
 import type { Worker } from "bullmq";
 import { QUEUE_NAMES } from "../queues/types";
 import type { ExportJanitorJobPayload } from "../queues/types";
-import { createWorker } from "./base-worker";
+import { createWorker, EVENT_LOOP_BLOCKING_LOCK_DURATION_MS } from "./base-worker";
 import { processExportJanitor } from "../processors/export-janitor.processor";
 
 export const EXPORT_JANITOR_CONCURRENCY = 1;
@@ -22,6 +22,12 @@ export function startExportJanitorWorker(): Worker<ExportJanitorJobPayload> {
   return createWorker<ExportJanitorJobPayload>(
     QUEUE_NAMES.EXPORT_JANITOR,
     processExportJanitor,
-    { concurrency: EXPORT_JANITOR_CONCURRENCY },
+    {
+      concurrency: EXPORT_JANITOR_CONCURRENCY,
+      // This queue's own sweep is light, but its 5-minute repeatable shares
+      // the worker process with the CPU-bound geometry queues — so its lock
+      // must survive an event-loop block just like every other queue here.
+      lockDuration: EVENT_LOOP_BLOCKING_LOCK_DURATION_MS,
+    },
   );
 }

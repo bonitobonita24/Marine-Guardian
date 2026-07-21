@@ -1,5 +1,5 @@
 import { QUEUE_NAMES } from "./queues/types";
-import { createWorker } from "./workers/base-worker";
+import { createWorker, EVENT_LOOP_BLOCKING_LOCK_DURATION_MS } from "./workers/base-worker";
 import { processErSync } from "./processors/er-sync.processor";
 import { processAlert } from "./processors/alerts.processor";
 import { processEmail } from "./processors/email.processor";
@@ -49,10 +49,32 @@ console.log("[worker] Starting Marine Guardian workers...");
 export const MUNICIPALITY_ASSIGN_LOCK_DURATION_MS = 900_000;
 
 const workers = [
-  createWorker(QUEUE_NAMES.ER_SYNC, processErSync, { concurrency: 2 }),
-  createWorker(QUEUE_NAMES.ALERTS, processAlert, { concurrency: 3 }),
-  createWorker(QUEUE_NAMES.EMAIL, processEmail, { concurrency: 5 }),
-  createWorker(QUEUE_NAMES.MAINTENANCE, processMaintenance, { concurrency: 1 }),
+  // lockDuration on EVERY queue below (not just the geometry ones): all
+  // workers share ONE Node process / event loop, and BullMQ's lock-renewal
+  // timer is per-process — so when municipality-assign's synchronous geometry
+  // blocks the loop, the 30s-default lock of ANY sibling (notably er-sync's
+  // repeatable scheduler) expires and its job is falsely reclaimed / re-run.
+  // Staging proved that raising only the geometry queues + yielding was not
+  // enough (er-sync's `repeat:` jobs still lost their locks). Giving every
+  // co-resident queue the same worst-case-block ceiling guarantees no queue
+  // is ever falsely reclaimed. See EVENT_LOOP_BLOCKING_LOCK_DURATION_MS +
+  // the yield in @marine-guardian/shared classifyTrackTerrain.
+  createWorker(QUEUE_NAMES.ER_SYNC, processErSync, {
+    concurrency: 2,
+    lockDuration: EVENT_LOOP_BLOCKING_LOCK_DURATION_MS,
+  }),
+  createWorker(QUEUE_NAMES.ALERTS, processAlert, {
+    concurrency: 3,
+    lockDuration: EVENT_LOOP_BLOCKING_LOCK_DURATION_MS,
+  }),
+  createWorker(QUEUE_NAMES.EMAIL, processEmail, {
+    concurrency: 5,
+    lockDuration: EVENT_LOOP_BLOCKING_LOCK_DURATION_MS,
+  }),
+  createWorker(QUEUE_NAMES.MAINTENANCE, processMaintenance, {
+    concurrency: 1,
+    lockDuration: EVENT_LOOP_BLOCKING_LOCK_DURATION_MS,
+  }),
   // municipality-assign — point-in-polygon attribution of each harvested
   // event/patrol. er-sync enqueues one job per synced entity (see
   // er-sync.processor enqueueMunicipalityAssign); this consumer was previously
