@@ -239,13 +239,44 @@ export async function processMunicipalityAssign(
         },
   });
 
-  // Upsert junction rows (Layer 2) — idempotent
+  // Upsert junction rows (Layer 2) — idempotent, but manual overrides must
+  // survive re-attribution fan-out (same anti-clobber doctrine as Layer 1
+  // above — see the municipalityManual guard). A `PatrolCoveredZone` row can
+  // carry a manual provenance the geometry pass must never touch:
+  //   - manual_exclude — the officer REMOVED this zone from the covered set.
+  //     The tombstone must hold: even if the geometry now covers it, the
+  //     processor must NOT re-create/re-upsert the row, or the exclusion is
+  //     silently undone on the next sync.
+  //   - manual_include — the officer ADDED this zone by hand. If geometry
+  //     also covers it, the row must keep `source: "manual_include"` (never
+  //     downgraded back to "geometry"); the `update` branch below already
+  //     only ever touches `assignedAt`, so this holds by construction — a
+  //     pairing-invariant test pins it regardless.
+  // Non-overridden zones are untouched by this guard: the plain geometry
+  // upsert path below is unchanged.
+  const existingCoveredZones = await platformPrisma.patrolCoveredZone.findMany({
+    where: { patrolId: id },
+    select: { protectedZoneId: true, source: true },
+  });
+  const manualExcludedZoneIds = new Set(
+    existingCoveredZones
+      .filter((z) => z.source === "manual_exclude")
+      .map((z) => z.protectedZoneId),
+  );
+
   for (const protectedZoneId of zoneIds) {
+    if (manualExcludedZoneIds.has(protectedZoneId)) {
+      // Officer-tombstoned zone — geometry would cover it, but the manual
+      // exclusion must never be silently re-added by auto attribution.
+      continue;
+    }
     await platformPrisma.patrolCoveredZone.upsert({
       where: { patrolId_protectedZoneId: { patrolId: id, protectedZoneId } },
       // source: "geometry" — see the event path above; the live processor only
       // ever writes geometry-derived memberships. Title-derived "title_hint" rows
-      // come solely from scripts/backfill-zone-title-hint.ts.
+      // come solely from scripts/backfill-zone-title-hint.ts. The `update`
+      // branch stays `assignedAt`-only (never touches `source`) so an existing
+      // `manual_include` row is never downgraded back to "geometry".
       create: { tenantId, patrolId: id, protectedZoneId, assignedAt: now, source: "geometry" },
       update: { assignedAt: now },
     });
