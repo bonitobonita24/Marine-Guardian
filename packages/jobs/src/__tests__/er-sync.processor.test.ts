@@ -47,6 +47,14 @@ vi.mock("../queues/patrol-track-materialize.queue", () => ({
   enqueuePatrolTrackMaterialize: vi.fn().mockResolvedValue("ptm-job-1"),
 }));
 
+vi.mock("../queues/municipality-assign.queue", () => ({
+  enqueueMunicipalityAssign: vi.fn().mockResolvedValue("muni-job-1"),
+}));
+
+vi.mock("../lib/er-sync-watermark", () => ({
+  getWatermark: vi.fn(),
+}));
+
 const mockErClient = {
   getEventTypes: vi.fn().mockResolvedValue([
     { id: "et-1", value: "poaching", display: "Poaching Report", category: { value: "security" }, default_priority: 200, icon_id: "poaching-icon", schema: {} },
@@ -78,6 +86,8 @@ import { processErSync, buildSubjectUpdatePayload } from "../processors/er-sync.
 import { enqueueAlert } from "../queues/alerts.queue";
 import { enqueueAreaRederive } from "../queues/area-rederive.queue";
 import { enqueuePatrolTrackMaterialize } from "../queues/patrol-track-materialize.queue";
+import { enqueueMunicipalityAssign } from "../queues/municipality-assign.queue";
+import { getWatermark } from "../lib/er-sync-watermark";
 
 const mockPrisma = platformPrisma as unknown as {
   tenant: { findUnique: ReturnType<typeof vi.fn> };
@@ -102,10 +112,18 @@ const mockPrisma = platformPrisma as unknown as {
 const mockEnqueueAlert = enqueueAlert as ReturnType<typeof vi.fn>;
 const mockEnqueueAreaRederive = enqueueAreaRederive as ReturnType<typeof vi.fn>;
 const mockEnqueuePatrolTrackMaterialize = enqueuePatrolTrackMaterialize as ReturnType<typeof vi.fn>;
+const mockEnqueueMunicipalityAssign = enqueueMunicipalityAssign as ReturnType<typeof vi.fn>;
+const mockGetWatermark = getWatermark as ReturnType<typeof vi.fn>;
 
-function makeJob(overrides: Partial<ErSyncJobPayload> = {}) {
+// Default job.name is a ONE-SHOT sync name ("er-sync:<type>") so the recurring
+// watermark self-advance path (job.name starting "er-sync:recurring:") is
+// skipped by default and existing tests are unaffected. Pass `name` explicitly
+// to exercise the recurring path.
+function makeJob(overrides: Partial<ErSyncJobPayload> = {}, name?: string) {
+  const syncType = overrides.syncType ?? "event_types";
   return {
     id: "test-job-1",
+    name: name ?? `er-sync:${syncType}`,
     data: {
       tenantId: "tenant-1",
       userId: "user-1",
@@ -136,6 +154,7 @@ describe("processErSync", () => {
     mockPrisma.eventType.findMany.mockResolvedValue([
       { value: "poaching", display: "Poaching Report" },
     ]);
+    mockGetWatermark.mockResolvedValue(undefined);
   });
 
   it("throws if tenant has no ER connection configured", async () => {
@@ -317,6 +336,183 @@ describe("processErSync", () => {
       userId: "system",
       entity: "event",
       id: "evt-existing",
+    });
+  });
+
+  // FP-noise guard (2026-07-21) — ER re-serializes coordinates with sub-display
+  // floating-point noise on every sync, which previously tripped the strict
+  // `!==` geometry-change check on every cycle even though the event never
+  // actually moved, perpetually re-deriving attribution and spiking worker CPU.
+  it("syncs events: does NOT re-attribute when ER coords differ only by floating-point noise (< epsilon)", async () => {
+    mockErClient.getEvents.mockResolvedValueOnce([
+      {
+        id: "ev-1",
+        serial_number: 1001,
+        title: "Illegal fishing spotted",
+        priority: 200,
+        state: "active",
+        location: { latitude: 13.5616817, longitude: 120.9222917 },
+        reported_by: { name: "Ranger Alpha" },
+        time: "2025-01-01T12:00:00Z",
+        event_type: "poaching",
+        event_details: {},
+        notes: [],
+      },
+    ]);
+    mockPrisma.event.findUnique.mockResolvedValue({
+      id: "evt-existing",
+      erOriginalSnapshot: null,
+      locationLat: 13.5616816,
+      locationLon: 120.9222916,
+    });
+    mockPrisma.event.update.mockResolvedValue({});
+
+    await processErSync(makeJob({ syncType: "events" }));
+
+    expect(mockPrisma.event.update).toHaveBeenCalledTimes(1); // data still refreshed
+    expect(mockEnqueueAreaRederive).not.toHaveBeenCalled();
+    expect(mockEnqueueMunicipalityAssign).not.toHaveBeenCalled();
+  });
+
+  it("syncs events: RE-attributes when ER location moved beyond the epsilon (both jobs enqueued)", async () => {
+    mockErClient.getEvents.mockResolvedValueOnce([
+      {
+        id: "ev-1",
+        serial_number: 1001,
+        title: "Illegal fishing spotted",
+        priority: 200,
+        state: "active",
+        location: { latitude: 13.57, longitude: 120.92229166666667 },
+        reported_by: { name: "Ranger Alpha" },
+        time: "2025-01-01T12:00:00Z",
+        event_type: "poaching",
+        event_details: {},
+        notes: [],
+      },
+    ]);
+    mockPrisma.event.findUnique.mockResolvedValue({
+      id: "evt-existing",
+      erOriginalSnapshot: null,
+      locationLat: 13.56,
+      locationLon: 120.92229166666667,
+    });
+    mockPrisma.event.update.mockResolvedValue({});
+
+    await processErSync(makeJob({ syncType: "events" }));
+
+    expect(mockEnqueueAreaRederive).toHaveBeenCalledTimes(1);
+    expect(mockEnqueueMunicipalityAssign).toHaveBeenCalledTimes(1);
+  });
+
+  it("syncs events: does NOT re-attribute when location is exactly equal", async () => {
+    mockErClient.getEvents.mockResolvedValueOnce([
+      {
+        id: "ev-1",
+        serial_number: 1001,
+        title: "Illegal fishing spotted",
+        priority: 200,
+        state: "active",
+        location: { latitude: 13.56, longitude: 120.9 },
+        reported_by: { name: "Ranger Alpha" },
+        time: "2025-01-01T12:00:00Z",
+        event_type: "poaching",
+        event_details: {},
+        notes: [],
+      },
+    ]);
+    mockPrisma.event.findUnique.mockResolvedValue({
+      id: "evt-existing",
+      erOriginalSnapshot: null,
+      locationLat: 13.56,
+      locationLon: 120.9,
+    });
+    mockPrisma.event.update.mockResolvedValue({});
+
+    await processErSync(makeJob({ syncType: "events" }));
+
+    expect(mockEnqueueAreaRederive).not.toHaveBeenCalled();
+    expect(mockEnqueueMunicipalityAssign).not.toHaveBeenCalled();
+  });
+
+  it("syncs events: RE-attributes when stored location is non-null but ER now returns null (value→null change)", async () => {
+    mockErClient.getEvents.mockResolvedValueOnce([
+      {
+        id: "ev-1",
+        serial_number: 1001,
+        title: "Illegal fishing spotted",
+        priority: 200,
+        state: "active",
+        location: null,
+        reported_by: { name: "Ranger Alpha" },
+        time: "2025-01-01T12:00:00Z",
+        event_type: "poaching",
+        event_details: {},
+        notes: [],
+      },
+    ]);
+    mockPrisma.event.findUnique.mockResolvedValue({
+      id: "evt-existing",
+      erOriginalSnapshot: null,
+      locationLat: 13.56,
+      locationLon: 120.9,
+    });
+    mockPrisma.event.update.mockResolvedValue({});
+
+    await processErSync(makeJob({ syncType: "events" }));
+
+    expect(mockEnqueueAreaRederive).toHaveBeenCalledTimes(1);
+    expect(mockEnqueueMunicipalityAssign).toHaveBeenCalledTimes(1);
+  });
+
+  it("syncs events: a brand-new event is always enqueued (existing create-path behavior)", async () => {
+    mockPrisma.event.findUnique.mockResolvedValue(null);
+    mockPrisma.event.create.mockResolvedValue({ id: "evt-brand-new", priority: 200 });
+
+    await processErSync(makeJob({ syncType: "events" }));
+
+    expect(mockEnqueueAreaRederive).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "evt-brand-new" }),
+    );
+    expect(mockEnqueueMunicipalityAssign).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "evt-brand-new" }),
+    );
+  });
+
+  // Recurring-watermark self-advance (2026-07-21) — a recurring er-sync
+  // repeatable bakes `since` into its BullMQ payload once at schedule time;
+  // reading job.data.since forever freezes the delta window (stuck at the
+  // schedule-time value) and re-pulls the same rows every cycle. A recurring
+  // firing must recompute `since` from SyncLog each run so it self-advances.
+  describe("recurring watermark self-advance", () => {
+    it("a RECURRING job (name starts 'er-sync:recurring:') calls ER with the FRESH watermark, ignoring the stale payload `since`", async () => {
+      mockGetWatermark.mockResolvedValueOnce("2026-07-20T00:00:00.000Z");
+      mockPrisma.event.findUnique.mockResolvedValue(null);
+      mockPrisma.event.create.mockResolvedValue({ id: "evt-recurring", priority: 200 });
+
+      await processErSync(
+        makeJob(
+          { syncType: "events", since: "2026-07-06T13:00:01.900Z" },
+          "er-sync:recurring:events",
+        ),
+      );
+
+      expect(mockGetWatermark).toHaveBeenCalledWith("tenant-1", "events");
+      expect(mockErClient.getEvents).toHaveBeenCalledWith("2026-07-20T00:00:00.000Z");
+    });
+
+    it("a ONE-SHOT job (name 'er-sync:events') uses the explicit payload `since` as-is, never consulting the watermark", async () => {
+      mockPrisma.event.findUnique.mockResolvedValue(null);
+      mockPrisma.event.create.mockResolvedValue({ id: "evt-oneshot", priority: 200 });
+
+      await processErSync(
+        makeJob(
+          { syncType: "events", since: "2026-07-06T13:00:01.900Z" },
+          "er-sync:events",
+        ),
+      );
+
+      expect(mockGetWatermark).not.toHaveBeenCalled();
+      expect(mockErClient.getEvents).toHaveBeenCalledWith("2026-07-06T13:00:01.900Z");
     });
   });
 

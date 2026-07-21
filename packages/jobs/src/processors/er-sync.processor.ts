@@ -10,6 +10,7 @@ import { enqueuePatrolTrackMaterialize } from "../queues/patrol-track-materializ
 import { enqueueMunicipalityAssign } from "../queues/municipality-assign.queue";
 import { resolveReportedBy } from "../lib/resolve-reported-by";
 import { resolveEventType } from "../lib/resolve-event-type";
+import { getWatermark } from "../lib/er-sync-watermark";
 
 /**
  * q-ops conflict / edit-protection merge rule (M2).
@@ -56,12 +57,34 @@ function toJsonOrNull(
   return value as Prisma.InputJsonValue;
 }
 
+// ER re-serializes event coordinates with sub-precision floating-point noise,
+// so a strict !== on the raw doubles reports a "move" on every sync even when
+// the event has not actually moved — perpetually re-deriving attribution and
+// spiking worker CPU. Compare at a fixed coordinate tolerance (1e-6 deg ≈
+// 0.11 m; genuine relocation is far larger). null↔value = changed; both-null = same.
+const COORD_EPSILON = 1e-6;
+function coordinateChanged(a: number | null, b: number | null): boolean {
+  if (a === null || b === null) return a !== b;
+  return Math.abs(a - b) > COORD_EPSILON;
+}
+
 export async function processErSync(
   job: Job<ErSyncJobPayload>,
 ): Promise<void> {
   validateTenantContext(job.data);
 
-  const { syncType, since, tenantId } = job.data;
+  const { syncType, tenantId } = job.data;
+  let since = job.data.since;
+
+  // Recurring er-sync repeatables bake `since` into the payload once at
+  // schedule time and never refresh it (BullMQ persists the payload), freezing
+  // the delta window so the same rows are re-pulled forever. For a recurring
+  // firing, recompute the watermark from SyncLog each run so it self-advances.
+  // One-shot jobs keep their explicit `since` (manual "sync since X" / backfill).
+  const RECURRING_DELTA_TYPES = new Set(["events", "patrols", "observations"]);
+  if (job.name.startsWith("er-sync:recurring:") && RECURRING_DELTA_TYPES.has(syncType)) {
+    since = await getWatermark(tenantId, syncType);
+  }
 
   // Read the ER connection from TenantErConnection — the canonical table the
   // Settings UI writes to via settings.upsertErConnection / testConnection.
@@ -372,11 +395,12 @@ async function syncEvents(
       // locationLat/Lon was edit-protected out of safeFields — in which case the
       // stored value is unchanged) against the existing stored location.
       const newLat =
-        "locationLat" in safeFields ? safeFields.locationLat : existing.locationLat;
+        ("locationLat" in safeFields ? safeFields.locationLat : existing.locationLat) ?? null;
       const newLon =
-        "locationLon" in safeFields ? safeFields.locationLon : existing.locationLon;
+        ("locationLon" in safeFields ? safeFields.locationLon : existing.locationLon) ?? null;
       geometryChanged =
-        newLat !== existing.locationLat || newLon !== existing.locationLon;
+        coordinateChanged(newLat, existing.locationLat ?? null) ||
+        coordinateChanged(newLon, existing.locationLon ?? null);
     }
 
     // Only re-run attribution when the stored geometry actually changed (or the
