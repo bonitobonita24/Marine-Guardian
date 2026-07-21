@@ -3,7 +3,6 @@
 import { useSession } from "next-auth/react";
 import Image from "next/image";
 import { Maximize2 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { useFullscreen } from "@/components/layout/fullscreen-context";
@@ -86,11 +85,6 @@ export function Header() {
             <span className="text-sm text-muted-foreground">
               {session.user.email}
             </span>
-            {session.user.roles.length > 0 && (
-              <Badge variant="secondary" className="text-xs">
-                {session.user.roles[0]}
-              </Badge>
-            )}
           </>
         )}
         <BlueAllianceMark />

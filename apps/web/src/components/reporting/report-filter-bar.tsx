@@ -346,7 +346,7 @@ export function ReportFilterBar({
             data-testid="report-range-from"
             type="date"
             className={cn(
-              stacked ? "h-7 w-full text-[11px]" : "h-8 w-[8.5rem] text-xs",
+              stacked ? "h-7 w-full text-[11px]" : "h-8 w-40 text-xs",
             )}
             value={toDateInputValue(from)}
             max={toDateInputValue(to)}
@@ -366,7 +366,7 @@ export function ReportFilterBar({
             data-testid="report-range-to"
             type="date"
             className={cn(
-              stacked ? "h-7 w-full text-[11px]" : "h-8 w-[8.5rem] text-xs",
+              stacked ? "h-7 w-full text-[11px]" : "h-8 w-40 text-xs",
             )}
             value={toDateInputValue(to)}
             min={toDateInputValue(from)}
