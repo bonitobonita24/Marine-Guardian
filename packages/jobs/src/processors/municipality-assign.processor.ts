@@ -142,7 +142,10 @@ export async function processMunicipalityAssign(
     for (const protectedZoneId of zoneIds) {
       await platformPrisma.eventCoveredZone.upsert({
         where: { eventId_protectedZoneId: { eventId: id, protectedZoneId } },
-        create: { tenantId, eventId: id, protectedZoneId, assignedAt: now },
+        // source: "geometry" — this processor only ever derives memberships from
+        // geometry; title-derived rows (source "title_hint") come solely from the
+        // one-time backfill and are never produced or pruned here.
+        create: { tenantId, eventId: id, protectedZoneId, assignedAt: now, source: "geometry" },
         update: { assignedAt: now },
       });
     }
@@ -240,7 +243,10 @@ export async function processMunicipalityAssign(
   for (const protectedZoneId of zoneIds) {
     await platformPrisma.patrolCoveredZone.upsert({
       where: { patrolId_protectedZoneId: { patrolId: id, protectedZoneId } },
-      create: { tenantId, patrolId: id, protectedZoneId, assignedAt: now },
+      // source: "geometry" — see the event path above; the live processor only
+      // ever writes geometry-derived memberships. Title-derived "title_hint" rows
+      // come solely from scripts/backfill-zone-title-hint.ts.
+      create: { tenantId, patrolId: id, protectedZoneId, assignedAt: now, source: "geometry" },
       update: { assignedAt: now },
     });
   }

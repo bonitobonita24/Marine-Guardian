@@ -13,6 +13,7 @@
     "./lib/heatmap-sample": "./src/lib/heatmap-sample/index.ts",
     "./lib/municipality-assignment": "./src/lib/municipality-assignment/index.ts",
     "./lib/municipality-attribution": "./src/lib/municipality-attribution/index.ts",
+    "./lib/zone-attribution": "./src/lib/zone-attribution/index.ts",
     "./lib/asset-mime": "./src/lib/asset-mime/index.ts"
   },
   "scripts": {
