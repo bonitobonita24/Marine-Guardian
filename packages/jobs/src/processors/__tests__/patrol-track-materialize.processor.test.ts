@@ -26,13 +26,33 @@ vi.mock("../../workers/base-worker", () => ({
   validateTenantContext: vi.fn(),
 }));
 
+// vi.hoisted ensures mockPatrolFindUnique exists before the hoisted vi.mock
+// factory below runs. Referencing the standalone fn (not
+// platformPrisma.patrol.findUnique) also avoids the unbound-method lint an
+// inline method reference would trip — same pattern as
+// patrol-track-materialization.test.ts's mockErConnFindUnique.
+const { mockPatrolFindUnique } = vi.hoisted(() => ({
+  mockPatrolFindUnique: vi.fn(),
+}));
+
 vi.mock("@marine-guardian/db", () => ({
-  platformPrisma: { __marker: "platformPrisma-mock" },
+  platformPrisma: {
+    __marker: "platformPrisma-mock",
+    patrol: { findUnique: mockPatrolFindUnique },
+  },
 }));
 
 vi.mock("../../lib/patrol-track-materialization", () => ({
   materializePatrolTrack: vi.fn(),
   recomputeDistanceAndDuration: vi.fn(),
+}));
+
+vi.mock("../../queues/area-rederive.queue", () => ({
+  enqueueAreaRederive: vi.fn().mockResolvedValue("area-job-1"),
+}));
+
+vi.mock("../../queues/municipality-assign.queue", () => ({
+  enqueueMunicipalityAssign: vi.fn().mockResolvedValue("muni-job-1"),
 }));
 
 import { processPatrolTrackMaterialize } from "../patrol-track-materialize.processor";
@@ -42,10 +62,16 @@ import {
   recomputeDistanceAndDuration,
 } from "../../lib/patrol-track-materialization";
 import { platformPrisma } from "@marine-guardian/db";
+import { enqueueAreaRederive } from "../../queues/area-rederive.queue";
+import { enqueueMunicipalityAssign } from "../../queues/municipality-assign.queue";
 
 const mockMaterialize = materializePatrolTrack as ReturnType<typeof vi.fn>;
 const mockRecompute = recomputeDistanceAndDuration as ReturnType<typeof vi.fn>;
 const mockValidate = validateTenantContext as ReturnType<typeof vi.fn>;
+const mockEnqueueAreaRederive = enqueueAreaRederive as ReturnType<typeof vi.fn>;
+const mockEnqueueMunicipalityAssign = enqueueMunicipalityAssign as ReturnType<
+  typeof vi.fn
+>;
 
 function makeJob(
   overrides: Partial<PatrolTrackMaterializeJobPayload> = {},
@@ -71,7 +97,17 @@ describe("processPatrolTrackMaterialize", () => {
       lastTrackTime: new Date("2026-05-20T12:00:00Z"),
       patrolEnded: false,
       skipped: false,
+      trackChanged: false,
     });
+    // Default: patrol already area-derived (neverDerived=false), so the
+    // default trackChanged=false above means the geometry fan-out is NOT
+    // enqueued unless a test explicitly opts in (trackChanged=true or
+    // areaDerivedAt=null) — keeps the pre-existing tests below unaffected.
+    mockPatrolFindUnique.mockResolvedValue({
+      areaDerivedAt: new Date("2026-05-01T00:00:00Z"),
+    });
+    mockEnqueueAreaRederive.mockResolvedValue("area-job-1");
+    mockEnqueueMunicipalityAssign.mockResolvedValue("muni-job-1");
   });
 
   it("calls validateTenantContext with the job payload before doing any work", async () => {
@@ -98,6 +134,7 @@ describe("processPatrolTrackMaterialize", () => {
       lastTrackTime: new Date("2026-05-20T15:30:00Z"),
       patrolEnded: true,
       skipped: false,
+      trackChanged: false,
     };
     mockMaterialize.mockResolvedValueOnce(expected);
     const result = await processPatrolTrackMaterialize(makeJob());
@@ -113,6 +150,7 @@ describe("processPatrolTrackMaterialize", () => {
       patrolEnded: false,
       skipped: true,
       skipReason: "no_credentials" as const,
+      trackChanged: false,
     };
     mockMaterialize.mockResolvedValueOnce(skipped);
     const result = await processPatrolTrackMaterialize(makeJob());
@@ -128,6 +166,7 @@ describe("processPatrolTrackMaterialize", () => {
       patrolEnded: false,
       skipped: true,
       skipReason: "no_leader" as const,
+      trackChanged: false,
     };
     mockMaterialize.mockResolvedValueOnce(skipped);
     const result = await processPatrolTrackMaterialize(makeJob());
@@ -144,6 +183,7 @@ describe("processPatrolTrackMaterialize", () => {
       patrolEnded: false,
       skipped: true,
       skipReason: "no_segment" as const,
+      trackChanged: false,
     };
     mockMaterialize.mockResolvedValueOnce(skipped);
     const result = await processPatrolTrackMaterialize(makeJob());
@@ -176,6 +216,7 @@ describe("processPatrolTrackMaterialize", () => {
       patrolEnded: false,
       skipped: true,
       skipReason: "no_segment" as const,
+      trackChanged: false,
     });
     await processPatrolTrackMaterialize(makeJob());
     expect(mockRecompute).not.toHaveBeenCalled();
@@ -190,5 +231,125 @@ describe("processPatrolTrackMaterialize", () => {
     ).rejects.toThrow("Job payload missing tenantId");
     // materializePatrolTrack should not have been called when validation throws.
     expect(mockMaterialize).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // Geometry fan-out gate (er-sync CPU-spiral fix follow-up) — this
+  // processor is now the SINGLE trigger for patrol area-rederive +
+  // municipality-assign, gated on trackChanged OR never-derived.
+  // -------------------------------------------------------------------------
+
+  it("enqueues area-rederive + municipality-assign when trackChanged=true", async () => {
+    mockMaterialize.mockResolvedValueOnce({
+      patrolTrackId: "pt-1",
+      pointCount: 50,
+      hasTimestamps: true,
+      lastTrackTime: new Date("2026-05-20T13:00:00Z"),
+      patrolEnded: false,
+      skipped: false,
+      trackChanged: true,
+    });
+
+    await processPatrolTrackMaterialize(
+      makeJob({ tenantId: "tenant-9", patrolId: "patrol-9" }),
+    );
+
+    expect(mockEnqueueAreaRederive).toHaveBeenCalledWith({
+      tenantId: "tenant-9",
+      userId: "system",
+      entity: "patrol",
+      id: "patrol-9",
+    });
+    expect(mockEnqueueMunicipalityAssign).toHaveBeenCalledWith({
+      tenantId: "tenant-9",
+      userId: "system",
+      entity: "patrol",
+      id: "patrol-9",
+    });
+  });
+
+  it("enqueues area-rederive + municipality-assign when the patrol has never been area-derived (areaDerivedAt null), even if trackChanged=false", async () => {
+    mockMaterialize.mockResolvedValueOnce({
+      patrolTrackId: "pt-1",
+      pointCount: 10,
+      hasTimestamps: true,
+      lastTrackTime: new Date("2026-05-20T08:00:00Z"),
+      patrolEnded: false,
+      skipped: false,
+      trackChanged: false,
+    });
+    mockPatrolFindUnique.mockResolvedValueOnce({ areaDerivedAt: null });
+
+    await processPatrolTrackMaterialize(
+      makeJob({ tenantId: "tenant-9", patrolId: "patrol-9" }),
+    );
+
+    expect(mockEnqueueAreaRederive).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "patrol-9" }),
+    );
+    expect(mockEnqueueMunicipalityAssign).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "patrol-9" }),
+    );
+  });
+
+  it("does NOT enqueue area-rederive or municipality-assign when trackChanged=false AND the patrol was already area-derived", async () => {
+    mockMaterialize.mockResolvedValueOnce({
+      patrolTrackId: "pt-1",
+      pointCount: 10,
+      hasTimestamps: true,
+      lastTrackTime: new Date("2026-05-20T08:00:00Z"),
+      patrolEnded: false,
+      skipped: false,
+      trackChanged: false,
+    });
+    mockPatrolFindUnique.mockResolvedValueOnce({
+      areaDerivedAt: new Date("2026-05-01T00:00:00Z"),
+    });
+
+    await processPatrolTrackMaterialize(
+      makeJob({ tenantId: "tenant-9", patrolId: "patrol-9" }),
+    );
+
+    expect(mockEnqueueAreaRederive).not.toHaveBeenCalled();
+    expect(mockEnqueueMunicipalityAssign).not.toHaveBeenCalled();
+  });
+
+  it("does NOT enqueue area-rederive or municipality-assign for a skipped materialize when the patrol was already area-derived", async () => {
+    mockMaterialize.mockResolvedValueOnce({
+      patrolTrackId: null,
+      pointCount: 0,
+      hasTimestamps: false,
+      lastTrackTime: null,
+      patrolEnded: false,
+      skipped: true,
+      skipReason: "no_credentials" as const,
+      trackChanged: false,
+    });
+    mockPatrolFindUnique.mockResolvedValueOnce({
+      areaDerivedAt: new Date("2026-05-01T00:00:00Z"),
+    });
+
+    await processPatrolTrackMaterialize(makeJob());
+
+    expect(mockEnqueueAreaRederive).not.toHaveBeenCalled();
+    expect(mockEnqueueMunicipalityAssign).not.toHaveBeenCalled();
+  });
+
+  it("swallows enqueueAreaRederive failures without throwing (logs + still enqueues municipality-assign)", async () => {
+    mockMaterialize.mockResolvedValueOnce({
+      patrolTrackId: "pt-1",
+      pointCount: 50,
+      hasTimestamps: true,
+      lastTrackTime: new Date("2026-05-20T13:00:00Z"),
+      patrolEnded: false,
+      skipped: false,
+      trackChanged: true,
+    });
+    mockEnqueueAreaRederive.mockRejectedValueOnce(new Error("queue down"));
+
+    await expect(
+      processPatrolTrackMaterialize(makeJob()),
+    ).resolves.not.toThrow();
+    expect(mockEnqueueMunicipalityAssign).toHaveBeenCalledTimes(1);
   });
 });

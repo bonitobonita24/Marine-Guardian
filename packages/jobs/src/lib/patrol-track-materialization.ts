@@ -75,6 +75,19 @@ export interface MaterializationResult {
   skipped: boolean;
   /** Populated only when skipped=true. */
   skipReason?: MaterializationSkipReason;
+  /**
+   * True when this materialization changed the patrol's track fingerprint
+   * (pointCount and/or lastTrackTime differ from the previously-stored
+   * PatrolTrack row, or no prior row existed). False for every skip case
+   * (a skipped materialize never rebuilds the track, so there is nothing
+   * for a downstream geometry re-derive to react to) and false when the
+   * upsert wrote back an identical fingerprint (ER re-returned the same
+   * unchanged patrol). Consumed by patrol-track-materialize.processor.ts
+   * to gate the area-rederive / municipality-assign fan-out on real track
+   * change instead of every sync cycle (er-sync CPU-spiral fix, follow-up
+   * to the event geometryChanged guard).
+   */
+  trackChanged: boolean;
 }
 
 interface PatrolForMaterialization {
@@ -203,6 +216,7 @@ export async function materializePatrolTrack(
       patrolEnded,
       skipped: true,
       skipReason: "no_segment",
+      trackChanged: false,
     };
   }
 
@@ -216,6 +230,7 @@ export async function materializePatrolTrack(
       patrolEnded,
       skipped: true,
       skipReason: "no_leader",
+      trackChanged: false,
     };
   }
 
@@ -242,6 +257,7 @@ export async function materializePatrolTrack(
       patrolEnded,
       skipped: true,
       skipReason: "no_credentials",
+      trackChanged: false,
     };
   }
 
@@ -261,6 +277,7 @@ export async function materializePatrolTrack(
       patrolEnded,
       skipped: true,
       skipReason: "no_segment",
+      trackChanged: false,
     };
   }
 
@@ -285,6 +302,7 @@ export async function materializePatrolTrack(
       patrolEnded,
       skipped: true,
       skipReason: "no_geometry",
+      trackChanged: false,
     };
   }
 
@@ -296,6 +314,25 @@ export async function materializePatrolTrack(
   // Step 5 — summarise + upsert (only the cleaned, geometry-bearing features).
   const summary = summariseFeatures(validFeatures);
   const fetchedAt = new Date();
+
+  // Track-change fingerprint (er-sync CPU-spiral fix follow-up): compare the
+  // freshly-summarised pointCount + lastTrackTime against the PREVIOUSLY
+  // stored PatrolTrack row (if any) BEFORE the upsert overwrites it. A
+  // patrol's start location is stable across syncs, but its track genuinely
+  // grows while active — pointCount/lastTrackTime are the reliable signal
+  // that new GPS data actually arrived, unlike the event geometryChanged
+  // guard's lat/lon comparison. No prior row (`prior === null`) counts as
+  // changed — a first-ever materialize always needs the downstream
+  // area-rederive / municipality-assign fan-out to run once.
+  const prior = await prisma.patrolTrack.findUnique({
+    where: { patrolId: patrol.id },
+    select: { pointCount: true, lastTrackTime: true },
+  });
+  const trackChanged =
+    prior == null ||
+    prior.pointCount !== summary.pointCount ||
+    (prior.lastTrackTime?.getTime() ?? null) !==
+      (summary.lastTrackTime?.getTime() ?? null);
 
   // PatrolTrack.trackGeojson is Prisma Json — narrow the FeatureCollection
   // to a plain object via unknown. Runtime shape is JSON-safe.
@@ -337,6 +374,7 @@ export async function materializePatrolTrack(
     lastTrackTime: summary.lastTrackTime,
     patrolEnded,
     skipped: false,
+    trackChanged,
   };
 }
 

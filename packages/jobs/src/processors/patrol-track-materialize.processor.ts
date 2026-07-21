@@ -39,6 +39,8 @@ import {
   recomputeDistanceAndDuration,
   type MaterializationResult,
 } from "../lib/patrol-track-materialization";
+import { enqueueAreaRederive } from "../queues/area-rederive.queue";
+import { enqueueMunicipalityAssign } from "../queues/municipality-assign.queue";
 
 /**
  * materializePatrolTrack types its Prisma arg against `ExtendedPrismaClient`
@@ -63,10 +65,53 @@ export async function processPatrolTrackMaterialize(
 ): Promise<MaterializationResult> {
   validateTenantContext(job.data);
 
-  const { patrolId } = job.data;
+  const { tenantId, patrolId } = job.data;
   const result = await materializePatrolTrack(prisma, patrolId);
   if (!result.skipped) {
     await recomputeDistanceAndDuration(prisma, patrolId);
   }
+
+  // Geometry fan-out gate (er-sync CPU-spiral fix, follow-up to the event
+  // geometryChanged guard) — er-sync.processor.ts no longer enqueues
+  // area-rederive / municipality-assign directly for patrols; this
+  // processor is now the single trigger, gated on the track actually
+  // having changed (result.trackChanged) OR the patrol never having been
+  // area-derived yet (areaDerivedAt null — first-ever derive still needs
+  // to run even if, degenerately, the track fingerprint didn't move).
+  const patrolRow = await prisma.patrol.findUnique({
+    where: { id: patrolId },
+    select: { areaDerivedAt: true },
+  });
+  const neverDerived = patrolRow?.areaDerivedAt == null;
+
+  if (result.trackChanged || neverDerived) {
+    try {
+      await enqueueAreaRederive({
+        tenantId,
+        userId: "system",
+        entity: "patrol",
+        id: patrolId,
+      });
+    } catch (err) {
+      console.error(
+        `[patrol-track-materialize] enqueueAreaRederive failed for patrol ${patrolId}:`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+    try {
+      await enqueueMunicipalityAssign({
+        tenantId,
+        userId: "system",
+        entity: "patrol",
+        id: patrolId,
+      });
+    } catch (err) {
+      console.error(
+        `[patrol-track-materialize] enqueueMunicipalityAssign failed for patrol ${patrolId}:`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
   return result;
 }

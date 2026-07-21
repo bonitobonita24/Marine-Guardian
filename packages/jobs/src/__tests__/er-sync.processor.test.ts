@@ -380,12 +380,13 @@ describe("processErSync", () => {
     });
     expect(upsertCall.create.firstSeenAt).toBeInstanceOf(Date);
     expect(upsertCall.create.lastSyncedAt).toBeInstanceOf(Date);
-    expect(mockEnqueueAreaRederive).toHaveBeenCalledWith({
-      tenantId: "tenant-1",
-      userId: "system",
-      entity: "patrol",
-      id: "patrol-1",
-    });
+    // Patrol geometry re-derivation (area-rederive + municipality-assign) is
+    // NO LONGER enqueued directly from er-sync — it moved into
+    // patrol-track-materialize.processor.ts, gated on trackChanged. er-sync
+    // now only triggers the materialize job for patrols.
+    expect(mockEnqueueAreaRederive).not.toHaveBeenCalledWith(
+      expect.objectContaining({ entity: "patrol" }),
+    );
     expect(mockEnqueuePatrolTrackMaterialize).toHaveBeenCalledWith({
       tenantId: "tenant-1",
       userId: "system",
@@ -491,9 +492,11 @@ describe("processErSync", () => {
     expect(mockPrisma.patrol.update).not.toHaveBeenCalled();
   });
 
-  it("flags patrol with syncNeeded=true when enqueueAreaRederive fails", async () => {
+  it("flags patrol with syncNeeded=true when enqueuePatrolTrackMaterialize fails", async () => {
     mockPrisma.patrol.upsert.mockResolvedValue({ id: "patrol-1" });
-    mockEnqueueAreaRederive.mockRejectedValueOnce(new Error("queue down"));
+    mockEnqueuePatrolTrackMaterialize.mockRejectedValueOnce(
+      new Error("queue down"),
+    );
     mockPrisma.patrol.update.mockResolvedValue({ id: "patrol-1" });
 
     await processErSync(makeJob({ syncType: "patrols" }));

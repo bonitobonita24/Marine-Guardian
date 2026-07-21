@@ -500,6 +500,146 @@ describe("materializePatrolTrack (5.2a)", () => {
     );
   });
 
+  // ---------------------------------------------------------------------
+  // trackChanged fingerprint (er-sync CPU-spiral fix follow-up) — compares
+  // pointCount + lastTrackTime against the PRIOR PatrolTrack row (read
+  // before the upsert overwrites it).
+  // ---------------------------------------------------------------------
+
+  it("trackChanged=true when no prior PatrolTrack row exists", async () => {
+    const prisma = makePrismaMock();
+    prisma.patrol.findUniqueOrThrow.mockResolvedValue(makePatrol());
+    prisma.patrolTrack.findUnique.mockResolvedValue(null);
+    prisma.patrolTrack.upsert.mockResolvedValue({ id: "pt-1" });
+    mockFetchSubjectTracks.mockResolvedValue(
+      makeTrackResponse([
+        makeFeatureWithTimes(
+          [
+            [120.0, 8.0],
+            [120.1, 8.1],
+          ],
+          ["2026-05-01T08:00:00Z", "2026-05-01T08:30:00Z"],
+        ),
+      ]),
+    );
+
+    const result = await materializePatrolTrack(
+      prisma as unknown as PrismaClientLike,
+      PATROL_A,
+    );
+
+    expect(result.trackChanged).toBe(true);
+  });
+
+  it("trackChanged=true when pointCount differs from the prior row", async () => {
+    const prisma = makePrismaMock();
+    prisma.patrol.findUniqueOrThrow.mockResolvedValue(makePatrol());
+    prisma.patrolTrack.findUnique.mockResolvedValue({
+      pointCount: 2,
+      lastTrackTime: new Date("2026-05-01T08:30:00Z"),
+    });
+    prisma.patrolTrack.upsert.mockResolvedValue({ id: "pt-1" });
+    mockFetchSubjectTracks.mockResolvedValue(
+      makeTrackResponse([
+        makeFeatureWithTimes(
+          [
+            [120.0, 8.0],
+            [120.1, 8.1],
+            [120.2, 8.2],
+          ],
+          [
+            "2026-05-01T08:00:00Z",
+            "2026-05-01T08:30:00Z",
+            "2026-05-01T09:00:00Z",
+          ],
+        ),
+      ]),
+    );
+
+    const result = await materializePatrolTrack(
+      prisma as unknown as PrismaClientLike,
+      PATROL_A,
+    );
+
+    expect(result.pointCount).toBe(3);
+    expect(result.trackChanged).toBe(true);
+  });
+
+  it("trackChanged=true when lastTrackTime differs from the prior row (pointCount unchanged)", async () => {
+    const prisma = makePrismaMock();
+    prisma.patrol.findUniqueOrThrow.mockResolvedValue(makePatrol());
+    prisma.patrolTrack.findUnique.mockResolvedValue({
+      pointCount: 2,
+      lastTrackTime: new Date("2026-05-01T08:00:00Z"),
+    });
+    prisma.patrolTrack.upsert.mockResolvedValue({ id: "pt-1" });
+    mockFetchSubjectTracks.mockResolvedValue(
+      makeTrackResponse([
+        makeFeatureWithTimes(
+          [
+            [120.0, 8.0],
+            [120.1, 8.1],
+          ],
+          ["2026-05-01T08:00:00Z", "2026-05-01T08:30:00Z"],
+        ),
+      ]),
+    );
+
+    const result = await materializePatrolTrack(
+      prisma as unknown as PrismaClientLike,
+      PATROL_A,
+    );
+
+    expect(result.pointCount).toBe(2);
+    expect(result.trackChanged).toBe(true);
+  });
+
+  it("trackChanged=false when pointCount AND lastTrackTime are identical to the prior row (unchanged patrol re-synced)", async () => {
+    const prisma = makePrismaMock();
+    prisma.patrol.findUniqueOrThrow.mockResolvedValue(makePatrol());
+    prisma.patrolTrack.findUnique.mockResolvedValue({
+      pointCount: 2,
+      lastTrackTime: new Date("2026-05-01T08:30:00Z"),
+    });
+    prisma.patrolTrack.upsert.mockResolvedValue({ id: "pt-1" });
+    mockFetchSubjectTracks.mockResolvedValue(
+      makeTrackResponse([
+        makeFeatureWithTimes(
+          [
+            [120.0, 8.0],
+            [120.1, 8.1],
+          ],
+          ["2026-05-01T08:00:00Z", "2026-05-01T08:30:00Z"],
+        ),
+      ]),
+    );
+
+    const result = await materializePatrolTrack(
+      prisma as unknown as PrismaClientLike,
+      PATROL_A,
+    );
+
+    expect(result.pointCount).toBe(2);
+    expect(result.trackChanged).toBe(false);
+  });
+
+  it("trackChanged=false for every skip case (no_segment / no_leader / no_credentials / no_geometry)", async () => {
+    const prisma = makePrismaMock();
+    prisma.patrol.findUniqueOrThrow.mockResolvedValue(
+      makePatrol({ segments: [] }),
+    );
+
+    const result = await materializePatrolTrack(
+      prisma as unknown as PrismaClientLike,
+      PATROL_A,
+    );
+
+    expect(result.skipped).toBe(true);
+    expect(result.trackChanged).toBe(false);
+    // Skipping never reads the prior PatrolTrack row (nothing to compare).
+    expect(prisma.patrolTrack.findUnique).not.toHaveBeenCalled();
+  });
+
   it("falls back to scheduledStart/End when actuals are null", async () => {
     const prisma = makePrismaMock();
     prisma.patrol.findUniqueOrThrow.mockResolvedValue(

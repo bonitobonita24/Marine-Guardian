@@ -618,24 +618,17 @@ async function syncPatrols(
       });
     }
 
-    try {
-      await enqueueAreaRederive({
-        tenantId,
-        userId: "system",
-        entity: "patrol",
-        id: patrol.id,
-      });
-    } catch (err) {
-      console.error(
-        `[er-sync] enqueueAreaRederive failed for patrol ${patrol.id}:`,
-        err instanceof Error ? err.message : String(err),
-      );
-      // Upsert succeeded but downstream materialization failed — flag for re-sync.
-      await platformPrisma.patrol.update({
-        where: { id: patrol.id },
-        data: { syncNeeded: true },
-      });
-    }
+    // Patrol geometry re-derivation (area-rederive + municipality-assign) is
+    // NO LONGER enqueued directly here. Unlike an event's lat/lon, a patrol's
+    // start location is stable across syncs while its track can keep growing
+    // — enqueueing both jobs unconditionally on every sync cycle re-derived
+    // dozens of unchanged patrols repeatedly, driving a sustained worker CPU
+    // spiral (classifyTrackTerrain + municipality geometry are CPU-heavy).
+    // enqueuePatrolTrackMaterialize below is now the SINGLE trigger for patrol
+    // geometry: patrol-track-materialize.processor.ts enqueues area-rederive +
+    // municipality-assign itself, gated on the recomputed track fingerprint
+    // (MaterializationResult.trackChanged) or on the patrol never having been
+    // area-derived yet — mirroring the event geometryChanged guard above.
     try {
       await enqueuePatrolTrackMaterialize({
         tenantId,
@@ -652,21 +645,6 @@ async function syncPatrols(
         where: { id: patrol.id },
         data: { syncNeeded: true },
       });
-    }
-    // Municipality assignment deferred — needs PatrolTrack (startLocationLat/Lon
-    // may already be set from segment coords; the processor handles null gracefully).
-    try {
-      await enqueueMunicipalityAssign({
-        tenantId,
-        userId: "system",
-        entity: "patrol",
-        id: patrol.id,
-      });
-    } catch (err) {
-      console.error(
-        `[er-sync] enqueueMunicipalityAssign failed for patrol ${patrol.id}:`,
-        err instanceof Error ? err.message : String(err),
-      );
     }
   }
 
