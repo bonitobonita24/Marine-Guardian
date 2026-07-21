@@ -294,10 +294,27 @@ async function syncEvents(
 
     const existing = await platformPrisma.event.findUnique({
       where: { tenantId_erEventId: { tenantId, erEventId: e.id } },
-      select: { id: true, erOriginalSnapshot: true },
+      // locationLat/Lon are read so we can skip re-running the (otherwise
+      // redundant) attribution jobs when the event's stored location does not
+      // actually change this sync — see geometryChanged below.
+      select: {
+        id: true,
+        erOriginalSnapshot: true,
+        locationLat: true,
+        locationLon: true,
+      },
     });
 
     let eventId: string;
+    // Whether the event's STORED geometry (locationLat/Lon) actually changes
+    // this sync. ER bumps updated_at on every field change (title, state,
+    // details, …) so the delta window re-returns events whose location has NOT
+    // moved; re-attributing those is pure waste. Gate the area-rederive +
+    // municipality-assign fan-out on a real geometry change: a new event always
+    // needs its first attribution; an updated event only when it moved. Safe:
+    // boundary edits re-attribute via a SEPARATE path (fanOutMunicipalityReassign),
+    // so skipping unchanged-location events here never leaves attribution stale.
+    let geometryChanged: boolean;
     if (existing === null) {
       // First insert: set erOriginalSnapshot from verbatim ER payload.
       // This field is immutable — it is NEVER overwritten in subsequent syncs (q-ops-03).
@@ -318,6 +335,7 @@ async function syncEvents(
         select: { id: true, priority: true },
       });
       eventId = created.id;
+      geometryChanged = true; // new event — always needs its first attribution
       try {
         await enqueueAlert({
           tenantId,
@@ -350,33 +368,48 @@ async function syncEvents(
         data: safeFields,
       });
       eventId = existing.id;
+      // Compare the EFFECTIVE new stored location (the incoming value, unless
+      // locationLat/Lon was edit-protected out of safeFields — in which case the
+      // stored value is unchanged) against the existing stored location.
+      const newLat =
+        "locationLat" in safeFields ? safeFields.locationLat : existing.locationLat;
+      const newLon =
+        "locationLon" in safeFields ? safeFields.locationLon : existing.locationLon;
+      geometryChanged =
+        newLat !== existing.locationLat || newLon !== existing.locationLon;
     }
 
-    try {
-      await enqueueAreaRederive({
-        tenantId,
-        userId: "system",
-        entity: "event",
-        id: eventId,
-      });
-    } catch (err) {
-      console.error(
-        `[er-sync] enqueueAreaRederive failed for event ${eventId}:`,
-        err instanceof Error ? err.message : String(err),
-      );
-    }
-    try {
-      await enqueueMunicipalityAssign({
-        tenantId,
-        userId: "system",
-        entity: "event",
-        id: eventId,
-      });
-    } catch (err) {
-      console.error(
-        `[er-sync] enqueueMunicipalityAssign failed for event ${eventId}:`,
-        err instanceof Error ? err.message : String(err),
-      );
+    // Only re-run attribution when the stored geometry actually changed (or the
+    // event is new). Skipping unchanged-location events is where most of the
+    // steady-state geometry-worker load came from — the delta window re-returns
+    // events on every non-geometry ER edit.
+    if (geometryChanged) {
+      try {
+        await enqueueAreaRederive({
+          tenantId,
+          userId: "system",
+          entity: "event",
+          id: eventId,
+        });
+      } catch (err) {
+        console.error(
+          `[er-sync] enqueueAreaRederive failed for event ${eventId}:`,
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+      try {
+        await enqueueMunicipalityAssign({
+          tenantId,
+          userId: "system",
+          entity: "event",
+          id: eventId,
+        });
+      } catch (err) {
+        console.error(
+          `[er-sync] enqueueMunicipalityAssign failed for event ${eventId}:`,
+          err instanceof Error ? err.message : String(err),
+        );
+      }
     }
   }
 

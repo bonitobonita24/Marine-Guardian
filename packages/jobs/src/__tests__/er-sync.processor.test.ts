@@ -281,6 +281,45 @@ describe("processErSync", () => {
     });
   });
 
+  it("syncs events: SKIPS re-attribution when an existing event's location is UNCHANGED", async () => {
+    // Incoming ev-1 has location { lat: -6.5, lon: 106.8 }; the stored row has
+    // the SAME location — ER only bumped a non-geometry field. The event data
+    // is still updated, but the (redundant) attribution jobs are NOT re-enqueued.
+    mockPrisma.event.findUnique.mockResolvedValue({
+      id: "evt-existing",
+      erOriginalSnapshot: null,
+      locationLat: -6.5,
+      locationLon: 106.8,
+    });
+    mockPrisma.event.update.mockResolvedValue({});
+
+    await processErSync(makeJob({ syncType: "events" }));
+
+    expect(mockPrisma.event.update).toHaveBeenCalledTimes(1); // data still refreshed
+    expect(mockEnqueueAreaRederive).not.toHaveBeenCalled(); // attribution skipped
+  });
+
+  it("syncs events: RE-attributes when an existing event's location CHANGED", async () => {
+    // Stored location differs from the incoming ev-1 location → the event moved,
+    // so attribution must re-run.
+    mockPrisma.event.findUnique.mockResolvedValue({
+      id: "evt-existing",
+      erOriginalSnapshot: null,
+      locationLat: -7.0, // different from incoming -6.5
+      locationLon: 106.8,
+    });
+    mockPrisma.event.update.mockResolvedValue({});
+
+    await processErSync(makeJob({ syncType: "events" }));
+
+    expect(mockEnqueueAreaRederive).toHaveBeenCalledWith({
+      tenantId: "tenant-1",
+      userId: "system",
+      entity: "event",
+      id: "evt-existing",
+    });
+  });
+
   it("enqueues alert evaluation for newly created events only", async () => {
     mockPrisma.event.findUnique.mockResolvedValue(null);
     mockPrisma.event.create.mockResolvedValue({ id: "evt-new-1", priority: 200 });
