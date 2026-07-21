@@ -40,8 +40,8 @@ vi.mock("pdfjs-dist/legacy/build/pdf.mjs", () => ({
 
 vi.mock("@napi-rs/canvas", () => ({
   createCanvas: vi.fn((_w: number, _h: number) => ({
-    getContext: vi.fn(() => ({})),
-    encode: vi.fn(() => Promise.resolve(Buffer.from("fake-png-bytes"))),
+    getContext: vi.fn(() => ({ fillStyle: "", fillRect: vi.fn() })),
+    encode: vi.fn(() => Promise.resolve(Buffer.from("fake-image-bytes"))),
   })),
 }));
 
@@ -140,7 +140,7 @@ describe("renderPdfPagesToPptx", () => {
     expect(imgArg.y).toBeCloseTo(0, 5);
     expect(imgArg.w).toBeCloseTo(8.5, 5);
     expect(imgArg.h).toBeCloseTo(11, 5);
-    expect(imgArg.data).toMatch(/^data:image\/png;base64,/);
+    expect(imgArg.data).toMatch(/^data:image\/jpeg;base64,/);
   });
 
   it("a page with a DIFFERENT aspect ratio is contain-fit and centered, not stretched", async () => {
