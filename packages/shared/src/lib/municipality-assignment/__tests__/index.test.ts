@@ -680,41 +680,41 @@ describe("classifyTrackTerrain", () => {
     coordinates: points.map((p) => [p.lon, p.lat]),
   });
 
-  it("returns 'land' for a track whose majority of points are on land", () => {
+  it("returns 'land' for a track whose majority of points are on land", async () => {
     const track = lineStringFrom([
       { lat: 13.3818, lon: 121.1948 }, // land
       { lat: 13.39, lon: 121.20 }, // land
       { lat: 13.40, lon: 121.21 }, // land
       { lat: 14.0, lon: 118.0 }, // unclassifiable (ignored)
     ]);
-    const result = classifyTrackTerrain(track, [calapanMuni]);
+    const result = await classifyTrackTerrain(track, [calapanMuni]);
     expect(result).toBe("land");
   });
 
-  it("returns 'water' for a track whose majority of points are offshore", () => {
+  it("returns 'water' for a track whose majority of points are offshore", async () => {
     const track = lineStringFrom([
       { lat: 13.3818, lon: 121.1948 }, // land
       { lat: 13.4, lon: 121.05 }, // water (within 15km buffer, no land polygon match)
       { lat: 13.4, lon: 121.06 }, // water
       { lat: 13.4, lon: 121.07 }, // water
     ]);
-    const result = classifyTrackTerrain(track, [calapanMuni]);
+    const result = await classifyTrackTerrain(track, [calapanMuni]);
     expect(result).toBe("water");
   });
 
-  it("breaks a land/water tie in favor of 'water'", () => {
+  it("breaks a land/water tie in favor of 'water'", async () => {
     const track = lineStringFrom([
       { lat: 13.3818, lon: 121.1948 }, // land
       { lat: 13.4, lon: 121.05 }, // water
     ]);
-    const result = classifyTrackTerrain(track, [calapanMuni]);
+    const result = await classifyTrackTerrain(track, [calapanMuni]);
     expect(result).toBe("water");
   });
 
-  it("returns null when no track point classifies (all unclassifiable, empty track, or unparseable geojson)", () => {
-    expect(classifyTrackTerrain(lineStringFrom([]), [calapanMuni])).toBeNull();
+  it("returns null when no track point classifies (all unclassifiable, empty track, or unparseable geojson)", async () => {
+    expect(await classifyTrackTerrain(lineStringFrom([]), [calapanMuni])).toBeNull();
     expect(
-      classifyTrackTerrain(
+      await classifyTrackTerrain(
         lineStringFrom([
           { lat: 14.0, lon: 118.0 },
           { lat: 14.1, lon: 118.1 },
@@ -722,8 +722,8 @@ describe("classifyTrackTerrain", () => {
         [calapanMuni],
       ),
     ).toBeNull();
-    expect(classifyTrackTerrain(null, [calapanMuni])).toBeNull();
-    expect(classifyTrackTerrain({ type: "Unsupported" }, [calapanMuni])).toBeNull();
+    expect(await classifyTrackTerrain(null, [calapanMuni])).toBeNull();
+    expect(await classifyTrackTerrain({ type: "Unsupported" }, [calapanMuni])).toBeNull();
   });
 });
 
@@ -775,7 +775,7 @@ describe("extractTrackCoordinates — FeatureCollection track format (real Patro
     },
   };
 
-  it("classifyTrackTerrain: FeatureCollection with a single LineString feature on land returns 'land'", () => {
+  it("classifyTrackTerrain: FeatureCollection with a single LineString feature on land returns 'land'", async () => {
     const track = featureCollectionFromLineStrings([
       [
         [121.1948, 13.3818], // land
@@ -783,10 +783,10 @@ describe("extractTrackCoordinates — FeatureCollection track format (real Patro
         [121.21, 13.40], // land
       ],
     ]);
-    expect(classifyTrackTerrain(track, [calapanMuni])).toBe("land");
+    expect(await classifyTrackTerrain(track, [calapanMuni])).toBe("land");
   });
 
-  it("classifyTrackTerrain: FeatureCollection with a single LineString feature offshore returns 'water'", () => {
+  it("classifyTrackTerrain: FeatureCollection with a single LineString feature offshore returns 'water'", async () => {
     const track = featureCollectionFromLineStrings([
       [
         [121.05, 13.4], // water (within 15km buffer, no land polygon match)
@@ -794,10 +794,10 @@ describe("extractTrackCoordinates — FeatureCollection track format (real Patro
         [121.07, 13.4], // water
       ],
     ]);
-    expect(classifyTrackTerrain(track, [calapanMuni])).toBe("water");
+    expect(await classifyTrackTerrain(track, [calapanMuni])).toBe("water");
   });
 
-  it("classifyTrackTerrain: coordinates from ALL features in a multi-feature FeatureCollection are considered", () => {
+  it("classifyTrackTerrain: coordinates from ALL features in a multi-feature FeatureCollection are considered", async () => {
     // Feature 1 = 1 land point, Feature 2 = 2 water points → majority water.
     // If only the first feature were read (the pre-fix behaviour), the
     // result would incorrectly ignore feature 2 entirely.
@@ -808,7 +808,7 @@ describe("extractTrackCoordinates — FeatureCollection track format (real Patro
         [121.06, 13.4], // water
       ],
     ]);
-    expect(classifyTrackTerrain(track, [calapanMuni])).toBe("water");
+    expect(await classifyTrackTerrain(track, [calapanMuni])).toBe("water");
   });
 
   it("assignMunicipalityToDominantTrack: FeatureCollection format returns the dominant municipality across all features", () => {
@@ -824,16 +824,16 @@ describe("extractTrackCoordinates — FeatureCollection track format (real Patro
     expect(result).toBe("muni-south");
   });
 
-  it("returns null/empty for an empty, no-features, or malformed FeatureCollection", () => {
-    expect(classifyTrackTerrain({ type: "FeatureCollection", features: [] }, [calapanMuni])).toBeNull();
+  it("returns null/empty for an empty, no-features, or malformed FeatureCollection", async () => {
+    expect(await classifyTrackTerrain({ type: "FeatureCollection", features: [] }, [calapanMuni])).toBeNull();
     expect(
       assignMunicipalityToDominantTrack(
         { type: "FeatureCollection", features: [] },
         [calapanMuni, southMuni],
       ),
     ).toBeNull();
-    expect(classifyTrackTerrain({ type: "FeatureCollection" }, [calapanMuni])).toBeNull();
-    expect(classifyTrackTerrain({ type: "FeatureCollection", features: [null] }, [calapanMuni])).toBeNull();
+    expect(await classifyTrackTerrain({ type: "FeatureCollection" }, [calapanMuni])).toBeNull();
+    expect(await classifyTrackTerrain({ type: "FeatureCollection", features: [null] }, [calapanMuni])).toBeNull();
   });
 });
 
@@ -1424,7 +1424,7 @@ describe("O6 — exact-coordinate dedup does not disturb the dominant-track firs
     expect(result).toBe("muni-calapan");
   });
 
-  it("classifyTrackTerrain: exact-duplicate points still tally every occurrence toward the land/water majority vote", () => {
+  it("classifyTrackTerrain: exact-duplicate points still tally every occurrence toward the land/water majority vote", async () => {
     // 3 exact-duplicate "water" points vs 1 "land" point — majority is water
     // even though the water samples collapse to a single cached computation.
     const track = featureCollectionFromLineString([
@@ -1433,6 +1433,6 @@ describe("O6 — exact-coordinate dedup does not disturb the dominant-track firs
       [121.05, 13.4], // water, EXACT duplicate
       [121.05, 13.4], // water, EXACT duplicate
     ]);
-    expect(classifyTrackTerrain(track, [calapanContainment])).toBe("water");
+    expect(await classifyTrackTerrain(track, [calapanContainment])).toBe("water");
   });
 });

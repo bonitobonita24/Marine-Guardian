@@ -213,7 +213,7 @@ export async function processMunicipalityAssign(
   // Terrain — majority vote across track points when materialised, else the
   // single start-location point.
   const terrain = trackGeojson != null
-    ? classifyTrackTerrain(trackGeojson, municipalities)
+    ? await classifyTrackTerrain(trackGeojson, municipalities)
     : classifyPointTerrain(point as { lat: number; lon: number }, municipalities);
 
   // Update patrol row (Layer 1) — anti-clobber: a manually-overridden

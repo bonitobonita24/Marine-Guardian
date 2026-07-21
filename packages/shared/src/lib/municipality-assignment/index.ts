@@ -897,11 +897,33 @@ export function classifyPointTerrain(
  * @param maxWaterDistanceKm - seaward reach; defaults to MUNICIPAL_WATERS_KM
  * @returns "land", "water", or null
  */
-export function classifyTrackTerrain(
+/**
+ * Yield the Node event loop for one macrotask. classifyTrackTerrain runs
+ * synchronous turf point-in-polygon math over every track point; on a long
+ * patrol that blocks the loop for seconds-to-minutes. In the worker process
+ * ALL BullMQ queues share this one loop, and BullMQ's per-process lock-renewal
+ * timer only fires when the loop is free — so an un-yielded classify starves
+ * the lock renewals of EVERY queue (er-sync's repeatable scheduler included),
+ * expiring their locks and triggering stalled-job re-runs (the 2026-07 CPU
+ * incident). Awaiting setImmediate every YIELD_EVERY_N_POINTS points lets the
+ * renewal timers (and healthchecks) run without changing any result — the
+ * classification is a pure function of the points, computed in the same order.
+ */
+function yieldToEventLoop(): Promise<void> {
+  // setTimeout(0) — a MACROTASK yield that works in every runtime (this
+  // package is browser-agnostic; setImmediate is Node-only). A microtask
+  // (Promise.resolve) would NOT let timer-based work run, and BullMQ's
+  // lock-renewal is a timer — so a macrotask is required here.
+  return new Promise<void>((resolve) => setTimeout(resolve, 0));
+}
+
+const YIELD_EVERY_N_POINTS = 50;
+
+export async function classifyTrackTerrain(
   trackGeojson: unknown,
   municipalities: MunicipalityForAssignment[],
   maxWaterDistanceKm: number = MUNICIPAL_WATERS_KM,
-): "land" | "water" | null {
+): Promise<"land" | "water" | null> {
   const points = extractTrackCoordinates(trackGeojson);
 
   let landCount = 0;
@@ -916,6 +938,7 @@ export function classifyTrackTerrain(
   // repeat. Key is the EXACT `${lon},${lat}` string — no rounding.
   const terrainCache = new Map<string, "land" | "water" | null>();
 
+  let sinceYield = 0;
   for (const [lon, lat] of points) {
     const key = `${String(lon)},${String(lat)}`;
     let terrain: "land" | "water" | null;
@@ -927,6 +950,14 @@ export function classifyTrackTerrain(
     }
     if (terrain === "land") landCount++;
     else if (terrain === "water") waterCount++;
+
+    // Periodically release the event loop so BullMQ lock-renewal (and other
+    // co-resident queues) are not starved. Does not affect the result — the
+    // running counts and per-point classification are unchanged.
+    if (++sinceYield >= YIELD_EVERY_N_POINTS) {
+      sinceYield = 0;
+      await yieldToEventLoop();
+    }
   }
 
   if (landCount === 0 && waterCount === 0) return null;
