@@ -47,9 +47,10 @@ function FullscreenToggle() {
  * `isStaticAssetSegment` guard, so it is served as a real static file.
  *
  * Sized to the visual weight of the neighbouring icon buttons (h-7), not the
- * text — it is a signature, not a control. The wordmark's blue reads ~3.8:1 on
- * the dark `bg-card`, and logotypes are exempt from WCAG 1.4.11, so the
- * artwork is used unaltered rather than filtered or plated (brand fidelity).
+ * text — it is a signature, not a control. This is Blue Alliance's official
+ * white wordmark (from bluealliance.earth), which reads high-contrast on the
+ * dark `bg-card`; logotypes are exempt from WCAG 1.4.11, so the artwork is used
+ * unaltered rather than filtered or plated (brand fidelity).
  *
  * Hidden below `md` so the email + role badge keep the width they need on a
  * phone/tablet instead of overflowing the bar. `md` (not `sm`) is measured,
@@ -63,8 +64,8 @@ function BlueAllianceMark() {
       <Image
         src="/blue-alliance-logo.png"
         alt="Blue Alliance — Philippines Marine Protected Areas"
-        width={400}
-        height={160}
+        width={800}
+        height={320}
         className="h-7 w-auto"
       />
     </div>
