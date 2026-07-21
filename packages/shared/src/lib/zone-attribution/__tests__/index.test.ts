@@ -53,7 +53,7 @@ describe("matchZoneTitleHint", () => {
     expect(matchZoneTitleHint("")).toBeNull();
   });
 
-  it(`returns null for a title shorter than MIN_TITLE_LENGTH (${MIN_TITLE_LENGTH})`, () => {
+  it(`returns null for a title shorter than MIN_TITLE_LENGTH (${String(MIN_TITLE_LENGTH)})`, () => {
     expect(matchZoneTitleHint("abc")).toBeNull();
   });
 
