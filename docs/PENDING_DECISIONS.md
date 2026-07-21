@@ -4,7 +4,31 @@
 
 ---
 
-## 🔴 2026-07-21 (FINAL) — `main` @ `bb2aa50` · STAGING LIVE · PROD UNTOUCHED
+## 🟢 2026-07-21 (PM) — `main` @ `86c4b6f` · STAGING + PROD + DEMO ALL LIVE on `sha-86c4b6f`
+
+Four things shipped to all three envs this session (health 200, verified live): **title-hint MPA-zone
+attribution fallback** (prod Apo Reef report 209→245), **official BA white header logo**, a **UI batch**
+(role badge removed · heatmap uncrop · date inputs widened), and the **showcase `/showcase/timeline`
+overhaul** (lightbox + galleries + multi-tenant center + Telegram→Horizontal-scaling). Working tree is
+clean except the parked PPTX change.
+
+📄 **Full detail: [`docs/SESSION_HANDOFF_0721_pm.md`](./SESSION_HANDOFF_0721_pm.md).** This block is the queue.
+
+### Open items (most important first)
+- [ ] **PPTX JPEG size-fix — PARKED, uncommitted.** 22.5→4.2 MB verified, but a page **black-margin frame**
+  (pre-existing vs new) is UNRESOLVED — must decide before committing/shipping. `packages/jobs/.../pdf-to-pptx.ts`.
+- [ ] **Prod/demo geometry zone-membership gap** — Harka geom prod=13/demo=0 vs dev 158; `98543dc` membership
+  backfill never ran on prod/demo. Run it? (owner-gated, needs tunnel).
+- [ ] **CI dep-audit red on main since `e2de58a`** — time-based CVE advisory, not our code; Docker build green.
+  `chore/cve-remediation` branch exists. Priority?
+- [ ] **Report-suite gallery** — swap generate-dialog thumbs → real rendered report pages (owner shipped as-is).
+- [ ] **Manual zone-override UI + "included by caption" report badge** (title-hint follow-up; `source` marker in DB now).
+- [ ] **docs `/docs` typography** `fix/docs-typography-shadcn`@`376e36c` (LOCAL, owner deferred rebuild).
+- [ ] Standing: prod janitor "bucket does not exist" = benign/self-healing, do NOT re-investigate.
+
+---
+
+## 🔴 2026-07-21 (FINAL) — `main` @ `bb2aa50` · STAGING LIVE · PROD UNTOUCHED — ⚠ SUPERSEDED (prod is now live on sha-86c4b6f)
 
 **Merged to `main` and PUSHED. CI built `sha-bb2aa50`. STAGING DEPLOYED AND VERIFIED.
 PRODUCTION UNTOUCHED — still `sha-a08c700`.** One local unpushed commit: **`d7e246e`**
