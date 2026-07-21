@@ -21,6 +21,14 @@ vi.mock("@marine-guardian/db", () => ({
     municipality: {
       findFirst: vi.fn(),
     },
+    protectedZone: {
+      findFirst: vi.fn(),
+    },
+    patrolCoveredZone: {
+      findUnique: vi.fn(),
+      upsert: vi.fn(),
+      deleteMany: vi.fn(),
+    },
     rolePermission: {
       findUnique: vi.fn(),
       findMany: vi.fn(),
@@ -1026,6 +1034,124 @@ describe("patrol.setMunicipalityOverride", () => {
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(vi.mocked(prisma.patrol.update)).not.toHaveBeenCalled();
     expect(vi.mocked(prisma.auditLog.create)).not.toHaveBeenCalled();
+  });
+});
+
+// ── patrol.setZoneCoverageOverride (modeled on setMunicipalityOverride) ──
+
+describe("patrol.setZoneCoverageOverride", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValue({ id: "pat-1" } as never);
+    vi.mocked(prisma.protectedZone.findFirst).mockResolvedValue({ id: "zone-1" } as never);
+    vi.mocked(prisma.patrolCoveredZone.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.patrolCoveredZone.upsert).mockResolvedValue({} as never);
+    vi.mocked(prisma.patrolCoveredZone.deleteMany).mockResolvedValue({ count: 1 });
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
+
+  it("action=include — upserts source=manual_include, audit logged, no re-enqueue", async () => {
+    const caller = createCaller(makeCtx());
+    const result = await caller.setZoneCoverageOverride({
+      patrolId: "pat-1",
+      protectedZoneId: "zone-1",
+      action: "include",
+    });
+
+    expect(result).toEqual({ patrolId: "pat-1", protectedZoneId: "zone-1", source: "manual_include" });
+    expect(vi.mocked(prisma.patrolCoveredZone.upsert).mock.calls[0]?.[0]).toMatchObject({
+      where: { patrolId_protectedZoneId: { patrolId: "pat-1", protectedZoneId: "zone-1" } },
+      create: { patrolId: "pat-1", protectedZoneId: "zone-1", source: "manual_include" },
+      update: { source: "manual_include" },
+    });
+    expect(vi.mocked(enqueueMunicipalityAssign)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.auditLog.create).mock.calls[0]?.[0]).toMatchObject({
+      data: { action: "SET_PATROL_ZONE_OVERRIDE", entityType: "Patrol", entityId: "pat-1" },
+    });
+  });
+
+  it("action=exclude — upserts source=manual_exclude (tombstone), audit logged, no re-enqueue", async () => {
+    const caller = createCaller(makeCtx());
+    const result = await caller.setZoneCoverageOverride({
+      patrolId: "pat-1",
+      protectedZoneId: "zone-1",
+      action: "exclude",
+    });
+
+    expect(result).toEqual({ patrolId: "pat-1", protectedZoneId: "zone-1", source: "manual_exclude" });
+    expect(vi.mocked(prisma.patrolCoveredZone.upsert).mock.calls[0]?.[0]).toMatchObject({
+      create: { patrolId: "pat-1", protectedZoneId: "zone-1", source: "manual_exclude" },
+      update: { source: "manual_exclude" },
+    });
+    expect(vi.mocked(enqueueMunicipalityAssign)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.auditLog.create).mock.calls[0]?.[0]).toMatchObject({
+      data: { action: "SET_PATROL_ZONE_OVERRIDE", entityType: "Patrol", entityId: "pat-1" },
+    });
+  });
+
+  it("action=clear — deletes the manual row, re-enqueues municipality-assign, audit logged", async () => {
+    vi.mocked(prisma.patrolCoveredZone.findUnique).mockResolvedValue({ source: "manual_include" } as never);
+
+    const caller = createCaller(makeCtx());
+    const result = await caller.setZoneCoverageOverride({
+      patrolId: "pat-1",
+      protectedZoneId: "zone-1",
+      action: "clear",
+    });
+
+    expect(result).toEqual({ patrolId: "pat-1", protectedZoneId: "zone-1", source: null });
+    expect(vi.mocked(prisma.patrolCoveredZone.deleteMany)).toHaveBeenCalledWith({
+      where: { patrolId: "pat-1", protectedZoneId: "zone-1" },
+    });
+    expect(vi.mocked(enqueueMunicipalityAssign)).toHaveBeenCalledWith({
+      entity: "patrol",
+      id: "pat-1",
+      tenantId: TENANT_ID,
+      userId: USER_ID,
+    });
+    expect(vi.mocked(prisma.auditLog.create).mock.calls[0]?.[0]).toMatchObject({
+      data: { action: "CLEAR_PATROL_ZONE_OVERRIDE", entityType: "Patrol", entityId: "pat-1" },
+    });
+  });
+
+  it("cross-tenant patrol — throws NOT_FOUND, no upsert, no audit", async () => {
+    vi.mocked(prisma.patrol.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.setZoneCoverageOverride({ patrolId: "pat-missing", protectedZoneId: "zone-1", action: "include" })
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(vi.mocked(prisma.patrolCoveredZone.upsert)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.auditLog.create)).not.toHaveBeenCalled();
+  });
+
+  it("cross-tenant protected zone — throws NOT_FOUND, no upsert, no audit", async () => {
+    vi.mocked(prisma.protectedZone.findFirst).mockResolvedValue(null);
+
+    const caller = createCaller(makeCtx());
+    await expect(
+      caller.setZoneCoverageOverride({ patrolId: "pat-1", protectedZoneId: "zone-missing", action: "include" })
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(vi.mocked(prisma.patrolCoveredZone.upsert)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.auditLog.create)).not.toHaveBeenCalled();
+  });
+
+  it("matrix gate denies a custom role lacking patrols:update", async () => {
+    vi.mocked(prisma.rolePermission.findUnique).mockResolvedValue({
+      tenantId: TENANT_ID,
+      customRoleId: "cr-1",
+      featureKey: "patrols",
+      view: true,
+      write: false,
+      update: false,
+      delete: false,
+    } as never);
+
+    const caller = createCaller(makeCtx(TENANT_ID, ["tenant_admin"], "cr-1"));
+    await expect(
+      caller.setZoneCoverageOverride({ patrolId: "pat-1", protectedZoneId: "zone-1", action: "include" })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(vi.mocked(prisma.patrolCoveredZone.upsert)).not.toHaveBeenCalled();
   });
 });
 
