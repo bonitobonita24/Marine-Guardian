@@ -4,7 +4,7 @@ import { ArrowRight, Check, GitCommitHorizontal } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { BrowserFrame } from "../../_components/browser-frame";
+import { ShowcaseMedia } from "../../_components/showcase-media";
 import { TimelineReveal } from "./timeline-reveal";
 import {
   MILESTONES,
@@ -79,7 +79,12 @@ export function MilestoneTimeline() {
           {MILESTONES.map((m, i) => {
             const Icon = m.icon;
             const reversed = i % 2 === 1;
-            const hasImage = m.image != null && m.imageAlt != null;
+            const media =
+              m.media ??
+              (m.image != null && m.imageAlt != null
+                ? [{ src: m.image, alt: m.imageAlt }]
+                : []);
+            const hasImage = media.length > 0;
 
             return (
               <li key={m.id} id={m.id} className="relative lg:pl-16">
@@ -125,15 +130,17 @@ export function MilestoneTimeline() {
 
                   {hasImage && (
                     <TimelineReveal
-                      className={cn(reversed && "lg:order-1")}
+                      className={cn(
+                        "lg:self-center",
+                        reversed && "lg:order-1",
+                      )}
                       delay={0.06}
                       y={20}
                     >
-                      <BrowserFrame
-                        src={m.image ?? ""}
-                        alt={m.imageAlt ?? ""}
+                      <ShowcaseMedia
+                        images={media}
+                        frame={m.frame ?? "safari"}
                         url={`app.marine-guardian / ${m.id}`}
-                        className="shadow-xl shadow-black/40"
                       />
                     </TimelineReveal>
                   )}
@@ -251,11 +258,10 @@ export function WhatsNextSection() {
                   y={20}
                 >
                   <figure>
-                    <BrowserFrame
-                      src={f.image}
-                      alt={f.imageAlt}
+                    <ShowcaseMedia
+                      images={[{ src: f.image, alt: f.imageAlt }]}
+                      frame="safari"
                       url={`concept / ${f.id}`}
-                      className="shadow-xl shadow-black/40"
                     />
                     <figcaption className="mt-3 text-center text-caption text-muted-foreground">
                       Concept mockup — {f.title} is{" "}

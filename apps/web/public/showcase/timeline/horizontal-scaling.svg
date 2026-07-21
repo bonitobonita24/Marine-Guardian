@@ -1,0 +1,149 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" width="1200" height="760" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0b0f17"/>
+      <stop offset="1" stop-color="#080b12"/>
+    </linearGradient>
+    <linearGradient id="lb" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#063b42"/>
+      <stop offset="1" stop-color="#0a4f59"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <marker id="arrow" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#2f6f79"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="760" rx="18" fill="url(#bg)"/>
+  <rect x="1" y="1" width="1198" height="758" rx="18" fill="none" stroke="#1b2430" stroke-width="1.5"/>
+
+  <!-- Heading -->
+  <text x="56" y="66" fill="#f3f6fb" font-size="30" font-weight="700" letter-spacing="-0.5">Horizontal scaling</text>
+  <text x="56" y="96" fill="#8b96a8" font-size="16">Stateless tiers scale out to N replicas over a shared data layer</text>
+  <g transform="translate(980,50)">
+    <rect x="0" y="-22" width="164" height="30" rx="15" fill="#08343a" stroke="#0d5560" stroke-width="1.2"/>
+    <text x="82" y="-2" fill="#22e0ef" font-size="13" font-weight="600" text-anchor="middle">AWS-ready · ECS / K8s</text>
+  </g>
+
+  <!-- Load balancer -->
+  <g>
+    <rect x="56" y="132" width="1088" height="66" rx="12" fill="url(#lb)" stroke="#12727f" stroke-width="1.5"/>
+    <circle cx="96" cy="165" r="8" fill="#22e0ef" filter="url(#glow)"/>
+    <text x="120" y="162" fill="#eafcff" font-size="18" font-weight="700">Ingress · Load Balancer</text>
+    <text x="120" y="184" fill="#8fd6de" font-size="13">TLS termination · health checks · round-robin across replicas</text>
+    <text x="1120" y="172" fill="#7fd3dc" font-size="13" text-anchor="end">HTTPS</text>
+  </g>
+
+  <!-- connectors LB -> app replicas -->
+  <g stroke="#2f6f79" stroke-width="1.6" fill="none" marker-end="url(#arrow)">
+    <path d="M300,198 L300,250"/>
+    <path d="M540,198 L540,250"/>
+    <path d="M780,198 L780,250"/>
+    <path d="M980,198 L980,250" stroke-dasharray="5 5"/>
+  </g>
+
+  <!-- App replica row -->
+  <text x="56" y="240" fill="#6f7b8d" font-size="12" font-weight="600" letter-spacing="1">STATELESS APP TIER  ·  Next.js</text>
+  <g>
+    <!-- replica card template -->
+    <g transform="translate(216,252)">
+      <rect width="168" height="96" rx="12" fill="#0f1420" stroke="#26333f" stroke-width="1.4"/>
+      <rect x="0" y="0" width="4" height="96" rx="2" fill="#22e0ef"/>
+      <text x="20" y="34" fill="#e9eef6" font-size="16" font-weight="700">App · web-1</text>
+      <text x="20" y="58" fill="#8b96a8" font-size="12.5">tRPC API · SSR</text>
+      <text x="20" y="78" fill="#5f6b7d" font-size="11.5">shared-nothing · replaceable</text>
+    </g>
+    <g transform="translate(456,252)">
+      <rect width="168" height="96" rx="12" fill="#0f1420" stroke="#26333f" stroke-width="1.4"/>
+      <rect x="0" y="0" width="4" height="96" rx="2" fill="#22e0ef"/>
+      <text x="20" y="34" fill="#e9eef6" font-size="16" font-weight="700">App · web-2</text>
+      <text x="20" y="58" fill="#8b96a8" font-size="12.5">tRPC API · SSR</text>
+      <text x="20" y="78" fill="#5f6b7d" font-size="11.5">shared-nothing · replaceable</text>
+    </g>
+    <g transform="translate(696,252)">
+      <rect width="168" height="96" rx="12" fill="#0f1420" stroke="#26333f" stroke-width="1.4"/>
+      <rect x="0" y="0" width="4" height="96" rx="2" fill="#22e0ef"/>
+      <text x="20" y="34" fill="#e9eef6" font-size="16" font-weight="700">App · web-3</text>
+      <text x="20" y="58" fill="#8b96a8" font-size="12.5">tRPC API · SSR</text>
+      <text x="20" y="78" fill="#5f6b7d" font-size="11.5">shared-nothing · replaceable</text>
+    </g>
+    <!-- ghost / scale-out -->
+    <g transform="translate(896,252)">
+      <rect width="168" height="96" rx="12" fill="none" stroke="#2a3644" stroke-width="1.4" stroke-dasharray="6 6"/>
+      <text x="84" y="46" fill="#4e93a0" font-size="26" font-weight="700" text-anchor="middle">+ N</text>
+      <text x="84" y="70" fill="#5f6b7d" font-size="12" text-anchor="middle">add replicas</text>
+    </g>
+  </g>
+  <!-- scale-out arrow -->
+  <g transform="translate(216,368)">
+    <line x1="0" y1="0" x2="848" y2="0" stroke="#1f95a3" stroke-width="1.4" stroke-dasharray="2 6"/>
+    <path d="M848,-5 L860,0 L848,5 Z" fill="#22e0ef"/>
+    <text x="0" y="-8" fill="#4e93a0" font-size="12" font-weight="600">scale out →</text>
+  </g>
+
+  <!-- Worker tier -->
+  <text x="56" y="424" fill="#6f7b8d" font-size="12" font-weight="600" letter-spacing="1">WORKER TIER  ·  BullMQ consumers</text>
+  <g>
+    <g transform="translate(216,436)">
+      <rect width="220" height="82" rx="12" fill="#0f1420" stroke="#26333f" stroke-width="1.4"/>
+      <rect x="0" y="0" width="4" height="82" rx="2" fill="#7c5cff"/>
+      <text x="20" y="34" fill="#e9eef6" font-size="15.5" font-weight="700">Worker · job-1</text>
+      <text x="20" y="58" fill="#8b96a8" font-size="12">sync · render · attribution</text>
+    </g>
+    <g transform="translate(456,436)">
+      <rect width="220" height="82" rx="12" fill="#0f1420" stroke="#26333f" stroke-width="1.4"/>
+      <rect x="0" y="0" width="4" height="82" rx="2" fill="#7c5cff"/>
+      <text x="20" y="34" fill="#e9eef6" font-size="15.5" font-weight="700">Worker · job-2</text>
+      <text x="20" y="58" fill="#8b96a8" font-size="12">concurrency per queue</text>
+    </g>
+    <g transform="translate(696,436)">
+      <rect width="220" height="82" rx="12" fill="none" stroke="#2a3644" stroke-width="1.4" stroke-dasharray="6 6"/>
+      <text x="110" y="40" fill="#6b5bb0" font-size="22" font-weight="700" text-anchor="middle">+ N</text>
+      <text x="110" y="62" fill="#5f6b7d" font-size="11.5" text-anchor="middle">consumers</text>
+    </g>
+    <!-- queue pill -->
+    <g transform="translate(936,436)">
+      <rect width="128" height="82" rx="12" fill="#141024" stroke="#3a2f66" stroke-width="1.4"/>
+      <text x="64" y="34" fill="#c9c0ff" font-size="14" font-weight="700" text-anchor="middle">Queue</text>
+      <text x="64" y="55" fill="#8b83b8" font-size="11" text-anchor="middle">Valkey Streams</text>
+      <text x="64" y="70" fill="#6f6893" font-size="11" text-anchor="middle">at-least-once</text>
+    </g>
+    <g stroke="#4a3f80" stroke-width="1.6" fill="none" marker-end="url(#arrow)">
+      <path d="M936,477 L680,477"/>
+    </g>
+  </g>
+
+  <!-- Shared data layer -->
+  <g stroke="#2f6f79" stroke-width="1.6" fill="none" marker-end="url(#arrow)">
+    <path d="M300,348 L300,560" stroke-dasharray="0"/>
+    <path d="M540,518 L540,560"/>
+    <path d="M326,477 L326,560" stroke="#4a3f80"/>
+  </g>
+  <text x="56" y="596" fill="#6f7b8d" font-size="12" font-weight="600" letter-spacing="1">SHARED DATA LAYER  ·  one source of truth for every replica</text>
+  <g>
+    <g transform="translate(216,608)">
+      <rect width="256" height="100" rx="12" fill="#0d1524" stroke="#20415f" stroke-width="1.4"/>
+      <circle cx="34" cy="50" r="14" fill="#0a2a4a" stroke="#2b6da8" stroke-width="1.5"/>
+      <text x="34" y="55" fill="#6fb6ff" font-size="15" font-weight="700" text-anchor="middle">P</text>
+      <text x="64" y="44" fill="#e9eef6" font-size="16.5" font-weight="700">PostgreSQL</text>
+      <text x="64" y="68" fill="#8b96a8" font-size="12.5">tenant-scoped rows · via PgBouncer</text>
+    </g>
+    <g transform="translate(492,608)">
+      <rect width="230" height="100" rx="12" fill="#12101f" stroke="#3a2f66" stroke-width="1.4"/>
+      <circle cx="34" cy="50" r="14" fill="#241a3f" stroke="#5b48a0" stroke-width="1.5"/>
+      <text x="34" y="55" fill="#c9beff" font-size="15" font-weight="700" text-anchor="middle">V</text>
+      <text x="64" y="44" fill="#e9eef6" font-size="16.5" font-weight="700">Valkey</text>
+      <text x="64" y="68" fill="#8b96a8" font-size="12.5">cache · queues · sessions</text>
+    </g>
+    <g transform="translate(742,608)">
+      <rect width="322" height="100" rx="12" fill="#0d1a17" stroke="#1e5348" stroke-width="1.4"/>
+      <circle cx="34" cy="50" r="14" fill="#0a2e26" stroke="#2b8a70" stroke-width="1.5"/>
+      <text x="34" y="55" fill="#63e0bc" font-size="15" font-weight="700" text-anchor="middle">S</text>
+      <text x="64" y="44" fill="#e9eef6" font-size="16.5" font-weight="700">Object Storage</text>
+      <text x="64" y="68" fill="#8b96a8" font-size="12.5">S3-compatible · exports &amp; media · AWS-ready</text>
+    </g>
+  </g>
+</svg>
