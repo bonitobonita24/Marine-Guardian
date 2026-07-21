@@ -40,7 +40,11 @@ import { MapRenderGate } from "./map-render-gate";
 // the initial view is already framed on the municipality before
 // applyFraming's post-mount fitBounds refinement runs.
 const HEATMAP_WIDTH_PX = 1010;
-const HEATMAP_HEIGHT_PX = 360;
+// Must match the actual rendered container height (.patrol-heatmap-block = 235px).
+// boundsToView computes the zoom to fit the municipality into a WIDTH×HEIGHT
+// viewport; a taller framing height than the container over-zooms vertically and
+// crops the heatmap top & bottom. Every sibling print map frames to 235.
+const HEATMAP_HEIGHT_PX = 235;
 
 const DEFAULT_CENTER: [number, number] = [13.0, 121.0];
 const DEFAULT_ZOOM = 9;
