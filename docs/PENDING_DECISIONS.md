@@ -4,6 +4,30 @@
 
 ---
 
+## 🟢 2026-07-21 (PM evening) — Worker CPU incident FIXED + DEPLOYED (prod+staging on `sha-b695872`)
+
+Diagnosed + fixed a **BullMQ cross-queue lock-starvation spiral** that pinned prod+staging workers near
+100%. Fix = raise lockDuration on ALL 7 co-resident queues + yield in `classifyTrackTerrain` + event
+change-detection. **Both envs deployed on `sha-b695872`, 0 lock errors, validated.** Branch
+`fix/worker-cpu-lock-starvation` (4 commits, pushed to origin as a branch, NOT merged to main). Remaining
+CPU bursts during er-sync cycles = legitimate active-patrol geometry (not the spiral).
+
+📄 **Full detail: [`docs/SESSION_HANDOFF_0721_pm2.md`](./SESSION_HANDOFF_0721_pm2.md).** Also did:
+showcase-at-root + Go-to-PH + tenant-list (`feat/showcase-root-nav-tenants`@`c8b2034`, LOCAL); PPTX
+black-frame resolved (pre-existing, safe); `.bak` files deleted.
+
+### Open items (most important first)
+- [ ] **Merge `fix/worker-cpu-lock-starvation` → main** to canonicalize the CPU fix (currently fix-branch +
+  deployed images only; main untouched so `ba8e0bd` stays local — small reconcile needed).
+- [ ] **Ship showcase branch** `feat/showcase-root-nav-tenants` + set `NEXT_PUBLIC_SHOWCASE_AT_ROOT=true` on
+  staging/prod compose (owner-gated).
+- [ ] **Commit the parked PPTX size-fix** — resolved as SAFE (black frame is pre-existing, not a JPEG
+  regression). `packages/jobs/.../pdf-to-pptx.ts` + test, still uncommitted.
+- [ ] **Further worker CPU reduction** (diminishing/risky, owner call): patrol track-aware change-detection ·
+  longer er-sync interval (5→10 min, freshness [WHAT]) · or accept as-is (spiral fixed, rest is real work).
+
+---
+
 ## 🟢 2026-07-21 (PM) — `main` @ `86c4b6f` · STAGING + PROD + DEMO ALL LIVE on `sha-86c4b6f`
 
 Four things shipped to all three envs this session (health 200, verified live): **title-hint MPA-zone
