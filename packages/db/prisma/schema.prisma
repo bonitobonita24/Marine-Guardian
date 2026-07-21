@@ -137,6 +137,17 @@ enum MunicipalityAttributionMethod {
   manual
 }
 
+/// Provenance of a covered-zone junction row (which patrol/event covered which
+/// protected zone). `geometry` = derived by the live municipality-assign
+/// processor from the track/point (the default). `title_hint` = written ONLY by
+/// the one-time backfill (scripts/backfill-zone-title-hint.ts) when a record's
+/// GPS never entered the zone but its title/caption references it. Mirrors the
+/// MunicipalityAttributionMethod provenance pattern.
+enum CoveredZoneSource {
+  geometry
+  title_hint
+}
+
 enum GeometryType {
   Polygon
   LineString
@@ -339,7 +350,7 @@ model User {
   updatedAt                   DateTime  @updatedAt @map("updated_at")
 
   tenant                   Tenant?                 @relation(fields: [tenantId], references: [id])
-  customRole                CustomRole?             @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
+  customRole               CustomRole?             @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
   notificationRecipients   NotificationRecipient[]
   createdPatrolAreas       PatrolArea[]            @relation("PatrolAreaCreatedBy")
   createdAreaBoundaries    AreaBoundary[]          @relation("AreaBoundaryCreatedBy")
@@ -606,7 +617,7 @@ model Patrol {
   // manual-override — when true, an officer set municipalityId by hand; the
   // municipality-assign processor MUST NOT overwrite it (anti-clobber). Auto
   // attribution still refreshes terrain + covered-zones (geometry-derived).
-  municipalityManual Boolean @default(false) @map("municipality_manual")
+  municipalityManual     Boolean   @default(false) @map("municipality_manual")
 
   // provenance — records HOW municipalityId was determined (containment / nearest /
   // manual) independent of the anti-clobber `municipalityManual` flag above.
@@ -863,21 +874,21 @@ enum PatrolScheduleStatus {
 }
 
 model PatrolSchedule {
-  id                  String                @id @default(cuid())
-  tenantId            String                @map("tenant_id")
-  patrolAreaId        String?               @map("patrol_area_id")
-  rangerUserId        String?               @map("ranger_user_id")
-  rangerName          String                @map("ranger_name")
-  accompanyingRangers Json?                 @map("accompanying_rangers") // Array of { userId?: string, name: string }
-  scheduledStart      DateTime              @map("scheduled_start")
-  scheduledEnd        DateTime              @map("scheduled_end")
-  plannedHours        Float?                @map("planned_hours")
-  plannedTrackGeojson Json?                 @map("planned_track_geojson")
-  status              PatrolScheduleStatus  @default(planned)
+  id                  String               @id @default(cuid())
+  tenantId            String               @map("tenant_id")
+  patrolAreaId        String?              @map("patrol_area_id")
+  rangerUserId        String?              @map("ranger_user_id")
+  rangerName          String               @map("ranger_name")
+  accompanyingRangers Json?                @map("accompanying_rangers") // Array of { userId?: string, name: string }
+  scheduledStart      DateTime             @map("scheduled_start")
+  scheduledEnd        DateTime             @map("scheduled_end")
+  plannedHours        Float?               @map("planned_hours")
+  plannedTrackGeojson Json?                @map("planned_track_geojson")
+  status              PatrolScheduleStatus @default(planned)
   notes               String?
-  createdBy           String                @map("created_by")
-  createdAt           DateTime              @default(now()) @map("created_at")
-  updatedAt           DateTime              @updatedAt @map("updated_at")
+  createdBy           String               @map("created_by")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
 
   tenant     Tenant      @relation(fields: [tenantId], references: [id])
   patrolArea PatrolArea? @relation(fields: [patrolAreaId], references: [id], onDelete: SetNull)
@@ -1228,24 +1239,24 @@ model RetentionPolicy {
 /// Canonical municipality record seeded from GeoJSON polygons.
 /// One row per LGU per tenant (upserted from coverage-areas.ts on deploy).
 model Municipality {
-  id              String   @id @default(cuid())
-  tenantId        String   @map("tenant_id")
-  slug            String // e.g. "calapan-city"
-  name            String
-  province        String
-  psgcCode        String?  @map("psgc_code")
-  boundaryGeojson Json     @map("boundary_geojson")
+  id                  String   @id @default(cuid())
+  tenantId            String   @map("tenant_id")
+  slug                String // e.g. "calapan-city"
+  name                String
+  province            String
+  psgcCode            String?  @map("psgc_code")
+  boundaryGeojson     Json     @map("boundary_geojson")
   // Derived ~15 km municipal-water polygon (land ∪ 15 km seaward buffer minus all
   // land). Null until seed-municipalities loads it from data/coverage/water/.
-  waterGeojson    Json?    @map("water_geojson")
+  waterGeojson        Json?    @map("water_geojson")
   // True once this boundary was set by a manual upload/authoritative import —
   // hardcoded municipal-boundary loaders/regenerators must skip it.
-  landBoundaryManual  Boolean @default(false) @map("land_boundary_manual")
-  waterBoundaryManual Boolean @default(false) @map("water_boundary_manual")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  landBoundaryManual  Boolean  @default(false) @map("land_boundary_manual")
+  waterBoundaryManual Boolean  @default(false) @map("water_boundary_manual")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
 
-  tenant            Tenant                          @relation(fields: [tenantId], references: [id])
+  tenant            Tenant                         @relation(fields: [tenantId], references: [id])
   patrols           Patrol[]
   events            Event[]
   protectedZones    ProtectedZone[]
@@ -1263,7 +1274,7 @@ model MunicipalityBoundarySnapshot {
   id               String   @id @default(cuid())
   tenantId         String   @map("tenant_id")
   municipalityId   String   @map("municipality_id")
-  kind             String   // "land" | "water"
+  kind             String // "land" | "water"
   previousGeojson  Json?    @map("previous_geojson")
   replacedByUserId String?  @map("replaced_by_user_id")
   label            String?
@@ -1310,11 +1321,12 @@ model ProtectedZone {
 
 /// Junction: which patrol covered which protected zone (derived from track).
 model PatrolCoveredZone {
-  id              String   @id @default(cuid())
-  tenantId        String   @map("tenant_id")
-  patrolId        String   @map("patrol_id")
-  protectedZoneId String   @map("protected_zone_id")
-  assignedAt      DateTime @default(now()) @map("assigned_at")
+  id              String            @id @default(cuid())
+  tenantId        String            @map("tenant_id")
+  patrolId        String            @map("patrol_id")
+  protectedZoneId String            @map("protected_zone_id")
+  assignedAt      DateTime          @default(now()) @map("assigned_at")
+  source          CoveredZoneSource @default(geometry) @map("source")
 
   tenant        Tenant        @relation(fields: [tenantId], references: [id])
   patrol        Patrol        @relation(fields: [patrolId], references: [id])
@@ -1327,11 +1339,12 @@ model PatrolCoveredZone {
 
 /// Junction: which event occurred within which protected zone (derived from lat/lon).
 model EventCoveredZone {
-  id              String   @id @default(cuid())
-  tenantId        String   @map("tenant_id")
-  eventId         String   @map("event_id")
-  protectedZoneId String   @map("protected_zone_id")
-  assignedAt      DateTime @default(now()) @map("assigned_at")
+  id              String            @id @default(cuid())
+  tenantId        String            @map("tenant_id")
+  eventId         String            @map("event_id")
+  protectedZoneId String            @map("protected_zone_id")
+  assignedAt      DateTime          @default(now()) @map("assigned_at")
+  source          CoveredZoneSource @default(geometry) @map("source")
 
   tenant        Tenant        @relation(fields: [tenantId], references: [id])
   event         Event         @relation(fields: [eventId], references: [id])
@@ -1409,21 +1422,21 @@ enum CmsMediaScope {
 /// A single /docs page, seeded 1:1 from content/docs mdx files (source.ts is
 /// the derivation authority — see seed-cms.ts for the exact slug rule).
 model DocPage {
-  id             String      @id @default(cuid())
-  slug           String      @unique
-  parentSlug     String?     @map("parent_slug")
-  kind           DocPageKind @default(page)
-  title          String
-  description    String?
-  orderInParent  Int         @default(0) @map("order_in_parent")
-  bodyMarkdown   String      @map("body_markdown")
+  id            String      @id @default(cuid())
+  slug          String      @unique
+  parentSlug    String?     @map("parent_slug")
+  kind          DocPageKind @default(page)
+  title         String
+  description   String?
+  orderInParent Int         @default(0) @map("order_in_parent")
+  bodyMarkdown  String      @map("body_markdown")
   /// Optional Plate JSON value — fallback only if markdown round-trip fidelity
   /// fails (see CMS_BUILD_PLAN.md risks). Unused until W6.
-  bodyJson       Json?       @map("body_json")
-  published      Boolean     @default(true)
-  tenantId       String?     @map("tenant_id")
-  updatedAt      DateTime    @updatedAt @map("updated_at")
-  updatedById    String?     @map("updated_by_id")
+  bodyJson      Json?       @map("body_json")
+  published     Boolean     @default(true)
+  tenantId      String?     @map("tenant_id")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  updatedById   String?     @map("updated_by_id")
 
   @@index([parentSlug])
   @@index([tenantId])
