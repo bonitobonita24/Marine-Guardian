@@ -9,7 +9,7 @@ import {
   CalendarRange,
   Fuel,
   Printer,
-  Images,
+  Network,
   BookOpen,
   UserCheck,
   Fish,
@@ -63,6 +63,13 @@ export type Milestone = {
   /** Optional real product screenshot. */
   image?: string;
   imageAlt?: string;
+  /** Optional multi-image gallery (click-to-enlarge with prev/next). When set,
+   *  the first entry is the primary and the rest render as a thumbnail strip.
+   *  Takes precedence over `image`. */
+  media?: { src: string; alt: string }[];
+  /** How the primary media is framed: "safari" browser chrome (default) or a
+   *  plain "diagram" card for architecture art. */
+  frame?: "safari" | "diagram";
   icon: LucideIcon;
 };
 
@@ -190,15 +197,23 @@ export const MILESTONES: Milestone[] = [
     phase: "Field Deployment",
     monthLabel: "May 2026",
     title: "Patrol scheduling",
-    body: "Planning gets four views of the same assignments — calendar, kanban, map and gantt — so a coordinator can roster by date, by state, by geography or by duration without leaving the screen.",
+    body: "Planning gets four views of the same assignments — calendar, kanban, map and gantt — so a coordinator can roster by date, by state, by geography or by duration without leaving the screen. Administrators and Command Center officers set each patrol's route coverage too: draw the planned track on the map, attach a patrol area, assign the lead ranger and set the start time and duration.",
     highlights: [
       "Calendar, Kanban, Map and Gantt views over one assignment model",
+      "Set patrol route coverage — draw the planned track and attach a patrol area per assignment",
       "Bi-weekly and monthly ranges with ranger-name autocomplete",
       "Coordinator-scoped permissions on every assignment mutation",
     ],
-    image: "/showcase/timeline/patrol-schedule.png",
-    imageAlt:
-      "Marine Guardian patrol schedule calendar showing ranger assignments across July with Calendar, Kanban, Map and Gantt view tabs",
+    media: [
+      {
+        src: "/showcase/timeline/patrol-schedule.png",
+        alt: "Marine Guardian patrol schedule calendar showing ranger assignments across July with Calendar, Kanban, Map and Gantt view tabs",
+      },
+      {
+        src: "/showcase/timeline/patrol-route-coverage.png",
+        alt: "Scheduling a patrol assignment — drawing the planned patrol route on the map and assigning a lead ranger, patrol area, start time and duration",
+      },
+    ],
     icon: CalendarRange,
   },
   {
@@ -228,23 +243,46 @@ export const MILESTONES: Milestone[] = [
       "Admin-managed templates with LGU header, footer and layout",
       "Dedicated render worker; exports delivered without blocking the app",
     ],
-    image: "/showcase/real/reports.png",
-    imageAlt:
-      "A generated Marine Guardian printable PDF report page showing charts, tables and an LGU header",
+    media: [
+      {
+        src: "/showcase/timeline/report-map.png",
+        alt: "Printable report map page — patrol tracks and events plotted over the municipal waters with an LGU header",
+      },
+      {
+        src: "/showcase/real/reports.png",
+        alt: "A generated Marine Guardian printable PDF report page showing charts, tables and an LGU header",
+      },
+      {
+        src: "/docs/reports/per-area-report.png",
+        alt: "Per-area report scoped to a single municipality or MPA zone",
+      },
+      {
+        src: "/docs/reports/consolidated-report.png",
+        alt: "Consolidated summary report with charts across the whole coverage area",
+      },
+      {
+        src: "/docs/reports/event-log-report.png",
+        alt: "Detailed event-log report listing every enforcement and monitoring event in the range",
+      },
+    ],
     icon: Printer,
   },
   {
-    id: "media",
+    id: "horizontal-scaling",
     phase: "Continuous Hardening",
     monthLabel: "July 2026",
-    title: "Telegram-backed media",
-    body: "Photo evidence moves to a private Telegram channel as the persistent media backend, with a ledger row mapping every stored key back to its message — keeping object storage for temporary and index files.",
+    title: "Horizontal scaling",
+    body: "The platform scales out, not just up. The web and worker tiers are stateless, so they run as many identical replicas behind a load balancer, sharing one Postgres, one Valkey and S3-compatible object storage. Add replicas to take more traffic or drain a queue faster — no sticky sessions, no single node to outgrow — and the whole topology is AWS-ready.",
     highlights: [
-      "Storage adapter selected by a single environment variable",
-      "Media ledger resolves every key; galleries and report photos read through it",
-      "Object storage retained for ephemeral exports and scratch files",
+      "Stateless app tier — N replicas behind a load balancer, no sticky sessions",
+      "Queue-based workers (BullMQ) scale independently to drain jobs faster",
+      "One shared data layer — Postgres, Valkey and S3-compatible storage; AWS-ready (ECS / Kubernetes)",
     ],
-    icon: Images,
+    image: "/showcase/timeline/horizontal-scaling.svg",
+    imageAlt:
+      "Architecture diagram — a load balancer distributing traffic across multiple stateless app and worker replicas over a shared PostgreSQL, Valkey and object-storage layer",
+    frame: "diagram",
+    icon: Network,
   },
   {
     id: "showcase-docs",
