@@ -4,6 +4,24 @@
 
 ---
 
+## 🟢 2026-07-22 — Root = SHOWCASE + canonical creds (DONE on DEV; staging/prod/demo GATED)
+
+Branch `feat/showcase-at-root-and-canonical-creds` @ `24154f6` (LOCAL). Root `/` now serves the public
+showcase on every env (unconditional middleware, baked into the shared image); `/login` is the ONE
+Tenant-Manager access page per owner's model (superadmin/admin use `/{tenant}/login`). Dev login fixed —
+root cause was `.env.dev` passwords drifted from the SOPS vault; reconciled + re-hashed the 3 dev accounts.
+All flows verified E2E. Detail: memory `project_marine_guardian_showcase_root_and_cred_drift_0722`.
+
+### Open items (owner word to proceed — HARD HOLD)
+- [ ] **Ship showcase-at-root to staging + prod + demo.** The behavior is baked in the shared image, so
+  deploying `24154f6`'s image makes root=showcase on all three automatically. Merge to `main` first?
+- [ ] **Reconcile drifted admin passwords on staging/prod/demo to the canonical vault.** Their live `.env`
+  files likely ALSO drifted from `universal-login-credentials.enc.yaml` (same scaffold-random cause as dev).
+  Needs per-stack `.env` update + live hash rotation (via tunnel) — a sensitive live credential rotation.
+- [ ] Confirm: enforce canonical creds fleet-wide is what you want on the LIVE stacks now, or dev-only for now?
+
+---
+
 ## 🟢 2026-07-21 (PM #3, evening) — EVENT re-derive churn FIXED + SHIPPED all envs (`main`=`sha-ae5bdff`) — CPU incident CLOSED
 
 The OPEN "event re-derivation churn" (worker "not stable", periodic 60–90% CPU bursts on staging+prod) is
