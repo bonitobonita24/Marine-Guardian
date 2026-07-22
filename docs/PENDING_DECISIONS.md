@@ -4,21 +4,23 @@
 
 ---
 
-## 🟢 2026-07-22 — Root = SHOWCASE + canonical creds (DONE on DEV; staging/prod/demo GATED)
+## 🟢 2026-07-22 — Root = SHOWCASE + canonical creds — ✅ SHIPPED to ALL ENVS (owner "yes go to all")
 
-Branch `feat/showcase-at-root-and-canonical-creds` @ `24154f6` (LOCAL). Root `/` now serves the public
-showcase on every env (unconditional middleware, baked into the shared image); `/login` is the ONE
-Tenant-Manager access page per owner's model (superadmin/admin use `/{tenant}/login`). Dev login fixed —
-root cause was `.env.dev` passwords drifted from the SOPS vault; reconciled + re-hashed the 3 dev accounts.
-All flows verified E2E. Detail: memory `project_marine_guardian_showcase_root_and_cred_drift_0722`.
+`main` @ `3d89985` (FF from `ae5bdff`); CI built `sha-3d89985` (includes CPU fixes). Root `/` now serves
+the public showcase on **dev + staging + prod + demo** (unconditional middleware in the shared image);
+`/login` is the ONE Tenant-Manager access page (superadmin/admin use `/{tenant}/login`) — already enforced
+in `config.ts` authorize(). Canonical creds enforced on every env via surgical bcrypt hash rotation from
+the vault (NOT a re-seed). **`JosephD@bluealliance.earth` preserved in prod (hash byte-identical).** All
+root + login flows verified live per env. Detail: memory `project_marine_guardian_showcase_root_and_cred_drift_0722`.
 
-### Open items (owner word to proceed — HARD HOLD)
-- [ ] **Ship showcase-at-root to staging + prod + demo.** The behavior is baked in the shared image, so
-  deploying `24154f6`'s image makes root=showcase on all three automatically. Merge to `main` first?
-- [ ] **Reconcile drifted admin passwords on staging/prod/demo to the canonical vault.** Their live `.env`
-  files likely ALSO drifted from `universal-login-credentials.enc.yaml` (same scaffold-random cause as dev).
-  Needs per-stack `.env` update + live hash rotation (via tunnel) — a sensitive live credential rotation.
-- [ ] Confirm: enforce canonical creds fleet-wide is what you want on the LIVE stacks now, or dev-only for now?
+### Follow-ups flagged (NOT auto-fixed — owner call)
+- [ ] **Demo RBAC role divergence.** `admin@demo.com` is role `tenant_manager` (tid=ph) but canonical says
+  `tenant_superadmin`; extra `webmaster@marine-guardian.local` (tenant_manager); `admin@mail.com` is the
+  current demo superadmin. Only PASSWORDS were rotated — demo roles were NOT restructured (client-facing,
+  risky without knowing why it's configured this way). admin@demo.com logs in at `/ph/login` today. Restructure?
+- [ ] **Align stack `.env` seed passwords to the vault.** Live rotation was a direct DB hash update; the
+  stack `.env` `WEBMASTER_PASSWORD` still holds the old value, so a FUTURE re-seed could re-drift. Low
+  urgency (re-seeds gated/rare; seed email-mapping differs from live emails). Align if/when re-seeding.
 
 ---
 
