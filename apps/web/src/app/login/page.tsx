@@ -76,8 +76,13 @@ function LoginForm() {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <CardTitle className="text-xl">Marine Guardian</CardTitle>
-          <p className="text-sm text-muted-foreground">{t("signIn")}</p>
+          <CardTitle>            <img
+              src="/marine-guardian-logo.png"
+              alt="Marine Guardian"
+              className="mx-auto h-11 w-auto"
+            />
+          </CardTitle>
+          <p className="mt-2 text-sm text-muted-foreground">{t("signIn")}</p>
         </CardHeader>
         <CardContent>
           <form

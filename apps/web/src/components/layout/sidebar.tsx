@@ -240,8 +240,11 @@ export function Sidebar() {
 
   return (
     <aside className="flex h-screen w-44 flex-col border-r bg-card">
-      <div className="flex h-14 items-center border-b px-4">
-        <span className="text-xs font-bold tracking-wide">Marine Guardian</span>
+      <div className="flex h-14 items-center border-b px-4">        <img
+          src="/marine-guardian-logo.png"
+          alt="Marine Guardian"
+          className="h-6 w-auto"
+        />
       </div>
       <nav className="flex-1 overflow-y-auto py-1">
         {visibleNavGroups.map((group) => (
