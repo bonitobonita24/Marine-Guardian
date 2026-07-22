@@ -152,7 +152,7 @@ describe("ReportFilterBar", () => {
       .getAllByRole("button")
       .find(
         (b) =>
-          /^\d+$/.test(b.textContent?.trim() ?? "") &&
+          /^\d+$/.test(b.textContent.trim()) &&
           !b.hasAttribute("disabled") &&
           b.getAttribute("aria-disabled") !== "true",
       );

@@ -76,6 +76,14 @@ function endOfLocalDay(d: Date): Date {
 }
 
 /**
+ * Shared field-label styling for the compact map-controls card. shadcn-standard
+ * small label (muted `text-xs font-medium`) — replaced the earlier cramped
+ * `text-[10px]` bold-uppercase labels (2026-07-22) so the whole card reads as
+ * one consistent shadcn surface.
+ */
+const LABEL_CLASS = "text-xs font-medium text-muted-foreground";
+
+/**
  * A single From/To date control: a shadcn Button trigger (formatted date +
  * calendar glyph) opening a Popover-hosted shadcn Calendar. Replaces the native
  * `<input type="date">` whose calendar-glyph spacing rendered inconsistently
@@ -104,10 +112,7 @@ function DateRangeField({
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Label
-        htmlFor={id}
-        className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
-      >
+      <Label htmlFor={id} className={LABEL_CLASS}>
         {label}
       </Label>
       <Popover open={open} onOpenChange={setOpen}>
@@ -369,7 +374,7 @@ export function ReportFilterBar({
     ? "flex min-h-7 items-center justify-between gap-2"
     : "contents";
   const toggleHintClass = cn(
-    "text-[10px] text-muted-foreground",
+    "text-xs text-muted-foreground",
     stacked ? "" : "ml-1",
   );
 
@@ -399,7 +404,7 @@ export function ReportFilterBar({
               variant={active ? "default" : "outline"}
               size="sm"
               aria-pressed={active}
-              className={cn(stacked ? "h-7 w-full px-0 text-[11px]" : "h-8")}
+              className={cn(stacked ? "h-8 w-full px-0 text-xs" : "h-8")}
               onClick={() => {
                 setLastNDays(p.days);
               }}
@@ -411,8 +416,12 @@ export function ReportFilterBar({
         })}
       </div>
 
-      <div className={cn(stacked ? "flex flex-col gap-1.5" : "contents")}>
-        <div className={fieldClass}>
+      {/* From (left) + To (right) on ONE row in the stacked card (owner request
+          2026-07-22) — each field flexes to half the card width so the two
+          pickers sit side-by-side instead of stacked. In `bar` layout the row
+          collapses to `contents`, leaving the horizontal toolbar unchanged. */}
+      <div className={cn(stacked ? "flex flex-row gap-2" : "contents")}>
+        <div className={cn(fieldClass, stacked && "min-w-0 flex-1")}>
           <DateRangeField
             id="report-range-from"
             testId="report-range-from"
@@ -420,13 +429,11 @@ export function ReportFilterBar({
             value={from}
             onSelect={handleFromSelect}
             disabled={(date) => date > to}
-            triggerClass={
-              stacked ? "h-7 w-[8.5rem] text-[11px]" : "h-8 w-40 text-xs"
-            }
+            triggerClass={stacked ? "h-8 w-full text-xs" : "h-8 w-40 text-xs"}
           />
         </div>
 
-        <div className={fieldClass}>
+        <div className={cn(fieldClass, stacked && "min-w-0 flex-1")}>
           <DateRangeField
             id="report-range-to"
             testId="report-range-to"
@@ -434,9 +441,7 @@ export function ReportFilterBar({
             value={to}
             onSelect={handleToSelect}
             disabled={(date) => date < startOfLocalDay(from)}
-            triggerClass={
-              stacked ? "h-7 w-[8.5rem] text-[11px]" : "h-8 w-40 text-xs"
-            }
+            triggerClass={stacked ? "h-8 w-full text-xs" : "h-8 w-40 text-xs"}
           />
         </div>
       </div>
@@ -448,7 +453,7 @@ export function ReportFilterBar({
       <div className={fieldClass}>
         <Label
           htmlFor="report-province"
-          className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+          className={LABEL_CLASS}
         >
           Province
         </Label>
@@ -456,7 +461,7 @@ export function ReportFilterBar({
           <SelectTrigger
             id="report-province"
             data-testid="report-province"
-            className={cn(stacked ? "h-7 w-full text-[11px]" : "h-8 w-[12rem] text-xs")}
+            className={cn(stacked ? "h-8 w-full text-sm" : "h-8 w-[12rem] text-xs")}
           >
             <SelectValue placeholder="All provinces" />
           </SelectTrigger>
@@ -474,7 +479,7 @@ export function ReportFilterBar({
       <div className={fieldClass}>
         <Label
           htmlFor="report-municipality"
-          className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+          className={LABEL_CLASS}
         >
           Municipality
         </Label>
@@ -485,7 +490,7 @@ export function ReportFilterBar({
           <SelectTrigger
             id="report-municipality"
             data-testid="report-municipality"
-            className={cn(stacked ? "h-7 w-full text-[11px]" : "h-8 w-[12rem] text-xs")}
+            className={cn(stacked ? "h-8 w-full text-sm" : "h-8 w-[12rem] text-xs")}
           >
             <SelectValue placeholder="All municipalities" />
           </SelectTrigger>
@@ -520,7 +525,7 @@ export function ReportFilterBar({
           <div className={toggleRowClass}>
             <Label
               htmlFor="report-include-children"
-              className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+              className={LABEL_CLASS}
             >
               Include child boundaries
             </Label>
@@ -548,7 +553,7 @@ export function ReportFilterBar({
         <div className={toggleRowClass}>
           <Label
             htmlFor="report-include-traversing"
-            className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+            className={LABEL_CLASS}
           >
             Include traversing patrols
           </Label>
@@ -581,7 +586,7 @@ export function ReportFilterBar({
         <div className={fieldClass}>
           <Label
             htmlFor="report-protected-zone"
-            className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+            className={LABEL_CLASS}
           >
             MPA Zone
           </Label>
@@ -592,7 +597,7 @@ export function ReportFilterBar({
             <SelectTrigger
               id="report-protected-zone"
               data-testid="report-protected-zone"
-              className={cn(stacked ? "h-7 w-full text-[11px]" : "h-8 w-[12rem] text-xs")}
+              className={cn(stacked ? "h-8 w-full text-sm" : "h-8 w-[12rem] text-xs")}
             >
               <SelectValue placeholder="All zones" />
             </SelectTrigger>
@@ -626,7 +631,7 @@ export function ReportFilterBar({
               <div className={toggleRowClass}>
                 <Label
                   htmlFor="report-include-traversing-full"
-                  className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+                  className={LABEL_CLASS}
                 >
                   Count full traversing patrols
                 </Label>
@@ -654,7 +659,7 @@ export function ReportFilterBar({
       <div className={fieldClass}>
         <Label
           htmlFor="report-terrain"
-          className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+          className={LABEL_CLASS}
         >
           Terrain
         </Label>
@@ -662,7 +667,7 @@ export function ReportFilterBar({
           <SelectTrigger
             id="report-terrain"
             data-testid="report-terrain"
-            className={cn(stacked ? "h-7 w-full text-[11px]" : "h-8 w-[8rem] text-xs")}
+            className={cn(stacked ? "h-8 w-full text-sm" : "h-8 w-[8rem] text-xs")}
           >
             <SelectValue placeholder="All terrain" />
           </SelectTrigger>
