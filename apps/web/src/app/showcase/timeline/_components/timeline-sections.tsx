@@ -5,6 +5,7 @@ import { ArrowRight, Check, GitCommitHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ShowcaseMedia } from "../../_components/showcase-media";
+import { SHOWCASE_HOME } from "../../_components/showcase-base";
 import { TimelineReveal } from "./timeline-reveal";
 import {
   MILESTONES,
@@ -305,7 +306,7 @@ export function TimelineCTA() {
               </a>
             </Button>
             <Button asChild size="lg" variant="outline">
-              <a href="/showcase">Explore the platform</a>
+              <a href={SHOWCASE_HOME}>Explore the platform</a>
             </Button>
           </div>
         </TimelineReveal>

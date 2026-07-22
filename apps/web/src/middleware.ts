@@ -174,6 +174,26 @@ export default async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // --- Showcase at domain root (UNCONDITIONAL, every environment) ---------
+  // The marketing showcase IS the site root on EVERY environment (dev, staging,
+  // prod, demo — MG ships one shared image, so this is a deliberate constant,
+  // not a per-env flag): "/" serves the showcase landing for EVERYONE (authed
+  // or not) and the bare "/showcase" URL is retired (redirected to "/"). This
+  // runs BEFORE the auth gate so an unauthenticated visitor to "/" is never
+  // bounced to /login. The Timeline subpage (/showcase/timeline) and all
+  // /showcase/* static assets are untouched — only the EXACT "/showcase" path
+  // is redirected, so nested paths fall through to the public allow-list below.
+  // The real app stays reachable on every domain via the ONE platform Tenant-
+  // Manager login /login, the per-tenant logins /{tenant}/login, /{tenant}/…,
+  // and /admin.
+  if (pathname === "/showcase" || pathname === "/showcase/") {
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+  if (pathname === "/") {
+    // Rewrite (not redirect): the URL stays "/", the showcase landing renders.
+    return NextResponse.rewrite(new URL("/showcase", request.url));
+  }
+
   // --- Passthroughs (unchanged) -------------------------------------------
   if (pathname.startsWith(PRINT_RENDER_PREFIX)) {
     const expected = process.env.PDF_RENDERER_SERVICE_TOKEN;

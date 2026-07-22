@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { BentoCard, BentoGrid } from "@/components/ui/bento-grid";
 import { Reveal } from "./reveal";
 import { BrowserFrame } from "./browser-frame";
-import { FEATURES, ROLES, STEPS, BENTO, PAINS } from "./data";
+import { FEATURES, ROLES, STEPS, BENTO, PAINS, SAMPLE_TENANT_SITES } from "./data";
 import type { ResolvedFeature, ResolvedRole, ResolvedStep, ResolvedBentoItem, ResolvedPain } from "./resolve-cms";
 
 /**
@@ -158,6 +158,46 @@ export type BentoSectionProps = {
 // required Icon: React.ElementType prop without a forbidden `!` assertion.
 const DEFAULT_BENTO_ICON = BarChart3;
 
+// Illustrative multi-tenant site list rendered on the "Multi-tenant" bento
+// tile. Sits above the screenshot wash; each site is a chip, the live one
+// highlighted. Static showcase content — see SAMPLE_TENANT_SITES in data.ts.
+function MultiTenantSites() {
+  return (
+    <div className="absolute inset-0">
+      <div
+        className="absolute inset-0 bg-[radial-gradient(circle_at_30%_10%,hsl(var(--info)/0.12),transparent_60%)]"
+        aria-hidden
+      />
+      <ul className="absolute right-4 top-4 flex flex-col items-end gap-1.5">
+        {SAMPLE_TENANT_SITES.map((site) => (
+          <li
+            key={site.name}
+            className="flex items-center gap-2 rounded-full border border-border/60 bg-background/70 px-3 py-1 backdrop-blur-sm"
+          >
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                site.live
+                  ? "bg-[hsl(var(--info))]"
+                  : "bg-muted-foreground/40",
+              )}
+              aria-hidden
+            />
+            <span className="text-xs font-medium text-foreground">
+              {site.name}
+            </span>
+            {!site.live && (
+              <span className="text-[0.625rem] uppercase tracking-wide text-muted-foreground">
+                Soon
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function BentoSection({ eyebrow, title, bento }: BentoSectionProps) {
   return (
     <section className="border-y border-border/60 bg-background py-20 lg:py-28">
@@ -183,7 +223,9 @@ export function BentoSection({ eyebrow, title, bento }: BentoSectionProps) {
                 href="#contact"
                 cta="Request a demo"
                 background={
-                  item.image != null ? (
+                  BENTO[i]?.name.startsWith("Multi-tenant") === true ? (
+                    <MultiTenantSites />
+                  ) : item.image != null ? (
                     <div className="absolute inset-0">
                       {/* Decorative product-screenshot wash behind the tile copy. */}
                       <img

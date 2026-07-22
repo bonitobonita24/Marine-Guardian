@@ -284,6 +284,18 @@ export const BENTO_SLUGS = [
   "multi-tenant-currency-aware",
 ] as const;
 
+// Illustrative multi-tenant sample shown on the "Multi-tenant, currency-aware"
+// bento tile. These are SHOWCASE examples, not live tenants — Philippines is
+// the one currently running; Banggai and Pecca are shown as upcoming sites so
+// the multi-tenant story reads even before those tenants exist. Static by
+// design (marketing content, no DB read).
+export type SampleTenantSite = { name: string; live: boolean };
+export const SAMPLE_TENANT_SITES: SampleTenantSite[] = [
+  { name: "Philippines", live: true },
+  { name: "Banggai", live: false },
+  { name: "Pecca", live: false },
+];
+
 export const MARQUEE_CHIPS = [
   "War Room",
   "Live Map",
