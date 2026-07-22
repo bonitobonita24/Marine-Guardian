@@ -162,12 +162,15 @@ export function AdminContentShowcaseClient() {
     void utils.cmsShowcase.getAll.invalidate();
   }, [utils]);
 
+  const [activeId, setActiveId] = React.useState<string>(SECTIONS[0]?.id ?? "");
+  const activeSection = SECTIONS.find((s) => s.id === activeId) ?? SECTIONS[0];
+
   if (query.isLoading) {
     return <p className="text-sm text-muted-foreground">Loading…</p>;
   }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Showcase / Landing</h1>
         <p className="text-sm text-muted-foreground">
@@ -175,36 +178,88 @@ export function AdminContentShowcaseClient() {
         </p>
       </div>
 
-      {SECTIONS.map((section) => (
-        <Card key={section.id}>
-          <CardHeader>
-            <CardTitle className="text-base">{section.label}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid gap-4 sm:grid-cols-2">
-              {section.intro.map((f) => (
-                <FieldEditor key={f.key} spec={f} fields={fields} onSaved={invalidate} />
-              ))}
-            </div>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[220px_1fr]">
+        {/* LEFT: section menu */}
+        <aside className="lg:sticky lg:top-6 lg:self-start">
+          <nav
+            aria-label="Showcase sections"
+            className="flex gap-1 overflow-x-auto pb-2 lg:flex-col lg:gap-0.5 lg:overflow-x-visible lg:pb-0"
+          >
+            {SECTIONS.map((section) => {
+              const active = section.id === activeId;
+              return (
+                <button
+                  key={section.id}
+                  type="button"
+                  onClick={() => { setActiveId(section.id); }}
+                  aria-current={active ? "true" : undefined}
+                  className={
+                    "whitespace-nowrap rounded-md px-3 py-2 text-left text-sm transition-colors " +
+                    (active
+                      ? "bg-secondary font-medium text-secondary-foreground"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground")
+                  }
+                >
+                  {section.label}
+                </button>
+              );
+            })}
+          </nav>
+        </aside>
 
-            {section.items.length > 0 && (
-              <div className="space-y-4 border-t border-border pt-4">
-                {section.items.map((item) => (
-                  <div key={item.title} className="space-y-3 rounded-md border border-input p-3">
-                    <p className="text-sm font-medium">{item.title}</p>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      {item.fields.map((f) => (
-                        <FieldEditor key={f.key} spec={f} fields={fields} onSaved={invalidate} />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      ))}
+        {/* RIGHT: only the active section's editor */}
+        <div className="min-w-0">
+          {activeSection && (
+            <SectionEditor
+              key={activeSection.id}
+              section={activeSection}
+              fields={fields}
+              onSaved={invalidate}
+            />
+          )}
+        </div>
+      </div>
     </div>
+  );
+}
+
+function SectionEditor({
+  section,
+  fields,
+  onSaved,
+}: {
+  section: SectionSpec;
+  fields: CmsFields;
+  onSaved: () => void;
+}) {
+  return (
+    <Card key={section.id}>
+      <CardHeader>
+        <CardTitle className="text-base">{section.label}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="grid gap-4 sm:grid-cols-2">
+          {section.intro.map((f) => (
+            <FieldEditor key={f.key} spec={f} fields={fields} onSaved={onSaved} />
+          ))}
+        </div>
+
+        {section.items.length > 0 && (
+          <div className="space-y-4 border-t border-border pt-4">
+            {section.items.map((item) => (
+              <div key={item.title} className="space-y-3 rounded-md border border-input p-3">
+                <p className="text-sm font-medium">{item.title}</p>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {item.fields.map((f) => (
+                    <FieldEditor key={f.key} spec={f} fields={fields} onSaved={onSaved} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
