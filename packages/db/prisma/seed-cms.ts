@@ -320,7 +320,7 @@ const SHOWCASE_TEXT_FIELDS: FieldRow[] = [
     key: "bento.fuel-logging-analytics.description",
     value: "Any authenticated user logs fuel entries with receipt photos; consumption trends chart over time.",
   },
-  { key: "bento.multi-tenant-currency-aware.name", value: "Multi-tenant, currency-aware" },
+  { key: "bento.multi-tenant-currency-aware.name", value: "Multi-tenant and language-aware (translation)" },
   {
     key: "bento.multi-tenant-currency-aware.description",
     value: "Each MPA site is its own tenant with locale-aware currency formatting (IDR, PHP, MYR) and English/Bahasa.",

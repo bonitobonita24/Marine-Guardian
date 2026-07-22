@@ -234,7 +234,7 @@ export const BENTO: BentoItem[] = [
     image: "/showcase/real/fuel.png",
   },
   {
-    name: "Multi-tenant, currency-aware",
+    name: "Multi-tenant and language-aware (translation)",
     description: "Each MPA site is its own tenant with locale-aware currency formatting (IDR, PHP, MYR) and English/Bahasa.",
     icon: Languages,
     className: "col-span-3 lg:col-span-2",
@@ -283,18 +283,6 @@ export const BENTO_SLUGS = [
   "fuel-logging-analytics",
   "multi-tenant-currency-aware",
 ] as const;
-
-// Illustrative multi-tenant sample shown on the "Multi-tenant, currency-aware"
-// bento tile. These are SHOWCASE examples, not live tenants — Philippines is
-// the one currently running; Banggai and Pecca are shown as upcoming sites so
-// the multi-tenant story reads even before those tenants exist. Static by
-// design (marketing content, no DB read).
-export type SampleTenantSite = { name: string; live: boolean };
-export const SAMPLE_TENANT_SITES: SampleTenantSite[] = [
-  { name: "Philippines", live: true },
-  { name: "Banggai", live: false },
-  { name: "Pecca", live: false },
-];
 
 export const MARQUEE_CHIPS = [
   "War Room",
