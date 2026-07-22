@@ -80,6 +80,11 @@ export function TenantLoginForm({ tenant }: { tenant: string }) {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
+          <img
+            src="/blue-alliance-logo.png"
+            alt="Blue Alliance"
+            className="mx-auto mb-3 h-12 w-auto"
+          />
           <CardTitle>            <img
               src="/marine-guardian-logo.png"
               alt="Marine Guardian"
