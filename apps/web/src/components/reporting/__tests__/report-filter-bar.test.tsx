@@ -1,7 +1,14 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import {
+  render,
+  cleanup,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 
 const { stubs } = vi.hoisted(() => ({
   stubs: {
@@ -131,16 +138,36 @@ describe("ReportFilterBar", () => {
     );
   });
 
-  it("updating the From input drives the shared range", () => {
+  it("picking a day in the From picker drives the shared range to local start-of-day", () => {
     renderBar();
-    const from = screen.getByTestId("report-range-from");
-    fireEvent.change(from, { target: { value: "2026-03-15" } });
+    const toBefore = screen.getByTestId("probe").getAttribute("data-to");
+
+    // Open the From popover and click an enabled day cell in the calendar. The
+    // earliest-shown days are always enabled (the From calendar only disables
+    // days AFTER `to`), so the first enabled numeric day button is a safe,
+    // layout-independent target.
+    fireEvent.click(screen.getByTestId("report-range-from"));
+    const grid = screen.getByRole("grid");
+    const day = within(grid)
+      .getAllByRole("button")
+      .find(
+        (b) =>
+          /^\d+$/.test(b.textContent?.trim() ?? "") &&
+          !b.hasAttribute("disabled") &&
+          b.getAttribute("aria-disabled") !== "true",
+      );
+    expect(day).toBeTruthy();
+    fireEvent.click(day as HTMLElement);
 
     const probeFrom = screen.getByTestId("probe").getAttribute("data-from");
     expect(probeFrom).not.toBeNull();
-    // The provider parsed local midnight 2026-03-15.
-    expect(new Date(probeFrom as string).getFullYear()).toBe(2026);
-    expect(new Date(probeFrom as string).getMonth()).toBe(2); // March (0-based)
+    // The picker normalized the chosen day to LOCAL midnight (00:00:00.000).
+    const from = new Date(probeFrom as string);
+    expect(from.getHours()).toBe(0);
+    expect(from.getMinutes()).toBe(0);
+    expect(from.getSeconds()).toBe(0);
+    // Choosing a From day leaves the To bound untouched.
+    expect(screen.getByTestId("probe").getAttribute("data-to")).toBe(toBefore);
   });
 
   it("stacked layout keeps all controls but drops the bar chrome (for the floating card)", () => {
@@ -184,9 +211,8 @@ describe("ReportFilterBar", () => {
 
   it("each quick-range preset sets the last-N-day window", () => {
     renderBar();
-    const from = screen.getByTestId("report-range-from");
-    fireEvent.change(from, { target: { value: "2020-01-01" } });
-
+    // Presets set both bounds relative to `now`, so the starting window is
+    // irrelevant — clicking a preset makes (to − from) equal exactly N days.
     for (const days of [30, 15, 7]) {
       fireEvent.click(screen.getByTestId(`report-range-preset-${String(days)}`));
       const probe = screen.getByTestId("probe");
