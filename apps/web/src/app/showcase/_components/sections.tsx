@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Check, ArrowRight, BarChart3 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -7,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { BentoCard, BentoGrid } from "@/components/ui/bento-grid";
 import { Reveal } from "./reveal";
 import { BrowserFrame } from "./browser-frame";
+import { ImageLightbox, type LightboxImage } from "./image-lightbox";
 import { FEATURES, ROLES, STEPS, BENTO, PAINS } from "./data";
 import type { ResolvedFeature, ResolvedRole, ResolvedStep, ResolvedBentoItem, ResolvedPain } from "./resolve-cms";
 
@@ -159,6 +161,17 @@ export type BentoSectionProps = {
 const DEFAULT_BENTO_ICON = BarChart3;
 
 export function BentoSection({ eyebrow, title, bento }: BentoSectionProps) {
+  // Clickable bento screenshots open a shared full-screen lightbox. Build the
+  // enlarged-image list (+ each card's index into it) from the bento items that
+  // carry an image, so the tile the user clicks opens at the matching shot.
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const lightboxImages: LightboxImage[] = [];
+  const cardLightboxIndex = bento.map((item) => {
+    if (item.image == null) return null;
+    lightboxImages.push({ src: item.image, alt: item.name });
+    return lightboxImages.length - 1;
+  });
+
   return (
     <section className="border-y border-border/60 bg-background py-20 lg:py-28">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -184,17 +197,24 @@ export function BentoSection({ eyebrow, title, bento }: BentoSectionProps) {
                 cta="Request a demo"
                 background={
                   item.image != null ? (
-                    <div className="absolute inset-0">
-                      {/* Product screenshot behind the tile copy — kept clearly
-                          visible (top-weighted) and only fading out near the
-                          bottom so the tile title/description stay legible. */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLightboxIndex(cardLightboxIndex[i] ?? null);
+                      }}
+                      aria-label={`Enlarge the ${item.name} screenshot`}
+                      className="group/img absolute inset-0 cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--info))]"
+                    >
+                      {/* Product screenshot behind the tile copy — click to
+                          enlarge in the lightbox. Kept clearly visible (top-
+                          weighted) and fading near the bottom so the copy stays legible. */}
                       <img
                         src={item.image}
                         alt=""
                         aria-hidden
-                        className="h-full w-full object-cover object-top opacity-100 [mask-image:linear-gradient(to_bottom,black_62%,transparent)]"
+                        className="h-full w-full object-cover object-top opacity-100 transition-transform duration-300 group-hover/img:scale-[1.02] [mask-image:linear-gradient(to_bottom,black_62%,transparent)]"
                       />
-                    </div>
+                    </button>
                   ) : (
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_10%,hsl(var(--info)/0.12),transparent_60%)]" />
                   )
@@ -203,6 +223,15 @@ export function BentoSection({ eyebrow, title, bento }: BentoSectionProps) {
             ))}
           </BentoGrid>
         </Reveal>
+
+        <ImageLightbox
+          images={lightboxImages}
+          index={lightboxIndex}
+          onClose={() => {
+            setLightboxIndex(null);
+          }}
+          onIndexChange={setLightboxIndex}
+        />
       </div>
     </section>
   );
