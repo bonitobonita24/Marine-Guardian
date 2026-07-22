@@ -333,7 +333,7 @@ export function ReportFilterBar({
         })}
       </div>
 
-      <div className={cn(stacked ? "grid grid-cols-2 gap-1" : "contents")}>
+      <div className={cn(stacked ? "flex flex-col gap-1.5" : "contents")}>
         <div className={fieldClass}>
           <Label
             htmlFor="report-range-from"
@@ -346,7 +346,7 @@ export function ReportFilterBar({
             data-testid="report-range-from"
             type="date"
             className={cn(
-              stacked ? "h-7 w-full text-[11px]" : "h-8 w-40 text-xs",
+              stacked ? "h-7 w-[8.5rem] text-[11px]" : "h-8 w-40 text-xs",
             )}
             value={toDateInputValue(from)}
             max={toDateInputValue(to)}
@@ -366,7 +366,7 @@ export function ReportFilterBar({
             data-testid="report-range-to"
             type="date"
             className={cn(
-              stacked ? "h-7 w-full text-[11px]" : "h-8 w-40 text-xs",
+              stacked ? "h-7 w-[8.5rem] text-[11px]" : "h-8 w-40 text-xs",
             )}
             value={toDateInputValue(to)}
             min={toDateInputValue(from)}
