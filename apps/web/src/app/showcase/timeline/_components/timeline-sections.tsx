@@ -176,18 +176,19 @@ export function WhatsNextSection() {
             What&rsquo;s next
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            The four capabilities below are on the roadmap. Every screen shown in
+            The six capabilities below are on the roadmap. Every screen shown in
             this section is a concept mockup of planned work, not shipped
             functionality — with one exception, noted on its card, where an
             existing feature is being extended.
           </p>
           <p className="mt-4 text-base text-muted-foreground">
-            All four feed{" "}
+            They all feed{" "}
             <span className="font-medium text-foreground">
               Project Management
             </span>{" "}
-            for consolidated reporting, so catch, fuel, enforcement follow-up and
-            patrol activity roll up into a single organisation-wide view.
+            for consolidated reporting, so catch, fuel, science &amp; research,
+            asset custody, enforcement follow-up and patrol activity roll up into a
+            single organisation-wide view.
           </p>
         </TimelineReveal>
 

@@ -15,6 +15,8 @@ import {
   Fish,
   ClipboardList,
   Gavel,
+  Microscope,
+  Boxes,
   type LucideIcon,
 } from "lucide-react";
 
@@ -390,5 +392,31 @@ export const NEXT_FEATURES: NextFeature[] = [
     imageAlt:
       "Concept mockup of the planned Follow-Up Ops screen showing a case ledger of turned-over incidents, a per-case resolution timeline and a partner responsiveness table",
     icon: Gavel,
+  },
+  {
+    id: "science-research",
+    status: "Planned",
+    title: "Science & Research Activities",
+    what: "A field-science register for the research work that rides alongside patrols — reef-health surveys, water-quality sampling, fish visual census and species observations — each record captured against the Monitoring, Patrolling & Surveillance event it came from.",
+    purpose:
+      "To turn the observations rangers already make on patrol into a structured scientific dataset, so biodiversity trends and the ecological effect of protection can be read from the very same events that drive enforcement — measured, not collected twice.",
+    who: "Rangers and enumerators log observations in the field; marine scientists and MPA managers read the trends and study rollups.",
+    image: "/showcase/timeline/next/science-research.png",
+    imageAlt:
+      "Concept mockup of the planned Science & Research Activities screen with study KPIs, a monthly field-observations chart, active study types, and a recent-activities table linking each record to its originating monitoring or patrol event",
+    icon: Microscope,
+  },
+  {
+    id: "asset-monitoring",
+    status: "Planned",
+    title: "Asset Monitoring & Registry",
+    what: "A live registry of every asset the operation owns — from the smallest handheld gadget (a GPS unit, a VHF radio, a body camera) to fixed infrastructure (patrol boats, mooring buoys, guard posts) — each with its tag, category, current location and the personnel accountable for it.",
+    purpose:
+      "To end lost and unaccounted-for equipment: know what exists, where it sits, who holds it and what condition it is in — with custody and maintenance history for every item, down to the last gadget.",
+    who: "Logistics officers register and assign assets; team leaders and coordinators track location, custody and maintenance.",
+    image: "/showcase/timeline/next/asset-monitoring.png",
+    imageAlt:
+      "Concept mockup of the planned Asset Monitoring screen with asset KPIs, an assets-by-category breakdown, a by-location panel, and an asset register table listing each item's tag, category, location, assigned personnel and status",
+    icon: Boxes,
   },
 ];
