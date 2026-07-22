@@ -1,7 +1,8 @@
 "use client";
 
 import { Route, Footprints, Ship } from "lucide-react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 /**
  * Interactive Report Map — "Patrols in range" list (owner request 2026-06-29).
@@ -121,27 +122,27 @@ export function PatrolListByRangeCard({
       <CardHeader className="flex flex-row items-stretch justify-between gap-2 border-b px-3 py-1.5">
         <div className="flex min-w-0 flex-1 items-center gap-1.5 self-center">
           <Route className="size-3.5 shrink-0 text-foreground/70" aria-hidden="true" />
-          <h3 className="min-w-0 flex-1 text-[10px] font-bold uppercase leading-tight tracking-wider text-foreground/85">
+          <CardTitle className="min-w-0 flex-1 text-xs uppercase leading-tight tracking-wide text-foreground/85">
             Patrols
-          </h3>
+          </CardTitle>
         </div>
         <div className="w-px shrink-0 self-stretch bg-border" aria-hidden="true" />
-        <span className="shrink-0 self-center text-sm font-bold tabular-nums">
+        <Badge variant="secondary" className="shrink-0 self-center tabular-nums">
           {trueTotal.toLocaleString()}
-        </span>
+        </Badge>
       </CardHeader>
 
       <CardContent className="relative min-h-0 flex-1 px-0 pb-1 pt-0">
         {isLoading ? (
-          <p className="px-3 py-3 text-[10px] text-muted-foreground">Loading…</p>
+          <p className="px-3 py-3 text-xs text-muted-foreground">Loading…</p>
         ) : patrols.length === 0 ? (
-          <p className="px-3 py-3 text-[10px] text-muted-foreground">
+          <p className="px-3 py-3 text-xs text-muted-foreground">
             No patrols in this range.
           </p>
         ) : (
           <div className="absolute inset-0 flex flex-col">
             {isTruncated ? (
-              <p className="shrink-0 px-3 pb-1 pt-1.5 text-[9px] text-muted-foreground">
+              <p className="shrink-0 px-3 pb-1 pt-1.5 text-xs text-muted-foreground">
                 Showing {patrols.length.toLocaleString()} of{" "}
                 {totalCount.toLocaleString()}
               </p>
@@ -166,10 +167,10 @@ export function PatrolListByRangeCard({
                         type={p.patrolType}
                         className="size-4 shrink-0 text-foreground/60"
                       />
-                      <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground">
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
                         {who}
                       </span>
-                      <span className="shrink-0 text-[9px] tabular-nums text-muted-foreground">
+                      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
                         {formatPatrolDateTime(p.startTime)}
                         {" → "}
                         {formatPatrolDateTime(p.endTime)}

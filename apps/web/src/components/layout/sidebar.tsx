@@ -246,8 +246,8 @@ export function Sidebar() {
       <nav className="flex-1 overflow-y-auto py-1">
         {visibleNavGroups.map((group) => (
           <div key={group.label} className="mt-2 first:mt-1">
-            {/* Group label — matches mockup: 7px, 700, muted, uppercase, letterSpacing */}
-            <div className="px-3 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em] text-muted-foreground/60">
+            {/* Group label — shadcn-standard sidebar group heading sizing: text-xs, medium, muted, uppercase */}
+            <div className="px-3 py-1 text-xs font-medium uppercase tracking-wide text-muted-foreground/60">
               {group.label}
             </div>
             <ul>
@@ -262,16 +262,16 @@ export function Sidebar() {
                     <Link
                       href={tenantHref(tenant, item.href)}
                       className={cn(
-                        "flex items-center gap-2 rounded-sm mx-1 px-2 py-1 text-[11px] transition-colors",
+                        "flex items-center gap-2 rounded-sm mx-1 px-2 py-1.5 text-sm transition-colors",
                         item.indent === true
-                          ? "ml-3 border-l pl-2 text-[10px]"
+                          ? "ml-3 border-l pl-2"
                           : undefined,
                         isActive
                           ? "bg-primary/10 text-primary font-semibold"
                           : "text-muted-foreground hover:bg-muted hover:text-foreground"
                       )}
                     >
-                      <item.icon className="h-3 w-3 shrink-0" />
+                      <item.icon className="size-4 shrink-0" />
                       <span className="flex-1">{t(item.labelKey)}</span>
                       {showUnread ? (
                         <span

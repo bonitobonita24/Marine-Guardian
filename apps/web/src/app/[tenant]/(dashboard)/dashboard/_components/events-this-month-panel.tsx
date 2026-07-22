@@ -1,6 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc/client";
 
 /**
@@ -61,14 +62,14 @@ export function EventsThisMonthPanel({
   const items = query.data?.items ?? [];
 
   return (
-    <section
+    <Card
       aria-label="Events this month"
-      className="flex flex-col overflow-hidden rounded-md border bg-background/95 text-sm shadow-md backdrop-blur"
+      className="flex flex-col gap-2 overflow-hidden bg-background/95 py-2 text-sm shadow-md backdrop-blur"
     >
-      <div className="flex shrink-0 items-center justify-between gap-2 px-2.5 py-1">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+      <CardHeader className="flex shrink-0 flex-row items-center justify-between gap-2 px-2.5">
+        <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Events This Month
-        </span>
+        </CardTitle>
         <button
           type="button"
           onClick={onClose}
@@ -77,8 +78,8 @@ export function EventsThisMonthPanel({
         >
           <X className="size-4" />
         </button>
-      </div>
-      <div className="min-h-0 flex-1 space-y-0 overflow-y-auto px-2.5 pb-2">
+      </CardHeader>
+      <CardContent className="min-h-0 flex-1 space-y-0 overflow-y-auto px-2.5 pb-2 pt-0">
         {query.isLoading ? (
           <p className="py-4 text-center text-xs text-muted-foreground">
             Loading events…
@@ -139,7 +140,7 @@ export function EventsThisMonthPanel({
             })}
           </ul>
         )}
-      </div>
-    </section>
+      </CardContent>
+    </Card>
   );
 }
