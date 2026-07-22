@@ -4,6 +4,32 @@
 
 ---
 
+## 🟢 2026-07-21 (PM #3, evening) — EVENT re-derive churn FIXED + SHIPPED all envs (`main`=`sha-ae5bdff`) — CPU incident CLOSED
+
+The OPEN "event re-derivation churn" (worker "not stable", periodic 60–90% CPU bursts on staging+prod) is
+**root-caused, fixed, and validated on the live ER feed**, then merged to `main` and **promoted to
+production** (owner: "do what's necessary to fix it"). Root cause = **(1)** strict `!==` on FP coords in the
+event `geometryChanged` guard firing on ER-vs-stored ULP noise + **(2)** frozen `since` watermark (baked at
+schedule time, stuck at Jul-6 on BOTH staging+prod — re-pulled 25 events/cycle). Fix (`ae5bdff`) = 1e-6°
+epsilon coord compare + recurring watermark self-advance. Result both envs: events 25→0-3/cycle,
+area-rederive churn ~50:20→0:0, `municipality-assign` 0, CPU bursts→flat <0.4%. staging+prod on
+`sha-ae5bdff`; dev rebuilt off main; demo untouched (no er-sync). jobs 346/346 green.
+
+📄 **Full detail: [`docs/SESSION_HANDOFF_0721_pm3.md`](./SESSION_HANDOFF_0721_pm3.md).** This closes the PM#2
+block's "Further worker CPU reduction" item and the PM#3 patrol-fix's "STILL OPEN — EVENT re-derive churn".
+
+### Open items (carried forward — none blocking; CPU incident is closed)
+- [ ] **CI `main` dep-audit RED** — pre-existing `brace-expansion` advisory (transitive dep, not our code;
+  red since `e2de58a`; Docker build green). `chore/cve-remediation` branch exists. Address or accept?
+- [ ] **Parked local branches (HARD HOLD, await owner ship word):** `feat/pptx-jpeg-compression`@`71d8e17`
+  (PPTX 22.5→4.2 MB) · `feat/patrol-zone-manual-override`@`5fa3fd2` (zone-override UI+badge; ⚠ PDF report
+  doesn't list covered zones = separate task) · `feat/showcase-root-nav-tenants`@`c8b2034` (needs
+  `NEXT_PUBLIC_SHOWCASE_AT_ROOT=true`) · `fix/docs-typography-shadcn`@`376e36c`.
+- [ ] **Prod/demo zone-membership gap** — Harka geom prod=13/demo=0 vs dev 158; `98543dc` backfill never
+  ran on prod/demo (owner-gated, needs tunnel).
+
+---
+
 ## 🟢 2026-07-21 (PM evening) — Worker CPU incident FIXED + DEPLOYED (prod+staging on `sha-b695872`)
 
 Diagnosed + fixed a **BullMQ cross-queue lock-starvation spiral** that pinned prod+staging workers near
