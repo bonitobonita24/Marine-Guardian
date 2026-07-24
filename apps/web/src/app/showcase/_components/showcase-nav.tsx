@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { Waves } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { SHOWCASE_HOME, landingHref } from "./showcase-base";
@@ -20,11 +19,11 @@ export function ShowcaseNav() {
   return (
     <header className="sticky top-0 z-50 border-b border-border/60 bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <a href={SHOWCASE_HOME} className="flex items-center gap-2 font-semibold tracking-tight">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[hsl(var(--info)/0.15)] text-[hsl(var(--info))]">
-            <Waves className="h-4 w-4" />
-          </span>
-          <span className="text-sm text-foreground">Marine Guardian</span>
+        <a href={SHOWCASE_HOME} className="flex items-center">          <img
+            src="/marine-guardian-logo.png"
+            alt="Marine Guardian"
+            className="h-8 w-auto"
+          />
         </a>
 
         <nav className="hidden items-center gap-6 md:flex">
