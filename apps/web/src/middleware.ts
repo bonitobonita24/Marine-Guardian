@@ -46,7 +46,7 @@ function firstSegment(pathname: string): string {
 }
 
 // A first segment that looks like a filename (contains a ".") is a root static
-// asset — favicon.ico, icon.svg, apple-icon*.png, robots.txt, sitemap.xml,
+// asset — favicon.ico, icon.png, apple-icon*.png, robots.txt, sitemap.xml,
 // manifest.webmanifest, etc. Tenant slugs never contain a dot.
 function isStaticAssetSegment(seg: string): boolean {
   return seg.includes(".");
@@ -163,10 +163,10 @@ export default async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // --- Static assets & Next internals never resolve as a [tenant] slug -----
-  // A root static file (favicon.ico, icon.svg, apple-icon*.png, robots.txt,
+  // A root static file (favicon.ico, icon.png, apple-icon*.png, robots.txt,
   // sitemap.xml, manifest.webmanifest, …) or a Next internal (_next/*) flows
   // straight through. Without this guard the tenant-slug resolver rewrites e.g.
-  // /icon.svg -> /icon.svg/login (unauth) or /icon.svg -> /<tenant>/dashboard
+  // /icon.png -> /icon.png/login (unauth) or /icon.png -> /<tenant>/dashboard
   // (authed), emitting bogus 307s + console errors. `config.matcher` also
   // excludes these, but this guard is the authoritative, unit-tested defense.
   const firstSeg = firstSegment(pathname);
@@ -346,10 +346,10 @@ export default async function middleware(request: NextRequest) {
 export const config = {
   // Skip Next internals, root static files, and the handshake API routes. The
   // trailing `[\\w-]+\\.[\\w]+` clause excludes ANY root file with an extension
-  // (icon.svg, apple-icon.png, robots.txt, sitemap.xml, manifest.webmanifest,
+  // (icon.png, apple-icon.png, robots.txt, sitemap.xml, manifest.webmanifest,
   // …) so they never reach the tenant-slug resolver. The in-handler guard
   // (isStaticAssetSegment) is the authoritative, unit-tested backstop.
   matcher: [
-    "/((?!_next/static|_next/image|_next|favicon.ico|icon.svg|apple-icon|icons|images|robots.txt|sitemap.xml|manifest.webmanifest|api/health|api/auth|api/trpc|[\\w-]+\\.[\\w]+).*)",
+    "/((?!_next/static|_next/image|_next|favicon.ico|icon.png|apple-icon|icons|images|robots.txt|sitemap.xml|manifest.webmanifest|api/health|api/auth|api/trpc|[\\w-]+\\.[\\w]+).*)",
   ],
 };
