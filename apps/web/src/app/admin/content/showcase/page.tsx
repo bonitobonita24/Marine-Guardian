@@ -13,7 +13,7 @@ export default async function AdminContentShowcasePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-6">
+    <div className="min-h-screen bg-background">
       <AdminContentShowcaseClient />
     </div>
   );
