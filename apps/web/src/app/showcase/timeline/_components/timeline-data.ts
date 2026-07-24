@@ -17,6 +17,7 @@ import {
   Gavel,
   Microscope,
   Boxes,
+  Wrench,
   type LucideIcon,
 } from "lucide-react";
 
@@ -412,11 +413,24 @@ export const NEXT_FEATURES: NextFeature[] = [
     title: "Asset Monitoring & Registry",
     what: "A live registry of every asset the operation owns — from the smallest handheld gadget (a GPS unit, a VHF radio, a body camera) to fixed infrastructure (patrol boats, mooring buoys, guard posts) — each with its tag, category, current location and the personnel accountable for it.",
     purpose:
-      "To end lost and unaccounted-for equipment: know what exists, where it sits, who holds it and what condition it is in — with custody and maintenance history for every item, down to the last gadget.",
+      "To end lost and unaccounted-for equipment: know what exists, where it sits, who holds it and what condition it is in — with custody and maintenance history for every item, down to the last gadget, and it is this registry every repair work order is raised against.",
     who: "Logistics officers register and assign assets; team leaders and coordinators track location, custody and maintenance.",
     image: "/showcase/timeline/next/asset-monitoring.png",
     imageAlt:
       "Concept mockup of the planned Asset Monitoring screen with asset KPIs, an assets-by-category breakdown, a by-location panel, and an asset register table listing each item's tag, category, location, assigned personnel and status",
     icon: Boxes,
+  },
+  {
+    id: "repair-maintenance",
+    status: "Planned",
+    title: "Repair & Maintenance Management",
+    what: "Work orders raised against any registered asset — breakdown reports from the field, scheduled servicing, parts and costs, downtime, and the repair history that follows each item for its whole life.",
+    purpose:
+      "To keep the fleet and the field gear actually operational: catch a failure before a patrol has to be cancelled, and know the true cost of keeping each asset running.",
+    who: "Rangers and coxswains report faults from the field; logistics officers raise and close work orders; coordinators watch downtime and cost.",
+    image: "/showcase/timeline/next/repair-maintenance.png",
+    imageAlt:
+      "Concept mockup of the planned Repair & Maintenance Management screen with work-order KPIs for open, overdue and assets down, a work-orders-by-status breakdown, a per-asset repair-history panel, and a work-order table listing asset tag, reported fault, assignee, date opened and status",
+    icon: Wrench,
   },
 ];
