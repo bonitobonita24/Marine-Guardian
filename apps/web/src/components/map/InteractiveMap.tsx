@@ -87,7 +87,7 @@ const DEFAULT_ZOOM = 6;
  * that column's width changes, change these together.
  */
 const CONTROL_CLUSTER_BESIDE_MAP_CONTROLS =
-  "top-3 left-[13.5rem] lg:left-[16.5rem]";
+  "top-3 left-[13.5rem] lg:left-[17.5rem]";
 
 /**
  * The doodle toggle stacks directly beneath the zoom group, in the same
@@ -99,7 +99,7 @@ const CONTROL_CLUSTER_BESIDE_MAP_CONTROLS =
  * Rounded to `top-[5.3125rem]`. Same left offsets as the cluster.
  */
 const DOODLE_TOGGLE_BESIDE_MAP_CONTROLS =
-  "top-[5.3125rem] left-[13.5rem] lg:left-[16.5rem]";
+  "top-[5.3125rem] left-[13.5rem] lg:left-[17.5rem]";
 
 /** "Xh YYm" duration string for the traversing-coverage summary line, or "—"
  *  when the figure is unavailable. Mirrors formatPatrolHours in

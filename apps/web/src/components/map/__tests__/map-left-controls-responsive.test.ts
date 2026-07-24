@@ -39,8 +39,8 @@ const columnClass = (() => {
 
 describe("InteractiveMap floating controls column — responsive width", () => {
   it("keeps the approved wide-viewport width at lg and above", () => {
-    // Signed off in-browser at 1600px: w-60, left-3 top-3, clamped to the map.
-    expect(columnClass).toContain("lg:w-60");
+    // Signed off in-browser at 1600px: w-64, left-3 top-3, clamped to the map.
+    expect(columnClass).toContain("lg:w-64");
     expect(columnClass).toContain("lg:max-w-[calc(100%-1.5rem)]");
     expect(columnClass).toContain("left-3");
     expect(columnClass).toContain("top-3");

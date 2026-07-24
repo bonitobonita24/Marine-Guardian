@@ -60,6 +60,7 @@ export function AlertsPanel({
 
   return (
     <Card
+      role="region"
       aria-labelledby="warroom-alerts-heading"
       className="gap-0 overflow-hidden border-destructive/40 py-0"
     >

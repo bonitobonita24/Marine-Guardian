@@ -9,7 +9,7 @@
 //
 // Two things this must keep honest:
 //   1. The offset TRACKS the MAP CONTROLS card's width at every breakpoint.
-//      The card is `w-48` (12rem) below `lg` and `w-60` (15rem) at `lg`+, so a
+//      The card is `w-48` (12rem) below `lg` and `w-64` (16rem) at `lg`+, so a
 //      single fixed offset would leave a ~60px hole on narrow viewports.
 //      Both offsets are therefore RE-DERIVED here from the card's own width
 //      classes rather than hardcoded — change the card and this recomputes and
@@ -83,9 +83,9 @@ describe('floating map control cluster — placed beside MAP CONTROLS', () => {
     // Guards the derivation itself: if the card's widths drift, the expected
     // offsets below recompute rather than going silently stale.
     expect(cardWidthRem('')).toBe(12); // w-48
-    expect(cardWidthRem('lg:')).toBe(15); // lg:w-60
+    expect(cardWidthRem('lg:')).toBe(16); // lg:w-64
     expect(expectedOffsetRem('')).toBe(13.5); // 216px
-    expect(expectedOffsetRem('lg:')).toBe(16.5); // 264px
+    expect(expectedOffsetRem('lg:')).toBe(17.5); // 280px
   });
 
   it('sits one gap to the right of the card at every breakpoint', () => {
