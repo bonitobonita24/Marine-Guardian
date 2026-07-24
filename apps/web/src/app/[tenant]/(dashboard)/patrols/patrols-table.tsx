@@ -20,6 +20,11 @@ import {
   type AttributionFilterValue,
 } from "@/components/attribution/attribution-badge";
 import {
+  ZoneCoverageBadge,
+  zoneCoverageTitle,
+  type CoveredZoneBadgeSource,
+} from "@/components/attribution/zone-coverage-badge";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -116,6 +121,17 @@ export function PatrolsTable() {
   } | null>(null);
   const [selectedMuni, setSelectedMuni] = useState<string>("");
 
+  // Pending MPA-zone coverage-override target. Mirrors overrideTarget above:
+  // `covered` is a snapshot of that row's PatrolCoveredZone rows (taken at
+  // click-time, same as `current`/`manual` for the municipality dialog) so the
+  // dialog can list what's already covered/excluded without a second query.
+  const [zoneTarget, setZoneTarget] = useState<{
+    id: string;
+    title: string | null;
+    covered: PatrolListItem["coveredZones"];
+  } | null>(null);
+  const [zoneToAdd, setZoneToAdd] = useState<string>("");
+
   // Pending start/end time-override target. The ER mobile app often fails to
   // capture the phone's clock, so an officer supplies the time by hand.
   const [timeTarget, setTimeTarget] = useState<{
@@ -168,6 +184,21 @@ export function PatrolsTable() {
 
   const muniQuery = trpc.municipality.list.useQuery(undefined, {
     enabled: overrideTarget !== null,
+  });
+
+  // Tenant-wide MPA/zone list for the "Add a missed zone" picker — reuses the
+  // existing municipality.protectedZones lookup (already backs the Report Map
+  // zone filter); no new backend procedure needed for this slice.
+  const zonesQuery = trpc.municipality.protectedZones.useQuery(undefined, {
+    enabled: zoneTarget !== null,
+  });
+
+  const setZoneOverride = trpc.patrol.setZoneCoverageOverride.useMutation({
+    onSuccess: () => {
+      setZoneToAdd("");
+      setZoneTarget(null);
+      refreshList();
+    },
   });
 
   const setOverride = trpc.patrol.setMunicipalityOverride.useMutation({
@@ -473,6 +504,21 @@ export function PatrolsTable() {
                         <Button
                           variant="outline"
                           size="sm"
+                          data-testid={`zone-override-button-${p.id}`}
+                          onClick={() => {
+                            setZoneToAdd("");
+                            setZoneTarget({
+                              id: p.id,
+                              title: p.title,
+                              covered: p.coveredZones,
+                            });
+                          }}
+                        >
+                          Zones
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
                           data-testid={`time-override-button-${p.id}`}
                           onClick={() => {
                             setStartInput(toDateTimeLocal(p.startTime));
@@ -640,6 +686,192 @@ export function PatrolsTable() {
               }}
             >
               {setOverride.isPending ? "Saving…" : "Save override"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={zoneTarget !== null}
+        onOpenChange={(v) => {
+          if (!v && !setZoneOverride.isPending) {
+            setZoneTarget(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Manage protected-zone coverage</DialogTitle>
+            <DialogDescription>
+              Include a missed MPA/zone, exclude one the geometry wrongly
+              covered, or clear a manual entry back to automatic detection.
+            </DialogDescription>
+          </DialogHeader>
+
+          {zoneTarget !== null && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Covered zones</p>
+                {zoneTarget.covered.filter((z) => z.source !== "manual_exclude")
+                  .length === 0 ? (
+                  <p className="text-sm text-muted-foreground">None.</p>
+                ) : (
+                  <ul className="space-y-1">
+                    {zoneTarget.covered
+                      .filter((z) => z.source !== "manual_exclude")
+                      .map((z) => (
+                        <li
+                          key={z.protectedZoneId}
+                          data-testid={`covered-zone-row-${z.protectedZoneId}`}
+                          className="flex items-center justify-between gap-2 text-sm"
+                          title={zoneCoverageTitle(
+                            z.source as CoveredZoneBadgeSource,
+                          )}
+                        >
+                          <span className="flex items-center gap-2">
+                            {z.protectedZone.name}
+                            {/* Provenance — geometry (containment) draws no
+                                badge; title_hint/manual_include get a chip.
+                                manual_exclude never reaches here (filtered
+                                above). Shared with the report/map render
+                                surfaces via zone-coverage-badge.tsx. */}
+                            <ZoneCoverageBadge
+                              source={z.source as CoveredZoneBadgeSource}
+                              zoneId={z.protectedZoneId}
+                            />
+                          </span>
+                          {z.source === "manual_include" ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              data-testid={`clear-zone-button-${z.protectedZoneId}`}
+                              disabled={setZoneOverride.isPending}
+                              onClick={() => {
+                                setZoneOverride.mutate({
+                                  patrolId: zoneTarget.id,
+                                  protectedZoneId: z.protectedZoneId,
+                                  action: "clear",
+                                });
+                              }}
+                            >
+                              Clear (auto)
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              data-testid={`exclude-zone-button-${z.protectedZoneId}`}
+                              disabled={setZoneOverride.isPending}
+                              onClick={() => {
+                                setZoneOverride.mutate({
+                                  patrolId: zoneTarget.id,
+                                  protectedZoneId: z.protectedZoneId,
+                                  action: "exclude",
+                                });
+                              }}
+                            >
+                              Exclude
+                            </Button>
+                          )}
+                        </li>
+                      ))}
+                  </ul>
+                )}
+              </div>
+
+              {(() => {
+                const excluded = zoneTarget.covered.filter(
+                  (z) => z.source === "manual_exclude",
+                );
+                return excluded.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Manually excluded</p>
+                    <ul className="space-y-1">
+                      {excluded.map((z) => (
+                        <li
+                          key={z.protectedZoneId}
+                          data-testid={`excluded-zone-row-${z.protectedZoneId}`}
+                          className="flex items-center justify-between gap-2 text-sm"
+                        >
+                          <span>{z.protectedZone.name}</span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            data-testid={`clear-zone-button-${z.protectedZoneId}`}
+                            disabled={setZoneOverride.isPending}
+                            onClick={() => {
+                              setZoneOverride.mutate({
+                                patrolId: zoneTarget.id,
+                                protectedZoneId: z.protectedZoneId,
+                                action: "clear",
+                              });
+                            }}
+                          >
+                            Clear (auto)
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null;
+              })()}
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Add a missed zone</p>
+                <select
+                  data-testid="zone-picker-select"
+                  aria-label="Select a zone to include"
+                  value={zoneToAdd}
+                  onChange={(e) => { setZoneToAdd(e.target.value); }}
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm w-full"
+                >
+                  <option value="">— Select zone —</option>
+                  {zonesQuery.data
+                    ?.filter(
+                      (z) =>
+                        !zoneTarget.covered.some(
+                          (c) =>
+                            c.protectedZoneId === z.id &&
+                            c.source !== "manual_exclude",
+                        ),
+                    )
+                    .map((z) => (
+                      <option key={z.id} value={z.id}>
+                        {z.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+          )}
+
+          {setZoneOverride.error && (
+            <p className="text-sm text-destructive">
+              {setZoneOverride.error.message}
+            </p>
+          )}
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => { setZoneTarget(null); }}
+              disabled={setZoneOverride.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              data-testid="include-zone-button"
+              disabled={zoneToAdd === "" || setZoneOverride.isPending}
+              onClick={() => {
+                if (zoneTarget !== null) {
+                  setZoneOverride.mutate({
+                    patrolId: zoneTarget.id,
+                    protectedZoneId: zoneToAdd,
+                    action: "include",
+                  });
+                }
+              }}
+            >
+              {setZoneOverride.isPending ? "Saving…" : "Include zone"}
             </Button>
           </DialogFooter>
         </DialogContent>

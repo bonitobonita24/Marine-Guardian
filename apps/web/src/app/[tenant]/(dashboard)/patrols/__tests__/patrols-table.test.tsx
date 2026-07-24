@@ -23,6 +23,11 @@ vi.mock("next-auth/react", () => ({
 
 const setOverrideMutate = vi.fn();
 const setTimeOverrideMutate = vi.fn();
+const setZoneOverrideMutate = vi.fn();
+
+// Mutable protected-zones list — tests set this before render to control the
+// "Add a missed zone" picker's options.
+let protectedZonesData: { id: string; name: string }[] = [];
 
 vi.mock("@/lib/trpc/client", () => ({
   trpc: {
@@ -58,10 +63,20 @@ vi.mock("@/lib/trpc/client", () => ({
           error: null,
         }),
       },
+      setZoneCoverageOverride: {
+        useMutation: (): unknown => ({
+          mutate: setZoneOverrideMutate,
+          isPending: false,
+          error: null,
+        }),
+      },
     },
     municipality: {
       list: {
         useQuery: (): unknown => ({ data: [] }),
+      },
+      protectedZones: {
+        useQuery: (): unknown => ({ data: protectedZonesData }),
       },
     },
   },
@@ -75,6 +90,8 @@ beforeEach(() => {
   restoreMutate.mockReset();
   setOverrideMutate.mockReset();
   setTimeOverrideMutate.mockReset();
+  setZoneOverrideMutate.mockReset();
+  protectedZonesData = [];
   sessionRoles = [];
 });
 
@@ -108,6 +125,7 @@ const basePatrol = {
   firstSeenAt: null,
   isDeleted: false,
   segments: [],
+  coveredZones: [],
 };
 
 describe("PatrolsTable", () => {
@@ -444,5 +462,242 @@ describe("PatrolsTable — time override", () => {
     fireEvent.click(screen.getByTestId("time-override-button-p1"));
 
     expect(screen.queryByTestId("clear-time-override-button")).toBeNull();
+  });
+});
+
+// ── Manual per-patrol MPA-zone coverage override ──
+
+describe("PatrolsTable — zone coverage override", () => {
+  const MANAGER_ROLES = ["tenant_admin"];
+
+  it("hides the 'Zones' action from users who cannot manage patrols", () => {
+    sessionRoles = ["ranger"];
+    mockListResult([{ ...basePatrol, id: "p1", title: "Foot patrol" }]);
+
+    render(<PatrolsTable />);
+
+    expect(screen.queryByTestId("zone-override-button-p1")).toBeNull();
+  });
+
+  it("shows the 'Zones' action to a manager", () => {
+    sessionRoles = MANAGER_ROLES;
+    mockListResult([{ ...basePatrol, id: "p1", title: "Foot patrol" }]);
+
+    render(<PatrolsTable />);
+
+    expect(screen.queryByTestId("zone-override-button-p1")).not.toBeNull();
+  });
+
+  it("lists currently-covered zones with their provenance", () => {
+    sessionRoles = MANAGER_ROLES;
+    mockListResult([
+      {
+        ...basePatrol,
+        id: "p1",
+        title: "Foot patrol",
+        coveredZones: [
+          {
+            protectedZoneId: "z1",
+            source: "geometry",
+            protectedZone: { id: "z1", name: "Apo Reef" },
+          },
+          {
+            protectedZoneId: "z2",
+            source: "manual_include",
+            protectedZone: { id: "z2", name: "Wawa MPA" },
+          },
+        ],
+      },
+    ]);
+
+    render(<PatrolsTable />);
+    fireEvent.click(screen.getByTestId("zone-override-button-p1"));
+
+    expect(screen.getByTestId("covered-zone-row-z1").textContent).toContain(
+      "Apo Reef",
+    );
+    expect(screen.getByTestId("covered-zone-row-z2").textContent).toContain(
+      "Wawa MPA",
+    );
+    // Auto-derived coverage offers "Exclude"; manual coverage offers "Clear".
+    expect(screen.getByTestId("exclude-zone-button-z1")).not.toBeNull();
+    expect(screen.getByTestId("clear-zone-button-z2")).not.toBeNull();
+
+    // Provenance badges — geometry (containment) draws NO badge (the
+    // rendering contract shared with attribution-badge.tsx); manual_include
+    // gets a distinct "Manually added" chip.
+    expect(screen.queryByTestId("zone-coverage-badge-z1")).toBeNull();
+    expect(
+      screen.getByTestId("zone-coverage-badge-z2").textContent,
+    ).toContain("Manually added");
+  });
+
+  it("badges a title_hint-covered zone as 'Included by caption'", () => {
+    sessionRoles = MANAGER_ROLES;
+    mockListResult([
+      {
+        ...basePatrol,
+        id: "p1",
+        title: "Foot patrol",
+        coveredZones: [
+          {
+            protectedZoneId: "z5",
+            source: "title_hint",
+            protectedZone: { id: "z5", name: "Baco Bay MPA" },
+          },
+        ],
+      },
+    ]);
+
+    render(<PatrolsTable />);
+    fireEvent.click(screen.getByTestId("zone-override-button-p1"));
+
+    expect(
+      screen.getByTestId("zone-coverage-badge-z5").textContent,
+    ).toContain("Included by caption");
+  });
+
+  it("clicking Exclude on an auto-covered zone calls setZoneCoverageOverride with action=exclude", () => {
+    sessionRoles = MANAGER_ROLES;
+    mockListResult([
+      {
+        ...basePatrol,
+        id: "p1",
+        title: "Foot patrol",
+        coveredZones: [
+          {
+            protectedZoneId: "z1",
+            source: "geometry",
+            protectedZone: { id: "z1", name: "Apo Reef" },
+          },
+        ],
+      },
+    ]);
+
+    render(<PatrolsTable />);
+    fireEvent.click(screen.getByTestId("zone-override-button-p1"));
+    fireEvent.click(screen.getByTestId("exclude-zone-button-z1"));
+
+    expect(setZoneOverrideMutate).toHaveBeenCalledWith({
+      patrolId: "p1",
+      protectedZoneId: "z1",
+      action: "exclude",
+    });
+  });
+
+  it("clicking Clear on a manually-included zone calls setZoneCoverageOverride with action=clear", () => {
+    sessionRoles = MANAGER_ROLES;
+    mockListResult([
+      {
+        ...basePatrol,
+        id: "p1",
+        title: "Foot patrol",
+        coveredZones: [
+          {
+            protectedZoneId: "z2",
+            source: "manual_include",
+            protectedZone: { id: "z2", name: "Wawa MPA" },
+          },
+        ],
+      },
+    ]);
+
+    render(<PatrolsTable />);
+    fireEvent.click(screen.getByTestId("zone-override-button-p1"));
+    fireEvent.click(screen.getByTestId("clear-zone-button-z2"));
+
+    expect(setZoneOverrideMutate).toHaveBeenCalledWith({
+      patrolId: "p1",
+      protectedZoneId: "z2",
+      action: "clear",
+    });
+  });
+
+  it("lists a manually-excluded zone under 'Manually excluded' with its own Clear button", () => {
+    sessionRoles = MANAGER_ROLES;
+    mockListResult([
+      {
+        ...basePatrol,
+        id: "p1",
+        title: "Foot patrol",
+        coveredZones: [
+          {
+            protectedZoneId: "z3",
+            source: "manual_exclude",
+            protectedZone: { id: "z3", name: "Baco Bay" },
+          },
+        ],
+      },
+    ]);
+
+    render(<PatrolsTable />);
+    fireEvent.click(screen.getByTestId("zone-override-button-p1"));
+
+    // Not listed as covered — it's a tombstone, not real coverage.
+    expect(screen.queryByTestId("covered-zone-row-z3")).toBeNull();
+    expect(screen.getByTestId("excluded-zone-row-z3").textContent).toContain(
+      "Baco Bay",
+    );
+
+    fireEvent.click(screen.getByTestId("clear-zone-button-z3"));
+    expect(setZoneOverrideMutate).toHaveBeenCalledWith({
+      patrolId: "p1",
+      protectedZoneId: "z3",
+      action: "clear",
+    });
+  });
+
+  it("the 'Add a missed zone' picker excludes zones already covered and includes the selection", () => {
+    sessionRoles = MANAGER_ROLES;
+    protectedZonesData = [
+      { id: "z1", name: "Apo Reef" },
+      { id: "z4", name: "Puerto Galera MPA" },
+    ];
+    mockListResult([
+      {
+        ...basePatrol,
+        id: "p1",
+        title: "Foot patrol",
+        coveredZones: [
+          {
+            protectedZoneId: "z1",
+            source: "geometry",
+            protectedZone: { id: "z1", name: "Apo Reef" },
+          },
+        ],
+      },
+    ]);
+
+    render(<PatrolsTable />);
+    fireEvent.click(screen.getByTestId("zone-override-button-p1"));
+
+    const select: HTMLSelectElement = screen.getByTestId("zone-picker-select");
+    const optionValues = Array.from(select.options).map((o) => o.value);
+    // Already-covered z1 is excluded from the "missed zone" picker.
+    expect(optionValues).not.toContain("z1");
+    expect(optionValues).toContain("z4");
+
+    fireEvent.change(select, { target: { value: "z4" } });
+    fireEvent.click(screen.getByTestId("include-zone-button"));
+
+    expect(setZoneOverrideMutate).toHaveBeenCalledWith({
+      patrolId: "p1",
+      protectedZoneId: "z4",
+      action: "include",
+    });
+  });
+
+  it("disables 'Include zone' until a zone is selected", () => {
+    sessionRoles = MANAGER_ROLES;
+    protectedZonesData = [{ id: "z4", name: "Puerto Galera MPA" }];
+    mockListResult([{ ...basePatrol, id: "p1", title: "Foot patrol" }]);
+
+    render(<PatrolsTable />);
+    fireEvent.click(screen.getByTestId("zone-override-button-p1"));
+
+    const button: HTMLButtonElement = screen.getByTestId(
+      "include-zone-button",
+    );
+    expect(button.disabled).toBe(true);
   });
 });

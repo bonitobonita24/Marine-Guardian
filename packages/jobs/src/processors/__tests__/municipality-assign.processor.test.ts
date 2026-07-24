@@ -26,7 +26,7 @@ vi.mock("@marine-guardian/db", () => ({
     event: { findUnique: vi.fn(), update: vi.fn() },
     patrol: { findUnique: vi.fn(), update: vi.fn() },
     eventCoveredZone: { upsert: vi.fn() },
-    patrolCoveredZone: { upsert: vi.fn() },
+    patrolCoveredZone: { upsert: vi.fn(), findMany: vi.fn() },
   },
 }));
 
@@ -45,6 +45,7 @@ import { processMunicipalityAssign } from "../municipality-assign.processor";
 import { platformPrisma } from "@marine-guardian/db";
 import {
   assignMunicipalityByContainment,
+  assignZonesToPoint,
   firstTrackPoint,
 } from "@marine-guardian/shared/lib/municipality-assignment";
 
@@ -54,10 +55,12 @@ const pp = platformPrisma as unknown as {
   protectedZone: { findMany: ReturnType<typeof vi.fn> };
   event: { findUnique: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
   patrol: { findUnique: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
+  patrolCoveredZone: { upsert: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> };
 };
 
 const mockedAssignByContainment = assignMunicipalityByContainment as unknown as ReturnType<typeof vi.fn>;
 const mockedFirstTrackPoint = firstTrackPoint as unknown as ReturnType<typeof vi.fn>;
+const mockedAssignZonesToPoint = assignZonesToPoint as unknown as ReturnType<typeof vi.fn>;
 
 function makeJob(
   overrides: Partial<MunicipalityAssignJobPayload> = {},
@@ -79,6 +82,7 @@ describe("processMunicipalityAssign — missing row robustness", () => {
     vi.clearAllMocks();
     pp.municipality.findMany.mockResolvedValue([]);
     pp.protectedZone.findMany.mockResolvedValue([]);
+    pp.patrolCoveredZone.findMany.mockResolvedValue([]);
   });
 
   it("returns skipped not_found when the event row was deleted (findUnique → null)", async () => {
@@ -134,6 +138,7 @@ describe("processMunicipalityAssign — patrol Layer-1 START-point attribution",
     vi.clearAllMocks();
     pp.municipality.findMany.mockResolvedValue([]);
     pp.protectedZone.findMany.mockResolvedValue([]);
+    pp.patrolCoveredZone.findMany.mockResolvedValue([]);
   });
 
   it("uses the recorded start point's municipality (A) even when the track's majority lies in a different municipality (B)", async () => {
@@ -216,6 +221,7 @@ describe("processMunicipalityAssign — patrol manual-override anti-clobber", ()
     vi.clearAllMocks();
     pp.municipality.findMany.mockResolvedValue([]);
     pp.protectedZone.findMany.mockResolvedValue([]);
+    pp.patrolCoveredZone.findMany.mockResolvedValue([]);
   });
 
   it("does not overwrite municipalityId/municipalityAssignedAt when municipalityManual=true, but still writes terrain", async () => {
@@ -281,6 +287,7 @@ describe("processMunicipalityAssign — municipalityAttributionMethod provenance
     vi.clearAllMocks();
     pp.municipality.findMany.mockResolvedValue([]);
     pp.protectedZone.findMany.mockResolvedValue([]);
+    pp.patrolCoveredZone.findMany.mockResolvedValue([]);
   });
 
   function patrolUpdateData() {
@@ -419,6 +426,7 @@ describe("processMunicipalityAssign — event manual-override anti-clobber", () 
     vi.clearAllMocks();
     pp.municipality.findMany.mockResolvedValue([]);
     pp.protectedZone.findMany.mockResolvedValue([]);
+    pp.patrolCoveredZone.findMany.mockResolvedValue([]);
   });
 
   it("does not overwrite municipalityId/method when the event was manually overridden, but still writes terrain", async () => {
@@ -535,6 +543,7 @@ describe("processMunicipalityAssign — municipalityId ⇔ method pairing invari
     vi.clearAllMocks();
     pp.municipality.findMany.mockResolvedValue([]);
     pp.protectedZone.findMany.mockResolvedValue([]);
+    pp.patrolCoveredZone.findMany.mockResolvedValue([]);
   });
 
   /**
@@ -675,5 +684,104 @@ describe("processMunicipalityAssign — municipalityId ⇔ method pairing invari
     const eventData = ((pp.event.update.mock.calls[0]?.[0] ?? {}) as { data: Record<string, unknown> }).data;
     expectPaired(eventData);
     expect(eventData).not.toHaveProperty("municipalityId");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PATROL Layer-2 covered-zone manual-override anti-clobber (2026-07-21).
+//
+// PatrolCoveredZone rows can carry a manual provenance
+// ("manual_include" / "manual_exclude") set by an officer through the manual
+// zone-override UI. Fan-out re-attribution (this processor) must never
+// silently undo that:
+//   - manual_exclude is a TOMBSTONE — even when geometry now covers the zone,
+//     the processor must not re-create/re-touch the row.
+//   - manual_include must never be downgraded back to "geometry" when
+//     geometry also happens to cover it.
+// The plain geometry upsert path (no override present) must stay unchanged.
+describe("processMunicipalityAssign — patrol covered-zone manual-override anti-clobber", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    pp.municipality.findMany.mockResolvedValue([]);
+    pp.protectedZone.findMany.mockResolvedValue([]);
+  });
+
+  function basePatrol(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "patrol-zone-guard-1",
+      tenantId: "tenant-1",
+      startLocationLat: 13.4,
+      startLocationLon: 121.2,
+      municipalityId: null,
+      municipalityManual: false,
+      track: null,
+      ...overrides,
+    };
+  }
+
+  it("a manual_exclude zone stays ABSENT from the covered set even when geometry now covers it (tombstone holds)", async () => {
+    pp.patrol.findUnique.mockResolvedValueOnce(basePatrol());
+    mockedAssignByContainment.mockReturnValue("muni-A");
+    // Geometry pass says this patrol covers zone "zone-excluded" on this run.
+    mockedAssignZonesToPoint.mockReturnValue(["zone-excluded", "zone-normal"]);
+    pp.patrolCoveredZone.findMany.mockResolvedValueOnce([
+      { protectedZoneId: "zone-excluded", source: "manual_exclude" },
+    ]);
+
+    await processMunicipalityAssign(makeJob({ entity: "patrol", id: "patrol-zone-guard-1" }));
+
+    // The tombstoned zone must never be upserted...
+    const upsertedZoneIds = pp.patrolCoveredZone.upsert.mock.calls.map(
+      (call: unknown[]) =>
+        (call[0] as { where: { patrolId_protectedZoneId: { protectedZoneId: string } } }).where
+          .patrolId_protectedZoneId.protectedZoneId,
+    );
+    expect(upsertedZoneIds).not.toContain("zone-excluded");
+    // ...while the normal geometry-derived zone is untouched by the guard.
+    expect(upsertedZoneIds).toContain("zone-normal");
+  });
+
+  it("a manual_include zone keeps source='manual_include' after a re-run where geometry also covers it (source never downgraded)", async () => {
+    pp.patrol.findUnique.mockResolvedValueOnce(basePatrol());
+    mockedAssignByContainment.mockReturnValue("muni-A");
+    mockedAssignZonesToPoint.mockReturnValue(["zone-included"]);
+    pp.patrolCoveredZone.findMany.mockResolvedValueOnce([
+      { protectedZoneId: "zone-included", source: "manual_include" },
+    ]);
+
+    await processMunicipalityAssign(makeJob({ entity: "patrol", id: "patrol-zone-guard-1" }));
+
+    // The row IS still upserted (geometry also covers it) — but the update
+    // branch must stay assignedAt-only, never touching `source`, so the
+    // existing "manual_include" provenance is never overwritten.
+    expect(pp.patrolCoveredZone.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { patrolId_protectedZoneId: { patrolId: "patrol-zone-guard-1", protectedZoneId: "zone-included" } },
+        update: { assignedAt: expect.any(Date) as Date },
+      }),
+    );
+    const call = pp.patrolCoveredZone.upsert.mock.calls[0]?.[0] as { update: Record<string, unknown> };
+    expect(call.update).not.toHaveProperty("source");
+  });
+
+  it("the normal geometry upsert path is unchanged for non-overridden zones (no regression)", async () => {
+    pp.patrol.findUnique.mockResolvedValueOnce(basePatrol());
+    mockedAssignByContainment.mockReturnValue("muni-A");
+    mockedAssignZonesToPoint.mockReturnValue(["zone-plain"]);
+    pp.patrolCoveredZone.findMany.mockResolvedValueOnce([]);
+
+    await processMunicipalityAssign(makeJob({ entity: "patrol", id: "patrol-zone-guard-1" }));
+
+    expect(pp.patrolCoveredZone.upsert).toHaveBeenCalledWith({
+      where: { patrolId_protectedZoneId: { patrolId: "patrol-zone-guard-1", protectedZoneId: "zone-plain" } },
+      create: {
+        tenantId: "tenant-1",
+        patrolId: "patrol-zone-guard-1",
+        protectedZoneId: "zone-plain",
+        assignedAt: expect.any(Date) as Date,
+        source: "geometry",
+      },
+      update: { assignedAt: expect.any(Date) as Date },
+    });
   });
 });

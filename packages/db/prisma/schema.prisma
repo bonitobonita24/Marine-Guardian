@@ -138,14 +138,25 @@ enum MunicipalityAttributionMethod {
 }
 
 /// Provenance of a covered-zone junction row (which patrol/event covered which
-/// protected zone). `geometry` = derived by the live municipality-assign
-/// processor from the track/point (the default). `title_hint` = written ONLY by
-/// the one-time backfill (scripts/backfill-zone-title-hint.ts) when a record's
-/// GPS never entered the zone but its title/caption references it. Mirrors the
-/// MunicipalityAttributionMethod provenance pattern.
+/// protected zone). Four provenances:
+/// - `geometry` — derived by the live municipality-assign processor from the
+///   track/point (the default, auto containment).
+/// - `title_hint` — written ONLY by the one-time backfill
+///   (scripts/backfill-zone-title-hint.ts) when a record's GPS never entered
+///   the zone but its title/caption references it (patrol caption named the
+///   zone).
+/// - `manual_include` — a user manually added a zone the system missed. The
+///   row's `source` alone is the lock; there is no separate boolean flag.
+/// - `manual_exclude` — a TOMBSTONE: a user manually removed a
+///   wrongly-attributed zone. The read layer must treat the zone as NOT
+///   covered, and the containment/title-hint processor must never re-add
+///   (upsert over) a `manual_exclude` row.
+/// Mirrors the MunicipalityAttributionMethod provenance pattern.
 enum CoveredZoneSource {
   geometry
   title_hint
+  manual_include
+  manual_exclude
 }
 
 enum GeometryType {

@@ -83,6 +83,18 @@ export const patrolRouter = router({
         include: {
           segments: { select: { id: true, leaderName: true, actualStart: true, actualEnd: true } },
           municipality: { select: { id: true, name: true } },
+          // Zone-coverage override UI (mirrors the municipality override):
+          // needs each row's currently-covered protected zones + their source
+          // (geometry/title_hint/manual_include/manual_exclude) so the picker
+          // dialog can render "already covered" vs "missed" and whether a zone
+          // is manually locked.
+          coveredZones: {
+            select: {
+              protectedZoneId: true,
+              source: true,
+              protectedZone: { select: { id: true, name: true } },
+            },
+          },
         },
       });
       let nextCursor: string | undefined;
@@ -449,6 +461,138 @@ export const patrolRouter = router({
         id: input.id,
         municipalityId: input.municipalityId,
         municipalityManual: input.municipalityId !== null,
+      };
+    }),
+
+  /**
+   * Manual per-patrol protected-zone coverage override.
+   *
+   * Modeled line-for-line on `setMunicipalityOverride` above (same gate,
+   * same in-tenant validation shape, same clear→re-enqueue pattern). The
+   * `PatrolCoveredZone` junction row's `source` column is the anti-clobber
+   * flag here (mirrors `municipalityManual`): a `manual_include`/
+   * `manual_exclude` row always wins over whatever the geometry/title-hint
+   * derivation would otherwise write, until the officer clears it.
+   *
+   * - `include` → upsert the row with `source: "manual_include"`.
+   * - `exclude` → upsert the row with `source: "manual_exclude"` (a
+   *   tombstone — the pair is recorded as explicitly NOT covered).
+   * - `clear`   → delete the manual row for this pair and re-enqueue
+   *   municipality-assign so the geometry-derived value recomputes (same
+   *   re-derive trigger `setMunicipalityOverride` uses on clear).
+   *
+   * Security: tenant-scoped (L6) — both the patrol AND the protected zone
+   * must belong to ctx.tenantId; matrix-gated same as `update`.
+   */
+  setZoneCoverageOverride: matrixProcedure(tenantProcedure, "patrols", "update")
+    .input(
+      z
+        .object({
+          patrolId: z.string(),
+          protectedZoneId: z.string(),
+          action: z.enum(["include", "exclude", "clear"]),
+        })
+        .strict()
+    )
+    .mutation(async ({ ctx, input }) => {
+      const existingPatrol = await prisma.patrol.findFirst({
+        where: { id: input.patrolId, tenantId: ctx.tenantId },
+        select: { id: true },
+      });
+      if (!existingPatrol) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Patrol not found." });
+      }
+
+      const existingZone = await prisma.protectedZone.findFirst({
+        where: { id: input.protectedZoneId, tenantId: ctx.tenantId },
+        select: { id: true },
+      });
+      if (!existingZone) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Protected zone not found." });
+      }
+
+      const existingCoverage = await prisma.patrolCoveredZone.findUnique({
+        where: {
+          patrolId_protectedZoneId: {
+            patrolId: input.patrolId,
+            protectedZoneId: input.protectedZoneId,
+          },
+        },
+        select: { source: true },
+      });
+
+      if (input.action === "clear") {
+        await prisma.patrolCoveredZone.deleteMany({
+          where: { patrolId: input.patrolId, protectedZoneId: input.protectedZoneId },
+        });
+
+        await enqueueMunicipalityAssign({
+          entity: "patrol",
+          id: input.patrolId,
+          tenantId: ctx.tenantId,
+          userId: ctx.userId,
+        });
+
+        await writeAuditLog(prisma as unknown as PrismaClient, {
+          tenantId: ctx.tenantId,
+          userId: ctx.userId,
+          action: "CLEAR_PATROL_ZONE_OVERRIDE",
+          entityType: "Patrol",
+          entityId: input.patrolId,
+          changesJson: {
+            before: { protectedZoneId: input.protectedZoneId, source: existingCoverage?.source ?? null },
+            after: { protectedZoneId: input.protectedZoneId, source: null },
+          },
+          ipAddress: ctx.ip,
+          severity: "info",
+        });
+
+        return {
+          patrolId: input.patrolId,
+          protectedZoneId: input.protectedZoneId,
+          source: null,
+        };
+      }
+
+      const source: "manual_include" | "manual_exclude" =
+        input.action === "include" ? "manual_include" : "manual_exclude";
+
+      await prisma.patrolCoveredZone.upsert({
+        where: {
+          patrolId_protectedZoneId: {
+            patrolId: input.patrolId,
+            protectedZoneId: input.protectedZoneId,
+          },
+        },
+        create: {
+          tenantId: ctx.tenantId,
+          patrolId: input.patrolId,
+          protectedZoneId: input.protectedZoneId,
+          source,
+        },
+        update: {
+          source,
+        },
+      });
+
+      await writeAuditLog(prisma as unknown as PrismaClient, {
+        tenantId: ctx.tenantId,
+        userId: ctx.userId,
+        action: "SET_PATROL_ZONE_OVERRIDE",
+        entityType: "Patrol",
+        entityId: input.patrolId,
+        changesJson: {
+          before: { protectedZoneId: input.protectedZoneId, source: existingCoverage?.source ?? null },
+          after: { protectedZoneId: input.protectedZoneId, source },
+        },
+        ipAddress: ctx.ip,
+        severity: "info",
+      });
+
+      return {
+        patrolId: input.patrolId,
+        protectedZoneId: input.protectedZoneId,
+        source,
       };
     }),
 
