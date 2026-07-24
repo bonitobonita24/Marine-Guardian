@@ -1,7 +1,8 @@
 "use client";
 
 import { AlertTriangle, MapPin } from "lucide-react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { eventCategoryColor } from "@/components/map/eventMarkerStyle";
 import { eventTypeIcon } from "@/lib/event-type-icon";
 
@@ -57,17 +58,17 @@ export function HighPriorityEventsCard({
             style={{ color: "hsl(var(--destructive))" }}
             aria-hidden="true"
           />
-          <h3 className="min-w-0 flex-1 text-[10px] font-bold uppercase leading-tight tracking-wider text-foreground/85">
+          <CardTitle className="min-w-0 flex-1 text-xs uppercase leading-tight tracking-wide text-foreground/85">
             High Priority Events
-          </h3>
+          </CardTitle>
         </div>
         <div
           className="w-px shrink-0 self-stretch bg-border"
           aria-hidden="true"
         />
-        <span className="shrink-0 self-center text-sm font-bold tabular-nums">
+        <Badge variant="secondary" className="shrink-0 self-center tabular-nums">
           {total.toLocaleString()}
-        </span>
+        </Badge>
       </CardHeader>
 
       {/* relative + an absolutely-positioned scroll list: the list is taken out
@@ -76,9 +77,9 @@ export function HighPriorityEventsCard({
           than being capped to a hardcoded height. */}
       <CardContent className="relative min-h-0 flex-1 px-0 pb-1 pt-0">
         {isLoading ? (
-          <p className="px-3 py-3 text-[10px] text-muted-foreground">Loading…</p>
+          <p className="px-3 py-3 text-xs text-muted-foreground">Loading…</p>
         ) : events.length === 0 ? (
-          <p className="px-3 py-3 text-[10px] text-muted-foreground">
+          <p className="px-3 py-3 text-xs text-muted-foreground">
             No high-priority events in this range.
           </p>
         ) : (
@@ -110,13 +111,13 @@ export function HighPriorityEventsCard({
                       style={{ color: eventCategoryColor(e.category) }}
                       aria-hidden="true"
                     />
-                    <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground">
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
                       {label}
                     </span>
-                    <span className="max-w-[5rem] shrink-0 truncate text-[9px] text-muted-foreground">
+                    <span className="max-w-[5rem] shrink-0 truncate text-xs text-muted-foreground">
                       {e.municipalityName ?? "Unassigned"}
                     </span>
-                    <span className="shrink-0 text-[9px] tabular-nums text-muted-foreground">
+                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
                       {formatDate(e.reportedAt)}
                     </span>
                   </button>

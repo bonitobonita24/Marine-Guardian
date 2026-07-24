@@ -1,6 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { SelectedMonthEvent } from "./events-this-month-panel";
 
 /**
@@ -10,7 +11,9 @@ import type { SelectedMonthEvent } from "./events-this-month-panel";
  * prop) when an "Events This Month" panel row is clicked. Pure props —
  * summary fields come straight from the event.list row already fetched by
  * the panel (no event.getById call). Kept intentionally tight (`w-56`) since
- * it sits inside a map popup, not a full page panel.
+ * it sits inside a map popup, not a full page panel. The MapPopup shell
+ * itself is transparent/unstyled (globals.css strips maplibre's popup
+ * chrome), so this card owns its own shadcn Card shell.
  */
 export interface EventSummaryCardProps {
   event: SelectedMonthEvent;
@@ -32,11 +35,11 @@ export function EventSummaryCard({ event, onClose }: EventSummaryCardProps) {
       : new Date(event.reportedAt).toLocaleString();
 
   return (
-    <div className="w-56 max-w-xs space-y-1.5">
-      <div className="flex items-start justify-between gap-2">
-        <span className="text-sm font-medium leading-tight">
+    <Card className="w-56 max-w-xs gap-2 py-3 shadow-md">
+      <CardHeader className="flex flex-row items-start justify-between gap-2 px-3">
+        <CardTitle className="text-sm leading-tight">
           {event.displayTitle}
-        </span>
+        </CardTitle>
         <button
           type="button"
           onClick={onClose}
@@ -45,41 +48,43 @@ export function EventSummaryCard({ event, onClose }: EventSummaryCardProps) {
         >
           <X className="size-4" />
         </button>
-      </div>
-      <dl className="space-y-1 text-xs">
-        <div className="flex justify-between gap-2">
-          <dt className="text-muted-foreground">Type</dt>
-          <dd className="text-right font-medium">
-            {event.eventTypeDisplay ?? "—"}
-          </dd>
-        </div>
-        <div className="flex justify-between gap-2">
-          <dt className="text-muted-foreground">Date</dt>
-          <dd className="text-right font-medium">{dateLabel}</dd>
-        </div>
-        <div className="flex justify-between gap-2">
-          <dt className="text-muted-foreground">Area</dt>
-          <dd className="text-right font-medium">{event.areaName ?? "—"}</dd>
-        </div>
-        {event.offenderName != null && (
+      </CardHeader>
+      <CardContent className="px-3">
+        <dl className="space-y-1 text-xs">
           <div className="flex justify-between gap-2">
-            <dt className="text-muted-foreground">Offender</dt>
-            <dd className="text-right font-medium">{event.offenderName}</dd>
+            <dt className="text-muted-foreground">Type</dt>
+            <dd className="text-right font-medium">
+              {event.eventTypeDisplay ?? "—"}
+            </dd>
           </div>
-        )}
-        {event.vesselName != null && (
           <div className="flex justify-between gap-2">
-            <dt className="text-muted-foreground">Vessel</dt>
-            <dd className="text-right font-medium">{event.vesselName}</dd>
+            <dt className="text-muted-foreground">Date</dt>
+            <dd className="text-right font-medium">{dateLabel}</dd>
           </div>
-        )}
-        <div className="flex justify-between gap-2">
-          <dt className="text-muted-foreground">Status</dt>
-          <dd className="text-right font-medium">
-            {formatStatus(event.state)}
-          </dd>
-        </div>
-      </dl>
-    </div>
+          <div className="flex justify-between gap-2">
+            <dt className="text-muted-foreground">Area</dt>
+            <dd className="text-right font-medium">{event.areaName ?? "—"}</dd>
+          </div>
+          {event.offenderName != null && (
+            <div className="flex justify-between gap-2">
+              <dt className="text-muted-foreground">Offender</dt>
+              <dd className="text-right font-medium">{event.offenderName}</dd>
+            </div>
+          )}
+          {event.vesselName != null && (
+            <div className="flex justify-between gap-2">
+              <dt className="text-muted-foreground">Vessel</dt>
+              <dd className="text-right font-medium">{event.vesselName}</dd>
+            </div>
+          )}
+          <div className="flex justify-between gap-2">
+            <dt className="text-muted-foreground">Status</dt>
+            <dd className="text-right font-medium">
+              {formatStatus(event.state)}
+            </dd>
+          </div>
+        </dl>
+      </CardContent>
+    </Card>
   );
 }

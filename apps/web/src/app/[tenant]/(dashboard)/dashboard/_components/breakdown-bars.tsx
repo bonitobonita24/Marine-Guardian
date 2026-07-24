@@ -20,7 +20,8 @@
 
 import type { CSSProperties } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { EVENT_TYPE_ORDER, normalizeTypeLabel } from "@/lib/event-type-order";
 import { eventTypeIcon } from "@/lib/event-type-icon";
@@ -129,17 +130,17 @@ export function BreakdownBars({
                 aria-hidden="true"
               />
             ) : null}
-            <h3
+            <CardTitle
               id={headingId}
-              className="min-w-0 flex-1 text-[10px] font-bold uppercase leading-tight tracking-wider text-foreground/85"
+              className="min-w-0 flex-1 text-xs uppercase leading-tight tracking-wide text-foreground/85"
             >
               {title}
-            </h3>
+            </CardTitle>
           </div>
           <div className="w-px shrink-0 self-stretch bg-border" aria-hidden="true" />
-          <span className="shrink-0 self-center text-sm font-bold tabular-nums">
+          <Badge variant="secondary" className="shrink-0 self-center tabular-nums">
             {totalCount.toLocaleString()}
-          </span>
+          </Badge>
         </CardHeader>
       ) : (
         <CardHeader className="flex items-center justify-between border-b px-3 pb-2">
@@ -152,12 +153,12 @@ export function BreakdownBars({
               />
             ) : null}
             <div className="flex min-w-0 flex-col gap-0.5">
-              <h3
+              <CardTitle
                 id={headingId}
-                className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground"
+                className="text-xs uppercase tracking-wide text-muted-foreground"
               >
                 {title}
-              </h3>
+              </CardTitle>
               <span className="shrink-0 text-xs font-semibold tabular-nums">
                 {totalCount.toLocaleString()} total
               </span>
@@ -169,7 +170,7 @@ export function BreakdownBars({
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-500 opacity-60" />
               <span className="relative inline-flex size-2 rounded-full bg-green-500" />
             </span>
-            <span className="text-[9px] text-muted-foreground">Live</span>
+            <span className="text-xs text-muted-foreground">Live</span>
           </div>
         </CardHeader>
       )}
@@ -181,7 +182,7 @@ export function BreakdownBars({
         )}
       >
         {chartData.length === 0 ? (
-          <p className="py-3 text-[10px] text-muted-foreground">No events</p>
+          <p className="py-3 text-xs text-muted-foreground">No events</p>
         ) : (
           <ul
             className={cn(
@@ -215,7 +216,7 @@ export function BreakdownBars({
                   />
                   <span className="absolute inset-0 flex items-center gap-1.5 px-2">
                     <Icon className="size-3.5 shrink-0 text-foreground" />
-                    <span className="truncate text-[11px] font-medium text-foreground">
+                    <span className="truncate text-sm font-medium text-foreground">
                       {d.type}
                     </span>
                   </span>
@@ -243,7 +244,7 @@ export function BreakdownBars({
                   ) : (
                     <div className={barCls}>{barInner}</div>
                   )}
-                  <span className="w-12 shrink-0 text-right text-[11px] font-semibold tabular-nums text-foreground">
+                  <span className="w-12 shrink-0 text-right text-sm font-semibold tabular-nums text-foreground">
                     {d.count.toLocaleString()}
                   </span>
                 </li>

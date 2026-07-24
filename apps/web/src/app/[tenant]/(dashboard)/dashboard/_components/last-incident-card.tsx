@@ -1,3 +1,4 @@
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { relativeShort } from "./lib";
 
 /**
@@ -28,7 +29,7 @@ export function LastIncidentCard({
     incident?.title ?? incident?.eventType?.display ?? "Incident";
 
   return (
-    <section
+    <Card
       aria-labelledby="warroom-incident-heading"
       {...(clickable
         ? {
@@ -46,33 +47,35 @@ export function LastIncidentCard({
             },
           }
         : {})}
-      className={`flex min-w-[6.5rem] flex-1 self-stretch flex-col items-center justify-center gap-0.5 rounded-lg border border-border bg-card px-3 py-1.5 text-center ${
+      className={`flex min-w-[6.5rem] flex-1 self-stretch flex-col items-center justify-center gap-0.5 py-3 text-center ${
         clickable
           ? "cursor-pointer hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           : ""
       }`}
     >
-      <div className="flex items-center gap-1.5">
-        <h2
+      <CardHeader className="gap-0 p-0">
+        <CardTitle
           id="warroom-incident-heading"
-          className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground"
+          className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
         >
           Last Incident
-        </h2>
-      </div>
-      {incident === null ? (
-        <p className="mt-1 text-xs text-muted-foreground">None</p>
-      ) : (
-        <>
-          <p className="text-2xl font-extrabold leading-tight text-[hsl(var(--warning))]">
-            {relativeShort(incident.reportedAt, now)}
-            <span className="sr-only"> ago</span>
-          </p>
-          <p className="truncate text-[9px] text-muted-foreground">
-            {incident.title ?? incident.eventType?.display ?? "Incident"}
-          </p>
-        </>
-      )}
-    </section>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        {incident === null ? (
+          <p className="mt-1 text-xs text-muted-foreground">None</p>
+        ) : (
+          <>
+            <p className="text-2xl font-extrabold leading-tight text-[hsl(var(--warning))]">
+              {relativeShort(incident.reportedAt, now)}
+              <span className="sr-only"> ago</span>
+            </p>
+            <p className="truncate text-xs text-muted-foreground">
+              {incident.title ?? incident.eventType?.display ?? "Incident"}
+            </p>
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }

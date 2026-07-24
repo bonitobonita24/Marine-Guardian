@@ -1,9 +1,16 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { format } from "date-fns";
+import { CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Calendar } from "@/components/ui/calendar";
 import { Label } from "@/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -21,10 +28,12 @@ import { useReportFilter } from "./report-filter-context";
 /**
  * Interactive Report Map filter bar (2026-06-27).
  *
- * From/To native date inputs + a municipality Select, all bound to the shared
- * {@link useReportFilter} context so every panel re-queries in lock-step. Native
- * date inputs keep us dependency-free (same pattern as the dashboard's
- * date-range-header); each control carries an explicit <label> for WCAG 2.2 AA.
+ * From/To date pickers (shadcn Calendar in a Popover) + a municipality Select,
+ * all bound to the shared {@link useReportFilter} context so every panel
+ * re-queries in lock-step. The custom pickers replaced native
+ * `<input type="date">` (2026-07-22) because the native calendar glyph spaced
+ * inconsistently across browsers; each trigger carries an explicit <label> for
+ * WCAG 2.2 AA.
  *
  * The municipality options are loaded from `municipality.list`. The "all"
  * sentinel maps to a null municipalityId (Radix Select forbids an empty-string
@@ -46,15 +55,96 @@ const RANGE_PRESETS = [
 ] as const;
 
 /**
- * Format a Date as the `yyyy-MM-dd` value a native date input expects, using
- * LOCAL calendar fields (not UTC) so the displayed day matches the operator's
- * timezone — toISOString() would shift the date across the UTC boundary.
+ * Collapse a Date to LOCAL start-of-day (00:00:00.000). The From bound is
+ * inclusive from the first instant of the chosen day, in the operator's
+ * timezone (never UTC — that would shift the day across the date boundary).
  */
-function toDateInputValue(d: Date): string {
-  const year = String(d.getFullYear()).padStart(4, "0");
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+function startOfLocalDay(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+/**
+ * Push a Date to LOCAL end-of-day (23:59:59.999) so the To bound is inclusive
+ * of every event on the chosen day.
+ */
+function endOfLocalDay(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(23, 59, 59, 999);
+  return x;
+}
+
+/**
+ * Shared field-label styling for the compact map-controls card. shadcn-standard
+ * small label (muted `text-xs font-medium`) — replaced the earlier cramped
+ * `text-[10px]` bold-uppercase labels (2026-07-22) so the whole card reads as
+ * one consistent shadcn surface.
+ */
+const LABEL_CLASS = "text-xs font-medium text-muted-foreground";
+
+/**
+ * A single From/To date control: a shadcn Button trigger (formatted date +
+ * calendar glyph) opening a Popover-hosted shadcn Calendar. Replaces the native
+ * `<input type="date">` whose calendar-glyph spacing rendered inconsistently
+ * across browsers — this custom picker owns its full appearance, so From and To
+ * are pixel-even at every width. Label stays above the trigger for WCAG 2.2 AA.
+ */
+function DateRangeField({
+  id,
+  testId,
+  label,
+  value,
+  onSelect,
+  disabled,
+  triggerClass,
+}: {
+  id: string;
+  testId: string;
+  label: string;
+  value: Date;
+  onSelect: (day: Date) => void;
+  /** Days the calendar must not allow (keeps From ≤ To). */
+  disabled?: (date: Date) => boolean;
+  /** Height/width/text classes so From and To align in either layout. */
+  triggerClass: string;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Label htmlFor={id} className={LABEL_CLASS}>
+        {label}
+      </Label>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            id={id}
+            data-testid={testId}
+            type="button"
+            variant="outline"
+            className={cn("justify-start gap-1.5 px-2 font-normal", triggerClass)}
+          >
+            <CalendarIcon className="size-3.5 shrink-0 text-muted-foreground" />
+            <span className="truncate">{format(value, "MMM d, yyyy")}</span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <Calendar
+            mode="single"
+            required
+            selected={value}
+            defaultMonth={value}
+            disabled={disabled}
+            onSelect={(day) => {
+              onSelect(day);
+              setOpen(false);
+            }}
+            autoFocus
+          />
+        </PopoverContent>
+      </Popover>
+    </>
+  );
 }
 
 export function ReportFilterBar({
@@ -228,21 +318,14 @@ export function ReportFilterBar({
   // Which preset (if any) matches the active window — drives the pressed style.
   const activeDays = Math.round((to.getTime() - from.getTime()) / DAY_MS);
 
-  const handleFromChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value;
-    if (raw === "") return; // ignore cleared input
-    const next = new Date(`${raw}T00:00:00`);
-    if (Number.isNaN(next.getTime())) return;
-    setRange({ from: next, to });
+  const handleFromSelect = (day: Date) => {
+    // Local start-of-day so the FROM bound includes the whole chosen day.
+    setRange({ from: startOfLocalDay(day), to });
   };
 
-  const handleToChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value;
-    if (raw === "") return;
+  const handleToSelect = (day: Date) => {
     // Local end-of-day so the TO bound is inclusive of the chosen day.
-    const next = new Date(`${raw}T23:59:59.999`);
-    if (Number.isNaN(next.getTime())) return;
-    setRange({ from, to: next });
+    setRange({ from, to: endOfLocalDay(day) });
   };
 
   const handleMunicipalityChange = (value: string) => {
@@ -291,7 +374,7 @@ export function ReportFilterBar({
     ? "flex min-h-7 items-center justify-between gap-2"
     : "contents";
   const toggleHintClass = cn(
-    "text-[10px] text-muted-foreground",
+    "text-xs text-muted-foreground",
     stacked ? "" : "ml-1",
   );
 
@@ -321,7 +404,7 @@ export function ReportFilterBar({
               variant={active ? "default" : "outline"}
               size="sm"
               aria-pressed={active}
-              className={cn(stacked ? "h-7 w-full px-0 text-[11px]" : "h-8")}
+              className={cn(stacked ? "h-8 w-full px-0 text-xs" : "h-8")}
               onClick={() => {
                 setLastNDays(p.days);
               }}
@@ -333,44 +416,32 @@ export function ReportFilterBar({
         })}
       </div>
 
-      <div className={cn(stacked ? "grid grid-cols-2 gap-1" : "contents")}>
-        <div className={fieldClass}>
-          <Label
-            htmlFor="report-range-from"
-            className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
-          >
-            From
-          </Label>
-          <Input
+      {/* From (left) + To (right) on ONE row in the stacked card (owner request
+          2026-07-22) — each field flexes to half the card width so the two
+          pickers sit side-by-side instead of stacked. In `bar` layout the row
+          collapses to `contents`, leaving the horizontal toolbar unchanged. */}
+      <div className={cn(stacked ? "flex flex-row gap-2" : "contents")}>
+        <div className={cn(fieldClass, stacked && "min-w-0 flex-1")}>
+          <DateRangeField
             id="report-range-from"
-            data-testid="report-range-from"
-            type="date"
-            className={cn(
-              stacked ? "h-7 w-full text-[11px]" : "h-8 w-40 text-xs",
-            )}
-            value={toDateInputValue(from)}
-            max={toDateInputValue(to)}
-            onChange={handleFromChange}
+            testId="report-range-from"
+            label="From"
+            value={from}
+            onSelect={handleFromSelect}
+            disabled={(date) => date > to}
+            triggerClass={stacked ? "h-8 w-full text-xs" : "h-8 w-40 text-xs"}
           />
         </div>
 
-        <div className={fieldClass}>
-          <Label
-            htmlFor="report-range-to"
-            className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
-          >
-            To
-          </Label>
-          <Input
+        <div className={cn(fieldClass, stacked && "min-w-0 flex-1")}>
+          <DateRangeField
             id="report-range-to"
-            data-testid="report-range-to"
-            type="date"
-            className={cn(
-              stacked ? "h-7 w-full text-[11px]" : "h-8 w-40 text-xs",
-            )}
-            value={toDateInputValue(to)}
-            min={toDateInputValue(from)}
-            onChange={handleToChange}
+            testId="report-range-to"
+            label="To"
+            value={to}
+            onSelect={handleToSelect}
+            disabled={(date) => date < startOfLocalDay(from)}
+            triggerClass={stacked ? "h-8 w-full text-xs" : "h-8 w-40 text-xs"}
           />
         </div>
       </div>
@@ -382,7 +453,7 @@ export function ReportFilterBar({
       <div className={fieldClass}>
         <Label
           htmlFor="report-province"
-          className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+          className={LABEL_CLASS}
         >
           Province
         </Label>
@@ -390,7 +461,7 @@ export function ReportFilterBar({
           <SelectTrigger
             id="report-province"
             data-testid="report-province"
-            className={cn(stacked ? "h-7 w-full text-[11px]" : "h-8 w-[12rem] text-xs")}
+            className={cn(stacked ? "h-8 w-full text-sm" : "h-8 w-[12rem] text-xs")}
           >
             <SelectValue placeholder="All provinces" />
           </SelectTrigger>
@@ -408,7 +479,7 @@ export function ReportFilterBar({
       <div className={fieldClass}>
         <Label
           htmlFor="report-municipality"
-          className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+          className={LABEL_CLASS}
         >
           Municipality
         </Label>
@@ -419,7 +490,7 @@ export function ReportFilterBar({
           <SelectTrigger
             id="report-municipality"
             data-testid="report-municipality"
-            className={cn(stacked ? "h-7 w-full text-[11px]" : "h-8 w-[12rem] text-xs")}
+            className={cn(stacked ? "h-8 w-full text-sm" : "h-8 w-[12rem] text-xs")}
           >
             <SelectValue placeholder="All municipalities" />
           </SelectTrigger>
@@ -454,7 +525,7 @@ export function ReportFilterBar({
           <div className={toggleRowClass}>
             <Label
               htmlFor="report-include-children"
-              className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+              className={LABEL_CLASS}
             >
               Include child boundaries
             </Label>
@@ -482,7 +553,7 @@ export function ReportFilterBar({
         <div className={toggleRowClass}>
           <Label
             htmlFor="report-include-traversing"
-            className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+            className={LABEL_CLASS}
           >
             Include traversing patrols
           </Label>
@@ -515,7 +586,7 @@ export function ReportFilterBar({
         <div className={fieldClass}>
           <Label
             htmlFor="report-protected-zone"
-            className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+            className={LABEL_CLASS}
           >
             MPA Zone
           </Label>
@@ -526,7 +597,7 @@ export function ReportFilterBar({
             <SelectTrigger
               id="report-protected-zone"
               data-testid="report-protected-zone"
-              className={cn(stacked ? "h-7 w-full text-[11px]" : "h-8 w-[12rem] text-xs")}
+              className={cn(stacked ? "h-8 w-full text-sm" : "h-8 w-[12rem] text-xs")}
             >
               <SelectValue placeholder="All zones" />
             </SelectTrigger>
@@ -560,7 +631,7 @@ export function ReportFilterBar({
               <div className={toggleRowClass}>
                 <Label
                   htmlFor="report-include-traversing-full"
-                  className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+                  className={LABEL_CLASS}
                 >
                   Count full traversing patrols
                 </Label>
@@ -588,7 +659,7 @@ export function ReportFilterBar({
       <div className={fieldClass}>
         <Label
           htmlFor="report-terrain"
-          className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+          className={LABEL_CLASS}
         >
           Terrain
         </Label>
@@ -596,7 +667,7 @@ export function ReportFilterBar({
           <SelectTrigger
             id="report-terrain"
             data-testid="report-terrain"
-            className={cn(stacked ? "h-7 w-full text-[11px]" : "h-8 w-[8rem] text-xs")}
+            className={cn(stacked ? "h-8 w-full text-sm" : "h-8 w-[8rem] text-xs")}
           >
             <SelectValue placeholder="All terrain" />
           </SelectTrigger>

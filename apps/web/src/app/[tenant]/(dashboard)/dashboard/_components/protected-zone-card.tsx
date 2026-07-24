@@ -9,7 +9,7 @@
  * Matches the Card shell pattern used by BreakdownBars and MunicipalityCoverageChart.
  */
 
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 export interface ProtectedZoneDatum {
@@ -61,12 +61,12 @@ export function ProtectedZoneCard({
     >
       <CardHeader className="px-3 pb-0 pt-0">
         <div className="flex items-center justify-between">
-          <h3
+          <CardTitle
             id={HEADING_ID}
-            className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground"
+            className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
           >
             Protected Zones
-          </h3>
+          </CardTitle>
           <span className="text-xs font-semibold tabular-nums text-muted-foreground">
             {rangeLabel}
           </span>
@@ -76,7 +76,7 @@ export function ProtectedZoneCard({
             <span className="text-xl font-extrabold tabular-nums text-[hsl(var(--info))]">
               {coveragePct}%
             </span>
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               patrolled ({patrolledCount}/{sorted.length} zones)
             </span>
           </div>
@@ -85,9 +85,9 @@ export function ProtectedZoneCard({
 
       <CardContent className="px-3 pb-1 pt-0">
         {isLoading ? (
-          <p className="py-3 text-[10px] text-muted-foreground">Loading…</p>
+          <p className="py-3 text-xs text-muted-foreground">Loading…</p>
         ) : sorted.length === 0 ? (
-          <p className="py-3 text-[10px] text-muted-foreground">No protected zones</p>
+          <p className="py-3 text-xs text-muted-foreground">No protected zones</p>
         ) : (
           // Bounded + internally scrollable (hidden bar via .command-center CSS)
           // so the card stays a fixed height as more MPAs/zones are added — the
@@ -97,11 +97,11 @@ export function ProtectedZoneCard({
             {sorted.map((z) => (
               <li key={z.zone} className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="truncate text-[11px] font-semibold text-foreground leading-tight">
+                  <p className="truncate text-xs font-semibold text-foreground leading-tight">
                     {z.zone}
                   </p>
                   {z.parentMunicipality != null && (
-                    <p className="truncate text-[10px] text-muted-foreground">
+                    <p className="truncate text-xs text-muted-foreground">
                       {z.parentMunicipality}
                     </p>
                   )}
@@ -109,14 +109,14 @@ export function ProtectedZoneCard({
                 <div className="flex shrink-0 items-center gap-1">
                   <Badge
                     variant="secondary"
-                    className="h-4 px-1 py-0 text-[9px] tabular-nums"
+                    className="h-4 px-1 py-0 text-xs tabular-nums"
                     title={`${String(z.patrolCount)} patrol(s)`}
                   >
                     {z.patrolCount}P
                   </Badge>
                   <Badge
                     variant="outline"
-                    className="h-4 px-1 py-0 text-[9px] tabular-nums"
+                    className="h-4 px-1 py-0 text-xs tabular-nums"
                     title={`${String(z.eventCount)} event(s)`}
                   >
                     {z.eventCount}E

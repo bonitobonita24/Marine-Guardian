@@ -893,7 +893,7 @@ export function InteractiveMap({
            surface and the card's own collapse button remains reachable without
            first dismissing anything. Every `lg:` value is the pre-regression
            value verbatim — >= 1024px is pixel-identical to before. */
-        <div className="absolute left-3 top-3 z-20 flex max-h-[calc(100%-1.5rem)] w-48 max-w-[60%] flex-col lg:w-60 lg:max-w-[calc(100%-1.5rem)]">
+        <div className="absolute left-3 top-3 z-20 flex max-h-[calc(100%-1.5rem)] w-48 max-w-[60%] flex-col lg:w-64 lg:max-w-[calc(100%-1.5rem)]">
           <TrackLegend
             orientation="vertical"
             collapsible
